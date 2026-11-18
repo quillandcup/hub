@@ -49,6 +49,10 @@ Search is measured with a few typed events plus named controls (`lib/analytics/s
 
 Pages that report as they render use `trackWhenEnabled` (`lib/analytics/client.ts`): on a first page load the report can run a moment before consent has been read, so it waits for tracking to be switched on, and is dropped (never held) if it isn't.
 
+## Keyboard shortcuts panel
+
+`shortcuts_panel_opened` fires when the shortcuts panel (`components/shortcuts/`, opened with `?`) opens, with `via` `key` or `help_menu`: how many people on a keyboard find the panel, and how. Nothing is recorded about the keys pressed or the panel's search text. The Help menu item is also the named control `help-menu-shortcuts`.
+
 ## Managing events (admin)
 
 | Event | Fires | Answers |

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Copy, Equal, EllipsisVertical, Eye, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Equal, EllipsisVertical, Eye, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -36,6 +36,8 @@ export const ICONS = {
   unpublish: Lock,
   /** Earlier versions of something. */
   history: History,
+  /** Close a panel or dismiss something. */
+  close: X,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

@@ -2,7 +2,15 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 import { hasCommandModifier, isOverlayOpen, isTypingTarget } from "@/lib/keyboard";
+
+/** The calendar's shortcuts, for the shortcut panel (`lib/shortcuts.ts`): each entry lists the keys that do the same thing. Keep in step with `onKeyDown` below. */
+export const CALENDAR_KEYBOARD_SHORTCUTS: ReadonlyArray<{ keys: string[][]; label: string }> = [
+  { keys: [["p"], ["k"]], label: "Previous week" },
+  { keys: [["n"], ["j"]], label: "Next week" },
+  { keys: [["t"]], label: "Jump to today" },
+];
 
 interface CalendarKeyboardNavProps {
   prevHref: string;
@@ -17,6 +25,7 @@ interface CalendarKeyboardNavProps {
  */
 export default function CalendarKeyboardNav({ prevHref, nextHref, todayHref }: CalendarKeyboardNavProps) {
   const router = useRouter();
+  useRegisterShortcuts("calendar");
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

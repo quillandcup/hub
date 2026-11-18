@@ -16,6 +16,7 @@ import { track } from "@/lib/analytics/client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
 import Kbd from "@/components/Kbd";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 import { CHAT_UPLOAD_CONCURRENCY, runPool } from "@/lib/chat/upload-pool";
 import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
 import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/lib/chat/list-events";
@@ -96,6 +97,7 @@ export default function Composer({
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
   const boxRef = useRef<MessageBoxHandle | null>(null);
+  useRegisterShortcuts("chat");
   // People and channels picked in the box (shown name to Slack markup), turned into markup when sending.
   const mentionTokens = useRef(restored?.tokens ?? new Map<string, string>());
   const pickerRef = useRef<HTMLInputElement>(null);

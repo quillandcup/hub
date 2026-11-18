@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useId, useRef, type ReactNode } from "react";
 import Kbd from "@/components/Kbd";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 import { useTableKeyboardNav } from "@/lib/hooks/useTableKeyboardNav";
 import type { DataTable } from "@/lib/hooks/useDataTable";
 
@@ -84,6 +85,11 @@ export default function TableKeyboardNav({
     regionRef,
     pagination,
     resetKey: `${pagination?.page}:${pagination?.pageSize}:${table.sortColumn}:${table.sortDirection}`,
+  });
+  // The shortcut panel lists the table keys while a table with rows is on the page, and the optional ones this table can do.
+  useRegisterShortcuts("table", {
+    active: capabilities.rows > 0,
+    has: (["open", "select", "paging"] as const).filter((need) => capabilities[need]),
   });
   const available = (needs?: "open" | "select" | "paging") => !needs || capabilities[needs];
   const hints = TABLE_KEYBOARD_HINTS.filter((hint) => available(hint.needs));
