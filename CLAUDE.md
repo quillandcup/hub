@@ -45,6 +45,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 | `member-identity.md`, `display-names.md`, `hand-overs.md` | sudo identity, display names, accept-to-transfer |
 | `member-notifications.md` | `createNotifier`, kinds, channels, message copy, dry-run rollout |
 | `usage-analytics.md`, `audit-and-activity-log.md` | tracking plan, audit entries, Activity Log events |
+| `keyboard-shortcuts.md` | the `?` panel registry, handler rules, drift tests |
 | `tabbed-pages.md`, `ui-layout.md` | tabs are paths, container queries, named z-layers |
 | `resource-ids.md`, `business-facts.md` | id tiers and prefixes, derive don't assume |
 | `admin-route-protection.md` | admin pages/actions, community manager, preview role |
