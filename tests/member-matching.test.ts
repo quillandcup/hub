@@ -64,6 +64,21 @@ describe('member matching library', () => {
       adminClient.from('member_name_aliases').select('member_id, alias, source').order('id').range(from, to)
     )
 
+    // This file has failed on CI now and then with every test that needs its own member finding nothing (a
+    // member the test inserted a moment before was not in the list). Say which it was, instead of a null
+    // that looks like a matching bug: not loaded although the row exists, or the row is gone.
+    if (!members.some((m) => m.id === testMemberId)) {
+      const [{ data: direct }, { count }] = await Promise.all([
+        adminClient.from('members').select('id, email').eq('id', testMemberId),
+        adminClient.from('members').select('id', { count: 'exact', head: true }),
+      ])
+      throw new Error(
+        `The test member ${testMemberId} is not in the ${members.length} members loaded. ` +
+          `A direct lookup by id finds ${direct?.length ?? 0} row(s); the table holds ${count} rows. ` +
+          `Loaded ${aliases.length} aliases.`
+      )
+    }
+
     const result = matchAttendeeToMember(
       zoom_name,
       zoom_email,
