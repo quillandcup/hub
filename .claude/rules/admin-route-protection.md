@@ -6,6 +6,8 @@ paths:
   - "lib/admin-paths.ts"
   - "lib/staff-access.ts"
   - "lib/staff-preview.ts"
+  - "lib/staff-mfa.ts"
+  - "lib/staff-mfa.server.ts"
   - "lib/supabase/middleware.ts"
   - "lib/supabase/api-auth.ts"
   - "proxy.ts"
@@ -26,6 +28,8 @@ Layers, per the Next.js auth guide (`node_modules/next/dist/docs/01-app/02-guide
 **Preview as a role**: an admin can look at the admin area as a community manager (user menu → "Preview as Community Manager", exit from the banner). A `staff_preview_role` cookie (`lib/staff-preview.ts`) lowers the *effective* role for a real admin only (anyone else's cookie is ignored): the proxy, `requireStaffPage()` (returns `role` and `realRole`) and `requireAdminPage()`/`requireAdminAction()` then treat them as that role, so admin-only pages send them to the role's home and actions are refused. It is UI and routing only: data is still read with the admin's RLS access, so test a database limit with a real account of that role. Not sudo (sudo changes the member acted as, never the staff role). A new previewable role is an entry in `PREVIEWABLE_ROLES`.
 
 **Non-admins go to `/no-access`, never a member page**: member pages send anyone without a member record to `/admin`, so redirecting non-admins back to `/dashboard` would loop. `app/no-access/page.tsx` sits outside both route groups and must never redirect a signed-in user.
+
+**Second sign-in step (TOTP, `docs/STAFF_MFA.md`, `lib/staff-mfa.ts`)**: all four guards (the proxy, `requireAdminPage`/`requireStaffPage`, `requireAdminAction`/`requireStaffAction`, and `requireAdmin` for API routes) hold staff to aal2 when their account has a verified factor, and, from `staffMfaRequiredFrom` in `app.config.ts` (unset = off), to having one. Pages redirect through the `staffMfa` gate to `/mfa` and back; actions return `MFA_REQUIRED_ERROR`; `/mfa` sits outside both route groups like `/no-access`. The proxy reads the token's `aal` claim and `user.factors` from the `getUser()` it already ran; the page and action guards use `lib/staff-mfa.server.ts`. A new admin guard or entry point needs the same check.
 
 Sudo doesn't affect any of these checks: the sudo cookie changes the effective *member*, not the signed-in admin. API routes use `requireAdmin` (`lib/supabase/api-auth.ts`) instead.
 

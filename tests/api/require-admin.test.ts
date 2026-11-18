@@ -18,13 +18,14 @@ function makeRequest(authHeader?: string): NextRequest {
   return new NextRequest('http://localhost/api/test', { headers })
 }
 
-function makeSupabaseMock(user: any, role: string | null, lookupError?: string) {
+function makeSupabaseMock(user: any, role: string | null, lookupError?: string, mfa: { aal?: string; factors?: unknown[] } = {}) {
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue({
-        data: user ? { claims: { sub: user.id, email: user.email } } : null,
+        data: user ? { claims: { sub: user.id, email: user.email, aal: mfa.aal ?? 'aal2' } } : null,
         error: null,
       }),
+      getUser: vi.fn().mockResolvedValue({ data: { user: { factors: mfa.factors ?? [] } }, error: null }),
     },
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
@@ -68,6 +69,27 @@ describe('requireAdmin', () => {
 
     const result = await requireAdmin(makeRequest())
     expect(result.forbidden).toBe(false)
+  })
+
+  describe('second sign-in step (lib/staff-mfa.ts)', () => {
+    const totp = [{ factor_type: 'totp', status: 'verified' }]
+    const adminAt = (mfa: { aal?: string; factors?: unknown[] }) =>
+      vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, 'admin', undefined, mfa) as any)
+
+    it('is forbidden for an admin with a factor whose session is still aal1', async () => {
+      adminAt({ aal: 'aal1', factors: totp })
+      expect((await requireAdmin(makeRequest())).forbidden).toBe(true)
+    })
+
+    it('lets an aal2 admin through', async () => {
+      adminAt({ aal: 'aal2', factors: totp })
+      expect((await requireAdmin(makeRequest())).forbidden).toBe(false)
+    })
+
+    it('lets an admin with no factor through while the requirement is off', async () => {
+      adminAt({ aal: 'aal1', factors: [] })
+      expect((await requireAdmin(makeRequest())).forbidden).toBe(false)
+    })
   })
 
   it('is forbidden, not an error, when the role lookup fails even for an admin (unknown is never admin)', async () => {

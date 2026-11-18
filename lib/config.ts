@@ -56,6 +56,9 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Minutes after writing a staff note during which its author can edit it (app.config.ts `adminNoteEditMinutes`). */
 export const ADMIN_NOTE_EDIT_MINUTES: number = appConfig.adminNoteEditMinutes;
 
+/** When staff must use a second sign-in step; null = not required yet (app.config.ts `staffMfaRequiredFrom`, lib/staff-mfa.ts). */
+export const STAFF_MFA_REQUIRED_FROM: string | null = appConfig.staffMfaRequiredFrom;
+
 /** Hedgie Care (lib/care.ts): the length of one engagement, in days (app.config.ts `careEngagementDays`). */
 export const CARE_ENGAGEMENT_DAYS: number = appConfig.careEngagementDays;
 

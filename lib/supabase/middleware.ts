@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
-import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { getAalFromAccessToken, getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 import { COMMUNITY_MANAGER_HOME, mayOpenAdminPath } from '@/lib/staff-access'
 import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
@@ -11,7 +11,9 @@ import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, isRememberableVisit, safeNextPath } from '@/lib/safe-next'
 import { coursePreviewRewrite, lessonPreviewRewrite } from '@/lib/courses/preview-path'
-import { CURRENT_PATH_HEADER } from '@/lib/gates'
+import { CURRENT_PATH_HEADER, GATES, gateHref } from '@/lib/gates'
+import { blocksStaff, hasVerifiedTotp, isStaffMfaEnforced, staffMfaState } from '@/lib/staff-mfa'
+import { clock } from '@/lib/clock'
 import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
 import { deviceForStorage } from '@/lib/device'
@@ -95,6 +97,8 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   // The role the custom access token hook put in the token (see
   // getAppRoleFromAccessToken); only admin and community_manager open any admin path (lib/staff-access.ts).
   let roleClaim: string | null | undefined = undefined
+  // The session's assurance level claim: aal2 once it has passed a TOTP challenge (lib/staff-mfa.ts).
+  let aalClaim: string | null = null
   let authCheckTimedOut = false
   try {
     const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
@@ -109,6 +113,7 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
       if (accessToken) {
         sessionId = getSessionIdFromAccessToken(accessToken)
         roleClaim = getAppRoleFromAccessToken(accessToken)
+        aalClaim = getAalFromAccessToken(accessToken)
       }
     }
   } catch {
@@ -241,6 +246,22 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
       url.search = ''
       const redirectResponse = NextResponse.redirect(url)
       // Keep any session cookies getUser() just refreshed.
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+      return redirectResponse
+    }
+    // Staff who have a second step but haven't passed it, or must set one up, go to /mfa and come back
+    // (lib/staff-mfa.ts). getUser() above is what returned `user.factors`, so a factor removed in the dashboard counts now.
+    const mfa = staffMfaState({
+      aal: aalClaim,
+      hasFactor: hasVerifiedTotp(user.factors),
+      enforced: isStaffMfaEnforced(clock.now()),
+    })
+    if (blocksStaff(mfa)) {
+      const url = request.nextUrl.clone()
+      const gate = new URL(gateHref(GATES.staffMfa, askedFor(request)), request.nextUrl.origin)
+      url.pathname = gate.pathname
+      url.search = gate.search
+      const redirectResponse = NextResponse.redirect(url)
       supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
       return redirectResponse
     }

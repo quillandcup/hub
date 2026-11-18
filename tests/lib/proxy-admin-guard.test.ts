@@ -17,7 +17,7 @@ vi.mock("next/server", async (importOriginal) => ({
 }));
 
 const state: {
-  user: { id: string } | null;
+  user: { id: string; factors?: { factor_type: string; status: string }[] } | null;
   getUserFails: boolean;
   profileTableReads: number;
   /** Claims in the session's access token; null = no session token. */
@@ -234,5 +234,83 @@ describe("isAdminPath", () => {
     ["/api/admin/users", false],
   ])("%s → %s", (path, expected) => {
     expect(isAdminPath(path)).toBe(expected);
+  });
+});
+
+describe("proxy second sign-in step for staff (lib/staff-mfa.ts)", () => {
+  const TOTP = [{ factor_type: "totp", status: "verified" }];
+
+  /** Sign in as `role` with an access token at level `aal`, an account that has `factors`, and the requirement on or off. */
+  function signInStaff(role: string, { aal, factors = [] }: { aal: "aal1" | "aal2"; factors?: { factor_type: string; status: string }[] }) {
+    signIn({ id: ADMIN.id, factors } as typeof ADMIN, role);
+    state.tokenClaims = { ...state.tokenClaims, aal };
+  }
+  async function locationOf(path: string) {
+    const res = await proxy(request(path));
+    const location = res.headers.get("location");
+    return location ? new URL(location) : null;
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  it("lets an aal2 admin through", async () => {
+    signInStaff("admin", { aal: "aal2", factors: TOTP });
+    expect(await redirectedTo("/admin/members")).toBeNull();
+  });
+
+  it("sends an aal1 admin who has a factor to the code screen, with where they were going, whether or not the requirement is on", async () => {
+    signInStaff("admin", { aal: "aal1", factors: TOTP });
+    const location = await locationOf("/admin/members?search=fern");
+    expect(location?.pathname).toBe("/mfa");
+    expect(location?.searchParams.get("next")).toBe("/admin/members?search=fern");
+  });
+
+  it("sends an aal1 community manager who has a factor to the code screen", async () => {
+    signInStaff("community_manager", { aal: "aal1", factors: TOTP });
+    expect(await redirectedTo("/admin/at-risk")).toBe("/mfa");
+  });
+
+  it("does not count an unverified factor (an abandoned set-up)", async () => {
+    signInStaff("admin", { aal: "aal1", factors: [{ factor_type: "totp", status: "unverified" }] });
+    expect(await redirectedTo("/admin/members")).toBeNull();
+  });
+
+  it("lets an admin with no factor through while the requirement is off (the default)", async () => {
+    signInStaff("admin", { aal: "aal1" });
+    expect(await redirectedTo("/admin/members")).toBeNull();
+  });
+
+  it("sends an admin with no factor to the set-up screen once the requirement starts", async () => {
+    vi.doMock("@/lib/config", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/config")>()), STAFF_MFA_REQUIRED_FROM: "2027-02-01T00:00:00-05:00" }));
+    vi.resetModules();
+    try {
+      const { proxy: freshProxy } = await import("@/proxy");
+      vi.useFakeTimers({ toFake: ["Date"] });
+      signInStaff("admin", { aal: "aal1" });
+      vi.setSystemTime(new Date("2027-01-31T23:00:00-05:00"));
+      expect((await freshProxy(request("/admin/members"))).headers.get("location")).toBeNull();
+      vi.setSystemTime(new Date("2027-02-01T00:30:00-05:00"));
+      const location = (await freshProxy(request("/admin/members"))).headers.get("location");
+      expect(new URL(location!).pathname).toBe("/mfa");
+    } finally {
+      vi.doUnmock("@/lib/config");
+      vi.resetModules();
+    }
+  });
+
+  it("leaves /mfa itself and a member's pages alone", async () => {
+    signInStaff("admin", { aal: "aal1", factors: TOTP });
+    expect(await redirectedTo("/mfa")).toBeNull();
+    expect(await redirectedTo("/dashboard")).toBeNull();
+  });
+
+  it("keeps sudo working for an aal2 admin", async () => {
+    signInStaff("admin", { aal: "aal2", factors: TOTP });
+    expect(await redirectedTo("/admin/members", { sudo_as: `${ADMIN.id}:member-fern:deadbeef` })).toBeNull();
+  });
+
+  it("still sends a member claim to /no-access, not the code screen", async () => {
+    signInStaff("member", { aal: "aal1", factors: TOTP });
+    expect(await redirectedTo("/admin/members")).toBe("/no-access");
   });
 });

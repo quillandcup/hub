@@ -34,6 +34,14 @@ export const GATES = {
     declineTo: "/dashboard",
     declineLabel: "your dashboard",
   },
+  staffMfa: {
+    id: "staff-mfa",
+    path: "/mfa",
+    params: { staff: "required" },
+    reason: "Staff accounts sign in with a second step: a code from an authenticator app.",
+    declineTo: "/dashboard",
+    declineLabel: "your dashboard",
+  },
 } as const satisfies Record<string, Gate>;
 
 /** The request header the proxy sets to the address being asked for (path and query), so a server page can tell a gate where to come back to (lib/gates.server.ts). */
