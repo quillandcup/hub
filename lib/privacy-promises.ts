@@ -14,7 +14,7 @@ import { RETENTION } from "@/lib/retention";
  * job use, so they cannot drift.
  */
 
-export const PRIVACY_PROMISES_EFFECTIVE = "2026-11-17";
+export const PRIVACY_PROMISES_EFFECTIVE = "2026-11-18";
 
 export interface PrivacyPromise {
   id: string;
@@ -246,11 +246,17 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         title: "Members can ask to see, correct or remove what we hold",
         status: "working",
         reads: ["choices-asking"],
-        how: "Requests come by email to the support address and are handled by a person.",
-        evidence: ["lib/privacy.ts (asking us)"],
-        checked: "2026-11-17",
+        how: "Requests come by email to the support address and are handled by a person. Removal has a staff tool: \"Remove on request\" on the admin member page shows what would be removed (a dry run), asks for the member's name to confirm, then deletes or anonymises their records in one database transaction and removes their sign-in and stored files, leaving the copies in the imports from other services to be removed at the source. Turning off usage statistics is a switch on the Privacy page.",
+        evidence: [
+          "lib/privacy.ts (asking us)",
+          "app/(admin)/admin/members/[id]/RemoveMemberPanel.tsx",
+          "app/(admin)/admin/members/[id]/removal-actions.ts",
+          "lib/member-removal.ts",
+          "supabase/migrations/20270411000000_remove_member_data.sql",
+        ],
+        checked: "2026-11-18",
         open: [
-          "There is no in-app tool or queue for these requests, and nothing tracks a request or its one-month deadline. Writing the steps down, and a way to log each request, would make the promise checkable.",
+          "Removal has a tool; seeing what we hold, and correcting it, do not, so those requests are answered by hand. Nothing records that a request arrived, when it was answered or its one-month deadline, and a removal also removes the audit entries about the person, so a record has to be kept apart and without personal data (docs/TODO.md, \"Data requests: record each one and its deadline, and answer access requests\").",
         ],
       },
       {

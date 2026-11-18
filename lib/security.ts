@@ -88,23 +88,22 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
       },
       {
         id: "at-rest",
-        title: "Encrypted at rest: the database and our settings",
+        title: "Encrypted at rest: the database, uploaded files and our settings",
         status: "provider",
         member:
-          "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. Our database provider says all customer data is encrypted at rest; it does not name uploaded files on their own. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and settings we give our hosting provider are encrypted at rest too.",
+          "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. Our database provider encrypts all customer data at rest with AES-256, including the files you upload. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and passwords we give our hosting provider are encrypted at rest too, and cannot be read back once they are saved.",
         staff: {
-          how: "Database: the provider states that database data and backups are encrypted with AES-256, with keys generated per project and protected by FIPS 140-2 compliant hardware security modules, and destroyed if the project is deleted (its data residency and transfers FAQ, version dated 2026-10-06, read on 2026-11-17). Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. The database provider's security page also says \"All customer data is encrypted at rest with AES-256 and in transit via TLS\" and that a project's Postgres database, Auth service and Storage objects are hosted in its region; neither that page nor the Storage documentation names Storage objects in an encryption sentence (read on 2026-11-18). These are the providers' statements, not something we tested.",
+          how: "Database: the provider states that database data and backups are encrypted with AES-256, with keys generated per project and protected by FIPS 140-2 compliant hardware security modules, and destroyed if the project is deleted (its data residency and transfers FAQ, version dated 2026-10-06, read on 2026-11-17). Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. The database provider's security page also says \"All customer data is encrypted at rest with AES-256 and in transit via TLS\" and that a project's Postgres database, Auth service and Storage objects are hosted in its region; neither that page nor the Storage documentation names Storage objects in an encryption sentence, so we read the general statement as covering uploaded files (a decision, 2026-11-18). Hosting: every variable our configuration declares as a secret that is set in production is stored as a Secret, which the provider documents as write-only after saving (checked 2026-11-18 from the hosting CLI's read-only listing of variable types, against env-vars.config.ts; none is stored as readable Config). These are the providers' statements, not something we tested.",
           evidence: [
             "env-vars.config.ts",
             "docs/ENV_MANAGEMENT.md",
             "provider documentation, read 2026-11-17: the database provider's data residency and transfers FAQ (at rest section) and the hosting provider's security documentation",
-            "provider documentation, read 2026-11-18: the database provider's security page and Storage documentation",
+            "provider documentation, read 2026-11-18: the database provider's security page and Storage documentation, and the hosting provider's documentation on Secret and Config environment variables",
+            "live check, 2026-11-18: the hosting provider's read-only listing of production variable types, compared with env-vars.config.ts",
           ],
           checked: "2026-11-18",
           open: [
             "The database provider's FAQ does not say who holds the keys or whether they rotate, and points to its data processing addendum (schedule 1) for full technical detail. Read that, and ask the provider for its SOC 2 report, before quoting more than the sentences above.",
-            "Whether the production secrets are marked sensitive (write-only) in the hosting provider has not been checked.",
-            "Uploaded files (the storage buckets that hold pictures, covers and media) are covered only by the provider's general sentence that all customer data is encrypted at rest. Nothing it publishes names Storage objects in an encryption sentence. Get written confirmation (the data processing addendum, schedule 1, or a support answer), then name uploaded files in the member text and retitle the row.",
           ],
         },
       },

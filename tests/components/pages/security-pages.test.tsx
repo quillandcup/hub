@@ -105,12 +105,14 @@ describe("security list: encryption", () => {
     expect(titles.every((t) => t.startsWith("Encrypted "))).toBe(true);
   });
 
-  it("does not claim at-rest encryption for uploaded files by name, and keeps that open until the provider confirms it", () => {
+  it("says uploaded files are covered as a reading of the provider's general statement, and has no open item left for storage or the hosting settings", () => {
     const rest = SECURITY_ITEMS.find((i) => i.id === "at-rest")!;
-    expect(rest.title).not.toMatch(/what we store/i);
-    expect(rest.member).not.toMatch(/uploaded files are|pictures|media is|storage is/i);
-    expect(rest.member).toMatch(/does not name uploaded files/);
-    expect(rest.staff.open.join(" ")).toMatch(/Nothing it publishes names Storage objects/);
+    expect(rest.title).toMatch(/uploaded files/);
+    expect(rest.member).toMatch(/including the files you upload/);
+    expect(rest.member).not.toMatch(/we read|we understand|probably|should/i);
+    expect(rest.staff.how).toMatch(/we read the general statement as covering uploaded files/);
+    expect(rest.staff.how).toMatch(/write-only after saving/);
+    expect(rest.staff.open.join(" ")).not.toMatch(/storage buckets|write-only|sensitive/i);
   });
 
   it("says TLS, not HTTPS, to members about the database connection", () => {
