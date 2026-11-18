@@ -90,35 +90,41 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Encrypted at rest",
         status: "provider",
         member:
-          "Our hosting provider encrypts what it stores on disk with AES-256, and the keys and settings we give it are encrypted at rest.",
+          "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and settings we give our hosting provider are encrypted at rest too.",
         staff: {
-          how: "Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. Database: the provider's platform encrypts its disks, but we have not captured its own statement of algorithm and key size, so this page does not quote one for the database.",
-          evidence: ["env-vars.config.ts", "docs/ENV_MANAGEMENT.md"],
+          how: "Database: the provider states that database data and backups are encrypted with AES-256, with keys generated per project and protected by FIPS 140-2 compliant hardware security modules, and destroyed if the project is deleted (its data residency and transfers FAQ, version dated 2026-10-06, read on 2026-11-17). Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. These are the providers' statements, not something we tested.",
+          evidence: [
+            "env-vars.config.ts",
+            "docs/ENV_MANAGEMENT.md",
+            "provider documentation, read 2026-11-17: the database provider's data residency and transfers FAQ (at rest section) and the hosting provider's security documentation",
+          ],
           checked: "2026-11-17",
           open: [
-            "Capture the database provider's statement on disk encryption (algorithm, key size) from its security documentation or audit report before quoting it anywhere.",
+            "The database provider's FAQ does not say who holds the keys or whether they rotate, and points to its data processing addendum (schedule 1) for full technical detail. Read that, and ask the provider for its SOC 2 report, before quoting more than the sentences above.",
             "Whether the production secrets are marked sensitive (write-only) in the hosting provider has not been checked.",
           ],
         },
       },
       {
         id: "vault",
-        title: "Stored tokens are encrypted one by one",
+        title: "Stored tokens are kept in an encrypted vault",
         status: "inPlace",
         member:
-          "A member's chat connection, and any other token the Hub must hand to someone else, is encrypted in a vault inside the database, and only the Hub's server can read it back.",
+          "A member's chat connection, and any other token the Hub must hand to someone else, is kept in an encrypted vault inside the database, and only the Hub's server can read it back.",
         staff: {
-          how: "Supabase Vault (extension supabase_vault 0.3.1, read from production on 2026-11-17). Per the provider's Vault documentation: authenticated encryption with associated data (libsodium), a root key per project (64 hex characters, so 256 bits) kept outside the database, and secrets stay encrypted in backups and replication streams. Production check: the anon and authenticated roles can read neither the encrypted table nor the decrypted view; only the service role can. Our own table keeps only a pointer to each secret.",
+          how: "Supabase Vault (extension supabase_vault 0.3.1, read from production on 2026-11-17). Per the provider's documentation: authenticated encryption with associated data, one root key per Supabase project (64 hex characters, so 256 bits) held outside the database and shared by every secret in that project, each secret with its own random nonce; secrets stay encrypted in backups and replication streams. Vault is self-contained and does not depend on the pgsodium extension that is being deprecated, and uses the same per-project root key. Production, the development project that previews use (docs/ENV_MANAGEMENT.md) and each local stack are separate projects with separate keys, so a secret from one cannot be decrypted with another's key. Production check: the anon and authenticated roles can read neither the encrypted table nor the decrypted view; only the service role can. Our own table keeps only a pointer to each secret.",
           evidence: [
             "supabase/migrations/20261021000000_member_slack_connections.sql",
             "lib/slack-connect.ts",
+            "docs/ENV_MANAGEMENT.md",
             "docs/TODO.md (Secrets at Rest)",
             "live check, 2026-11-17: the Vault extension version and which roles may read it (counts and privileges only, never values)",
           ],
           checked: "2026-11-17",
           open: [
-            "The Vault documentation describes a per-project root key; this project runs Vault 0.3.1. Confirm the key arrangement and algorithm for that version before quoting key sizes outside this page.",
+            "The provider's management API returns a project's root key to its owner, so anyone holding a management token for the project can decrypt the vault outside the provider. CI holds such a token (see \"Keys and passwords\"), so it is as sensitive as the service key.",
             "The service role can read every vault secret, so a leaked service key exposes them. See \"Keys and passwords\".",
+            "Confirm the development project (used by previews) holds no real member data. It has its own key, but a copy of production data there would be protected only by that project's.",
           ],
         },
       },

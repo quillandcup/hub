@@ -64,7 +64,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "The Security page now covers encryption, how long a sign-in lasts, how our keys are kept and how the database is backed up, and says plainly what isn't finished.",
     body: `The [Security page](/security) now answers the questions people ask most, in plain words:
 
-- **Encryption.** Everything between your browser and the Hub is encrypted, browsers are told to use only secure connections, and stored tokens such as your chat connection are encrypted one by one.
+- **Encryption.** Everything between your browser and the Hub is encrypted, browsers are told to use only secure connections, and stored data and backups are encrypted, with stored tokens such as your chat connection kept in a separate encrypted vault.
 - **Signing in.** Joining is by invitation, a sign-in lasts an hour at a time and renews in the background, and staff can end a member's sessions if an account is at risk.
 - **Backups.** The database is backed up continuously and can be restored to any moment in the last 7 days.
 - **Honest about gaps.** Where something isn't finished, such as the browser protections that only report for now, the line says so.
