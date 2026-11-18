@@ -5,6 +5,7 @@ import { renderServerPage } from "@/tests/helpers/server-page";
 import { COMPLIANCE_STATUSES } from "@/lib/compliance";
 import { PRIVACY_GROUPS } from "@/lib/privacy-promises";
 import { RETENTION } from "@/lib/retention";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 
@@ -85,7 +86,8 @@ describe("privacy promises list", () => {
   });
 
   it("keeps the public-repo rule: no emails, links or key-shaped strings", () => {
-    const text = JSON.stringify(PRIVACY_GROUPS);
+    // The support address is public config the page shows members; nothing else may look like an email.
+    const text = JSON.stringify(PRIVACY_GROUPS).replaceAll(SUPPORT_EMAIL, "");
     expect(text).not.toMatch(/@[a-z0-9-]+\.[a-z]{2,}/i);
     expect(text).not.toMatch(/https?:\/\//);
     expect(text).not.toMatch(/\b(sk|pk|xox[bp])[-_][A-Za-z0-9]{8,}/);
