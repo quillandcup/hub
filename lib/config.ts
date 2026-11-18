@@ -75,6 +75,17 @@ export const CARE_RETENTION_CHECKPOINT_DAYS: readonly number[] = appConfig.careR
 
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
+/**
+ * The mailing address printed at the bottom of notification emails (CAN-SPAM asks for a valid postal address in
+ * commercial email). A value from the `POSTAL_ADDRESS` env var, not the code: the repo is public. Read when an email is
+ * sent, and throws when it is missing, so an email never goes out without it.
+ */
+export function postalAddress(): string {
+  const value = process.env.POSTAL_ADDRESS?.trim();
+  if (!value) throw new Error("POSTAL_ADDRESS is not set: notification emails carry our postal address");
+  return value;
+}
+
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
 
 /** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */

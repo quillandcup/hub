@@ -29,11 +29,14 @@ const fonts = {
 export function EmailLayout({
   preview,
   footerLinks,
+  postalAddress,
   children,
 }: {
   preview: string;
   /** Small links above the support line (notification emails: "Notification settings"). */
   footerLinks?: { label: string; url: string }[];
+  /** Our mailing address, last line of the footer. Notification emails carry it (CAN-SPAM); the sign-in emails are transactional. */
+  postalAddress?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -99,6 +102,12 @@ export function EmailLayout({
               {SUPPORT_EMAIL}
             </a>{" "}
             — replies to this address aren't monitored.
+            {postalAddress ? (
+              <>
+                <br />
+                {postalAddress}
+              </>
+            ) : null}
           </Text>
         </Container>
       </Body>
