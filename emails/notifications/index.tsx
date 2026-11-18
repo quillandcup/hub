@@ -1,5 +1,6 @@
 import * as React from "react";
 import { render } from "react-email";
+import { postalAddress } from "@/lib/config";
 import type { NotificationKindId } from "@/lib/notifications/registry";
 import type { NotificationEmailProps } from "./NotificationEmail";
 import { PrickleCheckinEmail } from "./prickle-checkin";
@@ -49,9 +50,10 @@ export interface RenderedNotificationEmail {
 
 export async function renderNotificationEmail(
   kind: NotificationKindId,
-  props: NotificationEmailProps
+  props: Omit<NotificationEmailProps, "postalAddress">
 ): Promise<RenderedNotificationEmail> {
-  const element = React.createElement(TEMPLATES[kind], props);
+  // Every notification email carries our postal address (CAN-SPAM), added here so no caller can leave it out.
+  const element = React.createElement(TEMPLATES[kind], { ...props, postalAddress: postalAddress() });
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
   return { subject: props.title ?? props.text, html, text };
 }

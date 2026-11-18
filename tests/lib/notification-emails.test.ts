@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
-import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { APP_URL, SUPPORT_EMAIL, postalAddress } from "@/lib/config";
 import { oneClickUnsubscribeUrl, signUnsubscribeToken, unsubscribePageUrl } from "@/lib/email-unsubscribe";
 
 const sendEmail = vi.fn(
@@ -36,6 +36,20 @@ const world = (preferences: { memberId: string; kind: string; channel: string; e
 };
 
 beforeEach(() => sendEmail.mockClear());
+
+describe("postal address in the footer (CAN-SPAM)", () => {
+  it.each(NOTIFICATION_KINDS.map((k) => k.id))("%s carries the postal address in the HTML and the plain text", async (kind) => {
+    const { html, text } = await renderNotificationEmail(kind, { text: "Ready for Morning Writing?", url });
+    expect(html).toContain(postalAddress());
+    expect(text).toContain(postalAddress());
+  });
+
+  it("refuses to render without it, so an email never goes out with no address", async () => {
+    vi.stubEnv("POSTAL_ADDRESS", "");
+    await expect(renderNotificationEmail("prickle_checkin", { text: "Ready?", url })).rejects.toThrow("POSTAL_ADDRESS");
+    vi.unstubAllEnvs();
+  });
+});
 
 describe("notification email templates", () => {
   it.each(NOTIFICATION_KINDS.map((k) => k.id))("renders %s with the message, its link and the settings link", async (kind) => {
@@ -128,6 +142,9 @@ describe("email channel", () => {
     const token = signUnsubscribeToken("m1", "prickle_checkin");
     expect(sent.html).toContain(`href="${unsubscribePageUrl(token)}"`);
     expect(sent.html).toContain("Unsubscribe from “Prickle check-ins” emails");
+    // The postal address sits in the same footer (CAN-SPAM), in the plain-text copy too.
+    expect(sent.html).toContain(postalAddress());
+    expect(sent.text).toContain(postalAddress());
     expect(sent.headers).toEqual({
       "List-Unsubscribe": `<${oneClickUnsubscribeUrl(token)}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

@@ -620,6 +620,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
   {
+    name: "POSTAL_ADDRESS",
+    group: "Email (Resend)",
+    description:
+      "Our mailing address on one line (street, city, state and zip), printed in the footer of every notification email (CAN-SPAM). Not in the repo, which is public. Emails aren't sent without it (lib/config.ts postalAddress()).",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
     name: "EMAIL_DEV_ADDRESS",
     group: "Email (Resend)",
     description: "Address that redirected test-mode notification emails go to. Without it, test mode sends nothing.",
