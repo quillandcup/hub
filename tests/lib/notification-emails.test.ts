@@ -44,6 +44,22 @@ describe("postal address in the footer (CAN-SPAM)", () => {
     expect(text).toContain(postalAddress());
   });
 
+  it("keeps the footer to a links line, a support line and a plain address, never a map link", async () => {
+    const { html } = await renderNotificationEmail("prickle_checkin", {
+      text: "Ready?",
+      url,
+      footerLinks: [
+        { label: "Notification settings", url: settingsUrl },
+        { label: "Unsubscribe", url: `${APP_URL}/unsubscribe?t=x` },
+      ],
+    });
+    expect(html).toContain("Notification settings</a> · <a");
+    expect(html).toContain(`mailto:${SUPPORT_EMAIL}`);
+    expect(html).toContain("aren&#x27;t monitored");
+    expect(html).toContain("a[x-apple-data-detectors]");
+    expect(html).not.toContain(`>${postalAddress()}</a>`);
+  });
+
   it("refuses to render without it, so an email never goes out with no address", async () => {
     vi.stubEnv("POSTAL_ADDRESS", "");
     await expect(renderNotificationEmail("prickle_checkin", { text: "Ready?", url })).rejects.toThrow("POSTAL_ADDRESS");

@@ -41,9 +41,13 @@ export function EmailLayout({
 }) {
   return (
     <Html lang="en">
-      <Head />
+      <Head>
+        {/* Mail apps turn a street address into a map link; keep it plain text like the rest of the footer. */}
+        <style>{`a[x-apple-data-detectors], u + .body a { color: inherit !important; text-decoration: none !important; font: inherit !important; }`}</style>
+      </Head>
       <Preview>{preview}</Preview>
       <Body
+        className="body"
         style={{
           margin: 0,
           padding: 0,
@@ -77,7 +81,7 @@ export function EmailLayout({
             {children}
           </Section>
 
-          {/* Footer */}
+          {/* Footer: links, support, then who we are, each on its own short line */}
           <Text
             style={{
               textAlign: "center",
@@ -87,21 +91,31 @@ export function EmailLayout({
               margin: "32px 0 0 0",
             }}
           >
-            Hedgie Hub · The members' home of Quill &amp; Cup, a community for writers
-            <br />
-            {(footerLinks ?? []).map((link) => (
+            {(footerLinks ?? []).map((link, i) => (
               <React.Fragment key={link.url}>
+                {i > 0 ? " · " : null}
                 <a href={link.url} style={{ color: colors.accent }}>
                   {link.label}
                 </a>
-                <br />
               </React.Fragment>
             ))}
+            {footerLinks?.length ? <br /> : null}
             Questions? Email{" "}
             <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: colors.accent }}>
               {SUPPORT_EMAIL}
-            </a>{" "}
-            — replies to this address aren't monitored.
+            </a>
+            . Replies to this email aren&apos;t monitored.
+          </Text>
+          <Text
+            style={{
+              textAlign: "center",
+              fontSize: "12px",
+              color: colors.footerText,
+              lineHeight: "1.6",
+              margin: "12px 0 0 0",
+            }}
+          >
+            Hedgie Hub, the members&apos; home of Quill &amp; Cup
             {postalAddress ? (
               <>
                 <br />
