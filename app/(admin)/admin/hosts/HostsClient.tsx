@@ -16,6 +16,7 @@ import {
 import type { HostEligibility } from "@/lib/host-eligibility";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import Tooltip from "@/components/Tooltip";
@@ -619,7 +620,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         </form>
       )}
 
-      <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+      <TableKeyboardNav table={table} label="Host schedules" className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
@@ -649,6 +650,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                     <div>
                       <Link
                         href={`/admin/members/${s.member.id}`}
+                        data-row-primary
                         className="font-medium text-plum-600 hover:underline dark:text-plum-400"
                       >
                         {getMemberDisplayName(s.member)}
@@ -692,7 +694,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="schedules" />
-      </div>
+      </TableKeyboardNav>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import ReactionEmoji from "@/components/ReactionEmoji";
 import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 export interface SlackPageData {
   rows: any[];
@@ -185,134 +186,137 @@ export default function MemberSlackActivityPanel({ slackPage, slackSummary }: Me
           {/* Recent Activity */}
           <div>
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Recent Activity</h3>
-            <div className="overflow-x-auto -mx-6">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <SortableTh
-                      label="Type"
-                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
-                      active={sortColumn === "type"}
-                      direction={sortDirection}
-                      onClick={() => handleSort("type")}
-                    />
-                    <SortableTh
-                      label="Channel"
-                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
-                      active={sortColumn === "channel"}
-                      direction={sortDirection}
-                      onClick={() => handleSort("channel")}
-                    />
-                    <SortableTh
-                      label="Content"
-                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
-                      active={sortColumn === "content"}
-                      direction={sortDirection}
-                      onClick={() => handleSort("content")}
-                    />
-                    <SortableTh
-                      label="Date"
-                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
-                      active={sortColumn === "date"}
-                      direction={sortDirection}
-                      onClick={() => handleSort("date")}
-                    />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {table.rows
-                    .map((activity: any) => {
-                    const occurred = new Date(activity.occurred_at);
-                    const isMessage = activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
-                    const isThreadReply = activity.activity_type === 'slack_thread_reply';
-                    const isReaction = activity.activity_type === 'slack_reaction';
+            <TableKeyboardNav table={table} label="Recent Slack activity">
+              <div className="overflow-x-auto -mx-6">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <SortableTh
+                        label="Type"
+                        className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+                        active={sortColumn === "type"}
+                        direction={sortDirection}
+                        onClick={() => handleSort("type")}
+                      />
+                      <SortableTh
+                        label="Channel"
+                        className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+                        active={sortColumn === "channel"}
+                        direction={sortDirection}
+                        onClick={() => handleSort("channel")}
+                      />
+                      <SortableTh
+                        label="Content"
+                        className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+                        active={sortColumn === "content"}
+                        direction={sortDirection}
+                        onClick={() => handleSort("content")}
+                      />
+                      <SortableTh
+                        label="Date"
+                        className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+                        active={sortColumn === "date"}
+                        direction={sortDirection}
+                        onClick={() => handleSort("date")}
+                      />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {table.rows
+                      .map((activity: any) => {
+                      const occurred = new Date(activity.occurred_at);
+                      const isMessage = activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
+                      const isThreadReply = activity.activity_type === 'slack_thread_reply';
+                      const isReaction = activity.activity_type === 'slack_reaction';
 
-                    // Extract reaction emoji from activity data and convert to Unicode
-                    const reactionShortcode = isReaction
-                      ? (activity.data?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || 'thumbsup')
-                      : null;
-                    // The server resolves custom images and the full standard set (data.reaction_emoji);
-                    // the small static map only covers rows it couldn't.
-                    const staticEmoji = reactionShortcode ? slackEmojiToUnicode(reactionShortcode) : null;
-                    const reactionEmoji: ReactionEmojiValue | null =
-                      activity.data?.reaction_emoji ??
-                      (staticEmoji && !(staticEmoji.startsWith(':') && staticEmoji.endsWith(':')) ? { text: staticEmoji } : null);
+                      // Extract reaction emoji from activity data and convert to Unicode
+                      const reactionShortcode = isReaction
+                        ? (activity.data?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || 'thumbsup')
+                        : null;
+                      // The server resolves custom images and the full standard set (data.reaction_emoji);
+                      // the small static map only covers rows it couldn't.
+                      const staticEmoji = reactionShortcode ? slackEmojiToUnicode(reactionShortcode) : null;
+                      const reactionEmoji: ReactionEmojiValue | null =
+                        activity.data?.reaction_emoji ??
+                        (staticEmoji && !(staticEmoji.startsWith(':') && staticEmoji.endsWith(':')) ? { text: staticEmoji } : null);
 
-                    // Build Slack permalink
-                    const slackUrl = activity.data?.channel_id && activity.data?.message_ts
-                      ? formatSlackPermalink(
-                          SLACK_WORKSPACE_URL,
-                          activity.data.channel_id,
-                          activity.data.message_ts
-                        )
-                      : null;
+                      // Build Slack permalink
+                      const slackUrl = activity.data?.channel_id && activity.data?.message_ts
+                        ? formatSlackPermalink(
+                            SLACK_WORKSPACE_URL,
+                            activity.data.channel_id,
+                            activity.data.message_ts
+                          )
+                        : null;
 
-                    const rowContent = (
-                      <>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            {isMessage ? (
-                              <>
-                                <svg className="w-4 h-4 text-plum-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                </svg>
-                                <span className="text-xs text-slate-600 dark:text-slate-400">
-                                  {isThreadReply ? 'Reply' : 'Message'}
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-base">
-                                  <ReactionEmoji name={reactionShortcode} emoji={reactionEmoji} />
-                                </span>
-                                <span className="text-xs text-slate-600 dark:text-slate-400">
-                                  Reaction
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {activity.data?.channel_type === 'im' || activity.data?.channel_type === 'mpim'
-                              ? conversationLabel(activity.data)
-                              : `#${activity.data?.channel_name || 'unknown'}`}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3">
-                          <p className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-md">
-                            {activity.description || (isReaction ? <>Reacted with <ReactionEmoji name={reactionShortcode} emoji={reactionEmoji} /></> : '—')}
-                          </p>
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <div className="text-xs text-slate-600 dark:text-slate-400">
-                            {occurred.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            <span className="ml-1">
-                              {occurred.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                      const rowContent = (
+                        <>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {isMessage ? (
+                                <>
+                                  <svg className="w-4 h-4 text-plum-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                                    {isThreadReply ? 'Reply' : 'Message'}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-base">
+                                    <ReactionEmoji name={reactionShortcode} emoji={reactionEmoji} />
+                                  </span>
+                                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                                    Reaction
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <span className="text-xs text-slate-600 dark:text-slate-400">
+                              {activity.data?.channel_type === 'im' || activity.data?.channel_type === 'mpim'
+                                ? conversationLabel(activity.data)
+                                : `#${activity.data?.channel_name || 'unknown'}`}
                             </span>
-                          </div>
-                        </td>
-                      </>
-                    );
+                          </td>
+                          <td className="px-6 py-3">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-md">
+                              {activity.description || (isReaction ? <>Reacted with <ReactionEmoji name={reactionShortcode} emoji={reactionEmoji} /></> : '—')}
+                            </p>
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <div className="text-xs text-slate-600 dark:text-slate-400">
+                              {occurred.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              <span className="ml-1">
+                                {occurred.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          </td>
+                        </>
+                      );
 
-                    return slackUrl ? (
-                      <tr
-                        key={activity.id}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                        onClick={() => window.open(slackUrl, '_blank')}
-                      >
-                        {rowContent}
-                      </tr>
-                    ) : (
-                      <tr key={activity.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                        {rowContent}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <DataTablePager table={table} itemLabel="activities" />
+                      return slackUrl ? (
+                        <tr
+                          key={activity.id}
+                          data-row-primary
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                          onClick={() => window.open(slackUrl, '_blank')}
+                        >
+                          {rowContent}
+                        </tr>
+                      ) : (
+                        <tr key={activity.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          {rowContent}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <DataTablePager table={table} itemLabel="activities" />
+            </TableKeyboardNav>
           </div>
         </div>
       ) : (

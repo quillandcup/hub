@@ -5,6 +5,7 @@ import Link from "next/link";
 import MemberSearch from "@/components/MemberSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import type { MentorshipOutcome, MentorshipRow } from "@/lib/mentorship";
@@ -254,7 +255,7 @@ export default function MatchesPanel({
             The outcome of a trial comes from membership history. Each big sister writes the reason a trial didn't continue; you can edit it here too.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <TableKeyboardNav table={table} label="Matches" className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 dark:bg-slate-800">
               <tr>
@@ -282,6 +283,7 @@ export default function MatchesPanel({
                   <td className="px-6 py-3 text-sm font-medium">
                     <Link
                       href={`/admin/members/${row.newMemberId}`}
+                      data-row-primary
                       className="text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {row.newMemberName}
@@ -391,7 +393,7 @@ export default function MatchesPanel({
             </tbody>
           </table>
           <DataTablePager table={table} itemLabel="matches" />
-        </div>
+        </TableKeyboardNav>
       </div>
     </div>
   );
