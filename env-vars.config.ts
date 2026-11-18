@@ -299,6 +299,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
   {
+    name: "SLACK_ALERTS_APP_ID",
+    group: "Slack",
+    description:
+      "ID (A...) of the minimal Slack alerts app (incoming webhook to #hub-alerts), created from slack-alerts-app-manifest.yml with `pnpm slack:alerts:create`. CI-only: the push-slack-manifest job pushes that manifest to it (GitHub variable) and skips it while unset. The webhook URL is the separate SLACK_ALERTS_WEBHOOK_URL GitHub secret, set by hand (docs/SLACK_MANIFEST.md).",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+  {
     name: "SLACK_TEST_MODE",
     group: "Slack",
     description: "Overrides default DM-redirect behavior outside production.",
