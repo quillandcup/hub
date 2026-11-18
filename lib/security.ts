@@ -85,7 +85,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
       },
       {
         id: "at-rest",
-        title: "Encrypted at rest: what we store",
+        title: "Encrypted at rest: the database and our settings",
         status: "provider",
         member:
           "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and settings we give our hosting provider are encrypted at rest too.",
@@ -100,6 +100,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           open: [
             "The database provider's FAQ does not say who holds the keys or whether they rotate, and points to its data processing addendum (schedule 1) for full technical detail. Read that, and ask the provider for its SOC 2 report, before quoting more than the sentences above.",
             "Whether the production secrets are marked sensitive (write-only) in the hosting provider has not been checked.",
+            "Uploaded files (the storage buckets that hold pictures, covers and media) are not covered by this row: the provider statements read for it are about the database and its backups. Confirm from the provider's documentation that storage is encrypted at rest, then add it here and retitle the row.",
           ],
         },
       },

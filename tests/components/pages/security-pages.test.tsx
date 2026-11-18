@@ -105,6 +105,12 @@ describe("security list: encryption", () => {
     expect(titles.every((t) => t.startsWith("Encrypted "))).toBe(true);
   });
 
+  it("claims at-rest encryption for the database only, and lists uploaded files as unconfirmed", () => {
+    const rest = SECURITY_ITEMS.find((i) => i.id === "at-rest")!;
+    expect(rest.title).not.toMatch(/what we store/i);
+    expect(rest.staff.open.join(" ")).toMatch(/storage buckets/);
+  });
+
   it("says TLS, not HTTPS, to members about the database connection", () => {
     const db = SECURITY_ITEMS.find((i) => i.id === "database-in-transit")!;
     expect(db.member).toContain("TLS");
