@@ -24,7 +24,7 @@ export function MagicLinkEmail({ confirmationUrl, code }: { confirmationUrl: str
       <EmailCode>{code}</EmailCode>
 
       <EmailBody>
-        This code can only be used once and expires after 24 hours. Don't share this code with anyone.
+        The link and the code work for one hour, and each works once. Don't share this code with anyone.
       </EmailBody>
 
       <EmailBody>Or sign in with one click:</EmailBody>

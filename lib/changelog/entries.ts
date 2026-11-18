@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "sign-in-links-last-one-hour",
+    date: "2026-11-18",
+    audience: "product",
+    category: "improved",
+    title: "Sign-in links and codes now last one hour",
+    summary:
+      "The link and the code in a sign-in email work for one hour, and each works once. If one has run out, ask for a new one on the sign-in page.",
+    body: [
+      "Sign-in, invitation and password reset emails used to stay usable for a day. They now last one hour, so a link that is forwarded by mistake or left in an old inbox stops working much sooner.",
+      "If the hour has passed, go to the [sign-in page](/login) and ask for a new link or code. Someone who was invited but has not accepted yet gets a fresh invitation the same way.",
+    ].join("\n\n"),
+  },
+  {
     slug: "sign-in-link-works-on-any-device",
     date: "2026-11-18",
     audience: "product",
@@ -1875,7 +1888,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
       "![Billie Bot's Home tab in Slack with the Open Hedgie Hub button.](/changelog/sign-in-from-slack/01-slack-home-sign-in.webp)",
       "Billie Bot, our Slack helper, has a Home tab and a /hub command with an Open Hedgie Hub button that signs you in. Each link works once and lasts about an hour.",
       "Slack on iPhone opens links in its own browser, so you can also ask for a link to copy and open in Safari, or paste the code on the login page.",
-      "Sign-in links sent by email now stay valid for 24 hours, and an invited person who asks for a link gets the invite again.",
+      "An invited person who asks for a sign-in link on the login page gets the invite again.",
     ].join("\n\n"),
   },
   {

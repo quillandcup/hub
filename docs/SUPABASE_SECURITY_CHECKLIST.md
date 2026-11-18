@@ -29,7 +29,7 @@ Sources: `supabase/config.toml`, the code in this repo, and read-only checks of 
 |---|---|---|
 | Email confirmations | Done | `enable_confirmations = true` under `[remotes.prod.auth.email]` in `config.toml`. Sign-ups are also off (`enable_signup = false`; invite only). |
 | Remove test phone numbers | Done (by config) | SMS sign-in is off and no `[auth.sms.test_otp]` is declared. Whether the dashboard holds one that config doesn't mention is Unchecked. |
-| OTP expiry at 3600 s or lower | Gap (deliberate) | `otp_expiry = 86400` (24 h, the maximum), chosen so a link requested in the evening still works the next morning; the email copy says 24 hours. This is also the validity of invitation and recovery links. The risk is a longer window for a leaked or forwarded link. Accepted for now because members are invite-only, links are single-use, and scanners spending the link is the bigger real problem (see "Email link validity" in `docs/SUPABASE_PRODUCTION_CHECKLIST.md`). `/auth/confirm` has landed (links now work on any device and a scanner cannot spend them), so the next step is lowering it to 3600 once the new link has been tried in production (`docs/TODO.md`, "Lower the email link lifetime"). |
+| OTP expiry at 3600 s or lower | Done (2026-11-18) | `otp_expiry = 3600` in `config.toml`, lowered from 86400 once `/auth/confirm` gave a spent link a fallback (links work on any device and a scanner cannot spend them; the login page sends a new link, a code, or a fresh invitation). It is also the validity of the typed code, invitation and recovery links. The email copy says one hour. CI applies it to production on merge, so confirm it in the dashboard (Authentication, Providers, Email) after the `main` run. |
 | MFA for app users, if needed | Partial | TOTP enroll and verify are on in prod (`[remotes.prod.auth.mfa.totp]`). The Hub has an enrol screen (Settings, Account) and a code check for staff that holds the admin pages, actions and API routes to aal2 for anyone who has a factor (`docs/STAFF_MFA.md`). Requiring a factor of every admin and community manager starts at `staffMfaRequiredFrom` in `app.config.ts`, unset today, so this stays Partial until the owner sets it. |
 | Custom SMTP | Done | Resend, sender on our own domain (`[remotes.prod.auth.email.smtp]`). |
 
@@ -42,7 +42,7 @@ Sources: `supabase/config.toml`, the code in this repo, and read-only checks of 
 
 ## What to do next
 
-Tracked in `docs/TODO.md`, "Supabase security checklist follow-ups": decide on OTP expiry, and consider Broadcast for chat (low priority: messages and reactions both soft delete, so only a hard delete by a maintenance job sends a DELETE event).
+Tracked in `docs/TODO.md`, "Supabase security checklist follow-ups": consider Broadcast for chat (low priority: messages and reactions both soft delete, so only a hard delete by a maintenance job sends a DELETE event). OTP expiry was lowered to 3600 on 2026-11-18.
 
 ## Review again when
 

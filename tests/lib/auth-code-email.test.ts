@@ -41,4 +41,16 @@ describe("sign-in code email", () => {
     const committed = readFileSync(resolve(__dirname, "../../supabase/templates/magic_link.html"), "utf8");
     expect(committed).toBe(magic.html);
   });
+
+  it("keeps the emails' one-hour promise in step with otp_expiry, and nothing says 24 hours", async () => {
+    const config = readFileSync(resolve(__dirname, "../../supabase/config.toml"), "utf8");
+    // otp_expiry is shared by the link, the typed code, invitations and recovery.
+    expect(config).toMatch(/^otp_expiry = 3600$/m);
+    const templates = await buildTemplates();
+    const text = (name: string) => templates.find((t) => t.name === name)!.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(text("magic_link")).toContain("The link and the code work for one hour, and each works once.");
+    expect(text("invite")).toContain("expires in one hour");
+    expect(text("recovery")).toContain("good for one hour");
+    for (const name of ["magic_link", "invite", "recovery"]) expect(text(name)).not.toMatch(/24 hours/i);
+  });
 });

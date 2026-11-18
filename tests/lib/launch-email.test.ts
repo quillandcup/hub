@@ -179,6 +179,12 @@ describe("renderLaunchEmail", () => {
     expect(mail.text).toContain("98765432");
   });
 
+  it("tells the member the code lasts one hour, matching otp_expiry", async () => {
+    const mail = await renderLaunchEmail("98765432");
+    expect(mail.text).toContain("expires in one hour");
+    expect(mail.text).not.toMatch(/24 hours/i);
+  });
+
   it("puts the code first in the subject and says 'verification code' (Gmail Copy code)", async () => {
     const mail = await renderLaunchEmail("98765432");
     expect(mail.subject).toBe("Hedgie Hub – 98765432 is your verification code");

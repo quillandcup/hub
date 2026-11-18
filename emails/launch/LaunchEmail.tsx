@@ -47,7 +47,7 @@ export function LaunchEmail({ code, signInUrl }: { code: string; signInUrl: stri
       </Button>
 
       <EmailBody>
-        The code works once and expires in 24 hours. After that, or if it doesn't work, ask for a new sign-in link on
+        The code works once and expires in one hour. After that, or if it doesn't work, ask for a new sign-in link on
         the same page and we'll email you one.
       </EmailBody>
 
