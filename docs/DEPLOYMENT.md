@@ -389,7 +389,7 @@ Before going live:
 
 ## Supabase production checklist
 
-How production measures up against Supabase's own checklist, with the gaps and where they are tracked: `docs/SUPABASE_PRODUCTION_CHECKLIST.md`.
+How production measures up against Supabase's own checklist, with the gaps and where they are tracked: `docs/SUPABASE_PRODUCTION_CHECKLIST.md`; the security page's checklist is in `docs/SUPABASE_SECURITY_CHECKLIST.md`.
 
 ## Plans and headroom
 
