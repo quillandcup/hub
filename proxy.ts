@@ -1,19 +1,23 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
-import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, scriptStyleCsp } from './lib/csp'
+import appConfig from './app.config'
+import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, reportOnlyCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {
-  // The script and style policy (scriptStyleCsp in lib/csp.ts, with a per-request nonce) is built and tested but not sent:
-  // on Vercel Next's own scripts did not get the nonce, so every script was reported (docs/TODO.md, "CSP for scripts and
-  // styles"). The root layout still passes a nonce to our inline scripts when this proxy hands one over (NONCE_HEADER).
-  //
-  // The script and style policy carries a fresh nonce per request. Next reads it from the request's policy header and puts it on
-  // its own scripts and styles; the same policy goes out on the response, report-only for now (docs/TODO.md, "CSP for scripts and
-  // styles"). It must be the only policy header here: Vercel copies a `content-security-policy` header onto the request, and Next
-  // reads that one first and finds no nonce in it. The enforcing picture policy for pages is a meta tag (buildMetaCsp, app/layout.tsx).
+  // One report-only policy with a fresh nonce per request (reportOnlyCsp in lib/csp.ts): scripts and styles, pictures, and
+  // connection, frame, media and font sources. Next reads the nonce from the request's policy header and puts it on its own scripts
+  // and styles; the same policy goes out on the response, and violations go to Sentry (docs/TODO.md, "CSP for scripts and styles").
+  // It must be the only policy header here: Vercel copies a `content-security-policy` header onto the request, and Next reads that
+  // one first and finds no nonce in it. The enforced picture policy for pages is therefore a meta tag (buildMetaCsp, app/layout.tsx),
+  // which cannot report, so this header repeats those directives to get their violations reported.
   const nonce = generateNonce()
-  const policy = scriptStyleCsp({
+  const policy = reportOnlyCsp({
     nonce,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    imageHosts: appConfig.csp.imageHosts,
+    connectHosts: appConfig.csp.connectHosts,
+    frameHosts: appConfig.csp.frameHosts,
+    mediaHosts: appConfig.csp.mediaHosts,
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     dev: process.env.NODE_ENV === 'development',
   })

@@ -91,6 +91,9 @@ describe("the script and style policy", () => {
     expect(nonce).not.toBe(forwarded(b, "x-nonce"));
     expect(forwarded(a, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
     expect(a.headers.get("content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
+    // The whole policy is there: pictures and the sources nothing enforces yet.
+    expect(a.headers.get("content-security-policy-report-only")).toContain("img-src ");
+    expect(a.headers.get("content-security-policy-report-only")).toContain("connect-src ");
     // Next reads `content-security-policy` first: neither the request nor the response may carry one from here.
     expect(forwarded(a, "content-security-policy")).toBeNull();
     expect(a.headers.get("content-security-policy")).toBeNull();

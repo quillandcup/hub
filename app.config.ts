@@ -187,6 +187,22 @@ export const appConfig = {
       "https://www.google-analytics.com", // measurement beacons
       "https://www.googletagmanager.com",
     ],
+    // The next three are tried report-only (docs/TODO.md, "CSP for scripts and styles"): the reports name what is missing.
+    // Supabase (https and wss) and Sentry's ingest host are added from the environment, not listed here.
+    /** Where the browser may send requests (fetch, XHR, WebSocket) besides us. */
+    connectHosts: [
+      "https://www.google-analytics.com",
+      "https://*.google-analytics.com",
+      "https://*.analytics.google.com",
+      "https://www.googletagmanager.com",
+      "https://vitals.vercel-insights.com", // Vercel Speed Insights
+      "https://stream.mux.com", // lesson video playback
+      "https://*.litix.io", // Mux video analytics
+    ],
+    /** Sites that may be shown in a frame on our pages (lesson videos). */
+    frameHosts: ["https://player.mux.com", "https://www.youtube-nocookie.com", "https://www.youtube.com", "https://player.vimeo.com"],
+    /** Where audio and video files may load from besides us and Supabase storage. */
+    mediaHosts: ["https://stream.mux.com"],
   },
 } as const;
 
