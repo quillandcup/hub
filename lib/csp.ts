@@ -99,3 +99,15 @@ export function scriptStyleCsp({ nonce, sentryDsn, dev = false }: { nonce: strin
   if (report) directives.push(`report-uri ${report}`);
   return directives.join("; ");
 }
+
+/**
+ * TEMPORARY DIAGNOSTIC: what the policy headers on a request look like when the layout renders, with nonces blanked out.
+ * Used for one deploy to learn what Vercel hands Next (docs/TODO.md, "CSP for scripts and styles"), then removed.
+ */
+export function describeCspRequestHeaders(headers: Pick<Headers, "get">): string {
+  const show = (name: string) => {
+    const value = headers.get(name);
+    return value === null ? null : value.replace(/'nonce-[^']*'/g, "'nonce-…'").slice(0, 90);
+  };
+  return JSON.stringify({ csp: show(CSP_HEADER), reportOnly: show(CSP_REPORT_ONLY_HEADER), nonceHeader: headers.get(NONCE_HEADER) !== null });
+}
