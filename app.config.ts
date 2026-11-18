@@ -10,8 +10,14 @@
 // it after changing one of those.
 
 export const appConfig = {
-  /** The app's name as shown when installed to a home screen (the web app manifest). */
-  appName: "Quill & Cup Hub",
+  /** The app's name as shown when installed to a home screen (the web app manifest, the iOS title). */
+  appName: "Hedgie Hub",
+
+  /**
+   * The issuer on the two-step sign-in QR code: authenticator apps show it beside the account, and Authy searches
+   * Google Images for a logo from it (components/mfa/MfaPanel.tsx).
+   */
+  mfaIssuer: "Quill & Cup Hedgie Hub",
 
   /**
    * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
