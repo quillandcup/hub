@@ -54,7 +54,7 @@ Nothing to do by hand. The nightly `/api/reconcile/calendar` cron (production on
 - The service account needs access to the calendar (the same as the import).
 - If opening the channel fails, the reconcile still syncs but returns 500 and skips its Checkly heartbeat, so it alerts. The nightly sync stays the guaranteed path.
 - To check it: `select channel_id, expires_at, stopped_at from calendar_watch_channels order by created_at desc` (prod, read-only), and the `Calendar webhook received` lines in the Vercel logs.
-- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` needs a new channel: mark the live row `stopped_at` (or wait until it is under 3 days from expiry) and the next reconcile opens one with the new token.
+- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` needs a new channel, and until one is open Google's pushes are refused (the nightly sync still runs). After the new value is deployed, force the replacement by setting the live row's `expires_at` to now (`update calendar_watch_channels set expires_at = now() where stopped_at is null`, a production write for the owner), then open `/api/reconcile/calendar` as an admin: it opens the new channel first and stops the old one at Google. Don't set `stopped_at` by hand: a row marked stopped is never stopped at Google, and the old channel keeps delivering (refused) until it expires. Or wait until the channel is under 3 days from expiry. The new channel's first `sync` push in the Vercel logs (`hasChannelToken: true`, no 401) shows the token matches. Done once on 2026-11-18.
 
 ### Testing
 
