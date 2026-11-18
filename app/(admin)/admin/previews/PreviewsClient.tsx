@@ -11,6 +11,7 @@ import MultiMemberSearch from "@/components/MultiMemberSearch";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
+import Tooltip from "@/components/Tooltip";
 
 interface PreviewUser {
   id: string;
@@ -556,20 +557,20 @@ export default function PreviewsClient({ allMembers }: { allMembers: SegmentMemb
                   {previewUsers
                     .filter((u) => u.features.includes(f.key))
                     .map((u) => (
-                      <span
-                        key={u.id}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                        title={u.email}
-                      >
-                        {userLabel(u)}
-                        <button
-                          onClick={() => setUserFlag(u, f.key, false)}
-                          className="hover:text-green-900 dark:hover:text-green-100"
-                          aria-label={`Turn ${f.name} off for ${userLabel(u)}`}
+                      <Tooltip key={u.id} content={u.email}>
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                         >
-                          ×
-                        </button>
-                      </span>
+                          {userLabel(u)}
+                          <button
+                            onClick={() => setUserFlag(u, f.key, false)}
+                            className="hover:text-green-900 dark:hover:text-green-100"
+                            aria-label={`Turn ${f.name} off for ${userLabel(u)}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      </Tooltip>
                     ))}
                   <EntitySearch
                     items={previewUsers
@@ -688,13 +689,13 @@ export default function PreviewsClient({ allMembers }: { allMembers: SegmentMemb
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Invite results:</p>
                 <ul className="flex flex-wrap gap-1">
                   {inviteResults.map((r) => (
-                    <li
-                      key={r.email}
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${RESULT_COLORS[r.status]}`}
-                      title={r.error}
-                    >
-                      {r.email}: {r.status}
-                    </li>
+                    <Tooltip key={r.email} content={r.error}>
+                      <li
+                        className={`px-2 py-0.5 rounded text-xs font-medium ${RESULT_COLORS[r.status]}`}
+                      >
+                        {r.email}: {r.status}
+                      </li>
+                    </Tooltip>
                   ))}
                 </ul>
               </div>

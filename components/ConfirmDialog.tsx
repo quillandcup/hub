@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useId, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Modal from "@/components/Modal";
 
 /**
@@ -14,6 +15,8 @@ import Modal from "@/components/Modal";
  * - `onConfirm` may be async. While it runs the buttons wait; it closes the dialog when it finishes, unless it returns a
  *   string: that is the reason it failed, shown in the dialog, which stays open.
  * - Where a handler used to say `if (!confirm(...)) return;`, use `useConfirm()` below.
+ * - It is drawn on `<body>` (a portal), so it never inherits from where it was opened: a table cell's `whitespace-nowrap` or
+ *   `text-right` cut a delete confirm off and pushed its title to one side before this.
  */
 export type ConfirmSpec = {
   title: string;
@@ -35,9 +38,10 @@ const TONES = {
 };
 
 export default function ConfirmDialog({ open, onClose, onConfirm, ...spec }: ConfirmSpec & { open: boolean; onClose: () => void; onConfirm: () => ConfirmResult | Promise<ConfirmResult> }) {
-  // Mounted only while open, so every opening starts with nothing typed and no earlier error.
-  if (!open) return null;
-  return <OpenDialog onClose={onClose} onConfirm={onConfirm} {...spec} />;
+  // Mounted only while open, so every opening starts with nothing typed and no earlier error. Only ever opened by a click,
+  // so there is always a document; the check keeps a server render from reaching for one.
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(<OpenDialog onClose={onClose} onConfirm={onConfirm} {...spec} />, document.body);
 }
 
 function OpenDialog({ onClose, onConfirm, title, body, confirmLabel, cancelLabel = "Cancel", tone = "default", requireText }: ConfirmSpec & { onClose: () => void; onConfirm: () => ConfirmResult | Promise<ConfirmResult> }) {

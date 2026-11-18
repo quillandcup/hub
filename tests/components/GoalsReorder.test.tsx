@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * A member puts the goals of a project in their own order on the project page: a grip on each goal (drag it, or Space
- * and the arrow keys) and Move up / Move down buttons. jsdom has no layout or real touch, so the drag itself is driven
- * through the `onDragEnd` the list hands to dnd-kit, and the buttons are clicked.
+ * and the arrow keys) and a "Move to position" menu. jsdom has no layout or real touch, so the drag itself is driven
+ * through the `onDragEnd` the list hands to dnd-kit, and the menu is clicked.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
@@ -11,6 +11,7 @@ import type { DndContextProps } from "@dnd-kit/core";
 import { HANDLE_TOOLTIP } from "@/components/writing/SortableList";
 import ProjectDetailClient from "@/app/(member)/projects/[id]/ProjectDetailClient";
 import type { GoalRow, WritingProjectRow } from "@/app/(member)/projects/actions";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const m = vi.hoisted(() => ({ refresh: vi.fn(), reorder: vi.fn(), dnd: { current: null as null | DndContextProps } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: m.refresh }) }));
@@ -70,8 +71,48 @@ describe("ProjectDetailClient goal reordering", () => {
     render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
     expect(titles()).toEqual(["Daily words", "Finish draft", "Read aloud"]);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
-    expect(screen.getAllByText(HANDLE_TOOLTIP)).toHaveLength(3);
+    for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);
     expect(screen.queryByRole("button", { name: /^Move .* (up|down)$/ })).toBeNull();
+  });
+
+  it("uses the same grip handle as the projects list", () => {
+    render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
+    for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) {
+      expect(handle.querySelector("svg.lucide-equal")).not.toBeNull();
+      expect(handle.querySelector("svg.lucide-grip-vertical")).toBeNull();
+      expect(handle.querySelector("svg")!.getAttribute("class")).toMatch(/\bh-5 w-5\b/);
+      expect(handle.className).not.toMatch(/(^|\s)(dark:)?bg-|h-11|w-11/);
+    }
+    // The tip is the shared Tooltip: it shows on keyboard focus (hover and the rest: tests/components/Tooltip.test.tsx).
+    const handle = screen.getAllByRole("button", { name: /^Reorder / })[0];
+    expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);
+  });
+
+  it("carries Edit, Delete and the positions in one menu, with Edit and Delete only on narrow screens", async () => {
+    render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
+    await openMenu("Finish draft");
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Edit", "Delete", "Move to position 1", "Position 2 (current)", "Move to position 3"]);
+    expect(screen.getByRole("menuitem", { name: "Edit" }).className).toMatch(/\bsm:hidden\b/);
+    expect(screen.getByRole("menuitem", { name: "Delete" }).className).toMatch(/\bsm:hidden\b/);
+    expect(screen.getAllByRole("button", { name: "More actions for Finish draft" })).toHaveLength(1);
+  });
+
+  it("Delete in the menu asks first, then deletes that goal", async () => {
+    const { deleteGoal } = await import("@/app/(member)/projects/actions");
+    vi.mocked(deleteGoal).mockResolvedValue({ success: true } as never);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
+    await openMenu("Finish draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(deleteGoal).toHaveBeenCalledWith("g2"));
+    expect(window.confirm).toHaveBeenCalledWith("Delete this goal? This can't be undone.");
+  });
+
+  it("Edit in the menu opens the goal form", async () => {
+    render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
+    await openMenu("Finish draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(screen.queryByRole("button", { name: "More actions for Finish draft" })).toBeNull();
   });
 
   it("has no ordering controls for a single goal", () => {

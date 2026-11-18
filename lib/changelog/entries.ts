@@ -56,6 +56,121 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "sign-in-links-last-one-hour",
+    date: "2026-11-18",
+    audience: "product",
+    category: "improved",
+    title: "Sign-in links and codes now last one hour",
+    summary:
+      "The link and the code in a sign-in email work for one hour, and each works once. If one has run out, ask for a new one on the sign-in page.",
+    body: [
+      "Sign-in, invitation and password reset emails used to stay usable for a day. They now last one hour, so a link that is forwarded by mistake or left in an old inbox stops working much sooner.",
+      "If the hour has passed, go to the [sign-in page](/login) and ask for a new link or code. Someone who was invited but has not accepted yet gets a fresh invitation the same way.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "sign-in-link-works-on-any-device",
+    date: "2026-11-18",
+    audience: "product",
+    category: "improved",
+    title: "The sign-in link in your email now works on any device",
+    summary:
+      "You can ask for a sign-in link on your laptop and open it on your phone, or the other way round. It no longer has to be opened in the same browser you asked from.",
+    body: [
+      "Until now the link in the sign-in email only worked in the browser where you asked for it, so opening it from your phone's mail app after asking on a laptop failed. It now works wherever you open it, and the invitation and password reset emails use the same kind of link.",
+      "Like before, each link works once, and the code in the same email is still there if you would rather type it on the [sign-in page](/login).",
+    ].join("\n\n"),
+  },
+  {
+    slug: "staff-two-step-sign-in",
+    date: "2026-11-18",
+    audience: "staff",
+    category: "new",
+    title: "Two-step sign-in for the team",
+    summary: "You can now add a code from an authenticator app to your sign-in. Once you have, the admin pages ask for that code, so a stolen sign-in link is not enough to get in.",
+    body: `Open **Settings** and, on the Account tab, choose **Set up two-step sign-in**. Scan the picture with an authenticator app on your phone (or type the key shown under it), then enter the 6-digit code to turn it on. You can remove it there too.
+
+- **After you turn it on**, opening the admin pages asks for the code from your app the first time in each sign-in. Your member pages are not affected.
+- **Until it is required of everyone**, a banner at the top of the admin pages reminds you to set it up. When the date is set, staff without it will be sent to the set-up screen first.
+- **Lost your phone?** Ask the owner to reset it; the steps are in \`docs/STAFF_MFA.md\`.`,
+  },
+  {
+    slug: "database-roles-closed-by-default",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "improved",
+    title: "Database access is closed by default, and three tests keep it that way",
+    summary: "The signed-out database role holds no table privileges, new tables start closed, and database tests now fail CI for a table without row level security or a caller-privileged function with no caller check.",
+    body: `Row level security says which rows a role may see; grants say whether it may touch a table at all; a function that runs with its owner's rights can bypass both. Each layer now says no unless a migration says otherwise, and a test holds each one.
+
+- **Grants.** The signed-out role has no privileges on any table in the app's schemas, and new tables start without any for it. A new table's migration grants \`authenticated\` and \`service_role\`, as before.
+- **Row level security.** A test fails if any table in those schemas has it off.
+- **Definer functions.** A test fails if a function that runs as its owner and that callers can execute has no recognizable caller check, does not pin its search path, or is runnable signed-out. A deliberate exception is one reviewed line in the test, with a reason, and a stale one fails too.
+- **The limit.** The test proves a check exists, not that it is right. A person still reads every new definer function in its PR.
+- **Detail.** \`docs/RLS_SECURITY.md\`, "Table privileges (grants)" and "Security definer functions".`,
+  },
+  {
+    slug: "one-tooltip-component",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "One shared Tooltip for hints on controls",
+    summary: "A hint on an icon button, a toggle or a disabled action is now one Tooltip component, so every hint looks the same and behaves well on touch and keyboard.",
+    body: `Hints on controls used to be a mix of the browser's grey \`title\` box and hand-rolled CSS boxes, so two icons side by side could look different. \`components/Tooltip.tsx\` is now the one place that draws them.
+
+- **Use it like this.** Wrap the one control: \`<Tooltip content="Pin to my dashboard"><button aria-label="Pin to my dashboard">...</button></Tooltip>\`. It adds no wrapper element, and \`content\` may be undefined for a conditional hint.
+- **The behavior is built in.** Hover only on devices that hover, a long press on touch (that press doesn't click the control), keyboard focus shows it (not a tap), a short delay, Escape hides it, it stays while the pointer is over it, and it is linked with \`aria-describedby\`. It is drawn on the page body, so no scrolling card or modal clips it.
+- **A hint is never the only place something lives.** The control keeps its own name; touch users don't see the tip.
+- **Guarded.** Every native \`title\` tooltip in the app has moved over, and a new one fails \`tests/lib/tooltip-native-title.test.ts\` (iframe, abbr and pattern-input titles are the only exceptions). Rule: \`.claude/rules/tooltips.md\`.`,
+  },
+  {
+    slug: "keyboard-shortcuts",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "Get around the Hub faster with a computer keyboard",
+    summary: "On a computer, press ? to see every keyboard shortcut. Then use the arrow keys to move through lists and tables, and Ctrl+Enter (Cmd+Enter on a Mac) to save a form in a dialog.",
+    body: `On a computer, you can now do more without reaching for the mouse.
+
+- **See every shortcut.** Press **?** (or choose Keyboard shortcuts in the help menu at the top) to open a panel beside the page. It shows the shortcuts for the page you are on first, then the ones that work everywhere, and you can search it.
+- **Lists and tables.** Move between rows with the arrow keys (j and k also work), and press Enter to open one.
+- **Search boxes that suggest people or items.** Use the up and down arrows, Enter to choose and Esc to close the list.
+- **Saving.** Press Ctrl+Enter (Cmd+Enter on a Mac) to save a form in a dialog.
+
+Press **?** again, or the Esc key, to close the panel. These work on a computer with a keyboard and a mouse or trackpad. On a phone or tablet you will not see them.`,
+  },
+  {
+    slug: "security-page-details",
+    date: "2026-11-17",
+    audience: "product",
+    category: "improved",
+    title: "The Security page now says how your information is protected, in detail",
+    summary: "The Security page now covers encryption, how long a sign-in lasts, how our keys are kept and how the database is backed up, and says plainly what isn't finished.",
+    body: `The [Security page](/security) now answers the questions people ask most, in plain words:
+
+- **Encryption.** Everything between your browser and the Hub is encrypted, browsers are told to use only secure connections, and stored data and backups are encrypted, with stored tokens such as your chat connection kept in a separate encrypted vault.
+- **Signing in.** Joining is by invitation, a sign-in lasts an hour at a time and renews in the background, and staff can end a member's sessions if an account is at risk.
+- **Backups.** The database is backed up continuously and can be restored to any moment in the last 7 days.
+- **Honest about gaps.** Where something isn't finished, such as the browser protections that only report for now, the line says so.
+
+The [Compliance page](/compliance) now describes the services we rely on by what they do, without naming them.`,
+  },
+  {
+    slug: "compliance-and-security-for-staff",
+    date: "2026-11-17",
+    audience: "staff",
+    category: "new",
+    title: "Compliance, Privacy and Security detail pages for the team",
+    summary: "Three new pages in the admin System group show, for every promise members read on the public Compliance, Privacy and Security pages, where it is enforced, when it was last checked and what is still open.",
+    body: `Open **Compliance**, **Privacy** or **Security** in the admin sidebar (System) to see what members read on the public [Compliance](/compliance), [Privacy](/privacy) and [Security](/security) pages, with more behind each line. Privacy has one line per promise the page makes: asking first, the retention limits, who can read chat, break-glass access, and how a member asks to see or remove what we hold.
+
+- **Where it is enforced.** The files, docs and tests that make the line true, so you can check it.
+- **Last checked.** The date someone last compared the line with the code.
+- **Still open.** What isn't finished or hasn't been reviewed yet, gathered at the top of each page and linked to its line.
+
+The pages hold nothing private: the repository is public, so they carry no names, keys or account details. If you change what the Hub does, change the matching line with it.`,
+  },
+  {
     slug: "security-page",
     date: "2026-11-17",
     audience: "product",
@@ -88,6 +203,20 @@ It sits in the footer with [Privacy](/privacy) and [Compliance](/compliance).`,
 You'll find it in the footer, next to Privacy.`,
   },
   {
+    slug: "table-keyboard-navigation",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "Keyboard row navigation for tables",
+    summary: "Wrap a table and its pager in TableKeyboardNav and it answers j/k, arrows, Enter, Space and the page keys, with no key code of its own.",
+    body: `Tables are navigated from the keyboard by \`components/TableKeyboardNav.tsx\` (logic in \`lib/hooks/useTableKeyboardNav.ts\`), driven from the DOM, so a table adopts it by wrapping its markup and pager, not by writing handlers.
+
+- **Rows opt in by what they hold.** A link, or an element (or the row) marked \`data-row-primary\`, is what Enter opens; a checkbox is what Space toggles, and Shift+j/k extends the range. A row with one full-width cell, or marked \`data-kbd-skip\`, is not a row.
+- **Focus model.** The region is one tab stop with a highlighted row (\`aria-activedescendant\`, a live announcement). With one table on the page and nothing focused, j/k start it Gmail style. The highlight returns to the first row on a page or sort change.
+- **Stays out of the way.** Single letters are ignored while typing, with a dialog, menu or open combobox, and with Ctrl/Cmd/Alt held (\`lib/keyboard.ts\`, shared with the calendar's keys). A page with its own single-key shortcuts declares \`data-page-keys\`.
+- **For the shortcut panel.** \`TABLE_KEYBOARD_SHORTCUTS\` lists the keys and labels. Hints use \`Kbd\`. Tables not yet wrapped are in \`docs/TODO.md\`.`,
+  },
+  {
     slug: "kbd-shortcut-hints",
     date: "2026-11-17",
     audience: "engineering",
@@ -110,7 +239,7 @@ You'll find it in the footer, next to Privacy.`,
     summary: "On a project's page, drag a goal into the order you want, or pick its new place from its ⋯ button. The goals you star on your dashboard follow that order too.",
     body: `A project's goals no longer have to stay in the order you first made them. Put the one you care about most at the top.
 
-- **Drag to move.** Each goal has a handle on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
+- **Drag to move.** Each goal has a small grip (two lines) on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
 - **Prefer not to drag?** Use the **⋯** button on a goal and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
 - **Your dashboard shows them in this order.** Starred goals in **Writing Goals** stay grouped by project, in your project order, and within each project follow the order you chose.
 - **Nothing changes until you move a goal.** After that, goals you add go to the bottom of the list.
@@ -137,7 +266,7 @@ To count your starting words, clear the goal's start date. A goal without one co
     summary: "On your Projects page you can now drag your projects into the order you want, or pick a project's new place from its ⋯ button. The goals you star on your dashboard follow the same order.",
     body: `Your projects no longer have to stay newest first. Put the one you are working on right now at the top, and the ones you are saving for later below it.
 
-- **Drag the handle.** Each project has a handle on its left (on a computer it appears over the project's picture when you point at the card). Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
+- **Drag the handle.** Each project has a small grip (two lines) next to its ⋯ menu button. Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
 - **Prefer not to drag?** Use the **⋯** button on a project and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
 - **Your dashboard follows.** The goals you have starred in **Writing Goals** on your dashboard are shown in the same order as their projects, so moving a project moves its goals too.
 - **Nothing changes until you do.** Your projects stay as they are today until you move one. A project you create later appears at the top, and projects you have put on hold are not affected.
@@ -1760,7 +1889,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
       "![Billie Bot's Home tab in Slack with the Open Hedgie Hub button.](/changelog/sign-in-from-slack/01-slack-home-sign-in.webp)",
       "Billie Bot, our Slack helper, has a Home tab and a /hub command with an Open Hedgie Hub button that signs you in. Each link works once and lasts about an hour.",
       "Slack on iPhone opens links in its own browser, so you can also ask for a link to copy and open in Safari, or paste the code on the login page.",
-      "Sign-in links sent by email now stay valid for 24 hours, and an invited person who asks for a link gets the invite again.",
+      "An invited person who asks for a sign-in link on the login page gets the invite again.",
     ].join("\n\n"),
   },
   {

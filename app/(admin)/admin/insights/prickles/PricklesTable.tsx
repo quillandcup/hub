@@ -6,6 +6,7 @@ import type { TypeStats } from "@/lib/scheduled-prickle-stats";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 // ---------------------------------------------------------------------------
 // Sparkline
@@ -134,6 +135,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
         </div>
       )}
       <div className="overflow-x-auto">
+      <TableKeyboardNav table={table} label="Prickle types">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
@@ -240,6 +242,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="prickle types" />
+      </TableKeyboardNav>
       </div>
 
       {table.total === 0 && rows.length > 0 && (

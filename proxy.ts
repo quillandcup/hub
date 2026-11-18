@@ -1,10 +1,30 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
+import appConfig from './app.config'
+import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, reportOnlyCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {
-  return await updateSession(request)
+  // One report-only policy with a fresh nonce per request (reportOnlyCsp in lib/csp.ts): scripts and styles, pictures, and
+  // connection, frame, media and font sources. Next reads the nonce from the request's policy header and puts it on its own scripts
+  // and styles; the same policy goes out on the response, and violations go to Sentry (docs/TODO.md, "CSP for scripts and styles").
+  // It must be the only policy header here: Vercel copies a `content-security-policy` header onto the request, and Next reads that
+  // one first and finds no nonce in it. The enforced picture policy for pages is therefore a meta tag (buildMetaCsp, app/layout.tsx),
+  // which cannot report, so this header repeats those directives to get their violations reported.
+  const nonce = generateNonce()
+  const policy = reportOnlyCsp({
+    nonce,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    imageHosts: appConfig.csp.imageHosts,
+    connectHosts: appConfig.csp.connectHosts,
+    frameHosts: appConfig.csp.frameHosts,
+    mediaHosts: appConfig.csp.mediaHosts,
+    sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    dev: process.env.NODE_ENV === 'development',
+  })
+  const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_REPORT_ONLY_HEADER]: policy })
+  response.headers.set(CSP_REPORT_ONLY_HEADER, policy)
+  return response
 }
-
 export const config = {
   matcher: [
     /*

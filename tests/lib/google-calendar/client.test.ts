@@ -5,11 +5,9 @@ const calendar = vi.hoisted(() => ({
   channels: { stop: vi.fn() },
 }));
 
-vi.mock("googleapis", () => ({
-  google: {
-    auth: { GoogleAuth: class {} },
-    calendar: () => calendar,
-  },
+vi.mock("@googleapis/calendar", () => ({
+  auth: { GoogleAuth: class {} },
+  calendar: () => calendar,
 }));
 
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";

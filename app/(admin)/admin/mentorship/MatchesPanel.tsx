@@ -5,6 +5,7 @@ import Link from "next/link";
 import MemberSearch from "@/components/MemberSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import type { MentorshipOutcome, MentorshipRow } from "@/lib/mentorship";
@@ -12,6 +13,7 @@ import type { VolunteerSuggestion } from "@/lib/big-sister-volunteers";
 import type { Arrival } from "@/lib/arrivals";
 import { createMentorship, deleteMentorship, updateMentorship } from "./actions";
 import { formatDateOnly } from "@/lib/formatters";
+import Tooltip from "@/components/Tooltip";
 
 interface PickerMember {
   id: string;
@@ -188,9 +190,11 @@ export default function MatchesPanel({
                       : "border-slate-200 dark:border-slate-700"
                   }`}
                 >
-                  <span className="font-medium text-slate-900 dark:text-slate-100" title={a.memberRealName}>
-                    {a.memberName}
-                  </span>
+                  <Tooltip content={a.memberRealName}>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {a.memberName}
+                    </span>
+                  </Tooltip>
                   <span className="block text-xs text-slate-600 dark:text-slate-400">
                     {a.kind === "program" && a.programName ? a.programName : KIND_LABEL[a.kind]} · {formatDay(a.arrivedOn)}
                   </span>
@@ -206,24 +210,24 @@ export default function MatchesPanel({
             </p>
             <div className="flex flex-wrap gap-2">
               {volunteers.slice(0, SUGGESTED_VOLUNTEERS).map((v) => (
-                <button
-                  key={v.memberId}
-                  type="button"
-                  onClick={() => setMentor({ id: v.memberId, name: v.name, email: "" })}
-                  title={v.note ?? undefined}
-                  className={`px-3 py-1.5 rounded-lg border text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 ${
-                    mentor?.id === v.memberId
-                      ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20"
-                      : "border-slate-200 dark:border-slate-700"
-                  }`}
-                >
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{v.name}</span>
-                  <span className="block text-xs text-slate-600 dark:text-slate-400">
-                    {v.openLoad === 0 ? "free now" : `${v.openLoad} new member${v.openLoad === 1 ? "" : "s"} now`}
-                    {" · "}
-                    {v.lastStartedOn ? `last matched ${formatDay(v.lastStartedOn)}` : "never matched"}
-                  </span>
-                </button>
+                <Tooltip key={v.memberId} content={v.note ?? undefined}>
+                  <button
+                    type="button"
+                    onClick={() => setMentor({ id: v.memberId, name: v.name, email: "" })}
+                    className={`px-3 py-1.5 rounded-lg border text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                      mentor?.id === v.memberId
+                        ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20"
+                        : "border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    <span className="font-medium text-slate-900 dark:text-slate-100">{v.name}</span>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                      {v.openLoad === 0 ? "free now" : `${v.openLoad} new member${v.openLoad === 1 ? "" : "s"} now`}
+                      {" · "}
+                      {v.lastStartedOn ? `last matched ${formatDay(v.lastStartedOn)}` : "never matched"}
+                    </span>
+                  </button>
+                </Tooltip>
               ))}
             </div>
           </div>
@@ -251,7 +255,7 @@ export default function MatchesPanel({
             The outcome of a trial comes from membership history. Each big sister writes the reason a trial didn't continue; you can edit it here too.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <TableKeyboardNav table={table} label="Matches" className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 dark:bg-slate-800">
               <tr>
@@ -279,6 +283,7 @@ export default function MatchesPanel({
                   <td className="px-6 py-3 text-sm font-medium">
                     <Link
                       href={`/admin/members/${row.newMemberId}`}
+                      data-row-primary
                       className="text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {row.newMemberName}
@@ -311,13 +316,14 @@ export default function MatchesPanel({
                     {row.status === "reassigned" ? (
                       <span className="text-xs text-slate-600 dark:text-slate-400">Reassigned</span>
                     ) : (
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLE[row.outcome]}`}
-                        title={row.convertedOn ? `Membership began ${formatDay(row.convertedOn)}` : undefined}
-                      >
-                        {OUTCOME_LABEL[row.outcome]}
-                        {row.outcome === "converted" && row.currentMember ? " · current member" : ""}
-                      </span>
+                      <Tooltip content={row.convertedOn ? `Membership began ${formatDay(row.convertedOn)}` : undefined}>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLE[row.outcome]}`}
+                        >
+                          {OUTCOME_LABEL[row.outcome]}
+                          {row.outcome === "converted" && row.currentMember ? " · current member" : ""}
+                        </span>
+                      </Tooltip>
                     )}
                   </td>
                   <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400 min-w-[16rem]">
@@ -348,17 +354,18 @@ export default function MatchesPanel({
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingId(row.id);
-                          setEditNote(row.outcomeNote ?? "");
-                        }}
-                        className="text-left hover:underline"
-                        title="Edit note"
-                      >
-                        {row.outcomeNote || <span className="text-slate-500 dark:text-slate-400">Add note</span>}
-                      </button>
+                      <Tooltip content="Edit note">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(row.id);
+                            setEditNote(row.outcomeNote ?? "");
+                          }}
+                          className="text-left hover:underline"
+                        >
+                          {row.outcomeNote || <span className="text-slate-500 dark:text-slate-400">Add note</span>}
+                        </button>
+                      </Tooltip>
                     )}
                   </td>
                   <td className="px-6 py-3">
@@ -386,7 +393,7 @@ export default function MatchesPanel({
             </tbody>
           </table>
           <DataTablePager table={table} itemLabel="matches" />
-        </div>
+        </TableKeyboardNav>
       </div>
     </div>
   );

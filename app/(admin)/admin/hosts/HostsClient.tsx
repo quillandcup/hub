@@ -16,8 +16,10 @@ import {
 import type { HostEligibility } from "@/lib/host-eligibility";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
+import Tooltip from "@/components/Tooltip";
 
 interface Member {
   id: string;
@@ -55,12 +57,13 @@ export function HostEligibilityBadge({ eligibility }: { eligibility: HostEligibi
     ? `Member for less than a full month; eligible to host from ${eligibility.eligibleOn}`
     : "No join date on record, so we can't confirm a full month of membership";
   return (
-    <span
-      title={title}
-      className="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
-    >
-      {eligibility.eligibleOn ? `New member — eligible ${eligibility.eligibleOn}` : "Join date unknown"}
-    </span>
+    <Tooltip content={title}>
+      <span
+        className="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
+      >
+        {eligibility.eligibleOn ? `New member — eligible ${eligibility.eligibleOn}` : "Join date unknown"}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -414,14 +417,15 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
               Add Schedule
             </button>
           )}
-          <button
-            onClick={handleBootstrap}
-            disabled={bootstrapping}
-            className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50"
-            title={`Create confirmed schedules from who's hosting on the calendar in ${monthLabel(month)}, then copy them to the following month`}
-          >
-            {bootstrapping ? "Bootstrapping…" : `Bootstrap ${monthLabel(month)} from calendar`}
-          </button>
+          <Tooltip content={`Create confirmed schedules from who's hosting on the calendar in ${monthLabel(month)}, then copy them to the following month`}>
+            <button
+              onClick={handleBootstrap}
+              disabled={bootstrapping}
+              className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50"
+            >
+              {bootstrapping ? "Bootstrapping…" : `Bootstrap ${monthLabel(month)} from calendar`}
+            </button>
+          </Tooltip>
         </div>
         <button
           onClick={handleToggleLock}
@@ -616,7 +620,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         </form>
       )}
 
-      <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+      <TableKeyboardNav table={table} label="Host schedules" className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
@@ -646,6 +650,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                     <div>
                       <Link
                         href={`/admin/members/${s.member.id}`}
+                        data-row-primary
                         className="font-medium text-plum-600 hover:underline dark:text-plum-400"
                       >
                         {getMemberDisplayName(s.member)}
@@ -689,7 +694,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="schedules" />
-      </div>
+      </TableKeyboardNav>
     </div>
   );
 }

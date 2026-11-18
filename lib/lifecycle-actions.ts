@@ -11,7 +11,7 @@ import type { IconName } from "@/components/Icon";
  * Not every thing has every action: only a landing page keeps a draft apart from what is published, so only it has
  * `reset`, `restore` and `history`. A course's "draft" is whether members can see it, and its versions don't exist.
  */
-export type LifecycleAction = "publish" | "unpublish" | "duplicate" | "delete" | "reset" | "restore" | "history" | "preview";
+export type LifecycleAction = "publish" | "unpublish" | "duplicate" | "delete" | "reset" | "restore" | "history" | "preview" | "viewLive";
 
 /** What the confirmation needs to say. `noun` is "page", "course", "lesson". */
 export type LifecycleContext = {
@@ -77,6 +77,7 @@ export const LIFECYCLE_ACTIONS: Record<LifecycleAction, Entry> = {
   },
   history: { icon: "history", label: () => "History" },
   preview: { icon: "eye", label: () => "Preview" },
+  viewLive: { icon: "external", label: () => "View live" },
 };
 
 export const lifecycleLabel = (action: LifecycleAction, noun = "") => LIFECYCLE_ACTIONS[action].label(noun);

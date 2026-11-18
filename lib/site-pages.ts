@@ -166,6 +166,8 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
   admin({ title: "Security", href: "/admin/security", section: "System", nav: { icon: "🛡️" }, keywords: ["rls", "secrets", "webhooks", "open items", "compliance", "privacy"] }),
+  admin({ title: "Privacy", href: "/admin/privacy", section: "System", nav: { icon: "🔏" }, keywords: ["retention", "consent", "chat privacy", "break-glass", "who can see", "open items", "gdpr"] }),
+  admin({ title: "Compliance", href: "/admin/compliance", section: "System", nav: { icon: "📋" }, keywords: ["gdpr", "pci", "wcag", "accessibility", "standards", "certification", "open items", "privacy law"] }),
   admin({ title: "Slack Channels", href: "/admin/data/slack-channels", section: "System", nav: { icon: "🔒" }, keywords: ["restricted", "privacy"] }),
   admin({ title: "Prickle Types", href: "/admin/data/prickle-types", section: "System", nav: { icon: "🏷️" } }),
   admin({ title: "Member Overrides", href: "/admin/member-overrides", section: "System", nav: { icon: "🎁" }, feature: "member_overrides" }),

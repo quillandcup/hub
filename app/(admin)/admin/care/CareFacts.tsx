@@ -1,5 +1,6 @@
 import { CARE_SCORE_TIER_LABELS } from "@/lib/care-scores";
 import type { EngagementCardData } from "./card";
+import Tooltip from "@/components/Tooltip";
 
 /** What the score counts, word for word as the code does (`lib/member-engagement.ts`). */
 export const SCORE_HELP =
@@ -25,15 +26,19 @@ export default function CareFacts({ card, withHelp = false }: { card: Pick<Engag
   return (
     <div className="mt-1 space-y-0.5 text-sm text-slate-700 dark:text-slate-300">
       <p>
-        <span title={SCORE_HELP} className="cursor-help underline decoration-dotted underline-offset-2">
-          Engagement score
-        </span>
+        <Tooltip content={SCORE_HELP}>
+          <span className="cursor-help underline decoration-dotted underline-offset-2">
+            Engagement score
+          </span>
+        </Tooltip>
         : {scores ? scoreSentence(scores) : "not available"}
       </p>
       <p>
-        <span title={PARTICIPATION_HELP} className="cursor-help underline decoration-dotted underline-offset-2">
-          Last in the community
-        </span>
+        <Tooltip content={PARTICIPATION_HELP}>
+          <span className="cursor-help underline decoration-dotted underline-offset-2">
+            Last in the community
+          </span>
+        </Tooltip>
         : {lastParticipation === "unavailable" ? "not available" : lastParticipation ? `${lastParticipation.dateLabel}, ${lastParticipation.what} (${lastParticipation.agoLabel})` : "none recorded"}
       </p>
       {withHelp && (

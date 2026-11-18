@@ -39,13 +39,21 @@ export function SortableTh({
   filter,
   className = DEFAULT_CELL_CLASS,
 }: SortableThProps) {
+  // The whole header cell stays clickable for the mouse (the click on the th), and the label is a real button so Tab
+  // reaches it and Enter or Space press it: a button's keyboard press is a click that bubbles to the th, so there is
+  // one handler and it runs once. `aria-sort` on the th tells a screen reader which way the column is ordered.
   return (
     <th
       className={`${className} text-${align} cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200`}
       onClick={onClick}
       aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
     >
-      {label} <SortIcon active={active} direction={direction} />
+      <button
+        type="button"
+        className="rounded-sm [font:inherit] [letter-spacing:inherit] [text-align:inherit] [text-transform:inherit] focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500"
+      >
+        {label} <SortIcon active={active} direction={direction} />
+      </button>
       {filter}
     </th>
   );

@@ -76,6 +76,10 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
+          // 15s, not the default 5s: on a loaded CI runner (they differ by almost 2x in speed, and the suite uses every
+          // core) a component test that takes 2s locally can pass 5s and fail with "timed out in 5000ms". Longer than
+          // the 5s Testing Library wait in tests/setup-jsdom.ts, so a missing element still fails with its own message.
+          testTimeout: 15_000,
           // Unit tests run in a zone far from UTC and Eastern so a test (or code) that leans on the
           // machine's zone fails here instead of passing in CI (UTC) and breaking on a laptop. To
           // check another zone, run with UNIT_TEST_TZ=<zone> pnpm test:unit.

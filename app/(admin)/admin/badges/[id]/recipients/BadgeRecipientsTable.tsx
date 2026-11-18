@@ -6,6 +6,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import type { BadgeRecipient } from "@/lib/badges";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 type SortColumn = "member" | "level" | "occurrences" | "firstAwardedAt";
 
@@ -40,6 +41,7 @@ export default function BadgeRecipientsTable({
 
   return (
     <div className="overflow-x-auto">
+    <TableKeyboardNav table={table} label="Recipients">
       <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
         <thead className="bg-slate-50 dark:bg-slate-800/50">
           <tr>
@@ -98,6 +100,7 @@ export default function BadgeRecipientsTable({
         </tbody>
       </table>
       <DataTablePager table={table} itemLabel="recipients" />
+    </TableKeyboardNav>
     </div>
   );
 }

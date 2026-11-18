@@ -6,6 +6,7 @@ import { Download, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { COURSE_FILES_BUCKET, formatBytes } from "@/lib/courses/file-format";
 import { finishLessonFileUpload, removeLessonFile, startLessonFileUpload } from "../../../lesson-file-actions";
+import Tooltip from "@/components/Tooltip";
 
 const BUTTON =
   "rounded border border-slate-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600";
@@ -88,13 +89,17 @@ export default function LessonFilesField({ courseId, lessonId, files }: { course
               </span>
               <span className="flex shrink-0 items-center gap-1">
                 {f.href && (
-                  <a href={f.href} download aria-label={`Download ${f.filename}`} title="Download" className={ICON_BUTTON}>
-                    <Download size={16} aria-hidden="true" />
-                  </a>
+                  <Tooltip content="Download">
+                    <a href={f.href} download aria-label={`Download ${f.filename}`} className={ICON_BUTTON}>
+                      <Download size={16} aria-hidden="true" />
+                    </a>
+                  </Tooltip>
                 )}
-                <button type="button" aria-label={`Remove ${f.filename}`} title="Remove" className={ICON_BUTTON} disabled={busy} onClick={() => void remove(f)}>
-                  <X size={16} aria-hidden="true" />
-                </button>
+                <Tooltip content="Remove">
+                  <button type="button" aria-label={`Remove ${f.filename}`} className={ICON_BUTTON} disabled={busy} onClick={() => void remove(f)}>
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                </Tooltip>
               </span>
             </li>
           ))}

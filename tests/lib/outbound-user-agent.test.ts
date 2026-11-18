@@ -109,7 +109,7 @@ describe("SDK clients carry our identity", () => {
     expect(getUserAgent().startsWith(`${OUTBOUND_PRODUCT.name}/${OUTBOUND_PRODUCT.version} `)).toBe(true);
   });
 
-  it("Google Calendar requests carry our directive next to googleapis's own", async () => {
+  it("Google Calendar requests carry our directive next to the Google client's own", async () => {
     vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", JSON.stringify({ client_email: "a@b.example", private_key: "k" }));
     const { GoogleCalendarClient } = await import("@/lib/google-calendar/client");
     const client = new GoogleCalendarClient() as unknown as { calendar: { context: { _options: { userAgentDirectives?: { product: string; version: string; comment: string }[] } } } };

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Tooltip from "@/components/Tooltip";
 
 export interface NameAliasRow {
   id: string;
@@ -463,16 +464,17 @@ export default function MemberIdentityPanel({
                     Reactivate
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveAlias(alias.id)}
-                  disabled={removingAliasId === alias.id}
-                  aria-label={`Remove pen name ${alias.alias}`}
-                  title="Remove pen name"
-                  className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
-                >
-                  ×
-                </button>
+                <Tooltip content="Remove pen name">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAlias(alias.id)}
+                    disabled={removingAliasId === alias.id}
+                    aria-label={`Remove pen name ${alias.alias}`}
+                    className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                  >
+                    ×
+                  </button>
+                </Tooltip>
               </span>
             );
           })}

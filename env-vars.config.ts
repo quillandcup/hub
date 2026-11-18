@@ -299,6 +299,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
   {
+    name: "SLACK_ALERTS_APP_ID",
+    group: "Slack",
+    description:
+      "ID (A...) of the minimal Slack alerts app (incoming webhook to #hub-alerts), created from slack-alerts-app-manifest.yml with `pnpm slack:alerts:create`. CI-only: the push-slack-manifest job pushes that manifest to it (GitHub variable) and skips it while unset. The webhook URL is the separate SLACK_ALERTS_WEBHOOK_URL GitHub secret, set by hand (docs/SLACK_MANIFEST.md).",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+  {
     name: "SLACK_TEST_MODE",
     group: "Slack",
     description: "Overrides default DM-redirect behavior outside production.",
@@ -617,6 +625,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     description:
       "Signing secret for the unsubscribe links in notification emails (lib/email-unsubscribe.ts). Changing it breaks the unsubscribe links in emails already sent, so treat it as permanent. Emails aren't sent without it.",
     type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "POSTAL_ADDRESS",
+    group: "Email (Resend)",
+    description:
+      "Our mailing address on one line (street, city, state and zip), printed in the footer of every notification email (CAN-SPAM). Quote the value in the env file if it has a `#` (a unit number, say): unquoted, everything from the `#` on is read as a comment. Not in the repo, which is public. Emails aren't sent without it (lib/config.ts postalAddress()).",
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {

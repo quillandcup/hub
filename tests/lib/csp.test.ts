@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { buildCsp, CSP_REPORT_ONLY_HEADER, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, reportOnlyCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -44,15 +44,46 @@ describe("sentryReportUri", () => {
 });
 
 describe("next.config headers", () => {
-  it("sends the Report-Only policy on every path, and no enforcing policy", async () => {
-    const config = (await import("../../next.config")).default as { headers?: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
-    const rules = await config.headers!();
-    expect(rules).toHaveLength(1);
-    expect(rules[0].source).toBe("/:path*");
-    const keys = rules[0].headers.map((h) => h.key);
-    expect(keys).toEqual([CSP_REPORT_ONLY_HEADER]);
-    const value = rules[0].headers[0].value;
+  type Rule = { source: string; headers: { key: string; value: string }[] };
+  const rules = async () => {
+    const config = (await import("../../next.config")).default as { headers?: () => Promise<Rule[]> };
+    return config.headers!();
+  };
+
+  it("sends the other browser protections on every path, and no Report-Only policy", async () => {
+    const all = (await rules()).find((r) => r.source === "/:path*")!;
+    expect(all.headers.map((h) => h.key)).toEqual(SECURITY_HEADERS.map((h) => h.key));
+    for (const r of await rules()) expect(r.headers.map((h) => h.key)).not.toContain("Content-Security-Policy-Report-Only");
+  });
+
+  it("sends the enforcing policy only for paths the proxy skips, which send it themselves", async () => {
+    const withCsp = (await rules()).filter((r) => r.headers.some((h) => h.key === CSP_HEADER));
+    expect(withCsp.length).toBeGreaterThan(0);
+    expect(withCsp.map((r) => r.source)).not.toContain("/:path*");
+    const value = withCsp[0].headers.find((h) => h.key === CSP_HEADER)!.value;
     for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'"]) expect(value).toContain(part);
+  });
+
+  it("covers each prefix the proxy matcher excludes", async () => {
+    const sources = (await rules()).map((r) => r.source).join(" ");
+    const { config } = await import("../../proxy");
+    const excluded = (config.matcher[0].match(/\(\?!([^)]*)\)/)?.[1] ?? "").split("|");
+    for (const prefix of ["_next/static", "_next/image", "favicon.ico", "monitoring"]) {
+      expect(excluded.some((e) => e.startsWith(prefix))).toBe(true);
+      expect(sources).toContain(prefix);
+    }
+  });
+
+  it("sets nosniff, a referrer policy, same-origin framing and no camera, microphone or location", () => {
+    const byKey = Object.fromEntries(SECURITY_HEADERS.map((h) => [h.key, h.value]));
+    expect(byKey["X-Content-Type-Options"]).toBe("nosniff");
+    expect(byKey["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
+    expect(byKey["X-Frame-Options"]).toBe("SAMEORIGIN");
+    for (const feature of ["camera", "microphone", "geolocation"]) expect(byKey["Permissions-Policy"]).toContain(`${feature}=()`);
+  });
+
+  it("allows the Kajabi storage host that /courses thumbnails load from", () => {
+    expect(appConfig.csp.imageHosts).toContain("https://kajabi-storefronts-production.s3.amazonaws.com");
   });
 });
 
@@ -60,5 +91,90 @@ describe("next.config redirects", () => {
   it("sends the old Identity tab of the member page to Account", async () => {
     const config = (await import("../../next.config")).default as { redirects?: () => Promise<{ source: string; destination: string; permanent: boolean }[]> };
     expect(await config.redirects!()).toContainEqual({ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true });
+  });
+});
+
+describe("scriptStyleCsp", () => {
+  const nonce = generateNonce();
+  const policy = scriptStyleCsp({ nonce, sentryDsn: DSN });
+
+  it("allows scripts and styles only from us or with the nonce", () => {
+    expect(policy).toContain(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`);
+    expect(policy).toContain(`style-src 'self' 'nonce-${nonce}'`);
+    expect(policy).not.toMatch(/script-src[^;]*unsafe-inline/);
+    expect(policy).not.toContain("unsafe-eval");
+  });
+
+  it("allows eval only in development", () => {
+    expect(scriptStyleCsp({ nonce, dev: true })).toContain("'unsafe-eval'");
+  });
+
+  it("reports to Sentry when there is a DSN", () => {
+    expect(policy).toContain("report-uri ");
+    expect(scriptStyleCsp({ nonce })).not.toContain("report-uri");
+  });
+
+  it("makes a new nonce each time, in a form Next accepts", () => {
+    expect(generateNonce()).not.toBe(generateNonce());
+    expect(nonce).toMatch(/^[A-Za-z0-9+/_-]+={0,2}$/);
+  });
+});
+
+describe("buildMetaCsp", () => {
+  const meta = buildMetaCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts, sentryDsn: DSN });
+
+  it("keeps the picture, plugin, base and form directives", () => {
+    for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'"]) expect(meta).toContain(part);
+    expect(meta).toContain("https://project.supabase.co");
+  });
+
+  it("leaves out what a meta tag cannot carry", () => {
+    expect(meta).not.toContain("frame-ancestors");
+    expect(meta).not.toContain("report-uri");
+    expect(meta).not.toMatch(/script-src/);
+  });
+});
+
+describe("reportOnlyCsp", () => {
+  const nonce = generateNonce();
+  const policy = reportOnlyCsp({
+    nonce,
+    supabaseUrl: "https://project.supabase.co/",
+    imageHosts: appConfig.csp.imageHosts,
+    connectHosts: appConfig.csp.connectHosts,
+    frameHosts: appConfig.csp.frameHosts,
+    mediaHosts: appConfig.csp.mediaHosts,
+    sentryDsn: DSN,
+  });
+  const directive = (name: string) => policy.split("; ").find((d) => d.startsWith(`${name} `));
+
+  it("carries the script and style policy with the nonce", () => {
+    expect(directive("script-src")).toContain(`'nonce-${nonce}'`);
+    expect(directive("style-src")).toContain(`'nonce-${nonce}'`);
+  });
+
+  it("repeats the enforced picture, plugin, base, form and framing directives so their violations are reported", () => {
+    const enforced = buildCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts }).split("; ");
+    for (const d of enforced) expect(policy.split("; ")).toContain(d);
+  });
+
+  it("adds connection, frame, media and font sources from the config, with Supabase's websocket and Sentry's host", () => {
+    expect(directive("connect-src")).toContain("wss://project.supabase.co");
+    expect(directive("connect-src")).toContain("https://project.supabase.co");
+    expect(directive("connect-src")).toContain("https://o123456.ingest.de.sentry.io");
+    for (const host of appConfig.csp.connectHosts) expect(directive("connect-src")).toContain(host);
+    for (const host of appConfig.csp.frameHosts) expect(directive("frame-src")).toContain(host);
+    for (const host of appConfig.csp.mediaHosts) expect(directive("media-src")).toContain(host);
+    expect(directive("font-src")).toContain("'self'");
+  });
+
+  it("names Sentry once, as the only report address", () => {
+    expect(policy.match(/report-uri/g)).toHaveLength(1);
+  });
+
+  it("works with no hosts and no Supabase or Sentry settings", () => {
+    const bare = reportOnlyCsp({ nonce, imageHosts: [] });
+    expect(bare).toContain("connect-src 'self'");
+    expect(bare).not.toContain("report-uri");
   });
 });

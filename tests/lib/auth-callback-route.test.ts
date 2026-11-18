@@ -33,6 +33,13 @@ describe("GET /auth/callback", () => {
     expect(rememberSignInFailure).not.toHaveBeenCalled();
   });
 
+  it("hands a token_hash link (the new email link, sent to this address) on to /auth/confirm untouched", async () => {
+    const res = await call("?token_hash=abcdefgh12&type=email");
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://hub.example.test/auth/confirm?token_hash=abcdefgh12&type=email");
+    expect(exchange).not.toHaveBeenCalled();
+  });
+
   it("logs and returns to /login when there is no code", async () => {
     const res = await call("");
     expect(res.headers.get("location")).toBe("https://hub.example.test/login?error=auth_callback_failed");

@@ -6,6 +6,7 @@ import { loadAdminCourses } from "@/lib/courses/admin";
 import { accessLabel } from "@/lib/courses/access-options";
 import { formatCourseDate } from "@/lib/courses/format";
 import { createRepos } from "@/lib/data/repos";
+import Tooltip from "@/components/Tooltip";
 
 export const metadata: Metadata = { title: "Courses" };
 
@@ -50,7 +51,9 @@ export default async function AdminCoursesPage() {
                       {c.title}
                     </Link>
                   ) : (
-                    <span title="Run the Kajabi import to open this course">{c.title}</span>
+                    <Tooltip content="Run the Kajabi import to open this course">
+                      <span>{c.title}</span>
+                    </Tooltip>
                   )}
                   {c.source === "hub" && <span className="ml-2 rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900/30 dark:text-plum-200">Hub</span>}
                 </td>

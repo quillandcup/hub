@@ -8,6 +8,7 @@ import LessonTextField from "./LessonTextField";
 import LessonFilesField from "./LessonFilesField";
 import LessonDeleteButton from "./LessonDeleteButton";
 import LessonThumbnailField from "./LessonThumbnailField";
+import Tooltip from "@/components/Tooltip";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -87,9 +88,11 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
               ) : (
                 <p className="text-sm text-slate-600 dark:text-slate-400">No downloads.</p>
               )}
-              <button type="button" disabled title={SOON} className={`${BUTTON} mt-3`}>
-                Add files
-              </button>
+              <Tooltip content={SOON}>
+                <button type="button" disabled className={`${BUTTON} mt-3`}>
+                  Add files
+                </button>
+              </Tooltip>
             </>
           )}
         </div>
@@ -108,10 +111,12 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
                 const choice = choices.find((x) => x.value === c.value)!;
                 return (
                   // Why a choice is blocked is its tooltip, not text beside it.
-                  <label key={c.value} title={choice.disabledReason} className="flex items-center gap-2">
-                    <input type="radio" name="status" defaultChecked={lesson.publishingOption === c.value} disabled={!!choice.disabledReason} />
-                    {c.label}
-                  </label>
+                  <Tooltip key={c.value} content={choice.disabledReason}>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="status" defaultChecked={lesson.publishingOption === c.value} disabled={!!choice.disabledReason} />
+                      {c.label}
+                    </label>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -134,9 +139,11 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
               ) : (
                 <p className="text-sm text-slate-600 dark:text-slate-400">No thumbnail.</p>
               )}
-              <button type="button" disabled title={SOON} className={`${BUTTON} mt-3`}>
-                Image actions
-              </button>
+              <Tooltip content={SOON}>
+                <button type="button" disabled className={`${BUTTON} mt-3`}>
+                  Image actions
+                </button>
+              </Tooltip>
             </>
           )}
         </div>
@@ -158,9 +165,11 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
         {detail.editable ? (
           <LessonDeleteButton courseId={detail.course.id} lessonId={lesson.kajabiId} title={lesson.title} />
         ) : (
-          <button type="button" disabled title={SOON} className="text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300">
-            Delete lesson
-          </button>
+          <Tooltip content={SOON}>
+            <button type="button" disabled className="text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300">
+              Delete lesson
+            </button>
+          </Tooltip>
         )}
       </div>
     </form>

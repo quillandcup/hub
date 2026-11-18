@@ -11,6 +11,7 @@ import type { MemberSortColumn } from "@/lib/admin-members-paging";
 import { formatDateInZone } from "@/lib/formatters";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useTimeZone } from "@/components/Timezone";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 export interface MemberRow {
   id: string;
@@ -145,6 +146,7 @@ export default function MembersTable({ members, table: serverTable, readOnly = f
         </div>
       )}
 
+      <TableKeyboardNav table={table} label="Members">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
@@ -268,6 +270,7 @@ export default function MembersTable({ members, table: serverTable, readOnly = f
         </table>
       </div>
       <DataTablePager table={table} itemLabel="members" />
+      </TableKeyboardNav>
 
       {mergeModalOpen && selectedMembers.length >= 2 && (
         <BulkMergeMemberModal

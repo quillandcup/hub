@@ -29,16 +29,22 @@ const fonts = {
 export function EmailLayout({
   preview,
   footerLinks,
+  postalAddress,
   children,
 }: {
   preview: string;
   /** Small links above the support line (notification emails: "Notification settings"). */
   footerLinks?: { label: string; url: string }[];
+  /** Our mailing address, last line of the footer. Notification emails carry it (CAN-SPAM); the sign-in emails are transactional. */
+  postalAddress?: string;
   children: React.ReactNode;
 }) {
   return (
     <Html lang="en">
-      <Head />
+      <Head>
+        {/* Mail apps (Apple Mail, Gmail) wrap a street address in a map link. Restyle only links inside the address element, never a selector that could reach the button or other links. */}
+        <style>{`#postal-address a { color: inherit !important; text-decoration: none !important; font: inherit !important; }`}</style>
+      </Head>
       <Preview>{preview}</Preview>
       <Body
         style={{
@@ -74,7 +80,7 @@ export function EmailLayout({
             {children}
           </Section>
 
-          {/* Footer */}
+          {/* Footer: links, support, then who we are, each on its own short line */}
           <Text
             style={{
               textAlign: "center",
@@ -84,21 +90,37 @@ export function EmailLayout({
               margin: "32px 0 0 0",
             }}
           >
-            Hedgie Hub · The members' home of Quill &amp; Cup, a community for writers
-            <br />
-            {(footerLinks ?? []).map((link) => (
+            {(footerLinks ?? []).map((link, i) => (
               <React.Fragment key={link.url}>
+                {i > 0 ? " · " : null}
                 <a href={link.url} style={{ color: colors.accent }}>
                   {link.label}
                 </a>
-                <br />
               </React.Fragment>
             ))}
+            {footerLinks?.length ? <br /> : null}
             Questions? Email{" "}
             <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: colors.accent }}>
               {SUPPORT_EMAIL}
-            </a>{" "}
-            — replies to this address aren't monitored.
+            </a>
+            . Replies to this email aren&apos;t monitored.
+          </Text>
+          <Text
+            style={{
+              textAlign: "center",
+              fontSize: "12px",
+              color: colors.footerText,
+              lineHeight: "1.6",
+              margin: "12px 0 0 0",
+            }}
+          >
+            Hedgie Hub, the members&apos; home of Quill &amp; Cup
+            {postalAddress ? (
+              <>
+                <br />
+                <span id="postal-address">{postalAddress}</span>
+              </>
+            ) : null}
           </Text>
         </Container>
       </Body>

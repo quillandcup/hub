@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -32,5 +32,17 @@ describe("adjusting an image from inside another form", () => {
 
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(outer).not.toHaveBeenCalled();
+  });
+
+  it("shows the Ctrl/Cmd+Enter hint on Save, and the key saves the image", async () => {
+    const onChanged = vi.fn();
+    render(<MediaEditor assetId={ASSET.id} own onClose={vi.fn()} onChanged={onChanged} />);
+    const save = await screen.findByRole("button", { name: "Save" });
+    expect(save).toHaveAttribute("aria-keyshortcuts", "Control+Enter Meta+Enter");
+    expect(save.querySelector("[data-kbd]")).not.toBeNull();
+    act(() => save.focus());
+    expect(onChanged).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 });

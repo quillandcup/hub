@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { bearerMatches } from "@/lib/webhook-auth";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { sendMemberReminders } from "@/lib/member-reminders";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 async function runMemberReminders(request: NextRequest): Promise<NextResponse> {
   const auth = request.headers.get("authorization");
   const expected = process.env.CRON_INTERNAL_SECRET;
-  if (!expected || auth !== `Bearer ${expected}`) {
+  if (!bearerMatches(expected, auth)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const supabase = createServiceRoleClient();

@@ -9,6 +9,7 @@ import { FEATURE_PREVIEWS } from "@/lib/features";
 import { withReferenceNames } from "@/lib/audit-references";
 import { careActivitySentence, careEventOfAudit, careSentence } from "@/lib/care-events";
 import { periodNumber } from "@/lib/care";
+import { allTimeStart, describeRange, parseDayRange, rangeInstants, type DayRange } from "@/lib/activity-range";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -82,8 +83,15 @@ export interface FeedFilters {
   hideSystem: boolean;
   /** Drop member activity that came from Slack (by far the most numerous). */
   hideSlack: boolean;
-  /** Look-back window in days. */
+  /** Look-back window in days; `ALL_TIME_DAYS` for no limit. Ignored while `range` is set. */
   days: number;
+  /**
+   * A custom range of Eastern days (?from=&to=), which wins over `days`. Only a feed that offers it (`FeedDefaults.rangeFilter`:
+   * a member's Activity tab) reads it from the URL; the central log has no range yet and leaves it out.
+   */
+  range?: DayRange | null;
+  /** Why the URL's range was not used (a short sentence), for the page to show; null when it was fine. */
+  rangeNotice?: string | null;
 }
 
 /** Filters plus where in the result set we are; page/pageSize come from ?page=&pageSize=. */
@@ -94,13 +102,18 @@ export interface FeedQuery extends FeedFilters {
 
 export const FEED_DAY_OPTIONS = [1, 7, 30, 90, 365] as const;
 
+/** `days` for "all time" (?days=all): from the start of the range floor, no look-back to count. */
+export const ALL_TIME_DAYS = 0;
+
 /** What a feed shows when its URL has no ?view= / ?days=: the central log is audit-first, a member's page shows everything. */
 export interface FeedDefaults {
   view: FeedView;
   days: number;
+  /** Also offer "all time" and a custom From/To range (?days=all, ?from=&to=). */
+  rangeFilter?: boolean;
 }
 export const CENTRAL_DEFAULTS: FeedDefaults = { view: "audit", days: 7 };
-export const MEMBER_DEFAULTS: FeedDefaults = { view: "all", days: 90 };
+export const MEMBER_DEFAULTS: FeedDefaults = { view: "all", days: 90, rangeFilter: true };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -111,13 +124,15 @@ function parseView(view: string | undefined, fallback: FeedView): FeedView {
   return view === "audit" || view === "all" || view === "privacy" ? view : fallback;
 }
 
-export function parseFeedFilters(params: Record<string, Param>, defaults: FeedDefaults = CENTRAL_DEFAULTS): FeedFilters {
+export function parseFeedFilters(params: Record<string, Param>, defaults: FeedDefaults = CENTRAL_DEFAULTS, now: Date = new Date()): FeedFilters {
   const kindList = (first(params.kinds) ?? "")
     .split(",")
     .filter((k): k is FeedKind => (FEED_KINDS as readonly string[]).includes(k));
+  const allTime = defaults.rangeFilter === true && first(params.days) === "all";
   const days = Number(first(params.days));
   const actor = first(params.actor);
   const member = first(params.member);
+  const parsedRange = defaults.rangeFilter ? parseDayRange(params.from, params.to, now) : null;
 
   return {
     view: parseView(first(params.view), defaults.view),
@@ -127,7 +142,8 @@ export function parseFeedFilters(params: Record<string, Param>, defaults: FeedDe
     sudoOnly: first(params.sudo) === "1",
     hideSystem: first(params.nosystem) === "1",
     hideSlack: first(params.noslack) === "1",
-    days: (FEED_DAY_OPTIONS as readonly number[]).includes(days) ? days : defaults.days,
+    days: allTime ? ALL_TIME_DAYS : (FEED_DAY_OPTIONS as readonly number[]).includes(days) ? days : defaults.days,
+    ...(parsedRange ? { range: parsedRange.range, rangeNotice: parsedRange.notice } : {}),
   };
 }
 
@@ -144,24 +160,62 @@ export function feedSearch(filters: Partial<FeedFilters>, defaults: FeedDefaults
   if (filters.sudoOnly) q.set("sudo", "1");
   if (filters.hideSystem) q.set("nosystem", "1");
   if (filters.hideSlack) q.set("noslack", "1");
-  if (filters.days && filters.days !== defaults.days) q.set("days", String(filters.days));
+  if (defaults.rangeFilter && filters.range) {
+    q.set("from", filters.range.from);
+    q.set("to", filters.range.to);
+  } else if (defaults.rangeFilter && filters.days === ALL_TIME_DAYS) {
+    q.set("days", "all");
+  } else if (filters.days && filters.days !== defaults.days) {
+    q.set("days", String(filters.days));
+  }
   const s = q.toString();
   return s ? `?${s}` : "";
 }
 
-function rpcArgs(filters: FeedFilters, now: Date) {
-  const from = new Date(now.getTime() - filters.days * 24 * 60 * 60 * 1000);
+/**
+ * What a community manager's Activity tab asks for: one member's own activity (the `activity` kind) and nothing else, whatever the
+ * URL says. The database enforces the same limit for her (get_activity_feed and count_activity_feed, migration
+ * 20270817000000); this keeps what the page asks for, and what its filter bar offers, inside it too.
+ */
+export function limitedFeedFilters(filters: FeedFilters): FeedFilters {
+  return { ...filters, view: "all", kinds: null, actorUserId: null };
+}
+
+/**
+ * The instants a feed covers, [from, to): a custom range is its Eastern days (from 00:00 of the first to 00:00 after the
+ * last, whole days whatever a daylight saving day's length); all time starts at the range floor; otherwise the last `days`
+ * days up to a minute past now.
+ */
+export function feedWindow(filters: Pick<FeedFilters, "days" | "range">, now: Date): { from: Date; to: Date } {
+  if (filters.range) return rangeInstants(filters.range);
+  const to = new Date(now.getTime() + 60_000);
+  if (filters.days === ALL_TIME_DAYS) return { from: allTimeStart(), to };
+  return { from: new Date(now.getTime() - filters.days * 24 * 60 * 60 * 1000), to };
+}
+
+/**
+ * The window and the total in plain words: "12 events, 3 Nov to 17 Nov", "1 event, last 90 days", "40 events, all time".
+ */
+export function describeFeedWindow(filters: Pick<FeedFilters, "days" | "range">, total: number, now: Date): string {
+  const count = `${total.toLocaleString("en-US")} ${total === 1 ? "event" : "events"}`;
+  if (filters.range) return `${count}, ${describeRange(filters.range, now)}`;
+  if (filters.days === ALL_TIME_DAYS) return `${count}, all time`;
+  return `${count}, ${filters.days === 1 ? "last 24 hours" : `last ${filters.days} days`}`;
+}
+
+function rpcArgs(filters: FeedFilters, now: Date, memberActivityOnly = false) {
+  const { from, to } = feedWindow(filters, now);
   return {
-    p_audit_only: filters.view === "audit",
-    p_kinds: filters.kinds,
-    p_entity_types: filters.view === "privacy" ? [...PRIVACY_ENTITY_TYPES] : null,
-    p_actor_user_id: filters.actorUserId,
+    p_audit_only: !memberActivityOnly && filters.view === "audit",
+    p_kinds: memberActivityOnly ? ["activity"] : filters.kinds,
+    p_entity_types: !memberActivityOnly && filters.view === "privacy" ? [...PRIVACY_ENTITY_TYPES] : null,
+    p_actor_user_id: memberActivityOnly ? null : filters.actorUserId,
     p_member_id: filters.memberId,
     p_sudo_only: filters.sudoOnly,
     p_hide_system: filters.hideSystem,
     p_hide_slack: filters.hideSlack,
     p_from: from.toISOString(),
-    p_to: new Date(now.getTime() + 60_000).toISOString(),
+    p_to: to.toISOString(),
   };
 }
 
@@ -176,9 +230,11 @@ export interface FeedPage {
 export async function fetchActivityFeed(
   supabase: SupabaseClient,
   query: FeedQuery,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** A community manager's tab: only the member's `activity` rows are asked for (see `limitedFeedFilters`). */
+  options: { memberActivityOnly?: boolean } = {}
 ): Promise<FeedPage> {
-  const args = rpcArgs(query, now);
+  const args = rpcArgs(query, now, options.memberActivityOnly);
   const { data: count, error: countError } = await supabase.rpc("count_activity_feed", args);
   throwIfDbError("activity feed: count_activity_feed", countError);
   const total = (count as number | null) ?? 0;

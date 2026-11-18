@@ -6,6 +6,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import type { RosterRow } from "@/lib/courses/roster";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 type Column = "name" | "access" | "progress" | "lastLesson" | "lastActivity";
 
@@ -26,6 +27,7 @@ export default function RosterTable({ rows }: { rows: RosterRow[] }) {
   const table = useDataTable<RosterRow, Column>({ rows, getSortValue: sortValue, defaultSort: { column: "lastActivity", direction: "desc" } });
   return (
     <div className="overflow-x-auto">
+    <TableKeyboardNav table={table} label="Members">
       <table className="w-full text-left text-sm">
         <thead>
           <tr>
@@ -54,6 +56,7 @@ export default function RosterTable({ rows }: { rows: RosterRow[] }) {
         </tbody>
       </table>
       <DataTablePager table={table} itemLabel="members" />
+    </TableKeyboardNav>
     </div>
   );
 }

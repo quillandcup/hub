@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { EarnedBadge } from "@/lib/badges";
+import Tooltip from "@/components/Tooltip";
 
 const CATEGORY_STYLES: Record<string, string> = {
   milestone: "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800",
@@ -34,8 +35,10 @@ export default function BadgeChip({ badge, href }: { badge: EarnedBadge; href?: 
   }
 
   return (
-    <div className={className} title={title || undefined}>
-      {content}
-    </div>
+    <Tooltip content={title || undefined}>
+      <div className={className}>
+        {content}
+      </div>
+    </Tooltip>
   );
 }

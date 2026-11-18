@@ -68,6 +68,8 @@ export const EVENTS = {
   // (lib/analytics/search.ts) and what happened with the results.
   /** The header search palette opened: by its button, by Cmd/Ctrl+K, or by pressing "/". */
   search_opened: { via: oneOf("button", "shortcut_k", "shortcut_slash") },
+  /** The keyboard shortcuts panel opened: by the "?" key or from the Help menu. */
+  shortcuts_panel_opened: { via: oneOf("key", "help_menu") },
   /**
    * A search ran and its results were shown (the palette reports once typing settles or the member
    * acts, not per keystroke). `kind` is the `in:` scope or "all", `operators` the operator names
@@ -283,7 +285,7 @@ export const EVENTS = {
   notification_opened: { kind: text(40), channel: text(20) },
 
   /**
-   * A member signed in, and how (lib/signin-method.ts: `email_link`, `email_code`, `slack_link`,
+   * A member signed in, and how (lib/signin-method.ts: `email_link`, `email_continue`, `email_code`, `slack_link`,
    * `slack_continue`, `slack_code`). Recorded by the browser on the first page after sign-in, if
    * tracking is allowed. Failed sign-ins are not events: they happen before there is a member (see
    * docs/ANALYTICS.md, "Sign-in").

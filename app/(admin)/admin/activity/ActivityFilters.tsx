@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MemberSearch from "@/components/MemberSearch";
 import StaffSearch, { type StaffUser } from "@/components/StaffSearch";
+import ActivityRangeForm from "./ActivityRangeForm";
 import {
+  ALL_TIME_DAYS,
   CENTRAL_DEFAULTS,
   MEMBER_DEFAULTS,
   FEED_DAY_OPTIONS,
@@ -44,6 +46,11 @@ type ActivityFiltersProps =
       filters: FeedFilters;
       /** The tab's own path, e.g. /admin/members/<id>/activity. */
       basePath: string;
+      /**
+       * A community manager's tab: only the member's own activity, so no Audit/Everything switch and no type chips
+       * (there is one type). Range (presets and a From/To), Viewed as member, Hide system and Hide Slack still narrow it.
+       */
+      limited?: boolean;
     };
 
 /**
@@ -56,6 +63,7 @@ type ActivityFiltersProps =
 export default function ActivityFilters(props: ActivityFiltersProps) {
   const { filters } = props;
   const member = props.variant === "member";
+  const limited = props.variant === "member" && !!props.limited;
   const router = useRouter();
   const defaults = member ? MEMBER_DEFAULTS : CENTRAL_DEFAULTS;
   const base = props.variant === "member" ? props.basePath : "/admin/activity";
@@ -67,12 +75,16 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
   return (
     <div className="space-y-3 mb-6">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={href({ view: "audit", kinds: null })} className={pill(filters.view === "audit")}>
-          Audit
-        </Link>
-        <Link href={href({ view: "all" })} className={pill(filters.view === "all")}>
-          Everything
-        </Link>
+        {!limited && (
+          <>
+            <Link href={href({ view: "audit", kinds: null })} className={pill(filters.view === "audit")}>
+              Audit
+            </Link>
+            <Link href={href({ view: "all" })} className={pill(filters.view === "all")}>
+              Everything
+            </Link>
+          </>
+        )}
         {!member && (
           <Link
             href={href({ view: "privacy", kinds: null })}
@@ -82,12 +94,21 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
             Privacy
           </Link>
         )}
-        <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />
+        {!limited && <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />}
         {FEED_DAY_OPTIONS.map((d) => (
-          <Link key={d} href={href({ days: d })} className={pill(filters.days === d)}>
+          <Link key={d} href={href({ days: d, range: null })} aria-current={!filters.range && filters.days === d ? "true" : undefined} className={pill(!filters.range && filters.days === d)}>
             {d === 1 ? "24h" : d === 365 ? "1y" : `${d}d`}
           </Link>
         ))}
+        {defaults.rangeFilter && (
+          <Link
+            href={href({ days: ALL_TIME_DAYS, range: null })}
+            aria-current={!filters.range && filters.days === ALL_TIME_DAYS ? "true" : undefined}
+            className={pill(!filters.range && filters.days === ALL_TIME_DAYS)}
+          >
+            All time
+          </Link>
+        )}
         <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />
         <Link
           href={href({ sudoOnly: !filters.sudoOnly })}
@@ -115,7 +136,15 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
         </Link>
       </div>
 
-      {filters.view === "all" && (
+      {defaults.rangeFilter && (
+        <ActivityRangeForm
+          key={filters.range ? `${filters.range.from}:${filters.range.to}` : "none"}
+          range={filters.range ?? null}
+          onApply={(range) => go({ range })}
+        />
+      )}
+
+      {filters.view === "all" && !limited && (
         <div className="flex flex-wrap items-center gap-2">
           <Link href={href({ kinds: null })} className={pill(filters.kinds === null)}>
             All types

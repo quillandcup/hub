@@ -19,6 +19,7 @@ import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import { deleteChatFile, deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import { emitListEvent, isPendingId, MESSAGE_CHANGE_EVENT, pokeChat } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * A message's text, and for its author the way to change it, started from the message's menu (an
@@ -228,16 +229,17 @@ export default function MessageBody({
               e.target.value = "";
             }}
           />
-          <button
-            type="button"
-            aria-label="Attach files"
-            title="Attach files"
-            disabled={busy}
-            onClick={() => pickerRef.current?.click()}
-            className="rounded-md px-1.5 py-1 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
-          >
-            📎
-          </button>
+          <Tooltip content="Attach files">
+            <button
+              type="button"
+              aria-label="Attach files"
+              disabled={busy}
+              onClick={() => pickerRef.current?.click()}
+              className="rounded-md px-1.5 py-1 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+            >
+              📎
+            </button>
+          </Tooltip>
           <button
             type="button"
             disabled={busy}

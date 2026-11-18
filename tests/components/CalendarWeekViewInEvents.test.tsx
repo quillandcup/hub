@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SecondaryTimezoneProvider } from "@/components/SecondaryTimezone";
 import CalendarWeekView, { type Prickle } from "@/components/CalendarWeekView";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {} }),
@@ -31,10 +32,11 @@ describe("CalendarWeekView: prickles in Events", () => {
   it("marks a prickle shown in Events with a star, and leaves the others plain", () => {
     renderView([prickle("shown", "shown"), prickle("hiddenOne", "hidden"), prickle("plain")]);
 
-    expect(screen.getAllByTitle("In Events")).toHaveLength(1);
-    expect(screen.getByText("Type shown").querySelector("[title='In Events']")).not.toBeNull();
-    expect(screen.getByText("Type hiddenOne").querySelector("[title='In Events']")).toBeNull();
-    expect(screen.getByText("Type plain").querySelector("[title='In Events']")).toBeNull();
+    const stars = (root?: ParentNode) => tooltipTexts(root).filter((t) => t.text === "In Events");
+    expect(stars()).toHaveLength(1);
+    expect(stars(screen.getByText("Type shown"))).toHaveLength(1);
+    expect(stars(screen.getByText("Type hiddenOne"))).toHaveLength(0);
+    expect(stars(screen.getByText("Type plain"))).toHaveLength(0);
   });
 
   it.each([

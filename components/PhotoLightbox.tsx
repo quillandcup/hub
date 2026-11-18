@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import usePhotoViewerKeys from "@/lib/hooks/usePhotoViewerKeys";
 
 export interface LightboxPhoto {
   id: string;
@@ -30,12 +31,19 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
     if (!isOpen) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft" && openIndex! > 0) onNavigate(openIndex! - 1);
-      else if (e.key === "ArrowRight" && openIndex! < photos.length - 1) onNavigate(openIndex! + 1);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, openIndex, photos.length, onClose, onNavigate]);
+  }, [isOpen, onClose]);
+  usePhotoViewerKeys({
+    active: isOpen,
+    onPrevious: () => {
+      if (openIndex !== null && openIndex > 0) onNavigate(openIndex - 1);
+    },
+    onNext: () => {
+      if (openIndex !== null && openIndex < photos.length - 1) onNavigate(openIndex + 1);
+    },
+  });
 
   if (!isOpen || !current) return null;
 
@@ -52,6 +60,7 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
           }}
           className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl leading-none p-2"
           aria-label="Previous photo"
+          aria-keyshortcuts="ArrowLeft"
         >
           ‹
         </button>
@@ -73,6 +82,7 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
           }}
           className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl leading-none p-2"
           aria-label="Next photo"
+          aria-keyshortcuts="ArrowRight"
         >
           ›
         </button>

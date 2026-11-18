@@ -19,6 +19,7 @@ vi.mock("@/app/(admin)/admin/courses/outline-actions", () => actions);
 
 import BuilderOutline, { type OutlineCourse } from "@/app/(admin)/admin/courses/BuilderOutline";
 import { buildHubOutline } from "@/lib/courses/hub-outline";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const M1 = "mod_AAAAAAAAAAA1";
@@ -104,8 +105,8 @@ describe("the row ⋯ menu (the narrow layout's one control for a row's actions)
     await user.click(screen.getByRole("button", { name: "Actions for Module 2" }));
     const menu = screen.getByRole("menu", { name: "Actions for Module 2" });
     const names = within(menu).getAllByRole("menuitem").map((i) => i.textContent);
-    expect(names).toEqual(["Edit module", "Duplicate module", "Open module preview", "Add lesson", "Add submodule", "Delete module", "Move module up", "Move module down"]);
-    await user.click(within(menu).getByRole("menuitem", { name: "Move module up" }));
+    expect(names).toEqual(["Edit module", "Duplicate module", "Open module preview", "Add lesson", "Add submodule", "Delete module", "Move to position 1", "Position 2 (current)"]);
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 1" }));
     expect(actions.reorderCourseItems).toHaveBeenCalledWith(COURSE, "module", null, [M2, M1]);
   });
 
@@ -124,7 +125,7 @@ describe("the row ⋯ menu (the narrow layout's one control for a row's actions)
     expect(screen.queryByRole("menuitem", { name: "Add submodule" })).not.toBeInTheDocument();
   });
 
-  it("lists a lesson's actions, with the first one's Move up off, and Escape closes it", async () => {
+  it("lists a lesson's actions, with its own position off, and Escape closes it", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await open(user);
@@ -132,7 +133,9 @@ describe("the row ⋯ menu (the narrow layout's one control for a row's actions)
     const menu = screen.getByRole("menu", { name: "Actions for Lesson one" });
     expect(within(menu).getByRole("menuitem", { name: "Edit lesson" })).toHaveAttribute("href", `/admin/courses/${COURSE}/lessons/${L1}`);
     expect(within(menu).getByRole("menuitem", { name: "Open lesson preview" })).toHaveAttribute("href", `/courses/plot-lab/lessons/${L1}`);
-    expect(within(menu).getByRole("menuitem", { name: "Move lesson up" })).toHaveAttribute("aria-disabled", "true");
+    expect(within(menu).getByRole("menuitem", { name: "Position 1 (current)" })).toHaveAttribute("aria-disabled", "true");
+    expect(within(menu).getByRole("menuitem", { name: "Move to position 2" })).not.toHaveAttribute("aria-disabled", "true");
+    expect(within(menu).queryByRole("menuitem", { name: /Move lesson (up|down)/ })).not.toBeInTheDocument();
     expect(within(menu).queryByRole("menuitem", { name: /comments/ })).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -360,28 +363,84 @@ describe("deleting", () => {
 });
 
 describe("reordering", () => {
-  it("moves an item up or down with its buttons, sending the whole new order of its list", async () => {
+  it("has no Move up or Move down buttons any more", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await open(user);
-    await user.click(within(screen.getByText("Lesson one").closest("li")!).getByRole("button", { name: "Move lesson down" }));
+    expect(screen.queryByRole("button", { name: /^Move (lesson|module|submodule) (up|down)$/ })).not.toBeInTheDocument();
+  });
+
+  it("moves a lesson, a module and a submodule with the Move to position menu, sending the whole new order of its list", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    const menuOf = async (title: string) => {
+      await user.click(within(screen.getByText(title).closest("li")!).getAllByRole("button", { name: `Move ${title} to position` })[0]);
+      return screen.getByRole("menu", { name: `Move ${title} to position` });
+    };
+    let menu = await menuOf("Lesson one");
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 2" }));
     expect(actions.reorderCourseItems).toHaveBeenLastCalledWith(COURSE, "lesson", W1, [L2, L1]);
-    await user.click(within(screen.getByText("Lesson two").closest("li")!).getByRole("button", { name: "Move lesson up" }));
+    menu = await menuOf("Lesson two");
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 1" }));
     expect(actions.reorderCourseItems).toHaveBeenLastCalledWith(COURSE, "lesson", W1, [L2, L1]);
-    await user.click(within(screen.getByText("Module 2").closest("li")!).getAllByRole("button", { name: "Move module up" })[0]);
+    menu = await menuOf("Module 2");
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 1" }));
     expect(actions.reorderCourseItems).toHaveBeenLastCalledWith(COURSE, "module", null, [M2, M1]);
-    await user.click(within(screen.getByText("Week 1").closest("li")!).getAllByRole("button", { name: "Move submodule down" })[0]);
+    menu = await menuOf("Week 1");
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 2" }));
     expect(actions.reorderCourseItems).toHaveBeenLastCalledWith(COURSE, "module", M1, [W2, W1]);
   });
 
-  it("has no Move up for the first or Move down for the last", async () => {
+  it("moves a middle item to either end and to the other side of its neighbour (three siblings)", async () => {
+    const user = userEvent.setup();
+    const three = buildHubOutline(
+      [],
+      [
+        { id: L1, module_id: null, title: "Lesson one", position: 1, publishing_option: "published", hasText: false, hasVideo: false },
+        { id: L2, module_id: null, title: "Lesson two", position: 2, publishing_option: "published", hasText: false, hasVideo: false },
+        { id: L3, module_id: null, title: "Lesson three", position: 3, publishing_option: "published", hasText: false, hasVideo: false },
+      ]
+    );
+    render(<BuilderOutline course={course({ ...three, hubLessonIds: {} })} />);
+    const open2 = async () => {
+      await user.click(screen.getByRole("button", { name: "Move Lesson two to position" }));
+      return screen.getByRole("menu", { name: "Move Lesson two to position" });
+    };
+    const trigger = screen.getByRole("button", { name: "Move Lesson two to position" });
+    expect(tooltipText(trigger)).toBe("Move Lesson two to position");
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    let menu = await open2();
+    expect(within(menu).getByText("Move to position (of 3)")).toBeInTheDocument();
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Move to position 1", "Position 2 (current)", "Move to position 3"]);
+    await user.click(within(menu).getByRole("menuitem", { name: "Position 2 (current)" }));
+    expect(actions.reorderCourseItems).not.toHaveBeenCalled();
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 1" }));
+    expect(actions.reorderCourseItems).toHaveBeenLastCalledWith(COURSE, "lesson", null, [L2, L1, L3]);
+    menu = await open2();
+    await user.click(within(menu).getByRole("menuitem", { name: "Move to position 3" }));
+    expect(actions.reorderCourseItems).toHaveBeenLastCalledWith(COURSE, "lesson", null, [L1, L3, L2]);
+  });
+
+  it("has no Move to position menu for a row alone in its list", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await open(user);
-    expect(within(screen.getByText("Lesson one").closest("li")!).getByRole("button", { name: "Move lesson up" })).toBeDisabled();
-    expect(within(screen.getByText("Lesson two").closest("li")!).getByRole("button", { name: "Move lesson down" })).toBeDisabled();
-    expect(within(screen.getByText("Lesson three").closest("li")!).getByRole("button", { name: "Move lesson up" })).toBeDisabled();
-    expect(within(screen.getByText("Lesson three").closest("li")!).getByRole("button", { name: "Move lesson down" })).toBeDisabled();
+    // Lesson three is the only lesson of Module 2: nothing to move it to.
+    const row = screen.getByText("Lesson three").closest("li")!;
+    expect(within(row).queryByRole("button", { name: /to position/ })).not.toBeInTheDocument();
+    await user.click(within(row).getByRole("button", { name: "Actions for Lesson three" }));
+    expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /position/i })).not.toBeInTheDocument();
+  });
+
+  it("puts the positions in the narrow ⋯ menu after the row's actions", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    await user.click(screen.getByRole("button", { name: "Actions for Lesson two" }));
+    const names = within(screen.getByRole("menu", { name: "Actions for Lesson two" })).getAllByRole("menuitem").map((i) => i.textContent);
+    expect(names.slice(-2)).toEqual(["Move to position 1", "Position 2 (current)"]);
   });
 
   it("puts a dragged item where the one it is dropped on is, within its own list", async () => {
@@ -414,6 +473,19 @@ describe("reordering", () => {
     void user;
   });
 
+  it("forgets a drag that ended without a drop, so a later drop does nothing", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    const handle = within(screen.getByText("Module 2").closest("li")!).getAllByRole("img", { name: "Drag to reorder module" })[0];
+    const transfer = { setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(handle, { dataTransfer: transfer });
+    fireEvent.dragEnd(handle, { dataTransfer: transfer });
+    fireEvent.drop(screen.getByText("Module 1").closest("li")!, { dataTransfer: transfer });
+    expect(actions.reorderCourseItems).not.toHaveBeenCalled();
+    void user;
+  });
+
   it("ignores a drop when nothing is being dragged", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
@@ -427,7 +499,8 @@ describe("reordering", () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await open(user);
-    await user.click(within(screen.getByText("Lesson one").closest("li")!).getByRole("button", { name: "Move lesson down" }));
+    await user.click(within(screen.getByText("Lesson one").closest("li")!).getByRole("button", { name: "Move Lesson one to position" }));
+    await user.click(screen.getByRole("menuitem", { name: "Move to position 2" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The outline changed since you opened it");
     expect(router.refresh).not.toHaveBeenCalled();
   });
@@ -436,10 +509,9 @@ describe("reordering", () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await user.type(screen.getByRole("searchbox", { name: "Find module or lesson" }), "Lesson");
-    expect(screen.queryByRole("button", { name: "Move lesson down" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /to position$/ })).not.toBeInTheDocument();
     // The handles stay as plain icons, but none can be dragged.
     for (const handle of screen.queryAllByRole("img", { name: "Drag to reorder lesson" })) expect(handle).not.toHaveAttribute("draggable");
-    expect(screen.queryByRole("button", { name: "Move lesson up" })).not.toBeInTheDocument();
   });
 });
 
@@ -474,9 +546,12 @@ describe("an imported course", () => {
     await open(user);
     expect(screen.getByRole("button", { name: "Add module" })).toBeDisabled();
     expect(screen.getAllByRole("button", { name: "Add content" })[0]).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Move lesson down" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /to position$/ })).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /^Actions for / })[0]);
+    expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /position/i })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
     for (const handle of screen.getAllByRole("img", { name: "Drag to reorder lesson" })) {
-      expect(handle).toHaveAttribute("title", expect.stringMatching(/imported from Kajabi/));
+      expect(tooltipText(handle)).toMatch(/imported from Kajabi/);
       expect(handle).not.toHaveAttribute("draggable");
     }
     await user.click(screen.getAllByRole("button", { name: "Duplicate module" })[0]);

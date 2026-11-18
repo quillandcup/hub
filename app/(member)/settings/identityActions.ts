@@ -10,6 +10,7 @@ import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
 import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { storeNextPath } from "@/lib/next-path-cookie";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { changePrimaryEmail, normalizeEmail } from "@/lib/member-email";
 import { sendVerificationEmail } from "@/lib/email-verification";
@@ -337,9 +338,12 @@ async function sendReauthCodeImpl(): Promise<{ success: true; sentTo: string } |
   const user = await getCurrentUser();
   if (!user?.email) return { error: "Not authenticated" };
 
+  // The email's link goes to /auth/confirm (the address must carry no query: the template appends the token), so where to
+  // come back to rides in the remembered-page cookie, which that route reads after signing in.
+  await storeNextPath("/settings/identity");
   const { error } = await ctx.supabase.auth.signInWithOtp({
     email: user.email,
-    options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/callback?next=/settings/identity` },
+    options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/confirm` },
   });
   if (error) {
     return { error: error.code === "over_email_send_rate_limit" ? "We just sent one. Check your inbox (and spam), or try again in a minute." : "Couldn't send the code. Try again in a minute." };

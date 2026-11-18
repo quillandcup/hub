@@ -23,6 +23,7 @@ describe("lifecycle actions", () => {
     expect(lifecycleLabel("duplicate", "lesson")).toBe("Duplicate lesson");
     expect(lifecycleLabel("publish")).toBe("Publish");
     expect(lifecycleLabel("reset")).toBe("Reset to published");
+    expect(lifecycleLabel("viewLive")).toBe("View live");
   });
 
   describe("the confirmations follow .claude/rules/confirmations.md", () => {
@@ -58,7 +59,7 @@ describe("lifecycle actions", () => {
     });
   });
 
-  it("does not ask before publishing, copying, previewing or opening history", () => {
-    for (const action of ["publish", "duplicate", "preview", "history"] as const) expect(lifecycleConfirm(action, { noun: "page" }), action).toBeNull();
+  it("does not ask before publishing, copying, previewing, opening history or viewing the live page", () => {
+    for (const action of ["publish", "duplicate", "preview", "history", "viewLive"] as const) expect(lifecycleConfirm(action, { noun: "page" }), action).toBeNull();
   });
 });

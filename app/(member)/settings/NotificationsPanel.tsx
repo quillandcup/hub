@@ -15,6 +15,7 @@ import { setChatMainPlace, setNotificationChannel, type NotificationSettings } f
 /** Slack's own guide to configuring notifications (Slack has no API to read or change a member's preferences). */
 const SLACK_NOTIFICATION_HELP_URL = "https://slack.com/help/articles/201355156-Configure-your-Slack-notifications";
 import { trackSlug } from "@/lib/analytics/names";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * Per-kind, per-channel notification switches: a row per kind (grouped by category), with a logo
@@ -156,24 +157,24 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
                     const on = channelsByKind[kind.id].includes(channel.id);
                     const busy = saving === `${kind.id}:${channel.id}`;
                     return (
-                      <button
-                        key={channel.id}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={`${kind.label} via ${channel.label}`}
-                        title={`${channel.label}: ${on ? "on" : "off"}${initial.readOnly ? "" : " (click to turn " + (on ? "off)" : "on)")}`}
-                        disabled={initial.readOnly || busy}
-                        aria-busy={busy}
-                        data-track={`settings-notification-${trackSlug(kind.id)}-${trackSlug(channel.id)}`}
-                        onClick={() => toggle(kind.id, channel.id, !on)}
-                        className={`rounded-md p-1.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:cursor-default ${
-                          on
-                            ? "bg-slate-100 dark:bg-slate-800"
-                            : "opacity-30 grayscale hover:opacity-60 disabled:hover:opacity-30"
-                        }`}
-                      >
-                        <ChannelIcon channel={channel.id} className="h-5 w-5" />
-                      </button>
+                      <Tooltip key={channel.id} content={`${channel.label}: ${on ? "on" : "off"}${initial.readOnly ? "" : " (click to turn " + (on ? "off)" : "on)")}`}>
+                        <button
+                          type="button"
+                          aria-pressed={on}
+                          aria-label={`${kind.label} via ${channel.label}`}
+                          disabled={initial.readOnly || busy}
+                          aria-busy={busy}
+                          data-track={`settings-notification-${trackSlug(kind.id)}-${trackSlug(channel.id)}`}
+                          onClick={() => toggle(kind.id, channel.id, !on)}
+                          className={`rounded-md p-1.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:cursor-default ${
+                            on
+                              ? "bg-slate-100 dark:bg-slate-800"
+                              : "opacity-30 grayscale hover:opacity-60 disabled:hover:opacity-30"
+                          }`}
+                        >
+                          <ChannelIcon channel={channel.id} className="h-5 w-5" />
+                        </button>
+                      </Tooltip>
                     );
                   })}
                 </div>

@@ -44,6 +44,7 @@ import {
   updateEngagement,
   type CareActionResult,
 } from "./actions";
+import Tooltip from "@/components/Tooltip";
 
 const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 const BUTTON =
@@ -224,12 +225,13 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
               ? `Last message: you wrote ${card.lastActivityLabel}`
               : "No message logged yet"}
         {card.fromSlack && !closed && (
-          <span
-            title="Kept up to date from your tracked Slack DM with them, so you don't need to log replies here"
-            className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          >
-            from Slack
-          </span>
+          <Tooltip content="Kept up to date from your tracked Slack DM with them, so you don't need to log replies here">
+            <span
+              className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              from Slack
+            </span>
+          </Tooltip>
         )}
         <span> · Started {formatDateOnly(card.startedOn)}</span>
         <span> · {card.periodOver ? "Care plan ended" : "Care plan ends"} {formatDateOnly(card.periodEndsOn)}</span>
@@ -242,9 +244,11 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
                 Open the DM
               </Link>
             ) : (
-              <a href={card.dmLink.href} target="_blank" rel="noopener noreferrer" title="Opens the DM in Slack" className="font-medium text-plum-700 underline dark:text-plum-300">
-                Open the DM
-              </a>
+              <Tooltip content="Opens the DM in Slack">
+                <a href={card.dmLink.href} target="_blank" rel="noopener noreferrer" className="font-medium text-plum-700 underline dark:text-plum-300">
+                  Open the DM
+                </a>
+              </Tooltip>
             )}
           </>
         )}

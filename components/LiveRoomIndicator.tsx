@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { LiveRoom } from "@/lib/live-room";
 import { track } from "@/lib/analytics/client";
+import Tooltip from "@/components/Tooltip";
 
 const POLL_MS = 30_000;
 
@@ -63,27 +64,28 @@ export default function LiveRoomIndicator() {
 
   return (
     <div ref={wrapperRef} className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          if (!open) track("onair_popover_opened", { live: room.live, room_size: room.count });
-          setOpen((o) => !o);
-          refresh();
-        }}
-        data-track="onair-light"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        title={room.live ? "On air: Hedgies are at the table" : "Off air: nobody is at the table"}
-        className="flex items-center gap-2 whitespace-nowrap px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-      >
-        <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
-          {room.live && <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 motion-safe:animate-ping" />}
-          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${room.live ? "bg-red-500" : "bg-slate-400"}`} />
-        </span>
-        <span className="font-semibold uppercase tracking-wide text-xs">{room.live ? "On air" : "Off air"}</span>
-        {room.live && <span className="hidden sm:inline">{label}</span>}
-        {room.live && <span className="sm:hidden">{room.count}</span>}
-      </button>
+      <Tooltip content={room.live ? "On air: Hedgies are at the table" : "Off air: nobody is at the table"}>
+        <button
+          type="button"
+          onClick={() => {
+            if (!open) track("onair_popover_opened", { live: room.live, room_size: room.count });
+            setOpen((o) => !o);
+            refresh();
+          }}
+          data-track="onair-light"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          className="flex items-center gap-2 whitespace-nowrap px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+            {room.live && <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 motion-safe:animate-ping" />}
+            <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${room.live ? "bg-red-500" : "bg-slate-400"}`} />
+          </span>
+          <span className="font-semibold uppercase tracking-wide text-xs">{room.live ? "On air" : "Off air"}</span>
+          {room.live && <span className="hidden sm:inline">{label}</span>}
+          {room.live && <span className="sm:hidden">{room.count}</span>}
+        </button>
+      </Tooltip>
 
       {open && (
         <div

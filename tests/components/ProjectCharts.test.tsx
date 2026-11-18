@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import type { EntryRow } from "@/app/(member)/projects/actions";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const entry = (over: Partial<EntryRow>): EntryRow => ({
   id: "wpe_AAAAAAAAAAA1",
@@ -28,6 +29,6 @@ describe("ProjectCharts heatmap", () => {
       />
     );
     expect(container.textContent).not.toContain("56,000");
-    expect(container.querySelector('[title*="1,000"]')).not.toBeNull();
+    expect(tooltipTexts(container).some((t) => t.text.includes("1,000"))).toBe(true);
   });
 });

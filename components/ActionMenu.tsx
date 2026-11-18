@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
+import Icon from "@/components/Icon";
+import Tooltip from "@/components/Tooltip";
 import { placeMenu, type MenuPlacement } from "@/lib/menu-placement";
 
 export interface ActionMenuItem {
@@ -17,6 +19,8 @@ export interface ActionMenuItem {
   track?: string;
   /** A divider line above this item. */
   separatorBefore?: boolean;
+  /** Extra classes for the item, e.g. `sm:hidden` for one that is also shown inline on wide screens. */
+  className?: string;
 }
 
 const ITEM =
@@ -33,6 +37,7 @@ export default function ActionMenu({
   trigger,
   triggerClassName,
   heading,
+  tooltip,
 }: {
   label?: string;
   items: readonly ActionMenuItem[];
@@ -41,6 +46,8 @@ export default function ActionMenu({
   triggerClassName?: string;
   /** A muted title at the top of the panel ("Jump to..."). */
   heading?: string;
+  /** A hint for the button (for an icon-only trigger other than the three dots), shown with `Tooltip`. */
+  tooltip?: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -114,6 +121,7 @@ export default function ActionMenu({
   if (items.length === 0) return null;
   return (
     <div ref={root} className="relative" onKeyDown={onKeyDown}>
+      <Tooltip content={tooltip}>
       <button
         ref={button}
         type="button"
@@ -127,14 +135,9 @@ export default function ActionMenu({
           "flex h-10 w-10 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         }
       >
-        {trigger ?? (
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-            <circle cx="10" cy="4" r="1.6" />
-            <circle cx="10" cy="10" r="1.6" />
-            <circle cx="10" cy="16" r="1.6" />
-          </svg>
-        )}
+        {trigger ?? <Icon name="more" />}
       </button>
+      </Tooltip>
       {open && (
         <div
           ref={panel}
@@ -161,7 +164,7 @@ export default function ActionMenu({
             );
             if (item.href && !item.disabled) {
               return (
-                <Fragment key={item.key}>{sep}<Link href={item.href} role="menuitem" data-track={item.track} onClick={() => setOpen(false)} className={ITEM}>
+                <Fragment key={item.key}>{sep}<Link href={item.href} role="menuitem" data-track={item.track} onClick={() => setOpen(false)} className={item.className ? `${ITEM} ${item.className}` : ITEM}>
                   {body}
                 </Link></Fragment>
               );
@@ -179,7 +182,7 @@ export default function ActionMenu({
                   setOpen(false);
                   item.onSelect?.();
                 }}
-                className={ITEM}
+                className={item.className ? `${ITEM} ${item.className}` : ITEM}
               >
                 {body}
               </button>

@@ -10,8 +10,17 @@
 // it after changing one of those.
 
 export const appConfig = {
-  /** The app's name as shown when installed to a home screen (the web app manifest). */
-  appName: "Quill & Cup Hub",
+  /** The app's name as shown when installed to a home screen (the web app manifest, the iOS title). */
+  appName: "Hedgie Hub",
+
+  /**
+   * The issuer on the two-step sign-in QR code: authenticator apps show it beside the account, and Authy searches
+   * Google Images for a logo from it (components/mfa/MfaPanel.tsx). The bare domain brings up our own logo, though a
+   * blurry copy (tried in Authy: "Hedgie Hub" gave LEGO, "Quill & Cup Hedgie Hub" a stock hedgehog, "Quill & Cup" a
+   * small wordmark). A sharper result needs Google to rank a better copy of the logo: docs/TODO.md, "Sharper logo in
+   * authenticator apps". Re-test before changing it.
+   */
+  mfaIssuer: "quillandcup.com",
 
   /**
    * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
@@ -39,6 +48,16 @@ export const appConfig = {
    * (`edit_member_admin_note`), which SQL can't read from here. The timeline shows "edited".
    */
   adminNoteEditMinutes: 15,
+
+  /**
+   * When staff (admins and community managers) must sign in with a second step (a TOTP code from an authenticator app,
+   * lib/staff-mfa.ts, docs/STAFF_MFA.md). `null` = not required yet: staff without it see a banner that points them to
+   * Settings, and staff who have set it up are still asked for the code. To require it for everyone, set an ISO 8601
+   * instant with an offset, for example "2027-02-01T00:00:00-05:00"; from then on staff without it are sent to the
+   * set-up screen instead of the admin area. Set it a week or two ahead, after every admin has enrolled. A value that
+   * doesn't parse counts as off (tests/lib/staff-mfa.test.ts fails on one).
+   */
+  staffMfaRequiredFrom: null as string | null,
 
   /**
    * Hedgie Care (the community manager's reach-outs, lib/care.ts, docs/HEDGIE_CARE.md). These are starting points
@@ -129,7 +148,7 @@ export const appConfig = {
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 
   /**
-   * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, today as Report-Only): the origins other than our own
+   * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own
    * and Supabase storage that pictures may load from. Member photos, book covers and Slack link previews can come from
    * anywhere, so the reports will name hosts missing here; Slack app pictures go through our own proxy
    * (/api/chat/unfurl-image) and need nothing listed.
@@ -161,12 +180,29 @@ export const appConfig = {
       "https://www.gravatar.com", // avatars by email
       "https://secure.gravatar.com",
       "https://kajabi-storefronts-production.kajabi-cdn.com", // photos and covers imported from Kajabi
+      "https://kajabi-storefronts-production.s3.amazonaws.com", // course thumbnails imported from Kajabi (seen on /courses)
       "https://avatars.slack-edge.com", // Slack profile photos
       "https://a.slack-edge.com", // one Slack user picture lives here
       "https://*.googleusercontent.com", // Google profile photos
       "https://www.google-analytics.com", // measurement beacons
       "https://www.googletagmanager.com",
     ],
+    // The next three are tried report-only (docs/TODO.md, "CSP for scripts and styles"): the reports name what is missing.
+    // Supabase (https and wss) and Sentry's ingest host are added from the environment, not listed here.
+    /** Where the browser may send requests (fetch, XHR, WebSocket) besides us. */
+    connectHosts: [
+      "https://www.google-analytics.com",
+      "https://*.google-analytics.com",
+      "https://*.analytics.google.com",
+      "https://www.googletagmanager.com",
+      "https://vitals.vercel-insights.com", // Vercel Speed Insights
+      "https://stream.mux.com", // lesson video playback
+      "https://*.litix.io", // Mux video analytics
+    ],
+    /** Sites that may be shown in a frame on our pages (lesson videos). */
+    frameHosts: ["https://player.mux.com", "https://www.youtube-nocookie.com", "https://www.youtube.com", "https://player.vimeo.com"],
+    /** Where audio and video files may load from besides us and Supabase storage. */
+    mediaHosts: ["https://stream.mux.com"],
   },
 } as const;
 

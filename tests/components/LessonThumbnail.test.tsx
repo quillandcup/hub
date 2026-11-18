@@ -32,6 +32,7 @@ vi.mock("@/components/media/MediaPicker", () => ({
 
 import LessonThumbnailField from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/LessonThumbnailField";
 import FrameThumbnailButton from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/FrameThumbnailButton";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -98,7 +99,7 @@ describe("FrameThumbnailButton", () => {
     render(<FrameThumbnailButton courseId={COURSE} lessonId={LESSON} seconds={75} />);
     const button = screen.getByRole("button", { name: "Use current frame as thumbnail" });
     expect(button).toBeEnabled();
-    expect(button).toHaveAttribute("title", "Uses the frame at 1:15");
+    expect(tooltipText(button)).toEqual("Uses the frame at 1:15");
   });
 
   it("makes the thumbnail from the player's moment, says so, and refreshes the page", async () => {

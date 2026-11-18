@@ -22,14 +22,20 @@ const CHANNEL = "chn_AAAAAAAAAAA1";
 const hubCard = () =>
   withLinkPreviews([], [{ messageId: MESSAGE, position: 0, url: "https://example.test/post", finalUrl: "https://example.test/post", kind: "link", status: "ok", title: "Tom & <Jerry>", description: "*not bold* & <b>plain</b>", siteName: "Example & Sons", imageUrl: "https://example.test/c.png", fetchedAt: "2026-10-01T00:00:00Z" }]);
 
+/** The previous removal's dialog is gone. It closes in a transition that commits after the action (and pokeChat) has run, so a click on the X right
+ *  after could be undone by that late close, and the next dialog would vanish before the test found its checkbox (a flake on slow runners). */
+const dialogClosed = () => waitFor(() => expect(screen.queryByText("Remove preview?")).toBeNull());
+
 /** The X, then "Remove" without blocking (a card with an address asks about blocking first, so the box is cleared). */
 async function removeOnly() {
+  await dialogClosed();
   fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
   fireEvent.click(await screen.findByRole("checkbox"));
   fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 }
 /** The X, then "Remove" on a card that has nothing to block. */
 async function removePlain() {
+  await dialogClosed();
   fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
   fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
 }

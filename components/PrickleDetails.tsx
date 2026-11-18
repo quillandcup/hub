@@ -8,6 +8,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
@@ -16,6 +17,7 @@ import { REASON_ICON } from "@/components/ReasonBadges";
 import PrickleDescription from "@/components/PrickleDescription";
 import { stripEventTag } from "@/lib/event-tag";
 import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
+import Tooltip from "@/components/Tooltip";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
 const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
@@ -166,9 +168,11 @@ export default function PrickleDetails({
                     {getMemberDisplayName({ name: hostMember.name, display_name: hostMember.displayName })}
                   </Link>
                   {(hostMissing || hostLate) && (
-                    <span className="ml-2" title={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
-                      ⚠️
-                    </span>
+                    <Tooltip content={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
+                      <span className="ml-2">
+                        ⚠️
+                      </span>
+                    </Tooltip>
                   )}
                   {hostMissing && (
                     <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">
@@ -254,7 +258,7 @@ export default function PrickleDetails({
           )}
         </div>
         {attendanceRecords.length > 0 ? (
-          <div className="overflow-x-auto">
+          <TableKeyboardNav table={table} label="Attendees" className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
@@ -295,7 +299,7 @@ export default function PrickleDetails({
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
-                        <Link data-track="prickle-open-attendee" href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
+                        <Link data-track="prickle-open-attendee" data-row-primary href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                           {getMemberDisplayName(member)}
                         </Link>
                         {showMemberEmails && (
@@ -319,7 +323,7 @@ export default function PrickleDetails({
               </tbody>
             </table>
             <DataTablePager table={table} itemLabel="attendees" />
-          </div>
+          </TableKeyboardNav>
         ) : !hasStarted && roster && roster.entries.length > 0 ? (
           <div className="px-6 py-4">
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
@@ -329,14 +333,15 @@ export default function PrickleDetails({
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {roster.entries.map((entry) => (
                 <li key={entry.memberId} className="py-2 flex items-center gap-3 text-sm">
-                  <span
-                    role="img"
-                    aria-label={ROSTER_REASONS[entry.reason].label}
-                    title={ROSTER_REASONS[entry.reason].label}
-                    className="w-6 shrink-0 text-center"
-                  >
-                    {ROSTER_REASONS[entry.reason].icon}
-                  </span>
+                  <Tooltip content={ROSTER_REASONS[entry.reason].label}>
+                    <span
+                      role="img"
+                      aria-label={ROSTER_REASONS[entry.reason].label}
+                      className="w-6 shrink-0 text-center"
+                    >
+                      {ROSTER_REASONS[entry.reason].icon}
+                    </span>
+                  </Tooltip>
                   <span className="min-w-0">
                     <Link data-track="prickle-open-roster-member"
                       href={`${memberBasePath}/${entry.memberId}`}

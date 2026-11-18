@@ -17,7 +17,7 @@ const RATE_LIMITED_TEXT =
   "We just emailed you a link. Check your inbox (and spam), or try again in a minute.";
 
 const CALLBACK_FAILED_TEXT =
-  "That sign-in link didn't work. Links only work in the browser you asked from, and each works once. Enter the code from the email below, or request a new link.";
+  "That sign-in link didn't work. Each link works once, and it can run out. Enter the code from the email below, or request a new link.";
 
 export default function LoginForm({
   slackHomeUrl,
@@ -74,7 +74,7 @@ export default function LoginForm({
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
         },
       });
 

@@ -8,6 +8,7 @@ import Link from "next/link";
 import CheckinPills from "@/components/CheckinPills";
 import type { CheckinInput } from "@/lib/prickle-checkins";
 import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
+import Tooltip from "@/components/Tooltip";
 
 interface Props {
   attendance: any[];
@@ -131,13 +132,13 @@ export default function AttendanceMonthGrid({
                           const hostName = host ? getMemberDisplayName(host) : undefined;
                           const label = hostName ? `${typeName} w/ ${shortName(hostName)}` : typeName;
                           return (
-                            <div
-                              key={record.id}
-                              className="text-xs px-1.5 py-0.5 bg-plum-100 dark:bg-plum-900 text-plum-800 dark:text-plum-200 rounded truncate"
-                              title={label}
-                            >
-                              {label}
-                            </div>
+                            <Tooltip key={record.id} content={label}>
+                              <div
+                                className="text-xs px-1.5 py-0.5 bg-plum-100 dark:bg-plum-900 text-plum-800 dark:text-plum-200 rounded truncate"
+                              >
+                                {label}
+                              </div>
+                            </Tooltip>
                           );
                         })}
                         {att.length > 3 && (

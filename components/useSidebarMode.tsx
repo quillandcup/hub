@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { NAV_MODES, resolveNavMode, type NavMode } from "@/lib/nav-mode";
 import { updateNavMode } from "@/app/(member)/settings/actions";
+import Tooltip from "@/components/Tooltip";
 
 // In auto-hide the sidebar rests as an icon rail and opens over the page while hovered or focused (the page
 // keeps its width, nothing reflows). The member and admin sidebars share this, and the one saved setting.
@@ -107,36 +108,37 @@ export function NavModeButton({ mode, railOpen, onChange }: { mode: NavMode; rai
         if (e.key === "Escape") setMenuOpen(false);
       }}
     >
-      <button
-        type="button"
-        onClick={() => setMenuOpen((open) => !open)}
-        data-track="nav-mode-toggle"
-        className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors ${mode === "auto" ? "text-plum-600" : ""}`}
-        aria-label={`Sidebar: ${NAV_MODE_LABELS[mode].toLowerCase()}. Change mode`}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        title={`Sidebar: ${NAV_MODE_LABELS[mode]}`}
-      >
-        <NavModeIcon mode={mode} />
-      </button>
+      <Tooltip content={`Sidebar: ${NAV_MODE_LABELS[mode]}`}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          data-track="nav-mode-toggle"
+          className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors ${mode === "auto" ? "text-plum-600" : ""}`}
+          aria-label={`Sidebar: ${NAV_MODE_LABELS[mode].toLowerCase()}. Change mode`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+        >
+          <NavModeIcon mode={mode} />
+        </button>
+      </Tooltip>
       {menuOpen && (
         <div role="menu" aria-label="Sidebar mode" className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-1">
           {NAV_MODES.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="menuitemradio"
-              aria-checked={m === mode}
-              title={NAV_MODE_HINTS[m]}
-              onClick={() => {
-                setMenuOpen(false);
-                onChange(m);
-              }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${m === mode ? "text-plum-600 dark:text-plum-400 font-medium" : "text-slate-700 dark:text-slate-300"}`}
-            >
-              <NavModeIcon mode={m} />
-              <span className="whitespace-nowrap">{NAV_MODE_LABELS[m]}</span>
-            </button>
+            <Tooltip key={m} content={NAV_MODE_HINTS[m]}>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={m === mode}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onChange(m);
+                }}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${m === mode ? "text-plum-600 dark:text-plum-400 font-medium" : "text-slate-700 dark:text-slate-300"}`}
+              >
+                <NavModeIcon mode={m} />
+                <span className="whitespace-nowrap">{NAV_MODE_LABELS[m]}</span>
+              </button>
+            </Tooltip>
           ))}
         </div>
       )}

@@ -8,6 +8,8 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { DataTablePager } from "@/components/DataTablePager";
 import { etDate } from "@/lib/community-stats";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
+import Tooltip from "@/components/Tooltip";
 
 export type LeadStatus = "hot" | "warm" | "cold";
 
@@ -326,6 +328,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
       )}
 
       <div className="overflow-x-auto">
+      <TableKeyboardNav table={table} label="Leads">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
@@ -419,38 +422,40 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <a
-                        href={handle ? lead.instagramUrl! : undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-disabled={!handle}
-                        title={handle ? "View Instagram profile" : "No Instagram on file"}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                          handle
-                            ? "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-                            : "bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none"
-                        }`}
-                      >
-                        Profile
-                      </a>
-                      <a
-                        href={handle ? `https://ig.me/m/${handle}` : undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-disabled={!handle}
-                        title={
+                      <Tooltip content={handle ? "View Instagram profile" : "No Instagram on file"}>
+                        <a
+                          href={handle ? lead.instagramUrl! : undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-disabled={!handle}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            handle
+                              ? "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                              : "bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none"
+                          }`}
+                        >
+                          Profile
+                        </a>
+                      </Tooltip>
+                      <Tooltip content={
                           handle
                             ? "Open a DM with this lead — from whichever Instagram account is logged in on this device"
                             : "No Instagram on file"
-                        }
-                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                          handle
-                            ? "bg-plum-600 hover:bg-plum-700 text-white"
-                            : "bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none"
-                        }`}
-                      >
-                        DM
-                      </a>
+                        }>
+                        <a
+                          href={handle ? `https://ig.me/m/${handle}` : undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-disabled={!handle}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            handle
+                              ? "bg-plum-600 hover:bg-plum-700 text-white"
+                              : "bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none"
+                          }`}
+                        >
+                          DM
+                        </a>
+                      </Tooltip>
                     </div>
                   </td>
                 </tr>
@@ -459,6 +464,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="leads" />
+      </TableKeyboardNav>
       </div>
     </div>
   );

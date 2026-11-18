@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Copy, Equal, Eye, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -24,8 +24,10 @@ export const ICONS = {
   chevron: ChevronDown,
   grip: Equal,
   dots: GripVertical,
-  up: ChevronUp,
-  down: ChevronDown,
+  /** The overflow menu button: more actions for this row. */
+  more: EllipsisVertical,
+  /** Move this item up or down in its list: the "Move to position" menu for people who do not drag. */
+  reorder: ArrowUpDown,
   /** Throw the draft away and start over from what is published. Not `undo`: that one steps back one edit. */
   reset: RotateCcw,
   /** Visible to others (members or the public): the globe. The writing visibility toggles use 🌐 for the same meaning. */
@@ -34,6 +36,12 @@ export const ICONS = {
   unpublish: Lock,
   /** Earlier versions of something. */
   history: History,
+  /** The settings of a thing itself (title, address, search text), as opposed to its content. */
+  details: Settings2,
+  /** Opens the live thing in another tab. */
+  external: ExternalLink,
+  /** Close a panel or dismiss something. */
+  close: X,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

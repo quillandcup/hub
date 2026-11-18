@@ -21,6 +21,7 @@ vi.mock("@sentry/nextjs", () => ({ metrics: { distribution: vi.fn() } }));
 
 import * as Sentry from "@sentry/nextjs";
 import SearchPalette from "@/components/search/SearchPalette";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const results = {
   results: [
@@ -312,11 +313,11 @@ describe("SearchPalette", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 
-    expect(screen.getByRole("button", { name: "Copy search query “cody”" })).toHaveAttribute("title", "Copy search query");
+    expect(tooltipText(screen.getByRole("button", { name: "Copy search query “cody”" }))).toEqual("Copy search query");
     await user.click(screen.getByRole("button", { name: "Copy search query “cody”" }));
     expect(writeText).toHaveBeenCalledWith("cody");
 
-    expect(screen.getByRole("button", { name: "Delete “cody” from recent searches" })).toHaveAttribute("title", "Delete");
+    expect(tooltipText(screen.getByRole("button", { name: "Delete “cody” from recent searches" }))).toEqual("Delete");
     await user.click(screen.getByRole("button", { name: "Delete “cody” from recent searches" }));
     expect(screen.queryByRole("button", { name: "cody" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "fern" })).toBeInTheDocument();
@@ -336,13 +337,13 @@ describe("SearchPalette", () => {
         act(async () => void fireEvent.click(screen.getByRole("button", { name: `Copy search query “${query}”` })));
 
       await copy("cody");
-      expect(screen.getByRole("button", { name: "Copy search query “cody”" })).toHaveAttribute("title", "Copied");
+      expect(tooltipText(screen.getByRole("button", { name: "Copy search query “cody”" }))).toEqual("Copied");
       expect(vi.getTimerCount()).toBe(baseline + 1);
 
       await copy("fern");
       expect(vi.getTimerCount()).toBe(baseline + 1);
       act(() => void vi.advanceTimersByTime(1500));
-      expect(screen.getByRole("button", { name: "Copy search query “fern”" })).toHaveAttribute("title", "Copy search query");
+      expect(tooltipText(screen.getByRole("button", { name: "Copy search query “fern”" }))).toEqual("Copy search query");
 
       await copy("cody");
       expect(vi.getTimerCount()).toBe(baseline + 1);

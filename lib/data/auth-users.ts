@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { clock } from "@/lib/clock";
+import { APP_URL } from "@/lib/config";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -124,7 +125,7 @@ export class SupabaseAuthUserRepository implements AuthUserRepository {
   }
 
   async invite(email: string): Promise<AuthUser> {
-    const { data, error } = await this.admin.inviteUserByEmail(email);
+    const { data, error } = await this.admin.inviteUserByEmail(email, { redirectTo: `${APP_URL}/auth/confirm` });
     if (error || !data.user) throw new Error(error?.message ?? "No invite was sent");
     return toAuthUser(data.user);
   }

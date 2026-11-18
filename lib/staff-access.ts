@@ -28,6 +28,7 @@ export const STAFF_FEATURES = [
   "member.badges_edit",
   "member.account_tab",
   "member.activity_tab",
+  "member.activity_tab_limited",
   "member.billing_links",
   "member.record_history",
   "member.push_devices",
@@ -48,6 +49,9 @@ export type StaffFeature = (typeof STAFF_FEATURES)[number];
 export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [
   // Hedgie Care, her reach-outs to members: she is the first staff role that writes (docs/HEDGIE_CARE.md).
   "care.write",
+  // The member page's Activity tab, limited to the member's own activity: no audit entries, page visits or staff notes
+  // (get_activity_feed enforces it for her; docs/ACTIVITY_AND_AUDIT_LOG.md, "The community manager's Activity tab").
+  "member.activity_tab_limited",
 ];
 
 /** The features this role has: all for an admin, the list above for a community manager, none otherwise. */
@@ -80,7 +84,8 @@ const EXACT_PATHS = [
 /**
  * Pages under a prefix, one level or more: a member's profile and its tabs, a prickle's page.
  * A tool that lives beside them (`/admin/members/network`) is not included, nor is a member's
- * Identity tab (emails, aliases, legal name), Activity Log tab (audit entries) or Notifications tab (devices, email): those stay admin-only.
+ * Identity tab (emails, aliases, legal name), Account tab or Notifications tab (devices, email): those stay admin-only. The Activity tab
+ * is open as a path but shows her only the member's own activity, and only with the `member.activity_tab_limited` feature.
  */
 const PREFIX_PATHS = [
   { prefix: "/admin/members/", except: ["/admin/members/network"] },
@@ -90,7 +95,7 @@ const PREFIX_PATHS = [
 export function isCommunityManagerPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if ((EXACT_PATHS as readonly string[]).includes(path)) return true;
-  if (/^\/admin\/members\/[^/]+\/(account|identity|activity|notifications)$/.test(path)) return false;
+  if (/^\/admin\/members\/[^/]+\/(account|identity|notifications)$/.test(path)) return false;
   return PREFIX_PATHS.some(
     ({ prefix, except }) =>
       path.startsWith(prefix) && path.length > prefix.length && !except.some((e) => path === e || path.startsWith(`${e}/`))

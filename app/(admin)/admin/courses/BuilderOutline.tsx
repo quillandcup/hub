@@ -9,9 +9,10 @@ import Icon, { type IconName } from "@/components/Icon";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents } from "@/lib/courses/hub-outline";
 import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
-import { moveBefore, moveBy } from "@/lib/reorder";
+import { moveBefore, moveToPosition, positionItems, positionsHeading } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
+import Tooltip from "@/components/Tooltip";
 
 /** What the outline needs of a course. For an imported course the ids are Kajabi's; for a Hub-owned one they are its own. */
 export interface OutlineCourse {
@@ -67,23 +68,26 @@ const useOutline = () => useContext(OutlineContext)!;
 function StatusPill({ title, option, kind, id }: { title: string; option: string | null; kind: ItemKind; id: string }) {
   const { soon, editor } = useOutline();
   const choices = statusChoices(option);
+  // An <option> can't carry a tooltip: the reasons a choice is blocked are the select's own hint.
+  const blockedReasons = choices.filter((c) => c.disabledReason).map((c) => `${c.action}: ${c.disabledReason}`).join(" ");
   return (
-    <select
-      aria-label={`Status of ${title}`}
-      disabled={!editor || editor.busy}
-      value={option ?? ""}
-      onChange={editor ? (e) => void editor.run(() => setCourseItemStatus(editor.courseId, kind, id, e.target.value)) : undefined}
-      title={editor ? undefined : soon}
-      className={`order-last min-h-10 shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold @split:order-none @split:min-h-0 disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
-    >
-      {!choices.some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
-      {choices.map((c) => (
-        // The reason a choice is blocked is the tooltip, not option text: a select is as wide as its longest option.
-        <option key={c.value} value={c.value} disabled={!!c.disabledReason} title={c.disabledReason}>
-          {c.value === option ? c.label : c.action}
-        </option>
-      ))}
-    </select>
+    <Tooltip content={editor ? blockedReasons || undefined : soon}>
+      <select
+        aria-label={`Status of ${title}`}
+        disabled={!editor || editor.busy}
+        value={option ?? ""}
+        onChange={editor ? (e) => void editor.run(() => setCourseItemStatus(editor.courseId, kind, id, e.target.value)) : undefined}
+        className={`order-last min-h-10 shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold @split:order-none @split:min-h-0 disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
+      >
+        {!choices.some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
+        {choices.map((c) => (
+          // The reason a choice is blocked is the select's tooltip, not option text: a select is as wide as its longest option.
+          <option key={c.value} value={c.value} disabled={!!c.disabledReason}>
+            {c.value === option ? c.label : c.action}
+          </option>
+        ))}
+      </select>
+    </Tooltip>
   );
 }
 
@@ -106,10 +110,12 @@ function Action({ label, icon, count, onClick, disabled }: { label: string; icon
   const { soon, editor } = useOutline();
   const working = !!onClick;
   return (
-    <button type="button" disabled={!working || disabled || editor?.busy} onClick={onClick} title={working ? label : `${label}. ${soon}`} aria-label={label} className={ACTION}>
-      <Icon name={icon} />
-      {count !== undefined && <span className="text-xs">{count}</span>}
-    </button>
+    <Tooltip content={working ? label : `${label}. ${soon}`}>
+      <button type="button" disabled={!working || disabled || editor?.busy} onClick={onClick} aria-label={label} className={ACTION}>
+        <Icon name={icon} />
+        {count !== undefined && <span className="text-xs">{count}</span>}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -132,12 +138,16 @@ interface RowAction {
   quickOnly?: boolean;
 }
 
-function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
+function RowActions({ name, actions, sibling }: { name: string; actions: RowAction[]; sibling?: Sibling }) {
   const { editor, soon } = useOutline();
   const items: ActionMenuItem[] = actions.filter((a) => !a.quickOnly).map((a) => {
     const working = !!a.onClick || !!a.href;
     return { key: a.key, label: a.label, href: a.href, onSelect: a.onClick, disabled: !working || a.disabled || editor?.busy, hint: working ? undefined : soon, track: "admin-course-row-action" };
   });
+  // "Move to position", for people who can't drag: the same menu the writing lists have, among the row's siblings.
+  // A row alone in its list has nothing to move to, so it gets no menu (as in the writing lists).
+  const positions = movePositions(editor, sibling);
+  const narrowItems = positions.length > 0 ? [...items, ...positions.map((p, i) => (i === 0 ? { ...p, separatorBefore: true } : p))] : items;
   return (
     <>
       <span className={HOVER_ACTIONS}>
@@ -154,8 +164,20 @@ function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
           )}
       </span>
       <span className="@split:hidden">
-        <ActionMenu label={`Actions for ${name}`} items={items} />
+        <ActionMenu label={`Actions for ${name}`} items={narrowItems} />
       </span>
+      {positions.length > 0 && (
+        <span className="hidden @split:block">
+          <ActionMenu
+            label={`Move ${name} to position`}
+            tooltip={`Move ${name} to position`}
+            heading={positionsHeading(positions.length)}
+            items={positions}
+            trigger={<Icon name="reorder" />}
+            triggerClassName="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          />
+        </span>
+      )}
     </>
   );
 }
@@ -173,27 +195,30 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
   const { editor, soon } = useOutline();
   if (!editor || !sibling) {
     return (
-      <span role="img" aria-label={label} title={soon} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
-        <Icon name="grip" />
-      </span>
+      <Tooltip content={soon}>
+        <span role="img" aria-label={label} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
+          <Icon name="grip" />
+        </span>
+      </Tooltip>
     );
   }
   return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      draggable
-      onDragStart={(e) => {
-        editor.drag.start({ kind: sibling.kind, parentId: sibling.parentId, id: sibling.id });
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", sibling.id); // Firefox won't start a drag without data
-      }}
-      onDragEnd={() => editor.drag.end()}
-      className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-    >
-      <Icon name="grip" />
-    </span>
+    <Tooltip content={label}>
+      <span
+        role="img"
+        aria-label={label}
+        draggable
+        onDragStart={(e) => {
+          editor.drag.start({ kind: sibling.kind, parentId: sibling.parentId, id: sibling.id });
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", sibling.id); // Firefox won't start a drag without data
+        }}
+        onDragEnd={() => editor.drag.end()}
+        className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        <Icon name="grip" />
+      </span>
+    </Tooltip>
   );
 }
 
@@ -219,15 +244,16 @@ function dropProps(editor: Editor | null, sibling?: Sibling) {
   };
 }
 
-/** Move up and Move down, for people who can't drag. */
-function moveActions(editor: Editor | null, sibling: Sibling | undefined, what: string): RowAction[] {
-  if (!editor || !sibling) return [];
-  const move = (delta: -1 | 1) => void editor.run(() => reorderCourseItems(editor.courseId, sibling.kind, sibling.parentId, moveBy(sibling.ids, sibling.id, delta)));
+/**
+ * The "Move to position" items for a row among its siblings (the same menu as the writing lists), for people who
+ * can't drag. Empty for an imported course, while searching, and for a row alone in its list. Choosing one sends the
+ * whole new order of the list, as a drop does.
+ */
+function movePositions(editor: Editor | null, sibling: Sibling | undefined): ActionMenuItem[] {
+  if (!editor || !sibling || sibling.ids.length < 2) return [];
   const index = sibling.ids.indexOf(sibling.id);
-  return [
-    { key: "up", label: `Move ${what} up`, icon: "up", onClick: () => move(-1), disabled: index <= 0 },
-    { key: "down", label: `Move ${what} down`, icon: "down", onClick: () => move(1), disabled: index === sibling.ids.length - 1 },
-  ];
+  const move = (position: number) => void editor.run(() => reorderCourseItems(editor.courseId, sibling.kind, sibling.parentId, moveToPosition(sibling.ids, sibling.id, position)));
+  return positionItems(sibling.ids.length, index, move, "admin-course-move-to-position").map((item) => ({ ...item, disabled: item.disabled || editor.busy }));
 }
 
 /** A one-line text field that saves on Enter and cancels on Escape. */
@@ -298,7 +324,6 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
     { key: "comments", label: `Open ${what} comments`, icon: "comment", quickOnly: true },
     { key: "preview", label: previewLabel, icon: lifecycleIcon("preview"), href: preview ?? undefined },
     { key: "delete", label: lifecycleLabel("delete", what), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
-    ...moveActions(editor, sibling, "lesson"),
   ];
   return (
     <li
@@ -313,7 +338,9 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       ) : (
         <span className="min-w-0 flex-1 basis-32">
           {!builder ? (
-            <span className={`${TITLE} font-medium`} title={lesson.title}>{lesson.title}</span>
+            <Tooltip content={lesson.title}>
+              <span className={`${TITLE} font-medium`}>{lesson.title}</span>
+            </Tooltip>
           ) : (
             // Double-clicking the title renames it in place (the same as Rename lesson); a single click opens the lesson.
             <Link href={builder} title={lesson.title} onDoubleClick={editor ? (e) => { e.preventDefault(); setRenaming(true); } : undefined} className={`${TITLE} font-medium hover:underline`}>
@@ -323,7 +350,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
           {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
         </span>
       )}
-      <RowActions name={lesson.title} actions={actions} />
+      <RowActions name={lesson.title} actions={actions} sibling={sibling} />
       <StatusPill title={lesson.title} option={lesson.publishingOption} kind="lesson" id={lesson.kajabiId} />
       {confirming && editor && (
         <DeleteDialog title={lesson.title} what="lesson" detail={null} onConfirm={() => editor.run(() => deleteCourseItem(editor.courseId, "lesson", lesson.kajabiId))} onClose={() => setConfirming(false)} />
@@ -389,7 +416,6 @@ function ModuleRow({
     { key: "add-lesson", label: "Add lesson", onClick: editor ? () => startAdding("lesson") : undefined },
     ...(submodule ? [] : [{ key: "add-submodule", label: "Add submodule", onClick: editor ? () => startAdding("submodule") : undefined }]),
     { key: "delete", label: lifecycleLabel("delete", noun), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
-    ...moveActions(editor, sibling, noun),
   ];
   return (
     <li className={submodule ?"border-t border-slate-100 dark:border-slate-800" : "overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"} {...dropProps(editor, sibling)}>
@@ -400,24 +426,27 @@ function ModuleRow({
           <NameField label={`${submodule ? "Submodule" : "Module"} name`} initial={mod.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "module", mod.kajabiId, title))} onCancel={() => setRenaming(false)} />
         ) : (
           <span className="min-w-0 flex-1 basis-32">
-            <span className={`${TITLE} font-medium`} title={mod.title}>{mod.title}</span>
+            <Tooltip content={mod.title}>
+              <span className={`${TITLE} font-medium`}>{mod.title}</span>
+            </Tooltip>
             {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
           </span>
         )}
-        <RowActions name={mod.title} actions={actions} />
+        <RowActions name={mod.title} actions={actions} sibling={sibling} />
         <span className="relative hidden @split:block">
-          <button
-            type="button"
-            disabled={!editor || editor.busy}
-            title={editor ? undefined : SOON_IMPORTED}
-            aria-haspopup={editor ? "menu" : undefined}
-            aria-expanded={editor ? menu : undefined}
-            onClick={editor ? () => setMenu(!menu) : undefined}
-            className="flex items-center gap-1 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300"
-          >
-            <Icon name="plus" />
-            Add content
-          </button>
+          <Tooltip content={editor ? undefined : SOON_IMPORTED}>
+            <button
+              type="button"
+              disabled={!editor || editor.busy}
+              aria-haspopup={editor ? "menu" : undefined}
+              aria-expanded={editor ? menu : undefined}
+              onClick={editor ? () => setMenu(!menu) : undefined}
+              className="flex items-center gap-1 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300"
+            >
+              <Icon name="plus" />
+              Add content
+            </button>
+          </Tooltip>
           {menu && editor && (
             <div role="menu" aria-label={`Add to ${mod.title}`} className="absolute right-0 z-dropdown mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900" onKeyDown={(e) => e.key === "Escape" && setMenu(false)}>
               <button type="button" role="menuitem" onClick={() => { setMenu(false); setOpen(true); setAdding("lesson"); }} className="block w-full px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -484,7 +513,7 @@ function ModuleRow({
  * a search, and per row a drag handle, hover actions and a quick status menu. An imported course is
  * read only (search, expand, open a lesson or its preview; the rest is off until a course is taken
  * over from Kajabi). A Hub-owned course (`editable`) can be changed: add, rename, duplicate, delete
- * and reorder modules, submodules and lessons, by dragging or with Move up and down; the status
+ * and reorder modules, submodules and lessons, by dragging or with the "Move to position" menu; the status
  * menu comes next.
  */
 export default function BuilderOutline({ course }: { course: OutlineCourse }) {
@@ -545,15 +574,16 @@ export default function BuilderOutline({ course }: { course: OutlineCourse }) {
             {course.modules.length} {course.modules.length === 1 ? "Module" : "Modules"}
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!editor || busy}
-              title={editor ? undefined : SOON_IMPORTED}
-              onClick={editor ? () => setAddingModule(true) : undefined}
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600"
-            >
-              Add module
-            </button>
+            <Tooltip content={editor ? undefined : SOON_IMPORTED}>
+              <button
+                type="button"
+                disabled={!editor || busy}
+                onClick={editor ? () => setAddingModule(true) : undefined}
+                className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600"
+              >
+                Add module
+              </button>
+            </Tooltip>
             <button
               type="button"
               onClick={() => setExpansion((e) => ({ open: !e.open, version: e.version + 1 }))}

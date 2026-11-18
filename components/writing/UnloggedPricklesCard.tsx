@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import PrickleCheckModal from "@/components/writing/PrickleCheckModal";
 import { dismissUnloggedPrickle } from "@/app/(member)/projects/actions";
 import type { PrickleOption } from "@/lib/prickle-writing";
+import Tooltip from "@/components/Tooltip";
 
 interface UnloggedPricklesCardProps {
   /** Recent attended writing prickles with nothing logged and no check-out yet. */
@@ -70,16 +71,17 @@ export default function UnloggedPricklesCard({ prickles }: UnloggedPricklesCardP
               >
                 Check out →
               </button>
-              <button
-                type="button"
-                onClick={() => handleDismiss(p.id)}
-                data-track="unlogged-prickles-dismiss"
-                aria-label={`Dismiss ${p.label}`}
-                title="Not checking out of this one"
-                className="px-2 py-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
-              >
-                ×
-              </button>
+              <Tooltip content="Not checking out of this one">
+                <button
+                  type="button"
+                  onClick={() => handleDismiss(p.id)}
+                  data-track="unlogged-prickles-dismiss"
+                  aria-label={`Dismiss ${p.label}`}
+                  className="px-2 py-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
+                >
+                  ×
+                </button>
+              </Tooltip>
             </div>
           </li>
         ))}

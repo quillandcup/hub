@@ -3,12 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import FeedbackWidget from "@/components/FeedbackWidget";
+import Kbd from "@/components/Kbd";
+import { useShortcutsPanel } from "@/components/shortcuts/ShortcutsProvider";
+import Tooltip from "@/components/Tooltip";
 
 /** The help button in the top bar, beside the notification bell: a question mark in a circle that opens a menu with Hedgie Help (the articles), What's new (the changelog) and Send feedback (the feedback form). */
 export default function HelpMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Only on a device with a keyboard, inside the app shell (the shortcuts panel lives there).
+  const shortcuts = useShortcutsPanel();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -32,23 +38,25 @@ export default function HelpMenu() {
   return (
     <>
       <div className="relative" ref={ref}>
-        <button
-          type="button"
-          onClick={() => setMenuOpen((o) => !o)}
-          data-track="help-menu"
-          aria-label="Help"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          title="Help"
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" focusable="false">
-            <path
-              fill="currentColor"
-              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"
-            />
-          </svg>
-        </button>
+        <Tooltip content="Help">
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            data-track="help-menu"
+            aria-label="Help"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"
+              />
+            </svg>
+          </button>
+        </Tooltip>
 
         {menuOpen && (
           <div
@@ -61,6 +69,22 @@ export default function HelpMenu() {
             <Link href="/changelog" role="menuitem" data-track="help-menu-changelog" onClick={() => setMenuOpen(false)} className={item}>
               What&apos;s new
             </Link>
+            {shortcuts.available && (
+              <button
+                type="button"
+                role="menuitem"
+                data-track="help-menu-shortcuts"
+                aria-keyshortcuts="?"
+                onClick={() => {
+                  setMenuOpen(false);
+                  shortcuts.openPanel("help_menu", buttonRef.current);
+                }}
+                className={`${item} flex items-center justify-between gap-2`}
+              >
+                Keyboard shortcuts
+                <Kbd keys={["?"]} />
+              </button>
+            )}
             <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
             <button
               type="button"

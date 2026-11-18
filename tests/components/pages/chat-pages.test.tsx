@@ -20,6 +20,7 @@ import {
   type FakeSupabase,
   type FakeTables,
 } from "@/tests/helpers/server-page";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 let lastChannelCookie: string | undefined;
 vi.mock("next/headers", () => ({
@@ -440,8 +441,7 @@ describe("channel page", () => {
     expect(within(first).getByRole("link", { name: /2 replies/ })).toHaveAttribute("href", `/chat/${GENERAL}?thread=${id(101)}`);
     // The author's photo, and one avatar per distinct replier (Fern has no photo: initials).
     expect(first.querySelectorAll('img[src="https://photos.example.test/gale.jpg"]').length).toBeGreaterThanOrEqual(1);
-    const stack = within(first).getByRole("link", { name: /2 replies/ }).querySelectorAll("[title]");
-    expect([...stack].map((el) => el.getAttribute("title"))).toEqual(["Fern", "Gale Prickleton"]);
+    expect(tooltipTexts(within(first).getByRole("link", { name: /2 replies/ })).map((t) => t.text)).toEqual(["Fern", "Gale Prickleton"]);
 
     expect(document.getElementById(`m-${id(102)}`)).toBeNull();
     expect(screen.queryByText("This message was deleted.")).toBeNull();

@@ -6,6 +6,8 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import Icon from "@/components/Icon";
+import { positionItems, positionsHeading } from "@/lib/reorder";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * A member puts a list of their own things (projects, a project's goals) in the order they like. The pieces:
@@ -119,10 +121,10 @@ export function announcementsFor(ids: string[], labels: Record<string, string>):
  * pick the place in one step from a list instead of nudging one place at a time. Only the handle captures touch,
  * so swiping anywhere else on the row still scrolls the page.
  *
- * `handle="column"` puts the handle in a column at the row's left, always visible. `handle="cover"` (for a card with
- * a picture at its top left) is the same on a touch screen, but where the pointer really hovers the handle sits over
- * that picture and shows while the row is hovered or has focus inside it. `children` is a function that is given the
- * menu so the row can place it among its own actions.
+ * The controls get no column of their own (on a phone every pixel of width goes to the title). `children` is a
+ * function given the `handle` and the `menu`, so the row places each where it fits. The handle is the shared two-bar
+ * `grip` icon: small to look at (20px), with a touch area of 44px by 24px made by an invisible overlap, not by space
+ * in the layout. `extraItems` are the row's own actions (Edit, Delete) that the menu carries too, ahead of the positions.
  */
 export function SortableRow({
   id,
@@ -135,8 +137,7 @@ export function SortableRow({
   className,
   idleClassName,
   liftedClassName,
-  handle = "column",
-  overPicture = false,
+  extraItems = [],
   children,
 }: {
   id: string;
@@ -151,67 +152,47 @@ export function SortableRow({
   className: string;
   idleClassName: string;
   liftedClassName: string;
-  handle?: "column" | "cover";
-  /** For `handle="cover"`: the row shows a real picture (so the handle is a dark scrim over it on hover) rather than a placeholder icon. */
-  overPicture?: boolean;
-  children: (menu: ReactNode) => ReactNode;
+  /** The row's own actions the menu lists before the positions (each can hide itself where the row shows it inline). */
+  extraItems?: ActionMenuItem[];
+  children: (controls: { handle: ReactNode; menu: ReactNode }) => ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
-  const items: ActionMenuItem[] = Array.from({ length: count }, (_, i) => ({
-    key: `pos-${i + 1}`,
-    label: i === index ? `Position ${i + 1} (current)` : `Move to position ${i + 1}`,
-    disabled: i === index,
-    track: `${track}-move-to-position`,
-    onSelect: () => onMoveTo(i + 1),
-  }));
+  const positions = positionItems(count, index, onMoveTo, `${track}-move-to-position`);
   const menu =
     count > 1 ? (
       <ActionMenu
         label={`More actions for ${label}`}
-        heading={`Move to position (of ${count})`}
-        items={items}
-        triggerClassName="flex h-11 w-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        heading={extraItems.length === 0 ? positionsHeading(count) : undefined}
+        items={[...extraItems, ...positions]}
+        // A menu holding only the positions gets the reorder icon; one that also holds the row's own actions stays the dots.
+        trigger={extraItems.length === 0 ? <Icon name="reorder" /> : undefined}
+        tooltip={extraItems.length === 0 ? `More actions for ${label}` : undefined}
+        // 32px to look at, 32px wide; the invisible `before` stretches the touch area to 44px tall.
+        triggerClassName="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
       />
     ) : null;
 
-  const handleButton = (
-    <span className={`group/handle relative block ${handle === "cover" ? "[@media(hover:hover)]:h-full [@media(hover:hover)]:w-full" : ""}`}>
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        data-track={`${track}-drag-handle`}
-        aria-label={`Reorder ${label}: press space, then the arrow keys, then space again`}
-        {...attributes}
-        {...listeners}
-        className={`flex touch-none select-none items-center justify-center rounded-md cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-plum-500 ${
-          handle === "cover"
-            ? // Spelled out in full: Tailwind only finds class names that appear whole in the source. `[@media(hover:hover)]` is a pointer that really hovers.
-              `h-11 w-11 [@media(hover:hover)]:h-full [@media(hover:hover)]:w-full [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-focus-within/row:opacity-100 focus-visible:opacity-100 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 ${
-                overPicture
-                  ? "[@media(hover:hover)]:bg-black/50 [@media(hover:hover)]:text-white [@media(hover:hover)]:hover:bg-black/60"
-                  : "[@media(hover:hover)]:bg-slate-100 [@media(hover:hover)]:hover:bg-slate-200 dark:[@media(hover:hover)]:bg-slate-800 dark:[@media(hover:hover)]:hover:bg-slate-700"
-              }`
-            : "h-11 w-11 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-        }`}
-      >
-        <Icon name={handle === "cover" ? "grip" : "dots"} className="h-6 w-6" />
-      </button>
-      <span aria-hidden="true" className="pointer-events-none absolute left-0 top-full z-dropdown mt-1 hidden w-56 rounded-md bg-slate-900 px-2 py-1.5 text-xs text-white shadow-lg group-hover/handle:block group-focus-within/handle:block dark:bg-slate-700">
-        {HANDLE_TOOLTIP}
-      </span>
-    </span>
-  );
+  const handle =
+    count > 1 ? (
+      <Tooltip content={HANDLE_TOOLTIP} touchContent="Drag to reorder">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          data-track={`${track}-drag-handle`}
+          aria-label={`Reorder ${label}: press space, then the arrow keys, then space again`}
+          {...attributes}
+          {...listeners}
+          // One look everywhere: the `grip` icon, no box. `before` makes the touch area 44px tall without taking layout height.
+          className="relative flex h-8 w-6 shrink-0 touch-none select-none items-center justify-center rounded-md text-slate-500 cursor-grab before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-plum-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        >
+          <Icon name="grip" className="h-5 w-5" />
+        </button>
+      </Tooltip>
+    ) : null;
 
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} data-sortable-row={id} className={`group/row relative flex gap-3 ${className} ${isDragging ? `z-raised ${liftedClassName}` : idleClassName}`}>
-      {count > 1 &&
-        (handle === "cover" ? (
-          // Where the pointer hovers it overlays the picture (out of the flow, so the row's content keeps its place); on touch it is a column.
-          <div className="-ml-2 flex shrink-0 items-center [@media(hover:hover)]:absolute [@media(hover:hover)]:left-5 [@media(hover:hover)]:top-5 [@media(hover:hover)]:ml-0 [@media(hover:hover)]:h-[4.5rem] [@media(hover:hover)]:w-12">{handleButton}</div>
-        ) : (
-          <div className="-ml-2 flex shrink-0 items-center self-center">{handleButton}</div>
-        ))}
-      <div className="min-w-0 flex-1">{children(menu)}</div>
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} data-sortable-row={id} className={`relative ${className} ${isDragging ? `z-raised ${liftedClassName}` : idleClassName}`}>
+      {children({ handle, menu })}
     </div>
   );
 }

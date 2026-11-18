@@ -1,4 +1,5 @@
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import Tooltip from "@/components/Tooltip";
 
 export interface AvatarPerson {
   name: string;
@@ -29,9 +30,11 @@ export default function AvatarStack({
   return (
     <span className="flex items-center" aria-hidden="true">
       {shown.map((p, i) => (
-        <span key={i} className={ring} style={i === 0 ? undefined : gap} title={p.name}>
-          <MemberAvatar name={p.name} photoUrl={p.photoUrl} size={size} />
-        </span>
+        <Tooltip key={i} content={p.name}>
+          <span className={ring} style={i === 0 ? undefined : gap}>
+            <MemberAvatar name={p.name} photoUrl={p.photoUrl} size={size} />
+          </span>
+        </Tooltip>
       ))}
       {overflow && extra > 0 && (
         <span

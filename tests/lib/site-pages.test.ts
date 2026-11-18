@@ -103,6 +103,7 @@ describe("settings sections", () => {
   const files = [
     ...fs.readdirSync(settingsDir).filter((f) => f.endsWith(".tsx")).map((f) => path.join(settingsDir, f)),
     path.resolve(ROOT, "../components/HostVibePanel.tsx"),
+    path.resolve(ROOT, "../components/mfa/MfaPanel.tsx"),
   ];
   const source = files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
   const ids = new Set([...source.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import DatePicker from "@/components/DatePicker";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { DataTableSearch } from "@/components/DataTableSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -182,62 +183,64 @@ export default function ZoomMeetingsReview({
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800">
-            <tr>
-              <th className="px-4 py-3 w-10">
-                <input
-                  type="checkbox"
-                  aria-label="Select all meetings on this page"
-                  checked={selection.allSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = selection.someSelected;
-                  }}
-                  onChange={selection.toggleAll}
-                />
-              </th>
-              <SortableTh label="Topic" {...table.sortProps("topic")} />
-              <SortableTh label="Started" {...table.sortProps("start")} />
-              <SortableTh label="Account" {...table.sortProps("account")} />
-              <SortableTh label="People" {...table.sortProps("people")} />
-              <SortableTh label="State" {...table.sortProps("state")} />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {table.rows.map((r) => (
-              <tr key={r.meetingUuid}>
-                <td className="px-4 py-2">
+      <TableKeyboardNav table={table} label="Zoom meetings">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800">
+              <tr>
+                <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    aria-label={`Select ${r.topic}`}
-                    checked={selection.isSelected(r.meetingUuid)}
-                    onChange={() => selection.toggle(r.meetingUuid)}
+                    aria-label="Select all meetings on this page"
+                    checked={selection.allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selection.someSelected;
+                    }}
+                    onChange={selection.toggleAll}
                   />
-                </td>
-                <td className="px-6 py-2">
-                  <div className="font-medium">{r.topic}</div>
-                  <div className="text-xs text-slate-500">Meeting ID {r.meetingId}</div>
-                </td>
-                <td className="px-6 py-2 whitespace-nowrap">{formatDateTime(r.startTime, timeZone)}</td>
-                <td className="px-6 py-2">{r.accountLabel}</td>
-                <td className="px-6 py-2">{r.participantCount ?? ""}</td>
-                <td className="px-6 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATE_CLASS[r.state]}`}>{STATE_LABEL[r.state]}</span>
-                </td>
+                </th>
+                <SortableTh label="Topic" {...table.sortProps("topic")} />
+                <SortableTh label="Started" {...table.sortProps("start")} />
+                <SortableTh label="Account" {...table.sortProps("account")} />
+                <SortableTh label="People" {...table.sortProps("people")} />
+                <SortableTh label="State" {...table.sortProps("state")} />
               </tr>
-            ))}
-            {table.rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                  No meetings match.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <DataTablePager table={table} itemLabel="meetings" />
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {table.rows.map((r) => (
+                <tr key={r.meetingUuid}>
+                  <td className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${r.topic}`}
+                      checked={selection.isSelected(r.meetingUuid)}
+                      onChange={() => selection.toggle(r.meetingUuid)}
+                    />
+                  </td>
+                  <td className="px-6 py-2">
+                    <div className="font-medium">{r.topic}</div>
+                    <div className="text-xs text-slate-500">Meeting ID {r.meetingId}</div>
+                  </td>
+                  <td className="px-6 py-2 whitespace-nowrap">{formatDateTime(r.startTime, timeZone)}</td>
+                  <td className="px-6 py-2">{r.accountLabel}</td>
+                  <td className="px-6 py-2">{r.participantCount ?? ""}</td>
+                  <td className="px-6 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATE_CLASS[r.state]}`}>{STATE_LABEL[r.state]}</span>
+                  </td>
+                </tr>
+              ))}
+              {table.rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    No meetings match.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <DataTablePager table={table} itemLabel="meetings" />
+      </TableKeyboardNav>
     </div>
   );
 }

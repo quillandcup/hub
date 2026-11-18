@@ -9,6 +9,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { EMPTY_CHECKIN, INTENTION_MET, NEED_VIBE, prickleHref, type CheckinInput } from "@/lib/prickle-checkins";
 import { CheckinHalfFields } from "@/components/writing/CheckinFields";
+import Tooltip from "@/components/Tooltip";
 
 interface Member {
   id: string;
@@ -70,19 +71,19 @@ function ChipGroup<T extends string>({
       {options.map((opt) => {
         const selected = opt.value === value;
         return (
-          <button data-track="prickle-picker-change"
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-              selected
-                ? "bg-plum-600 border-plum-600 text-white"
-                : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
-            }`}
-            title={opt.hint || undefined}
-          >
-            {opt.label}
-          </button>
+          <Tooltip key={opt.value} content={opt.hint || undefined}>
+            <button data-track="prickle-picker-change"
+              type="button"
+              onClick={() => onChange(opt.value)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
+                selected
+                  ? "bg-plum-600 border-plum-600 text-white"
+                  : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
+              }`}
+            >
+              {opt.label}
+            </button>
+          </Tooltip>
         );
       })}
     </div>

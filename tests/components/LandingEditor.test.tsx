@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
@@ -169,6 +170,22 @@ describe("the header", () => {
     expect(screen.getByRole("link", { name: "View live" })).toHaveAttribute("href", "/p/spring");
   });
 
+  it("keeps the controls as icons with a name and a tooltip each, so the header fits on one line", () => {
+    editor({ status: "published", publishedJson: JSON.stringify(data) });
+    edit("Different");
+    for (const name of ["Details", "History", "Reset to published", "Preview", "Unpublish"]) {
+      const button = screen.getByRole("button", { name });
+      expect(tooltipText(button), name).toBe(name);
+      expect(button, name).toHaveTextContent("");
+      expect(button.querySelector("svg"), name).not.toBeNull();
+    }
+    const live = screen.getByRole("link", { name: "View live" });
+    expect(tooltipText(live)).toBe("View live");
+    expect(live).toHaveAttribute("target", "_blank");
+    expect(live).toHaveTextContent("");
+    expect(screen.getByRole("button", { name: "Publish changes" })).toHaveTextContent("Publish changes");
+  });
+
   it("notes changes that aren't published yet", () => {
     editor({ status: "published", publishedJson: JSON.stringify(data) });
     expect(screen.queryByText("Changes not published yet")).toBeNull();
@@ -256,7 +273,7 @@ describe("reset to published", () => {
     editor(publishedPage);
     expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
     edit("Welcome back");
-    expect(screen.getByRole("button", { name: "Reset to published" })).toHaveAttribute("title", "Reset to published");
+    expect(tooltipText(screen.getByRole("button", { name: "Reset to published" }))).toEqual("Reset to published");
   });
 
   it("is never offered on a page that was not published", () => {

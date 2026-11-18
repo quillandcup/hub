@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./app.config";
-import { buildCsp, CSP_REPORT_ONLY_HEADER } from "./lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS } from "./lib/csp";
 import { helpImagesVersion } from "./scripts/help-images-version";
 import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 
@@ -25,6 +25,17 @@ import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 // longer lints at all, regardless of config) -- linting now only happens
 // via the explicit `pnpm lint` step in CI.
 const isPreview = process.env.VERCEL_ENV === "preview";
+
+// The paths proxy.ts's matcher leaves out. Keep in step with it (tests/lib/csp.test.ts).
+const PROXY_SKIPPED_SOURCES = [
+  "/_next/static/:path*",
+  "/_next/image",
+  "/favicon.ico",
+  "/monitoring/:path*",
+  "/sw.js",
+  "/manifest.webmanifest",
+  "/:path*.(svg|png|jpg|jpeg|gif|webp)",
+];
 
 const nextConfig: NextConfig = {
   // Pairs this build with the help screenshot set captured from the same source (scripts/help-images-version.ts).
@@ -49,22 +60,21 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true }];
   },
-  // Report-Only Content-Security-Policy on every response (lib/csp.ts): reports what it would block, blocks nothing.
+  // The browser protections on every response (lib/csp.ts). The Content-Security-Policy is sent by proxy.ts on the paths it matches
+  // (a policy header from here reaches Next's request on Vercel and hides the script nonce); here it stays only for the paths the
+  // proxy skips (its matcher): static files, pictures, the Sentry tunnel, the service worker.
   async headers() {
+    const csp = {
+      key: CSP_HEADER,
+      value: buildCsp({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        imageHosts: appConfig.csp.imageHosts,
+        sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+      }),
+    };
     return [
-      {
-        source: "/:path*",
-        headers: [
-          {
-            key: CSP_REPORT_ONLY_HEADER,
-            value: buildCsp({
-              supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-              imageHosts: appConfig.csp.imageHosts,
-              sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-            }),
-          },
-        ],
-      },
+      { source: "/:path*", headers: [...SECURITY_HEADERS] },
+      ...PROXY_SKIPPED_SOURCES.map((source) => ({ source, headers: [csp] })),
     ];
   },
 };

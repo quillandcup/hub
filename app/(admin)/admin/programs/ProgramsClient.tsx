@@ -6,6 +6,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 interface Program {
   id: string;
@@ -187,6 +188,7 @@ export default function ProgramsClient() {
       )}
 
       <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+      <TableKeyboardNav table={table} label="Programs">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
@@ -250,6 +252,7 @@ export default function ProgramsClient() {
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="programs" />
+      </TableKeyboardNav>
       </div>
     </div>
   );

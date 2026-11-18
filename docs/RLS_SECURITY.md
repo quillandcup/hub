@@ -130,6 +130,22 @@ Files live in Supabase Storage buckets, and `storage.objects` has row level secu
 
 A bucket with a limit set says it in the dashboard; "Unset (50 MB)" is the project default. `book-covers` (public, members could write to it) and `course-images` are retired: nothing uses them, and a bucket can only be deleted through the Storage API or the dashboard, not SQL.
 
+## Table privileges (grants)
+
+Row level security decides which rows a role sees; grants decide whether it may touch the table at all. Both should say no to what the role never needs. The signed-out role (`anon`) holds no privileges on any table in `public` or `bronze`: signed-out pages and routes use the service role (after their own check), and everything signed-in runs as `authenticated`. Default privileges for the migration role also hand `anon` nothing on new tables and sequences, so a new table starts closed and only the grants its migration writes (`authenticated`, `service_role`) exist. `supabase/tests/database/anon_has_no_table_privileges.test.sql` fails if `anon` holds a privilege on any table or a new table gets one. If a table ever has to be readable signed-out, grant that one privilege in its migration with the reason beside it, and change the test's expectation for it. Functions are separate: `is_admin()` and the other helpers keep their execute grants.
+
+## Security definer functions and the guard
+
+A `SECURITY DEFINER` function runs with its owner's rights, so it skips row level security and the caller's grants. One that signed-in users can execute must check who is calling. `supabase/tests/database/security_guards.test.sql` (with the check that every table in `public` and `bronze` has RLS on) fails CI when a function in `public` that `anon` or `authenticated` can execute:
+
+- has no recognizable caller check in its body (`auth.uid()`, `auth.role()`, `auth.jwt()`, `is_admin()`, `is_community_manager()`, `current_member_id()`, `current_acting_as_member_id()`, or a helper built on them such as `has_course_access` or the `chat_*` visibility helpers), and is not a reviewed exception;
+- does not set its `search_path`; or
+- is executable by `anon`, other than `is_admin()` (it returns false when signed out).
+
+**The limit.** The test proves a check exists, not that it is correct or on every path. A human reads each new definer function in its PR: what it reads or writes, who can call it, and whether it checks the caller before touching data. Prefer a check in the body; revoke `EXECUTE` from `public` and `anon` in the migration and grant only what is needed.
+
+**Adding a reviewed exception** (a function that deliberately returns data meant for any signed-in member, or only delegates to one that checks): add one line to `reviewed_exceptions` in the test with the signature, a one-line reason and the PR where it was reviewed. A stale entry (the function is gone, or now has a check) fails the test, so the list stays honest. The current ones: the member directory's alias list and search (aliases of directory-visible members only), per-mentor match counts (members cannot read the matches table, and badges need the counts), and a one-line wrapper over a checked function. `get_profile_writing` returns only items a member marked to show on their profile, and needs no exception.
+
 ## Helper Functions
 
 ### `is_admin()`

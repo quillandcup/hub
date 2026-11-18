@@ -8,6 +8,7 @@ import { AnimationsSwitcher } from "./AnimationsSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SecondaryTimezoneSwitcher } from "./SecondaryTimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
+import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
 import { PreviewsPanel } from "./PreviewsPanel";
@@ -43,6 +44,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
     getUserFeaturePreviews(user.id),
   ]);
   const isAdmin = profile?.role === "admin";
+  const isStaff = isAdmin || profile?.role === "community_manager";
   // Hosting is behind the hosting preview, and only for hosts.
   const hostingOn = enabledFeatures.includes("hosting") && hostedVibes.length > 0;
 
@@ -115,6 +117,13 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     {showSlackConnect && (
                       <div data-tour="slack-connect" className="border-t border-slate-200 dark:border-slate-700 pt-6">
                         <SlackConnectPanel connected={slackConnected} sharesReadState={slackStatus?.sharesReadState ?? false} hasDmScopes={slackStatus?.hasDmScopes ?? false} hasDmReactionScope={slackStatus?.hasDmReactionScope ?? false} hasPrivateChannelScope={slackStatus?.hasPrivateChannelScope ?? false} />
+                      </div>
+                    )}
+
+                    {/* The signed-in account's own second step, so not while viewing as another member. */}
+                    {!effectiveIdentity?.isSudo && (
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                        <MfaPanel staff={isStaff} />
                       </div>
                     )}
 

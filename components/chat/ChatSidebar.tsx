@@ -12,6 +12,7 @@ import { subscribeDraftChanges } from "@/lib/chat/draft-events";
 import { MARKED_UNREAD_EVENT, type MarkedUnreadDetail } from "@/lib/chat/list-events";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 import NewMessagePicker from "@/components/chat/NewMessagePicker";
+import Tooltip from "@/components/Tooltip";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
 const badge = (n: number) => (n > 99 ? "99+" : String(n));
@@ -64,27 +65,28 @@ function BrowseChannels({ channels, pathname }: { channels: ChannelSummary[]; pa
   const matches = wanted ? channels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(wanted)) : channels;
   return (
     <div ref={root}>
-      <button
-        type="button"
-        data-track="chat-sidebar-browse"
-        aria-label="Browse channels"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        title="Browse channels"
-        onClick={() => {
-          setQuery("");
-          setOpen((o) => !o);
-        }}
-        className={`rounded p-1 text-slate-600 hover:bg-slate-200 focus-visible:opacity-100 group-hover:opacity-100 dark:text-slate-400 dark:hover:bg-slate-700 [@media(hover:none)]:opacity-100 ${
-          open ? "bg-slate-200 opacity-100 dark:bg-slate-700" : "opacity-0"
-        }`}
-      >
-        <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M2 3h11M2 7h6M2 11h4" />
-          <circle cx="10.5" cy="10" r="2.5" />
-          <path d="m12.4 11.9 2 2" />
-        </svg>
-      </button>
+      <Tooltip content="Browse channels">
+        <button
+          type="button"
+          data-track="chat-sidebar-browse"
+          aria-label="Browse channels"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={() => {
+            setQuery("");
+            setOpen((o) => !o);
+          }}
+          className={`rounded p-1 text-slate-600 hover:bg-slate-200 focus-visible:opacity-100 group-hover:opacity-100 dark:text-slate-400 dark:hover:bg-slate-700 [@media(hover:none)]:opacity-100 ${
+            open ? "bg-slate-200 opacity-100 dark:bg-slate-700" : "opacity-0"
+          }`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2 3h11M2 7h6M2 11h4" />
+            <circle cx="10.5" cy="10" r="2.5" />
+            <path d="m12.4 11.9 2 2" />
+          </svg>
+        </button>
+      </Tooltip>
       {open && (
         <div
           role="dialog"

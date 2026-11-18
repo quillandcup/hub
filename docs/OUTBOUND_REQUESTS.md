@@ -18,7 +18,7 @@ Why: some hosts refuse a request with no User-Agent (Wikimedia answers 403) or a
 | Picture and cover downloads (`lib/net/safe-fetch.ts`) | `DEFAULT_USER_AGENT` is the same constant; the `userAgent` option still overrides |
 | Slack (`@slack/web-api`) | `createSlackClient` (`lib/slack-client.ts`) calls `addAppMetadata`, which puts `HedgieHub/<sha>` in front of the SDK's own clause |
 | Stripe | `appInfo` (Stripe adds it to its own clause) |
-| Google Calendar (`googleapis`) | `userAgentDirectives`, next to `google-api-nodejs-client` |
+| Google Calendar (`@googleapis/calendar`) | `userAgentDirectives`, next to `google-api-nodejs-client` |
 | Mux (`@mux/ts`) | `defaultHeaders["User-Agent"]`: ours, then the SDK's `Mux/JS <version>` (the option replaces the SDK's value, so its clause is re-added) |
 | Web Push (`web-push`) | `headers` option on both send paths |
 

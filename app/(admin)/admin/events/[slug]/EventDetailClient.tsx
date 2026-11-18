@@ -8,6 +8,7 @@ import MemberSearch from "@/components/MemberSearch";
 import { TICKET_NOTE_MAX_LENGTH, TICKET_SOURCES, TICKET_SOURCE_LABELS, isTicketSource, type TicketSource } from "@/lib/event-tickets";
 import EventKajabiTickets from "./EventKajabiTickets";
 import EventDetailsCard, { type EventData, type EventForm, type EventOverrides } from "./EventDetailsCard";
+import Tooltip from "@/components/Tooltip";
 
 interface Photo {
   id: string;
@@ -420,24 +421,25 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900 w-56"
                   />
                 )}
-                <select
-                  aria-label={`How ${attendee.memberName} got in`}
-                  value={pendingGiftFor === attendee.memberId ? "gifted" : (attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : ""))}
-                  title={attendee.purchasedInKajabi ? "Bought in Kajabi" : undefined}
-                  onChange={(e) => handleTicketSource(attendee.memberId, attendee.ticketSource, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") setPendingGiftFor(null);
-                  }}
-                  className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
-                >
-                  {/* Purchased is derived from Kajabi, never stored: picking it clears a source recorded by hand. */}
-                  {attendee.purchasedInKajabi ? <option value="purchased">Purchased</option> : <option value="">Not recorded</option>}
-                  {TICKET_SOURCES.map((source) => (
-                    <option key={source} value={source}>
-                      {TICKET_SOURCE_LABELS[source]}
-                    </option>
-                  ))}
-                </select>
+                <Tooltip content={attendee.purchasedInKajabi ? "Bought in Kajabi" : undefined}>
+                  <select
+                    aria-label={`How ${attendee.memberName} got in`}
+                    value={pendingGiftFor === attendee.memberId ? "gifted" : (attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : ""))}
+                    onChange={(e) => handleTicketSource(attendee.memberId, attendee.ticketSource, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setPendingGiftFor(null);
+                    }}
+                    className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
+                  >
+                    {/* Purchased is derived from Kajabi, never stored: picking it clears a source recorded by hand. */}
+                    {attendee.purchasedInKajabi ? <option value="purchased">Purchased</option> : <option value="">Not recorded</option>}
+                    {TICKET_SOURCES.map((source) => (
+                      <option key={source} value={source}>
+                        {TICKET_SOURCE_LABELS[source]}
+                      </option>
+                    ))}
+                  </select>
+                </Tooltip>
                 <button
                   onClick={() => handleRemoveAttendee(attendee.memberId)}
                   disabled={removingId === attendee.memberId}

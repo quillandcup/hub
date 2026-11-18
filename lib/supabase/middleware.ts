@@ -2,15 +2,18 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
-import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { getAalFromAccessToken, getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 import { COMMUNITY_MANAGER_HOME, mayOpenAdminPath } from '@/lib/staff-access'
 import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, isRememberableVisit, safeNextPath } from '@/lib/safe-next'
 import { coursePreviewRewrite, lessonPreviewRewrite } from '@/lib/courses/preview-path'
-import { CURRENT_PATH_HEADER } from '@/lib/gates'
+import { CURRENT_PATH_HEADER, GATES, gateHref } from '@/lib/gates'
+import { blocksStaff, hasVerifiedTotp, isStaffMfaEnforced, staffMfaState } from '@/lib/staff-mfa'
+import { clock } from '@/lib/clock'
 import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
 import { deviceForStorage } from '@/lib/device'
@@ -33,14 +36,19 @@ function askedFor(request: NextRequest): string {
  * from the proxy to Server Components: `NextResponse.next({ request: { headers } })`). The headers are copied from the request
  * at this moment, so cookies a token refresh just set on it (see setAll below) go along.
  */
-function continueWithPath(request: NextRequest): NextResponse {
+function continueWithPath(request: NextRequest, extraHeaders: Record<string, string> = {}): NextResponse {
   const headers = new Headers(request.headers)
   headers.set(CURRENT_PATH_HEADER, askedFor(request))
+  for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
   return NextResponse.next({ request: { headers } })
 }
 
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = continueWithPath(request)
+/**
+ * `requestHeaders` are added to the request Server Components see (proxy.ts uses it to hand over the script nonce,
+ * lib/csp.ts, so Next can put it on its own scripts).
+ */
+export async function updateSession(request: NextRequest, requestHeaders: Record<string, string> = {}) {
+  let supabaseResponse = continueWithPath(request, requestHeaders)
 
   // GoTrue records auth.sessions.user_agent/ip from whatever hit its own
   // endpoint — since this refresh call originates from our server, not the
@@ -53,11 +61,12 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = continueWithPath(request)
+          supabaseResponse = continueWithPath(request, requestHeaders)
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -88,6 +97,8 @@ export async function updateSession(request: NextRequest) {
   // The role the custom access token hook put in the token (see
   // getAppRoleFromAccessToken); only admin and community_manager open any admin path (lib/staff-access.ts).
   let roleClaim: string | null | undefined = undefined
+  // The session's assurance level claim: aal2 once it has passed a TOTP challenge (lib/staff-mfa.ts).
+  let aalClaim: string | null = null
   let authCheckTimedOut = false
   try {
     const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
@@ -102,6 +113,7 @@ export async function updateSession(request: NextRequest) {
       if (accessToken) {
         sessionId = getSessionIdFromAccessToken(accessToken)
         roleClaim = getAppRoleFromAccessToken(accessToken)
+        aalClaim = getAalFromAccessToken(accessToken)
       }
     }
   } catch {
@@ -234,6 +246,22 @@ export async function updateSession(request: NextRequest) {
       url.search = ''
       const redirectResponse = NextResponse.redirect(url)
       // Keep any session cookies getUser() just refreshed.
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+      return redirectResponse
+    }
+    // Staff who have a second step but haven't passed it, or must set one up, go to /mfa and come back
+    // (lib/staff-mfa.ts). getUser() above is what returned `user.factors`, so a factor removed in the dashboard counts now.
+    const mfa = staffMfaState({
+      aal: aalClaim,
+      hasFactor: hasVerifiedTotp(user.factors),
+      enforced: isStaffMfaEnforced(clock.now()),
+    })
+    if (blocksStaff(mfa)) {
+      const url = request.nextUrl.clone()
+      const gate = new URL(gateHref(GATES.staffMfa, askedFor(request)), request.nextUrl.origin)
+      url.pathname = gate.pathname
+      url.search = gate.search
+      const redirectResponse = NextResponse.redirect(url)
       supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
       return redirectResponse
     }

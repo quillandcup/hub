@@ -3,24 +3,36 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
-import { SUPPORT_EMAIL } from "@/lib/config";
-import { RETENTION } from "@/lib/retention";
+import {
+  PRIVACY_NAV,
+  PRIVACY_SECTIONS,
+  PRIVACY_SUMMARY,
+  PRIVACY_SUMMARY_TITLE,
+  PRIVACY_TAGLINE,
+  PRIVACY_TITLE,
+  type PrivacyBlock,
+} from "@/lib/privacy";
+import { RichText, TrustAside, TrustDetail, TrustNav, TrustSection, TrustSubheading, TrustTable } from "@/components/trust/Trust";
 import { StatsOptOutSwitch } from "./StatsOptOutSwitch";
 
 export const metadata: Metadata = {
-  title: "Privacy",
+  title: PRIVACY_TITLE,
 };
 
-/** When the wording below was last checked against the code. Bump it whenever the page changes. */
-export const PRIVACY_EFFECTIVE = "2026-11-12";
+/** When the wording was last checked against the code. Bump it whenever the page or `lib/privacy.ts` changes. */
+export const PRIVACY_EFFECTIVE = "2026-11-18";
 
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
  *
+ * The sentences are not here: they are data in `lib/privacy.ts`, which this page renders and which the staff page
+ * (`/admin/privacy`, `lib/privacy-promises.ts`) reads too, with where each promise is enforced. Providers are described
+ * by role, never named (`tests/lib/trust-no-provider-names.test.ts`).
+ *
  * On for every signed-in member (it was behind the `message_privacy` flag until 2026-10-30). Every
- * statement here must be true, so change it with the code. It states policy and lists no
+ * statement must be true, so change it with the code. It states policy and lists no
  * resources one by one (what a delete keeps, for instance), so it does not need an edit for every new
- * feature. What is true of the code today (checked 2026-11-03):
+ * feature. What is true of the code today (last checked in full 2026-11-03; the wording was only reworded, not changed in meaning, on 2026-11-17):
  *
  * - Chat: staff read chat content only where RLS lets admins (`chat_can_read_content`: public and
  *   non-restricted private channels); restricted channels, DMs and group DMs have no admin read path at all;
@@ -38,12 +50,12 @@ export const PRIVACY_EFFECTIVE = "2026-11-12";
  *   change with that code, in particular if a pull ever starts to cover a member the feature doesn't.
  * - Hedgie Care plan messages (decided 2026-11-12, docs/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
  *   community managers (never an assistant: `requireStaffAction()`, `care.write`) see, inside Hedgie Care, the full text of the
- *   one-on-one Slack DM(s) a staff member tracks with a member (`care_tracked_dms`), sent in the window of each of that member's care
- *   plans (the plan's start to its close, or now while open), across all the member's plans and owners; read with the service role from
- *   Bronze by `lib/care-messages.ts`, deleted messages left out. No chat policy changed: a DM with a staff member is otherwise
- *   break-glass only. Opening them writes an audit entry (`care_dm_read`, `care_log_messages_read`; one per reader and member per hour,
- *   no text) shown in the Activity Log's Privacy view, and a tracked DM shows a note at the top in Hub Chat (`CarePlanNotice`).
- *   Slack's own app shows no such note, and the page says so.
+ *   one-on-one Slack DM(s) tracked with a member (`care_tracked_dms`; tracking comes automatically with a care plan and nothing
+ *   untracks it), sent in the window of each of that member's care plans (the plan's start to its close, or now while open), across all
+ *   the member's plans and owners; read with the service role from Bronze by `lib/care-messages.ts`, deleted messages left out. No chat
+ *   policy changed: a DM with a staff member is otherwise break-glass only. Opening them writes an audit entry (`care_dm_read`,
+ *   `care_log_messages_read`; one per reader and member per hour, no text) shown in the Activity Log's Privacy view, and a tracked DM
+ *   shows a note at the top in Hub Chat (`CarePlanNotice`). Slack's own app shows no such note, and the page says so.
  * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
  *   rule (`components/ConsentBanner.tsx`, `lib/analytics/consent.ts`), the visit cookie
  *   (`lib/analytics/session-cookie.ts`), notification sends and opens (`lib/notifications/notify.ts`,
@@ -72,505 +84,85 @@ export default async function PrivacyPage() {
     ? await Promise.all([getEffectiveIdentity(user), isAnalyticsOptedOut(user.id)])
     : [null, false];
 
+  function renderBlock(block: PrivacyBlock, key: number) {
+    switch (block.kind) {
+      case "p":
+        return (
+          <p key={key} className={block.small ? "text-sm" : undefined}>
+            <RichText text={block.text} />
+          </p>
+        );
+      case "subheading":
+        return (
+          <TrustSubheading key={key} id={block.id}>
+            {block.text}
+          </TrustSubheading>
+        );
+      case "table":
+        return <TrustTable key={key} columns={block.columns} rows={block.rows} emphasizeFirst={block.emphasizeFirst} />;
+      case "details":
+        return (
+          <TrustDetail key={key} title={block.title}>
+            {block.paragraphs.map((paragraph, i) => (
+              <p key={i}>
+                <RichText text={paragraph.text} />
+              </p>
+            ))}
+          </TrustDetail>
+        );
+      case "list":
+        return (
+          <ul key={key} className={`list-disc pl-5 space-y-1${block.small ? " text-sm" : ""}`}>
+            {block.items.map((item, i) => (
+              <li key={i}>
+                <RichText text={item.text} />
+              </li>
+            ))}
+          </ul>
+        );
+      case "switch":
+        return user ? (
+          <StatsOptOutSwitch key={key} initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
+        ) : (
+          <p key={key} className="text-sm">
+            <RichText text={block.signedOut} />
+          </p>
+        );
+    }
+  }
+
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
-    <div className="container mx-auto px-6 py-6 max-w-5xl">
-      <p className="mb-4 text-sm">
-        <Link href={user ? "/dashboard" : "/login"} className="text-plum-700 dark:text-plum-300 underline">
-          {user ? "Back to the Hub" : "Sign in to the Hub"}
-        </Link>
-      </p>
-      <h1 className="text-2xl font-bold mb-1">Privacy</h1>
-      <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
-        What the Hub collects about you, who can see it, how long we keep it and what you can do about it.
-      </p>
-      <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-        Effective <time dateTime={PRIVACY_EFFECTIVE}>{PRIVACY_EFFECTIVE}</time>.
-      </p>
-
-      <aside className="mb-8 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50 dark:bg-plum-950/30 p-4 text-sm text-slate-800 dark:text-slate-200">
-        <h2 className="text-base font-semibold mb-2">The short version</h2>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            We keep what you do in the Hub, how you use it (the pages and buttons, never what you type), where you connect from,
-            and your activity in chat.
-          </li>
-          <li>
-            Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted
-            channels, group DMs and your one-on-one Slack DMs are open to them only through break-glass access, with one exception:
-            the messages sent during a Hedgie Care plan, below.
-          </li>
-          <li>
-            The Hub brings your one-on-one Slack DMs into Hub Chat as we roll it out to every member, and keeps them. See
-            &ldquo;Your one-on-one Slack DMs&rdquo; below.
-          </li>
-          <li>
-            Your exact IP address and browser details are removed after {RETENTION.rawNetworkDays} days, and usage
-            statistics after {RETENTION.usageMonths} months. What you do in the Hub is kept while you are a member, and after you cancel your membership until you ask us to close your account and remove it.
-          </li>
-          <li>
-            You can leave usage statistics off with a switch below, and ask us to show you, correct or remove what we hold.
-          </li>
-        </ul>
-      </aside>
-
-      <nav aria-label="On this page" className="mb-8 text-sm">
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-plum-700 dark:text-plum-300">
-          <li><a href="#collect" className="underline">What we collect</a></li>
-          <li><a href="#who-sees" className="underline">Who can see it</a></li>
-          <li><a href="#chat" className="underline">Chat and messages</a></li>
-          <li><a href="#keep" className="underline">How long we keep things</a></li>
-          <li><a href="#cookies" className="underline">Cookies</a></li>
-          <li><a href="#services" className="underline">Services we use</a></li>
-          <li><a href="#more" className="underline">Also good to know</a></li>
-          <li><a href="#choices" className="underline">Your choices</a></li>
-        </ul>
-      </nav>
-
-      <Section id="collect" title="What we collect">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-              <th className="py-2 pr-4 font-semibold">What</th>
-              <th className="py-2 pr-4 font-semibold">What it is</th>
-              <th className="py-2 font-semibold">Why</th>
-            </tr>
-          </thead>
-          <tbody className="align-top">
-            <CollectRow
-              what="The emails we send you"
-              detail="When each email was sent, whether it arrived or bounced, and whether it was opened or a link in it clicked. Our email provider reports this to us. The email itself stays with the provider."
-              why="So staff can see what you have received when you write to us, and fix delivery problems."
-            />
-            <CollectRow
-              what="Your account and what you do in it"
-              detail="Your profile, projects, goals, check-ins, commitments, sign-ins, and the notifications we sent you."
-              why="To run the Hub, and so your seat is kept warm through different seasons of life."
-            />
-            <CollectRow
-              what="Membership, billing and sessions"
-              detail="Your plan and membership dates from our payment and course providers, and which live sessions (such as Zoom prickles) you joined and for how long. We do not store your card or bank details; our payment provider handles those."
-              why="To know who is a member, and to count and recognize your time writing together."
-            />
-            <CollectRow
-              what="How you use the Hub"
-              detail="Which pages you open, which buttons and links you use, what kind of search you ran and how many results (never the words), whether the things you try work, and your device, browser and screen."
-              why={
-                <>
-                  To fix what is confusing and build what helps. Your choice:{" "}
-                  <a href="#choices" className="underline">
-                    see below
-                  </a>
-                  .
-                </>
-              }
-            />
-            <CollectRow
-              what="Where you connect from"
-              detail="The IP address your connection comes from, the city, region and country it appears to be in, the page you opened and your browser."
-              why="To know where our community writes from, and which device and place you came from."
-            />
-            <CollectRow
-              what="Errors and performance"
-              detail="When something breaks, the error and a short recording of what was on screen around it, with text and form fields masked. Also how fast pages load."
-              why={
-                <>
-                  To find and fix bugs. This is not part of usage statistics:{" "}
-                  <a href="#choices" className="underline">
-                    see below
-                  </a>
-                  .
-                </>
-              }
-            />
-            <CollectRow
-              what="Course videos"
-              detail="Where you stopped, which parts you watched, how fast, whether captions were on, whether the tab was in view, and your device and browser. For a video shared in a chat message, also which message you watched it in. This is part of how courses work, so turning usage statistics off does not change it."
-              why="To pick up where you left off, to mark a lesson complete once you have watched it, and to learn which lessons work."
-            />
-            <CollectRow
-              what="How well course videos play"
-              detail="Only if usage statistics are on: how long a video took to start, buffering, errors and how long it played, with your IP address, browser and device, sent to our video provider's quality measurement. It carries no name, email or account id and sets no cookie."
-              why="To find and fix videos that stall or fail."
-            />
-            <CollectRow
-              what="Notifications"
-              detail="A record of each notification we send you, and whether you have read it in the Hub. Turning usage statistics off does not change that. If usage statistics are on, also which notification a visit came from."
-              why="To send you what you ask for, and so the bell and banners stay right."
-            />
-            <CollectRow
-              what="Chat"
-              detail={
-                <>
-                  What you write, and the activity around it: who you talked with, where, when, how often, which channels you are
-                  in, and your reactions. Chat is covered in{" "}
-                  <a href="#chat" className="underline">
-                    its own section
-                  </a>{" "}
-                  below.
-                </>
-              }
-              why="To run chat, and to understand how the community connects."
-            />
-          </tbody>
-        </table>
-        <p className="text-sm">
-          Location from your IP address is approximate (a VPN or a mobile carrier can make it wrong).
-        </p>
-      </Section>
-
-      <Section id="who-sees" title="Who can see it">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-              <th className="py-2 pr-4 font-semibold">Who</th>
-              <th className="py-2 font-semibold">What they can see</th>
-            </tr>
-          </thead>
-          <tbody className="align-top">
-            <KeepRow what="You" keep="What you add yourself and your own activity, in the Hub's screens, and anything else we hold about you if you ask us." />
-            <KeepRow
-              what="Other members"
-              keep="Your profile as you set it (including the projects and goals you choose to show), the books and awards you add, and what you post in the channels they are in. Not your usage statistics, your IP address or your private notes."
-            />
-            <KeepRow
-              what="Quill & Cup staff"
-              keep="Your account and activity, your course viewing and where you connect from (by name), and usage statistics, mostly as totals, though the individual records are tied to your account while they are kept. Chat is covered in its own section below."
-            />
-            <KeepRow
-              what="Our product and engineering team"
-              keep="Errors and the recordings of what was on screen around them, in our monitoring tool. Other staff cannot see them."
-            />
-            <KeepRow what="The services that run the Hub" keep="Only what they need to do their job. They are listed at the bottom." />
-          </tbody>
-        </table>
-      </Section>
-
-      <Section id="chat" title="Chat and messages">
-        <p>
-          We treat two kinds of information differently. <strong>Content</strong> is what you wrote: message text,
-          formatting, and files. <strong>Activity</strong> is everything around it: who you talked with, where, when,
-          how often, which channels you&apos;re in, and which emoji reactions you added.
-        </p>
-        <p>
-          Activity helps us understand how the community connects, so we can make introductions, spot hedgies who
-          might be feeling isolated, and see what&apos;s working. It also counts toward your engagement, including
-          messages in private channels and direct messages.
-        </p>
-
-        <h3 className={SUBHEADING}>What staff can see</h3>
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-              <th className="py-2 pr-4 font-semibold">Where</th>
-              <th className="py-2 pr-4 font-semibold">Activity</th>
-              <th className="py-2 font-semibold">Content</th>
-            </tr>
-          </thead>
-          <tbody className="align-top">
-            <Row where="Public channels" activity="Yes" content="Yes, same as every member" />
-            <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
-            <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
-            <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
-            <Row
-              where="One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub (apart from the messages in a Hedgie Care plan, next row)"
-              activity="Yes"
-              content="No, except break-glass access (below)"
-            />
-            <Row
-              where="One-on-one Slack DMs tracked in a Hedgie Care plan: the messages sent during the plan"
-              activity="Yes"
-              content="Yes, admins and community managers can read them in Hedgie Care (see “Messages in a Hedgie Care plan”, below)"
-            />
-            <Row where="Private channels without Billie Bot" activity="Not yet. Planned: yes" content="Not yet. Planned: restricted, so break-glass access only" />
-          </tbody>
-        </table>
-        <p>
-          In every conversation that reaches the Hub, restricted channels and group DMs included, staff can see who is
-          in it, who wrote and reacted and when, and when you last read it (the Hub keeps that in step with Slack). Files
-          shared in a conversation follow the same rule as its text. We keep a copy of files shared in the channels and
-          group DMs the Hub mirrors, and the copy is removed if the file is deleted.
-        </p>
-
-        <h3 id="care-plan-messages" className={`${SUBHEADING} scroll-mt-6`}>
-          Messages in a Hedgie Care plan
-        </h3>
-        <p>
-          Hedgie Care is how our community manager and admins keep in touch with members: to say hello, check in on your writing or
-          welcome you back. Each time is recorded as a care plan, with a start and an end.
-        </p>
-        <p>
-          When a care plan starts, the staff member&apos;s one-on-one Slack DM with you is tracked automatically, when the Hub has it:
-          there is nothing to choose or switch off. Admins and community managers can then read, in Hedgie Care, the messages sent in
-          that DM from the start of each of your plans to its end, or until now while a plan is open. A plan can be handed over to another
-          staff member, or taken over by an admin, and whoever holds it then sees the messages of your earlier plans, and their own DM
-          with you is tracked too. They read
-          the full messages, as they were sent; deleted messages are not shown.
-        </p>
-        <p>
-          Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between
-          members, so staff can read them only through break-glass access (below). Each time someone opens these messages, we record who
-          looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top of such a conversation. Slack&apos;s
-          own app shows no note, so keep this in mind when you message the team there. Only admins and community managers can read them:
-          assistants cannot.
-        </p>
-
-        <Detail title="Break-glass access">
-          In rare cases, such as a safety or conduct report, an admin may need to read the content of a specific
-          restricted channel or group DM. We will do that only for that one conversation and only for as long as it
-          takes, and we will record who looked, why and when. You won&apos;t receive an automatic notification when
-          this happens.
-        </Detail>
-
-        <Detail title="Connecting your Slack account">
-          Hub Chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
-          reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
-          conversations read. Slack also lists permission to read and send your direct messages, and to read the private
-          channels you are in. The Hub uses the first only for the DM bridge below, and only for members it is switched on
-          for. The second it doesn&apos;t use yet: we plan to bring private channels Billie Bot isn&apos;t in into Hub Chat too,
-          restricted like the rest, and it is asked for now so you only reconnect once. Apart from that the Hub does nothing
-          in Slack you didn&apos;t ask for. The connection is kept encrypted and used only by the Hub&apos;s
-          server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
-          shows it under your authorized apps.
-        </Detail>
-
-        <Detail title="Your Slack direct messages">
-          Slack&apos;s bot can&apos;t be in a one-on-one DM, or in a group message it wasn&apos;t added to, so the Hub brings yours into chat with your own Slack connection,
-          as we roll it out to every member. The Hub keeps them, shows them in your chat so you can read and reply there (your
-          replies go to Slack as you), and counts them as activity, like any message. Slack only shows about 90 days of history
-          on our plan; the Hub keeps its copy until you ask us to remove it.
-          <br />
-          <br />
-          <strong>Who can see them.</strong> You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If
-          they aren&apos;t a member, their messages are kept in your conversation under their Slack name, and we keep nothing
-          else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the
-          text only through break-glass access, as for a restricted channel, except for the messages sent during a Hedgie Care plan
-          (see &ldquo;Messages in a Hedgie Care plan&rdquo; above). Viewing the Hub as you never shows them.
-          <br />
-          <br />
-          <strong>Stopping it.</strong> There is no separate switch for DMs. Disconnecting Slack in Settings stops the Hub
-          reading your DMs, and closes Hub Chat for you until you reconnect. What the Hub has already kept stays until you ask
-          us to close your account and remove it.
-        </Detail>
-
-        <Detail title="Viewing the Hub as you">
-          To help with support, an admin can view the Hub as a member. The chat is read-only and shows what you can see,
-          except restricted channels, group DMs and direct messages.
-        </Detail>
-
-        <Detail title="Deleted messages and reactions">
-          When you delete a message or remove a reaction, it disappears for everyone, but we keep a record rather
-          than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can&apos;t
-          read a deleted message&apos;s text or files in the Hub; the only way to read one is break-glass access, the same
-          as for a restricted conversation.
-        </Detail>
-      </Section>
-
-      <Section id="keep" title="How long we keep things">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-              <th className="py-2 pr-4 font-semibold">What</th>
-              <th className="py-2 font-semibold">How long</th>
-            </tr>
-          </thead>
-          <tbody className="align-top">
-            <KeepRow
-              what="What you do in the Hub: your projects, check-ins, commitments, course viewing, chat messages and activity, sign-ins, the notifications we sent you, and your history as a member"
-              keep="Until you ask us to remove it. If you leave and come back years later, your seat is still warm: your history is here."
-            />
-            <KeepRow
-              what="Usage statistics: pages, buttons, search, and your device and screen"
-              keep={`${RETENTION.usageMonths} months, then only anonymous totals`}
-            />
-            <KeepRow
-              what="Your exact IP address and your browser's identification string, as recorded when you visit, use the Hub or watch a course"
-              keep={`${RETENTION.rawNetworkDays} days. After that we keep the approximate place and the type of browser and device`}
-            />
-            <KeepRow
-              what="Errors and screen recordings (of errors and of the sample of ordinary visits)"
-              keep="Up to 90 days, set by our monitoring provider"
-            />
-          </tbody>
-        </table>
-        <p>
-          <strong>When you delete something</strong> you added to the Hub, it disappears for you and for everyone else. We may keep a
-          copy, and our change history keeps a record of the change, until you ask us to close your account and remove it. When you ask, we either
-          delete it or take your name off it. Removed data can stay in our database provider&apos;s backups for a limited time
-          before they expire.
-        </p>
-      </Section>
-
-      <Section id="cookies" title="Cookies and similar storage">
-        <p>
-          Most of what the Hub keeps on your device is there to make it work, so we don&apos;t need your consent for it, and you
-          can clear it in your browser settings. In short:
-        </p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>To make the Hub work:</strong> keeping you signed in, and remembering things like your last chat channel,
-            your video speed and captions, and your recent searches.
-          </li>
-          <li>
-            <strong>Your banner choice</strong> is remembered on your device.
-          </li>
-          <li>
-            <strong>Visit number</strong>, only while usage statistics are on: a short-lived random number that groups the things
-            you do in one visit. It expires after 30 minutes without activity and holds nothing about you.
-          </li>
-          <li>
-            <strong>Google Analytics</strong> sets its own cookie, only if you have allowed it.
-          </li>
-        </ul>
-      </Section>
-
-      <Section id="services" title="Services that help us run the Hub">
-        <p>
-          Your information passes through the services the Hub is built on. We use them to run the Hub and not for anything else.
-        </p>
-        <ul className="list-disc pl-5 space-y-1 text-sm">
-          <li>Our database provider, our sign-in and auth provider, and our hosting provider (which also counts visits and page speed).</li>
-          <li>Our monitoring providers, for errors and performance.</li>
-          <li>Our email provider, and your browser&apos;s push service if you turn on browser notifications.</li>
-          <li>Our video hosting provider, for course videos, and, only if usage statistics are on, for measuring how well they play.</li>
-          <li>Our payment and course providers (Stripe and Kajabi), for your membership and billing.</li>
-          <li>Zoom, where live prickles happen, and how we know who joined and for how long.</li>
-          <li>Slack, for chat and notifications.</li>
-          <li>Google Calendar for the prickle schedule, and Google Photos only when you choose photos to add.</li>
-          <li>Google Analytics, only where you allow it.</li>
-          <li>Gravatar, which supplies a profile picture if you haven&apos;t set one; it is asked using a scrambled form of your email address.</li>
-        </ul>
-        <p>
-          Our database and hosting are in the United States, so if you use the Hub from elsewhere your information is transferred
-          there. Our providers are certified under the EU-U.S. Data Privacy Framework (and its UK extension) or we rely on standard
-          contractual clauses with them.
-        </p>
-      </Section>
-
-      <Section id="more" title="Also good to know">
-        <ul className="list-disc pl-5 space-y-1 text-sm">
-          <li>
-            <strong>We don&apos;t share your information</strong> with anyone except the services above.
-          </li>
-          <li>
-            <strong>Security:</strong> we take it seriously: connections are encrypted and staff access is limited by role.
-          </li>
-          <li>
-            <strong>Children:</strong> the Hub isn&apos;t for children under 13. If one has joined, email{" "}
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-              {SUPPORT_EMAIL}
-            </a>{" "}
-            and we&apos;ll delete their information.
-          </li>
-          <li>
-            <strong>Other sites</strong> that the Hub links to have their own privacy practices.
-          </li>
-          <li>
-            <strong>Changes:</strong> we update the effective date above, and changes apply immediately.
-          </li>
-        </ul>
-      </Section>
-
-      <Section id="choices" title="Your choices">
-        <h3 className={SUBHEADING}>Usage statistics</h3>
-        {user ? (
-          <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
-        ) : (
-          <p className="text-sm">
-            Members can turn this off here once signed in.{" "}
-            <Link href="/login" className="underline">
-              Sign in
-            </Link>
-            .
-          </p>
-        )}
-        <p>
-          <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
-          if you decline we don&apos;t record any of this, apart from the error recordings described below. Elsewhere it is on until you turn it off here.
-        </p>
-        <Detail title="How usage statistics work">
-          We keep a log of how the Hub is used, so we can fix what is confusing and build what helps. It does not record what you
-          type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
-          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. If usage statistics are on, we also record a small share of visits as screen recordings, with text and form fields masked. Recordings made when something breaks are separate: they continue if you leave statistics off, because we can&apos;t fix a bug we can&apos;t see. Our host, Vercel,
-          also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
-          this switch. We use Google Analytics only where you have allowed it. The same switch and banner decide whether our video provider measures how well course videos play on your device (start time, buffering, errors). After {RETENTION.usageMonths} months the
-          individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
-          March&rdquo;), which is how we see trends over several years.
-        </Detail>
-
-        <h3 className={SUBHEADING}>Notifications</h3>
-        <p>
-          The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose which,
-          for each kind of notification, in{" "}
-          <Link href="/settings/notifications" className="underline">
-            Settings
+      <div className="container mx-auto px-6 py-6 max-w-5xl">
+        <p className="mb-4 text-sm">
+          <Link href={user ? "/dashboard" : "/login"} className="text-plum-700 dark:text-plum-300 underline">
+            {user ? "Back to the Hub" : "Sign in to the Hub"}
           </Link>
-          , and every email has an unsubscribe link for that kind.
+        </p>
+        <h1 className="text-2xl font-bold mb-1">{PRIVACY_TITLE}</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{PRIVACY_TAGLINE}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+          Effective <time dateTime={PRIVACY_EFFECTIVE}>{PRIVACY_EFFECTIVE}</time>.
         </p>
 
-        <h3 className={SUBHEADING}>Asking us</h3>
-        <p>
-          You can ask us at any time to show you what we hold about you, correct it, remove it, or stop using it for usage
-          statistics. Email{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-            {SUPPORT_EMAIL}
-          </a>
-          . We will answer as soon as we can, and within a month. For removal we either delete it or take your name off it, so that
-          it can no longer be tied to you.
-        </p>
-      </Section>
+        <TrustAside title={PRIVACY_SUMMARY_TITLE}>
+          <ul className="list-disc pl-5 space-y-1">
+            {PRIVACY_SUMMARY.map((item, i) => (
+              <li key={i}>
+                <RichText text={item.text} />
+              </li>
+            ))}
+          </ul>
+        </TrustAside>
+
+        <TrustNav links={PRIVACY_NAV} />
+
+        {PRIVACY_SECTIONS.map((section) => (
+          <TrustSection key={section.id} id={section.id} title={section.title}>
+            {section.blocks.map(renderBlock)}
+          </TrustSection>
+        ))}
+      </div>
     </div>
-    </div>
-  );
-}
-
-/** Smaller than a section's heading and in capitals, so the two levels can't be mistaken for each other. */
-const SUBHEADING = "pt-2 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400";
-
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
-  return (
-    <section id={id} className="mb-10 space-y-3 text-slate-700 dark:text-slate-300 scroll-mt-6">
-      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-/** Long explanations stay folded until someone wants them. */
-function Detail({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2">
-      <summary className="cursor-pointer font-medium text-slate-900 dark:text-slate-100">{title}</summary>
-      <p className="mt-2 text-sm">{children}</p>
-    </details>
-  );
-}
-
-function CollectRow({ what, detail, why }: { what: string; detail: React.ReactNode; why: React.ReactNode }) {
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-800">
-      <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{what}</td>
-      <td className="py-2 pr-4">{detail}</td>
-      <td className="py-2">{why}</td>
-    </tr>
-  );
-}
-
-function KeepRow({ what, keep }: { what: string; keep: string }) {
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-800">
-      <td className="py-2 pr-4">{what}</td>
-      <td className="py-2">{keep}</td>
-    </tr>
-  );
-}
-
-function Row({ where, activity, content }: { where: string; activity: string; content: string }) {
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-800">
-      <td className="py-2 pr-4">{where}</td>
-      <td className="py-2 pr-4">{activity}</td>
-      <td className="py-2">{content}</td>
-    </tr>
   );
 }

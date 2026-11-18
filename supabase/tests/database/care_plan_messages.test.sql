@@ -1,11 +1,11 @@
--- pgTAP test for 20270816000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
+-- pgTAP test for 20270819000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
 -- Hedgie Care plan (the notice in Hub Chat), the audit entry for opening a member's plan messages, and that no chat read policy
 -- was widened for staff. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(35);
+SELECT plan(36);
 
 -- People: Fern, Gale and Orla are plain members (Orla is in none of the conversations); Stella is linked in the staff roster
 -- (no account); Ada is an admin with a member record; Cleo is a community manager with a member record; Ines has an assistant account.
@@ -136,6 +136,11 @@ SELECT is((SELECT count(*)::int FROM public.chat_channels WHERE id LIKE 'chn_CP%
 SELECT is((SELECT count(*)::int FROM public.chat_message_contents WHERE message_id LIKE 'msg_CPM%'), 2, 'and reads only their text');
 SELECT ok(public.care_log_messages_read('mbr_CPAAAAAAAAG1'), 'her opening a member''s plan messages is on record too');
 SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'care_dm_read'), 0, 'and she cannot read the audit log');
+SELECT is(
+  (SELECT count(*)::int FROM public.get_activity_feed(p_member_id := 'mbr_CPAAAAAAAAF1', p_from := now() - interval '1 day') f WHERE f.entity_type = 'care_dm_read' OR f.kind = 'audit'),
+  0,
+  'nor does the read trail reach the community manager''s Activity tab of the member (it is an audit row: admins and the Privacy view only)'
+);
 
 -- Ines, an assistant: not a reader ------------------------------------------------------------------------------------------
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-00000000e5d7","role":"authenticated","email":"cp-ines@example.test"}', true);

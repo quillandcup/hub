@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePlayerSeconds } from "@/components/courses/PlayerTime";
+import Tooltip from "@/components/Tooltip";
 
 /** "Copy link" under a lesson's video: the lesson's address (at the player's position when it is past the start), which becomes the video card when pasted into a Hub Chat message. */
 export default function CopyLessonLink({ url }: { url: string }) {
@@ -19,9 +20,11 @@ export default function CopyLessonLink({ url }: { url: string }) {
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-      <button type="button" onClick={copy} data-track="lesson-copy-link" title="Copy the lesson link. Paste it into Hub Chat to share the video there." className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400">
-        Copy link
-      </button>
+      <Tooltip content="Copy the lesson link. Paste it into Hub Chat to share the video there.">
+        <button type="button" onClick={copy} data-track="lesson-copy-link" className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400">
+          Copy link
+        </button>
+      </Tooltip>
       {status && (
         <span role="status" className="text-sm text-slate-700 dark:text-slate-300">
           {status === "copied" ? "Copied. Paste it into Hub Chat to share the video." : "Couldn't copy. The address in your browser's address bar works the same way."}

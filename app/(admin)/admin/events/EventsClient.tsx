@@ -15,6 +15,7 @@ import MediaPicker from "@/components/media/MediaPicker";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
 import DatePicker from "@/components/DatePicker";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 interface EventRow {
   id: string;
@@ -398,6 +399,7 @@ export default function EventsClient() {
       )}
 
       <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+      <TableKeyboardNav table={table} label="Events">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
@@ -464,6 +466,7 @@ export default function EventsClient() {
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="events" />
+      </TableKeyboardNav>
       </div>
     </div>
   );

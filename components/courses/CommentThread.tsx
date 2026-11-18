@@ -7,6 +7,7 @@ import { track } from "@/lib/analytics/client";
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket } from "@/lib/courses/comments";
 import { fullDate, linkifyText, relativeAgo } from "@/lib/courses/comment-text";
 import type { ThreadComment, ThreadEntry } from "@/lib/data/course-comments";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The comments under a lesson (docs/COURSES.md, "Lesson comments"): a composer, the questions newest first and each one's
@@ -248,9 +249,11 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
         {comment.isStaffReply && (
           <span className="rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900 dark:text-plum-100">Instructor</span>
         )}
-        <time dateTime={comment.createdAt} title={fullDate(comment.createdAt, props.timeZone)} className="text-xs text-slate-600 dark:text-slate-400">
-          {relativeAgo(comment.createdAt, props.nowMs, props.timeZone)}
-        </time>
+        <Tooltip content={fullDate(comment.createdAt, props.timeZone)}>
+          <time dateTime={comment.createdAt} className="text-xs text-slate-600 dark:text-slate-400">
+            {relativeAgo(comment.createdAt, props.nowMs, props.timeZone)}
+          </time>
+        </Tooltip>
         {comment.editedAt && <span className="text-xs text-slate-600 dark:text-slate-400">edited</span>}
         {comment.held && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Held for review</span>

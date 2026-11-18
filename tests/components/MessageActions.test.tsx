@@ -11,6 +11,7 @@ import config from "@/tailwind.config";
 import MessageActions from "@/components/chat/MessageActions";
 import MessageItem from "@/components/chat/MessageItem";
 import { MARKED_UNREAD_EVENT, MESSAGE_CHANGE_EVENT, optimisticView, subscribeListEvents } from "@/lib/chat/list-events";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const zIndex = (config.theme as { extend: { zIndex: Record<string, string> } }).extend.zIndex;
 
@@ -211,20 +212,18 @@ const renderTipActions = () =>
   render(<MessageActions channelId="c1" messageId="m1" body="hello" custom={{}} canReact canReply />);
 
 describe("MessageActions tooltips", () => {
-  it("uses a styled tooltip, not the browser's title tooltip, on each action", () => {
+  it("uses the shared Tooltip, not the browser's title tooltip, on each action", () => {
     renderTipActions();
     for (const name of ["Add reaction…", "Reply in thread", "More actions"]) {
       const control = screen.getByRole(name === "Reply in thread" ? "link" : "button", { name });
       expect(control).not.toHaveAttribute("title");
-      expect(control).toHaveClass("group/tip");
     }
   });
 
-  it("labels each tooltip and hides it from assistive tech", () => {
+  it("shows each tooltip on keyboard focus, named for the action", () => {
     renderTipActions();
-    for (const text of ["Add reaction", "Reply in thread", "More actions"]) {
-      const tip = screen.getByText(text, { selector: "span[aria-hidden]" });
-      expect(tip).toHaveClass("hidden", "group-hover/tip:block", "group-focus-visible/tip:block");
-    }
+    expect(tooltipText(screen.getByRole("button", { name: "Add reaction…" }))).toBe("Add reaction");
+    expect(tooltipText(screen.getByRole("link", { name: "Reply in thread" }))).toBe("Reply in thread");
+    expect(tooltipText(screen.getByRole("button", { name: "More actions" }))).toBe("More actions");
   });
 });

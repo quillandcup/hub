@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
+import { tooltipTexts } from "@/tests/helpers/tooltip";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
@@ -52,6 +53,27 @@ describe("MemberAttendanceView (admin member page)", () => {
 
     const hosts = screen.getAllByRole("link").map((l) => l.textContent).filter((t) => t === "Abe E" || t === "Zed E");
     expect(hosts).toEqual(["Abe E", "Zed E"]);
+  });
+});
+
+describe("MemberAttendanceView calendar", () => {
+  it("shows a prickle's type in its day, with the full name as a tooltip", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T16:00:00Z"));
+    try {
+      render(
+        <MemberAttendanceView
+          member={{ id: "mbr_AAAAAAAAAAA1" }}
+          attendanceRecords={[record("a1", { id: "mbr_AAAAAAAAAAA2", name: "Ann Example", display_name: null })]}
+          userTimezonePreference="America/New_York"
+          memberBasePath="/admin/members"
+        />
+      );
+      expect(screen.getAllByText("Midnight Crew").length).toBeGreaterThan(0);
+      expect(tooltipTexts().map((t) => t.text)).toContain("Midnight Crew");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

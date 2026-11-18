@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import { SECURITY_EFFECTIVE, SECURITY_ITEMS, SECURITY_STATUSES } from "@/lib/security";
-import { StatusLegend, TrustAside, TrustCard, TrustSection } from "@/components/trust/Trust";
+import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_STATUSES } from "@/lib/security";
+import { RichText, StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
   title: "Security",
@@ -49,15 +49,24 @@ export default async function SecurityPage() {
           <StatusLegend statuses={SECURITY_STATUSES} />
         </TrustAside>
 
-        <TrustSection id="how" title="How we protect the Hub">
-          <ul className="space-y-3">
-            {SECURITY_ITEMS.map((item) => (
-              <TrustCard key={item.id} title={item.title} status={item.status}>
-                <p>{item.member}</p>
-              </TrustCard>
-            ))}
-          </ul>
-        </TrustSection>
+        <TrustNav links={[...SECURITY_GROUPS.map((g) => ({ id: g.id, title: g.title })), { id: "report", title: "Found a problem?" }]} />
+
+        {SECURITY_GROUPS.map((group) => (
+          <TrustSection key={group.id} id={group.id} title={group.title}>
+            <p className="text-sm">
+              <RichText text={group.intro} />
+            </p>
+            <ul className="space-y-3">
+              {group.items.map((item) => (
+                <TrustCard key={item.id} title={item.title} status={item.status}>
+                  <p>
+                    <RichText text={item.member} />
+                  </p>
+                </TrustCard>
+              ))}
+            </ul>
+          </TrustSection>
+        ))}
 
         <TrustSection id="report" title="Found a problem?">
           <p className="text-sm">

@@ -29,6 +29,7 @@ import LessonWatchStatsModal from "@/app/(admin)/admin/courses/[id]/@modal/(.)st
 import CloseModal from "@/app/(admin)/admin/courses/[id]/@modal/[...catchAll]/page";
 import NoModal from "@/app/(admin)/admin/courses/[id]/@modal/default";
 import CourseLayout from "@/app/(admin)/admin/courses/[id]/layout";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const KAJABI = "kaj-1";
 const L1 = "les_AAAAAAAAAAA1";
@@ -73,7 +74,7 @@ describe("lesson watch stats modal", () => {
     // Seven numbers, each carrying what it means (on hover, and for a screen reader).
     for (const label of ["Engagement", "Total plays", "Play rate", "Viewers", "Average watched", "Watched 90%+", "Rewatched"]) {
       const tileEl = within(dialog).getAllByText(label).find((el) => el.nextElementSibling?.className.includes("text-lg"))!.parentElement!;
-      expect(tileEl).toHaveAttribute("title");
+      expect(tooltipText(tileEl), label).toBeTruthy();
     }
     expect(within(dialog).getByText("Viewers").nextElementSibling).toHaveTextContent("2");
     expect(screen.getByRole("tab", { name: "Engagement" })).toHaveAttribute("aria-selected", "true");

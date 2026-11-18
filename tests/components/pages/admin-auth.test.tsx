@@ -27,6 +27,14 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const preview = vi.hoisted(() => ({ role: null as string | null }));
 vi.mock("@/lib/staff-preview.server", () => ({ getStaffPreviewRole: async () => preview.role }));
+// The second sign-in step (lib/staff-mfa.ts); its own states are tested in tests/lib/staff-mfa.test.ts.
+const mfa = vi.hoisted(() => ({ state: "ok" as "ok" | "challenge" | "enrol" | "suggest" }));
+vi.mock("@/lib/staff-mfa.server", () => ({ getStaffMfaState: async () => mfa.state }));
+vi.mock("@/lib/gates.server", async () => {
+  const { redirect: mockedRedirect } = await import("@/tests/helpers/server-page");
+  const { gateHref } = await import("@/lib/gates");
+  return { redirectToGate: async (gate: Parameters<typeof gateHref>[0]) => mockedRedirect(gateHref(gate, "/admin/members")) };
+});
 
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
@@ -40,7 +48,7 @@ vi.mock("@/components/UserMenu", () => ({
 vi.mock("@/components/FeedbackWidget", () => ({ default: () => null }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign Out</button> }));
 
-import { requireAdminAction, requireAdminPage, requireStaffAction, requireStaffPage } from "@/lib/admin-auth";
+import { MFA_REQUIRED_ERROR, requireAdminAction, requireAdminPage, requireStaffAction, requireStaffPage } from "@/lib/admin-auth";
 import { isCommunityManagerPath } from "@/lib/staff-access";
 import AdminLayout from "@/app/(admin)/layout";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
@@ -66,6 +74,7 @@ const guardedPage = async () => {
 
 beforeEach(() => {
   preview.role = null;
+  mfa.state = "ok";
   resetServerPageMocks();
   useFakeSupabase({ user_profiles: userProfiles });
 });
@@ -303,6 +312,67 @@ describe("requireStaffAction", () => {
     useFakeSupabase({ user_profiles: () => ({ error: { message: "database is down" } }) });
     signInAs(CM_USER, null);
     await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+});
+
+describe("the second sign-in step (lib/staff-mfa.ts)", () => {
+  const MFA_GATE = "/mfa?staff=required&next=%2Fadmin%2Fmembers";
+  const staffPage = async () => {
+    await requireStaffPage();
+    return null;
+  };
+
+  it.each(["ok", "suggest"] as const)("lets an admin through all three guards when the state is %s", async (state) => {
+    mfa.state = state;
+    signInAs(ADMIN_USER, null);
+    await expect(requireAdminPage()).resolves.toEqual(ADMIN_USER);
+    await expect(requireStaffPage()).resolves.toMatchObject({ role: "admin" });
+    await expect(requireAdminAction()).resolves.toMatchObject({ ok: true });
+    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true });
+  });
+
+  it.each(["challenge", "enrol"] as const)("sends an admin on a page to /mfa with their destination when the state is %s", async (state) => {
+    mfa.state = state;
+    signInAs(ADMIN_USER, null);
+    await expectRedirect(guardedPage, undefined, MFA_GATE);
+    await expectRedirect(staffPage, undefined, MFA_GATE);
+  });
+
+  it.each(["challenge", "enrol"] as const)("refuses an admin's and a community manager's server actions when the state is %s", async (state) => {
+    mfa.state = state;
+    signInAs(ADMIN_USER, null);
+    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
+    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
+    signInAs(CM_USER, null);
+    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
+    await expectRedirect(staffPage, undefined, MFA_GATE);
+  });
+
+  it("keeps sending a non-admin to /no-access, not to /mfa", async () => {
+    mfa.state = "enrol";
+    signInAs(MEMBER_USER, null);
+    await expectRedirect(guardedPage, undefined, "/no-access");
+    await expectRedirect(staffPage, undefined, "/no-access");
+    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+
+  it("keeps sudo working: an admin at the second level in sudo mode still passes", async () => {
+    signInAs(ADMIN_USER, SUDO_IDENTITY);
+    await expect(requireAdminPage()).resolves.toEqual(ADMIN_USER);
+    await expect(requireAdminAction()).resolves.toMatchObject({ ok: true });
+  });
+
+  it("shows staff without a second step a banner in the admin layout, and nobody else", async () => {
+    mfa.state = "suggest";
+    signInAs(ADMIN_USER, null);
+    await renderServerPage(AdminLayout, layoutProps);
+    expect(screen.getByRole("link", { name: "Set it up" })).toHaveAttribute("href", "/settings#two-step-sign-in");
+  });
+
+  it("shows no banner once the admin has the second step", async () => {
+    signInAs(ADMIN_USER, null);
+    await renderServerPage(AdminLayout, layoutProps);
+    expect(screen.queryByRole("link", { name: "Set it up" })).toBeNull();
   });
 });
 

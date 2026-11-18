@@ -74,9 +74,9 @@ allowed_cidrs = ["0.0.0.0/0"]
 # Defaults to allow all IPv6 connections. Set empty array to block all IPs.
 allowed_cidrs_v6 = ["::/0"]
 
-# Uncomment to reject non-secure connections to the database.
-# [db.ssl_enforcement]
-# enabled = true
+# Reject non-secure connections to the database. Switched on for production on 2026-11-17; CI's config push keeps it on.
+[db.ssl_enforcement]
+enabled = true
 
 [realtime]
 enabled = true
@@ -214,8 +214,11 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour; 86400 is the max). Covers
-# invite, magic link, recovery and confirmation links; the email copy in supabase/emails says 24 hours.
-otp_expiry = 86400
+# invite, magic link, recovery and confirmation links and the typed code in the same email, which
+# share this lifetime; the email copy in supabase/emails and emails/launch says one hour. It was
+# 86400 until 2026-11-18, while a mail scanner could still spend a link; `/auth/confirm` now makes a
+# spent link recoverable (the login page sends a new link or code), so the short life is safe.
+otp_expiry = 3600
 
 # Hosted auth emails go out through Resend SMTP; local dev keeps using Mailpit, so this stays
 # commented out. Production's SMTP is declared in [remotes.prod.auth.email.smtp] at the bottom of this file.
@@ -301,8 +304,8 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
@@ -435,7 +438,14 @@ max_client_conn = 400
 
 [remotes.prod.auth]
 site_url = "https://hub.quillandcup.com/auth/callback"
-additional_redirect_urls = ["http://localhost:3000/auth/callback", "https://quillandcup-hub.vercel.app/auth/callback"]
+# /auth/confirm is where the emailed links point ({{ .RedirectTo }} in the templates); /auth/callback stays for links
+# sent before that (they last 24 hours) and as the fallback address above.
+additional_redirect_urls = [
+  "https://hub.quillandcup.com/auth/confirm",
+  "http://localhost:3000/auth/callback",
+  "https://quillandcup-hub.vercel.app/auth/callback",
+  "https://quillandcup-hub.vercel.app/auth/confirm",
+]
 
 [remotes.prod.auth.email]
 enable_confirmations = true

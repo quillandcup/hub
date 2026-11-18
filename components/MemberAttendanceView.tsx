@@ -12,6 +12,8 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
+import Tooltip from "@/components/Tooltip";
 
 type SortColumn = "type" | "date" | "time" | "duration" | "host";
 
@@ -184,6 +186,7 @@ export default function MemberAttendanceView({
         <div className="p-6">
           {view === "list" ? (
             <div className="overflow-x-auto -mx-6">
+              <TableKeyboardNav table={table} label="Attendances">
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
@@ -231,6 +234,7 @@ export default function MemberAttendanceView({
                     return (
                       <tr
                         key={record.id}
+                        data-row-primary
                         className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                         onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                       >
@@ -268,6 +272,7 @@ export default function MemberAttendanceView({
                 </tbody>
               </table>
               <DataTablePager table={table} itemLabel="attendances" />
+              </TableKeyboardNav>
             </div>
           ) : (
             <div className="space-y-6">
@@ -334,13 +339,13 @@ export default function MemberAttendanceView({
                           {hasAttendance && (
                             <div className="mt-1 space-y-1">
                               {attendance.slice(0, 3).map((record) => (
-                                <div
-                                  key={record.id}
-                                  className="text-xs px-1.5 py-0.5 bg-plum-100 dark:bg-plum-900 text-plum-800 dark:text-plum-200 rounded truncate"
-                                  title={record.prickles?.prickle_types?.name}
-                                >
-                                  {record.prickles?.prickle_types?.name}
-                                </div>
+                                <Tooltip key={record.id} content={record.prickles?.prickle_types?.name}>
+                                  <div
+                                    className="text-xs px-1.5 py-0.5 bg-plum-100 dark:bg-plum-900 text-plum-800 dark:text-plum-200 rounded truncate"
+                                  >
+                                    {record.prickles?.prickle_types?.name}
+                                  </div>
+                                </Tooltip>
                               ))}
                               {attendance.length > 3 && (
                                 <div className="text-xs text-slate-600 dark:text-slate-400 px-1.5">

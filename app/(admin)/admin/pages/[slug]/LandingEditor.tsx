@@ -7,14 +7,18 @@ import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
 import Modal from "@/components/Modal";
+import AppIcon from "@/components/Icon";
 import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
+import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
 import { publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
+import Tooltip from "@/components/Tooltip";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 
 const usePuck = createUsePuck();
 
@@ -38,7 +42,7 @@ type SaveState = "saved" | "unsaved" | "saving" | "error";
 const BUTTON = "rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50";
 const SECONDARY = `${BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100`;
 const PRIMARY = `${BUTTON} bg-plum-600 text-white hover:bg-plum-700`;
-const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-200 dark:hover:bg-slate-800";
+const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:aria-pressed:bg-plum-800 dark:aria-pressed:text-plum-50";
 
 const DEVICES = [
   { label: "Desktop", width: 1280 as const, Icon: Monitor, rotate: false },
@@ -110,12 +114,16 @@ function EditorHeader({
         </p>
       </div>
       <div role="group" aria-label="Side panels" className="flex items-center gap-1">
-        <button type="button" aria-label="Blocks panel" title="Show or hide the blocks panel" aria-pressed={leftOpen} onClick={() => dispatch({ type: "setUi", ui: { leftSideBarVisible: !leftOpen } })} className={ICON}>
-          <PanelLeft size={16} aria-hidden="true" />
-        </button>
-        <button type="button" aria-label="Settings panel" title="Show or hide the settings panel" aria-pressed={rightOpen} onClick={() => dispatch({ type: "setUi", ui: { rightSideBarVisible: !rightOpen } })} className={ICON}>
-          <PanelRight size={16} aria-hidden="true" />
-        </button>
+        <Tooltip content="Show or hide the blocks panel">
+          <button type="button" aria-label="Blocks panel" aria-pressed={leftOpen} onClick={() => dispatch({ type: "setUi", ui: { leftSideBarVisible: !leftOpen } })} className={ICON}>
+            <PanelLeft size={16} aria-hidden="true" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Show or hide the settings panel">
+          <button type="button" aria-label="Settings panel" aria-pressed={rightOpen} onClick={() => dispatch({ type: "setUi", ui: { rightSideBarVisible: !rightOpen } })} className={ICON}>
+            <PanelRight size={16} aria-hidden="true" />
+          </button>
+        </Tooltip>
       </div>
       <LifecycleStatusChip published={published} />
       {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}
@@ -127,49 +135,65 @@ function EditorHeader({
 
       <div role="group" aria-label="Preview size" className="mx-auto flex items-center gap-1">
         {DEVICES.map(({ label, width, Icon, rotate }) => (
-          <button
-            key={label}
-            type="button"
-            aria-label={`${label} preview`}
-            title={`${label} preview`}
-            aria-pressed={current === width}
-            onClick={() => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })}
-            className={ICON}
-          >
-            <Icon size={16} aria-hidden="true" className={rotate ? "rotate-90" : undefined} />
-          </button>
+          <Tooltip key={label} content={`${label} preview`}>
+            <button
+              type="button"
+              aria-label={`${label} preview`}
+              aria-pressed={current === width}
+              onClick={() => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })}
+              className={ICON}
+            >
+              <Icon size={16} aria-hidden="true" className={rotate ? "rotate-90" : undefined} />
+            </button>
+          </Tooltip>
         ))}
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
-        <button type="button" aria-label="Undo" title="Undo (Ctrl/⌘ Z)" disabled={!history.hasPast} onClick={() => history.back()} className={ICON}>
-          <Undo2 size={16} aria-hidden="true" />
-        </button>
-        <button type="button" aria-label="Redo" title="Redo (Ctrl/⌘ Shift Z)" disabled={!history.hasFuture} onClick={() => history.forward()} className={ICON}>
-          <Redo2 size={16} aria-hidden="true" />
-        </button>
+        <Tooltip content="Undo (Ctrl/⌘ Z)">
+          <button type="button" aria-label="Undo" disabled={!history.hasPast} onClick={() => history.back()} className={ICON}>
+            <Undo2 size={16} aria-hidden="true" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Redo (Ctrl/⌘ Shift Z)">
+          <button type="button" aria-label="Redo" disabled={!history.hasFuture} onClick={() => history.forward()} className={ICON}>
+            <Redo2 size={16} aria-hidden="true" />
+          </button>
+        </Tooltip>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={onDetails} className={SECONDARY}>
-          Details
-        </button>
-        <LifecycleButton action="history" noun="page" onRun={onHistory} className={SECONDARY} />
-        {hasUnpublished && <LifecycleButton action="reset" noun="page" variant="icon" onRun={onReset} disabled={busy} className={ICON} />}
-        <LifecycleButton action="preview" noun="page" onRun={onPreview} className={SECONDARY} />
+      <div className="flex flex-wrap items-center gap-1">
+        <Tooltip content="Details">
+          <button type="button" onClick={onDetails} aria-label="Details" className={ICON}>
+            <AppIcon name="details" />
+          </button>
+        </Tooltip>
+        <LifecycleButton action="history" noun="page" variant="icon" onRun={onHistory} className={ICON} />
+        {hasUnpublished && (
+          <>
+            <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
+            <LifecycleButton action="reset" noun="page" variant="icon" onRun={onReset} disabled={busy} className={ICON} />
+          </>
+        )}
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
+        <LifecycleButton action="preview" noun="page" variant="icon" onRun={onPreview} className={ICON} />
         {published && (
-          <a href={page.publicPath} target="_blank" rel="noopener noreferrer" className={SECONDARY}>
-            View live
-          </a>
+          <Tooltip content={lifecycleLabel("viewLive")}>
+            <a href={page.publicPath} target="_blank" rel="noopener noreferrer" aria-label={lifecycleLabel("viewLive")} className={ICON}>
+              <AppIcon name={lifecycleIcon("viewLive")} />
+            </a>
+          </Tooltip>
         )}
         {published && (
           <LifecycleButton
             action="unpublish"
             noun="page"
+            variant="icon"
             detail="It comes off the public site at once. Your draft and its versions stay."
             onRun={onUnpublish}
             disabled={busy}
-            className={SECONDARY}
+            className={ICON}
           />
         )}
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <LifecycleButton
           action="publish"
           noun="page"
@@ -242,6 +266,8 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
     },
     [flush],
   );
+
+  useRegisterShortcuts("landingEditor");
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {

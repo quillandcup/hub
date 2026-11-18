@@ -59,6 +59,7 @@ import CareIndex from "@/app/(admin)/admin/care/page";
 import CareEarlierPage from "@/app/(admin)/admin/care/earlier/page";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
 import { formatDateOnly } from "@/lib/formatters";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
 const activePage = (searchParams: Record<string, string> = {}) => CareIndex({ searchParams: Promise.resolve(searchParams) } as never);
@@ -1740,8 +1741,8 @@ describe("the engagement score and last time in the community", () => {
     const user = userEvent.setup();
     const ada = cards()[0];
 
-    expect(within(ada).getByText("Engagement score")).toHaveAttribute("title", expect.stringContaining("never more than 100. A prickle is worth 10"));
-    expect(within(ada).getByText("Last in the community")).toHaveAttribute("title", expect.stringContaining("Not signing in, and nothing staff or the Hub did"));
+    expect(tooltipText(within(ada).getByText("Engagement score"))).toContain("never more than 100. A prickle is worth 10");
+    expect(tooltipText(within(ada).getByText("Last in the community"))).toContain("Not signing in, and nothing staff or the Hub did");
     expect(within(ada).queryByText(/Under 10 is at risk, 10 to 49 is active, 50 or more is highly engaged/)).not.toBeInTheDocument();
 
     await user.click(within(ada).getByRole("button", { name: "Results" }));

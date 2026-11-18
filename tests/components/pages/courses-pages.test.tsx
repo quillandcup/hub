@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { APP_URL, FEATURED_COURSE, SUPPORT_EMAIL } from "@/lib/config";
 import { buildOutline, courseProgress, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { expectRedirect, renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
@@ -427,6 +428,18 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.getByRole("link", { name: "View the full course outline" })).toHaveAttribute("href", "/courses/the-ready-writer");
   });
 
+  it("sanitizes the stored lesson text when it renders it", async () => {
+    const stored = '<h2>Safe heading</h2><p onclick="steal()">Text</p><script>alert(1)</script><img src="x" onerror="steal()" alt="pic"><a href="javascript:steal()">bad link</a><a href="https://example.com/ok">good link</a>';
+    loadLessonView.mockResolvedValue(ok({ lesson: { ...lesson(LESSON_B, "Voice", 2), body_html: stored } }));
+    const { container } = await renderServerPage(LessonPage, params());
+
+    expect(screen.getByRole("heading", { name: "Safe heading" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "good link" })).toHaveAttribute("href", "https://example.com/ok");
+    const text = container.querySelector(".prose") as HTMLElement;
+    expect(text.querySelector("script")).toBeNull();
+    expect(text.innerHTML).not.toMatch(/onerror|onclick|javascript:|alert\(1\)/i);
+  });
+
   it("backs out to the course when the lesson sits in no module", async () => {
     loadLessonView.mockResolvedValue(ok({ lesson: { ...lesson("les_AAAAAAAAAAA9", "Loose", 1), body_html: "<p>Hi</p>" } }));
     await renderServerPage(LessonPage, params("les_AAAAAAAAAAA9"));
@@ -758,7 +771,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(banner.parentElement?.className).not.toMatch(/max-w|container/);
     const button = screen.getByRole("button", { name: "Mark as complete" });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
+    expect(tooltipText(button)).toEqual("Progress isn't tracked for lessons members can't open yet");
     // Staff can open coming-soon lessons from the section list too.
     expect(within(sectionList()).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });

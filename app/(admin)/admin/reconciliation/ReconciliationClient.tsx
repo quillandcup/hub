@@ -6,6 +6,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -402,7 +403,7 @@ export default function ReconciliationClient() {
       </div>
 
       {/* Members Table */}
-      <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+      <TableKeyboardNav table={memberSort} label="Members" className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
@@ -484,6 +485,7 @@ export default function ReconciliationClient() {
                       <div className="font-medium">
                         <a
                           href={`/admin/members/${member.member_id}`}
+                          data-row-primary
                           className="text-plum-600 dark:text-plum-400 hover:underline"
                         >
                           {shownName(member.member_name, member.member_display_name)}
@@ -657,7 +659,7 @@ export default function ReconciliationClient() {
           </tbody>
         </table>
         <DataTablePager table={memberSort} itemLabel="members" />
-      </div>
+      </TableKeyboardNav>
 
       {/* Slack users with no member record: resolved (with alias-creation) on
           the Identity Matching section of the Data Health dashboard, not
@@ -736,7 +738,7 @@ export default function ReconciliationClient() {
             attached, won&apos;t auto-revoke on cancellation) or a manual comp. Worth a look before it becomes
             another invisible category, the way ad-hoc Stripe subscriptions did.
           </p>
-          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+          <TableKeyboardNav table={grantSort} label="Granted memberships" className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
@@ -777,6 +779,7 @@ export default function ReconciliationClient() {
                       {g.member_id ? (
                         <a
                           href={`/admin/members/${g.member_id}`}
+                          data-row-primary
                           className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                         >
                           {shownName(g.member_name ?? "", g.member_display_name)}
@@ -798,7 +801,7 @@ export default function ReconciliationClient() {
               </tbody>
             </table>
             <DataTablePager table={grantSort} itemLabel="grants" />
-          </div>
+          </TableKeyboardNav>
         </div>
       )}
 
@@ -808,7 +811,7 @@ export default function ReconciliationClient() {
           <h2 className="text-base font-semibold mb-3 dark:text-white">
             Attending prickles — membership inactive ({zoomAccessData.matched_inactive.length})
           </h2>
-          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+          <TableKeyboardNav table={zoomSort} label="Inactive members attending prickles" className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
@@ -834,6 +837,7 @@ export default function ReconciliationClient() {
                     <td className="px-4 py-3 font-medium">
                       <a
                         href={`/admin/members/${m.member_id}`}
+                        data-row-primary
                         className="text-plum-600 dark:text-plum-400 hover:underline"
                       >
                         {shownName(m.member_name, m.member_display_name)}
@@ -846,7 +850,7 @@ export default function ReconciliationClient() {
               </tbody>
             </table>
             <DataTablePager table={zoomSort} itemLabel="members" />
-          </div>
+          </TableKeyboardNav>
         </div>
       )}
 

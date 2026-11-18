@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StarToggle, ProfileVisibilityToggle } from "@/components/writing/VisibilityToggles";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 describe("StarToggle", () => {
   it("shows an empty star with a pin tooltip when off", () => {
@@ -10,7 +11,7 @@ describe("StarToggle", () => {
     const button = screen.getByRole("button", { name: "Pin to my dashboard" });
     expect(button).toHaveTextContent("☆");
     expect(button).toHaveAttribute("aria-pressed", "false");
-    expect(button).toHaveAttribute("title", "Pin to my dashboard");
+    expect(tooltipText(button)).toEqual("Pin to my dashboard");
   });
 
   it("shows a filled star with an unpin tooltip when on, and calls onToggle", async () => {
@@ -19,7 +20,7 @@ describe("StarToggle", () => {
     const button = screen.getByRole("button", { name: "Pin to my dashboard" });
     expect(button).toHaveTextContent("⭐");
     expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(button).toHaveAttribute("title", "Pinned to your dashboard (click to unpin)");
+    expect(tooltipText(button)).toEqual("Pinned to your dashboard (click to unpin)");
     await userEvent.click(button);
     expect(onToggle).toHaveBeenCalledOnce();
   });
@@ -32,7 +33,7 @@ describe("ProfileVisibilityToggle", () => {
     expect(button.querySelector("svg")).not.toBeNull();
     expect(button.querySelector("svg.lucide-globe")).toBeNull();
     expect(button).toHaveAttribute("aria-pressed", "false");
-    expect(button).toHaveAttribute("title", "Only you can see this goal (click to show it on your profile, with its project)");
+    expect(tooltipText(button)).toEqual("Only you can see this goal (click to show it on your profile, with its project)");
   });
 
   it("shows a globe and says other members can see it when public", async () => {
@@ -41,7 +42,7 @@ describe("ProfileVisibilityToggle", () => {
     const button = screen.getByRole("button", { name: "Show on my profile" });
     expect(button.querySelector("svg.lucide-globe")).not.toBeNull();
     expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(button).toHaveAttribute("title", "Visible on your profile to other members, with its project (click to hide)");
+    expect(tooltipText(button)).toEqual("Visible on your profile to other members, with its project (click to hide)");
     await userEvent.click(button);
     expect(onToggle).toHaveBeenCalledOnce();
   });
@@ -50,7 +51,7 @@ describe("ProfileVisibilityToggle", () => {
     render(<ProfileVisibilityToggle on={false} onToggle={() => {}} noun="project" withText />);
     const button = screen.getByRole("button", { name: "Show on my profile" });
     expect(button).toHaveTextContent("Only me");
-    expect(button).toHaveAttribute("title", "Only you can see this project (click to show on your profile)");
+    expect(tooltipText(button)).toEqual("Only you can see this project (click to show on your profile)");
   });
 
   it("doesn't fire while disabled", async () => {

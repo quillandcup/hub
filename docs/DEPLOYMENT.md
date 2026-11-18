@@ -387,6 +387,10 @@ Before going live:
 - [ ] Admin user invited and tested
 - [ ] API keys rotated from defaults
 
+## Supabase production checklist
+
+How production measures up against Supabase's own checklist, with the gaps and where they are tracked: `docs/SUPABASE_PRODUCTION_CHECKLIST.md`; the security page's checklist is in `docs/SUPABASE_SECURITY_CHECKLIST.md`.
+
 ## Plans and headroom
 
 Checked read-only on 2026-11-01 with the Vercel and Supabase CLIs (the Supabase CLI doesn't print the plan name, so it is inferred from what the project has):

@@ -192,6 +192,8 @@ describe('LoginForm', () => {
     render(<LoginForm slackHomeUrl={null} callbackFailed />)
 
     expect(screen.getByText(/That sign-in link didn't work/)).toBeInTheDocument()
+    // The link works on any device now, so the message must not say it only works where it was asked for.
+    expect(screen.queryByText(/only work in the browser/)).not.toBeInTheDocument()
   })
 
   it("links to the Slack app's Home tab when configured", () => {

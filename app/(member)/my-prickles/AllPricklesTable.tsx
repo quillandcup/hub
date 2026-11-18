@@ -10,6 +10,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { prickleCalendarState, SCHEDULE_TIMEZONE, type MyCalendarItem } from "@/lib/calendar-feed";
 import { slotFromScheduleRow, slotKey } from "@/lib/commitments";
 import { AddPrickleToCalendar } from "./AddToCalendar";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 const DAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -148,6 +149,7 @@ export default function AllPricklesTable({
       {filteredByDay.length === 0 ? (
         <p className="text-sm text-slate-600 dark:text-slate-400">No prickles match that filter.</p>
       ) : (
+        <TableKeyboardNav table={{ pagination: null, sortColumn, sortDirection }} label="Prickle schedule">
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead>
             <tr className="text-left text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
@@ -234,6 +236,7 @@ export default function AllPricklesTable({
             ))}
           </tbody>
         </table>
+        </TableKeyboardNav>
       )}
     </div>
   );

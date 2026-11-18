@@ -17,6 +17,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import Tooltip from "@/components/Tooltip";
 
 interface PrickleType {
   id: string;
@@ -647,19 +648,19 @@ function MonthSection({
               {pills
                 .sort((a, b) => a.date.getTime() - b.date.getTime())
                 .map(({ date, schedule }, i) => (
-                  <span
-                    key={`${schedule.id}-${i}`}
-                    title={schedule.typeName}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap ${
-                      schedule.status === "confirmed"
-                        ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
-                        : schedule.status === "declined"
-                        ? "bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-400"
-                        : "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400"
-                    }`}
-                  >
-                    {new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(date)}
-                  </span>
+                  <Tooltip key={`${schedule.id}-${i}`} content={schedule.typeName}>
+                    <span
+                      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap ${
+                        schedule.status === "confirmed"
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
+                          : schedule.status === "declined"
+                          ? "bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-400"
+                          : "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400"
+                      }`}
+                    >
+                      {new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(date)}
+                    </span>
+                  </Tooltip>
                 ))}
             </div>
           )}

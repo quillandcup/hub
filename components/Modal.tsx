@@ -1,7 +1,8 @@
 "use client";
 
-import { ReactNode, useEffect, useId, useRef } from "react";
+import { ReactNode, useEffect, useId, useRef, useState } from "react";
 import Kbd from "@/components/Kbd";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
 
 interface ModalProps {
@@ -40,6 +41,14 @@ export default function Modal({
 }: ModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Ctrl/Cmd+Enter is listed in the `?` panel while a dialog with a form is open. The form is looked up after each
+  // render, since a dialog can swap one form for another step without a form.
+  const [hasForm, setHasForm] = useState(false);
+  useEffect(() => {
+    setHasForm(isOpen && !!dialogRef.current?.querySelector("form:not([data-no-mod-enter-submit])"));
+  });
+  useRegisterShortcuts("forms", { active: isOpen && hasForm });
 
   // Focus goes into the dialog when it opens (unless something inside already took it, such as an autofocused
   // field) and back to whatever opened it when it closes.

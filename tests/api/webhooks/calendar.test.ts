@@ -142,6 +142,23 @@ describe('Calendar Webhook', () => {
         }
       )
 
+      it('never writes the channel token to the logs', async () => {
+        vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', TOKEN)
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+        try {
+          await send(TOKEN)
+          await send('a-wrong-token')
+          const written = JSON.stringify([...log.mock.calls, ...error.mock.calls])
+          expect(written).not.toContain(TOKEN)
+          expect(written).not.toContain('a-wrong-token')
+          expect(log).toHaveBeenCalledWith('Calendar webhook received:', expect.objectContaining({ hasChannelToken: true }))
+        } finally {
+          log.mockRestore()
+          error.mockRestore()
+        }
+      })
+
       it('rejects every request on a deployed build while the token is unset', async () => {
         vi.stubEnv('NODE_ENV', 'production')
         vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', '')

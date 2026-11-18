@@ -48,8 +48,8 @@ describe("where the X sits", () => {
       expect(x.className).toContain("group-hover:opacity-100");
       expect(x.className).toContain("focus-visible:opacity-100");
       expect(x.className).toContain("[@media(hover:none)]:opacity-100");
-      expect(screen.getByTestId("remove-preview-tip")).toHaveTextContent("Remove preview");
-      expect(x.className).toContain("group/x");
+      // The hint is the shared Tooltip: it is drawn when shown, on hover or keyboard focus (tests/components/Tooltip.test.tsx).
+      expect(screen.queryByRole("tooltip")).toBeNull();
       x.focus();
       expect(x).toHaveFocus();
     }

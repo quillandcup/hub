@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useStaffTools, type StaffToolsProps } from "../../LessonStaffTools";
 import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE } from "@/lib/chat/lesson-links";
+import Tooltip from "@/components/Tooltip";
 
 const SOON = "Not available yet: courses are imported from Kajabi for now";
 const ITEM = "flex w-full items-center gap-3 px-4 py-2 text-left text-sm";
@@ -125,59 +126,70 @@ export default function VideoActions({
               Video stats
             </Link>
           ) : (
-            <button type="button" role="menuitem" disabled title="This lesson's video isn't in the Hub yet" className={OFF}>
-              Video stats
-            </button>
+            <Tooltip content="This lesson's video isn't in the Hub yet">
+              <button type="button" role="menuitem" disabled className={OFF}>
+                Video stats
+              </button>
+            </Tooltip>
           )}
           {edit ? (
             <>
               <button type="button" role="menuitem" disabled={edit.busy} onClick={() => { setOpen(false); edit.onReplace(); }} className={edit.busy ? OFF : `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
                 Replace video
               </button>
-              <button type="button" role="menuitem" disabled={!edit.onCaptions} onClick={() => { setOpen(false); edit.onCaptions?.(); }} title={edit.onCaptions ? undefined : "Captions can be added once the video is ready"} className={edit.onCaptions ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}>
-                Captions…
-              </button>
+              <Tooltip content={edit.onCaptions ? undefined : "Captions can be added once the video is ready"}>
+                <button type="button" role="menuitem" disabled={!edit.onCaptions} onClick={() => { setOpen(false); edit.onCaptions?.(); }} className={edit.onCaptions ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}>
+                  Captions…
+                </button>
+              </Tooltip>
             </>
           ) : (
-            <button type="button" role="menuitem" disabled title={`${SOON} (the captions and transcript manager)`} className={OFF}>
-              Closed captions
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={copyLink}
-            disabled={!lessonUrl}
-            title={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}
-            className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
-          >
-            Copy link
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={copyLinkWithThumbnail}
-            disabled={!thumbnailLink}
-            title={thumbnailLink ? undefined : thumbnailLinkBlocked}
-            className={thumbnailLink ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
-          >
-            Copy with thumbnail
-          </button>
-          {chatShare && (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={copyOpenLink}
-                disabled={!lessonUrl}
-                title={lessonUrl ? "Everyone in the conversation can watch it, even without the course" : "This lesson isn't in the Hub yet"}
-                className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
-              >
-                Copy link, open to everyone
+            <Tooltip content={`${SOON} (the captions and transcript manager)`}>
+              <button type="button" role="menuitem" disabled className={OFF}>
+                Closed captions
               </button>
+            </Tooltip>
           )}
-          <button type="button" role="menuitem" disabled title="Needs downloadable (MP4) copies of the video turned on in Mux, which has a cost" className={OFF}>
-            Download video
-          </button>
+          <Tooltip content={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={copyLink}
+              disabled={!lessonUrl}
+              className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
+            >
+              Copy link
+            </button>
+          </Tooltip>
+          <Tooltip content={thumbnailLink ? undefined : thumbnailLinkBlocked}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={copyLinkWithThumbnail}
+              disabled={!thumbnailLink}
+              className={thumbnailLink ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
+            >
+              Copy with thumbnail
+            </button>
+          </Tooltip>
+          {chatShare && (
+              <Tooltip content={lessonUrl ? "Everyone in the conversation can watch it, even without the course" : "This lesson isn't in the Hub yet"}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={copyOpenLink}
+                  disabled={!lessonUrl}
+                  className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
+                >
+                  Copy link, open to everyone
+                </button>
+              </Tooltip>
+          )}
+          <Tooltip content="Needs downloadable (MP4) copies of the video turned on in Mux, which has a cost">
+            <button type="button" role="menuitem" disabled className={OFF}>
+              Download video
+            </button>
+          </Tooltip>
           {staff && (
             <>
               <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
@@ -200,9 +212,11 @@ export default function VideoActions({
               Remove video
             </button>
           ) : (
-            <button type="button" role="menuitem" disabled title={SOON} className={`${OFF} text-red-700 dark:text-red-300`}>
-              Remove video
-            </button>
+            <Tooltip content={SOON}>
+              <button type="button" role="menuitem" disabled className={`${OFF} text-red-700 dark:text-red-300`}>
+                Remove video
+              </button>
+            </Tooltip>
           )}
         </div>
       )}

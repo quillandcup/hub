@@ -8,12 +8,14 @@ import {
   COMPLIANCE_PROVIDERS,
   COMPLIANCE_STATUSES,
   COMPLIANCE_EFFECTIVE,
+  complianceItemId,
 } from "@/lib/compliance";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 
 import CompliancePage from "@/app/compliance/page";
+import { containsText } from "@/tests/helpers/contains-text";
 
 describe("/compliance", () => {
   beforeEach(() => {
@@ -46,7 +48,7 @@ describe("/compliance", () => {
         const card = scope.getByRole("heading", { level: 3, name: item.name }).closest("li");
         expect(card).not.toBeNull();
         expect(within(card as HTMLElement).getByText(COMPLIANCE_STATUSES[item.status])).toBeInTheDocument();
-        expect(within(card as HTMLElement).getByText(item.detail)).toBeInTheDocument();
+        expect(within(card as HTMLElement).getByText(containsText(item.detail))).toBeInTheDocument();
       }
     }
   });
@@ -59,12 +61,27 @@ describe("/compliance", () => {
     expect(within(card).getByText(/never reach the Hub/)).toBeInTheDocument();
   });
 
-  it("lists the services and links to the privacy page and the support address", async () => {
+  it("links every mention of the Privacy page: a group's intro, a row and the services table", async () => {
+    signInAs(null);
+    await renderServerPage(CompliancePage, {});
+    const privacy = document.getElementById("privacy") as HTMLElement;
+    expect(within(privacy).getAllByRole("link", { name: "Privacy page" })[0]).toHaveAttribute("href", "/privacy");
+    const providers = within(document.getElementById("providers") as HTMLElement);
+    const covers = COMPLIANCE_PROVIDERS.find((p) => /Privacy page/.test(String(p.covers)))!;
+    const row = providers.getByText(containsText(String(covers.covers))).closest("tr") as HTMLElement;
+    expect(within(row).getByRole("link", { name: "Privacy page" })).toHaveAttribute("href", "/privacy");
+  });
+
+  it("describes the services by what they do, never by name, and links to the privacy page and the support address", async () => {
     signInAs(null);
     await renderServerPage(CompliancePage, {});
     const providers = within(document.getElementById("providers") as HTMLElement);
-    for (const p of COMPLIANCE_PROVIDERS) expect(providers.getByText(p.name)).toBeInTheDocument();
-    expect(providers.getByRole("link", { name: "Privacy page" })).toHaveAttribute("href", "/privacy#services");
+    for (const p of COMPLIANCE_PROVIDERS) {
+      expect(providers.getByText(p.role)).toBeInTheDocument();
+      expect(providers.queryByText(p.name)).not.toBeInTheDocument();
+    }
+    expect(providers.queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
+    expect(providers.getAllByRole("link", { name: "Privacy page" }).map((a) => a.getAttribute("href"))).toContain("/privacy#services");
     expect(screen.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
   });
 });
@@ -80,5 +97,44 @@ describe("compliance list", () => {
       expect(Object.keys(COMPLIANCE_STATUSES)).toContain(item.status);
       expect(item.evidence.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("compliance list: public-repo rule", () => {
+  it("carries no emails, links or key-shaped strings, and every row is dated and has evidence", () => {
+    const text = JSON.stringify(COMPLIANCE_GROUPS);
+    expect(text).not.toMatch(/@[a-z0-9-]+\.[a-z]{2,}/i);
+    expect(text).not.toMatch(/https?:\/\//);
+    expect(text).not.toMatch(/\b(sk|pk|xox[bp])[-_][A-Za-z0-9]{8,}/);
+    for (const item of COMPLIANCE_GROUPS.flatMap((g) => g.items)) {
+      expect(item.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(item.evidence.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("gives every row its own in-page id", () => {
+    const ids = COMPLIANCE_GROUPS.flatMap((g) => g.items.map((i) => complianceItemId(i.name)));
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    expect(complianceItemId("California and other US state privacy laws")).toBe("california-and-other-us-state-privacy-laws");
+  });
+
+  it("does not show the staff-only evidence or open items to members", async () => {
+    resetServerPageMocks();
+    signInAs(null);
+    await renderServerPage(CompliancePage, {});
+    for (const item of COMPLIANCE_GROUPS.flatMap((g) => g.items)) {
+      for (const text of item.open) expect(screen.queryByText(text)).not.toBeInTheDocument();
+    }
+  });
+});
+
+describe("services we rely on", () => {
+  it("lists the database and sign-in as separate rows, whatever provider serves them today", () => {
+    const roles = COMPLIANCE_PROVIDERS.map((p) => p.role);
+    expect(roles).toContain("Database");
+    expect(roles).toContain("Sign-in");
+    expect(roles).not.toContain("Database and sign-in");
+    expect(new Set(roles).size).toBe(roles.length);
   });
 });

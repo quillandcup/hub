@@ -11,7 +11,7 @@ Never write a number (`z-30`, `z-[55]`). Use a named layer from `tailwind.config
 | `z-rail` / `z-rail-open` | desktop sidebar rail: closed under the app header, open over it |
 | `z-shell` | the app header, announcement bars, fixed corner widgets |
 | `z-overlay` | modals, lightboxes, mobile drawers and their backdrops, banners |
-| `z-overlay-top` | above any modal: the search palette, the tour's spotlight |
+| `z-overlay-top` | above any modal: the search palette, the tour's spotlight, and `Tooltip` (drawn on `<body>`, so it clears a modal and the palette) |
 
 Rules:
 - A positioned element with a z-index (and `sticky`, `fixed`, `transform`, `filter`, `isolate`) makes a **stacking context**: everything inside ranks as one unit against its siblings. A popover inside the header (`z-shell`) is ranked as the header, whatever its own layer; that is why the header must be above the content's `z-sticky` and `z-dropdown`.

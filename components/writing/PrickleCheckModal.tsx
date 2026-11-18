@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Kbd from "@/components/Kbd";
 import Modal from "@/components/Modal";
 import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 import {
@@ -232,9 +233,11 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
               <button data-track="prickle-check-save"
                 type="submit"
                 disabled={isPending}
-                className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-keyshortcuts="Control+Enter Meta+Enter"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isPending ? "Saving..." : "Save"}
+                <Kbd keys={["mod", "enter"]} onAccent />
               </button>
             </div>
           )}

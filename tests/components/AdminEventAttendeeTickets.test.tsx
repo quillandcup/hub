@@ -264,7 +264,15 @@ describe("how an attendee got in", () => {
   it("shows the error when updating the ticket fails", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
     const select = await screen.findByLabelText("How Ada Example got in");
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "Not an attendee of this event" }) }) as Response));
+    // Only the save fails. The Kajabi tickets panel below the list loads its own data after the page does, and on a slow runner
+    // that request can land after this point: failing every request showed the same message twice ("Found multiple elements").
+    const normal = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) =>
+        init?.method === "PATCH" ? ({ ok: false, json: async () => ({ error: "Not an attendee of this event" }) } as Response) : normal(url, init),
+      ),
+    );
 
     await userEvent.selectOptions(select, "");
 

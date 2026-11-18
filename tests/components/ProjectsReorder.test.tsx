@@ -11,6 +11,7 @@ import type { DndContextProps } from "@dnd-kit/core";
 import { HANDLE_TOOLTIP } from "@/components/writing/SortableList";
 import ProjectsClient from "@/app/(member)/projects/ProjectsClient";
 import type { WritingProjectRow } from "@/app/(member)/projects/actions";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const m = vi.hoisted(() => ({ refresh: vi.fn(), reorder: vi.fn(), dnd: { current: null as null | DndContextProps } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: m.refresh }) }));
@@ -54,12 +55,29 @@ describe("ProjectsClient reordering", () => {
     render(<ProjectsClient initialProjects={projects()} />);
     expect(titles()).toEqual(["Alpha Draft", "Beta Draft", "Gamma Draft"]);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
+    // The position menu has its own reorder icon (an svg, no three dots) and a tooltip equal to its name.
+    const trigger = screen.getByRole("button", { name: "More actions for Beta Draft" });
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(tooltipText(trigger)).toBe("More actions for Beta Draft");
     expect(screen.getByRole("button", { name: /^Reorder Beta Draft/ })).toHaveAttribute("aria-roledescription", "sortable");
     // Not only an aria-label: a tooltip that shows on hover and keyboard focus, with the keyboard steps.
-    expect(screen.getAllByText(HANDLE_TOOLTIP)).toHaveLength(3);
+    for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);
     expect(HANDLE_TOOLTIP).toBe("Drag to reorder. Keyboard: press Space to pick up, arrow keys to move, Space to drop.");
-    expect(screen.getAllByText(HANDLE_TOOLTIP)[0].className).toMatch(/group-hover\/handle:block/);
-    expect(screen.getAllByText(HANDLE_TOOLTIP)[0].className).toMatch(/group-focus-within\/handle:block/);
+    // The tip is the shared Tooltip (hover only where there is a hover, focus-visible, Escape: tests/components/Tooltip.test.tsx).
+    const handle = screen.getAllByRole("button", { name: /^Reorder / })[0];
+    expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);
+  });
+
+  it("gives every handle the shared two-bar grip icon, small and unboxed", () => {
+    render(<ProjectsClient initialProjects={projects()} />);
+    for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) {
+      expect(handle.querySelector("svg.lucide-equal")).not.toBeNull();
+      expect(handle.querySelector("svg.lucide-grip-vertical")).toBeNull();
+      expect(handle.querySelector("svg")!.getAttribute("class")).toMatch(/\bh-5 w-5\b/);
+      expect(handle.className).toMatch(/touch-none/);
+      expect(handle.className).not.toMatch(/(^|\s)(dark:)?bg-|h-11|w-11/);
+    }
   });
 
   it("has no Move up / Move down buttons any more", () => {

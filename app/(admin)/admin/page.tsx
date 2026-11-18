@@ -8,6 +8,7 @@ import { requireStaffPage } from "@/lib/admin-auth";
 import { COMMUNITY_MANAGER_HOME } from "@/lib/staff-access";
 import { createRepos } from "@/lib/data/repos";
 import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
+import Tooltip from "@/components/Tooltip";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -256,7 +257,9 @@ export default async function DashboardPage() {
                       {idx + 1}
                     </div>
                     <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors" title={member.legalName}>{member.name}</div>
+                      <Tooltip content={member.legalName}>
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors">{member.name}</div>
+                      </Tooltip>
                       <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                     </Link>
                   </div>

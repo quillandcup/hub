@@ -11,9 +11,10 @@ import type { CustomEmoji } from "@/lib/chat/emoji";
 import { MARKED_UNREAD_EVENT, MESSAGE_CHANGE_EVENT, emitListEvent, type MarkedUnreadDetail } from "@/lib/chat/list-events";
 import { markChatUnread } from "@/app/(member)/chat/actions";
 import { messageToClipboard, type Names } from "@/lib/chat/clipboard";
+import Tooltip from "@/components/Tooltip";
 
 const buttonClass =
-  "group/tip relative flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+  "relative flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
 
 const iconProps = {
   width: 20,
@@ -54,18 +55,6 @@ function MoreIcon() {
       <circle cx="12" cy="12" r="1.75" />
       <circle cx="12" cy="18.5" r="1.75" />
     </svg>
-  );
-}
-
-/** Styled tooltip for a `group/tip` button; the browser's `title` tooltip looks out of place. Hidden from assistive tech since the button has an aria-label. */
-function Tip({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute bottom-full left-1/2 z-dropdown mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow group-hover/tip:block group-focus-visible/tip:block dark:bg-slate-100 dark:text-slate-900"
-    >
-      {children}
-    </span>
   );
 }
 
@@ -182,49 +171,52 @@ export default function MessageActions({
       )}
       {canReact && (
         <div className="relative">
-          <button
-            type="button"
-            aria-label="Add reaction…"
-            aria-expanded={open === "react"}
-            data-track="chat-hover-add-reaction"
-            disabled={pending}
-            onClick={() => setOpen(open === "react" ? null : "react")}
-            className={buttonClass}
-          >
-            <AddReactionIcon />
-          <Tip>Add reaction</Tip>
-          </button>
+          <Tooltip content="Add reaction">
+            <button
+              type="button"
+              aria-label="Add reaction…"
+              aria-expanded={open === "react"}
+              data-track="chat-hover-add-reaction"
+              disabled={pending}
+              onClick={() => setOpen(open === "react" ? null : "react")}
+              className={buttonClass}
+            >
+              <AddReactionIcon />
+            </button>
+          </Tooltip>
           {open === "react" && (
             <EmojiPicker custom={custom} onPick={(name) => toggle(name, () => setOpen(null))} onClose={() => setOpen(null)} />
           )}
         </div>
       )}
       {canReply && (
-        <Link
-          href={`/chat/${channelId}?thread=${messageId}`}
-          scroll={false}
-          aria-label="Reply in thread"
-          data-track="chat-hover-reply-in-thread"
-          className={buttonClass}
-        >
-          <ThreadIcon />
-          <Tip>Reply in thread</Tip>
-        </Link>
+        <Tooltip content="Reply in thread">
+          <Link
+            href={`/chat/${channelId}?thread=${messageId}`}
+            scroll={false}
+            aria-label="Reply in thread"
+            data-track="chat-hover-reply-in-thread"
+            className={buttonClass}
+          >
+            <ThreadIcon />
+          </Link>
+        </Tooltip>
       )}
       <div className="relative">
-        <button
-          type="button"
-          aria-label="More actions"
-          ref={moreButton}
-          aria-haspopup="menu"
-          aria-expanded={open === "more"}
-          data-track="chat-hover-more"
-          onClick={() => setOpen(open === "more" ? null : "more")}
-          className={buttonClass}
-        >
-          <MoreIcon />
-          <Tip>More actions</Tip>
-        </button>
+        <Tooltip content="More actions">
+          <button
+            type="button"
+            aria-label="More actions"
+            ref={moreButton}
+            aria-haspopup="menu"
+            aria-expanded={open === "more"}
+            data-track="chat-hover-more"
+            onClick={() => setOpen(open === "more" ? null : "more")}
+            className={buttonClass}
+          >
+            <MoreIcon />
+          </button>
+        </Tooltip>
         {open === "more" &&
           createPortal(
           <ul

@@ -7,6 +7,7 @@ import { track } from "@/lib/analytics/client";
 import RemoveUnfurlDialog from "@/components/chat/RemoveUnfurlDialog";
 import type { BlockScope } from "@/lib/chat/link-preview-blocks";
 import { pokeChat } from "@/lib/chat/list-events";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The X on a preview card, for the author of the message: it opens "Remove preview?" (RemoveUnfurlDialog), and confirming removes the card for everyone (on a message written in the Hub it is
@@ -19,15 +20,13 @@ import { pokeChat } from "@/lib/chat/list-events";
  */
 export type RemovePlacement = "gutter" | "corner";
 
-const PLACE: Record<RemovePlacement, { button: string; tip: string; error: string }> = {
+const PLACE: Record<RemovePlacement, { button: string; error: string }> = {
   gutter: {
     button: "right-full top-0 mr-1.5 bg-slate-900/70 text-white hover:bg-slate-900 dark:bg-slate-100/80 dark:text-slate-900 dark:hover:bg-slate-100",
-    tip: "left-0",
     error: "left-0 top-7",
   },
   corner: {
     button: "-right-2 -top-2 border border-slate-300 bg-white text-slate-900 shadow hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800",
-    tip: "right-0",
     error: "right-0 top-5",
   },
 };
@@ -94,27 +93,22 @@ export default function RemoveUnfurlButton({
           onConfirm={confirm}
         />
       )}
-      <button
-        type="button"
-        disabled={pending}
-        aria-label="Remove preview"
-        data-track="chat-remove-unfurl"
-        data-placement={placement}
-        onClick={() => {
-          setError(null);
-          setOpen(true);
-        }}
-        className={`group/x absolute z-float inline-flex size-6 items-center justify-center rounded-full text-sm leading-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-plum-600 group-hover:opacity-100 disabled:opacity-50 [@media(hover:none)]:opacity-100 ${place.button}`}
-      >
-        <span aria-hidden="true">×</span>
-        <span
-          aria-hidden="true"
-          data-testid="remove-preview-tip"
-          className={`pointer-events-none absolute top-full mt-1 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-xs text-white opacity-0 shadow transition-opacity group-hover/x:opacity-100 group-focus-visible/x:opacity-100 dark:bg-slate-100 dark:text-slate-900 ${place.tip}`}
+      <Tooltip content="Remove preview">
+        <button
+          type="button"
+          disabled={pending}
+          aria-label="Remove preview"
+          data-track="chat-remove-unfurl"
+          data-placement={placement}
+          onClick={() => {
+            setError(null);
+            setOpen(true);
+          }}
+          className={`absolute z-float inline-flex size-6 items-center justify-center rounded-full text-sm leading-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-plum-600 group-hover:opacity-100 disabled:opacity-50 [@media(hover:none)]:opacity-100 ${place.button}`}
         >
-          Remove preview
-        </span>
-      </button>
+          <span aria-hidden="true">×</span>
+        </button>
+      </Tooltip>
       {error && (
         <span role="alert" className={`absolute z-float whitespace-nowrap rounded bg-white px-1 text-xs text-red-600 dark:bg-slate-900 dark:text-red-400 ${place.error}`}>
           {error}

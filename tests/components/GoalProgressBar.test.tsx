@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import GoalProgressBar from "@/components/writing/GoalProgressBar";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const BASE = { measure: "words" as const, current: 38681, target: 55629, percent: 69.5, parTarget: 55629, onPace: false };
 
@@ -10,7 +11,7 @@ describe("GoalProgressBar", () => {
     render(<GoalProgressBar {...BASE} endDate="2026-03-13" />);
     expect(screen.getByText("Behind pace")).toBeInTheDocument();
     expect(screen.getByText(/by 2026-03-13/)).toBeInTheDocument();
-    expect(screen.getByTitle("Pace needed to finish on time")).toBeInTheDocument();
+    expect(tooltipTexts().map((t) => t.text)).toContain("Pace needed to finish on time");
   });
 
   it("says On pace, not Behind pace, when the goal is on track", () => {
@@ -25,7 +26,7 @@ describe("GoalProgressBar", () => {
     expect(screen.queryByText("Behind pace")).not.toBeInTheDocument();
     expect(screen.queryByText("70%")).not.toBeInTheDocument();
     expect(screen.queryByText(/by 2026-03-13/)).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Pace needed to finish on time")).not.toBeInTheDocument();
+    expect(tooltipTexts().map((t) => t.text)).not.toContain("Pace needed to finish on time");
   });
 
   it("says Achieved! once the target is reached", () => {

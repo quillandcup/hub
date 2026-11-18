@@ -99,6 +99,26 @@ describe("ConfirmDialog", () => {
   });
 });
 
+describe("where it is drawn", () => {
+  it("is on the page body, so a table cell's no-wrap and right alignment can't reach it", () => {
+    const { container } = render(
+      <table>
+        <tbody>
+          <tr>
+            <td className="whitespace-nowrap text-right">
+              <ConfirmDialog open onClose={() => {}} onConfirm={() => {}} title="Delete page?" body="It disappears from the public site." confirmLabel="Delete page" />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.contains(dialog)).toBe(true);
+    expect(dialog.closest("td")).toBeNull();
+  });
+});
+
 describe("useConfirm", () => {
   function Harness({ onResult }: { onResult: (ok: boolean) => void }) {
     const { ask, dialog } = useConfirm();

@@ -20,6 +20,8 @@ export interface NotificationEmailProps {
   /** A short extra line with a link, under the explanation. */
   note?: { text: string; url: string };
   footerLinks?: { label: string; url: string }[];
+  /** Our mailing address for the footer (lib/config.ts `postalAddress()`, added by `renderNotificationEmail`). */
+  postalAddress: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export function NotificationEmail({
   url,
   note,
   footerLinks,
+  postalAddress,
   intro,
   buttonLabel,
 }: NotificationEmailProps & {
@@ -40,7 +43,7 @@ export function NotificationEmail({
   buttonLabel: string;
 }) {
   return (
-    <EmailLayout preview={text} footerLinks={footerLinks}>
+    <EmailLayout preview={text} footerLinks={footerLinks} postalAddress={postalAddress}>
       <EmailHeading>{title ?? text}</EmailHeading>
 
       <EmailBody>{title && intro !== text ? `${text} ${intro}` : intro}</EmailBody>

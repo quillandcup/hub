@@ -6,6 +6,7 @@ import { isEmojiOnly } from "@/lib/chat/emoji-only";
 import { emojiNamesIn, listMarker, parseSlackText, type Block, type Inline } from "@/lib/chat/render";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { baseName, toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
+import Tooltip from "@/components/Tooltip";
 
 export interface ChatTextContext {
   /** Slack user id -> display name, for <@U123> mentions. */
@@ -31,7 +32,9 @@ export function Emoji({ name, custom }: { name: string; custom: Record<string, C
     return <EmojiImage name={key} url={c.url} still={c.still} stored={c.stored} />;
   }
   const text = c?.text ?? unicodeEmoji(key);
-  return <span title={`:${key}:`}>{text ? (tone && !c ? tonedUnicode(text, tone) : text) : `:${name}:`}</span>;
+  return <Tooltip content={`:${key}:`}>
+    <span>{text ? (tone && !c ? tonedUnicode(text, tone) : text) : `:${name}:`}</span>
+  </Tooltip>;
 }
 
 /** Links stand out from the text: a lighter plum on dark backgrounds, medium weight, underlined. */

@@ -13,6 +13,8 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import type { LandingPageSummary } from "@/lib/data/landing-pages";
 import { deleteLandingPage, duplicateLandingPage } from "./actions";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
+import Tooltip from "@/components/Tooltip";
 
 type Column = "title" | "status" | "updated";
 
@@ -67,6 +69,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
           </p>
         )}
       </div>
+      <TableKeyboardNav table={table} label="Pages">
       {pages.length === 0 ? (
         <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">No pages yet. Make the first one with New page.</p>
       ) : (
@@ -103,9 +106,11 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                       <Glyph name={lifecycleIcon("preview")} label={lifecycleLabel("preview")} />
                     </Link>
                     {p.status === "published" && (
-                      <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION} title="Copy link">
-                        <Glyph name="link" label="Copy link" />
-                      </button>
+                      <Tooltip content="Copy link">
+                        <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION}>
+                          <Glyph name="link" label="Copy link" />
+                        </button>
+                      </Tooltip>
                     )}
                     <LifecycleButton
                       action="duplicate"
@@ -133,6 +138,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
         </div>
       )}
       <DataTablePager table={table} itemLabel="pages" />
+      </TableKeyboardNav>
     </div>
   );
 }

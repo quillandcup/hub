@@ -9,6 +9,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { formatDateOnly } from "@/lib/formatters";
+import Tooltip from "@/components/Tooltip";
 
 interface Member {
   id: string;
@@ -656,13 +657,15 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                           className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-xs"
                         >
                           {getMemberDisplayName(enrollment.member)}
-                          <button
-                            onClick={() => handleRemoveEnrollment(enrollment.id)}
-                            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 leading-none"
-                            title="Remove from cohort"
-                          >
-                            ×
-                          </button>
+                          <Tooltip content="Remove from cohort">
+                            <button
+                              aria-label="Remove from cohort"
+                              onClick={() => handleRemoveEnrollment(enrollment.id)}
+                              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 leading-none"
+                            >
+                              ×
+                            </button>
+                          </Tooltip>
                         </span>
                       ))}
                     </div>

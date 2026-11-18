@@ -4,6 +4,7 @@ import { useEffect, useOptimistic, useRef, useState, useTransition } from "react
 import Link from "next/link";
 import type { PrickleCalendarState } from "@/lib/calendar-feed";
 import { addEventToMyCalendar, addPrickleToMyCalendar, removeMyCalendarItem } from "./calendar-feed-actions";
+import Tooltip from "@/components/Tooltip";
 
 /** Stand-in item id while an add is in flight; the refreshed page brings the real one. */
 const OPTIMISTIC_ID = "pending";
@@ -99,9 +100,11 @@ export function AddPrickleToCalendar({
   if (autoIncluded) {
     const label = AUTO_LABEL[autoIncluded];
     return variant === "icon" ? (
-      <span title={label} aria-label={label} role="img" className="inline-flex p-1 text-emerald-600 dark:text-emerald-400">
-        <CalendarGlyph added />
-      </span>
+      <Tooltip content={label}>
+        <span aria-label={label} role="img" className="inline-flex p-1 text-emerald-600 dark:text-emerald-400">
+          <CalendarGlyph added />
+        </span>
+      </Tooltip>
     ) : (
       <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
         <CalendarGlyph added /> {label}
@@ -125,20 +128,21 @@ export function AddPrickleToCalendar({
   return (
     <div ref={ref} className="relative inline-block text-left">
       {variant === "icon" ? (
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          data-track="add-to-calendar-icon"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={triggerLabel}
-          title={added ? "In your calendar" : "Add to my calendar"}
-          className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 ${
-            added ? "text-plum-600 dark:text-plum-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-          }`}
-        >
-          <CalendarGlyph added={added} />
-        </button>
+        <Tooltip content={added ? "In your calendar" : "Add to my calendar"}>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            data-track="add-to-calendar-icon"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label={triggerLabel}
+            className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 ${
+              added ? "text-plum-600 dark:text-plum-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            }`}
+          >
+            <CalendarGlyph added={added} />
+          </button>
+        </Tooltip>
       ) : (
         <button
           type="button"

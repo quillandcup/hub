@@ -25,8 +25,6 @@ describe("Icon", () => {
   it("gives each meaning its own picture, so two meanings never look the same by accident", () => {
     const pictures = new Map<unknown, string>();
     for (const [name, glyph] of Object.entries(ICONS)) {
-      // chevron and down are the same arrow on purpose: one is a disclosure, the other a direction.
-      if (name === "down") continue;
       expect(pictures.get(glyph), `${name} duplicates ${pictures.get(glyph)}`).toBeUndefined();
       pictures.set(glyph, name);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import usePhotoViewerKeys from "@/lib/hooks/usePhotoViewerKeys";
 
 export type LightboxImage = { src: string; name?: string };
 
@@ -16,12 +17,14 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }: { ima
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, count - 1));
-      else if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, count]);
+  }, [onClose]);
+  usePhotoViewerKeys({
+    onPrevious: () => setIndex((i) => Math.max(i - 1, 0)),
+    onNext: () => setIndex((i) => Math.min(i + 1, count - 1)),
+  });
 
   const image = images[index];
   if (!image) return null;
@@ -40,6 +43,7 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }: { ima
           <button
             type="button"
             aria-label="Previous image"
+            aria-keyshortcuts="ArrowLeft"
             data-track-ignore
             disabled={index === 0}
             onClick={(e) => {
@@ -53,6 +57,7 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }: { ima
           <button
             type="button"
             aria-label="Next image"
+            aria-keyshortcuts="ArrowRight"
             data-track-ignore
             disabled={index === count - 1}
             onClick={(e) => {

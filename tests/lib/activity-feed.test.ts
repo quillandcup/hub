@@ -3,7 +3,10 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ALL_TIME_DAYS,
   actorDisplay,
+  describeFeedWindow,
+  feedWindow,
   actorName,
   changedFields,
   describeRow,
@@ -11,6 +14,7 @@ import {
   MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
+  limitedFeedFilters,
   fetchRecordHistory,
   pageLabel,
   parseFeedFilters,
@@ -363,6 +367,86 @@ describe("actorName", () => {
   });
 });
 
+describe("date range (a member's Activity tab)", () => {
+  const now = new Date("2026-11-17T15:00:00Z"); // Tuesday 17 Nov 2026, 10:00 Eastern
+  const parse = (params: Record<string, string>) => parseFeedFilters(params, MEMBER_DEFAULTS, now);
+
+  it("reads ?from= and ?to= as Eastern days and writes them back, whole, in the URL", () => {
+    const filters = parse({ from: "2026-11-03", to: "2026-11-10" });
+    expect(filters).toMatchObject({ range: { from: "2026-11-03", to: "2026-11-10" }, rangeNotice: null, days: 90 });
+    expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("?from=2026-11-03&to=2026-11-10");
+    expect(parseFeedFilters(Object.fromEntries(new URLSearchParams(feedSearch(filters, MEMBER_DEFAULTS))), MEMBER_DEFAULTS, now)).toEqual(filters);
+  });
+
+  it("reads ?days=all as all time, and a number the options do not offer as the default", () => {
+    expect(parse({ days: "all" }).days).toBe(ALL_TIME_DAYS);
+    expect(feedSearch(parse({ days: "all" }), MEMBER_DEFAULTS)).toBe("?days=all");
+    expect(parse({ days: "0" }).days).toBe(90);
+    expect(parse({ days: "-5" }).days).toBe(90);
+  });
+
+  it("lets a custom range win over days, and keeps the other filters in the link", () => {
+    const filters = parse({ days: "7", from: "2026-11-03", to: "2026-11-10", noslack: "1" });
+    expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("?noslack=1&from=2026-11-03&to=2026-11-10");
+  });
+
+  it("falls back to the default window with a notice for a bad, reversed or future range, never an error", () => {
+    for (const params of [{ from: "nope", to: "2026-11-10" }, { from: "2026-11-10", to: "2026-11-03" }, { from: "2026-12-01", to: "2026-12-09" }]) {
+      const filters = parse(params);
+      expect(filters.range).toBeNull();
+      expect(filters.rangeNotice).toEqual(expect.any(String));
+      expect(filters.days).toBe(90);
+      expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("");
+    }
+  });
+
+  it("is not offered by the central log: its URL's from, to and days=all are ignored, and its links never carry them", () => {
+    const central = parseFeedFilters({ from: "2026-11-03", to: "2026-11-10", days: "all" });
+    expect(central).not.toHaveProperty("range");
+    expect(central.days).toBe(7);
+    expect(feedSearch({ ...parse({ from: "2026-11-03", to: "2026-11-10" }), days: 30 })).toBe("?view=all&days=30");
+    expect(feedSearch({ ...parse({ days: "all" }) })).toBe("?view=all");
+  });
+
+  it("covers a custom range from 00:00 Eastern of From to 00:00 Eastern after To", () => {
+    const { from, to } = feedWindow(parse({ from: "2026-11-01", to: "2026-11-01" }), now);
+    expect(from.toISOString()).toBe("2026-11-01T04:00:00.000Z");
+    expect(to.toISOString()).toBe("2026-11-02T05:00:00.000Z");
+  });
+
+  it("covers all time from the floor to a minute past now, and a preset as the last n days", () => {
+    expect(feedWindow(parse({ days: "all" }), now)).toEqual({ from: new Date("2000-01-01T05:00:00.000Z"), to: new Date("2026-11-17T15:01:00.000Z") });
+    expect(feedWindow(parse({ days: "7" }), now)).toEqual({ from: new Date("2026-11-10T15:00:00.000Z"), to: new Date("2026-11-17T15:01:00.000Z") });
+  });
+
+  it("says the window and the total in plain words", () => {
+    expect(describeFeedWindow(parse({ from: "2026-11-03", to: "2026-11-17" }), 12, now)).toBe("12 events, 3 Nov to 17 Nov");
+    expect(describeFeedWindow(parse({}), 1, now)).toBe("1 event, last 90 days");
+    expect(describeFeedWindow(parse({ days: "1" }), 0, now)).toBe("0 events, last 24 hours");
+    expect(describeFeedWindow(parse({ days: "all" }), 1234, now)).toBe("1,234 events, all time");
+  });
+
+  it("sends the range to both the count and the page, whole days in Eastern time", async () => {
+    const rpc = vi.fn(async (name: string) => (name === "count_activity_feed" ? { data: 1, error: null } : { data: [row({})], error: null }));
+    const filters = { ...parse({ from: "2026-03-08", to: "2026-03-08" }), memberId: "mbr_AAAAAAAAAAA1" };
+    await fetchActivityFeed({ rpc } as unknown as SupabaseClient, { ...filters, page: 1, pageSize: 50 }, new Date("2026-04-01T12:00:00Z"));
+    const window = { p_from: "2026-03-08T05:00:00.000Z", p_to: "2026-03-09T04:00:00.000Z", p_member_id: "mbr_AAAAAAAAAAA1" };
+    expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining(window));
+    expect(rpc).toHaveBeenCalledWith("get_activity_feed", expect.objectContaining(window));
+  });
+
+  it("keeps a community manager's limits whatever the range: her kinds, no staff filter, no audit or privacy view", async () => {
+    const rpc = vi.fn(async (name: string) => (name === "count_activity_feed" ? { data: 1, error: null } : { data: [row({})], error: null }));
+    const asked = limitedFeedFilters({ ...parse({ view: "privacy", kinds: "audit", actor: ACTOR, days: "all" }), memberId: "mbr_AAAAAAAAAAA1" });
+    expect(asked.days).toBe(ALL_TIME_DAYS);
+    await fetchActivityFeed({ rpc } as unknown as SupabaseClient, { ...asked, page: 1, pageSize: 50 }, now, { memberActivityOnly: true });
+    expect(rpc).toHaveBeenCalledWith(
+      "get_activity_feed",
+      expect.objectContaining({ p_kinds: ["activity"], p_entity_types: null, p_actor_user_id: null, p_audit_only: false, p_from: "2000-01-01T05:00:00.000Z" })
+    );
+  });
+});
+
 describe("actorDisplay", () => {
   it("names who the admin was acting as in sudo", () => {
     expect(actorDisplay(row({}))).toBe("Bramble Admin");
@@ -457,6 +541,18 @@ describe("fetchActivityFeed", () => {
       "count_activity_feed",
       expect.objectContaining({ p_audit_only: false, p_actor_user_id: ACTOR, p_sudo_only: true })
     );
+  });
+
+  it("asks only for the member's activity rows for a community manager, whatever the URL says", async () => {
+    const { supabase, rpc } = client(2, [row({})]);
+    const asked = query({ view: "privacy", kinds: "audit,session,note", actor: ACTOR });
+    await fetchActivityFeed(supabase, { ...asked, memberId: "mbr_AAAAAAAAAAA1" }, now, { memberActivityOnly: true });
+    for (const name of ["count_activity_feed", "get_activity_feed"]) {
+      expect(rpc).toHaveBeenCalledWith(
+        name,
+        expect.objectContaining({ p_kinds: ["activity"], p_audit_only: false, p_entity_types: null, p_actor_user_id: null, p_member_id: "mbr_AAAAAAAAAAA1" })
+      );
+    }
   });
 
   it("surfaces errors", async () => {
@@ -570,5 +666,12 @@ describe("a care plan's rows in the Activity Log", () => {
     );
     const feed = await fetchActivityFeed({ rpc } as unknown as SupabaseClient, { ...parseFeedFilters({}), page: 1, pageSize: 50 });
     expect(feed.rows.map(describeRow)).toEqual(["renewed the care plan (second plan)"]);
+  });
+});
+
+describe("limitedFeedFilters", () => {
+  it("drops the audit and privacy views, the type filter and the staff filter, and keeps range, sudo and the hide toggles", () => {
+    const asked = { ...parseFeedFilters({ view: "privacy", kinds: "audit,note", actor: ACTOR, sudo: "1", nosystem: "1", noslack: "1", days: "30" }, MEMBER_DEFAULTS), memberId: "mbr_AAAAAAAAAAA1" };
+    expect(limitedFeedFilters(asked)).toEqual({ view: "all", kinds: null, actorUserId: null, memberId: "mbr_AAAAAAAAAAA1", sudoOnly: true, hideSystem: true, hideSlack: true, days: 30, range: null, rangeNotice: null });
   });
 });

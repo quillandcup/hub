@@ -1,4 +1,5 @@
 import { looksAnimated } from "@/lib/animations";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * A custom emoji's image. One that moves and has no still of its own (not copied into our storage yet, so it is on
@@ -11,22 +12,25 @@ export default function EmojiImage({ name, url, still, stored, title }: { name: 
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element -- small emoji images; no sizing to optimise */}
-      <img
-        // With animations off, AnimationsController may swap src for a still before React hydrates this image.
-        suppressHydrationWarning
-        src={url}
-        data-still={still}
-        data-no-still={noStill ? "" : undefined}
-        alt={`:${name}:`}
-        title={title ?? `:${name}:`}
-        loading="lazy"
-        decoding="async"
-        className="inline-block h-[1.25em] w-[1.25em] align-text-bottom"
-      />
+      <Tooltip content={title ?? `:${name}:`}>
+        <img
+          // With animations off, AnimationsController may swap src for a still before React hydrates this image.
+          suppressHydrationWarning
+          src={url}
+          data-still={still}
+          data-no-still={noStill ? "" : undefined}
+          alt={`:${name}:`}
+          loading="lazy"
+          decoding="async"
+          className="inline-block h-[1.25em] w-[1.25em] align-text-bottom"
+        />
+      </Tooltip>
       {noStill && (
-        <span data-emoji-fallback hidden title={`:${name}:`}>
-          :{name}:
-        </span>
+        <Tooltip content={`:${name}:`}>
+          <span data-emoji-fallback hidden>
+            :{name}:
+          </span>
+        </Tooltip>
       )}
     </>
   );

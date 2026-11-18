@@ -16,9 +16,11 @@ import { track } from "@/lib/analytics/client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
 import Kbd from "@/components/Kbd";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 import { CHAT_UPLOAD_CONCURRENCY, runPool } from "@/lib/chat/upload-pool";
 import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
 import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/lib/chat/list-events";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The box a member writes in, under a conversation or inside a thread. Enter sends, Shift+Enter
@@ -96,6 +98,7 @@ export default function Composer({
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
   const boxRef = useRef<MessageBoxHandle | null>(null);
+  useRegisterShortcuts("chat");
   // People and channels picked in the box (shown name to Slack markup), turned into markup when sending.
   const mentionTokens = useRef(restored?.tokens ?? new Map<string, string>());
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -374,17 +377,18 @@ export default function Composer({
               e.target.value = "";
             }}
           />
-          <button
-            type="button"
-            data-track="chat-composer-attach"
-            aria-label="Attach files"
-            title="Attach files"
-            disabled={sending}
-            onClick={() => pickerRef.current?.click()}
-            className="shrink-0 rounded-lg px-2 py-1 text-sm hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
-          >
-            📎
-          </button>
+          <Tooltip content="Attach files">
+            <button
+              type="button"
+              data-track="chat-composer-attach"
+              aria-label="Attach files"
+              disabled={sending}
+              onClick={() => pickerRef.current?.click()}
+              className="shrink-0 rounded-lg px-2 py-1 text-sm hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+            >
+              📎
+            </button>
+          </Tooltip>
           <button
             type="submit"
             data-track="chat-composer-send"

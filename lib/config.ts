@@ -56,6 +56,9 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Minutes after writing a staff note during which its author can edit it (app.config.ts `adminNoteEditMinutes`). */
 export const ADMIN_NOTE_EDIT_MINUTES: number = appConfig.adminNoteEditMinutes;
 
+/** When staff must use a second sign-in step; null = not required yet (app.config.ts `staffMfaRequiredFrom`, lib/staff-mfa.ts). */
+export const STAFF_MFA_REQUIRED_FROM: string | null = appConfig.staffMfaRequiredFrom;
+
 /** Hedgie Care (lib/care.ts): the length of one engagement, in days (app.config.ts `careEngagementDays`). */
 export const CARE_ENGAGEMENT_DAYS: number = appConfig.careEngagementDays;
 
@@ -75,6 +78,17 @@ export const CARE_RETENTION_CHECKPOINT_DAYS: readonly number[] = appConfig.careR
 
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
+/**
+ * The mailing address printed at the bottom of notification emails (CAN-SPAM asks for a valid postal address in
+ * commercial email). A value from the `POSTAL_ADDRESS` env var, not the code: the repo is public. Read when an email is
+ * sent, and throws when it is missing, so an email never goes out without it.
+ */
+export function postalAddress(): string {
+  const value = process.env.POSTAL_ADDRESS?.trim();
+  if (!value) throw new Error("POSTAL_ADDRESS is not set: notification emails carry our postal address");
+  return value;
+}
+
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
 
 /** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */
@@ -130,6 +144,9 @@ export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAd
  * duplicates. Links that should follow the serving deployment use the request's origin.
  */
 export const APP_URL = appConfig.appUrl.replace(/\/+$/, "");
+
+/** The issuer on the two-step sign-in QR code, which authenticator apps show beside the account. */
+export const MFA_ISSUER: string = appConfig.mfaIssuer;
 
 /**
  * The User-Agent of every request this app makes to a server that is not ours (docs/OUTBOUND_REQUESTS.md).

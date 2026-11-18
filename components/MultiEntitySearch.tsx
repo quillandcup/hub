@@ -7,6 +7,8 @@ import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import { KeyHints, type SearchItem } from "@/components/EntitySearch";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
+import Tooltip from "@/components/Tooltip";
 
 interface MultiEntitySearchProps {
   items: SearchItem[];
@@ -40,6 +42,8 @@ export default function MultiEntitySearch({
   showUnknown = false,
   chipNote,
 }: MultiEntitySearchProps) {
+  // The picker's keys are listed in the `?` panel while one is on the page.
+  useRegisterShortcuts("pickers");
   const [searchTerm, setSearchTerm] = useState("");
   const { isFocused, setIsFocused, onFocus, onBlur } = useBlurDelay();
 
@@ -117,18 +121,20 @@ export default function MultiEntitySearch({
               >
                 {name}
                 {note && <span className="text-xs">{note}</span>}
-                <button data-track="multi-entity-search-remove"
-                  type="button"
-                  onClick={() => remove(id)}
-                  className={
-                    note
-                      ? "text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
-                      : "text-plum-400 hover:text-plum-600 dark:text-plum-500 dark:hover:text-plum-300"
-                  }
-                  title={`Remove ${name}`}
-                >
-                  ✕
-                </button>
+                <Tooltip content={`Remove ${name}`}>
+                  <button data-track="multi-entity-search-remove"
+                    type="button"
+                    aria-label={`Remove ${name}`}
+                    onClick={() => remove(id)}
+                    className={
+                      note
+                        ? "text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                        : "text-plum-400 hover:text-plum-600 dark:text-plum-500 dark:hover:text-plum-300"
+                    }
+                  >
+                    ✕
+                  </button>
+                </Tooltip>
               </span>
             );
           })}

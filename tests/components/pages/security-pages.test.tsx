@@ -14,6 +14,7 @@ vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() 
 
 import SecurityPage from "@/app/security/page";
 import AdminSecurityPage from "@/app/(admin)/admin/security/page";
+import { containsText } from "@/tests/helpers/contains-text";
 
 describe("/security (members)", () => {
   beforeEach(() => {
@@ -40,7 +41,7 @@ describe("/security (members)", () => {
     for (const item of SECURITY_ITEMS) {
       const card = screen.getByRole("heading", { level: 3, name: item.title }).closest("li") as HTMLElement;
       expect(within(card).getByText(COMPLIANCE_STATUSES[item.status])).toBeInTheDocument();
-      expect(within(card).getByText(item.member)).toBeInTheDocument();
+      expect(within(card).getByText(containsText(item.member))).toBeInTheDocument();
       expect(screen.queryByText(item.staff.how)).not.toBeInTheDocument();
       for (const text of item.staff.open) expect(screen.queryByText(text)).not.toBeInTheDocument();
     }
@@ -73,8 +74,8 @@ describe("/admin/security (staff)", () => {
     for (const item of SECURITY_ITEMS) {
       const card = screen.getByRole("heading", { level: 3, name: item.title }).closest("li") as HTMLElement;
       expect(card).toHaveAttribute("id", item.id);
-      expect(within(card).getByText(item.member)).toBeInTheDocument();
-      expect(within(card).getByText(item.staff.how)).toBeInTheDocument();
+      expect(within(card).getByText(containsText(item.member))).toBeInTheDocument();
+      expect(within(card).getByText(containsText(item.staff.how))).toBeInTheDocument();
       for (const where of item.staff.evidence) expect(within(card).getByText(where)).toBeInTheDocument();
       expect(within(card).getByText(item.staff.checked)).toBeInTheDocument();
     }
@@ -87,10 +88,43 @@ describe("/admin/security (staff)", () => {
     const box = screen.getByRole("heading", { level: 2, name: `Still open (${openCount})` }).closest("aside") as HTMLElement;
     for (const item of SECURITY_ITEMS.filter((i) => i.staff.open.length > 0)) {
       for (const text of item.staff.open) {
-        const li = within(box).getByText(text, { exact: false }).closest("li") as HTMLElement;
+        const li = within(box).getByText(containsText(text)).closest("li") as HTMLElement;
         expect(within(li).getAllByRole("link", { name: item.title })[0]).toHaveAttribute("href", `#${item.id}`);
       }
     }
+  });
+});
+
+describe("security list: encryption", () => {
+  const ids = SECURITY_ITEMS.map((i) => i.id);
+
+  it("keeps the three encryption rows together, in transit before at rest, with parallel titles", () => {
+    const at = (id: string) => ids.indexOf(id);
+    expect([at("database-in-transit") - at("in-transit"), at("at-rest") - at("database-in-transit")]).toEqual([1, 1]);
+    const titles = ["in-transit", "database-in-transit", "at-rest"].map((id) => SECURITY_ITEMS.find((i) => i.id === id)!.title);
+    expect(titles.every((t) => t.startsWith("Encrypted "))).toBe(true);
+  });
+
+  it("says uploaded files are covered as a reading of the provider's general statement, and has no open item left for storage or the hosting settings", () => {
+    const rest = SECURITY_ITEMS.find((i) => i.id === "at-rest")!;
+    expect(rest.title).toMatch(/uploaded files/);
+    expect(rest.member).toMatch(/including the files you upload/);
+    expect(rest.member).not.toMatch(/we read|we understand|probably|should/i);
+    expect(rest.staff.how).toMatch(/we read the general statement as covering uploaded files/);
+    expect(rest.staff.how).toMatch(/write-only after saving/);
+    expect(rest.staff.open.join(" ")).not.toMatch(/storage buckets|write-only|sensitive/i);
+  });
+
+  it("says TLS, not HTTPS, to members about the database connection", () => {
+    const db = SECURITY_ITEMS.find((i) => i.id === "database-in-transit")!;
+    expect(db.member).toContain("TLS");
+    expect(db.member).not.toMatch(/HTTP/);
+  });
+
+  it("no longer lists GitHub secret scanning as unchecked, and records the check", () => {
+    const keys = SECURITY_ITEMS.find((i) => i.id === "service-keys")!;
+    expect(keys.staff.open.join(" ")).not.toMatch(/secret scanning/i);
+    expect(keys.staff.how).toMatch(/secret scanning and push protection are both on/);
   });
 });
 

@@ -36,7 +36,7 @@ import { NOTIFICATION_KINDS, NOTIFICATION_CHANNELS, effectiveChannels } from "@/
 import { isNewcomer } from "@/lib/newcomer";
 import type { NotificationKindRow } from "./MemberNotificationsPanel";
 import * as Sentry from "@sentry/nextjs";
-import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS, type FeedPage, type ActivityFeedRow } from "@/lib/activity-feed";
+import { fetchActivityFeed, limitedFeedFilters, parseFeedFilters, MEMBER_DEFAULTS, type FeedPage, type ActivityFeedRow } from "@/lib/activity-feed";
 import { traced } from "@/lib/query-trace";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 
@@ -209,25 +209,38 @@ export default async function MemberDetailPage({
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
   // activity, what staff did for or as them, changes to their record), Everything by default.
-  // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
-  const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
+  // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=. A community manager gets the
+  // limited tab (`member.activity_tab_limited`): only the member's own activity, whatever the URL says; the
+  // database enforces it too. Without either feature nothing is fetched.
+  const activityLimited = !can("member.activity_tab") && can("member.activity_tab_limited");
+  // The range filter (?days=all, ?from=&to=, Eastern days) is the same for both; it only picks the dates, never the rows.
+  const feedNow = new Date(clock.now());
+  const parsedActivityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS, feedNow), memberId: id };
+  const activityFilters = activityLimited ? limitedFeedFilters(parsedActivityFilters) : parsedActivityFilters;
   // A failing feed (traced has already alerted and tagged the section) shows as a message on the
   // Activity Log tab instead of taking the whole member page down.
   let activityFeed: (FeedPage & { rows: ActivityFeedRow[] }) | null = null;
-  try {
-    const feedPage = await traced(
-      "member page: activity feed",
-      () =>
-        fetchActivityFeed(supabase, {
-          ...activityFilters,
-          page: parsePageParam(searchParams.page),
-          pageSize: parsePageSizeParam(searchParams.pageSize),
-        }),
-      { memberId: id, days: String(activityFilters.days), view: activityFilters.view }
-    );
-    activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
-  } catch (error) {
-    Sentry.captureException(error);
+  if (can("member.activity_tab") || activityLimited) {
+    try {
+      const feedPage = await traced(
+        "member page: activity feed",
+        () =>
+          fetchActivityFeed(
+            supabase,
+            {
+              ...activityFilters,
+              page: parsePageParam(searchParams.page),
+              pageSize: parsePageSizeParam(searchParams.pageSize),
+            },
+            feedNow,
+            { memberActivityOnly: activityLimited }
+          ),
+        { memberId: id, days: String(activityFilters.days), view: activityFilters.view }
+      );
+      activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
+    } catch (error) {
+      Sentry.captureException(error);
+    }
   }
 
   // Get user's timezone preference

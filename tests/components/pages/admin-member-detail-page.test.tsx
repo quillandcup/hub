@@ -4,7 +4,7 @@
  * the data each tab gets. MemberDetails (the tabbed client UI) is stubbed to print the Slack
  * activity it is handed, so these tests are about what the page loads and resolves.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen } from "@testing-library/react";
 import {
   ADMIN_USER,
@@ -29,6 +29,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
   default: ({
     slackPage,
     activityFeed,
+    activityFilters,
     emailAliases,
     eventSlugs,
     notificationsInfo,
@@ -38,6 +39,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
     eventSlugs?: Record<string, string>;
     slackPage: { rows: { id: string; description: string | null }[] };
     activityFeed: { total: number; page: number } | null;
+    activityFilters: unknown;
   }) => (
     <>
       <ul aria-label="slack activity">
@@ -46,6 +48,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
         ))}
       </ul>
       <p>{activityFeed ? `activity ${activityFeed.total} on page ${activityFeed.page}` : "activity unavailable"}</p>
+      <p data-testid="activity-filters">{JSON.stringify(activityFilters ?? null)}</p>
       <p data-testid="notifications-info">{JSON.stringify(notificationsInfo ?? null)}</p>
       <p>{`event slugs ${JSON.stringify(eventSlugs ?? {})}`}</p>
       <ol aria-label="email aliases">
@@ -66,6 +69,8 @@ vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.f
 
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 import { loadPushDevices } from "@/lib/channels/web-push";
+import ActivityRoute, { generateMetadata as activityMetadata } from "@/app/(admin)/admin/members/[id]/activity/page";
+import { COMMUNITY_MANAGER_FEATURES, type StaffFeature } from "@/lib/staff-access";
 import AccountRoute, { generateMetadata as accountMetadata } from "@/app/(admin)/admin/members/[id]/account/page";
 import NotificationsRoute, { generateMetadata as notificationsMetadata } from "@/app/(admin)/admin/members/[id]/notifications/page";
 import { getMemberBadges } from "@/lib/badges";
@@ -244,6 +249,126 @@ describe("MemberDetailPage", () => {
       .flatMap((q) => q.calls)
       .find((c) => c.method === "args");
     expect(feedCall?.args[0]).toMatchObject({ p_member_id: MEMBER.id, p_audit_only: false });
+  });
+
+  const feedArgs = (supabase: ReturnType<typeof useFakeSupabase>, rpc: string) =>
+    supabase.queries
+      .filter((q) => q.table === `rpc:${rpc}`)
+      .flatMap((q) => q.calls)
+      .find((c) => c.method === "args")?.args[0];
+
+  it("asks for everything for an admin, and for the member's activity only for a community manager", async () => {
+    const tables = memberTables({
+      "rpc:count_activity_feed": { data: 1 },
+      "rpc:get_activity_feed": { data: [{ event_id: "e1", kind: "activity", description: null }] },
+    });
+    const admin = useFakeSupabase(tables);
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: { view: "privacy", kinds: "audit" } });
+    expect(feedArgs(admin, "get_activity_feed")).toMatchObject({ p_member_id: MEMBER.id, p_kinds: ["audit"], p_entity_types: expect.any(Array) });
+
+    staff.role = "community_manager";
+    const manager = useFakeSupabase(tables);
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: { view: "privacy", kinds: "audit", actor: "00000000-0000-4000-8000-000000000001" } });
+    expect(screen.getAllByText("activity 1 on page 1").length).toBeGreaterThan(0);
+    expect(feedArgs(manager, "get_activity_feed")).toMatchObject({ p_member_id: MEMBER.id, p_kinds: ["activity"], p_entity_types: null, p_actor_user_id: null, p_audit_only: false });
+    expect(feedArgs(manager, "count_activity_feed")).toMatchObject({ p_kinds: ["activity"], p_entity_types: null });
+  });
+
+  describe("the Activity tab's date range", () => {
+    const tables = () =>
+      memberTables({
+        "rpc:count_activity_feed": { data: 30 },
+        "rpc:get_activity_feed": { data: [{ event_id: "e1", kind: "activity", description: null }] },
+      });
+    const filtersShown = () => JSON.parse(screen.getByTestId("activity-filters").textContent ?? "null");
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-11-17T15:00:00Z"));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it.each([
+      ["an admin", "admin"],
+      ["a community manager", "community_manager"],
+    ])("asks the count and the page for the same Eastern days for %s, with the whole To day in it", async (_who, role) => {
+      staff.role = role;
+      const supabase = useFakeSupabase(tables());
+      await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: { from: "2026-11-01", to: "2026-11-01", page: "2" } });
+      const window = { p_from: "2026-11-01T04:00:00.000Z", p_to: "2026-11-02T05:00:00.000Z", p_member_id: MEMBER.id };
+      expect(feedArgs(supabase, "count_activity_feed")).toMatchObject(window);
+      expect(feedArgs(supabase, "get_activity_feed")).toMatchObject({ ...window, p_offset: 0 });
+      expect(filtersShown()).toMatchObject({ range: { from: "2026-11-01", to: "2026-11-01" }, rangeNotice: null });
+    });
+
+    it("keeps a community manager to the member's own activity rows whatever the range, for all time too", async () => {
+      staff.role = "community_manager";
+      const supabase = useFakeSupabase(tables());
+      await renderServerPage(MemberDetailPage, {
+        id: MEMBER.id,
+        tab: "activity" as const,
+        searchParams: { days: "all", view: "privacy", kinds: "audit", actor: "00000000-0000-4000-8000-000000000001" },
+      });
+      for (const rpc of ["count_activity_feed", "get_activity_feed"]) {
+        expect(feedArgs(supabase, rpc)).toMatchObject({ p_kinds: ["activity"], p_entity_types: null, p_actor_user_id: null, p_audit_only: false, p_from: "2000-01-01T05:00:00.000Z" });
+      }
+    });
+
+    it.each([
+      ["a backwards range", { from: "2026-11-10", to: "2026-11-03" }],
+      ["a range that has not begun", { from: "2026-12-01", to: "2026-12-09" }],
+      ["garbage", { from: "not-a-date", to: "2026-13-45" }],
+      ["a date from the year one", { from: "0001-01-01", to: "2026-11-03" }],
+    ])("falls back to the last 90 days with a notice for %s, and still loads the tab", async (_what, searchParams) => {
+      const supabase = useFakeSupabase(tables());
+      await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams });
+      expect(screen.getByText("activity 30 on page 1")).toBeInTheDocument();
+      expect(filtersShown()).toMatchObject({ range: null, days: 90, rangeNotice: expect.stringContaining("so the usual range is shown") });
+      expect(feedArgs(supabase, "get_activity_feed")).toMatchObject({ p_from: "2026-08-19T15:00:00.000Z", p_to: "2026-11-17T15:01:00.000Z" });
+    });
+
+    it("keeps today's default window when no range is given", async () => {
+      const supabase = useFakeSupabase(tables());
+      await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: {} });
+      expect(filtersShown()).toMatchObject({ days: 90 });
+      expect(filtersShown().range ?? null).toBeNull();
+      expect(feedArgs(supabase, "count_activity_feed")).toMatchObject({ p_from: "2026-08-19T15:00:00.000Z" });
+    });
+  });
+
+  it("reads no activity feed for a role that has neither Activity tab feature", async () => {
+    staff.role = "community_manager";
+    const features = COMMUNITY_MANAGER_FEATURES as StaffFeature[];
+    const saved = [...features];
+    features.splice(0, features.length, "care.write");
+    try {
+      const supabase = useFakeSupabase(memberTables());
+      await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+      expect(screen.getByText("activity unavailable")).toBeInTheDocument();
+      expect(supabase.queries.some((q) => q.table === "rpc:get_activity_feed" || q.table === "rpc:count_activity_feed")).toBe(false);
+    } finally {
+      features.splice(0, features.length, ...saved);
+    }
+  });
+
+  it("serves the Activity tab at its own route for an admin and a community manager, and sends one without the feature to the Overview", async () => {
+    useFakeSupabase(memberTables());
+    const params = Promise.resolve({ id: MEMBER.id });
+    expect(String((await activityMetadata({ params })).title)).toContain("Activity Log");
+    const searchParams = Promise.resolve({});
+    expect((await ActivityRoute({ params, searchParams } as never)).props).toMatchObject({ id: MEMBER.id, tab: "activity" });
+
+    staff.role = "community_manager";
+    expect((await ActivityRoute({ params, searchParams } as never)).props).toMatchObject({ id: MEMBER.id, tab: "activity" });
+
+    const features = COMMUNITY_MANAGER_FEATURES as StaffFeature[];
+    const saved = [...features];
+    features.splice(0, features.length, "care.write");
+    try {
+      await expectRedirect(ActivityRoute, { params, searchParams }, `/admin/members/${MEMBER.id}`);
+    } finally {
+      features.splice(0, features.length, ...saved);
+    }
   });
 
   it("still renders the page when the activity feed query times out", async () => {

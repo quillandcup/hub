@@ -169,7 +169,8 @@ export function createFakeSupabase(tables: FakeTables = {}) {
       return q.args(...args);
     },
     auth: {
-      getClaims: vi.fn(async () => ({ data: null, error: null })),
+      // A signed-in session that has passed the second step (lib/staff-mfa.ts), so the admin guards let it through.
+      getClaims: vi.fn(async () => ({ data: { claims: { aal: "aal2" } }, error: null })),
       getUser: vi.fn(async () => ({ data: { user: null }, error: null })),
     },
   };

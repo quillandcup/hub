@@ -3,6 +3,7 @@
 import { useConfirm } from "@/components/ConfirmDialog";
 import Icon from "@/components/Icon";
 import { lifecycleConfirm, lifecycleIcon, lifecycleLabel, type LifecycleAction, type LifecycleContext } from "@/lib/lifecycle-actions";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * One lifecycle action (`lib/lifecycle-actions.ts`: publish, unpublish, duplicate, delete, reset, restore, history, preview)
@@ -51,18 +52,19 @@ export default function LifecycleButton({
 
   return (
     <>
-      <button
-        type="button"
-        aria-label={variant === "icon" ? name : undefined}
-        title={variant === "icon" ? name : undefined}
-        disabled={disabled}
-        className={className}
-        data-track={track}
-        onClick={() => void click()}
-      >
-        {icon && <Icon name={lifecycleIcon(action)} className={variant === "icon" ? "h-4 w-4" : "mr-1.5 inline h-4 w-4 align-text-bottom"} />}
-        {variant === "text" && shown}
-      </button>
+      <Tooltip content={variant === "icon" ? name : undefined}>
+        <button
+          type="button"
+          aria-label={variant === "icon" ? name : undefined}
+          disabled={disabled}
+          className={className}
+          data-track={track}
+          onClick={() => void click()}
+        >
+          {icon && <Icon name={lifecycleIcon(action)} className={variant === "icon" ? "h-4 w-4" : "mr-1.5 inline h-4 w-4 align-text-bottom"} />}
+          {variant === "text" && shown}
+        </button>
+      </Tooltip>
       {dialog}
     </>
   );

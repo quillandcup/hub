@@ -8,6 +8,7 @@ vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: (...a: [st
 
 import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import MarkCompleteButton from "@/app/(member)/courses/MarkCompleteButton";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const ui = (over: { initiallyCompleted?: boolean; readOnlyReason?: string | null } = {}) => (
   <LessonCompletionProvider lessonId="l1" initiallyCompleted={over.initiallyCompleted ?? false} readOnlyReason={over.readOnlyReason ?? null}>
@@ -61,7 +62,7 @@ describe("MarkCompleteButton", () => {
     const button = screen.getByRole("button", { name: "Mark as complete" });
 
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
+    expect(tooltipText(button)).toEqual("Progress isn't tracked for lessons members can't open yet");
     await userEvent.click(button);
     expect(setLessonComplete).not.toHaveBeenCalled();
   });

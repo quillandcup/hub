@@ -34,6 +34,7 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { isValidTimeZone } from "@/lib/time-zone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -308,8 +309,8 @@ export default async function LessonPage({
             <h1 className="mt-8 text-3xl font-bold leading-tight">{lesson.title}</h1>
 
             {lesson.body_html && (
-              // Sanitized with an allowlist when it was imported (lib/courses/sanitize.ts); never stored or rendered raw.
-              <div className="prose prose-slate prose-lg mt-6 max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: lesson.body_html }} />
+              // Sanitized with an allowlist when it was imported and again here (lib/courses/sanitize.ts); never rendered raw.
+              <div className="prose prose-slate prose-lg mt-6 max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeLessonHtml(lesson.body_html) ?? "" }} />
             )}
 
             <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">

@@ -257,7 +257,7 @@ describe("/privacy page", () => {
     expect(folded).not.toHaveAttribute("open");
     // The switch comes before the folded explanation in the page.
     expect(toggle.compareDocumentPosition(folded) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(folded).getByText(/our host, Vercel,\s+also counts visits and page speed in aggregate/i)).toBeInTheDocument();
+    expect(within(folded).getByText(/our hosting provider also counts visits and page speed in aggregate/i)).toBeInTheDocument();
     expect(within(folded).getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
   });
 
@@ -307,12 +307,12 @@ describe("/privacy page", () => {
     const services = section("services");
     for (const kind of [
       "database provider, our sign-in and auth provider, and our hosting provider \\(which also counts visits and page speed\\)",
-      "payment and course providers \\(Stripe and Kajabi\\)",
+      "payment and course providers, for your membership and billing",
       "Zoom, where live prickles happen",
       "Slack, for chat and notifications",
       "email provider, and your browser's push service",
       "video hosting provider, for course videos",
-      "Google Calendar for the prickle schedule, and Google Photos only when you choose",
+      "calendar service, for the prickle schedule, and our photo service, where event albums live and staff choose photos to bring into the Hub",
       "Gravatar, which supplies a profile picture",
       "monitoring providers, for errors and performance",
       "Google Analytics, only where you allow it",
@@ -322,14 +322,16 @@ describe("/privacy page", () => {
     const order = [...services.getAllByRole("listitem")].map((li) => li.textContent ?? "");
     expect(order.findIndex((t) => t.includes("video hosting provider"))).toBeLessThan(order.findIndex((t) => t.startsWith("Zoom")));
     expect(order.findIndex((t) => t.startsWith("Zoom"))).toBeLessThan(order.findIndex((t) => t.startsWith("Slack")));
-    expect(services.getByText(/scrambled form of your email address/)).toBeInTheDocument();
+    expect(services.getByText(/asked using a hash of your email address/)).toBeInTheDocument();
+    expect(services.queryByText(/scrambled/)).not.toBeInTheDocument();
     expect(services.getByText(/Our database and hosting are in the United States, so if you use the Hub from elsewhere your information is transferred\s+there/)).toBeInTheDocument();
     expect(services.getByText(/certified under the EU-U\.S\. Data Privacy Framework \(and its UK extension\) or we rely on standard\s+contractual clauses with them/)).toBeInTheDocument();
-    // Vercel's own aggregate counts can't be switched off per member, and the page says so next to the switch.
+    // The hosting provider's own aggregate counts can't be switched off per member, and the page says so next to the switch.
     expect(section("choices").getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
-    // The infrastructure vendors stay generic.
+    // Internal providers stay generic; the services members use or see directly (Slack, Zoom, Google Analytics, Gravatar) are named.
+    // The guard in tests/lib/trust-no-provider-names.test.ts covers the data too.
     const text = document.body.textContent ?? "";
-    for (const vendor of ["Supabase", "Mux", "Sentry", "Resend"]) expect(text).not.toContain(vendor);
+    for (const vendor of ["Supabase", "Mux", "Sentry", "Resend", "Vercel", "Stripe", "Kajabi", "Google Calendar", "Google Photos"]) expect(text).not.toContain(vendor);
   });
 });
 

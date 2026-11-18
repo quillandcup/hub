@@ -46,6 +46,7 @@ import {
   type EntryRow,
   type GoalRow,
 } from "../actions";
+import Tooltip from "@/components/Tooltip";
 
 interface ProjectDetailClientProps {
   project: WritingProjectRow;
@@ -172,7 +173,11 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const goalOnProfile = (goal: GoalRow) => goal.showOnProfile && showOnProfile;
 
   const renderGoal = (goal: GoalRow, index?: number) => {
-    const makeRow = (menu: ReactNode = null) => (
+    const startEdit = () => {
+      setEditingGoal(goal);
+      setShowNewGoal(false);
+    };
+    const makeRow = ({ handle, menu }: { handle: ReactNode; menu: ReactNode } = { handle: null, menu: null }) => (
       editingGoal?.id === goal.id ? (
         <GoalForm
           key={goal.id}
@@ -191,7 +196,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           }}
         />
       ) : (
-        <div key={goal.id} className="flex items-start gap-3">
+        <div key={goal.id} className="flex items-start gap-2 sm:gap-3">
+          {handle && <div className="mt-1 flex-shrink-0">{handle}</div>}
           <div className="flex-shrink-0 mt-1 flex flex-col items-center gap-2">
             <StarToggle
               on={goal.isStarred}
@@ -210,16 +216,15 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               }}
             />
           </div>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <GoalDisplay goal={goal} />
           </div>
-          <div className="flex-shrink-0 flex items-center gap-3 mt-1">
+          <div className="flex-shrink-0 flex items-center gap-1 sm:gap-3 mt-1">
+            {/* With the ⋮ menu, Edit and Delete sit in it on a phone and inline from `sm` up; with no menu (one goal) they are always inline. */}
+            <div className={`${menu ? "hidden sm:flex" : "flex"} items-center gap-3`}>
             <button data-track="project-edit-goal"
               type="button"
-              onClick={() => {
-                setEditingGoal(goal);
-                setShowNewGoal(false);
-              }}
+              onClick={startEdit}
               className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               aria-label="Edit goal"
             >
@@ -233,6 +238,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             >
               🗑️
             </button>
+            </div>
             {menu}
           </div>
         </div>
@@ -249,11 +255,15 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
         disabled={goalOrder.saving}
         onMoveTo={(position) => goalOrder.moveTo(goal.id, position)}
         track="project-goal"
+        extraItems={[
+          { key: "edit", label: "Edit", className: "sm:hidden", track: "project-edit-goal", onSelect: startEdit },
+          { key: "delete", label: "Delete", className: "sm:hidden", track: "project-delete-goal", onSelect: () => handleDeleteGoal(goal.id) },
+        ]}
         className=""
         idleClassName=""
         liftedClassName="rounded-lg bg-white shadow-xl ring-2 ring-plum-400 dark:bg-slate-900 dark:ring-plum-500"
       >
-        {(menu) => makeRow(menu)}
+        {(controls) => makeRow(controls)}
       </SortableRow>
     );
   };
@@ -877,14 +887,15 @@ export function GoalForm({
 
       <div className="flex items-center justify-between gap-2">
         {isEditing && onArchive ? (
-          <button data-track="project-mark-as-done"
-            type="button"
-            onClick={onArchive}
-            className="text-sm text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
-            title="Mark as done (keeps the record, removes from active goals)"
-          >
-            ✅ Mark as done
-          </button>
+          <Tooltip content="Mark as done (keeps the record, removes from active goals)">
+            <button data-track="project-mark-as-done"
+              type="button"
+              onClick={onArchive}
+              className="text-sm text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
+            >
+              ✅ Mark as done
+            </button>
+          </Tooltip>
         ) : (
           <span />
         )}

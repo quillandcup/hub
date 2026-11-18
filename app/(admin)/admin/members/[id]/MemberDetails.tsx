@@ -17,7 +17,8 @@ import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
 import MemberNoteForm from "./MemberNoteForm";
 import LatestNoteCard, { type LatestNote } from "./LatestNoteCard";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
-import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
+import ActivityRangeSummary from "@/app/(admin)/admin/activity/ActivityRangeSummary";
+import { ALL_TIME_DAYS, feedSearch, MEMBER_DEFAULTS, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
 import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNotificationsPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
@@ -109,6 +110,9 @@ export default function MemberDetails({
   features,
 }: MemberDetailsProps) {
   const can = (feature: StaffFeature) => features.includes(feature);
+  // The Activity tab: the whole log for an admin, only the member's own activity for a community manager (the limited feature).
+  const activityLimited = !can("member.activity_tab") && can("member.activity_tab_limited");
+  const showActivity = can("member.activity_tab") || activityLimited;
   const timeZone = useTimeZone();
   const [activeTab, setActiveTabState] = useState<Tab>(initialTab);
   // Keep the tab in the URL path so a reload, or Back from a prickle/detail page, returns to it.
@@ -138,7 +142,7 @@ export default function MemberDetails({
     { id: "overview", label: MEMBER_TAB_LABELS.overview },
     { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
     { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
-    ...(!can("member.activity_tab") ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
+    ...(!showActivity ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
     ...(!can("member.account_tab") ? [] : [{ id: "account" as const, label: MEMBER_TAB_LABELS.account }]),
     ...(!can("member.push_devices") ? [] : [{ id: "notifications" as const, label: MEMBER_TAB_LABELS.notifications }]),
   ];
@@ -301,31 +305,47 @@ export default function MemberDetails({
         />
       )}
 
-      {activeTab === "activity" &&
-        (
-          <div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Their own activity, what staff did for or as them, and changes to their record.{" "}
-              <Link
-                href={`/admin/activity${feedSearch(activityFilters)}`}
-                className="text-plum-600 dark:text-plum-400 hover:underline"
-              >
-                Open in the central log
-              </Link>
-            </p>
-            {can("member.notes_write") && <MemberNoteForm memberId={member.id} />}
-            <ActivityFilters variant="member" filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
-            {!activityFeed ? (
-              <p role="alert" className="text-sm text-red-700 dark:text-red-400">
-                The activity log didn&apos;t load. Reload the page to try again; if it keeps failing, the team has been alerted.
-              </p>
-            ) : activityFeed.total === 0 ? (
-              <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
+      {activeTab === "activity" && showActivity && (
+        <div>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+            {activityLimited ? (
+              "What this member did and what happened for them, including what an admin did while viewing as them. Changes staff made to their record are not shown."
             ) : (
-              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout noteControls={!can("member.notes_write") ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+              <>
+                Their own activity, what staff did for or as them, and changes to their record.{" "}
+                <Link
+                  // The central log has no custom range or all time yet: its longest window (a year) is the nearest.
+                  href={`/admin/activity${feedSearch(activityFilters.range || activityFilters.days === ALL_TIME_DAYS ? { ...activityFilters, days: 365 } : activityFilters)}`}
+                  className="text-plum-600 dark:text-plum-400 hover:underline"
+                >
+                  Open in the central log
+                </Link>
+              </>
             )}
-          </div>
-        )}
+          </p>
+          {can("member.notes_write") && <MemberNoteForm memberId={member.id} />}
+          <ActivityFilters variant="member" limited={activityLimited} filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
+          {!activityFeed ? (
+            <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+              The activity log didn&apos;t load. Reload the page to try again; if it keeps failing, the team has been alerted.
+            </p>
+          ) : (
+            <>
+              <ActivityRangeSummary
+                filters={activityFilters}
+                total={activityFeed.total}
+                now={new Date(clock.now())}
+                clearHref={`/admin/members/${member.id}/activity${feedSearch({ ...activityFilters, range: null, memberId: null }, MEMBER_DEFAULTS)}`}
+              />
+              {activityFeed.total === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this range. Try a longer one.</p>
+              ) : (
+                <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout limited={activityLimited} noteControls={!can("member.notes_write") ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+              )}
+            </>
+          )}
+        </div>
+      )}
       {activeTab === "slack" && <MemberSlackActivityPanel slackPage={slackPage} slackSummary={slackSummary} />}
     </div>
   );

@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import BadgeChip from "@/components/BadgeChip";
 import type { EarnedBadge } from "@/lib/badges";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 function makeBadge(overrides: Partial<EarnedBadge> = {}): EarnedBadge {
   return {
@@ -59,7 +60,7 @@ describe("BadgeChip", () => {
   it("includes the occurrence count in the tooltip when awarded more than once", () => {
     const badge = makeBadge({ occurrences: 3 });
     render(<BadgeChip badge={badge} />);
-    expect(screen.getByTitle(/Awarded 3 times/)).toBeInTheDocument();
+    expect(tooltipTexts().some((t) => /Awarded 3 times/.test(t.text))).toBe(true);
   });
 
   it("links to the given href (a retreat badge's event page)", () => {

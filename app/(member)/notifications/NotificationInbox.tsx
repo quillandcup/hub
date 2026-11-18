@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useInAppNotifications } from "@/components/InAppNotifications";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { BulkActionBar, BulkActionButton } from "@/components/BulkActionBar";
 import { useRowSelection } from "@/lib/hooks/useRowSelection";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
@@ -23,6 +24,7 @@ import {
   type InboxSortColumn,
 } from "@/lib/notifications/inbox";
 import type { InAppNotification, InboxPage } from "@/lib/channels/in-app";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The inbox table in server mode: `inbox` is the one page the server filtered, sorted and ranged;
@@ -177,107 +179,110 @@ export default function NotificationInbox({
           <BulkActionButton onClick={() => bulk(true)}>Mark as read</BulkActionButton>
           <BulkActionButton onClick={() => bulk(false)}>Mark as unread</BulkActionButton>
         </BulkActionBar>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800">
-              <tr>
-                {editing && (
-                  <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selection.allSelected}
-                      ref={(el) => {
-                        if (el) el.indeterminate = selection.someSelected;
-                      }}
-                      onChange={selection.toggleAll}
-                      disabled={items.length === 0}
-                      className="cursor-pointer accent-plum-600"
-                      aria-label="Select all on this page"
-                    />
-                  </th>
-                )}
-                <th className="w-8 px-2 py-3">
-                  <span className="sr-only">Unread</span>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                  Notification
-                </th>
-                <SortableTh label="Type" {...table.sortProps("kind")} />
-                <SortableTh label="Received" {...table.sortProps("created_at")} />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {table.rows.length === 0 ? (
+        <TableKeyboardNav table={table} label="Notifications">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <td colSpan={editing ? 5 : 4} className="px-6 py-8 text-center text-slate-600 dark:text-slate-400">
-                    {filter === "unread" ? "Nothing unread." : "No notifications yet."}
-                  </td>
+                  {editing && (
+                    <th className="w-10 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selection.allSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = selection.someSelected;
+                        }}
+                        onChange={selection.toggleAll}
+                        disabled={items.length === 0}
+                        className="cursor-pointer accent-plum-600"
+                        aria-label="Select all on this page"
+                      />
+                    </th>
+                  )}
+                  <th className="w-8 px-2 py-3">
+                    <span className="sr-only">Unread</span>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Notification
+                  </th>
+                  <SortableTh label="Type" {...table.sortProps("kind")} />
+                  <SortableTh label="Received" {...table.sortProps("created_at")} />
                 </tr>
-              ) : (
-                table.rows.map((n) => (
-                  <tr key={n.id} className={`${n.read ? "" : "bg-plum-50/60 dark:bg-plum-950/60"}`}>
-                    {editing && (
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selection.isSelected(n.id)}
-                          onChange={() => selection.toggle(n.id)}
-                          className="cursor-pointer accent-plum-600"
-                          aria-label={`Select: ${n.text}`}
-                        />
-                      </td>
-                    )}
-                    <td className="px-2 py-3">
-                      {!n.read && <span role="img" aria-label="Unread" className="block h-2 w-2 rounded-full bg-plum-600" />}
-                    </td>
-                    <td className="px-6 py-3">
-                      {n.url ? (
-                        <Link
-                          href={n.url}
-                          {...externalLinkProps(n.url)}
-                          onClick={() => open(n)}
-                          className={`hover:underline ${n.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}`}
-                        >
-                          {n.text}
-                        </Link>
-                      ) : (
-                        <span
-                          className={
-                            n.read
-                              ? "text-slate-600 dark:text-slate-400"
-                              : "font-medium text-slate-900 dark:text-slate-100"
-                          }
-                        >
-                          {n.text}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setRead([n.id], !n.read)}
-                        className="ml-2 text-xs text-plum-600 hover:underline dark:text-plum-400"
-                      >
-                        {n.read ? "Mark unread" : "Mark read"}
-                      </button>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
-                      {notificationKindLabel(n.kind)}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
-                      <time
-                        dateTime={n.createdAt}
-                        title={new Date(n.createdAt).toLocaleString()}
-                        suppressHydrationWarning
-                      >
-                        {formatRelativeTime(n.createdAt, timeZone)}
-                      </time>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {table.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={editing ? 5 : 4} className="px-6 py-8 text-center text-slate-600 dark:text-slate-400">
+                      {filter === "unread" ? "Nothing unread." : "No notifications yet."}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <DataTablePager table={table} itemLabel="notifications" />
+                ) : (
+                  table.rows.map((n) => (
+                    <tr key={n.id} className={`${n.read ? "" : "bg-plum-50/60 dark:bg-plum-950/60"}`}>
+                      {editing && (
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selection.isSelected(n.id)}
+                            onChange={() => selection.toggle(n.id)}
+                            className="cursor-pointer accent-plum-600"
+                            aria-label={`Select: ${n.text}`}
+                          />
+                        </td>
+                      )}
+                      <td className="px-2 py-3">
+                        {!n.read && <span role="img" aria-label="Unread" className="block h-2 w-2 rounded-full bg-plum-600" />}
+                      </td>
+                      <td className="px-6 py-3">
+                        {n.url ? (
+                          <Link
+                            href={n.url}
+                            {...externalLinkProps(n.url)}
+                            onClick={() => open(n)}
+                            className={`hover:underline ${n.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}`}
+                          >
+                            {n.text}
+                          </Link>
+                        ) : (
+                          <span
+                            className={
+                              n.read
+                                ? "text-slate-600 dark:text-slate-400"
+                                : "font-medium text-slate-900 dark:text-slate-100"
+                            }
+                          >
+                            {n.text}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setRead([n.id], !n.read)}
+                          className="ml-2 text-xs text-plum-600 hover:underline dark:text-plum-400"
+                        >
+                          {n.read ? "Mark unread" : "Mark read"}
+                        </button>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
+                        {notificationKindLabel(n.kind)}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
+                        <Tooltip content={new Date(n.createdAt).toLocaleString()}>
+                          <time
+                            dateTime={n.createdAt}
+                            suppressHydrationWarning
+                          >
+                            {formatRelativeTime(n.createdAt, timeZone)}
+                          </time>
+                        </Tooltip>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <DataTablePager table={table} itemLabel="notifications" />
+        </TableKeyboardNav>
       </div>
     </div>
   );

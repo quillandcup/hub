@@ -46,6 +46,34 @@ describe('SortableTh', () => {
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
+  it('is a real button: Tab reaches it, Enter and Space each sort once', async () => {
+    const onClick = vi.fn()
+    renderTh({ onClick })
+    const user = userEvent.setup()
+    await user.tab()
+    const button = screen.getByRole('button', { name: /Name/ })
+    expect(button).toHaveFocus()
+    expect(button).toHaveAttribute('type', 'button')
+    await user.keyboard('{Enter}')
+    expect(onClick).toHaveBeenCalledTimes(1)
+    await user.keyboard(' ')
+    expect(onClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('runs the handler once for a mouse click on the button, and once for one on the cell', async () => {
+    const onClick = vi.fn()
+    renderTh({ onClick })
+    await userEvent.click(screen.getByRole('button', { name: /Name/ }))
+    expect(onClick).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByRole('columnheader'))
+    expect(onClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the filter outside the button, so a filter box is not a button inside a button', () => {
+    renderTh({ filter: <input placeholder="≤" /> })
+    expect(screen.getByRole('button', { name: /Name/ })).not.toContainElement(screen.getByPlaceholderText('≤'))
+  })
+
   it('exposes the sort state via aria-sort', () => {
     const { unmount } = renderTh({ active: true, direction: 'desc' })
     expect(screen.getByRole('columnheader')).toHaveAttribute('aria-sort', 'descending')

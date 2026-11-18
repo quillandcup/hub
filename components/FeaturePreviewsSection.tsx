@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FEATURE_PREVIEWS, type FeatureKey } from "@/lib/features";
+import Tooltip from "@/components/Tooltip";
 
 interface FeaturePreviewsSectionProps {
   collapsed: boolean;
@@ -44,12 +45,13 @@ export function FeaturePreviewsSection({
 
   if (collapsed) {
     return (
-      <div
-        className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 flex justify-center"
-        title="Feature Previews"
-      >
-        <span className="text-lg">🧪</span>
-      </div>
+      <Tooltip content="Feature Previews">
+        <div
+          className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 flex justify-center"
+        >
+          <span className="text-lg">🧪</span>
+        </div>
+      </Tooltip>
     );
   }
 
@@ -63,18 +65,18 @@ export function FeaturePreviewsSection({
           const isEnabled = localEnabled.has(feature.key);
           const isLoading = loading === feature.key;
           return (
-            <button data-track="feature-previews-toggle"
-              key={feature.key}
-              onClick={() => toggleFeature(feature.key, !isEnabled)}
-              disabled={isLoading}
-              title={feature.description}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-            >
-              <span className="text-sm w-4 text-center flex-shrink-0">
-                {isEnabled ? "✓" : "○"}
-              </span>
-              <span className="text-sm">{feature.name}</span>
-            </button>
+            <Tooltip key={feature.key} content={feature.description}>
+              <button data-track="feature-previews-toggle"
+                onClick={() => toggleFeature(feature.key, !isEnabled)}
+                disabled={isLoading}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <span className="text-sm w-4 text-center flex-shrink-0">
+                  {isEnabled ? "✓" : "○"}
+                </span>
+                <span className="text-sm">{feature.name}</span>
+              </button>
+            </Tooltip>
           );
         })}
       </div>
