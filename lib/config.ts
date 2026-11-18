@@ -145,8 +145,8 @@ export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAd
  */
 export const APP_URL = appConfig.appUrl.replace(/\/+$/, "");
 
-/** The app's name. Also the issuer on the two-step sign-in QR code, which authenticator apps show beside the account. */
-export const APP_NAME: string = appConfig.appName;
+/** The issuer on the two-step sign-in QR code, which authenticator apps show beside the account. */
+export const MFA_ISSUER: string = appConfig.mfaIssuer;
 
 /**
  * The User-Agent of every request this app makes to a server that is not ours (docs/OUTBOUND_REQUESTS.md).
