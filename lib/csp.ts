@@ -2,9 +2,13 @@
 //
 // Enforcing since 2026-11-17, after a week of Report-Only reports showed one missing picture host (now in app.config.ts).
 // Violations are still sent to Sentry, so a picture host we forgot shows up as a report.
-// Scripts and styles are not covered yet: that needs per-request nonces (docs/TODO.md, "Script and style nonces").
+// Scripts and styles are covered by a second policy with a per-request nonce (scriptStyleCsp), sent by proxy.ts in
+// report-only mode first (docs/TODO.md, "CSP for scripts and styles").
 
 export const CSP_HEADER = "Content-Security-Policy";
+export const CSP_REPORT_ONLY_HEADER = "Content-Security-Policy-Report-Only";
+/** The request header that carries the nonce to Server Components (`headers().get(NONCE_HEADER)`). */
+export const NONCE_HEADER = "x-nonce";
 
 export interface CspInputs {
   /** The Supabase project URL (storage serves media, covers, emoji, help and changelog pictures). */
@@ -65,3 +69,33 @@ export const SECURITY_HEADERS: readonly { key: string; value: string }[] = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
 ];
+
+/** A fresh, unguessable value for one request (base64 of a random UUID, the shape Next's documentation uses). */
+export function generateNonce(): string {
+  return btoa(crypto.randomUUID());
+}
+
+/**
+ * The script and style half of the policy, for one request.
+ *
+ * - `script-src`: our own files and anything carrying the nonce. `'strict-dynamic'` lets a nonced script load others (the Google
+ *   Analytics tag, Vercel's scripts), so no host list has to be kept; browsers that know it ignore `'self'` and the hosts.
+ *   Development adds `'unsafe-eval'` (React's debugging needs it; production does not).
+ * - `style-src`: our own files and nonced `<style>` tags. Style attributes (`style="..."`, many components set one) cannot carry a
+ *   nonce, so `style-src-attr` allows them; that is the weaker part, and it cannot run script.
+ * - `worker-src`: session replay and Sentry start workers from `blob:` addresses.
+ *
+ * Next reads the nonce out of this header on the request and puts it on its own inline scripts and styles, which is why a
+ * page that uses it must render per request (the root layout already does: it reads headers and the signed-in member).
+ */
+export function scriptStyleCsp({ nonce, sentryDsn, dev = false }: { nonce: string; sentryDsn?: string; dev?: boolean }): string {
+  const directives = [
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    `style-src 'self' 'nonce-${nonce}'`,
+    "style-src-attr 'unsafe-inline'",
+    "worker-src 'self' blob:",
+  ];
+  const report = sentryReportUri(sentryDsn);
+  if (report) directives.push(`report-uri ${report}`);
+  return directives.join("; ");
+}
