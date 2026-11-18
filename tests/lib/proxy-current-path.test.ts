@@ -81,18 +81,12 @@ describe("the current address handed to Server Components", () => {
   });
 });
 
-describe("the script nonce", () => {
-  it("is new per request, handed to Server Components and sent in the report-only policy", async () => {
-    const a = await proxy(new NextRequest("http://localhost:3000/dashboard"));
-    const b = await proxy(new NextRequest("http://localhost:3000/dashboard"));
-    const nonce = forwarded(a, "x-nonce");
+describe("the script and style policy", () => {
+  it("is not sent while it is paused (docs/TODO.md, CSP for scripts and styles)", async () => {
+    const res = await proxy(new NextRequest("http://localhost:3000/dashboard"));
 
-    expect(nonce).toBeTruthy();
-    expect(nonce).not.toBe(forwarded(b, "x-nonce"));
-    expect(a.headers.get("content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
-    expect(forwarded(a, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
-    // The header Next reads first must carry the nonce, whatever other policy header the request arrives with.
-    expect(forwarded(a, "content-security-policy")).toContain(`'nonce-${nonce}'`);
-    expect(a.headers.get("content-security-policy")).toBeNull();
+    expect(res.headers.get("content-security-policy-report-only")).toBeNull();
+    expect(res.headers.get("content-security-policy")).toBeNull();
+    expect(forwarded(res, "x-nonce")).toBeNull();
   });
 });

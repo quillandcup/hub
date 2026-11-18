@@ -1,23 +1,11 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
-import { CSP_HEADER, CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, scriptStyleCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {
-  // The script and style policy carries a fresh nonce per request. Next reads it from the request's policy header and puts
-  // it on its own scripts and styles; the same policy goes out on the response. Report-only until Sentry shows no
-  // violations (docs/TODO.md, "CSP for scripts and styles").
-  const nonce = generateNonce()
-  const policy = scriptStyleCsp({
-    nonce,
-    sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    dev: process.env.NODE_ENV === 'development',
-  })
-  // Next takes the nonce from the request's `content-security-policy` header before the report-only one. On Vercel that header
-  // can already hold the enforcing policy from next.config.ts (no script directive, so no nonce), and then no script got one
-  // (production reports, 2026-11-18). The request copy is only for Next to read; what the browser enforces is the response.
-  const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_HEADER]: policy, [CSP_REPORT_ONLY_HEADER]: policy })
-  response.headers.set(CSP_REPORT_ONLY_HEADER, policy)
-  return response
+  // The script and style policy (scriptStyleCsp in lib/csp.ts, with a per-request nonce) is built and tested but not sent:
+  // on Vercel Next's own scripts did not get the nonce, so every script was reported (docs/TODO.md, "CSP for scripts and
+  // styles"). The root layout still passes a nonce to our inline scripts when this proxy hands one over (NONCE_HEADER).
+  return await updateSession(request)
 }
 export const config = {
   matcher: [
