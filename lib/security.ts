@@ -260,11 +260,10 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "A few actions that could be abused, such as comments, signing in through chat and the sign-up form on a landing page, are rate limited.",
         staff: {
           how: "Fixed-window counters in the database (rate_limit_hit), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens. Sign-in emails are limited by the provider: one per address per minute and 150 an hour for the whole project in production (supabase/config.toml, pushed by CI). No CAPTCHA is configured, which is acceptable while sign-ups are off; the hourly cap is shared, so a flood of sign-in requests could delay everyone's email for up to an hour.",
-          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "supabase/config.toml", "docs/THREAT_MODEL.md"],
+          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "supabase/config.toml", "docs/THREAT_MODEL.md", "tests/lib/api-route-auth.test.ts"],
           checked: "2026-11-18",
           open: [
             "Not every public or member-callable route has a limit. Each route's exposure has not been reviewed; start from the list of routes that are public in lib/supabase/middleware.ts.",
-            "Every route under /api is public to the proxy and must check the caller itself; nothing fails a build when a new one forgets to. A test that lists each route with its credential would close that (docs/THREAT_MODEL.md, A01).",
           ],
         },
       },
