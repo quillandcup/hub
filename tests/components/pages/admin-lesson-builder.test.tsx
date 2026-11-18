@@ -415,8 +415,9 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail());
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1");
-    // The staff tools are items of the Video actions menu, not a card of their own.
+    // The staff tools are items of the Video actions menu, not a card of their own (and no empty "Staff tools" box is left on the page).
     expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
+    expect(screen.queryByText("Staff tools")).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
     expect(screen.getByRole("menuitem", { name: "Record my watching in this preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1?track=1");
     expect(screen.getByRole("menuitem", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
