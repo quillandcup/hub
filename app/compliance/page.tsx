@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { COMPLIANCE_EFFECTIVE, COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, type ComplianceStatus } from "@/lib/compliance";
-import { StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
+import { RichText, StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
   title: "Compliance",
@@ -45,11 +45,15 @@ export default async function CompliancePage() {
 
         {COMPLIANCE_GROUPS.map((group) => (
           <TrustSection key={group.id} id={group.id} title={group.title}>
-            <p className="text-sm">{group.intro}</p>
+            <p className="text-sm">
+              <RichText text={group.intro} />
+            </p>
             <ul className="space-y-3">
               {group.items.map((item) => (
                 <TrustCard key={item.name} title={item.name} status={item.status} about={item.about}>
-                  <p>{item.detail}</p>
+                  <p>
+                    <RichText text={item.detail} />
+                  </p>
                 </TrustCard>
               ))}
             </ul>
@@ -75,7 +79,9 @@ export default async function CompliancePage() {
               {COMPLIANCE_PROVIDERS.map((provider) => (
                 <tr key={provider.role} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{provider.role}</td>
-                  <td className="py-2">{provider.covers}</td>
+                  <td className="py-2">
+                    <RichText text={provider.covers} />
+                  </td>
                 </tr>
               ))}
             </tbody>

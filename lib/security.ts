@@ -16,7 +16,7 @@ import type { ComplianceStatus } from "@/lib/compliance";
  * documentation says "provider documentation".
  */
 
-export const SECURITY_EFFECTIVE = "2026-11-17";
+export const SECURITY_EFFECTIVE = "2026-11-18";
 
 export interface SecurityItem {
   id: string;
@@ -51,7 +51,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
     items: [
       {
         id: "in-transit",
-        title: "Encrypted in transit",
+        title: "Encrypted in transit: your browser to the Hub",
         status: "inPlace",
         member:
           "Everything between your browser and the Hub is encrypted with TLS 1.2 or 1.3, using ciphers that give forward secrecy. Browsers are told to use only HTTPS for the next two years, and a plain http address is redirected to https.",
@@ -70,9 +70,9 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
       },
       {
         id: "database-in-transit",
-        title: "The Hub talks to its database over HTTPS",
+        title: "Encrypted in transit: the Hub to its database",
         status: "inPlace",
-        member: "Every request from the Hub to its database service goes over HTTPS or a secure websocket, and the database refuses connections that are not encrypted.",
+        member: "Every connection between the Hub and its database is encrypted with TLS, and the database refuses connections that are not.",
         staff: {
           how: "The app reaches the database only through the provider's HTTPS API and secure websockets. The provider's switch that rejects non-SSL connections to the database is on (read from the provider's API on 2026-11-17, after it was switched on that day) and is declared in supabase/config.toml, so CI's config push keeps it on. Direct Postgres connections (migrations in CI, the CLI, tooling) therefore must use SSL.",
           evidence: [
@@ -85,7 +85,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
       },
       {
         id: "at-rest",
-        title: "Encrypted at rest",
+        title: "Encrypted at rest: what we store",
         status: "provider",
         member:
           "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and settings we give our hosting provider are encrypted at rest too.",
@@ -184,13 +184,12 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "The keys that let the Hub's server reach its services are kept out of the code and encrypted at rest, and there is a written procedure for replacing them after any exposure.",
         staff: {
-          how: "Every variable is declared once with whether it is a secret and where it is synced; values live in git-ignored env files and are synced to the hosting provider's encrypted store, to GitHub's secrets or to the Vault. Single-use sign-in tokens are stored as hashes. Members' sessions are short-lived (see \"Signing in and sessions\"), but the server's database key (the service role) and the CI database password are long-lived: they do not expire or rotate on their own and change only when someone follows the rotation runbook.",
-          evidence: ["env-vars.config.ts", "docs/SECRET_ROTATION.md", "docs/ENV_MANAGEMENT.md", "docs/TODO.md (Secrets at Rest)"],
-          checked: "2026-11-17",
+          how: "Every variable is declared once with whether it is a secret and where it is synced; values live in git-ignored env files and are synced to the hosting provider's encrypted store, to GitHub's secrets or to the Vault. GitHub secret scanning and push protection are both on for the repository (read from GitHub's API on 2026-11-18; the extra generic-pattern and validity checks are off), so a key committed by mistake is flagged and a push that contains a known kind of one is blocked. Single-use sign-in tokens are stored as hashes. Members' sessions are short-lived (see \"Signing in and sessions\"), but the server's database key (the service role) and the CI database password are long-lived: they do not expire or rotate on their own and change only when someone follows the rotation runbook.",
+          evidence: ["env-vars.config.ts", "docs/SECRET_ROTATION.md", "docs/ENV_MANAGEMENT.md", "docs/TODO.md (Secrets at Rest)", "live check, 2026-11-18: the repository's security settings from GitHub's API"],
+          checked: "2026-11-18",
           open: [
             "The service-role key and the CI database password rotate only by hand: no schedule and no automatic rotation. Decide an interval (the runbook has the steps) and whether to move to keys the provider can rotate without downtime.",
             "The calendar feed link is a bearer token stored as a plain value, readable by its owner and, through row-level security, by admins. It is read-only, scoped to one member and can be replaced, so the risk is low. Options are in docs/TODO.md, Secrets at Rest.",
-            "Whether GitHub secret scanning and push protection are on for the repository has not been checked.",
           ],
         },
       },

@@ -10,6 +10,7 @@ const requireAdminPage = vi.fn<() => Promise<unknown>>();
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 
 import AdminCompliancePage from "@/app/(admin)/admin/compliance/page";
+import { containsText } from "@/tests/helpers/contains-text";
 
 const ITEMS = COMPLIANCE_GROUPS.flatMap((g) => g.items);
 
@@ -44,10 +45,10 @@ describe("/admin/compliance (staff)", () => {
       const card = document.getElementById(complianceItemId(item.name)) as HTMLElement;
       expect(card).not.toBeNull();
       expect(within(card).getByText(COMPLIANCE_STATUSES[item.status])).toBeInTheDocument();
-      expect(within(card).getByText(item.detail)).toBeInTheDocument();
+      expect(within(card).getByText(containsText(item.detail))).toBeInTheDocument();
       for (const where of item.evidence) expect(within(card).getByText(where)).toBeInTheDocument();
       expect(within(card).getByText(item.checked)).toBeInTheDocument();
-      for (const text of item.open) expect(within(card).getByText(text)).toBeInTheDocument();
+      for (const text of item.open) expect(within(card).getByText(containsText(text))).toBeInTheDocument();
     }
   });
 
