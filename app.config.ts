@@ -15,9 +15,12 @@ export const appConfig = {
 
   /**
    * The issuer on the two-step sign-in QR code: authenticator apps show it beside the account, and Authy searches
-   * Google Images for a logo from it (components/mfa/MfaPanel.tsx).
+   * Google Images for a logo from it (components/mfa/MfaPanel.tsx). The bare domain brings up our own logo, though a
+   * blurry copy (tried in Authy: "Hedgie Hub" gave LEGO, "Quill & Cup Hedgie Hub" a stock hedgehog, "Quill & Cup" a
+   * small wordmark). A sharper result needs Google to rank a better copy of the logo: docs/TODO.md, "Sharper logo in
+   * authenticator apps". Re-test before changing it.
    */
-  mfaIssuer: "Quill & Cup Hedgie Hub",
+  mfaIssuer: "quillandcup.com",
 
   /**
    * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
