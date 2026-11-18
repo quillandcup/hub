@@ -84,7 +84,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@googleapis/calendar": "^20.2.0",
-    "@mux/ts": "^15.6.1",
+    "@mux/ts": "^16.2.0",
     "@mux/upchunk": "^3.5.0",
     "@next/third-parties": "16.4.6",
     "@puckeditor/core": "^0.24.0",
