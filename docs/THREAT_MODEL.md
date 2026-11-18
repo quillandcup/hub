@@ -1,0 +1,72 @@
+# Threat model and OWASP Top 10 review
+
+Done 2026-11-17 for the "Threat review" item of the [Supabase production security checklist](https://supabase.com/docs/guides/security/production-checklist) (`docs/SUPABASE_SECURITY_CHECKLIST.md`). It is a review of the code and configuration in this repository, not a penetration test: nothing was attacked, and production was only read. Where a line says "checked" it names what was read; where it says "not checked" nobody has looked yet. Findings that need work are in `docs/TODO.md`, "Threat model follow-ups".
+
+Public repo: no names, emails or ids here (`.claude/rules/public-repo-hygiene.md`).
+
+## What we protect
+
+| Asset | Why it matters |
+|---|---|
+| Members' writing (projects, goals, progress, books) | The thing members care about most. Only they, and staff acting through the audited paths, should read it. |
+| Member personal data (names, emails, billing status, attendance, Slack content) | Personal data; Slack content is service-role only (`.claude/rules/data-architecture.md`). |
+| Staff powers (admin pages, sudo "view as member", imports, flags) | Whoever holds them can read or change anything. |
+| Service credentials (Supabase service role, Stripe, Slack, Zoom, Kajabi, Resend, Mux, Google) | Each one is a way around row-level security or into a provider account. Rotation: `docs/SECRET_ROTATION.md`. |
+| Availability of sign-in and the live prickle pages | Members arrive at the same few minutes. |
+
+## Who might attack, and what they have
+
+| Actor | Starting point |
+|---|---|
+| Anonymous visitor | The public site, `/login`, landing pages, and every `/api/*` route (the proxy treats all of `/api/` as public; each route must authenticate itself). |
+| Signed-in member | A valid session. Wants another member's data, staff powers, or to spam others. |
+| Someone who gets hold of a member's link | A magic link, a calendar feed URL, an unsubscribe link, a forwarded email. |
+| A compromised account (member, staff, or a Supabase or GitHub account) | The largest blast radius; see A07 and the account items in `docs/SUPABASE_SECURITY_CHECKLIST.md`. |
+| A compromised or malicious provider or dependency | Webhook senders, npm packages, GitHub Actions. |
+
+## Entry points and how each is guarded
+
+| Entry point | Guard | Checked |
+|---|---|---|
+| Member and admin pages | The proxy redirects signed-out visitors to `/login`; `/admin` paths are checked in the proxy and again by `requireAdminPage()` / `requireAdminAction()` (`.claude/rules/admin-route-protection.md`). | Proxy read. |
+| Member data in pages | RLS on every public and bronze table (0 without it, prod); member pages read through `getEffectiveIdentity`. | Prod query. |
+| Provider webhooks (Slack, Zoom, Mux, Resend, Google Calendar) | Signature or shared-token check; a deployed build rejects every request while the secret is unset (`lib/webhook-auth.ts`, constant-time compare). | Each handler contains a verification step; Calendar, Mux and the Zoom/Slack/Resend paths were read only as far as that. |
+| Cron and internal routes (`/api/internal/*`) | `Authorization: Bearer` with `CRON_INTERNAL_SECRET`, refused when unset. | One route read (`member-reminders`); the other three not opened. |
+| Public routes with their own credential | Calendar feed (secret token in the URL, looked up server-side, 404 when unknown); unsubscribe (signed token, POST only so scanners cannot unsubscribe anyone); landing opt-in (hidden honeypot field, two rate-limit buckets, the form is looked up in the published page, so it cannot post to a form the page does not show); `media/[id]/[preset]` and course images (private bucket, served only to the caller RLS allows, or to anyone only for assets marked public). | Read. |
+| Member-callable API routes | `getCurrentUser()` / `getCoursesCaller()`, then checks for the specific object (course access, message readable); several have rate limits (`lib/rate-limit.ts`). | Sampled: `courses/watch`, `courses/playback-tokens`, `chat/*`, `track/events`, `client-errors`. |
+| Server fetches of addresses people choose (chat link previews, pictures, book covers) | `lib/net/safe-fetch.ts`: http(s) only, ports 80/443, every resolved address must be public, connection pinned to the checked address, redirects followed by hand and re-checked, size and time caps. | Read the design; tests exist. Every caller using it was not enumerated. |
+| Rich text shown as HTML (lesson bodies, landing blocks) | Three `dangerouslySetInnerHTML` sites; content goes through `sanitize-html` (`lib/courses/sanitize.ts`, `lib/landing/sanitize.ts`). | Sanitizer files exist and are imported; allow-lists not reviewed line by line. |
+| Browser protections | CSP (report-only for scripts and styles, with a per-request nonce), and the other headers in `SECURITY_HEADERS` (`next.config.ts`, `lib/csp.ts`). | Config read. |
+| Sessions | Supabase cookies, `SameSite=Lax`, `Secure` in deployed builds, exact host only. Not HttpOnly (the browser client reads the session for chat and uploads), so an injected script could read it; see `lib/security.ts` and `docs/TODO.md`, "Make the sign-in cookies HttpOnly". | Read. |
+
+## OWASP Top 10 (2021 list)
+
+Status: **Covered**, **Partial**, **Gap**, **Not checked**.
+
+| # | Category | Status | Evidence, and what is missing |
+|---|---|---|---|
+| A01 | Broken access control | Partial | Strong base: RLS on every table today (no automated check that a new table has it; `lib/security.ts` says so), admin checks in the proxy and in each page and action, ids are unguessable short ids (`.claude/rules/resource-ids.md`), every `/api` route checks for itself. The open risk is that the last part is a convention, not a mechanism: `/api/` is public in the proxy, so one new route that forgets to authenticate is open. No test lists every route and its credential. Service-role clients are used in 13 files (RLS does not protect those; each must check the caller first). Follow-up: a test that fails on a route with no recognised auth step. |
+| A02 | Cryptographic failures | Covered | TLS to the app and SSL enforced on the database (prod). Secrets in env vars and the Supabase vault; stored provider tokens are encrypted (`docs/TODO.md`, "Secrets at Rest" for what remains). Webhook and token comparisons are constant-time. Member-facing wording is in `lib/security.ts`. |
+| A03 | Injection | Covered, with one check outstanding | All queries go through PostgREST and the repositories (no string-built SQL in app code was found by the data-access guard test). Stored HTML is sanitised before it is rendered. Not checked: the allow-lists in the two sanitizers, and `SECURITY DEFINER` SQL functions that build dynamic SQL (the advisor lists 51 definer functions executable by signed-in users, `docs/TODO.md`, "Supabase Security Advisories"). |
+| A04 | Insecure design | Partial | Good patterns: soft deletes, sudo is audited, accept-to-transfer hand-overs, one notifier for anything sent to members. Missing: this document is the first written threat model; abuse cases beyond the rate-limited routes (below) were not enumerated. |
+| A05 | Security misconfiguration | Partial | Sign-ups off, email confirmations on, custom SMTP, RLS on, SSL enforced. Deviations are recorded in `docs/SUPABASE_SECURITY_CHECKLIST.md` (24 h link expiry, open network restrictions, Realtime without Broadcast authorisation). CSP for scripts and styles is report-only, so it blocks nothing yet (`docs/TODO.md`, "CSP for scripts and styles"). One finding fixed with this review: the Google Calendar webhook wrote its secret channel token to the logs on every call; it now logs only whether one was sent. Anyone who had log access could have replayed it; rotate `GOOGLE_CALENDAR_WEBHOOK_TOKEN` per `docs/SECRET_ROTATION.md` (the owner's call, since it re-creates the watch channel). |
+| A06 | Vulnerable and outdated components | Covered | Dependabot weekly for npm and GitHub Actions, auto-merge for minor and patch only, CodeQL on pull requests, secret scanning (`lib/security.ts`). Not checked: whether `pnpm audit` is part of CI. |
+| A07 | Identification and authentication failures | Gap | Invite only, magic link or code, per-address email limit, 150 sign-in emails an hour. Gaps: links stay valid 24 hours; no CAPTCHA (low risk with sign-ups off); TOTP is on in prod but the Hub has no screen to enrol in or require it, so staff accounts are not required to use it; two-factor sign-in on the team's database, hosting and code provider accounts, and a second owner, are not in place (confirmed by the owner). A takeover of one of those accounts is the highest-impact risk in this document. Tracked in `docs/TODO.md`. |
+| A08 | Software and data integrity failures | Covered | One CI pipeline deploys; Vercel's own git deploys are off for `main`; `main` is protected and needs checks; migrations are pushed by CI before the deploy. Webhook payloads are verified before use. Not checked: third-party scripts loaded in the browser (the CSP report-only data will show them). |
+| A09 | Security logging and monitoring failures | Partial | Sentry for errors, an audit log and Activity Log for staff actions and sudo, operations alerts to Slack, Checkly monitors. Gaps: no alert on repeated failed webhook verification or on a burst of sign-in emails; the secret-in-logs bug above shows that log content was never reviewed. Follow-up: scan the code for logged tokens (this pass looked at the webhooks only). |
+| A10 | Server-side request forgery | Covered | `lib/net/safe-fetch.ts` (above) and `docs/OUTBOUND_REQUESTS.md`. Not checked: that every place that fetches a user-chosen URL uses it; a guard test like the one for the User-Agent header would pin that. |
+
+## Abuse cases worth planning for
+
+| Abuse | Today | Gap |
+|---|---|---|
+| Someone floods sign-in emails for a member's address | 60 s per-address limit, 150/hour overall. | The overall cap is shared: a flood from one source can block everyone else's sign-in for an hour. Monitor; CAPTCHA if it happens. |
+| A member scrapes other members' data | RLS limits what a session can read. | No per-user rate limit on read routes in general; the `lib/security.ts` item "Limits on abuse" already says not every route was reviewed. |
+| A member uses chat to reach internal addresses | `safe-fetch`. | Enumerating callers (A10). |
+| A staff account is taken over | Admin checks, audit log. | No MFA requirement for staff and none confirmed on the provider accounts; sudo and imports are powerful. The highest-impact item here. |
+| A leaked calendar feed or unsubscribe URL | Feed token can be replaced with "Generate new link"; unsubscribe can only turn emails off. | Feed URLs can end up in logs of calendar apps and proxies; acceptable, since the feed carries only that member's schedule (confirm what it includes). |
+| A provider webhook is forged | Verified, secrets required in production. | Secrets must not appear in logs (found and fixed once). |
+
+## Review again when
+
+A new public route, webhook or provider is added; sign-ups open; a staff capability is added (imports, sudo, flags); a new place renders stored HTML or fetches a user-chosen URL; or after any security incident.
