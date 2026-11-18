@@ -44,16 +44,34 @@ describe("sentryReportUri", () => {
 });
 
 describe("next.config headers", () => {
-  it("sends the enforcing policy and the other browser protections on every path, and no Report-Only policy", async () => {
-    const config = (await import("../../next.config")).default as { headers?: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
-    const rules = await config.headers!();
-    expect(rules).toHaveLength(1);
-    expect(rules[0].source).toBe("/:path*");
-    const keys = rules[0].headers.map((h) => h.key);
-    expect(keys).toEqual([CSP_HEADER, ...SECURITY_HEADERS.map((h) => h.key)]);
-    expect(keys).not.toContain("Content-Security-Policy-Report-Only");
-    const value = rules[0].headers[0].value;
+  type Rule = { source: string; headers: { key: string; value: string }[] };
+  const rules = async () => {
+    const config = (await import("../../next.config")).default as { headers?: () => Promise<Rule[]> };
+    return config.headers!();
+  };
+
+  it("sends the other browser protections on every path, and no Report-Only policy", async () => {
+    const all = (await rules()).find((r) => r.source === "/:path*")!;
+    expect(all.headers.map((h) => h.key)).toEqual(SECURITY_HEADERS.map((h) => h.key));
+    for (const r of await rules()) expect(r.headers.map((h) => h.key)).not.toContain("Content-Security-Policy-Report-Only");
+  });
+
+  it("sends the enforcing policy only for paths the proxy skips, which send it themselves", async () => {
+    const withCsp = (await rules()).filter((r) => r.headers.some((h) => h.key === CSP_HEADER));
+    expect(withCsp.length).toBeGreaterThan(0);
+    expect(withCsp.map((r) => r.source)).not.toContain("/:path*");
+    const value = withCsp[0].headers.find((h) => h.key === CSP_HEADER)!.value;
     for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'"]) expect(value).toContain(part);
+  });
+
+  it("covers each prefix the proxy matcher excludes", async () => {
+    const sources = (await rules()).map((r) => r.source).join(" ");
+    const { config } = await import("../../proxy");
+    const excluded = (config.matcher[0].match(/\(\?!([^)]*)\)/)?.[1] ?? "").split("|");
+    for (const prefix of ["_next/static", "_next/image", "favicon.ico", "monitoring"]) {
+      expect(excluded.some((e) => e.startsWith(prefix))).toBe(true);
+      expect(sources).toContain(prefix);
+    }
   });
 
   it("sets nosniff, a referrer policy, same-origin framing and no camera, microphone or location", () => {

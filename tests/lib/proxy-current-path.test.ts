@@ -81,14 +81,16 @@ describe("the current address handed to Server Components", () => {
   });
 });
 
-describe("the script and style policy (diagnostic while paused)", () => {
-  it("gives Next a nonce policy on the request and sends nothing to the browser", async () => {
+describe("the script and style policy (experiment while paused)", () => {
+  it("gives Next the nonce policy as the request's report-only header and sends only the enforcing policy to the browser", async () => {
     const res = await proxy(new NextRequest("http://localhost:3000/dashboard"));
     const nonce = forwarded(res, "x-nonce");
 
     expect(nonce).toBeTruthy();
-    expect(forwarded(res, "content-security-policy")).toContain(`'nonce-${nonce}'`);
+    expect(forwarded(res, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
+    expect(forwarded(res, "content-security-policy")).toBeNull();
+    expect(res.headers.get("content-security-policy")).toContain("img-src ");
+    expect(res.headers.get("content-security-policy")).not.toContain("script-src");
     expect(res.headers.get("content-security-policy-report-only")).toBeNull();
-    expect(res.headers.get("content-security-policy")).toBeNull();
   });
 });
