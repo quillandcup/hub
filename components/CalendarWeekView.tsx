@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { computeOverlapLayout } from "@/lib/calendar-overlap";
 import { ORG_TIMEZONE } from "@/lib/config";
+import Tooltip from "@/components/Tooltip";
 
 export interface Prickle {
   id: string;
@@ -364,18 +365,18 @@ export default function CalendarWeekView({
                         {proposedSlotsByDay[dayIndex].map(slot => {
                           const { top, height } = getPricklePosition(slot.startTime, slot.endTime, timezone);
                           return (
-                            <div
-                              key={slot.id}
-                              title={`${slot.label} (${slot.status})`}
-                              className={`absolute left-1 right-1 rounded border-2 border-dashed p-1 overflow-hidden text-xs ${
-                                slot.status === "confirmed"
-                                  ? "border-mist-400 bg-mist-50/70 text-mist-700 dark:border-mist-600 dark:bg-mist-950/40 dark:text-mist-300"
-                                  : "border-amber-400 bg-amber-50/70 text-amber-700 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
-                              }`}
-                              style={{ top: `${top}px`, height: `${height}px` }}
-                            >
-                              <div className="font-semibold truncate">{slot.label}</div>
-                            </div>
+                            <Tooltip key={slot.id} content={`${slot.label} (${slot.status})`}>
+                              <div
+                                className={`absolute left-1 right-1 rounded border-2 border-dashed p-1 overflow-hidden text-xs ${
+                                  slot.status === "confirmed"
+                                    ? "border-mist-400 bg-mist-50/70 text-mist-700 dark:border-mist-600 dark:bg-mist-950/40 dark:text-mist-300"
+                                    : "border-amber-400 bg-amber-50/70 text-amber-700 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
+                                }`}
+                                style={{ top: `${top}px`, height: `${height}px` }}
+                              >
+                                <div className="font-semibold truncate">{slot.label}</div>
+                              </div>
+                            </Tooltip>
                           );
                         })}
                       </div>
@@ -448,7 +449,9 @@ export default function CalendarWeekView({
                               <div className="text-xs font-semibold truncate">
                                 {prickle.prickle_type}
                                 {mode !== "member" && (prickle.host_missing || prickle.host_late) && " ⚠️"}
-                                {prickle.in_events === "shown" && <span title="In Events"> ★</span>}
+                                {prickle.in_events === "shown" && <Tooltip content="In Events">
+                                  <span> ★</span>
+                                </Tooltip>}
                               </div>
                               <div className="text-[10px] @pair:text-xs truncate">
                                 <span className="@pair:hidden">{compactStartTime}</span>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { OccurrenceStatus, ProgressCounts } from "@/lib/commitments";
 import { cancelCommitment, type MyCommitment } from "./commitment-actions";
+import Tooltip from "@/components/Tooltip";
 
 // Commitments are made from All Prickles (pick slots from the table/calendar, then choose weeks;
 // see CommitPanel). This tab lists them with progress, and lets members cancel active ones.
@@ -41,7 +42,9 @@ function OccurrenceDots({ commitment, slotIndex }: { commitment: MyCommitment; s
       {occurrences.map((o) => {
         const style = OCCURRENCE_STYLES[o.status];
         const text = `${formatDate(o.date)}: ${style.label}`;
-        return <li key={o.date} title={text} aria-label={text} className={`h-3 w-3 rounded-full ${style.className}`} />;
+        return <Tooltip key={o.date} content={text}>
+          <li aria-label={text} className={`h-3 w-3 rounded-full ${style.className}`} />
+        </Tooltip>;
       })}
     </ul>
   );
@@ -80,9 +83,11 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
             {commitment.slots.map((slot, i) => (
               <div key={`${slot.dayOfWeek}-${slot.startTimeLocal}-${slot.typeId}`} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {multi && (
-                  <span className="text-xs text-slate-600 dark:text-slate-400 w-64 max-w-full" title={slot.label}>
-                    {slot.label.split(" · ").slice(1).join(" · ")}
-                  </span>
+                  <Tooltip content={slot.label}>
+                    <span className="text-xs text-slate-600 dark:text-slate-400 w-64 max-w-full">
+                      {slot.label.split(" · ").slice(1).join(" · ")}
+                    </span>
+                  </Tooltip>
                 )}
                 <OccurrenceDots commitment={commitment} slotIndex={i} />
                 {multi && (

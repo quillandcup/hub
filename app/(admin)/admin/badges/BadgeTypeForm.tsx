@@ -328,15 +328,16 @@ export default function BadgeTypeForm({
                 }}
                 onDrop={(e) => e.preventDefault()}
               >
-                <span
-                  draggable
-                  onDragStart={() => setDragKey(level.key)}
-                  onDragEnd={() => setDragKey(null)}
-                  className="text-slate-500 dark:text-slate-400 cursor-grab active:cursor-grabbing select-none px-1"
-                  title="Drag to reorder"
-                >
-                  ⠿
-                </span>
+                <Tooltip content="Drag to reorder">
+                  <span
+                    draggable
+                    onDragStart={() => setDragKey(level.key)}
+                    onDragEnd={() => setDragKey(null)}
+                    className="text-slate-500 dark:text-slate-400 cursor-grab active:cursor-grabbing select-none px-1"
+                  >
+                    ⠿
+                  </span>
+                </Tooltip>
                 <span className="text-xs text-slate-600 dark:text-slate-400 w-6">#{level.level}</span>
                 <input
                   type="text"

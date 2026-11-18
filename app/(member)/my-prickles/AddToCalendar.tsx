@@ -100,9 +100,11 @@ export function AddPrickleToCalendar({
   if (autoIncluded) {
     const label = AUTO_LABEL[autoIncluded];
     return variant === "icon" ? (
-      <span title={label} aria-label={label} role="img" className="inline-flex p-1 text-emerald-600 dark:text-emerald-400">
-        <CalendarGlyph added />
-      </span>
+      <Tooltip content={label}>
+        <span aria-label={label} role="img" className="inline-flex p-1 text-emerald-600 dark:text-emerald-400">
+          <CalendarGlyph added />
+        </span>
+      </Tooltip>
     ) : (
       <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
         <CalendarGlyph added /> {label}

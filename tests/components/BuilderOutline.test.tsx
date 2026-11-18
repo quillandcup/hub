@@ -17,6 +17,7 @@ vi.mock("@/app/(admin)/admin/courses/outline-actions", () => ({
 
 import BuilderOutline, { type OutlineCourse } from "@/app/(admin)/admin/courses/BuilderOutline";
 import { explainCourse } from "@/lib/courses/explain";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const explained = explainCourse(
   [
@@ -144,7 +145,8 @@ describe("BuilderOutline", () => {
     expect(within(draftLesson).getByRole("option", { name: "Draft" })).not.toHaveAttribute("disabled");
     // What isn't offered yet is marked, with the reason as a tooltip rather than option text.
     expect(within(draftLesson).getByRole("option", { name: "Schedule" })).toHaveAttribute("disabled");
-    expect(within(draftLesson).getByRole("option", { name: "Schedule" })).toHaveAttribute("title", expect.stringMatching(/date or a delay/));
+    // An <option> can't carry a tooltip; the select's own hint says why (here: not editable yet).
+    expect(tooltipText(draftLesson)).toBeTruthy();
 
     // Under a locked module, Publish is fine too.
     expect(within(screen.getByRole("combobox", { name: "Status of Reader expectations" })).getByRole("option", { name: "Published" })).not.toHaveAttribute("disabled");

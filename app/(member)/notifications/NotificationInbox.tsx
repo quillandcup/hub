@@ -23,6 +23,7 @@ import {
   type InboxSortColumn,
 } from "@/lib/notifications/inbox";
 import type { InAppNotification, InboxPage } from "@/lib/channels/in-app";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The inbox table in server mode: `inbox` is the one page the server filtered, sorted and ranged;
@@ -263,13 +264,14 @@ export default function NotificationInbox({
                       {notificationKindLabel(n.kind)}
                     </td>
                     <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
-                      <time
-                        dateTime={n.createdAt}
-                        title={new Date(n.createdAt).toLocaleString()}
-                        suppressHydrationWarning
-                      >
-                        {formatRelativeTime(n.createdAt, timeZone)}
-                      </time>
+                      <Tooltip content={new Date(n.createdAt).toLocaleString()}>
+                        <time
+                          dateTime={n.createdAt}
+                          suppressHydrationWarning
+                        >
+                          {formatRelativeTime(n.createdAt, timeZone)}
+                        </time>
+                      </Tooltip>
                     </td>
                   </tr>
                 ))

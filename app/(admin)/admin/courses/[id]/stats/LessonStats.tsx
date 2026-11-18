@@ -11,6 +11,7 @@ import ViewerList from "./ViewerList";
 import TimeSeriesSection from "./TimeSeriesSection";
 import StatsModal from "./StatsModal";
 import StatsTabs from "./StatsTabs";
+import Tooltip from "@/components/Tooltip";
 
 const PAGE_SIZE = 20;
 const MAX_LIMIT = 1000;
@@ -58,12 +59,14 @@ function Tile({ label, value, definition, hint }: TileData) {
 /** The modal's tile: a small number with its meaning on hover (and for a screen reader), so nothing expands and shifts the page. */
 function CompactTile({ label, value, definition, compactHint }: TileData) {
   return (
-    <div title={definition} className="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-800">
-      <p className="truncate text-xs text-slate-600 dark:text-slate-400">{label}</p>
-      <p className="text-lg font-semibold leading-tight tabular-nums">{value}</p>
-      {compactHint && <p className="truncate text-xs text-slate-600 dark:text-slate-400">{compactHint}</p>}
-      <p className="sr-only">{definition}</p>
-    </div>
+    <Tooltip content={definition}>
+      <div className="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-800">
+        <p className="truncate text-xs text-slate-600 dark:text-slate-400">{label}</p>
+        <p className="text-lg font-semibold leading-tight tabular-nums">{value}</p>
+        {compactHint && <p className="truncate text-xs text-slate-600 dark:text-slate-400">{compactHint}</p>}
+        <p className="sr-only">{definition}</p>
+      </div>
+    </Tooltip>
   );
 }
 
@@ -128,11 +131,13 @@ function ChatWatched({ chat }: { chat: NonNullable<LessonWatchStats["chat"]> }) 
       <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Counted separately from the lesson: none of the numbers above include these.</p>
       <dl className="grid grid-cols-2 gap-3">
         {items.map((i) => (
-          <div key={i.label} title={i.note} className="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-800">
-            <dt className="text-xs text-slate-600 dark:text-slate-400">{i.label}</dt>
-            <dd className="text-lg font-semibold leading-tight tabular-nums">{i.value}</dd>
-            <dd className="sr-only">{i.note}</dd>
-          </div>
+          <Tooltip key={i.label} content={i.note}>
+            <div className="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-800">
+              <dt className="text-xs text-slate-600 dark:text-slate-400">{i.label}</dt>
+              <dd className="text-lg font-semibold leading-tight tabular-nums">{i.value}</dd>
+              <dd className="sr-only">{i.note}</dd>
+            </div>
+          </Tooltip>
         ))}
       </dl>
     </section>

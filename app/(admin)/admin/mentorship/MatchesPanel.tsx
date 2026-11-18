@@ -189,9 +189,11 @@ export default function MatchesPanel({
                       : "border-slate-200 dark:border-slate-700"
                   }`}
                 >
-                  <span className="font-medium text-slate-900 dark:text-slate-100" title={a.memberRealName}>
-                    {a.memberName}
-                  </span>
+                  <Tooltip content={a.memberRealName}>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {a.memberName}
+                    </span>
+                  </Tooltip>
                   <span className="block text-xs text-slate-600 dark:text-slate-400">
                     {a.kind === "program" && a.programName ? a.programName : KIND_LABEL[a.kind]} · {formatDay(a.arrivedOn)}
                   </span>
@@ -312,13 +314,14 @@ export default function MatchesPanel({
                     {row.status === "reassigned" ? (
                       <span className="text-xs text-slate-600 dark:text-slate-400">Reassigned</span>
                     ) : (
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLE[row.outcome]}`}
-                        title={row.convertedOn ? `Membership began ${formatDay(row.convertedOn)}` : undefined}
-                      >
-                        {OUTCOME_LABEL[row.outcome]}
-                        {row.outcome === "converted" && row.currentMember ? " · current member" : ""}
-                      </span>
+                      <Tooltip content={row.convertedOn ? `Membership began ${formatDay(row.convertedOn)}` : undefined}>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLE[row.outcome]}`}
+                        >
+                          {OUTCOME_LABEL[row.outcome]}
+                          {row.outcome === "converted" && row.currentMember ? " · current member" : ""}
+                        </span>
+                      </Tooltip>
                     )}
                   </td>
                   <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400 min-w-[16rem]">

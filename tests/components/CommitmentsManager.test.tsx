@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import CommitmentsManager from "@/app/(member)/my-prickles/CommitmentsManager";
 import { cancelCommitment, type MyCommitment } from "@/app/(member)/my-prickles/commitment-actions";
 import type { CommitmentOccurrence, OccurrenceStatus, ProgressCounts } from "@/lib/commitments";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 // The Commitments tab lists commitments (made from All Prickles) with progress, and cancels them.
 
@@ -143,7 +144,7 @@ describe("CommitmentsManager", () => {
     render(<CommitmentsManager commitments={[commitment]} />);
 
     const slotLabel = screen.getByText("every Monday · 5 AM EDT (2:00 AM PT)");
-    expect(slotLabel).toHaveAttribute("title", label);
+    expect(tooltipText(slotLabel)).toBe(label);
     expect(slotLabel).not.toHaveClass("truncate");
     expect(screen.getByText(commitment.title)).toHaveClass("break-words");
   });

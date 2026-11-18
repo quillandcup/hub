@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { computeCumulativeSeries, entriesAsDeltas, MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
 import type { EntryRow } from "@/app/(member)/projects/actions";
+import HintTip from "@/components/Tooltip";
 
 const HEATMAP_WEEKS = 12;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -123,11 +124,11 @@ export default function ProjectCharts({ entries, startingBalances = {} }: Projec
           {heatmapWeeks.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-1.5">
               {week.map((day) => (
-                <div
-                  key={day.date}
-                  title={`${day.date}: ${day.total.toLocaleString()} ${MEASURE_LABELS[activeMeasure].toLowerCase()}`}
-                  className={`w-5 h-5 rounded-sm ${heatmapColor(day.total, maxDayTotal)}`}
-                />
+                <HintTip key={day.date} content={`${day.date}: ${day.total.toLocaleString()} ${MEASURE_LABELS[activeMeasure].toLowerCase()}`}>
+                  <div
+                    className={`w-5 h-5 rounded-sm ${heatmapColor(day.total, maxDayTotal)}`}
+                  />
+                </HintTip>
               ))}
             </div>
           ))}

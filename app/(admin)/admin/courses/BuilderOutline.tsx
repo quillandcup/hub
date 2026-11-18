@@ -12,6 +12,7 @@ import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle
 import { moveBefore, moveToPosition, positionItems, positionsHeading } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
+import Tooltip from "@/components/Tooltip";
 
 /** What the outline needs of a course. For an imported course the ids are Kajabi's; for a Hub-owned one they are its own. */
 export interface OutlineCourse {
@@ -67,23 +68,26 @@ const useOutline = () => useContext(OutlineContext)!;
 function StatusPill({ title, option, kind, id }: { title: string; option: string | null; kind: ItemKind; id: string }) {
   const { soon, editor } = useOutline();
   const choices = statusChoices(option);
+  // An <option> can't carry a tooltip: the reasons a choice is blocked are the select's own hint.
+  const blockedReasons = choices.filter((c) => c.disabledReason).map((c) => `${c.action}: ${c.disabledReason}`).join(" ");
   return (
-    <select
-      aria-label={`Status of ${title}`}
-      disabled={!editor || editor.busy}
-      value={option ?? ""}
-      onChange={editor ? (e) => void editor.run(() => setCourseItemStatus(editor.courseId, kind, id, e.target.value)) : undefined}
-      title={editor ? undefined : soon}
-      className={`order-last min-h-10 shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold @split:order-none @split:min-h-0 disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
-    >
-      {!choices.some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
-      {choices.map((c) => (
-        // The reason a choice is blocked is the tooltip, not option text: a select is as wide as its longest option.
-        <option key={c.value} value={c.value} disabled={!!c.disabledReason} title={c.disabledReason}>
-          {c.value === option ? c.label : c.action}
-        </option>
-      ))}
-    </select>
+    <Tooltip content={editor ? blockedReasons || undefined : soon}>
+      <select
+        aria-label={`Status of ${title}`}
+        disabled={!editor || editor.busy}
+        value={option ?? ""}
+        onChange={editor ? (e) => void editor.run(() => setCourseItemStatus(editor.courseId, kind, id, e.target.value)) : undefined}
+        className={`order-last min-h-10 shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold @split:order-none @split:min-h-0 disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
+      >
+        {!choices.some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
+        {choices.map((c) => (
+          // The reason a choice is blocked is the select's tooltip, not option text: a select is as wide as its longest option.
+          <option key={c.value} value={c.value} disabled={!!c.disabledReason}>
+            {c.value === option ? c.label : c.action}
+          </option>
+        ))}
+      </select>
+    </Tooltip>
   );
 }
 
@@ -106,10 +110,12 @@ function Action({ label, icon, count, onClick, disabled }: { label: string; icon
   const { soon, editor } = useOutline();
   const working = !!onClick;
   return (
-    <button type="button" disabled={!working || disabled || editor?.busy} onClick={onClick} title={working ? label : `${label}. ${soon}`} aria-label={label} className={ACTION}>
-      <Icon name={icon} />
-      {count !== undefined && <span className="text-xs">{count}</span>}
-    </button>
+    <Tooltip content={working ? label : `${label}. ${soon}`}>
+      <button type="button" disabled={!working || disabled || editor?.busy} onClick={onClick} aria-label={label} className={ACTION}>
+        <Icon name={icon} />
+        {count !== undefined && <span className="text-xs">{count}</span>}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -182,27 +188,30 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
   const { editor, soon } = useOutline();
   if (!editor || !sibling) {
     return (
-      <span role="img" aria-label={label} title={soon} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
-        <Icon name="grip" />
-      </span>
+      <Tooltip content={soon}>
+        <span role="img" aria-label={label} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
+          <Icon name="grip" />
+        </span>
+      </Tooltip>
     );
   }
   return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      draggable
-      onDragStart={(e) => {
-        editor.drag.start({ kind: sibling.kind, parentId: sibling.parentId, id: sibling.id });
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", sibling.id); // Firefox won't start a drag without data
-      }}
-      onDragEnd={() => editor.drag.end()}
-      className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-    >
-      <Icon name="grip" />
-    </span>
+    <Tooltip content={label}>
+      <span
+        role="img"
+        aria-label={label}
+        draggable
+        onDragStart={(e) => {
+          editor.drag.start({ kind: sibling.kind, parentId: sibling.parentId, id: sibling.id });
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", sibling.id); // Firefox won't start a drag without data
+        }}
+        onDragEnd={() => editor.drag.end()}
+        className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        <Icon name="grip" />
+      </span>
+    </Tooltip>
   );
 }
 
@@ -322,7 +331,9 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       ) : (
         <span className="min-w-0 flex-1 basis-32">
           {!builder ? (
-            <span className={`${TITLE} font-medium`} title={lesson.title}>{lesson.title}</span>
+            <Tooltip content={lesson.title}>
+              <span className={`${TITLE} font-medium`}>{lesson.title}</span>
+            </Tooltip>
           ) : (
             // Double-clicking the title renames it in place (the same as Rename lesson); a single click opens the lesson.
             <Link href={builder} title={lesson.title} onDoubleClick={editor ? (e) => { e.preventDefault(); setRenaming(true); } : undefined} className={`${TITLE} font-medium hover:underline`}>
@@ -408,24 +419,27 @@ function ModuleRow({
           <NameField label={`${submodule ? "Submodule" : "Module"} name`} initial={mod.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "module", mod.kajabiId, title))} onCancel={() => setRenaming(false)} />
         ) : (
           <span className="min-w-0 flex-1 basis-32">
-            <span className={`${TITLE} font-medium`} title={mod.title}>{mod.title}</span>
+            <Tooltip content={mod.title}>
+              <span className={`${TITLE} font-medium`}>{mod.title}</span>
+            </Tooltip>
             {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
           </span>
         )}
         <RowActions name={mod.title} actions={actions} sibling={sibling} />
         <span className="relative hidden @split:block">
-          <button
-            type="button"
-            disabled={!editor || editor.busy}
-            title={editor ? undefined : SOON_IMPORTED}
-            aria-haspopup={editor ? "menu" : undefined}
-            aria-expanded={editor ? menu : undefined}
-            onClick={editor ? () => setMenu(!menu) : undefined}
-            className="flex items-center gap-1 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300"
-          >
-            <Icon name="plus" />
-            Add content
-          </button>
+          <Tooltip content={editor ? undefined : SOON_IMPORTED}>
+            <button
+              type="button"
+              disabled={!editor || editor.busy}
+              aria-haspopup={editor ? "menu" : undefined}
+              aria-expanded={editor ? menu : undefined}
+              onClick={editor ? () => setMenu(!menu) : undefined}
+              className="flex items-center gap-1 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300"
+            >
+              <Icon name="plus" />
+              Add content
+            </button>
+          </Tooltip>
           {menu && editor && (
             <div role="menu" aria-label={`Add to ${mod.title}`} className="absolute right-0 z-dropdown mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900" onKeyDown={(e) => e.key === "Escape" && setMenu(false)}>
               <button type="button" role="menuitem" onClick={() => { setMenu(false); setOpen(true); setAdding("lesson"); }} className="block w-full px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -553,15 +567,16 @@ export default function BuilderOutline({ course }: { course: OutlineCourse }) {
             {course.modules.length} {course.modules.length === 1 ? "Module" : "Modules"}
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!editor || busy}
-              title={editor ? undefined : SOON_IMPORTED}
-              onClick={editor ? () => setAddingModule(true) : undefined}
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600"
-            >
-              Add module
-            </button>
+            <Tooltip content={editor ? undefined : SOON_IMPORTED}>
+              <button
+                type="button"
+                disabled={!editor || busy}
+                onClick={editor ? () => setAddingModule(true) : undefined}
+                className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600"
+              >
+                Add module
+              </button>
+            </Tooltip>
             <button
               type="button"
               onClick={() => setExpansion((e) => ({ open: !e.open, version: e.version + 1 }))}

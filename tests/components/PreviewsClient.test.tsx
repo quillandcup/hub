@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PreviewsClient from '@/app/(admin)/admin/previews/PreviewsClient'
+import { tooltipText } from '@/tests/helpers/tooltip'
 
 const FLAG = { key: 'events', name: 'Events', enabledGlobally: false, segments: [] }
 const user = (id: string, email: string, features: string[], memberName: string | null = null, memberDisplayName: string | null = null) => ({
@@ -74,6 +75,26 @@ describe('PreviewsClient per-person previews', () => {
   })
 })
 
+describe('PreviewsClient bulk invite', () => {
+  it('lists who was invited, skipped or failed, with the reason for a failure as a tooltip', async () => {
+    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response>
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/admin/segments/seg1') return json({ segment: { id: 'seg1', name: 'Spring' }, members: [{ id: 'm1', name: 'Ada Example', email: 'ada@example.test' }] })
+      if (url === '/api/admin/segments/seg1/invite') return json({ results: [{ email: 'ada@example.test', status: 'invited' }, { email: 'bea@example.test', status: 'failed', error: 'Mailbox full' }] })
+      return base(url, init)
+    })
+    vi.stubGlobal('confirm', () => true)
+    const u = userEvent.setup()
+    render(<PreviewsClient allMembers={[]} />)
+    await u.click(await screen.findByRole('button', { name: 'Manage' }))
+    await u.click(await screen.findByRole('button', { name: 'Bulk Invite' }))
+
+    expect(await screen.findByText('ada@example.test: invited')).toBeInTheDocument()
+    expect(tooltipText(screen.getByText('bea@example.test: failed'))).toBe('Mailbox full')
+    expect(tooltipText(screen.getByText('ada@example.test: invited'))).toBeNull()
+  })
+})
+
 describe('PreviewsClient sync from a course, program or event', () => {
   it('adds everyone with access to the chosen source to the segment', async () => {
     const u = userEvent.setup()
@@ -98,7 +119,7 @@ describe('PreviewsClient sync from a course, program or event', () => {
   }
 
   it('says so when the courses, programs and events cannot be loaded', async () => {
-    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response>
+    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response> as (url: string, init?: RequestInit) => Promise<Response>
     fetchMock.mockImplementation((url: string, init?: RequestInit) =>
       url === '/api/admin/segments/sources' ? json({ error: 'No sources today' }, false) : base(url, init)
     )
@@ -107,7 +128,7 @@ describe('PreviewsClient sync from a course, program or event', () => {
   })
 
   it('says so when the sync fails', async () => {
-    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response>
+    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response> as (url: string, init?: RequestInit) => Promise<Response>
     fetchMock.mockImplementation((url: string, init?: RequestInit) =>
       url === '/api/admin/segments/seg1/sync' ? json({ error: 'That course was not found' }, false) : base(url, init)
     )

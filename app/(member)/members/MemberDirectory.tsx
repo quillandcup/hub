@@ -77,13 +77,14 @@ export default function MemberDirectory({
                     <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(you)</span>
                   )}
                   {entry.myNote && (
-                    <span
-                      className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0"
-                      title="You have a private note about this member"
-                      aria-label="You have a private note about this member"
-                    >
-                      🔒 note
-                    </span>
+                    <Tooltip content="You have a private note about this member">
+                      <span
+                        className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0"
+                        aria-label="You have a private note about this member"
+                      >
+                        🔒 note
+                      </span>
+                    </Tooltip>
                   )}
                 </div>
 

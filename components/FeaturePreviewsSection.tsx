@@ -45,12 +45,13 @@ export function FeaturePreviewsSection({
 
   if (collapsed) {
     return (
-      <div
-        className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 flex justify-center"
-        title="Feature Previews"
-      >
-        <span className="text-lg">🧪</span>
-      </div>
+      <Tooltip content="Feature Previews">
+        <div
+          className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 flex justify-center"
+        >
+          <span className="text-lg">🧪</span>
+        </div>
+      </Tooltip>
     );
   }
 

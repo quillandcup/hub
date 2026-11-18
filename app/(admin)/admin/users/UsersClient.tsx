@@ -15,6 +15,7 @@ import { describeStoredDevice, type DeviceInfo } from "@/lib/device-label";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import Tooltip from "@/components/Tooltip";
 
 type Role = "admin" | "assistant" | "community_manager" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -600,12 +601,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           {user.email}
                           {isCurrentUser && <span className="ml-2 text-slate-500 dark:text-slate-400">(you)</span>}
                           {user.bannedUntil && (
-                            <span
-                              className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                              title={`Can't sign in until ${new Date(user.bannedUntil).toLocaleDateString()}`}
-                            >
-                              Banned
-                            </span>
+                            <Tooltip content={`Can't sign in until ${new Date(user.bannedUntil).toLocaleDateString()}`}>
+                              <span
+                                className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                              >
+                                Banned
+                              </span>
+                            </Tooltip>
                           )}
                         </div>
                       </td>
@@ -650,13 +652,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               user.features.map((key) => {
                                 const feature = FEATURE_PREVIEWS.find((f) => f.key === key);
                                 return (
-                                  <span
-                                    key={key}
-                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                    title={feature?.description}
-                                  >
-                                    {feature?.name ?? key}
-                                  </span>
+                                  <Tooltip key={key} content={feature?.description}>
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                    >
+                                      {feature?.name ?? key}
+                                    </span>
+                                  </Tooltip>
                                 );
                               })
                             )}
@@ -674,12 +676,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                             {formatDateInZone(user.lastActivityAt, timeZone)}
                           </span>
                         ) : (
-                          <span
-                            className="text-sm italic text-slate-500 dark:text-slate-400"
-                            title={user.pending ? "Invited, hasn't accepted yet" : "Has never signed in to the Hub"}
-                          >
-                            Never signed in
-                          </span>
+                          <Tooltip content={user.pending ? "Invited, hasn't accepted yet" : "Has never signed in to the Hub"}>
+                            <span
+                              className="text-sm italic text-slate-500 dark:text-slate-400"
+                            >
+                              Never signed in
+                            </span>
+                          </Tooltip>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -851,7 +854,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         `Logged in ${formatSessionRange(session.auth_session_created_at, session.auth_session_created_at)}`}
                       {session.auth_session_created_at && (session.user_agent || session.device) && " · "}
                       {(session.user_agent || session.device) && (
-                        <span title={session.user_agent ?? undefined}>{describeStoredDevice(session.device, session.user_agent)}</span>
+                        <Tooltip content={session.user_agent ?? undefined}>
+                          <span>{describeStoredDevice(session.device, session.user_agent)}</span>
+                        </Tooltip>
                       )}
                     </div>
                   )}

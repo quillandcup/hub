@@ -19,6 +19,7 @@ vi.mock("@/app/(admin)/admin/courses/outline-actions", () => actions);
 
 import BuilderOutline, { type OutlineCourse } from "@/app/(admin)/admin/courses/BuilderOutline";
 import { buildHubOutline } from "@/lib/courses/hub-outline";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const M1 = "mod_AAAAAAAAAAA1";
@@ -468,6 +469,19 @@ describe("reordering", () => {
     void user;
   });
 
+  it("forgets a drag that ended without a drop, so a later drop does nothing", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    const handle = within(screen.getByText("Module 2").closest("li")!).getAllByRole("img", { name: "Drag to reorder module" })[0];
+    const transfer = { setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(handle, { dataTransfer: transfer });
+    fireEvent.dragEnd(handle, { dataTransfer: transfer });
+    fireEvent.drop(screen.getByText("Module 1").closest("li")!, { dataTransfer: transfer });
+    expect(actions.reorderCourseItems).not.toHaveBeenCalled();
+    void user;
+  });
+
   it("ignores a drop when nothing is being dragged", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
@@ -533,7 +547,7 @@ describe("an imported course", () => {
     expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /position/i })).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     for (const handle of screen.getAllByRole("img", { name: "Drag to reorder lesson" })) {
-      expect(handle).toHaveAttribute("title", expect.stringMatching(/imported from Kajabi/));
+      expect(tooltipText(handle)).toMatch(/imported from Kajabi/);
       expect(handle).not.toHaveAttribute("draggable");
     }
     await user.click(screen.getAllByRole("button", { name: "Duplicate module" })[0]);
