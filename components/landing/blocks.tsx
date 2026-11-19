@@ -154,6 +154,36 @@ export function Button({ label, href, look, color, shape, align, full }: ButtonP
   );
 }
 
+// ---- ButtonRow -----------------------------------------------------------------------------------------------
+
+export type ButtonRowItem = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
+export type ButtonRowProps = { items: ButtonRowItem[]; align: "left" | "center"; gap: "small" | "medium" };
+const ROW_GAP = { small: "gap-2", medium: "gap-3" } as const;
+const ROW_MAX = 3;
+
+/** One to three buttons side by side, wrapping onto the next line when the container is too narrow. Built like Button: same classes, `safeHref`, disabled without a usable link. */
+export function ButtonRow({ items, align, gap }: ButtonRowProps) {
+  const shown = (Array.isArray(items) ? items : []).filter((item) => item && item.label).slice(0, ROW_MAX);
+  if (shown.length === 0) return null;
+  return (
+    <div className={`my-3 flex flex-wrap ${pick(ROW_GAP, gap, "medium")} ${align === "center" ? "justify-center" : "justify-start"}`}>
+      {shown.map((item, i) => {
+        const target = safeHref(item.href);
+        const classes = buttonClasses(item.look, item.color, item.shape, false);
+        return target ? (
+          <a key={i} href={target} className={classes}>
+            {item.label}
+          </a>
+        ) : (
+          <span key={i} aria-disabled="true" className={`${classes} opacity-50`}>
+            {item.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---- Image ---------------------------------------------------------------------------------------------------
 
 export type ImageProps = { imageAssetId?: string; alt: string; decorative: boolean; size: "small" | "medium" | "full"; rounded: boolean; align: "left" | "center" | "right" };

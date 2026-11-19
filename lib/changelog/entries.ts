@@ -67,7 +67,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Where.** \`components/landing/homepage-blocks.tsx\`, registered like any block (defaults, label, renderer, category, fields). Not offered to the AI builder: add one to \`AI_BLOCKS\` on purpose.
 - **Rules they follow.** Container-query sizes only; colours from theme tokens or fixed brand colours, and a block that sets its own background sets its own text colour too; links are a prop named \`href\`, so several links live in objects (\`more\`, \`offer\`, \`compare\`); the gold of the announcement strip is one \`gold\` pair in \`tailwind.config.ts\`; the pulse is \`.landing-pulse\`, motion only when the visitor allows it.
 - **Checks.** \`lib/landing/a11y.ts\` covers photos with no description, links with no address and the heading levels these blocks draw.
-- **Layout.** A Columns block (two or three side-by-side areas, each a slot like a Section's) puts the pitch beside the schedule; Hero and Outcome numbers take a "Space above and below" option whose default is what they drew before. Every slot is a block formatting context, so a first heading's margin stays inside the editor's dashed outline.
+- **Layout.** A Buttons block (one to three buttons that wrap) puts the opening's two buttons side by side. A Columns block (two or three side-by-side areas, each a slot like a Section's) puts the pitch beside the schedule; Hero and Outcome numbers take a "Space above and below" option whose default is what they drew before. Every slot is a block formatting context, so a first heading's margin stays inside the editor's dashed outline.
 - **Starter.** \`lib/landing/starters.ts\`; detail in \`docs/LANDING_PAGES.md\`, "Homepage blocks".`,
   },
   {

@@ -42,8 +42,14 @@ function homeContent(): unknown[] {
         [
           heading("THE END is the best two words in the English language.", "h1", "left"),
           text("<p>We help writers get there, and we celebrate every Finisher who does. Someone is always writing beside you, and someone notices when you're missing.</p>", "left"),
-          button("Start your first prickle", { look: "solid", color: "light" }),
-          button("Drop in now", { look: "outline", color: "light" }),
+          block("ButtonRow", {
+            items: [
+              { label: "Start your first prickle", href: "", look: "solid", color: "light", shape: "pill" },
+              { label: "Drop in now", href: "", look: "outline", color: "light", shape: "pill" },
+            ],
+            align: "left",
+            gap: "medium",
+          }),
         ],
         [
           block("SchedulePanel", {
