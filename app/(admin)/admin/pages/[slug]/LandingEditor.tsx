@@ -16,6 +16,7 @@ import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
+import { addPlugin, panelOverrides } from "./SidePanels";
 import { useMirrorHostTheme } from "./useMirrorHostTheme";
 import { MODEL_WIDTHS, MODELS_BY_CLASS, deviceClassForWidth } from "./devices";
 import StarterReplace,{ type StarterOption } from "./StarterReplace";
@@ -378,6 +379,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
 
   const overrides = useMemo(
     () => ({
+      ...panelOverrides,
       header: () => (
         <EditorHeader
           page={page}
@@ -407,9 +409,9 @@ export default function LandingEditor({ page: initial, data, versions, starters 
         data={data as unknown as Data}
         onChange={onChange}
         overrides={overrides}
-        plugins={[aiPlugin]}
+        plugins={[addPlugin, aiPlugin]}
         viewports={[...DEVICES.map(({ label, width }) => ({ width, height: "auto" as const, label })), ...MODEL_WIDTHS.filter((w) => !DEVICES.some((d) => d.width === w)).map((w) => ({ width: w, height: "auto" as const, label: `${w}px` }))]}
-        ui={{ viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
+        ui={{ plugin: { current: "outline" }, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
       />
 
       <Modal isOpen={dialog === "publish"} onClose={() => setDialog(null)} title={page.status === "published" ? "Publish changes" : "Publish this page"} maxWidth="lg">
