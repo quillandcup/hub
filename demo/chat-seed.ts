@@ -466,6 +466,9 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
   if (blockWipe) throw new Error(`chat_preview_blocks clear: ${blockWipe.message}`);
   const { error: blockError } = await admin.from("chat_preview_blocks").insert({ member_id: demoMember, scope: "site", host: "celebrity-gossip.example" });
   if (blockError) throw new Error(`chat_preview_blocks: ${blockError.message}`);
+  // The Slack Activity tab on the member's admin page reads what the Slack import wrote about them; a re-run replaces it.
+  const { error: activityWipe } = await admin.from("member_activities").delete().eq("source", "slack").eq("member_id", demoMember).like("related_id", `${DEMO_SLACK_PREFIX}%`);
+  if (activityWipe) throw new Error(`member_activities (demo Slack) clear: ${activityWipe.message}`);
   let seq = 0;
   for (const [index, convo] of DEMO_CONVERSATIONS.entries()) {
     const { data: created, error } = await admin
@@ -482,6 +485,9 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
       .single();
     if (error || !created) throw new Error(`chat_channels ${convo.kind}: ${error?.message}`);
     const people = [demoMember, ...convo.with.map(key)];
+    if (!convo.app) {
+      await seedSlackConversation(admin, now, convo, `${DEMO_SLACK_PREFIX}${convo.kind === "dm" ? "D" : "G"}${String(index + 1).padStart(5, "0")}`, memberSlackUser.data.slack_user_id as string, demoMember);
+    }
     if (convo.app) await seedApp(admin, convo.app, `${DEMO_SLACK_PREFIX}A${String(index + 1).padStart(5, "0")}`, memberSlackUser.data.slack_user_id as string, demoMember);
     const { error: memberError } = await admin.from("chat_channel_members").insert(
       people.map((member_id) => ({ channel_id: created.id, member_id, source: "slack", joined_at: at(24 * 30), last_read_at: member_id === demoMember ? at(convo.readHoursAgo) : at(0) })),
@@ -503,6 +509,46 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
       }
     }
   }
+}
+
+/**
+ * What the Slack import records about a private conversation, so the demo member's Slack Activity tab (admin member page)
+ * can name who is in it: the other people as Slack users, the conversation's members, and one activity row per message the
+ * demo member sent. Like the real import, a row says only that a message was sent (no text) and names no one; the names come
+ * from the conversation's members. All fictional (the community profile).
+ */
+async function seedSlackConversation(admin: SupabaseClient, now: Date, convo: DemoConversation, slackChannelId: string, memberSlackUserId: string, demoMember: string) {
+  const bronze = admin.schema("bronze");
+  const others = convo.with.map((k) => ({ user_id: `UDEMO${k.toUpperCase()}`, name: k, display_name: who(k), real_name: who(k), is_bot: false, raw_payload: {} }));
+  const { error: userError } = await bronze.from("slack_users").upsert(others, { onConflict: "user_id" });
+  if (userError) throw new Error(`slack_users (demo conversation): ${userError.message}`);
+  const { error: membersError } = await bronze.from("slack_channel_members").upsert(
+    [memberSlackUserId, ...others.map((o) => o.user_id)].map((user_id) => ({ channel_id: slackChannelId, user_id, left_at: null })),
+    { onConflict: "channel_id,user_id" },
+  );
+  if (membersError) throw new Error(`slack_channel_members (demo conversation): ${membersError.message}`);
+  const channelType = convo.kind === "dm" ? "im" : "mpim";
+  const rows = convo.messages
+    .filter((m) => m.by === "member")
+    .map((m) => {
+      const when = new Date(now.getTime() - m.hoursAgo * 3_600_000);
+      const ts = `${Math.floor(when.getTime() / 1000)}.000100`;
+      return {
+        member_id: demoMember,
+        activity_type: "slack_message",
+        activity_category: "communication",
+        title: convo.kind === "dm" ? "Sent a direct message" : "Sent a group message",
+        description: null,
+        data: { channel_id: slackChannelId, channel_name: null, channel_type: channelType, message_ts: ts, thread_ts: null, is_thread_reply: false, has_files: false },
+        related_id: `${slackChannelId}:${ts}`,
+        engagement_value: 3,
+        occurred_at: when.toISOString(),
+        source: "slack",
+      };
+    });
+  if (rows.length === 0) return;
+  const { error } = await admin.from("member_activities").insert(rows);
+  if (error) throw new Error(`member_activities (demo conversation): ${error.message}`);
 }
 
 /**
