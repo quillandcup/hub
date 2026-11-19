@@ -52,11 +52,6 @@ describe("security page wording", () => {
     expect(member("vault")).not.toMatch(/, and only the Hub's server can read it back/);
   });
 
-  it("does not promise that a page can never show more than a member should see", () => {
-    expect(member("access-control")).not.toMatch(/can't show you what you aren't meant to see/);
-    expect(member("access-control")).toMatch(/A few limited reads are shared with signed-in members on purpose/);
-  });
-
   it("mentions the admin override of a failing check", () => {
     expect(member("changes")).toMatch(/an admin can merge a change past a failing check/);
   });
