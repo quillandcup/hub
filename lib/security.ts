@@ -349,7 +349,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         id: "changes",
         title: "How changes reach the Hub",
         status: "inPlace",
-        member: "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code. In an emergency an admin can merge a change past a failing check.",
+        member: "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code.",
         staff: {
           how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, code scanning), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot. Settings live in the repo and are pushed by script, so a change to them is reviewed too.",
           evidence: ["github-repo-config.yml", ".github/workflows/ci.yml", ".github/dependabot.yml"],

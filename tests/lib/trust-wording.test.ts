@@ -51,8 +51,4 @@ describe("security page wording", () => {
     expect(member("vault")).toMatch(/Through the database, only the Hub's server can read it back/);
     expect(member("vault")).not.toMatch(/, and only the Hub's server can read it back/);
   });
-
-  it("mentions the admin override of a failing check", () => {
-    expect(member("changes")).toMatch(/an admin can merge a change past a failing check/);
-  });
 });
