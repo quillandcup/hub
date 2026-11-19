@@ -452,14 +452,16 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     slug: "slack-activity-names-who-is-in-each-dm",
     date: "2026-11-13",
     audience: "staff",
-    category: "improved",
+    category: "fixed",
     title: "A member's Slack Activity tab says who is in each DM and group DM",
     summary: "Direct and group message rows now read \"DM: Ada\" or \"Group: Ada, Bram +1\" instead of a bare label, so you can tell conversations apart.",
     body: [
       "On a member's page, the Slack Activity tab used to show every private conversation as the same \"Direct message\" or \"Group message\". Each row now names the other people in it: one name for a DM, two names and a count for a group (\"Group: Ada, Bram +2\"). The member whose page it is is left out, unless nobody else is in the conversation.",
+      "![A member's Slack Activity tab, with rows reading DM and Group followed by the other people's names](/changelog/slack-activity-names-who-is-in-each-dm/01-slack-activity.webp)",
       "It reads who is in the conversation, never what was said. That matches what /privacy tells members: staff can see who is in every conversation, and message text stays closed.",
       "Private conversations Billie Bot cannot see into no longer raise the \"lost access\" alert, so the Slack hygiene page lists only real channels.",
     ].join("\n\n"),
+    image: { src: "/changelog/slack-activity-names-who-is-in-each-dm/01-slack-activity.webp", alt: "A member's Slack Activity tab, with rows reading DM and Group followed by the other people's names" },
   },
   {
     slug: "members-processing-links-the-stripe-customer-with-the-subscription",
