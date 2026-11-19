@@ -16,6 +16,7 @@ import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
+import { useMirrorHostTheme } from "./useMirrorHostTheme";
 import StarterReplace, { type StarterOption } from "./StarterReplace";
 import { publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
@@ -210,6 +211,7 @@ function EditorHeader({
 
 export default function LandingEditor({ page: initial, data, versions, starters = [] }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[] }) {
   const router = useRouter();
+  useMirrorHostTheme();
   const [page, setPage] = useState(initial);
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
