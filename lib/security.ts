@@ -112,7 +112,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Stored tokens are kept in an encrypted vault",
         status: "inPlace",
         member:
-          "A member's chat connection, and any other token the Hub must hand to someone else, is kept in an encrypted vault inside the database, and only the Hub's server can read it back.",
+          "A member's chat connection, and any other token the Hub must hand to someone else, is kept in an encrypted vault inside the database. Through the database, only the Hub's server can read it back.",
         staff: {
           how: "Supabase Vault (extension supabase_vault 0.3.1, read from production on 2026-11-17). Per the provider's documentation: authenticated encryption with associated data, one root key per Supabase project (64 hex characters, so 256 bits) held outside the database and shared by every secret in that project, each secret with its own random nonce; secrets stay encrypted in backups and replication streams. Vault is self-contained and does not depend on the pgsodium extension that is being deprecated, and uses the same per-project root key. Production, the development project that previews use (docs/ENV_MANAGEMENT.md) and each local stack are separate projects with separate keys, so a secret from one cannot be decrypted with another's key. Production check: the anon and authenticated roles can read neither the encrypted table nor the decrypted view; only the service role can. Our own table keeps only a pointer to each secret.",
           evidence: [
@@ -122,7 +122,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
             "docs/TODO.md (Secrets at Rest)",
             "live check, 2026-11-17: the Vault extension version and which roles may read it (counts and privileges only, never values)",
           ],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "The provider's management API returns a project's root key to its owner, so anyone holding a management token for the project can decrypt the vault outside the provider. CI holds such a token (see \"Keys and passwords\"), so it is as sensitive as the service key.",
             "The service role can read every vault secret, so a leaked service key exposes them. See \"Keys and passwords\".",
@@ -167,7 +167,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Who can see and change what",
         status: "inPlace",
         member:
-          "The database itself decides who can read each row, so a page can't show you what you aren't meant to see. Staff access is limited by role, and admin pages and actions check the role again every time.",
+          "The database itself decides who can read each row. A few limited reads are shared with signed-in members on purpose, such as the member directory. Staff access is limited by role, and admin pages and actions check the role again every time.",
         staff: {
           how: "Row-level security in Postgres, with admin pages and server actions each calling the admin check (never relying on the layout). Community managers open a fixed, read-only set of admin pages, and every new role starts with nothing. Data read in a member's name goes through the effective identity, so viewing as a member never widens access. Every table in the public and bronze schemas has row-level security (read from production on 2026-11-17: none without), and a database test now fails CI for a table without it. The signed-out database role holds no table privileges (read from production after the 2026-11-18 deploy: no table grants for it), a test pins that, and a new table gives it nothing by default. The functions that run with their owner's rights (SECURITY DEFINER) and can be called by signed-in users were each read on 2026-11-18: 51 in the public schema (all callable by signed-in users, and the admin check also by the signed-out role). Each one checks the caller (the current member, an admin or the service role) or is one of four deliberate, limited reads of other members' data (the member directory's alias list and its search, the writing a member chose to show on their profile, and each mentor's match counts). One more is a wrapper that only calls a checked function. A database test now fails CI for a new such function with no recognizable caller check, with one that does not pin its search path, or with any other signed-out one.",
           evidence: [
@@ -349,11 +349,11 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         id: "changes",
         title: "How changes reach the Hub",
         status: "inPlace",
-        member: "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code.",
+        member: "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code. In an emergency an admin can merge a change past a failing check.",
         staff: {
           how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, code scanning), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot. Settings live in the repo and are pushed by script, so a change to them is reviewed too.",
           evidence: ["github-repo-config.yml", ".github/workflows/ci.yml", ".github/dependabot.yml"],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "An admin can still merge a failing pull request with \"Merge without waiting for requirements\". That is intended as a break-glass option and is not recorded anywhere else.",
           ],

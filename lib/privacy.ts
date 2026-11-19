@@ -51,10 +51,10 @@ export const PRIVACY_SUMMARY: readonly Unit[] = [
     text: "We keep what you do in the Hub, how you use it (the pages and buttons, never what you type), where you connect from, and your activity in chat.",
   },
   {
-    text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs are open to them only through break-glass access, with one exception: the messages sent during a Hedgie Care plan, below.",
+    text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs (private messages) are open to them only through rare, recorded emergency access, with one exception: the messages sent during a Hedgie Care plan, below.",
   },
   {
-    text: "The Hub brings your one-on-one Slack DMs into Hub Chat as we roll it out to every member, and keeps them. See “Your Slack direct messages” below.",
+    text: "The Hub brings your one-on-one Slack DMs into Hub Chat and keeps them. See “Your Slack direct messages” below.",
   },
   {
     text: `Your exact IP address and browser details are removed after ${RETENTION.rawNetworkDays} days, and usage statistics after ${RETENTION.usageMonths} months. What you do in the Hub is kept while you are a member, and after you cancel your membership until you ask us to close your account and remove it.`,
@@ -201,7 +201,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
       },
       {
         kind: "p",
-        text: "Activity helps us understand how the community connects, so we can make introductions, spot hedgies who might be feeling isolated, and see what's working. It also counts toward your engagement, including messages in private channels and direct messages.",
+        text: "Activity helps us understand how the community connects, so we can make introductions, spot hedgies who might be feeling isolated, and see what's working. It also counts toward your engagement, meaning how much you take part, including messages in private channels and direct messages.",
       },
       { kind: "subheading", text: "What staff can see" },
       {
@@ -210,11 +210,11 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
         rows: [
           { id: "chat-public", cells: ["Public channels", "Yes", "Yes, same as every member"] },
           { id: "chat-private", cells: ["Private channels that include Billie Bot", "Yes", "Yes, unless the channel is marked restricted"] },
-          { id: "chat-restricted", cells: ["Restricted private channels", "Yes", "No, except break-glass access (below)"] },
-          { id: "chat-group", cells: ["Group DMs that include Billie Bot", "Yes", "No, except break-glass access (below)"] },
-          { id: "chat-dm", cells: ["One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub (apart from the messages in a Hedgie Care plan, next row)", "Yes", "No, except break-glass access (below)"] },
+          { id: "chat-restricted", cells: ["Restricted private channels", "Yes", "No, except emergency access (below)"] },
+          { id: "chat-group", cells: ["Group DMs that include Billie Bot", "Yes", "No, except emergency access (below)"] },
+          { id: "chat-dm", cells: ["One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub (apart from the messages in a Hedgie Care plan, next row)", "Yes", "No, except emergency access (below)"] },
           { id: "chat-care-plan", cells: ["One-on-one Slack DMs tracked in a Hedgie Care plan: the messages sent during the plan", "Yes", "Yes, admins and community managers can read them in Hedgie Care (see “Messages in a Hedgie Care plan”, below)"] },
-          { id: "chat-planned", cells: ["Private channels without Billie Bot", "Not yet. Planned: yes", "Not yet. Planned: restricted, so break-glass access only"] },
+          { id: "chat-planned", cells: ["Private channels without Billie Bot", "Not yet. Planned: yes", "Not yet. Planned: restricted, so emergency access only"] },
         ],
       },
       {
@@ -236,11 +236,11 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
       {
         kind: "p",
         id: "care-plan-limits",
-        text: "Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between members, so staff can read them only through break-glass access (below). Each time someone opens these messages, we record who looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top of such a conversation. Slack's own app shows no note, so keep this in mind when you message the team there. Only admins and community managers can read them: assistants cannot.",
+        text: "Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between members, so staff can read them only through emergency access (below). Each time someone opens these messages, we record who looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top of such a conversation. Slack's own app shows no note, so keep this in mind when you message the team there. Only admins and community managers can read them: other team members cannot.",
       },
       {
         kind: "details",
-        title: "Break-glass access",
+        title: "Emergency access",
         paragraphs: [
           {
             id: "chat-break-glass",
@@ -254,7 +254,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
         paragraphs: [
           {
             id: "chat-connection",
-            text: "Hub Chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark conversations read. Slack also lists permission to read and send your direct messages, and to read the private channels you are in. The Hub uses the first only for the DM bridge below, and only for members it is switched on for. The second it doesn't use yet: we plan to bring private channels Billie Bot isn't in into Hub Chat too, restricted like the rest, and it is asked for now so you only reconnect once. Apart from that the Hub does nothing in Slack you didn't ask for. The connection is kept encrypted and used only by the Hub's server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack shows it under your authorized apps.",
+            text: "Hub Chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark conversations read. Slack also lists permission to read and send your direct messages, and to read the private channels you are in. The Hub uses the first only for the DM bridge below. The second it doesn't use yet: we plan to bring private channels Billie Bot isn't in into Hub Chat too, restricted like the rest, and it is asked for now so you only reconnect once. Apart from that the Hub does nothing in Slack you didn't ask for. The connection is kept encrypted and used only by the Hub's server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack shows it under your authorized apps.",
           },
         ],
       },
@@ -264,13 +264,13 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
         paragraphs: [
           {
             id: "dm-what",
-            text: "Slack's bot can't be in a one-on-one DM, or in a group message it wasn't added to, so the Hub brings yours into chat with your own Slack connection, as we roll it out to every member. The Hub keeps them, shows them in your chat so you can read and reply there (your replies go to Slack as you), and counts them as activity, like any message. Slack only shows about 90 days of history on our plan; the Hub keeps its copy until you ask us to remove it.",
+            text: "Slack's bot can't be in a one-on-one DM, or in a group message it wasn't added to, so the Hub brings yours into chat with your own Slack connection. The Hub keeps them, shows them in your chat so you can read and reply there (your replies go to Slack as you), and counts them as activity, like any message. Slack only shows about 90 days of history on our plan; the Hub keeps its copy until you ask us to remove it.",
           },
           {
             id: "dm-who",
             text: [
               { strong: "Who can see them." },
-              " You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If they aren't a member, their messages are kept in your conversation under their Slack name, and we keep nothing else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text only through break-glass access, as for a restricted channel, except for the messages sent during a Hedgie Care plan (see “Messages in a Hedgie Care plan” above). Viewing the Hub as you never shows them.",
+              " You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If they aren't a member, their messages are kept in your conversation under their Slack name, and we keep nothing else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text only through emergency access, as for a restricted channel, except for the messages sent during a Hedgie Care plan (see “Messages in a Hedgie Care plan” above). Viewing the Hub as you never shows them.",
             ],
           },
           {
@@ -298,7 +298,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
         paragraphs: [
           {
             id: "chat-deleted",
-            text: "When you delete a message or remove a reaction, it disappears for everyone, but we keep a record rather than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can't read a deleted message's text or files in the Hub; the only way to read one is break-glass access, the same as for a restricted conversation.",
+            text: "When you delete a message or remove a reaction, it disappears for everyone, but we keep a record rather than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can't read a deleted message's text or files in the Hub; the only way to read one is emergency access, the same as for a restricted conversation.",
           },
         ],
       },
