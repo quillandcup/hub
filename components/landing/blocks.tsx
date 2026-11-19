@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { parseEmbed, safeHref } from "@/lib/landing/data";
 import Countdown, { type CountdownProps } from "./Countdown";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
-import { background, BAND_SPACE, pageImage, pick, PADDING, WIDTHS } from "./theme";
+import { sectionPadding } from "@/lib/landing/layout";
+import { background, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
 
 /**
  * The page builder's blocks as plain components: the same ones render in the editor's canvas and on the public page
@@ -12,7 +13,7 @@ import { background, BAND_SPACE, pageImage, pick, PADDING, WIDTHS } from "./them
  * editor's phone preview as on a phone. Links go through `safeHref`; rich text arrives already cleaned.
  */
 
-type Slot = (props?: { className?: string }) => ReactNode;
+type Slot = (props?: { className?: string; collisionAxis?: "dynamic" | "x" | "y" }) => ReactNode;
 const noImage = null;
 
 /**
@@ -44,33 +45,43 @@ export type SectionProps = {
   backgroundImageAssetId?: string;
   overlay: "none" | "dark" | "light";
   width: string;
-  padding: string;
+  /** Inner space in px, per size (lib/landing/layout.ts); a missing or invalid side takes the default. */
+  paddingDesktop?: unknown;
+  paddingMobile?: unknown;
+  hideOnDesktop?: boolean;
+  hideOnMobile?: boolean;
   align: "left" | "center";
   card: boolean;
   fadeIn: boolean;
   content: Slot;
+  /** Set by the editor's canvas only: a hidden section is dimmed there instead of hidden. */
+  editing?: boolean;
 };
 
-/** A full-width band with a background colour or picture, and a column of other blocks inside it. */
-export function Section({ background: bg, backgroundImageAssetId, overlay, width, padding, align, card, fadeIn, content: Content }: SectionProps) {
+/** The slot of a Section is a 12-column grid: a block takes the columns its `span` says (the full width when unset). */
+const SECTION_GRID = "grid grid-cols-12 gap-x-4 @split:gap-x-6";
+
+/** A full-width band with a background colour or picture, and a 12-column grid of other blocks inside it. */
+export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, fadeIn, content: Content, editing }: SectionProps) {
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
   const text = image && overlay === "dark" ? "text-white" : image && overlay === "light" ? "text-ink" : theme.text;
   const scope = image ? (overlay === "light" ? "landing-light" : "") : theme.scope;
+  const space = sectionPadding({ paddingDesktop, paddingMobile });
   return (
     <section
-      className={`relative ${theme.bg} ${text} ${scope} ${pick(PADDING, padding, "medium").cls} ${fadeIn ? "landing-fade-in" : ""}`}
-      style={image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+      className={`relative ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing))} ${fadeIn ? "landing-fade-in" : ""}`}
+      style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}
     >
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}
-      <div className={`relative mx-auto px-4 ${pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")}`}>
+      <div className={`relative mx-auto ${pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")}`}>
         {card ? (
           <div className="rounded-xl bg-card p-6 text-ink shadow-lg @pair:p-10">
-            <Content className={SLOT_CLASS} />
+            <Content className={SECTION_GRID} collisionAxis="dynamic" />
           </div>
         ) : (
-          <Content className={SLOT_CLASS} />
+          <Content className={SECTION_GRID} collisionAxis="dynamic" />
         )}
       </div>
     </section>

@@ -1,6 +1,7 @@
 import type { ComponentConfig, Config } from "@puckeditor/core";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
+import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
 import {
   Button,
   ButtonRow,
@@ -37,7 +38,7 @@ import {
   Timeline,
   WeekStrip,
 } from "./homepage-blocks";
-import { pageImage } from "./theme";
+import { pageImage, spanClasses } from "./theme";
 
 /**
  * The block set and the page frame, with no editor-only parts: the public page renders `data` through this (on the
@@ -47,7 +48,7 @@ import { pageImage } from "./theme";
  */
 
 // Puck types each component's props from its config; our blocks are plain components, so they are registered loosely.
-const block = <P,>(config: { label: string; defaultProps: P; render: (props: P) => ReactNode; fields?: Record<string, { type: string }> }) => config as unknown as ComponentConfig;
+const block = <P,>(config: { label: string; defaultProps: P; render: (props: P) => ReactNode; inline?: boolean; fields?: Record<string, { type: string }> }) => config as unknown as ComponentConfig;
 
 export type RootProps = {
   showHeader?: boolean;
@@ -123,7 +124,7 @@ const rootConfig = {
 };
 
 export const BLOCK_DEFAULTS = {
-  Section: { background: "none", overlay: "none", width: "wide", padding: "medium", align: "left", card: false, fadeIn: false },
+  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, fadeIn: false },
   Columns: { count: "2", gap: "medium", verticalAlign: "top" },
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
@@ -255,13 +256,33 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
 /** The blocks that hold other blocks, and the names of their slots. Everything that walks a page finds nested blocks by their shape, so a new container only needs an entry here and in the editor's fields. */
 export const SLOTS: Partial<Record<keyof typeof BLOCK_DEFAULTS, string[]>> = { Section: ["content"], Columns: ["col1", "col2", "col3"] };
 
+type BoxProps = { puck?: { dragRef?: ((el: Element | null) => void) | null; isEditing?: boolean }; span?: unknown; spanMobile?: unknown } & Record<string, unknown>;
+
+/**
+ * Every block is drawn inside one box that carries its width on the Section's 12-column grid (`span`, `spanMobile`;
+ * lib/landing/layout.ts). The box is the grid item on the public page and in the editor alike: the config marks blocks
+ * `inline`, so Puck puts no wrapper of its own around them and takes its drag handle from this box (`puck.dragRef`).
+ * Outside a Section there is no grid and the classes do nothing.
+ */
+function boxed(name: keyof typeof BLOCK_DEFAULTS) {
+  const Block = RENDERERS[name] as unknown as ComponentType<Record<string, unknown>>;
+  return function BlockBox({ puck, span, spanMobile, ...props }: BoxProps) {
+    return (
+      <div ref={puck?.dragRef ?? undefined} className={`min-w-0 ${spanClasses(span, spanMobile)}`}>
+        <Block {...props} {...(name === "Section" ? { editing: Boolean(puck?.isEditing) } : {})} />
+      </div>
+    );
+  };
+}
+
 function components(): Config["components"] {
   const out: Config["components"] = {};
   for (const name of Object.keys(BLOCK_DEFAULTS) as (keyof typeof BLOCK_DEFAULTS)[]) {
     out[name] = block({
       label: BLOCK_LABELS[name],
       defaultProps: { ...BLOCK_DEFAULTS[name], ...Object.fromEntries((SLOTS[name] ?? []).map((slot) => [slot, []])) },
-      render: RENDERERS[name] as (props: unknown) => ReactNode,
+      render: boxed(name) as (props: unknown) => ReactNode,
+      inline: true,
       // A slot must be declared for Puck's Render to turn a container's stored blocks into the component it renders (the editor config declares it too).
       ...(SLOTS[name] ? { fields: Object.fromEntries(SLOTS[name].map((slot) => [slot, { type: "slot" }])) } : {}),
     });

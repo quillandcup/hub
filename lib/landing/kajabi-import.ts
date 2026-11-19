@@ -1,6 +1,7 @@
 import { parseFragment, serializeOuter } from "parse5";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { safeHref, type LandingData } from "@/lib/landing/data";
+import { presetPadding } from "@/lib/landing/layout";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
 
 /**
@@ -335,7 +336,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         backgroundImageAssetId: bgPicture ?? undefined,
         overlay: bgPicture ? "dark" : "none",
         width: flag(s.full_width) ? "full" : common <= 6 ? "narrow" : common <= 9 ? "medium" : "wide",
-        padding: padding >= 60 ? "large" : "medium",
+        ...presetPadding(padding >= 60 ? "large" : "medium"),
         align: str(s.horizontal) === "left" ? "left" : "center",
         card: boxed,
         content: inner,

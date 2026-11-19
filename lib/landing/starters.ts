@@ -1,5 +1,6 @@
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { LandingData } from "./data";
+import { presetPadding } from "./layout";
 import { stampLandingVersion } from "./migrations";
 
 /**
@@ -18,7 +19,7 @@ const id = (type: string) => `${type}-home${(n++).toString(36)}`;
 
 const section = (props: Record<string, unknown>, content: unknown[]) => ({
   type: "Section",
-  props: { id: id("Section"), background: "none", overlay: "none", width: "wide", padding: "medium", align: "center", card: false, fadeIn: false, ...props, content },
+  props: { id: id("Section"), background: "none", overlay: "none", width: "wide", ...presetPadding("medium"), hideOnDesktop: false, hideOnMobile: false, align: "center", card: false, fadeIn: false, ...props, content },
 });
 const heading = (text: string, level: "h1" | "h2" | "h3" = "h2", align: "left" | "center" = "center") => ({ type: "Heading", props: { id: id("Heading"), text, level, align } });
 const text = (html: string, align: "left" | "center" = "center") => ({ type: "RichText", props: { id: id("RichText"), html, align } });
@@ -37,7 +38,7 @@ function homeContent(): unknown[] {
   return [
     block("AnnouncementStrip", { text: "Your next prickle starts in 42 minutes", buttonLabel: "Drop in", href: "", tone: "gold" }),
     // The opening band: the pitch on the left, today's schedule beside it (stacked on a narrow page, side by side from the split size).
-    section({ background: "plum", width: "wide", padding: "medium", align: "left" }, [
+    section({ background: "plum", width: "wide", align: "left" }, [
       columns({ count: "2", gap: "large", verticalAlign: "center" }, [
         [
           heading("THE END is the best two words in the English language.", "h1", "left"),
@@ -154,7 +155,7 @@ function homeContent(): unknown[] {
         ],
       }),
     ]),
-    section({ background: "plum", width: "narrow", padding: "large" }, [
+    section({ background: "plum", width: "narrow", ...presetPadding("large") }, [
       heading("Your name could be on the wall."),
       text("<p>Hedgies at every stage cheer each other across the line.</p>"),
       // The Kajabi form is the owner's to choose in the editor (Kajabi, Marketing, Forms); empty here on purpose, so the publish check asks for it.

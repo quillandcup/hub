@@ -22,7 +22,7 @@ import LandingRender from "@/components/landing/LandingRender";
 
 afterEach(cleanup);
 
-const sectionProps = { overlay: "none", width: "wide", padding: "medium", align: "left", card: false, fadeIn: false } as const;
+const sectionProps = { overlay: "none", width: "wide", align: "left", card: false, fadeIn: false } as const;
 
 describe("PageFrame", () => {
   it("is the brand page, light or dark with the theme, and not the app's grey", () => {
@@ -48,7 +48,7 @@ describe("Section", () => {
   const Content = () => <p>inside</p>;
 
   it("puts the content in a band whose text colour is readable on the background", () => {
-    const { container } = render(<Section background="plum" overlay="none" width="narrow" padding="large" align="center" card={false} fadeIn={false} content={Content} />);
+    const { container } = render(<Section background="plum" overlay="none" width="narrow" align="center" card={false} fadeIn={false} content={Content} />);
     const band = container.querySelector("section")!;
     expect(band.className).toContain("bg-plum-700");
     expect(band.className).toContain("text-white");
@@ -56,7 +56,7 @@ describe("Section", () => {
   });
 
   it("uses a light text colour over a dark shaded picture and a card keeps dark text on white", () => {
-    const { container } = render(<Section background="none" backgroundImageAssetId="media_AAAAAAAAAAA1" overlay="dark" width="wide" padding="medium" align="left" card fadeIn content={Content} />);
+    const { container } = render(<Section background="none" backgroundImageAssetId="media_AAAAAAAAAAA1" overlay="dark" width="wide" align="left" card fadeIn content={Content} />);
     const band = container.querySelector("section")!;
     expect(band.className).toContain("text-white");
     expect(band.className).toContain("landing-fade-in");
@@ -432,6 +432,14 @@ describe("checks for the ready-made blocks", () => {
     const issues = checkLandingPage(page(hero({ imageAssetId: "media_AAAAAAAAAAA1", imageMode: "background", overlay: "none" })));
     expect(issues).toHaveLength(1);
     expect(issues[0].severity).toBe("warning");
+  });
+
+  it("warns about a section hidden on both sizes, and not about one hidden on a single size", () => {
+    const section = (props: Record<string, unknown>) => ({ type: "Section", props: { ...props, content: [] } });
+    const messages = (props: Record<string, unknown>) => checkLandingPage(page(hero(), section(props))).filter((i) => i.block === "Section");
+    expect(messages({ hideOnDesktop: true, hideOnMobile: true })).toEqual([expect.objectContaining({ severity: "warning", message: expect.stringContaining("hidden on desktop and on mobile") })]);
+    expect(messages({ hideOnDesktop: true, hideOnMobile: false })).toEqual([]);
+    expect(messages({})).toEqual([]);
   });
 
   it("counts steps and banner headings in the level checks", () => {

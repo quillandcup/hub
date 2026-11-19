@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { checkLandingPage } from "@/lib/landing/a11y";
 import { collectAssetIds, normalizeLandingData } from "@/lib/landing/data";
+import { normalizePadding, PADDING_DEFAULT_DESKTOP, presetOf } from "@/lib/landing/layout";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { LANDING_STARTERS, STARTER_KEYS, isStarterKey, starterData } from "@/lib/landing/starters";
 import { isValidSlug } from "@/lib/landing/slug";
@@ -89,8 +90,9 @@ describe("the homepage starter", () => {
 
   it("keeps the sections tight: Medium space, with only the closing sign-up airy", () => {
     const sections = (starterData("home").content as Node[]).filter((b) => b.type === "Section");
-    expect(sections.filter((s) => s.props.padding === "large")).toHaveLength(1);
-    expect(sections.every((s) => s.props.padding === "medium" || s.props.padding === "large")).toBe(true);
+    const preset = (s: Node) => presetOf(normalizePadding(s.props.paddingDesktop, PADDING_DEFAULT_DESKTOP), "desktop");
+    expect(sections.filter((s) => preset(s) === "large")).toHaveLength(1);
+    expect(sections.every((s) => preset(s) === "medium" || preset(s) === "large")).toBe(true);
   });
 
   it("keeps the owner's words: no running jargon, no FAQ, no old slogan, and no joiner counts", () => {
