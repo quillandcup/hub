@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import LandingRender from "@/components/landing/LandingRender";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
+import { withLiveData } from "@/lib/landing/live-server";
 import { isValidSlug } from "@/lib/landing/slug";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,7 +25,7 @@ export default async function PreviewLandingPage({ params }: { params: Promise<{
           Back to the editor
         </Link>
       </div>
-      <LandingRender data={page.draft_data} />
+      <LandingRender data={await withLiveData(page.draft_data)} />
     </>
   );
 }

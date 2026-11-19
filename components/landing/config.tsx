@@ -145,18 +145,30 @@ export const BLOCK_DEFAULTS = {
   Stats: { items: [{ value: "1,000", label: "words written a day" }, { value: "24/7", label: "company" }, { value: "3", label: "sessions a week" }] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
   OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
-  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, no live data yet.
-  AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold" },
+  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/LANDING_PAGES.md, "Live data").
+  AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold", source: "manual", whenNone: "hide" },
   SchedulePanel: {
     title: "Writing right now",
     zoneLabel: "",
+    source: "manual",
+    hoursAhead: 24,
+    maxRows: 5,
+    hostStyle: "none",
+    emptyText: "No sessions are coming up just yet. Check back soon.",
     rows: [
       { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "" },
       { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" },
       { time: "12:30 pm", title: "Lunch hour", status: "Camera optional", state: "open", host: "" },
     ],
   },
-  OutcomeNumbers: { padding: "medium", items: [{ value: "50+", label: "books published by members", note: "" }, { value: "100s", label: "of Finishers", note: "" }] },
+  OutcomeNumbers: {
+    padding: "medium",
+    showLiveNote: true,
+    items: [
+      { source: "manual", stat: "hours_30d", value: "50+", label: "books published by members", note: "" },
+      { source: "manual", stat: "hours_30d", value: "100s", label: "of Finishers", note: "" },
+    ],
+  },
   FinisherCards: { items: [{ alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" }], more: { label: "", href: "" } },
   Timeline: { heading: "", intro: "", items: [{ when: "8:00 am", title: "Morning pages", text: "What happens, in a line or two." }], closing: "" },
   WeekStrip: { subtitle: "", items: [{ label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" }, { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" }] },

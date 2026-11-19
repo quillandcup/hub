@@ -201,7 +201,15 @@ const goalColumns = (g: WritingGoalRow): GoalColumns => ({
   show_on_profile: g.show_on_profile,
 });
 
+/** One logged addition of words (a `delta` entry), for community totals: the member is there only so callers can count distinct writers, never to show anyone. */
+export type WordsLogged = { memberId: string; amount: number };
+
 export interface WritingRepository {
+  /**
+   * The words members logged as additions (`measure` words, `mode` delta) on days from `fromDate` to `toDate` (YYYY-MM-DD, inclusive, the entry's own date), deleted entries left out.
+   * Never `set_total` rows: those are running totals of a project, and adding them up would count the same words again.
+   */
+  wordsLoggedBetween(fromDate: string, toDate: string): Promise<WordsLogged[]>;
   /** The member's projects that aren't archived or deleted, newest first (the picker's list, past phases included), at most `limit` of them. */
   activeProjects(memberId: string, options?: { limit?: number }): Promise<ProjectChoice[]>;
   /** Whether the project exists, is this member's and isn't deleted. */
@@ -325,6 +333,22 @@ export interface WritingRepository {
 
 export class SupabaseWritingRepository implements WritingRepository {
   constructor(private readonly db: Db) {}
+
+  async wordsLoggedBetween(fromDate: string, toDate: string): Promise<WordsLogged[]> {
+    const rows = await fetchAllRows((from, to) =>
+      this.db
+        .from("writing_progress_entries")
+        .select("member_id, amount")
+        .eq("measure", "words")
+        .eq("mode", "delta")
+        .is("deleted_at", null)
+        .gte("entry_date", fromDate)
+        .lte("entry_date", toDate)
+        .order("id")
+        .range(from, to),
+    );
+    return rows.map((row) => ({ memberId: row.member_id, amount: Number(row.amount) }));
+  }
 
   async activeProjects(memberId: string, { limit }: { limit?: number } = {}): Promise<ProjectChoice[]> {
     let query = this.db
@@ -855,6 +879,12 @@ export class InMemoryWritingRepository implements WritingRepository {
 
   private newestFirst<T extends { created_at: string; id: string }>(rows: T[]) {
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id < b.id ? 1 : -1));
+  }
+
+  async wordsLoggedBetween(fromDate: string, toDate: string): Promise<WordsLogged[]> {
+    return this.liveEntries()
+      .filter((e) => e.measure === "words" && e.mode === "delta" && e.entry_date >= fromDate && e.entry_date <= toDate)
+      .map((e) => ({ memberId: e.member_id, amount: Number(e.amount) }));
   }
 
   async activeProjects(memberId: string, { limit }: { limit?: number } = {}) {

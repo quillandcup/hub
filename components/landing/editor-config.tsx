@@ -2,6 +2,7 @@
 
 import type { Config, Field, Fields } from "@puckeditor/core";
 import { ImageField, RichTextField, ZonedDateTimeField } from "./fields";
+import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
 import { renderConfig } from "./config";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
@@ -40,6 +41,12 @@ const dateTime = (label: string): Field => ({
 });
 
 const link = (label: string): Field => ({ type: "object", label, objectFields: { label: text("Button label"), href: text("Link (https://, or a path on this site)") } });
+
+/** Where a Homepage block's content comes from. A live block shows the Hub's figures on the published page and the preview; the editor's canvas shows what is typed here, which is also what the page shows if the figures can't be read. */
+const SOURCE = select("Where the content comes from (live shows on the published page; here you see what you typed)", [
+  { label: "Typed in by hand", value: "manual" },
+  { label: "Live from the Hub", value: "live" },
+]);
 
 const LOOK = select("Style", opts("solid", "outline"));
 const COLOR = select("Colour", opts("plum", "light", "brown"));
@@ -153,13 +160,20 @@ const FIELDS: Record<string, Fields> = {
     buttonLabel: text("Button label"),
     href: text("Button link (https://, or a path on this site)"),
     tone: select("Colour", [{ label: "Gold", value: "gold" }, { label: "Plum", value: "plum" }, { label: "Charcoal", value: "charcoal" }]),
+    source: SOURCE,
+    whenNone: select("When live and no prickle is coming up within a day", [{ label: "Show nothing", value: "hide" }, { label: "Show the line typed above", value: "typed" }]),
   },
   SchedulePanel: {
     title: text("Panel title"),
-    zoneLabel: text("Time zone note (for example, the zone the times are in)"),
+    zoneLabel: text("Time zone note (for example, the zone the times are in; live names the zone for you)"),
+    source: SOURCE,
+    hoursAhead: { type: "number", label: "Live: how many hours ahead to show (1 to 144)", min: 1, max: 144 },
+    maxRows: { type: "number", label: "Live: most sessions to show (1 to 6)", min: 1, max: 6 },
+    hostStyle: select("Live: line about the host", [{ label: "None", value: "none" }, { label: "An experienced host (100 or more prickles hosted)", value: "experience" }]),
+    emptyText: text("Live: line to show when nothing is coming up"),
     rows: {
       type: "array",
-      label: "Sessions (typed by hand, up to 6)",
+      label: "Sessions when typed by hand (up to 6)",
       max: 6,
       arrayFields: {
         time: text("Time"),
@@ -174,7 +188,21 @@ const FIELDS: Record<string, Fields> = {
   },
   OutcomeNumbers: {
     padding: select("Space above and below", PADDING_OPTIONS),
-    items: { type: "array", label: "Figures (2 to 4, typed in by hand)", max: 4, arrayFields: { value: text("Figure (for example 50+)"), label: text("What it counts"), note: text("Small note (optional, for example live)") }, defaultItemProps: { value: "0", label: "", note: "" }, getItemSummary: (i) => i.value || "Figure" },
+    showLiveNote: toggle("Show a small \"live\" note beside live figures"),
+    items: {
+      type: "array",
+      label: "Figures (2 to 4)",
+      max: 4,
+      arrayFields: {
+        source: SOURCE,
+        stat: select("Live figure (used when it comes from the Hub)", LIVE_STAT_OPTIONS),
+        value: text("Typed figure (for example 50+; also what shows if the live one can't be read)"),
+        label: text("What it counts (empty: the live figure's own words)"),
+        note: text("Small note (optional)"),
+      },
+      defaultItemProps: { source: "manual", stat: LIVE_STAT_OPTIONS[0].value, value: "0", label: "", note: "" },
+      getItemSummary: (i) => (i.source === "live" ? `Live: ${LIVE_STAT_OPTIONS.find((o) => o.value === i.stat)?.label ?? "figure"}` : i.value || "Figure"),
+    },
   },
   FinisherCards: {
     items: {

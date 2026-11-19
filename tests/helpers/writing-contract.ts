@@ -3,7 +3,7 @@ import type { WritingRepository } from "@/lib/data/writing";
 
 export type SeedProject = { key: string; member: 0 | 1; title: string; phase?: string; createdAt: string };
 export type SeedGoal = { member: 0 | 1; project: string; measure: string; archived?: boolean };
-export type SeedEntry = { member: 0 | 1; project: string; entryDate: string; measure: string; mode: "delta" | "set_total"; amount: number; createdAt: string; prickle?: boolean; note?: string; tags?: string[] };
+export type SeedEntry = { member: 0 | 1; project: string; entryDate: string; measure: string; mode: "delta" | "set_total"; amount: number; createdAt: string; prickle?: boolean; note?: string; tags?: string[]; deleted?: boolean };
 
 export type WritingContractContext = {
   repo: () => WritingRepository;
@@ -44,6 +44,29 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(mine.map((p) => p.title)).toEqual(["New Draft", "Old Draft"]);
       expect((await ctx.repo().activeProjects(a, { limit: 1 })).map((p) => p.id)).toEqual([mine[0].id]);
       expect((await ctx.repo().activeProjects(b)).map((p) => p.title)).toEqual(["Not Mine"]);
+    });
+
+    it("lists the words logged as additions in a window of entry dates, and never a running total, another measure or a deleted entry", async () => {
+      const [a, b] = ctx.memberIds;
+      const entry = (o: Partial<SeedEntry>): SeedEntry => ({ member: 0, project: "p", entryDate: "2026-09-10", measure: "words", mode: "delta", amount: 100, createdAt: "2026-09-10T12:00:00Z", ...o });
+      const ids = await ctx.seed({
+        projects: [{ key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" }, { key: "q", member: 1, title: "Q", createdAt: "2026-01-01T10:00:00Z" }],
+        entries: [
+          entry({ amount: 100 }),
+          entry({ member: 1, project: "q", amount: 250, entryDate: "2026-09-12" }),
+          entry({ amount: 5000, mode: "set_total" }),
+          entry({ amount: 40, measure: "pages" }),
+          entry({ amount: 999, deleted: true }),
+          entry({ amount: 777, entryDate: "2026-09-09" }),
+          entry({ amount: 888, entryDate: "2026-09-13" }),
+        ],
+      });
+      expect(Object.keys(ids)).toEqual(["p", "q"]);
+
+      const logged = (await ctx.repo().wordsLoggedBetween("2026-09-10", "2026-09-12")).filter((w) => w.memberId === a || w.memberId === b);
+
+      expect(logged.map((w) => [w.memberId, w.amount]).sort()).toEqual([[a, 100], [b, 250]].sort());
+      expect(await ctx.repo().wordsLoggedBetween("2026-09-14", "2026-09-20")).toEqual([]);
     });
 
     it("has nothing for a member without projects", async () => {

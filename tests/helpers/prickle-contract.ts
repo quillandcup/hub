@@ -208,6 +208,8 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().countHostedBy(ctx.hosts[0].id)).toBe(2);
       expect(await ctx.repo().countHostedBy(ctx.hosts[1].id)).toBe(1);
       expect(await ctx.repo().countHostedBy(ctx.hosts[0].id, { since: at(1) })).toBe(1); // the one starting at(1), not at(0)
+      expect(await ctx.repo().countHostedBy(ctx.hosts[0].id, { before: at(1) })).toBe(1); // the one starting at(0); `before` leaves out the one starting at(1)
+      expect(await ctx.repo().countHostedBy(ctx.hosts[0].id, { since: at(0), before: at(1) })).toBe(1);
       expect(await ctx.repo().countBySource("calendar")).toBe(calendarBefore + 3);
     });
 

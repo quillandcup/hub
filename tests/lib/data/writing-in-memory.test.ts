@@ -70,6 +70,7 @@ defineWritingContract("InMemoryWritingRepository", () => {
         tags: e.tags ?? [],
         external_id: null,
         created_at: e.createdAt,
+        deleted_at: e.deleted ? "2026-06-01T00:00:00Z" : null,
       }));
       return ids;
     },

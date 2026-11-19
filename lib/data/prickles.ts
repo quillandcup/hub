@@ -149,8 +149,8 @@ export interface PrickleRepository {
   updateType(id: string, patch: PrickleTypePatch): Promise<void>;
   /** Hands the default host of every type one member is the default host of to another (merging duplicate members). */
   reassignDefaultHost(fromMemberId: string, toMemberId: string): Promise<void>;
-  /** How many prickles the member is the assigned host of, past and future, or only those starting at or after `since` (ISO). */
-  countHostedBy(memberId: string, options?: { since?: string }): Promise<number>;
+  /** How many prickles the member is the assigned host of, past and future, or only those starting at or after `since` and before `before` (ISO). */
+  countHostedBy(memberId: string, options?: { since?: string; before?: string }): Promise<number>;
   /** How many prickles came from this source (e.g. "calendar"). */
   countBySource(source: string): Promise<number>;
   /** Host and start time of every hosted prickle (those with an assigned host), optionally one member's. For hosting streaks. */
@@ -434,9 +434,10 @@ export class SupabasePrickleRepository implements PrickleRepository {
     if (error) throw new Error(error.message);
   }
 
-  async countHostedBy(memberId: string, { since }: { since?: string } = {}): Promise<number> {
+  async countHostedBy(memberId: string, { since, before }: { since?: string; before?: string } = {}): Promise<number> {
     let query = this.db.from("prickles").select("id", { count: "exact", head: true }).eq("host", memberId);
     if (since) query = query.gte("start_time", since);
+    if (before) query = query.lt("start_time", before);
     const { count, error } = await query;
     if (error) throw new Error(error.message);
     return count ?? 0;
@@ -899,9 +900,10 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     for (const t of this.data.prickleTypes) if (t.defaultHostId === fromMemberId) t.defaultHostId = toMemberId;
   }
 
-  async countHostedBy(memberId: string, { since }: { since?: string } = {}) {
+  async countHostedBy(memberId: string, { since, before }: { since?: string; before?: string } = {}) {
     const from = since ? new Date(since).getTime() : -Infinity;
-    return this.data.prickles.filter((p) => p.hostId === memberId && new Date(p.startTime).getTime() >= from).length;
+    const until = before ? new Date(before).getTime() : Infinity;
+    return this.data.prickles.filter((p) => p.hostId === memberId && new Date(p.startTime).getTime() >= from && new Date(p.startTime).getTime() < until).length;
   }
 
   async hostedTypesSince(hostId: string, since: string) {

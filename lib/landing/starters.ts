@@ -50,6 +50,7 @@ function homeContent(): unknown[] {
             align: "left",
             gap: "medium",
           }),
+          text("<p>Small, friendly groups, with no pressure to turn your camera on.</p>", "left"),
         ],
         [
           block("SchedulePanel", {
@@ -69,7 +70,8 @@ function homeContent(): unknown[] {
       items: [
         { value: "50+", label: "books published by members in 5 years", note: "" },
         { value: "100s", label: "of Finishers who typed THE END", note: "" },
-        { value: "128k", label: "words written in the last 30 days", note: "" },
+        // Live from the Hub once the page is published ("Live from the Hub" in the block's settings); the typed figure is only what shows if it can't be read.
+        { source: "live", stat: "words_30d", value: "[number]", label: "", note: "" },
       ],
     }),
     section({ background: "none" }, [
