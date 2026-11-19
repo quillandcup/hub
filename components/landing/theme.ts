@@ -42,6 +42,25 @@ export const PADDING = {
 export type PaddingKey = keyof typeof PADDING;
 export const PADDING_OPTIONS = (Object.keys(PADDING) as PaddingKey[]).map((value) => ({ label: PADDING[value].label, value }));
 
+/**
+ * "Space above and below" for a block that is a band of its own (Hero, Outcome numbers). Each block's default is the
+ * value that reproduces what it drew before the option existed, so a page saved without `padding` is unchanged.
+ */
+export const BAND_SPACE = {
+  hero: {
+    none: "py-0",
+    small: "py-6 @split:py-8",
+    medium: "py-10 @split:py-14",
+    large: "py-16 @split:py-24",
+  },
+  figures: {
+    none: "py-0",
+    small: "py-6",
+    medium: "py-10",
+    large: "py-16 @split:py-20",
+  },
+} as const;
+
 export function pick<T extends Record<string, unknown>>(map: T, key: unknown, fallback: keyof T): T[keyof T] {
   return map[(typeof key === "string" && key in map ? key : fallback) as keyof T];
 }

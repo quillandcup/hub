@@ -18,7 +18,9 @@ function walk(content: unknown[], visit: (node: Node) => void) {
     if (!raw || typeof raw !== "object") continue;
     const node = raw as Node;
     visit(node);
-    for (const value of Object.values(node.props ?? {})) {
+    for (const [key, value] of Object.entries(node.props ?? {})) {
+      // A third column that is switched off is not shown, so what is left in it is not checked either.
+      if (node.type === "Columns" && key === "col3" && node.props?.count !== "3") continue;
       // A slot holds a list of blocks.
       if (Array.isArray(value) && value.length > 0 && value.every((v) => v && typeof v === "object" && "type" in (v as object) && "props" in (v as object))) {
         walk(value, visit);

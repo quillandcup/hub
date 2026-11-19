@@ -478,8 +478,8 @@ describe("AnnouncementStrip", () => {
 
 describe("SchedulePanel", () => {
   const rows = [
-    { time: "9:00 am", title: "Morning pages", status: "Live · 4 writing", state: "live" as const, host: "Hosted by Sarah" },
-    { time: "10:00 am", title: "Focus hour", status: "3 joining", state: "soon" as const, host: "" },
+    { time: "9:00 am", title: "Morning pages", status: "Live", state: "live" as const, host: "Hosted by Sarah" },
+    { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon" as const, host: "" },
     { time: "", title: "", status: "skipped", state: "open" as const, host: "" },
   ];
 
@@ -487,8 +487,8 @@ describe("SchedulePanel", () => {
     const { container } = render(<SchedulePanel title="Writing right now" zoneLabel="Zone note" rows={rows} />);
     expect(screen.getByRole("region", { name: "Writing right now" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByText("Live · 4 writing").className).toContain("bg-emerald-700");
-    expect(screen.getByText("3 joining").className).toContain("bg-gold");
+    expect(screen.getByText("Live").className).toContain("bg-emerald-700");
+    expect(screen.getByText("In 42 min").className).toContain("bg-gold");
     expect(screen.getByText("Hosted by Sarah")).toBeInTheDocument();
     expect(screen.getByText("Zone note")).toBeInTheDocument();
     expect(container.querySelectorAll(".landing-pulse")).toHaveLength(1);
