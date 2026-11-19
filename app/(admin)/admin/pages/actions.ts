@@ -272,6 +272,30 @@ export async function resetLandingDraftToPublished(pageId: string): Promise<Page
   return withAction("landing_page_draft_reset", () => resetDraftImpl(auth, pageId));
 }
 
+async function starterImpl(auth: Auth, pageId: string, starter: string): Promise<PageResult> {
+  if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
+  if (!isStarterKey(starter)) return { error: "That starting point doesn't exist." };
+  const repo = createRepos(auth.supabase).landingPages;
+  try {
+    // The draft as it is now is kept in History first, so the replacement can be undone with Bring back.
+    const kept = await repo.keepDraftBeforeStarter(pageId, auth.user.id);
+    if (!kept) return { error: NOT_FOUND };
+    const page = await repo.replaceDraftWithStarter(pageId, sanitizeLandingData(starterData(starter)), auth.user.id);
+    if (!page) return { error: NOT_FOUND };
+    refresh();
+    return { slug: page.slug };
+  } catch (error) {
+    return failed("starter replace", error, "Couldn't replace the draft.");
+  }
+}
+
+/** Replaces the draft with a starter's page. The old draft is kept in History; the published copy, title, address and search settings are untouched, and nothing goes live. */
+export async function replaceLandingDraftWithStarter(pageId: string, starter: string): Promise<PageResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("landing_page_starter_applied", () => starterImpl(auth, pageId, starter));
+}
+
 // ---- duplicate and delete --------------------------------------------------------------------------------
 
 async function duplicateImpl(auth: Auth, pageId: string): Promise<PageResult> {

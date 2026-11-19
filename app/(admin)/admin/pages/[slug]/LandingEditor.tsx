@@ -16,7 +16,8 @@ import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
-import { publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
+import StarterReplace, { type StarterOption } from "./StarterReplace";
+import { publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 
@@ -35,7 +36,7 @@ export type EditorPage = {
   /** Path of the public page, for the "view" link once published. */
   publicPath: string;
 };
-export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" };
+export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter" };
 
 type SaveState = "saved" | "unsaved" | "saving" | "error";
 
@@ -207,7 +208,7 @@ function EditorHeader({
   );
 }
 
-export default function LandingEditor({ page: initial, data, versions }: { page: EditorPage; data: LandingData; versions: EditorVersion[] }) {
+export default function LandingEditor({ page: initial, data, versions, starters = [] }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[] }) {
   const router = useRouter();
   const [page, setPage] = useState(initial);
   const [save, setSave] = useState<SaveState>("saved");
@@ -428,6 +429,18 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
             return null;
           }}
         />
+        <StarterReplace
+          starters={starters}
+          onReplace={async (key) => {
+            // Save what is typed first, so the draft kept in History is the one on screen, and autosave can't write it back over the starter.
+            if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
+            const result = await replaceLandingDraftWithStarter(page.id, key);
+            if (result.error) return result.error;
+            // The editor takes its document once, so a replacement reloads the page to open the new draft.
+            window.location.reload();
+            return null;
+          }}
+        />
       </Modal>
     </div>
   );
@@ -510,7 +523,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
             <span>
               {v.title}
               <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
-                {v.kind === "before_import" ? "Your draft before an import" : "Published"} {new Date(v.createdAt).toLocaleString()}
+                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before starting over" : "Published"} {new Date(v.createdAt).toLocaleString()}
               </time>
             </span>
             <LifecycleButton action="restore" noun="version" disabled={pending} className={SECONDARY} onRun={() => start(async () => setError(await onRestore(v.id)))} />
