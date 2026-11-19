@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   forward: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
+  width: 1280,
   change: undefined as undefined | ((data: unknown) => void),
 }));
 
@@ -44,7 +45,7 @@ vi.mock("@puckeditor/core", () => ({
     select({
       history: { hasPast: true, hasFuture: false, back: mocks.back, forward: mocks.forward },
       dispatch: mocks.dispatch,
-      appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } } },
+      appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: mocks.width, height: "auto" }, controlsVisible: false, options: [] } } },
     }),
 }));
 
@@ -62,6 +63,7 @@ function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: s
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   Object.values(mocks).forEach((m) => typeof m === "function" && "mockReset" in m && m.mockReset());
+  mocks.width = 1280;
   mocks.save.mockResolvedValue({ savedAt: "2027-01-01T00:00:00Z" });
   mocks.publish.mockResolvedValue({ publishedAt: "2027-01-01T00:00:00Z", issues: [] });
   mocks.unpublish.mockResolvedValue({ slug: "spring" });
@@ -149,6 +151,34 @@ describe("the header", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(mocks.back).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
+  it("offers no device model list at desktop width", () => {
+    editor();
+    expect(screen.queryByRole("combobox", { name: /model/i })).toBeNull();
+  });
+
+  it("lists tablet models at a tablet width and sets the canvas to the one picked", () => {
+    mocks.width = 768;
+    editor();
+    const select = screen.getByRole("combobox", { name: "Tablet model" });
+    expect(screen.queryByRole("combobox", { name: "Phone model" })).toBeNull();
+    fireEvent.change(select, { target: { value: "iPad Air" } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 820, height: "auto" } }) } });
+  });
+
+  it("lists phone models at a phone width and sets the canvas to the one picked", () => {
+    mocks.width = 390;
+    editor();
+    expect(screen.getByRole("combobox", { name: "Phone model" })).toHaveValue("iPhone 14");
+    fireEvent.change(screen.getByRole("combobox", { name: "Phone model" }), { target: { value: "Google Pixel 7" } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 412, height: "auto" } }) } });
+  });
+
+  it("shows no model list at a width that is not a model's", () => {
+    mocks.width = 500;
+    editor();
+    expect(screen.queryByRole("combobox", { name: /model/i })).toBeNull();
   });
 
   it("shows or hides each side panel", () => {
