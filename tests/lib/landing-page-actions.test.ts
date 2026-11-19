@@ -79,6 +79,22 @@ describe("createLandingPage", () => {
   });
 });
 
+describe("createLandingPage from a starter", () => {
+  it("makes an unpublished draft holding the starter's blocks", async () => {
+    expect(await createLandingPage({ title: "Quill & Cup", slug: "home", starter: "home" })).toEqual({ slug: "home" });
+    const page = (await state.repos.landingPages.bySlug("home"))!;
+    expect(page.status).toBe("draft");
+    expect(page.published_data).toBeNull();
+    expect((page.draft_data as { content: unknown[] }).content.length).toBeGreaterThan(3);
+    expect(await state.repos.landingPages.published("home")).toBeNull();
+  });
+
+  it("refuses a starter that doesn't exist and writes nothing", async () => {
+    expect(await createLandingPage({ title: "X", starter: "nope" })).toEqual({ error: "That starting point doesn't exist." });
+    expect(state.dataset.landingPages).toHaveLength(0);
+  });
+});
+
 describe("saveLandingDraft (autosave)", () => {
   it("saves a cleaned draft and leaves what is published alone", async () => {
     const { slug } = await createLandingPage({ title: "Page" });

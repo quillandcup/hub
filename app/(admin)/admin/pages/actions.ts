@@ -10,6 +10,7 @@ import { collectAssetIds, type LandingData } from "@/lib/landing/data";
 import { stampLandingVersion } from "@/lib/landing/migrations";
 import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
+import { isStarterKey, starterData } from "@/lib/landing/starters";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
 /**
@@ -57,11 +58,15 @@ async function createImpl(auth: Auth, input: { title: string; slug?: string; dat
 }
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
-/** Makes an empty draft page; its address is the title's words unless one is given. */
-export async function createLandingPage(input: { title: string; slug?: string }): Promise<PageResult> {
+/** Makes a draft page, empty or from a starter (lib/landing/starters.ts); its address is the title's words unless one is given. */
+export async function createLandingPage(input: { title: string; slug?: string; starter?: string }): Promise<PageResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
-  return withAction("landing_page_created", () => createImpl(auth, input));
+  return withAction("landing_page_created", async () => {
+    if (input?.starter && !isStarterKey(input.starter)) return { error: "That starting point doesn't exist." };
+    const data = input?.starter && isStarterKey(input.starter) ? sanitizeLandingData(starterData(input.starter)) : undefined;
+    return createImpl(auth, { title: input?.title, slug: input?.slug, data });
+  });
 }
 
 async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string; prompt: string }): Promise<PageResult> {
