@@ -4,6 +4,7 @@ import { checkLandingPage } from "@/lib/landing/a11y";
 import { collectAssetIds, normalizeLandingData } from "@/lib/landing/data";
 import { normalizePadding, PADDING_DEFAULT_DESKTOP, presetOf } from "@/lib/landing/layout";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
+import { FEATURED_COURSE } from "@/lib/config";
 import { LANDING_STARTERS, STARTER_KEYS, isStarterKey, starterData } from "@/lib/landing/starters";
 import { isValidSlug } from "@/lib/landing/slug";
 
@@ -83,9 +84,27 @@ describe("the homepage starter", () => {
     expect(columns.props.col3).toEqual([]);
     expect(blocks(content).map((b) => b.type)).not.toContain("Hero");
     const types = blocks(content).map((b) => b.type);
-    for (const type of ["SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp", "OptInForm"]) {
+    for (const type of ["SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "OptInForm"]) {
       expect(types.filter((t) => t === type), type).toHaveLength(1);
     }
+    // Two live lists: retreats and workshops first, then the community's own gatherings, so no kind appears in both.
+    const lists = blocks(content).filter((b) => b.type === "ComingUp");
+    expect(lists).toHaveLength(2);
+    const kinds = lists.map((l) => l.props.kinds as string[]);
+    expect(kinds.every((k) => k.length > 0)).toBe(true);
+    expect(kinds[0].filter((k) => kinds[1].includes(k))).toEqual([]);
+    expect(lists.map((l) => l.props.source)).toEqual(["live", "live"]);
+  });
+
+  it("keeps the owner's first-week order: courage, write, goal, hello, streak", () => {
+    const week = blocks(starterData("home").content as Node[]).find((b) => b.type === "WeekStrip")!;
+    expect((week.props.items as { label: string; text: string }[]).map((d) => `${d.label}: ${d.text}`)).toEqual([
+      "Mon: Drop into a prickle",
+      "Tue: Write & log progress",
+      "Wed: Set one small goal",
+      "Thu: Say hello in chat",
+      "Fri: Your first streak day",
+    ]);
   });
 
   it("keeps the sections tight: Medium space, with only the closing sign-up airy", () => {
@@ -108,7 +127,9 @@ describe("the homepage starter", () => {
   it("links the member sign-in and the three trust pages from paths on this site", () => {
     const json = JSON.stringify(starterData("home"));
     for (const path of ["/login", "/privacy", "/security", "/compliance"]) expect(json).toContain(`"${path}"`);
-    expect(json).not.toMatch(/https?:\/\//);
+    // The one address on another site is the featured course's waitlist, read from config, not typed into the starter.
+    expect(json.split(FEATURED_COURSE.offerUrl).join("")).not.toMatch(/https?:\/\//);
+    expect(json).toContain(FEATURED_COURSE.offerUrl);
   });
 });
 
