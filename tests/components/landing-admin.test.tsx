@@ -153,6 +153,30 @@ describe("the new page form", () => {
   });
 });
 
+describe("the new page form, starters", () => {
+  it("offers the homepage, fills in its title and address, and creates the page from it", async () => {
+    mocks.create.mockResolvedValueOnce({ slug: "home" });
+    render(<NewPageForm aiAvailable />);
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "home" } });
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Quill & Cup");
+    expect((screen.getByLabelText(/Address/) as HTMLInputElement).value).toBe("home");
+    expect(screen.getByLabelText(/Describe the page/)).toBeDisabled();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Create page" }));
+    });
+    expect(mocks.create).toHaveBeenCalledWith({ title: "Quill & Cup", slug: "home", starter: "home" });
+    expect(mocks.createAi).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith("/admin/pages/home");
+  });
+
+  it("keeps a title already typed", () => {
+    render(<NewPageForm aiAvailable={false} />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "My home" } });
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "home" } });
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("My home");
+  });
+});
+
 describe("the new page form, Build with AI", () => {
   it("drafts the page from the description and opens the editor", async () => {
     mocks.createAi.mockResolvedValueOnce({ slug: "spring" });

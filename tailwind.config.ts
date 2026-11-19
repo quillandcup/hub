@@ -75,6 +75,8 @@ export default {
         mist,
         beige: "#c19d85",
         brown: { DEFAULT: "#8e583d", deep: "#482815" },
+        // Announcement gold (landing pages): a fixed brand colour like cream and blush, not themed. `gold-ink` is the dark text readable on it (about 11:1).
+        gold: { DEFAULT: "#ffd34d", ink: "#3a2a00" },
       },
       // Container-query sizes (`@container` wrapper, `@split:grid-cols-2` on children; see "Responsive
       // Layout" in CLAUDE.md). Name the layout change, not the width, and use these everywhere so pages

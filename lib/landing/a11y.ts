@@ -35,6 +35,13 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
   const headings: { level: number; text: string }[] = [];
   let blocks = 0;
 
+  /** A button or link with words but no usable address is an error; one that says only "click here" a warning. */
+  const checkButton = (block: string, label: unknown, href: unknown, what?: string) => {
+    if (str(label) && !safeHref(href)) issues.push({ severity: "error", block, message: what ? `${what} (${str(label)}) has no link.` : `The button "${str(label)}" has no link.` });
+    if (GENERIC_LINK_TEXT.test(str(label))) issues.push({ severity: "warning", block, message: `A link that says "${str(label)}" doesn't say where it goes.` });
+  };
+  const rows = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]).filter((r) => r && typeof r === "object") : []);
+
   walk(data.content, (node) => {
     const p = node.props ?? {};
     const type = node.type ?? "";
@@ -71,6 +78,47 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
           if (str(card.imageAssetId) && !str(card.alt)) issues.push({ severity: "error", block: "Card grid", message: `Card ${i + 1} has a picture with no description.` });
           if (str(card.buttonLabel) && !safeHref(card.href)) issues.push({ severity: "error", block: "Card grid", message: `Card ${i + 1}'s button has no link.` });
           if (GENERIC_LINK_TEXT.test(str(card.buttonLabel))) issues.push({ severity: "warning", block: "Card grid", message: `Card ${i + 1}'s button says "${str(card.buttonLabel)}": say where it goes.` });
+        }
+        break;
+      case "AnnouncementStrip":
+        checkButton("Announcement strip", p.buttonLabel, p.href);
+        break;
+      case "FinisherCards": {
+        for (const [i, card] of rows(p.items).entries()) {
+          if (str(card.imageAssetId) && !str(card.alt)) issues.push({ severity: "error", block: "Finisher cards", message: `Finisher ${i + 1} has a photo with no description.` });
+          if (str(card.name)) headings.push({ level: 3, text: str(card.name) });
+          checkButton("Finisher cards", card.linkLabel, card.href, `Finisher ${i + 1}'s link`);
+        }
+        const more = (p.more ?? {}) as Record<string, unknown>;
+        checkButton("Finisher cards", more.label, more.href, "The link under the cards");
+        break;
+      }
+      case "Timeline":
+        if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
+        for (const item of rows(p.items).filter((i) => str(i.title))) headings.push({ level: str(p.heading) ? 4 : 3, text: str(item.title) });
+        break;
+      case "FinishLineCards":
+        for (const card of rows(p.items).filter((i) => str(i.title))) {
+          headings.push({ level: 3, text: str(card.title) });
+          checkButton("Finish-line cards", card.buttonLabel, card.href);
+        }
+        break;
+      case "PlanPhases":
+        if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
+        break;
+      case "JourneyMap": {
+        const offer = (p.offer ?? {}) as Record<string, unknown>;
+        if (str(offer.title)) headings.push({ level: 3, text: str(offer.title) });
+        checkButton("Journey map", offer.buttonLabel, offer.href);
+        const compare = (p.compare ?? {}) as Record<string, unknown>;
+        checkButton("Journey map", compare.label, compare.href, "The compare link");
+        break;
+      }
+      case "ComingUp":
+        if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
+        for (const [i, card] of rows(p.items).entries()) {
+          if (str(card.title)) headings.push({ level: str(p.heading) ? 4 : 3, text: str(card.title) });
+          checkButton("Coming up", card.linkLabel, card.href, `Card ${i + 1}'s link`);
         }
         break;
       case "Heading":

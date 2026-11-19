@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * to change them (docs/LANDING_PAGES.md, "Dark mode"). Brand colours that do not change with the theme (plum bands,
  * the plum button) stay as they are.
  */
-const PAGE_FILES = ["blocks.tsx", "config.tsx", "theme.ts", "Countdown.tsx", "OptInForm.tsx"];
+const PAGE_FILES = ["blocks.tsx", "config.tsx", "theme.ts", "homepage-blocks.tsx", "Countdown.tsx", "OptInForm.tsx"];
 
 describe("landing page colours", () => {
   it.each(PAGE_FILES)("%s uses the tokens, not dark: variants or slate colours", (file) => {
