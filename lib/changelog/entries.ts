@@ -56,17 +56,45 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "fixes-2026-11-17",
+    date: "2026-11-17",
+    audience: "product",
+    category: "fixed",
+    title: "Small fixes on your dashboard, project page and phone",
+    summary: "Your dashboard lists each project's title once above its starred goals. On a phone, a project's buttons wrap instead of running off the screen, and you can press and hold a button to see its hint.",
+    body: [
+      "- **Writing Goals on your dashboard** list each project's title once, with its starred goals under it, instead of repeating the title on every goal.",
+      "- **A project's page on a phone**: the visibility switch, status, Edit details and Export CSV now wrap onto the next line instead of running off the right edge.",
+      "- **Hints on buttons**: on a phone or tablet, press and hold a button to see its hint, such as \"Drag to reorder\". Tapping works as it always did.",
+    ].join("\n"),
+  },
+  {
+    slug: "member-activity-date-range",
+    date: "2026-11-17",
+    audience: "staff",
+    category: "improved",
+    title: "A member's Activity tab: pick the days you want, and the community manager can open it",
+    summary: "On a member's Activity tab you can pick a date range, or choose all time. The community manager now has her own Activity tab there, showing only the member's own activity.",
+    body: `Open a member in the admin pages and choose **Activity**.
+
+- **Date range.** Beside the 24h, 7d, 30d, 90d and 1y buttons there is now **All time**, and a From and To pair of dates with **Apply** for any stretch in between. Days are Eastern days, and the whole To day is included. If the dates don't make sense (From after To, or a day that hasn't happened yet), the page says so and shows the usual range.
+- **For the community manager.** She sees what the member did, what staff did for them (a reach-out, a care plan step) and what an admin did while viewing as them. She does not see the record of staff changes to the member's details, which pages they visited, staff notes, or the central Activity Log.
+- **What it adds up to.** What Hedgie Care lists under "Activity during this plan" is always part of her tab, and her tab is part of what admins see.`,
+  },
+  {
     slug: "sign-in-links-last-one-hour",
     date: "2026-11-18",
     audience: "product",
     category: "improved",
-    title: "Sign-in links and codes now last one hour",
+    title: "Sign-in links and codes expire after one hour",
     summary:
-      "The link and the code in a sign-in email work for one hour, and each works once. If one has run out, ask for a new one on the sign-in page.",
+      "The link and the code in a sign-in email work for one hour, and each works only once. If the hour has passed, ask for a new one on the sign-in page.",
     body: [
       "Sign-in, invitation and password reset emails used to stay usable for a day. They now last one hour, so a link that is forwarded by mistake or left in an old inbox stops working much sooner.",
-      "If the hour has passed, go to the [sign-in page](/login) and ask for a new link or code. Someone who was invited but has not accepted yet gets a fresh invitation the same way.",
+      "![The sign-in page, with a box for the code from your email](/changelog/sign-in-links-last-one-hour/01-sign-in-code.webp)",
+      "If the hour has passed, go to the [sign-in page](/login) and ask for a new link or code. Someone who was invited but has not accepted yet can ask for a fresh invitation on that page too.",
     ].join("\n\n"),
+    image: { src: "/changelog/sign-in-links-last-one-hour/01-sign-in-code.webp", alt: "The sign-in page, with a box for the code from your email" },
   },
   {
     slug: "sign-in-link-works-on-any-device",
@@ -75,11 +103,13 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "The sign-in link in your email now works on any device",
     summary:
-      "You can ask for a sign-in link on your laptop and open it on your phone, or the other way round. It no longer has to be opened in the same browser you asked from.",
+      "You can ask for a sign-in link on your laptop and open it on your phone, or the other way around. It no longer has to be opened in the browser you asked from, and each link still works only once.",
     body: [
       "Until now the link in the sign-in email only worked in the browser where you asked for it, so opening it from your phone's mail app after asking on a laptop failed. It now works wherever you open it, and the invitation and password reset emails use the same kind of link.",
       "Like before, each link works once, and the code in the same email is still there if you would rather type it on the [sign-in page](/login).",
+      "![The sign-in page, with a box for the code from your email](/changelog/sign-in-link-works-on-any-device/01-sign-in-code.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/sign-in-link-works-on-any-device/01-sign-in-code.webp", alt: "The sign-in page, with a box for the code from your email" },
   },
   {
     slug: "staff-two-step-sign-in",
@@ -128,30 +158,33 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-17",
     audience: "product",
     category: "new",
-    title: "Get around the Hub faster with a computer keyboard",
-    summary: "On a computer, press ? to see every keyboard shortcut. Then use the arrow keys to move through lists and tables, and Ctrl+Enter (Cmd+Enter on a Mac) to save a form in a dialog.",
+    title: "Use your computer keyboard to get around the Hub faster",
+    summary: "On a computer, press ? to see all the keyboard shortcuts, starting with the page you are on. Arrow keys move through lists and tables, and Ctrl+Enter (Cmd+Enter on a Mac) saves a form in a dialog.",
     body: `On a computer, you can now do more without reaching for the mouse.
 
 - **See every shortcut.** Press **?** (or choose Keyboard shortcuts in the help menu at the top) to open a panel beside the page. It shows the shortcuts for the page you are on first, then the ones that work everywhere, and you can search it.
 - **Lists and tables.** Move between rows with the arrow keys (j and k also work), and press Enter to open one.
-- **Search boxes that suggest people or items.** Use the up and down arrows, Enter to choose and Esc to close the list.
+- **Search boxes that suggest people or items.** Use the up and down arrows, Enter to choose, and the Escape key to close the list.
 - **Saving.** Press Ctrl+Enter (Cmd+Enter on a Mac) to save a form in a dialog.
 
-Press **?** again, or the Esc key, to close the panel. These work on a computer with a keyboard and a mouse or trackpad. On a phone or tablet you will not see them.`,
+![The keyboard shortcuts panel open beside the Members page](/changelog/keyboard-shortcuts/01-shortcuts-panel.webp)
+
+Press **?** again, or the Escape key, to close the panel. These work on a computer with a keyboard and a mouse or trackpad. On a phone or tablet you will not see them.`,
+    image: { src: "/changelog/keyboard-shortcuts/01-shortcuts-panel.webp", alt: "The keyboard shortcuts panel open beside the Members page" },
   },
   {
     slug: "security-page-details",
     date: "2026-11-17",
     audience: "product",
     category: "improved",
-    title: "The Security page now says how your information is protected, in detail",
-    summary: "The Security page now covers encryption, how long a sign-in lasts, how our keys are kept and how the database is backed up, and says plainly what isn't finished.",
+    title: "How the Hub protects your information, in more detail",
+    summary: "The Security page now explains how your information is encrypted, how our encryption keys are kept, how long a sign-in lasts, how the database is backed up, and what is not finished yet.",
     body: `The [Security page](/security) now answers the questions people ask most, in plain words:
 
-- **Encryption.** Everything between your browser and the Hub is encrypted, browsers are told to use only secure connections, and stored data and backups are encrypted, with stored tokens such as your chat connection kept in a separate encrypted vault.
+- **Encryption.** Everything between your browser and the Hub is encrypted, browsers are told to use only secure connections, and stored data and backups are encrypted. Details such as your chat connection are kept separately, also encrypted.
 - **Signing in.** Joining is by invitation, a sign-in lasts an hour at a time and renews in the background, and staff can end a member's sessions if an account is at risk.
 - **Backups.** The database is backed up continuously and can be restored to any moment in the last 7 days.
-- **Honest about gaps.** Where something isn't finished, such as the browser protections that only report for now, the line says so.
+- **Honest about gaps.** Where something isn't finished, the line says so.
 
 The [Compliance page](/compliance) now describes the services we rely on by what they do, without naming them.`,
   },
@@ -168,7 +201,10 @@ The [Compliance page](/compliance) now describes the services we rely on by what
 - **Last checked.** The date someone last compared the line with the code.
 - **Still open.** What isn't finished or hasn't been reviewed yet, gathered at the top of each page and linked to its line.
 
+![The admin Privacy page, with the list of what is still open at the top](/changelog/compliance-and-security-for-staff/01-privacy-detail.webp)
+
 The pages hold nothing private: the repository is public, so they carry no names, keys or account details. If you change what the Hub does, change the matching line with it.`,
+    image: { src: "/changelog/compliance-and-security-for-staff/01-privacy-detail.webp", alt: "The admin Privacy page, with the list of what is still open at the top" },
   },
   {
     slug: "security-page",
@@ -176,31 +212,37 @@ The pages hold nothing private: the repository is public, so they carry no names
     audience: "product",
     category: "new",
     title: "See how the Hub keeps your information safe",
-    summary: "A new Security page explains, in plain words, how sign-in, access, keys and changes are protected, and what to do if something looks wrong.",
+    summary: "A new Security page explains in plain words how sign-in and access are protected, and what to do if something looks wrong.",
     body: `The new [Security page](/security) says how the Hub is protected, one short line at a time, with whether each is finished.
 
 - **Sign-in and access.** Joining is by invitation, and who can see what is decided by the database itself, not only by the page you are on.
-- **Behind the scenes.** What we do about messages from other services, replaceable keys and a record of changes.
+- **Behind the scenes.** How we handle messages that other services send us, how keys can be replaced, and the record kept of changes.
 - **Still in progress.** Where something isn't finished, the line says so.
 - **Something wrong?** The page says how to tell us.
 
+![The top of the Security page, with its key to what each label means and the Encryption section](/changelog/security-page/01-security-page.webp)
+
 It sits in the footer with [Privacy](/privacy) and [Compliance](/compliance).`,
+    image: { src: "/changelog/security-page/01-security-page.webp", alt: "The top of the Security page, with its key to what each label means and the Encryption section" },
   },
   {
     slug: "compliance-page",
     date: "2026-11-17",
     audience: "product",
     category: "new",
-    title: "See which privacy, payment and accessibility standards the Hub follows",
-    summary: "A new Compliance page lists the standards we follow, the ones our providers handle for us, and the ones we are still working toward.",
+    title: "See how the Hub handles your privacy, payments and accessibility",
+    summary: "The new Compliance page shows the privacy, payment and accessibility rules the Hub follows, which parts our providers handle for us, and what is still in progress.",
     body: `The new [Compliance page](/compliance) is one place to see how the Hub treats your information and which standards it follows.
 
 - **Privacy.** What we do for members in the EU, the EEA and the UK, and for everyone else, with a link to the full [Privacy page](/privacy).
-- **Payments.** Card details never reach the Hub. Our payment provider, Stripe, handles them and holds the card-security certification.
+- **Payments.** Card details never reach the Hub. Our payment provider handles them and holds the certification for handling card details safely.
 - **Accessibility.** The checks we run so the Hub works for as many people as possible, and what we haven't finished yet.
 - **Honest about gaps.** Each line says whether it is in place, handled by a provider, still in progress or not yet reviewed.
 
+![The top of the Compliance page, with its key to what each label means and the Privacy and data protection section](/changelog/compliance-page/01-compliance-page.webp)
+
 You'll find it in the footer, next to Privacy.`,
+    image: { src: "/changelog/compliance-page/01-compliance-page.webp", alt: "The top of the Compliance page, with its key to what each label means and the Privacy and data protection section" },
   },
   {
     slug: "table-keyboard-navigation",
@@ -236,23 +278,26 @@ You'll find it in the footer, next to Privacy.`,
     audience: "product",
     category: "new",
     title: "Put a project's goals in the order you like",
-    summary: "On a project's page, drag a goal into the order you want, or pick its new place from its ⋯ button. The goals you star on your dashboard follow that order too.",
+    summary: "On a project's page, drag a goal to where you want it, or use its ⋯ (three dots) menu to move it. The goals you star on your dashboard follow that order too.",
     body: `A project's goals no longer have to stay in the order you first made them. Put the one you care about most at the top.
 
 - **Drag to move.** Each goal has a small grip (two lines) on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
-- **Prefer not to drag?** Use the **⋯** button on a goal and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
+- **Prefer not to drag?** Use the **⋯** button on a goal and choose **Move to position** to jump straight to the place you want. On a keyboard, select the grip, press Space, use the arrow keys, then press Space again. On a computer, hover over the grip to see these steps.
 - **Your dashboard shows them in this order.** Starred goals in **Writing Goals** stay grouped by project, in your project order, and within each project follow the order you chose.
 - **Nothing changes until you move a goal.** After that, goals you add go to the bottom of the list.
 
+![A project's page with a grip beside each goal and a three-dots menu on the right](/changelog/reorder-your-goals/01-goals-with-grips.webp)
+
 Open a project from [your Projects page](/projects) to see its goals. Reordering needs two or more goals in that project.`,
+    image: { src: "/changelog/reorder-your-goals/01-goals-with-grips.webp", alt: "A project's page with a grip beside each goal and a three-dots menu on the right" },
   },
   {
     slug: "goal-start-date-starting-count-note",
     date: "2026-11-16",
     audience: "product",
     category: "improved",
-    title: "Goals tell you when your starting count isn't included",
-    summary: "A goal with a start date counts only what you log from that day on. It now says so when your project has a starting count that is left out.",
+    title: "A goal with a start date now says when your starting words aren't counted",
+    summary: "A goal with a start date counts only the words you log from that day on, so your project's starting word count (or another starting count) is left out. The goal now shows a note saying so.",
     body: `If you gave a project a starting word count (or another starting count) and then set a start date on its goal, the goal counts only what you log from that date on. It now shows a note under the progress bar, such as "Your starting 20,000 words aren't counted because this goal is for what you log in a specific time frame."
 
 To count your starting words, clear the goal's start date. A goal without one counts everything on the project.`,
@@ -263,15 +308,18 @@ To count your starting words, clear the goal's start date. A goal without one co
     audience: "product",
     category: "new",
     title: "Put your writing projects in the order you like",
-    summary: "On your Projects page you can now drag your projects into the order you want, or pick a project's new place from its ⋯ button. The goals you star on your dashboard follow the same order.",
+    summary: "On your Projects page, drag your projects into the order you want, or use a project's ⋯ (three dots) menu to move it. The goals you star on your dashboard follow the same order.",
     body: `Your projects no longer have to stay newest first. Put the one you are working on right now at the top, and the ones you are saving for later below it.
 
 - **Drag the handle.** Each project has a small grip (two lines) next to its ⋯ menu button. Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
-- **Prefer not to drag?** Use the **⋯** button on a project and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
+- **Prefer not to drag?** Use the **⋯** button on a project and choose **Move to position** to jump straight to the place you want. On a keyboard, select the grip, press Space, use the arrow keys, then press Space again. On a computer, hover over the grip to see these steps.
 - **Your dashboard follows.** The goals you have starred in **Writing Goals** on your dashboard are shown in the same order as their projects, so moving a project moves its goals too.
 - **Nothing changes until you do.** Your projects stay as they are today until you move one. A project you create later appears at the top, and projects you have put on hold are not affected.
 
+![The Projects page, with a grip and a reorder button on each project](/changelog/reorder-your-projects/01-projects-with-grips.webp)
+
 Find it on [your Projects page](/projects) once you have two or more projects.`,
+    image: { src: "/changelog/reorder-your-projects/01-projects-with-grips.webp", alt: "The Projects page, with a grip and a reorder button on each project" },
   },
   {
     slug: "checkin-dm-closes-on-answer",
