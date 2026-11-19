@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   replace: vi.fn(),
   width: 1280,
+  height: "auto" as number | "auto",
   change: undefined as undefined | ((data: unknown) => void),
 }));
 
@@ -45,7 +46,7 @@ vi.mock("@puckeditor/core", () => ({
     select({
       history: { hasPast: true, hasFuture: false, back: mocks.back, forward: mocks.forward },
       dispatch: mocks.dispatch,
-      appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: mocks.width, height: "auto" }, controlsVisible: false, options: [] } } },
+      appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: mocks.width, height: mocks.height }, controlsVisible: false, options: [] } } },
     }),
 }));
 
@@ -64,6 +65,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   Object.values(mocks).forEach((m) => typeof m === "function" && "mockReset" in m && m.mockReset());
   mocks.width = 1280;
+  mocks.height = "auto";
   mocks.save.mockResolvedValue({ savedAt: "2027-01-01T00:00:00Z" });
   mocks.publish.mockResolvedValue({ publishedAt: "2027-01-01T00:00:00Z", issues: [] });
   mocks.unpublish.mockResolvedValue({ slug: "spring" });
@@ -138,14 +140,14 @@ describe("autosave", () => {
 });
 
 describe("the header", () => {
-  it("switches the preview size, and undoes and redoes through Puck's history", () => {
+  it("switches the preview size to each device's width and height, and undoes and redoes through Puck's history", () => {
     editor();
     fireEvent.click(screen.getByRole("button", { name: "Phone preview" }));
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 390, height: "auto" } }) } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 402, height: 874 } }) } });
     fireEvent.click(screen.getByRole("button", { name: "Tablet portrait preview" }));
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 820, height: "auto" } }) } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 820, height: 1180 } }) } });
     fireEvent.click(screen.getByRole("button", { name: "Tablet landscape preview" }));
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1024, height: "auto" } }) } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1180, height: 820 } }) } });
     expect(screen.getByRole("button", { name: "Desktop preview" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
@@ -153,38 +155,85 @@ describe("the header", () => {
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
   });
 
-  it("offers no device model list at desktop width", () => {
+  it("offers no device model list and no fold toggle at desktop size", () => {
     editor();
     expect(screen.queryByRole("combobox", { name: /model/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Fold line" })).toBeNull();
   });
 
-  it("lists tablet models at a tablet width and sets the canvas to the one picked", () => {
+  it("lists tablet models at a tablet size and sets the canvas to the width and height of the one picked", () => {
     mocks.width = 820;
+    mocks.height = 1180;
     editor();
     const box = screen.getByRole("combobox", { name: "Tablet model" });
     expect(screen.queryByRole("combobox", { name: "Phone model" })).toBeNull();
     expect(box).toHaveAttribute("placeholder", "iPad");
     fireEvent.focus(box);
     fireEvent.click(screen.getByText("iPad Pro 11-inch"));
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 834, height: "auto" } }) } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 834, height: 1210 } }) } });
   });
 
-  it("lists phone models at a phone width, can search them, and sets the canvas to the one picked", () => {
-    mocks.width = 390;
+  it("lists phone models at a phone size, can search them, and sets the canvas to the one picked", () => {
+    mocks.width = 402;
+    mocks.height = 874;
     editor();
     const box = screen.getByRole("combobox", { name: "Phone model" });
-    expect(box).toHaveAttribute("placeholder", "iPhone 14");
+    expect(box).toHaveAttribute("placeholder", "iPhone 17");
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: "pixel" } });
-    expect(screen.queryByText("iPhone 17")).toBeNull();
+    expect(screen.queryByText("iPhone 16")).toBeNull();
     fireEvent.click(screen.getByText("Google Pixel 9"));
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 412, height: "auto" } }) } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 412, height: 923 } }) } });
   });
 
-  it("shows no model list at a width that is not a model's", () => {
+  it("keeps the picked model when the tablet is turned, and the size follows the swap", () => {
+    // The mock canvas follows what is dispatched, as Puck's store would.
+    mocks.dispatch.mockImplementation((action: { ui: { viewports: { current: { width: number; height: number } } } }) => {
+      mocks.width = action.ui.viewports.current.width;
+      mocks.height = action.ui.viewports.current.height;
+    });
+    mocks.width = 820;
+    mocks.height = 1180;
+    const view = editor();
+    const again = () => view.rerender(<LandingEditor page={page} data={data} versions={[]} starters={STARTERS} />);
+
+    fireEvent.focus(screen.getByRole("combobox", { name: "Tablet model" }));
+    fireEvent.click(screen.getByText("iPad Pro 13-inch"));
+    again();
+    expect(screen.getByRole("combobox", { name: "Tablet model" })).toHaveAttribute("placeholder", "iPad Pro 13-inch");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tablet landscape preview" }));
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1376, height: 1032 } }) } });
+    again();
+    expect(screen.getByRole("combobox", { name: "Tablet model" })).toHaveAttribute("placeholder", "iPad Pro 13-inch");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tablet portrait preview" }));
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1032, height: 1376 } }) } });
+    again();
+    expect(screen.getByRole("combobox", { name: "Tablet model" })).toHaveAttribute("placeholder", "iPad Pro 13-inch");
+
+    // Picking another model while on its side stays on its side.
+    fireEvent.click(screen.getByRole("button", { name: "Tablet landscape preview" }));
+    again();
+    fireEvent.focus(screen.getByRole("combobox", { name: "Tablet model" }));
+    fireEvent.click(screen.getByText("iPad mini"));
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1133, height: 744 } }) } });
+  });
+
+  it("shows no model list at a size that is not a model's", () => {
     mocks.width = 500;
     editor();
     expect(screen.queryByRole("combobox", { name: /model/i })).toBeNull();
+  });
+
+  it("offers a toggle for the fold line at a device size, which can be turned off", () => {
+    mocks.width = 390;
+    mocks.height = 844;
+    editor();
+    const toggle = screen.getByRole("button", { name: "Fold line" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
   });
 
   it("shows or hides each side panel", () => {

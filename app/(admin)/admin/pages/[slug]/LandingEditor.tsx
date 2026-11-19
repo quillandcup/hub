@@ -1,7 +1,7 @@
 "use client";
 
 import "@puckeditor/core/puck.css";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
@@ -19,7 +19,8 @@ import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
 import { addPlugin, panelOverrides } from "./SidePanels";
 import { useMirrorHostTheme } from "./useMirrorHostTheme";
-import { MODEL_WIDTHS, MODELS_BY_CLASS, deviceClassForWidth } from "./devices";
+import { MODEL_SIZES, MODELS_BY_CLASS, deviceClassForSize, isLandscape, modelForSize, modelSize, type DeviceClass, type DeviceModel } from "./devices";
+import { FoldContext, FoldFrame } from "./FoldMarker";
 import StarterReplace,{ type StarterOption } from "./StarterReplace";
 import { publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
@@ -49,21 +50,35 @@ const SECONDARY = `${BUTTON} border border-slate-300 bg-white text-slate-800 hov
 const PRIMARY = `${BUTTON} bg-plum-600 text-white hover:bg-plum-700`;
 const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:aria-pressed:bg-plum-800 dark:aria-pressed:text-plum-50";
 
-const DEVICES = [
-  { label: "Desktop", width: 1280 as const, Icon: Monitor, rotate: false },
-  { label: "Tablet portrait", width: 820 as const, Icon: Tablet, rotate: false },
-  { label: "Tablet landscape", width: 1024 as const, Icon: Tablet, rotate: true },
-  { label: "Phone", width: 390 as const, Icon: Smartphone, rotate: false },
-];
+type CanvasSize = { width: number; height: number | "auto" };
 
-/** The model picker beside the Tablet and Phone buttons (our searchable picker); shows only while the canvas is at a tablet or phone width. */
-function DeviceModelSelect({ width, onPick }: { width: number | string; onPick: (width: number) => void }) {
-  const [picked, setPicked] = useState<string | null>(null);
-  const deviceClass = deviceClassForWidth(width);
+/** The preview buttons. Desktop is as wide as the frame with a free height; Tablet and Phone use the chosen model of their class (the first one until another is picked), portrait or on its side. */
+const DEVICES: { label: string; deviceClass: DeviceClass | null; landscape: boolean; Icon: typeof Monitor; rotate: boolean }[] = [
+  { label: "Desktop", deviceClass: null, landscape: false, Icon: Monitor, rotate: false },
+  { label: "Tablet portrait", deviceClass: "tablet", landscape: false, Icon: Tablet, rotate: false },
+  { label: "Tablet landscape", deviceClass: "tablet", landscape: true, Icon: Tablet, rotate: true },
+  { label: "Phone", deviceClass: "phone", landscape: false, Icon: Smartphone, rotate: false },
+];
+const DESKTOP: CanvasSize = { width: 1280, height: "auto" };
+
+/** The model a class's button uses: the chosen one if it belongs to the class, else the class's first. */
+function modelOfClass(deviceClass: DeviceClass, chosen: string | null): DeviceModel {
+  return MODELS_BY_CLASS[deviceClass].find((m) => m.name === chosen) ?? MODELS_BY_CLASS[deviceClass][0];
+}
+
+function buttonSize({ deviceClass, landscape }: (typeof DEVICES)[number], chosen: string | null): CanvasSize {
+  return deviceClass ? modelSize(modelOfClass(deviceClass, chosen), landscape) : DESKTOP;
+}
+
+/** The model picker beside the Tablet and Phone buttons (our searchable picker); shows only while the canvas is at a tablet or phone size. The chosen model and the orientation are kept apart, so turning the device keeps the model. */
+function DeviceModelSelect({ width, height, chosen, onPick }: { width: number | string; height: number | string; chosen: string | null; onPick: (model: DeviceModel, landscape: boolean) => void }) {
+  const deviceClass = deviceClassForSize(width, height);
   const models = useMemo(() => (deviceClass ? MODELS_BY_CLASS[deviceClass] : []), [deviceClass]);
-  const items = useMemo(() => models.map((m) => ({ id: m.name, name: m.name, detail: `${m.width}px` })), [models]);
+  const items = useMemo(() => models.map((m) => ({ id: m.name, name: m.name, detail: `${m.width}x${m.height}` })), [models]);
   if (!deviceClass) return null;
-  const current = models.find((m) => m.name === picked && m.width === width)?.name ?? models.find((m) => m.width === width)?.name;
+  const landscape = isLandscape(width, height);
+  const sameSize = (m: DeviceModel) => modelSize(m, landscape).width === width && modelSize(m, landscape).height === height;
+  const current = models.find((m) => m.name === chosen && sameSize(m))?.name ?? modelForSize(deviceClass, width, height)?.name;
   return (
     <EntitySearch
       key={deviceClass}
@@ -72,9 +87,7 @@ function DeviceModelSelect({ width, onPick }: { width: number | string; onPick: 
       selectedId={null}
       onSelect={(item) => {
         const model = models.find((m) => m.name === item?.id);
-        if (!model) return;
-        setPicked(model.name);
-        onPick(model.width);
+        if (model) onPick(model, landscape);
       }}
       placeholder={current ?? (deviceClass === "tablet" ? "Tablet model" : "Phone model")}
       ariaLabel={deviceClass === "tablet" ? "Tablet model" : "Phone model"}
@@ -132,6 +145,10 @@ function EditorHeader({
   const dispatch = usePuck((s) => s.dispatch);
   const viewports = usePuck((s) => s.appState.ui.viewports);
   const current = viewports.current.width;
+  const currentHeight = viewports.current.height;
+  const fold = useContext(FoldContext);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const setCanvas = (size: CanvasSize) => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: size } } });
   const leftOpen = usePuck((s) => s.appState.ui.leftSideBarVisible);
   const rightOpen = usePuck((s) => s.appState.ui.rightSideBarVisible);
   const published = page.status === "published";
@@ -167,20 +184,39 @@ function EditorHeader({
       )}
 
       <div role="group" aria-label="Preview size" className="mx-auto flex items-center gap-1">
-        {DEVICES.map(({ label, width, Icon, rotate }) => (
-          <Tooltip key={label} content={`${label} preview`}>
-            <button
-              type="button"
-              aria-label={`${label} preview`}
-              aria-pressed={current === width}
-              onClick={() => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })}
-              className={ICON}
-            >
-              <Icon size={16} aria-hidden="true" className={rotate ? "rotate-90" : undefined} />
+        {DEVICES.map((device) => {
+          const { label, Icon, rotate } = device;
+          const size = buttonSize(device, chosen);
+          return (
+            <Tooltip key={label} content={`${label} preview`}>
+              <button
+                type="button"
+                aria-label={`${label} preview`}
+                aria-pressed={current === size.width && currentHeight === size.height}
+                onClick={() => setCanvas(size)}
+                className={ICON}
+              >
+                <Icon size={16} aria-hidden="true" className={rotate ? "rotate-90" : undefined} />
+              </button>
+            </Tooltip>
+          );
+        })}
+        <DeviceModelSelect
+          width={current}
+          height={currentHeight}
+          chosen={chosen}
+          onPick={(model, landscape) => {
+            setChosen(model.name);
+            setCanvas(modelSize(model, landscape));
+          }}
+        />
+        {typeof currentHeight === "number" && (
+          <Tooltip content={`${fold.visible ? "Hide" : "Show"} the fold line (where the first screen ends)`}>
+            <button type="button" aria-label="Fold line" aria-pressed={fold.visible} onClick={() => fold.setVisible(!fold.visible)} className={ICON}>
+              <AppIcon name="fold" />
             </button>
           </Tooltip>
-        ))}
-        <DeviceModelSelect width={current} onPick={(width) => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })} />
+        )}
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <Tooltip content="Undo (Ctrl/⌘ Z)">
           <button type="button" aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" disabled={!history.hasPast} onClick={() => history.back()} className={ICON}>
@@ -252,6 +288,8 @@ export default function LandingEditor({ page: initial, data, versions, starters 
   const [issues, setIssues] = useState<A11yIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [foldVisible, setFoldVisible] = useState(true);
+  const foldContext = useMemo(() => ({ visible: foldVisible, setVisible: setFoldVisible }), [foldVisible]);
   const [busy, startBusy] = useTransition();
 
   const latest = useRef<string>(JSON.stringify(data));
@@ -381,6 +419,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
   const overrides = useMemo(
     () => ({
       ...panelOverrides,
+      iframe: FoldFrame,
       header: () => (
         <EditorHeader
           page={page}
@@ -405,15 +444,17 @@ export default function LandingEditor({ page: initial, data, versions, starters 
 
   return (
     <div className="landing-editor h-[calc(100dvh-4rem)]">
-      <Puck
-        config={editorConfig}
-        data={data as unknown as Data}
-        onChange={onChange}
-        overrides={overrides}
-        plugins={[addPlugin, aiPlugin]}
-        viewports={[...DEVICES.map(({ label, width }) => ({ width, height: "auto" as const, label })), ...MODEL_WIDTHS.filter((w) => !DEVICES.some((d) => d.width === w)).map((w) => ({ width: w, height: "auto" as const, label: `${w}px` }))]}
-        ui={{ plugin: { current: "outline" }, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
-      />
+      <FoldContext.Provider value={foldContext}>
+        <Puck
+          config={editorConfig}
+          data={data as unknown as Data}
+          onChange={onChange}
+          overrides={overrides}
+          plugins={[addPlugin, aiPlugin]}
+          viewports={[{ ...DESKTOP, label: "Desktop" }, ...MODEL_SIZES.map((s) => ({ ...s, label: `${s.width}x${s.height}` }))]}
+          ui={{ plugin: { current: "outline" }, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
+        />
+      </FoldContext.Provider>
 
       <Modal isOpen={dialog === "publish"} onClose={() => setDialog(null)} title={page.status === "published" ? "Publish changes" : "Publish this page"} maxWidth="lg">
         <div className="space-y-4">
