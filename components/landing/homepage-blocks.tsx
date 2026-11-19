@@ -106,16 +106,25 @@ export type SchedulePanelProps = {
   hoursAhead?: number;
   maxRows?: number;
   hostStyle?: "none" | "experience";
+  /** Live: the line under a row with an experienced host (applied on the server, see `scheduleOptions`); default "An experienced host, sure to make you feel at home". */
+  experiencedHostText?: string;
+  /** The chip on a row that is neither running nor starting within the hour; default "Open". */
+  openLabel?: string;
+  /** An optional line under every row that has no host line of its own (for example "Camera optional"); default none. Never a name or a count. */
+  rowNote?: string;
   emptyText?: string;
   live?: { rows: ScheduleRow[]; zoneLabel: string };
 };
+const DEFAULT_OPEN_LABEL = "Open";
 const STATE_CHIP = { live: "bg-emerald-700 text-white", soon: "bg-gold text-gold-ink", open: "bg-mist-100 text-mist-900" } as const;
 
 /** A panel of today's sessions, typed by hand: time, name, a status chip (live, soon, open) and an optional line about the host. A light panel in both themes, with its own text colours. */
-export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, emptyText, live }: SchedulePanelProps) {
+export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, emptyText, openLabel, rowNote, live }: SchedulePanelProps) {
   const isLive = source === "live" && !!live;
   const list = rowsOf(isLive ? live.rows : rows, "title", 6);
   const zoneLabel = typedZone || (isLive ? live.zoneLabel : "");
+  // A row that is neither running nor soon has no status of its own: it gets the panel's "open" chip, so every row carries one.
+  const open = openLabel ?? DEFAULT_OPEN_LABEL;
   if (list.length === 0 && !(isLive && emptyText)) return null;
   return (
     <section aria-label={title || "Schedule"} className="landing-light mx-auto max-w-xl overflow-hidden rounded-2xl bg-card text-left text-ink shadow-xl">
@@ -127,19 +136,25 @@ export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, empty
       )}
       {list.length === 0 && <p className="px-4 py-4 text-ink">{emptyText}</p>}
       <ul>
-        {list.map((row, i) => (
-          <li key={i} className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-mist-200 px-4 py-3 first:border-t-0 ${row.state === "live" ? "bg-emerald-50" : ""}`}>
-            {row.time && <span className="w-20 shrink-0 font-bold text-plum-800">{row.time}</span>}
-            <span className="min-w-[8rem] flex-1 font-semibold text-ink">{row.title}</span>
-            {row.status && (
-              <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-0.5 text-sm font-bold ${STATE_CHIP[row.state] ?? STATE_CHIP.open}`}>
-                {row.state === "live" && <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-white" />}
-                {row.status}
-              </span>
-            )}
-            {row.host && <p className="w-full text-sm text-ink-muted">{row.host}</p>}
-          </li>
-        ))}
+        {list.map((row, i) => {
+          const chip = row.status || (row.state === "open" || !row.state ? open : "");
+          const note = row.host || rowNote || "";
+          return (
+            <li key={i} className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-t border-mist-200 px-4 py-3 first:border-t-0 ${row.state === "live" ? "bg-emerald-50" : ""}`}>
+              <span className="min-w-[5.5rem] whitespace-nowrap font-bold text-plum-800">{row.time}</span>
+              <span className="font-semibold text-ink">{row.title}</span>
+              {chip ? (
+                <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-0.5 text-sm font-bold ${STATE_CHIP[row.state] ?? STATE_CHIP.open}`}>
+                  {row.state === "live" && <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-white" />}
+                  {chip}
+                </span>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+              {note && <p className="col-start-2 col-end-4 text-sm text-ink-muted">{note}</p>}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

@@ -86,16 +86,18 @@ export function zoneNote(instant: number): string {
 export type HostStyle = "none" | "experience";
 export type LiveScheduleRow = { time: string; title: string; status: string; state: "live" | "soon" | "open"; host: string };
 
-export type ScheduleOptions = { hoursAhead: number; maxRows: number; hostStyle: HostStyle };
+export const DEFAULT_EXPERIENCED_HOST_TEXT = "An experienced host, sure to make you feel at home";
+export type ScheduleOptions = { hoursAhead: number; maxRows: number; hostStyle: HostStyle; experiencedHostText: string };
 
 const clampInt = (value: unknown, min: number, max: number, fallback: number) => {
   const n = Math.floor(Number(value));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 };
-export const scheduleOptions = (props: { hoursAhead?: unknown; maxRows?: unknown; hostStyle?: unknown }): ScheduleOptions => ({
+export const scheduleOptions = (props: { hoursAhead?: unknown; maxRows?: unknown; hostStyle?: unknown; experiencedHostText?: unknown }): ScheduleOptions => ({
   hoursAhead: clampInt(props.hoursAhead, 1, MAX_HOURS_AHEAD, 24),
   maxRows: clampInt(props.maxRows, 1, 6, 5),
   hostStyle: props.hostStyle === "experience" ? "experience" : "none",
+  experiencedHostText: typeof props.experiencedHostText === "string" && props.experiencedHostText.trim() ? props.experiencedHostText.trim().slice(0, 140) : DEFAULT_EXPERIENCED_HOST_TEXT,
 });
 
 /** The rows the panel shows now: running or starting within the window, soonest first. */
@@ -117,7 +119,7 @@ export function scheduleRows(snapshot: ScheduleSnapshot, nowDate: Date, options:
         title: p.title,
         status: running ? (room >= MIN_WRITING_NOW ? `${room} writing now` : "Live") : soon ? `In ${minutes} min` : "",
         state: running ? "live" : soon ? "soon" : "open",
-        host: options.hostStyle === "experience" && p.experiencedHost ? "An experienced host" : "",
+        host: options.hostStyle === "experience" && p.experiencedHost ? options.experiencedHostText : "",
       };
     });
 }

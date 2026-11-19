@@ -60,12 +60,14 @@ function homeContent(): unknown[] {
             // Live: the next upcoming prickles; the typed rows below are the fallback and what the editor canvas shows.
             source: "live",
             hostStyle: "experience",
+            openLabel: "Open",
+            rowNote: "Camera optional",
             zoneLabel: orgZoneLabel(),
             rows: [
               { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "Hosted by [Host name], who has hosted [number] prickles." },
               { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" },
               { time: "12:30 pm", title: "Lunch hour", status: "Open", state: "open", host: "Hosted by [Host name] · first-timers welcome" },
-              { time: "8:00 pm", title: "Night owls", status: "Camera optional", state: "open", host: "" },
+              { time: "8:00 pm", title: "Night owls", status: "Open", state: "open", host: "" },
             ],
           }),
         ],
