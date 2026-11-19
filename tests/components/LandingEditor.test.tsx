@@ -143,7 +143,7 @@ describe("the header", () => {
     fireEvent.click(screen.getByRole("button", { name: "Phone preview" }));
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 390, height: "auto" } }) } });
     fireEvent.click(screen.getByRole("button", { name: "Tablet portrait preview" }));
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 768, height: "auto" } }) } });
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 820, height: "auto" } }) } });
     fireEvent.click(screen.getByRole("button", { name: "Tablet landscape preview" }));
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1024, height: "auto" } }) } });
     expect(screen.getByRole("button", { name: "Desktop preview" })).toHaveAttribute("aria-pressed", "true");
@@ -159,19 +159,25 @@ describe("the header", () => {
   });
 
   it("lists tablet models at a tablet width and sets the canvas to the one picked", () => {
-    mocks.width = 768;
+    mocks.width = 820;
     editor();
-    const select = screen.getByRole("combobox", { name: "Tablet model" });
+    const box = screen.getByRole("combobox", { name: "Tablet model" });
     expect(screen.queryByRole("combobox", { name: "Phone model" })).toBeNull();
-    fireEvent.change(select, { target: { value: "iPad Air" } });
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 820, height: "auto" } }) } });
+    expect(box).toHaveAttribute("placeholder", "iPad");
+    fireEvent.focus(box);
+    fireEvent.click(screen.getByText("iPad Pro 11-inch"));
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 834, height: "auto" } }) } });
   });
 
-  it("lists phone models at a phone width and sets the canvas to the one picked", () => {
+  it("lists phone models at a phone width, can search them, and sets the canvas to the one picked", () => {
     mocks.width = 390;
     editor();
-    expect(screen.getByRole("combobox", { name: "Phone model" })).toHaveValue("iPhone 14");
-    fireEvent.change(screen.getByRole("combobox", { name: "Phone model" }), { target: { value: "Google Pixel 7" } });
+    const box = screen.getByRole("combobox", { name: "Phone model" });
+    expect(box).toHaveAttribute("placeholder", "iPhone 14");
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: "pixel" } });
+    expect(screen.queryByText("iPhone 17")).toBeNull();
+    fireEvent.click(screen.getByText("Google Pixel 9"));
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 412, height: "auto" } }) } });
   });
 
