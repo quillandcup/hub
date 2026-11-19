@@ -193,6 +193,21 @@ html[data-animations="off"] *::after {
     animation: landing-fade-in 0.7s ease-out both;
   }
 }
+/* The pulsing dot of the homepage's announcement strip and "live" chip: same rule, motion only when the visitor allows it. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-pulse {
+    animation: landing-pulse 1.2s ease-in-out infinite;
+  }
+}
+@keyframes landing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
 @keyframes landing-fade-in {
   from {
     opacity: 0;

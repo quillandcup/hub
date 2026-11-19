@@ -23,6 +23,18 @@ import {
   Testimonials,
   Video,
 } from "./blocks";
+import {
+  AnnouncementStrip,
+  ComingUp,
+  FinishLineCards,
+  FinisherCards,
+  JourneyMap,
+  OutcomeNumbers,
+  PlanPhases,
+  SchedulePanel,
+  Timeline,
+  WeekStrip,
+} from "./homepage-blocks";
 import { pageImage } from "./theme";
 
 /**
@@ -129,6 +141,29 @@ export const BLOCK_DEFAULTS = {
   Stats: { items: [{ value: "1,000", label: "words written a day" }, { value: "24/7", label: "company" }, { value: "3", label: "sessions a week" }] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
   OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
+  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, no live data yet.
+  AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold" },
+  SchedulePanel: {
+    title: "Writing right now",
+    zoneLabel: "",
+    rows: [
+      { time: "9:00 am", title: "Morning pages", status: "Live · 4 writing", state: "live", host: "" },
+      { time: "10:00 am", title: "Focus hour", status: "3 joining", state: "soon", host: "" },
+      { time: "12:30 pm", title: "Lunch hour", status: "5 joining", state: "open", host: "" },
+    ],
+  },
+  OutcomeNumbers: { items: [{ value: "50+", label: "books published by members", note: "" }, { value: "100s", label: "of Finishers", note: "" }] },
+  FinisherCards: { items: [{ alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" }], more: { label: "", href: "" } },
+  Timeline: { heading: "", intro: "", items: [{ when: "8:00 am", title: "Morning pages", text: "What happens, in a line or two." }], closing: "" },
+  WeekStrip: { subtitle: "", items: [{ label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" }, { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" }] },
+  FinishLineCards: { items: [{ title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" }] },
+  PlanPhases: { heading: "What the first weeks look like", items: [{ title: "Weeks 1 to 4", text: "What happens." }, { title: "Weeks 5 to 8", text: "What happens next." }] },
+  JourneyMap: {
+    stages: [{ name: "Idea", helps: "Membership", current: false }, { name: "Drafting", helps: "A program", current: false }, { name: "Revising", helps: "A course", current: true }],
+    offer: { status: "open", statusLabel: "", title: "", text: "", buttonLabel: "", href: "" },
+    compare: { label: "", href: "" },
+  },
+  ComingUp: { heading: "Coming up", items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }] },
 } as const;
 
 export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
@@ -152,6 +187,16 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   Steps: "Steps",
   Stats: "Stats",
   CtaBanner: "Call-to-action banner",
+  AnnouncementStrip: "Announcement strip",
+  SchedulePanel: "Schedule panel",
+  OutcomeNumbers: "Outcome numbers",
+  FinisherCards: "Finisher cards",
+  Timeline: "Timeline",
+  WeekStrip: "Week strip",
+  FinishLineCards: "Finish-line cards",
+  PlanPhases: "Plan phases",
+  JourneyMap: "Journey map",
+  ComingUp: "Coming up",
 };
 
 const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
@@ -175,6 +220,16 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   Steps: Steps as never,
   Stats: Stats as never,
   CtaBanner: CtaBanner as never,
+  AnnouncementStrip: AnnouncementStrip as never,
+  SchedulePanel: SchedulePanel as never,
+  OutcomeNumbers: OutcomeNumbers as never,
+  FinisherCards: FinisherCards as never,
+  Timeline: Timeline as never,
+  WeekStrip: WeekStrip as never,
+  FinishLineCards: FinishLineCards as never,
+  PlanPhases: PlanPhases as never,
+  JourneyMap: JourneyMap as never,
+  ComingUp: ComingUp as never,
 };
 
 const SECTION_DEFAULTS = { ...BLOCK_DEFAULTS.Section, content: [] };
@@ -200,6 +255,7 @@ export const renderConfig = {
   categories: {
     layout: { title: "Layout", components: ["Section", "Split", "CardGrid", "Divider", "Spacer"] },
     ready_made: { title: "Ready-made", components: ["Hero", "Steps", "Stats", "CtaBanner"] },
+    homepage: { title: "Homepage", components: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"] },
     content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },
     links: { title: "Links", components: ["Button", "LinkList", "OptInForm"] },
   },

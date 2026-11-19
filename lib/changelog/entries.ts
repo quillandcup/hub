@@ -56,6 +56,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "landing-page-homepage-blocks",
+    date: "2026-11-18",
+    audience: "engineering",
+    category: "new",
+    title: "Page builder blocks for the new homepage, and a Homepage starter built from them",
+    summary: "Ten hand-typed blocks (announcement strip, schedule panel, outcome numbers, Finisher cards, timeline, week strip, finish-line cards, plan phases, journey map, coming up) and a Homepage starter that arranges them as an unpublished draft.",
+    body: `The homepage design needed more than the generic blocks, so the builder has a "Homepage" group of blocks that do one job each. They are static: every figure and status is typed in the editor, and live data (the day's schedule, joiner counts, words in the last 30 days) comes later as a \`source\` option on the same props, with no renames.
+
+- **Where.** \`components/landing/homepage-blocks.tsx\`, registered like any block (defaults, label, renderer, category, fields). Not offered to the AI builder: add one to \`AI_BLOCKS\` on purpose.
+- **Rules they follow.** Container-query sizes only; colours from theme tokens or fixed brand colours, and a block that sets its own background sets its own text colour too; links are a prop named \`href\`, so several links live in objects (\`more\`, \`offer\`, \`compare\`); the gold of the announcement strip is one \`gold\` pair in \`tailwind.config.ts\`; the pulse is \`.landing-pulse\`, motion only when the visitor allows it.
+- **Checks.** \`lib/landing/a11y.ts\` covers photos with no description, links with no address and the heading levels these blocks draw.
+- **Starter.** \`lib/landing/starters.ts\`; detail in \`docs/LANDING_PAGES.md\`, "Homepage blocks".`,
+  },
+  {
     slug: "fixes-2026-11-17",
     date: "2026-11-17",
     audience: "product",

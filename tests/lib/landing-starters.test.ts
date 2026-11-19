@@ -56,12 +56,31 @@ describe.each(STARTER_KEYS)("the %s starter", (key) => {
 });
 
 describe("the homepage starter", () => {
-  it("leaves the join links empty, so the publish check asks for them, and has no other error", () => {
+  it("leaves the buttons' links and the Kajabi form empty, so the publish check asks for them, and has no other error", () => {
     const issues = checkLandingPage(starterData("home"));
     const errors = issues.filter((i) => i.severity === "error");
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.every((e) => /link|address/i.test(e.message))).toBe(true);
+    // Only an empty link or address, or the sign-up form's empty Kajabi form id (the owner picks the form in the editor).
+    expect(errors.every((e) => /has no link|no address|no Kajabi form chosen/i.test(e.message))).toBe(true);
+    expect(errors.some((e) => e.block === "Sign-up form")).toBe(true);
     expect(issues.filter((i) => i.severity === "warning")).toEqual([]);
+  });
+
+  it("builds the reviewed homepage: the strip first, then the hero, and each new block once", () => {
+    const content = starterData("home").content as Node[];
+    expect(content[0].type).toBe("AnnouncementStrip");
+    expect(content[1].type).toBe("Hero");
+    const types = blocks(content).map((b) => b.type);
+    for (const type of ["SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp", "OptInForm"]) {
+      expect(types.filter((t) => t === type), type).toHaveLength(1);
+    }
+  });
+
+  it("keeps the owner's words: no running jargon, no FAQ, no old slogan, and small sample joiner counts", () => {
+    const json = JSON.stringify(starterData("home"));
+    expect(json).not.toMatch(/spark to shelf|\bbib\b|race weekend|lace up|jog|sprint\b|too slow/i);
+    expect(blocks(starterData("home").content).map((b) => b.type)).not.toContain("Faq");
+    expect([...json.matchAll(/(\d+) (?:writers )?joining/g)].every((m) => Number(m[1]) <= 5)).toBe(true);
   });
 
   it("links the member sign-in and the three trust pages from paths on this site", () => {

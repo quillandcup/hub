@@ -11,7 +11,9 @@ vi.hoisted(() => {
   };
 });
 
+import { readFileSync } from "node:fs";
 import { cleanup, render, screen, act } from "@testing-library/react";
+import { AnnouncementStrip, ComingUp, FinishLineCards, FinisherCards, JourneyMap, OutcomeNumbers, PlanPhases, SchedulePanel, Timeline, WeekStrip } from "@/components/landing/homepage-blocks";
 import { Button, CardGrid, CtaBanner, Divider, Faq, Heading, Hero, Image, LinkList, List, RichText, Section, Spacer, Split, Stats, Steps, Testimonials, Video } from "@/components/landing/blocks";
 import { BLOCK_DEFAULTS, PageFrame } from "@/components/landing/config";
 import { checkLandingPage } from "@/lib/landing/a11y";
@@ -444,6 +446,318 @@ describe("checks for the ready-made blocks", () => {
 
   it("does not choke on a stored block with props missing", () => {
     expect(() => checkLandingPage(page({ type: "Hero", props: {} }, { type: "Steps", props: {} }, { type: "CtaBanner", props: {} }))).not.toThrow();
+  });
+});
+
+// ---- Homepage blocks (components/landing/homepage-blocks.tsx) ---------------------------------------------------------
+
+describe("AnnouncementStrip", () => {
+  it("is dark text on gold with a link button, and a dot that is hidden from screen readers and pulses only when motion is allowed", () => {
+    const { container } = render(<AnnouncementStrip text="Your next prickle starts soon" buttonLabel="Drop in" href="/login" tone="gold" />);
+    const bar = container.firstElementChild!;
+    expect(bar.className).toContain("bg-gold");
+    expect(bar.className).toContain("text-gold-ink");
+    expect(screen.getByRole("link", { name: "Drop in" })).toHaveAttribute("href", "/login");
+    const dot = container.querySelector("[aria-hidden='true']")!;
+    expect(dot.className).toContain("landing-pulse");
+    // The animation exists only inside the no-preference media query.
+    const css = readFileSync("app/globals.css", "utf8");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.landing-pulse \{\s*animation:/);
+    expect(css.replace(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.landing-pulse[^}]*\}\s*\}/, "")).not.toMatch(/\.landing-pulse\s*\{[^}]*animation/);
+  });
+
+  it("shows the button disabled without a safe link, takes another tone, and hides when empty", () => {
+    const { container } = render(<AnnouncementStrip text="News" buttonLabel="Go" href="javascript:x" tone="plum" />);
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("Go")).toHaveAttribute("aria-disabled", "true");
+    expect(container.firstElementChild!.className).toContain("bg-plum-900");
+    cleanup();
+    expect(render(<AnnouncementStrip text="" buttonLabel="" href="" tone="gold" />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("SchedulePanel", () => {
+  const rows = [
+    { time: "9:00 am", title: "Morning pages", status: "Live · 4 writing", state: "live" as const, host: "Hosted by Sarah" },
+    { time: "10:00 am", title: "Focus hour", status: "3 joining", state: "soon" as const, host: "" },
+    { time: "", title: "", status: "skipped", state: "open" as const, host: "" },
+  ];
+
+  it("lists each session with its time, status chip and host line, and pulses only the live one", () => {
+    const { container } = render(<SchedulePanel title="Writing right now" zoneLabel="Zone note" rows={rows} />);
+    expect(screen.getByRole("region", { name: "Writing right now" })).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText("Live · 4 writing").className).toContain("bg-emerald-700");
+    expect(screen.getByText("3 joining").className).toContain("bg-gold");
+    expect(screen.getByText("Hosted by Sarah")).toBeInTheDocument();
+    expect(screen.getByText("Zone note")).toBeInTheDocument();
+    expect(container.querySelectorAll(".landing-pulse")).toHaveLength(1);
+    expect(container.firstElementChild!.className).toContain("landing-light");
+  });
+
+  it("shows nothing without a session", () => {
+    expect(render(<SchedulePanel title="x" zoneLabel="" rows={[]} />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("OutcomeNumbers", () => {
+  const items = [
+    { value: "50+", label: "books published", note: "" },
+    { value: "100s", label: "of Finishers", note: "" },
+    { value: "128k", label: "words in the last 30 days", note: "live" },
+    { value: "", label: "no figure, skipped", note: "" },
+  ];
+
+  it("sets every colour itself: a white band with a gold stripe, plum numbers and dark ink labels", () => {
+    const { container } = render(<OutcomeNumbers items={items} />);
+    const band = container.firstElementChild!;
+    for (const cls of ["bg-white", "border-gold", "text-ink", "landing-light"]) expect(band.className).toContain(cls);
+    expect(screen.getByText("50+").className).toContain("text-plum-900");
+    expect(screen.getByText("50+").tagName).toBe("DD");
+    expect(screen.getByText("books published").className).toContain("text-ink");
+    expect(screen.getByText("books published").className).not.toContain("white");
+    expect(screen.getByText("(live)")).toBeInTheDocument();
+    expect(container.querySelectorAll("dd")).toHaveLength(3);
+  });
+
+  it("caps at four and hides when empty", () => {
+    const five = render(<OutcomeNumbers items={Array.from({ length: 6 }, (_, i) => ({ value: String(i + 1), label: `L${i}`, note: "" }))} />);
+    expect(five.container.querySelectorAll("dd")).toHaveLength(4);
+    five.unmount();
+    expect(render(<OutcomeNumbers items={[]} />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("FinisherCards", () => {
+  const card = { alt: "", name: "Ada Example", kind: "memoir", dayOne: "an idea", theEnd: "61,000 words", linkLabel: "Read her story", href: "/ada" };
+
+  it("shows a photo-first card with its alt text, lines and safe link, and a link under the cards", () => {
+    const { container } = render(<FinisherCards items={[{ ...card, imageAssetId: "media_AAAAAAAAAAA1", alt: "Ada with her book" }]} more={{ label: "See every Finisher", href: "/finishers" }} />);
+    expect(screen.getByAltText("Ada with her book")).toHaveAttribute("src", expect.stringContaining("/api/media/media_AAAAAAAAAAA1/"));
+    expect(container.querySelector(".aspect-\\[3\\/4\\]")).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "Ada Example" })).toBeInTheDocument();
+    expect(screen.getByText(/61,000 words/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read her story" })).toHaveAttribute("href", "/ada");
+    expect(screen.getByRole("link", { name: "See every Finisher" })).toHaveAttribute("href", "/finishers");
+    expect(container.querySelector("ul")!.className).toContain("@cards:grid-cols-3");
+  });
+
+  it("shows a placeholder without a picture, hides unsafe or missing links, and caps at six", () => {
+    const { container } = render(<FinisherCards items={Array.from({ length: 8 }, (_, i) => ({ ...card, name: `Name ${i}`, href: "javascript:x" }))} more={{ label: "More", href: "" }} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelectorAll("li")).toHaveLength(6);
+    expect(container.querySelector("li [aria-hidden='true']")).toHaveTextContent("📖");
+    expect(screen.queryByRole("link")).toBeNull();
+    cleanup();
+    expect(render(<FinisherCards items={[]} more={{ label: "", href: "" }} />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("Timeline", () => {
+  const items = [
+    { when: "8:00 am", title: "Morning pages", text: "Maya joins." },
+    { when: "Thursday", title: "Where's Maya?", text: "Someone checks on you." },
+    { when: "", title: "", text: "skipped" },
+  ];
+
+  it("lists the moments with their time, an intro and a closing line, titles one level under a heading", () => {
+    const { container } = render(<Timeline heading="A day" intro="Never alone." items={items} closing="The house notices." />);
+    expect(screen.getByRole("heading", { level: 3, name: "A day" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Where's Maya?" })).toBeInTheDocument();
+    expect(screen.getByText("Thursday")).toBeInTheDocument();
+    expect(screen.getByText("Never alone.")).toBeInTheDocument();
+    expect(screen.getByText("The house notices.")).toBeInTheDocument();
+    expect(container.querySelectorAll("ol > li")).toHaveLength(2);
+    expect(container.querySelector("ol li [aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("makes the titles h3 without a heading, and shows nothing when empty", () => {
+    render(<Timeline heading="" intro="" items={items} closing="" />);
+    expect(screen.getByRole("heading", { level: 3, name: "Morning pages" })).toBeInTheDocument();
+    cleanup();
+    expect(render(<Timeline heading="" intro="" items={[]} closing="" />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("WeekStrip", () => {
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri"].map((label) => ({ label, emoji: "👋", text: `${label} thing`, note: "5 min" }));
+
+  it("shows day cards that stack to two columns on a narrow page and fill the row with room", () => {
+    const { container } = render(<WeekStrip subtitle="Camera optional." items={days} />);
+    expect(screen.getByText("Camera optional.")).toBeInTheDocument();
+    expect(container.querySelectorAll("ol > li")).toHaveLength(5);
+    const grid = container.querySelector("ol")!.className;
+    expect(grid).toContain("grid-cols-2");
+    expect(grid).toContain("@columns:grid-cols-5");
+    expect(grid).not.toMatch(/\b(sm|md|lg|xl):/);
+    expect(container.querySelector("li")!.className).toContain("bg-card");
+    expect(container.querySelector("li [aria-hidden='true']")).toHaveTextContent("👋");
+  });
+
+  it("shows at most seven days and nothing when empty", () => {
+    const many = render(<WeekStrip subtitle="" items={Array.from({ length: 9 }, (_, i) => ({ label: `D${i}`, emoji: "", text: "", note: "" }))} />);
+    expect(many.container.querySelectorAll("li")).toHaveLength(7);
+    many.unmount();
+    expect(render(<WeekStrip subtitle="x" items={[]} />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("FinishLineCards and PlanPhases", () => {
+  const lines = [
+    { title: "THE END in a year", program: "The Ready Writer", text: "A steady plan.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the plan", href: "/ready-writer" },
+    { title: "THE END in six months", program: "The 180 Program (Accelerated)", text: "", durationLabel: "6 months", durationPercent: 50, buttonLabel: "See it", href: "" },
+  ];
+
+  it("shows gradient cards with white text, a bar filled to the percent and a button that is a link only with a safe address", () => {
+    const { container } = render(<FinishLineCards items={lines} />);
+    expect(screen.getByRole("heading", { level: 3, name: "THE END in six months" })).toBeInTheDocument();
+    const cards = container.querySelectorAll("ul > li");
+    expect(cards[0].className).toContain("bg-gradient-to-br");
+    expect(cards[0].className).toContain("text-white");
+    const fills = container.querySelectorAll<HTMLElement>("[aria-hidden='true'] > div");
+    expect(fills[0].style.width).toBe("100%");
+    expect(fills[1].style.width).toBe("50%");
+    expect(screen.getByText("12 months")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See the plan" })).toHaveAttribute("href", "/ready-writer");
+    expect(screen.getByText("See it")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("clamps the bar and hides when empty", () => {
+    const { container } = render(<FinishLineCards items={[{ ...lines[0], durationPercent: 400 }, { ...lines[1], durationPercent: -3 }]} />);
+    const fills = container.querySelectorAll<HTMLElement>("[aria-hidden='true'] > div");
+    expect(fills[0].style.width).toBe("100%");
+    expect(fills[1].style.width).toBe("0%");
+    cleanup();
+    expect(render(<FinishLineCards items={[]} />).container).toBeEmptyDOMElement();
+  });
+
+  it("shades the phases from light to deeper plum, each with its own dark text", () => {
+    const { container } = render(
+      <PlanPhases
+        heading="The first 12 weeks"
+        items={[
+          { title: "Weeks 1-4", text: "Habit." },
+          { title: "Weeks 5-8", text: "Pace." },
+          { title: "Weeks 9-12", text: "Middle." },
+          { title: "", text: "skipped" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "The first 12 weeks" })).toBeInTheDocument();
+    const phases = [...container.querySelectorAll("ol > li")];
+    expect(phases.map((p) => p.className.match(/bg-plum-\d+/)![0])).toEqual(["bg-plum-100", "bg-plum-200", "bg-plum-300"]);
+    for (const p of phases) expect(p.className).toContain("text-plum-950");
+    expect(container.querySelector("ol")!.className).toContain("@pair:grid-cols-3");
+    cleanup();
+    expect(render(<PlanPhases heading="x" items={[]} />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("JourneyMap and ComingUp", () => {
+  const stages = [
+    { name: "Idea", helps: "Membership", current: false },
+    { name: "Revising", helps: "Self-Editing Academy", current: true },
+    { name: "", helps: "skipped", current: false },
+  ];
+  const offer = { status: "waitlist" as const, statusLabel: "", title: "Self-Editing Academy", text: "[One-line description.]", buttonLabel: "See the Academy", href: "/academy" };
+  const noOffer = { status: "open" as const, statusLabel: "", title: "", text: "", buttonLabel: "", href: "" };
+
+  it("lays the stages out as a stepper that stacks on a narrow page, marks the current one and shows the offer with its compare link", () => {
+    const { container } = render(<JourneyMap stages={stages} offer={offer} compare={{ label: "Compare all programs", href: "/compare" }} />);
+    const steps = container.querySelectorAll("ol > li");
+    expect(steps).toHaveLength(2);
+    expect(container.querySelector("ol")!.className).toContain("flex-col");
+    expect(container.querySelector("ol")!.className).toContain("@cards:flex-row");
+    expect(steps[1]).toHaveAttribute("aria-current", "step");
+    expect(steps[1].className).toContain("text-white");
+    expect(steps[0].className).toContain("text-ink");
+    expect(screen.getByText("Waitlist").className).toContain("bg-gold");
+    expect(screen.getByRole("heading", { level: 3, name: "Self-Editing Academy" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See the Academy" })).toHaveAttribute("href", "/academy");
+    expect(screen.getByRole("link", { name: "Compare all programs" })).toHaveAttribute("href", "/compare");
+  });
+
+  it("takes its own status text, hides the offer when empty, and drops unsafe links", () => {
+    render(<JourneyMap stages={stages} offer={{ ...offer, statusLabel: "Opens in spring", href: "javascript:x" }} compare={{ label: "Compare", href: "javascript:x" }} />);
+    expect(screen.getByText("Opens in spring")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    cleanup();
+    const none = render(<JourneyMap stages={stages} offer={noOffer} compare={{ label: "Compare all", href: "/compare" }} />);
+    expect(none.container.querySelectorAll("ol > li")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Compare all" })).toBeInTheDocument();
+    cleanup();
+    expect(render(<JourneyMap stages={[]} offer={noOffer} compare={{ label: "", href: "" }} />).container).toBeEmptyDOMElement();
+  });
+
+  it("shows up to four cards with kind, dates, availability, status and a link only when there is a safe address", () => {
+    const item = { kind: "Retreat", title: "Cabin week", when: "June, by the lake", availability: "6 spots left", status: "open" as const, linkLabel: "Details", href: "/retreat" };
+    const { container } = render(<ComingUp heading="Coming up" items={[item, { ...item, title: "Online week", kind: "Virtual retreat", status: "", href: "" }, ...Array.from({ length: 4 }, (_, i) => ({ ...item, title: `Extra ${i}` }))]} />);
+    expect(screen.getByRole("heading", { level: 3, name: "Coming up" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Cabin week" })).toBeInTheDocument();
+    expect(container.querySelectorAll("ul > li")).toHaveLength(4);
+    expect(screen.getAllByText("6 spots left").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Virtual retreat")).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Details" })).toHaveLength(3);
+    cleanup();
+    expect(render(<ComingUp heading="x" items={[]} />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("checks for the homepage blocks", () => {
+  const page = (...content: { type: string; props: Record<string, unknown> }[]) => ({
+    content: [{ type: "Heading", props: { text: "Home", level: "h1", align: "center" } }, { type: "Heading", props: { text: "Section", level: "h2", align: "center" } }, ...content].map((c, i) => ({ ...c, props: { id: `b${i}`, ...c.props } })),
+    root: {},
+  });
+  const messages = (data: unknown, severity: "error" | "warning" = "error") => checkLandingPage(data).filter((i) => i.severity === severity).map((i) => `${i.block}: ${i.message}`);
+
+  it("errors on a Finisher photo with no description, and passes with one", () => {
+    const withPhoto = (alt: string) => page({ type: "FinisherCards", props: { items: [{ imageAssetId: "media_AAAAAAAAAAA1", alt, name: "Ada", linkLabel: "", href: "" }], more: { label: "", href: "" } } });
+    expect(messages(withPhoto(""))).toEqual(["Finisher cards: Finisher 1 has a photo with no description."]);
+    expect(messages(withPhoto("Ada with her book"))).toEqual([]);
+  });
+
+  it("errors on a link, button or compare link that has words and no address, and warns about vague words", () => {
+    const bad = page(
+      { type: "AnnouncementStrip", props: { text: "News", buttonLabel: "Drop in", href: "" } },
+      { type: "FinisherCards", props: { items: [{ alt: "", name: "Ada", linkLabel: "Read her story", href: "" }], more: { label: "See every Finisher", href: "" } } },
+      { type: "FinishLineCards", props: { items: [{ title: "A year", buttonLabel: "See plan", href: "" }] } },
+      { type: "JourneyMap", props: { stages: [], offer: { title: "Academy", buttonLabel: "See Academy", href: "" }, compare: { label: "Compare all programs", href: "" } } },
+      { type: "ComingUp", props: { heading: "", items: [{ title: "Cabin", linkLabel: "Details", href: "" }] } },
+    );
+    const errors = messages(bad);
+    expect(errors).toHaveLength(7);
+    expect(errors.join("\n")).toContain("Announcement strip");
+    expect(errors.join("\n")).toContain("Coming up");
+    const vague = page({ type: "AnnouncementStrip", props: { text: "News", buttonLabel: "Learn more", href: "/x" } }, { type: "FinishLineCards", props: { items: [{ title: "A", buttonLabel: "click here", href: "/y" }] } });
+    expect(messages(vague, "warning")).toHaveLength(2);
+    expect(messages(vague)).toEqual([]);
+  });
+
+  it("counts the headings these blocks draw, so levels are checked and nothing skips", () => {
+    const ok = page(
+      { type: "FinisherCards", props: { items: [{ alt: "", name: "Ada" }], more: {} } },
+      { type: "Timeline", props: { heading: "", items: [{ title: "Morning" }] } },
+      { type: "FinishLineCards", props: { items: [{ title: "A year" }] } },
+      { type: "PlanPhases", props: { heading: "First weeks", items: [] } },
+      { type: "JourneyMap", props: { offer: { title: "Academy" }, compare: {} } },
+      { type: "ComingUp", props: { heading: "Coming up", items: [{ title: "Cabin" }] } },
+    );
+    expect(checkLandingPage(ok)).toEqual([]);
+    const jump = { content: [{ type: "Heading", props: { id: "a", text: "Home", level: "h1" } }, { type: "ComingUp", props: { id: "b", heading: "Coming up", items: [{ title: "A" }] } }], root: {} };
+    expect(messages(jump, "warning").join()).toContain("skips a level");
+  });
+
+  it("does not choke on stored blocks with props missing", () => {
+    const types = ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"];
+    expect(() => checkLandingPage(page(...types.map((type) => ({ type, props: {} }))))).not.toThrow();
+  });
+
+  it("renders every homepage block from its defaults, so a new block is never blank in the editor", () => {
+    for (const name of ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"] as const) {
+      const { container, unmount } = render(<LandingRender data={{ content: [{ type: name, props: { id: "x", ...BLOCK_DEFAULTS[name] } }], root: {} }} />);
+      expect(container.querySelector("main")!.innerHTML, name).not.toBe("");
+      unmount();
+    }
   });
 });
 
