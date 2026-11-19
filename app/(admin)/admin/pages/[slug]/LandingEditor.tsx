@@ -17,7 +17,8 @@ import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
 import { useMirrorHostTheme } from "./useMirrorHostTheme";
-import StarterReplace, { type StarterOption } from "./StarterReplace";
+import { MODEL_WIDTHS, MODELS_BY_CLASS, deviceClassForWidth } from "./devices";
+import StarterReplace,{ type StarterOption } from "./StarterReplace";
 import { publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
@@ -52,6 +53,34 @@ const DEVICES = [
   { label: "Tablet landscape", width: 1024 as const, Icon: Tablet, rotate: true },
   { label: "Phone", width: 390 as const, Icon: Smartphone, rotate: false },
 ];
+
+/** The model picker beside the Tablet and Phone buttons; shows only while the canvas is at a tablet or phone width. */
+function DeviceModelSelect({ width, onPick }: { width: number | string; onPick: (width: number) => void }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const deviceClass = deviceClassForWidth(width);
+  if (!deviceClass) return null;
+  const models = MODELS_BY_CLASS[deviceClass];
+  const value = models.find((m) => m.name === picked && m.width === width)?.name ?? models.find((m) => m.width === width)?.name;
+  return (
+    <select
+      aria-label={deviceClass === "tablet" ? "Tablet model" : "Phone model"}
+      value={value}
+      onChange={(e) => {
+        const model = models.find((m) => m.name === e.target.value);
+        if (!model) return;
+        setPicked(model.name);
+        onPick(model.width);
+      }}
+      className="h-8 rounded border border-slate-300 bg-white px-1 text-xs text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+    >
+      {models.map((m) => (
+        <option key={m.name} value={m.name}>
+          {m.name} ({m.width})
+        </option>
+      ))}
+    </select>
+  );
+}
 
 const SAVE_TEXT: Record<SaveState, string> = { saved: "Saved", unsaved: "Unsaved changes", saving: "Saving…", error: "Couldn't save. Trying again…" };
 
@@ -149,6 +178,7 @@ function EditorHeader({
             </button>
           </Tooltip>
         ))}
+        <DeviceModelSelect width={current} onPick={(width) => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })} />
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <Tooltip content="Undo (Ctrl/⌘ Z)">
           <button type="button" aria-label="Undo" disabled={!history.hasPast} onClick={() => history.back()} className={ICON}>
@@ -378,7 +408,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
         onChange={onChange}
         overrides={overrides}
         plugins={[aiPlugin]}
-        viewports={DEVICES.map(({ label, width }) => ({ width, height: "auto", label }))}
+        viewports={[...DEVICES.map(({ label, width }) => ({ width, height: "auto" as const, label })), ...MODEL_WIDTHS.filter((w) => !DEVICES.some((d) => d.width === w)).map((w) => ({ width: w, height: "auto" as const, label: `${w}px` }))]}
         ui={{ viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
       />
 
