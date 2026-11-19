@@ -71,6 +71,7 @@ export const OUTCOME_ACTIONS = [
   "landing_page_unpublished",
   "landing_page_version_restored",
   "landing_page_draft_reset",
+  "landing_page_starter_applied",
   "landing_page_duplicated",
   "landing_page_deleted",
   "landing_page_imported",

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   unpublish: vi.fn(),
   restore: vi.fn(),
   reset: vi.fn(),
+  starter: vi.fn(),
   details: vi.fn(),
   dispatch: vi.fn(),
   back: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("../../app/(admin)/admin/pages/actions", () => ({
   unpublishLandingPage: mocks.unpublish,
   restoreLandingPageVersion: mocks.restore,
   resetLandingDraftToPublished: mocks.reset,
+  replaceLandingDraftWithStarter: mocks.starter,
   updateLandingPageDetails: mocks.details,
 }));
 vi.mock("@puckeditor/core", () => ({
@@ -51,9 +53,10 @@ import LandingEditor, { type EditorPage } from "@/app/(admin)/admin/pages/[slug]
 const page: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/p/spring" };
 const heading = { type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } };
 const data = { content: [heading], root: {} };
+const STARTERS = [{ key: "home", label: "Homepage", description: "The public front door." }];
 
-function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string }[] = []) {
-  return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} />);
+function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter" }[] = []) {
+  return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} starters={STARTERS} />);
 }
 
 beforeEach(() => {
@@ -338,6 +341,68 @@ describe("history and details", () => {
     await answer("Bring back");
     expect(mocks.restore).toHaveBeenCalledWith("lpgv_AAAAAAAAAAA1");
     expect(screen.getByRole("alert")).toHaveTextContent("That version no longer exists.");
+  });
+
+  describe("starting over from a starter", () => {
+    const reload = vi.fn();
+    beforeEach(() => {
+      reload.mockReset();
+      vi.stubGlobal("location", { ...window.location, reload });
+      mocks.starter.mockResolvedValue({ slug: "spring" });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    const open = async () => {
+      editor();
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Replace draft with starter" }));
+      });
+    };
+
+    it("is offered in History, lists the starters, and asks first, saying what is kept and that nothing goes live", async () => {
+      await open();
+      expect(screen.getByRole("option", { name: "Homepage" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Replace your draft with the Homepage starter?" })).toBeInTheDocument();
+      expect(screen.getByText(/kept in History as "Your draft before starting over"/)).toBeInTheDocument();
+      expect(screen.getByText(/nothing goes live/)).toBeInTheDocument();
+      await answer("Cancel");
+      expect(mocks.starter).not.toHaveBeenCalled();
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("replaces the draft and reloads the editor on the new one", async () => {
+      await open();
+      await answer("Replace draft");
+      expect(mocks.starter).toHaveBeenCalledWith(page.id, "home");
+      expect(reload).toHaveBeenCalled();
+    });
+
+    it("shows why it failed and does not reload", async () => {
+      mocks.starter.mockResolvedValue({ error: "Couldn't replace the draft." });
+      await open();
+      await answer("Replace draft");
+      expect(screen.getByRole("alert")).toHaveTextContent("Couldn't replace the draft.");
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("saves what is typed first, so the kept draft is the one on screen", async () => {
+      editor();
+      edit("Welcome back");
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Replace draft with starter" }));
+      });
+      await answer("Replace draft");
+      expect(mocks.save).toHaveBeenCalled();
+      expect(mocks.save.mock.invocationCallOrder[0]).toBeLessThan(mocks.starter.mock.invocationCallOrder[0]);
+    });
+
+    it("names a draft kept before starting over in the list", () => {
+      editor({}, [{ id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", kind: "before_starter" }]);
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      expect(screen.getByText(/Your draft before starting over/, { selector: "time" })).toBeInTheDocument();
+    });
   });
 
   it("says when nothing has been published yet", () => {

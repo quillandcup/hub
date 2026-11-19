@@ -173,6 +173,26 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().replaceImportedDraft(`lpg_${"A".repeat(12)}`, doc("x"), null)).toBeNull();
     });
 
+    it("replaces only the draft for a starter, keeping the old draft as a before-starter version, and stamps starter_applied_at", async () => {
+      const slug = ctx.unique("st");
+      const page = await ctx.repo().create({ title: "Title", slug, data: doc("first"), createdBy: null });
+      await ctx.repo().publish(page.id);
+      await ctx.repo().saveDraft(page.id, doc("edited"), null);
+
+      const kept = await ctx.repo().keepDraftBeforeStarter(page.id, null);
+      const replaced = await ctx.repo().replaceDraftWithStarter(page.id, doc("starter"), null);
+
+      expect(kept).toMatchObject({ page_id: page.id, kind: "before_starter", title: "Title" });
+      expect(replaced).toMatchObject({ id: page.id, title: "Title", slug, status: "published" });
+      expect(replaced?.starter_applied_at).toEqual(expect.any(String));
+      expect(replaced?.draft_data).toEqual(doc("starter"));
+      expect(replaced?.published_data).toEqual(doc("first"));
+      expect((await ctx.repo().versions(page.id)).map((v) => v.kind).sort()).toEqual(["before_starter", "published"]);
+      const missing = `lpg_${"A".repeat(12)}`;
+      expect(await ctx.repo().keepDraftBeforeStarter(missing, null)).toBeNull();
+      expect(await ctx.repo().replaceDraftWithStarter(missing, doc("x"), null)).toBeNull();
+    });
+
     it("has no import key for a page built in the Hub", async () => {
       const page = await ctx.repo().create({ title: "Hub", slug: ctx.unique("hub"), createdBy: null });
       expect(page.import_key).toBeNull();
