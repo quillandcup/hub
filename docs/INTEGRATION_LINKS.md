@@ -75,6 +75,7 @@ Alert destinations are configured per system and environment:
 |---|---|---|
 | Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `app.config.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/SLACK_OPERATIONS_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
+| Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
 | GitHub Actions (failed runs) | Per-user notification settings | Not routable per environment today |
@@ -293,7 +294,7 @@ worth checking the Billing page above once the trial period ends.
 
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SENTRY_AUTH_TOKEN`, `RESEND_API_KEY`,
-`GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`, `SLACK_ALERTS_APP_ID`.
+`GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
 Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`pnpm env:sync:github`) see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
 
 Two exceptions to the sync:

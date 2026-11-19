@@ -623,10 +623,7 @@ jobs:
   # being killed between rotating the Slack token and saving its replacement.
   #
   # Only pushes when the manifest or the script differs from the last commit it was pushed for
-  # (the `slack-manifest-pushed` tag, moved at the end of a successful push; the alerts app, a second,
-  # minimal incoming-webhook app from slack-alerts-app-manifest.yml, has its own
-  # `slack-alerts-manifest-pushed` tag and is skipped while the SLACK_ALERTS_APP_ID variable is unset).
-  # Both apps go through ONE script run, so one token rotation per CI run. Every run spends
+  # (the `slack-manifest-pushed` tag, moved at the end of a successful push). Every run spends
   # the stored refresh token, and a run reads its secrets when it's queued: a run queued
   # while an earlier one was rotating gets the old, already-spent token and fails with
   # invalid_refresh_token. Skipping the push when nothing changed makes that collision rare.
@@ -641,79 +638,62 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: write # moves the `slack-manifest-pushed` tags
+      contents: write # moves the `slack-manifest-pushed` tag
     steps:
       - uses: actions/checkout@v7
 
-      # Decides per app, each with its own tag, so a change to one manifest doesn't re-push the other.
-      # Both apps are then pushed by ONE script run, which rotates the refresh token once.
-      - name: Check whether a manifest changed since it was last pushed
+      - name: Check whether the manifest changed since it was last pushed
         id: manifest
         run: |
-          apps=""
-          check() {
-            app="$1"; tag="$2"; shift 2
-            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-              echo "$app: manual run, pushing."
-            elif ! git fetch --quiet --depth=1 origin "+refs/tags/$tag:refs/tags/$tag"; then
-              echo "$app: never pushed from CI, pushing."
-            elif git diff --quiet "$tag" HEAD -- "$@"; then
-              echo "$app: matches the last push, skipping."
-              return
-            else
-              echo "$app: differs from the last push, pushing."
-            fi
-            apps="${apps:+$apps,}$app"
-          }
-          check billie slack-manifest-pushed slack-app-manifest.yml scripts/slack-manifest.ts
-          if [ -n "$SLACK_ALERTS_APP_ID" ]; then
-            check alerts slack-alerts-manifest-pushed slack-alerts-app-manifest.yml scripts/slack-manifest.ts
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual run: pushing the manifest."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif ! git fetch --quiet --depth=1 origin "+refs/tags/slack-manifest-pushed:refs/tags/slack-manifest-pushed"; then
+            echo "The manifest has never been pushed from CI: pushing it."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet slack-manifest-pushed HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            echo "alerts: SLACK_ALERTS_APP_ID is not set (the app is not created yet), skipping."
+            echo "They differ from the last push: pushing the manifest."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "apps=$apps" >> "$GITHUB_OUTPUT"
-        env:
-          SLACK_ALERTS_APP_ID: ${{ vars.SLACK_ALERTS_APP_ID }}
 
       - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
-        if: steps.manifest.outputs.apps != ''
+        if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-        if: steps.manifest.outputs.apps != ''
+        if: steps.manifest.outputs.changed == 'true'
 
       # Calls scripts/slack-manifest.ts directly rather than `pnpm slack:manifest:push`,
       # which wraps it in dotenv for the local .env files.
-      - name: Push Slack app manifests
-        if: steps.manifest.outputs.apps != ''
+      - name: Push Slack app manifest
+        if: steps.manifest.outputs.changed == 'true'
         run: |
-          if [ -z "$SLACK_CONFIG_REFRESH_TOKEN" ] || [ -z "$GH_TOKEN" ]; then
-            echo "SLACK_CONFIG_REFRESH_TOKEN and GH_TOKEN_SLACK_MANIFEST (secrets) must be set -- see docs/SLACK_MANIFEST.md."
+          if [ -z "$SLACK_CONFIG_REFRESH_TOKEN" ] || [ -z "$GH_TOKEN" ] || [ -z "$SLACK_APP_ID" ]; then
+            echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."
             exit 1
           fi
-          pnpm exec tsx scripts/slack-manifest.ts push "$APPS"
+          pnpm exec tsx scripts/slack-manifest.ts push
         env:
-          APPS: ${{ steps.manifest.outputs.apps }}
           SLACK_APP_ID: ${{ vars.SLACK_APP_ID }}
-          SLACK_ALERTS_APP_ID: ${{ vars.SLACK_ALERTS_APP_ID }}
           SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
           # A fine-grained token with Secrets write: the job's GITHUB_TOKEN can't set secrets.
           GH_TOKEN: ${{ secrets.GH_TOKEN_SLACK_MANIFEST }}
 
       # Remember what was pushed, so a later run compares with this and not with its own push. Only after
-      # the push succeeded; a failed one leaves the tags where they were and the next run tries again.
+      # the push succeeded; a failed one leaves the tag where it was and the next run tries again.
       - name: Mark this commit as pushed
-        if: steps.manifest.outputs.apps != ''
+        if: steps.manifest.outputs.changed == 'true'
         run: |
-          case ",$APPS," in *,billie,*) git tag --force slack-manifest-pushed "$GITHUB_SHA"; git push --force origin refs/tags/slack-manifest-pushed ;; esac
-          case ",$APPS," in *,alerts,*) git tag --force slack-alerts-manifest-pushed "$GITHUB_SHA"; git push --force origin refs/tags/slack-alerts-manifest-pushed ;; esac
-        env:
-          APPS: ${{ steps.manifest.outputs.apps }}
+          git tag --force slack-manifest-pushed "$GITHUB_SHA"
+          git push --force origin refs/tags/slack-manifest-pushed
 
   # vercel-project-config.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES

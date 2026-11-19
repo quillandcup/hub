@@ -1,8 +1,8 @@
 # Slack app manifest as code
 
-`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot): its name and description, bot scopes, the `/hub` slash command, event subscriptions and request URLs. A second, minimal app, the [alerts webhook](#the-alerts-webhook-app), has its own `slack-alerts-app-manifest.yml`.
+`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot): its name and description, bot scopes, the `/hub` slash command, event subscriptions and request URLs.
 
-On a run on main where `slack-app-manifest.yml` or `scripts/slack-manifest.ts` differs from the last commit pushed (the `slack-manifest-pushed` tag, moved after each successful push; a busy main cancels the run for the merge that changed the manifest, so a later run picks the change up), after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). The alerts app is decided separately (its own `slack-alerts-manifest-pushed` tag, and skipped while the `SLACK_ALERTS_APP_ID` variable is unset), but when either app needs a push, one script run pushes both and rotates the refresh token once. Runs where no manifest or script differs from its last push skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
+On a run on main where `slack-app-manifest.yml` or `scripts/slack-manifest.ts` differs from the last commit pushed (the `slack-manifest-pushed` tag, moved after each successful push; a busy main cancels the run for the merge that changed the manifest, so a later run picks the change up), after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). Runs where neither file differs from the last push skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
 
 **The push replaces everything.** Anything set in the Slack dashboard but absent from the manifest is removed on the next manifest push. Change the manifest, not the dashboard.
 
@@ -35,33 +35,24 @@ The job fails until all three exist.
 
    Paste it at the prompt. Don't put it in `.env.prod`, and it isn't in `env-vars.config.ts`: see below.
 
-## The alerts webhook app
+## The #hub-alerts webhook
 
-`slack-alerts-app-manifest.yml` describes a second, minimal Slack app, "Hub alerts webhook". It exists only to give `.github/workflows/audit.yml` an incoming webhook that posts to #hub-alerts (the `SLACK_ALERTS_WEBHOOK_URL` GitHub secret). It is a separate app from Billie Bot on purpose: a manifest push replaces the whole live configuration, and this app should be able to do almost nothing. Its only scope is `incoming-webhook`; it has no events, no interactivity, no slash commands, no request URLs, no DM scopes, and token rotation and socket mode are off. It can post to the one channel picked at install time and cannot read anything.
+Billie Bot also holds the incoming webhook the weekly dependency audit (`.github/workflows/audit.yml`) uses to post one line to #hub-alerts. It is the `incoming-webhook` bot scope in `slack-app-manifest.yml`; the workflow does a plain `curl` POST to the URL in the `SLACK_ALERTS_WEBHOOK_URL` GitHub secret, with no bot token involved. A webhook URL can only post to the one channel picked when it was added. (It used to be a second Slack app; the free plan allows only 10 installed apps, so it moved here.)
 
-`scripts/slack-manifest.ts` takes the app as an argument (`billie`, the default, `alerts`, or a list such as `billie,alerts`); `pnpm slack:alerts:diff`, `pnpm slack:alerts:push` and `pnpm slack:alerts:create` are the alerts counterparts of the Billie Bot scripts. Once the `SLACK_ALERTS_APP_ID` variable exists, CI keeps the app in line with the manifest like Billie Bot's.
+The webhook is created in the Slack dashboard, not by the manifest, so a manifest push never creates one. After the first push with the `incoming-webhook` scope (a scope change):
 
-### One-time setup
-
-1. **Create the app** (once, locally; it needs an app configuration **access** token as described above, and does nothing in CI):
-
-   ```bash
-   SLACK_CONFIG_TOKEN=xoxe.xoxp-... pnpm slack:alerts:create
-   ```
-
-   It calls `apps.manifest.create` with the manifest and prints the new app id (`A...`). It prints no credentials. Run it only once: a second run creates a second app.
-2. **Record the id**: put `SLACK_ALERTS_APP_ID=A...` in `.env.shared` and run `pnpm env:sync:github --only=SLACK_ALERTS_APP_ID` (or `gh variable set SLACK_ALERTS_APP_ID --repo quillandcup/hub`). Until it is set, CI skips the alerts app.
-3. **Install it and get the webhook**: open `https://api.slack.com/apps/<the app id>` -> Install App (or "Add to Slack") -> Install to the workspace -> pick **#hub-alerts** -> Allow. Then Incoming Webhooks shows a webhook URL for that channel; copy it.
-4. **Store it** as the secret the audit workflow reads:
+1. **Reinstall Billie Bot** (a scope change needs a manual reinstall; the push job prints a warning). Billie Bot has token rotation on, so the dashboard has no Reinstall button: sign in as an admin and open `/api/oauth/slack/bot/start`, approve in Slack, and the Hub stores the new token pair (see "If the refresh token is lost" in [docs/SECRET_ROTATION.md](SECRET_ROTATION.md); `lib/slack-bot-install.ts` asks for the manifest's bot scopes, a test keeps the two equal). Slack may ask which channel the incoming webhook posts to during that approval; the Hub ignores that webhook, so use step 2 for the one the audit uses.
+2. **Add the webhook**: the same app -> Incoming Webhooks -> Add New Webhook to Workspace -> pick **#hub-alerts** -> Allow. Copy the webhook URL.
+3. **Store it**:
 
    ```bash
    gh secret set SLACK_ALERTS_WEBHOOK_URL --repo quillandcup/hub
    ```
 
    Paste the URL at the prompt. It is not in `env-vars.config.ts` and not in any env file.
-5. Check it: `gh workflow run audit.yml` posts only if the audit finds something, so test the webhook with a one-off `curl` of your own, or wait for the next finding.
+4. **Check it**: `gh workflow run audit.yml` posts only if the audit finds something, so test the webhook with a one-off `curl` of your own, or wait for the next finding.
 
-The webhook is created at install time, not by the manifest, so a manifest push never changes or revokes it. To rotate it, revoke it in the app's Incoming Webhooks page, add a new one for #hub-alerts and repeat step 4. A scope change in the manifest needs a reinstall like any other app, but this manifest has only the one scope.
+Check after the first manifest push that the webhook still exists (Incoming Webhooks page lists it) and is not wiped by a later push; manifest pushes are meant to leave it alone, but verify once. To rotate it, revoke it on the Incoming Webhooks page, add a new one for #hub-alerts and repeat step 3.
 
 ## How the token rotates
 

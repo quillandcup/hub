@@ -57,6 +57,10 @@ oauth_config:
       - files:write
       # /hub slash command (Slack sign-in)
       - commands
+      # Incoming webhooks. The weekly dependency audit (.github/workflows/audit.yml) posts one line to #hub-alerts
+      # through a webhook URL (the SLACK_ALERTS_WEBHOOK_URL GitHub secret). The URL can only post to the one channel
+      # picked when it was added. The webhook itself is created in the Slack dashboard, not by this manifest.
+      - incoming-webhook
     # What a member lets the Hub do as them once they connect their Slack account (Settings,
     # lib/slack-connect.ts): post and react natively instead of through the bot.
     user:
