@@ -91,8 +91,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The link and the code in a sign-in email work for one hour, and each works only once. If the hour has passed, ask for a new one on the sign-in page.",
     body: [
       "Sign-in, invitation and password reset emails used to stay usable for a day. They now last one hour, so a link that is forwarded by mistake or left in an old inbox stops working much sooner.",
+      "![The sign-in page, with a box for the code from your email](/changelog/sign-in-links-last-one-hour/01-sign-in-code.webp)",
       "If the hour has passed, go to the [sign-in page](/login) and ask for a new link or code. Someone who was invited but has not accepted yet can ask for a fresh invitation on that page too.",
     ].join("\n\n"),
+    image: { src: "/changelog/sign-in-links-last-one-hour/01-sign-in-code.webp", alt: "The sign-in page, with a box for the code from your email" },
   },
   {
     slug: "sign-in-link-works-on-any-device",
@@ -105,7 +107,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Until now the link in the sign-in email only worked in the browser where you asked for it, so opening it from your phone's mail app after asking on a laptop failed. It now works wherever you open it, and the invitation and password reset emails use the same kind of link.",
       "Like before, each link works once, and the code in the same email is still there if you would rather type it on the [sign-in page](/login).",
+      "![The sign-in page, with a box for the code from your email](/changelog/sign-in-link-works-on-any-device/01-sign-in-code.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/sign-in-link-works-on-any-device/01-sign-in-code.webp", alt: "The sign-in page, with a box for the code from your email" },
   },
   {
     slug: "staff-two-step-sign-in",
