@@ -24,7 +24,7 @@ vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn()
 import { saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 
-const landing = vi.hoisted(() => ({ save: vi.fn(), change: undefined as undefined | ((data: unknown) => void) }));
+const landing = vi.hoisted(() => ({ save: vi.fn(), back: vi.fn(), forward: vi.fn(), change: undefined as undefined | ((data: unknown) => void) }));
 vi.mock("@puckeditor/core/puck.css", () => ({}));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/landing/editor-config", () => ({ editorConfig: {} }));
@@ -44,7 +44,7 @@ vi.mock("@puckeditor/core", () => ({
   },
   createUsePuck: () => (select: (state: unknown) => unknown) =>
     select({
-      history: { hasPast: false, hasFuture: false, back: vi.fn(), forward: vi.fn() },
+      history: { hasPast: true, hasFuture: true, back: landing.back, forward: landing.forward },
       dispatch: vi.fn(),
       appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } } },
     }),
@@ -93,6 +93,13 @@ function chordFor(shortcut: Shortcut, key: string): Chord {
   const found = shortcut.keys.find((chord) => chord[chord.length - 1].toLowerCase() === key.toLowerCase());
   if (!found) throw new Error(`shortcut ${shortcut.id} no longer lists ${key}: its handler and the registry have drifted (registry has ${JSON.stringify(shortcut.keys)})`);
   return found;
+}
+
+/** A registered shortcut as `aria-keyshortcuts` text: every chord, "mod" as both Control and Meta. */
+function declared(shortcut: Shortcut) {
+  return shortcut.keys
+    .flatMap((chord) => ["Control", "Meta"].map((mod) => chord.map((k) => (k === "mod" ? mod : k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1))).join("+")))
+    .join(" ");
 }
 
 function mockKeyboard() {
@@ -336,6 +343,23 @@ const DRIVERS: Record<string, Driver> = {
     await userEvent.setup().keyboard(keyString(chordFor(s, "s")));
     await waitFor(() => expect(landing.save).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+  },
+  // Puck owns these hotkeys (its own handler is not in this mock), so the driver pins what is ours: the buttons declare the registered keys and run the same actions.
+  "landing-editor-undo": async (s) => {
+    landing.back.mockClear();
+    renderLandingEditor();
+    const button = screen.getByRole("button", { name: "Undo" });
+    expect(button.getAttribute("aria-keyshortcuts")).toBe(declared(s));
+    await userEvent.setup().click(button);
+    expect(landing.back).toHaveBeenCalledTimes(1);
+  },
+  "landing-editor-redo": async (s) => {
+    landing.forward.mockClear();
+    renderLandingEditor();
+    const button = screen.getByRole("button", { name: "Redo" });
+    expect(button.getAttribute("aria-keyshortcuts")).toBe(declared(s));
+    await userEvent.setup().click(button);
+    expect(landing.forward).toHaveBeenCalledTimes(1);
   },
   "photo-viewer-previous": (s) => stepThroughViewers(s, SHORTCUTS.find((x) => x.id === "photo-viewer-next")!),
   "photo-viewer-next": (s) => stepThroughViewers(SHORTCUTS.find((x) => x.id === "photo-viewer-previous")!, s),
