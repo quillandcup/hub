@@ -1,4 +1,4 @@
-import { ORG_TIMEZONE } from "@/lib/config";
+import { FEATURED_COURSE, ORG_TIMEZONE } from "@/lib/config";
 import type { LandingData } from "./data";
 import { presetPadding } from "./layout";
 import { stampLandingVersion } from "./migrations";
@@ -113,11 +113,11 @@ function homeContent(): unknown[] {
       block("WeekStrip", {
         subtitle: "Camera optional. Chat optional. Five minutes to join.",
         items: [
-          { label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" },
-          { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" },
-          { label: "Wed", emoji: "✍️", text: "Write, then log your words", note: "about 45 min" },
-          { label: "Thu", emoji: "🔥", text: "Your first streak day", note: "we'll cheer" },
-          { label: "Fri", emoji: "💬", text: "Say hello in chat", note: "or not yet" },
+          { label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "20 seconds of courage" },
+          { label: "Tue", emoji: "✍️", text: "Write & log progress", note: "about 45 min" },
+          { label: "Wed", emoji: "🎯", text: "Set one small goal", note: "2 min" },
+          { label: "Thu", emoji: "💬", text: "Say hello in chat", note: "5 minute intro" },
+          { label: "Fri", emoji: "🔥", text: "Your first streak day", note: "we'll cheer" },
         ],
       }),
       button("Start your first prickle", { align: "center" }),
@@ -127,7 +127,7 @@ function homeContent(): unknown[] {
       text("<p>A plan, a steady pace, and Hedgies beside you all the way.</p>"),
       block("FinishLineCards", {
         items: [
-          { title: "THE END in a year", program: "The Ready Writer", text: "A steady plan to a finished book.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See The Ready Writer", href: "" },
+          { title: "THE END in a year", program: "The Ready Writer", text: "A steady plan to a finished book.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See The Ready Writer", href: FEATURED_COURSE.offerUrl },
           { title: "THE END in six months", program: "The 180 Program (Accelerated)", text: "Faster, with more support.", durationLabel: "6 months", durationPercent: 50, buttonLabel: "See The 180 Program", href: "" },
         ],
       }),
@@ -157,13 +157,21 @@ function homeContent(): unknown[] {
         heading: "Coming up",
         // Live: upcoming events announced publicly, of these kinds; the typed cards are the fallback and what the editor canvas shows.
         source: "live",
-        kinds: ["in_person_retreat", "virtual_retreat", "workshop"],
+        kinds: ["in_person_retreat", "virtual_retreat", "workshop", "educational", "other"],
         max: 4,
         items: [
           { kind: "Retreat", title: "[Name]", when: "[Dates · place]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
           { kind: "Virtual retreat", title: "[Name]", when: "[Dates]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
           { kind: "Challenge", title: "[Name]", when: "[Starts on date]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
         ],
+      }),
+      // A second list under the first, for the community's own gatherings (no heading: it continues "Coming up").
+      block("ComingUp", {
+        heading: "",
+        source: "live",
+        kinds: ["session", "social", "book_launch"],
+        max: 4,
+        items: [{ kind: "Session", title: "[Name]", when: "[Date]", availability: "", status: "", linkLabel: "", href: "" }],
       }),
     ]),
     section({ background: "plum", width: "narrow", ...presetPadding("large") }, [
