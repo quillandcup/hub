@@ -42,7 +42,7 @@ Events made in the Hub are never automatic.
 
 ## The audience chain
 
-Who may attend depends on how widely something is announced: **guests allowed** needs **announced publicly**, which needs **listed in Events** (for an event, being an event is the listing). The forms grey out each checkbox until the one before it is checked and uncheck what depended on it; the routes answer a violation with a message, and the database enforces it (`prickle_types_audience_chain`, `community_events_audience_chain`). The only public page that reads one is the landing page builder's live Schedule panel and Announcement strip, which list a prickle only when its **type** is announced publicly (`docs/LANDING_PAGES.md`, "Live data"); `guests allowed` is read by no page yet.
+Who may attend depends on how widely something is announced: **guests allowed** needs **announced publicly**, which needs **listed in Events** (for an event, being an event is the listing). The forms grey out each checkbox until the one before it is checked and uncheck what depended on it; the routes answer a violation with a message, and the database enforces it (`prickle_types_audience_chain`, `community_events_audience_chain`). No public page reads `announced publicly` or `guests allowed` yet: the landing page builder's live Schedule panel and Announcement strip list all upcoming prickles and ignore the flags (`docs/LANDING_PAGES.md`, "Live data").
 
 ## Removing an event from Events
 
