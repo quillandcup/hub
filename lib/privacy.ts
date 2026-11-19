@@ -51,7 +51,7 @@ export const PRIVACY_SUMMARY: readonly Unit[] = [
     text: "We keep what you do in the Hub, how you use it (the pages and buttons, never what you type), where you connect from, and your activity in chat.",
   },
   {
-    text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs (private messages) are open to them only through rare, recorded emergency access, with one exception: the messages sent during a Hedgie Care plan, below.",
+    text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs (direct messages) are open to them only through rare, recorded emergency access, with one exception: the messages sent during a Hedgie Care plan, below.",
   },
   {
     text: "The Hub brings your one-on-one Slack DMs into Hub Chat and keeps them. See “Your Slack direct messages” below.",
