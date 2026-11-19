@@ -120,9 +120,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "You can now add a code from an authenticator app to your sign-in. Once you have, the admin pages ask for that code, so a stolen sign-in link is not enough to get in.",
     body: `Open **Settings** and, on the Account tab, choose **Set up two-step sign-in**. Scan the picture with an authenticator app on your phone (or type the key shown under it), then enter the 6-digit code to turn it on. You can remove it there too.
 
+![The set-up on the Settings page: a picture to scan, the key to type instead, and the box for the 6-digit code](/changelog/staff-two-step-sign-in/01-set-up.webp)
+
 - **After you turn it on**, opening the admin pages asks for the code from your app the first time in each sign-in. Your member pages are not affected.
 - **Until it is required of everyone**, a banner at the top of the admin pages reminds you to set it up. When the date is set, staff without it will be sent to the set-up screen first.
+![The screen that asks for your code the first time you open the admin pages in a sign-in](/changelog/staff-two-step-sign-in/02-enter-code.webp)
+
 - **Lost your phone?** Ask the owner to reset it; the steps are in \`docs/STAFF_MFA.md\`.`,
+    image: { src: "/changelog/staff-two-step-sign-in/01-set-up.webp", alt: "The set-up on the Settings page: a picture to scan, the key to type instead, and the box for the 6-digit code" },
   },
   {
     slug: "database-roles-closed-by-default",
