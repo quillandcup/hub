@@ -36,7 +36,8 @@ const block = (type: string, props: Record<string, unknown>) => ({ type, props: 
 function homeContent(): unknown[] {
   n = 0;
   return [
-    block("AnnouncementStrip", { text: "Your next prickle starts in 42 minutes", buttonLabel: "Drop in", href: "", tone: "gold" }),
+    // Live from the Hub on the published page and in Preview (this typed text shows only if no prickle is coming up or the read fails).
+    block("AnnouncementStrip", { text: "Your next prickle starts in 42 minutes", buttonLabel: "Drop in", href: "", tone: "gold", source: "live" }),
     // The opening band: the pitch on the left, today's schedule beside it (stacked on a narrow page, side by side from the split size).
     section({ background: "plum", width: "wide", align: "left" }, [
       columns({ count: "2", gap: "large", verticalAlign: "center" }, [
@@ -56,6 +57,9 @@ function homeContent(): unknown[] {
         [
           block("SchedulePanel", {
             title: "Writing right now",
+            // Live: the next upcoming prickles; the typed rows below are the fallback and what the editor canvas shows.
+            source: "live",
+            hostStyle: "experience",
             zoneLabel: orgZoneLabel(),
             rows: [
               { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "Hosted by [Host name], who has hosted [number] prickles." },
@@ -72,6 +76,7 @@ function homeContent(): unknown[] {
         { value: "50+", label: "books published by members in 5 years", note: "" },
         { value: "100s", label: "of Finishers who typed THE END", note: "" },
         // Live from the Hub once the page is published ("Live from the Hub" in the block's settings); the typed figure is only what shows if it can't be read.
+        { source: "live", stat: "hours_30d", value: "[number]", label: "", note: "" },
         { source: "live", stat: "words_30d", value: "[number]", label: "", note: "" },
       ],
     }),
@@ -148,6 +153,10 @@ function homeContent(): unknown[] {
       }),
       block("ComingUp", {
         heading: "Coming up",
+        // Live: upcoming events announced publicly, of these kinds; the typed cards are the fallback and what the editor canvas shows.
+        source: "live",
+        kinds: ["in_person_retreat", "virtual_retreat", "workshop"],
+        max: 4,
         items: [
           { kind: "Retreat", title: "[Name]", when: "[Dates · place]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
           { kind: "Virtual retreat", title: "[Name]", when: "[Dates]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },

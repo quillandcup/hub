@@ -146,12 +146,12 @@ export const BLOCK_DEFAULTS = {
   Stats: { items: [{ value: "1,000", label: "words written a day" }, { value: "24/7", label: "company" }, { value: "3", label: "sessions a week" }] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
   OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
-  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/LANDING_PAGES.md, "Live data").
-  AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold", source: "manual", whenNone: "hide" },
+  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/LANDING_PAGES.md, "Live data"). A block dropped on a page now starts live where its point is to be live (strip, schedule, coming up), with the typed values as the fallback; a block saved without `source` stays typed.
+  AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold", source: "live", whenNone: "hide" },
   SchedulePanel: {
     title: "Writing right now",
     zoneLabel: "",
-    source: "manual",
+    source: "live",
     hoursAhead: 24,
     maxRows: 5,
     hostStyle: "none",
@@ -180,7 +180,7 @@ export const BLOCK_DEFAULTS = {
     offer: { status: "open", statusLabel: "", title: "", text: "", buttonLabel: "", href: "" },
     compare: { label: "", href: "" },
   },
-  ComingUp: { heading: "Coming up", source: "manual", kinds: [], max: 4, more: { label: "", href: "" }, items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }] },
+  ComingUp: { heading: "Coming up", source: "live", kinds: ["in_person_retreat", "virtual_retreat", "workshop"], max: 4, more: { label: "", href: "" }, items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }] },
 } as const;
 
 export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
