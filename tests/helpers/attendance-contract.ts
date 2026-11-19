@@ -131,6 +131,25 @@ export function defineAttendanceContract(name: string, setup: () => AttendanceCo
       expect(new Date(second.leaveTime)).toEqual(new Date(at(7)));
     });
 
+    it("returns the stays that began in a window with the window of their prickle, so time can be clipped to it", async () => {
+      const [p0, p1] = ctx.prickles;
+      await ctx.seed([
+        { member: 0, prickle: 0, join: p0.startTime, leave: p0.endTime },
+        { member: 1, prickle: 0, join: new Date(Date.parse(p0.startTime) + 600_000).toISOString(), leave: new Date(Date.parse(p0.endTime) + 3_600_000).toISOString() },
+        { member: 2, prickle: 1, join: p1.startTime, leave: p1.endTime },
+      ]);
+
+      const stays = (await ctx.repo().staysJoinedBetween(p0.startTime, new Date(Date.parse(p0.startTime) + 1_800_000).toISOString())).filter((s) => ctx.memberIds.includes(s.memberId));
+
+      expect(stays.map((s) => s.memberId).sort()).toEqual([ctx.memberIds[0], ctx.memberIds[1]].sort());
+      const late = stays.find((s) => s.memberId === ctx.memberIds[1])!;
+      expect(late.prickleId).toBe(ctx.prickleIds[0]);
+      expect(new Date(late.prickleStart)).toEqual(new Date(p0.startTime));
+      expect(new Date(late.prickleEnd)).toEqual(new Date(p0.endTime));
+      expect(new Date(late.leaveTime).getTime()).toBeGreaterThan(new Date(late.prickleEnd).getTime());
+      expect(await ctx.repo().staysJoinedBetween(new Date(Date.parse(p1.endTime) + 1000).toISOString(), new Date(Date.parse(p1.endTime) + 2000).toISOString())).toEqual([]);
+    });
+
     it("says which of the prickles anyone attended", async () => {
       await ctx.seed([
         { member: 0, prickle: 0, join: at(0) },

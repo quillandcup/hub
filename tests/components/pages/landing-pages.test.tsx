@@ -27,6 +27,8 @@ vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: async () => ({ id: "00000
 
 const state = { repos: createInMemoryRepos(new InMemoryDataset()) };
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
+// The real cache needs a running Next server; its one-minute setting is checked in tests/lib/landing-live-server.test.ts.
+vi.mock("next/cache", () => ({ unstable_cache: (fn: (...args: never[]) => unknown) => fn }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
 import PublicLandingPage, { generateMetadata } from "@/app/p/[slug]/page";
@@ -86,6 +88,61 @@ describe("/p/[slug]", () => {
 
   it("keeps a missing page out of search results", async () => {
     expect(await generateMetadata(params("missing"))).toMatchObject({ title: "Not found", robots: { index: false } });
+  });
+});
+
+describe("live blocks on the pages", () => {
+  const liveDoc = {
+    content: [
+      { type: "Heading", props: { id: "h", text: "Live page", level: "h1", align: "center" } },
+      { type: "OutcomeNumbers", props: { id: "o", items: [{ source: "live", stat: "prickles_30d", value: "typed 7", label: "", note: "" }, { source: "manual", value: "50+", label: "books", note: "" }] } },
+    ],
+    root: {},
+  };
+  const seedPrickle = () => {
+    const now = Date.now();
+    state.repos = createInMemoryRepos(
+      new InMemoryDataset({
+        prickleTypes: [{ id: "ptyp_1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
+        prickles: [{ id: "prkl_1", typeId: "ptyp_1", hostId: null, title: null, startTime: new Date(now - 7_200_000).toISOString(), endTime: new Date(now - 3_600_000).toISOString(), source: "calendar", calendarEventId: null }],
+        attendance: [{ id: "att_1", memberId: "mbr_1", prickleId: "prkl_1", joinTime: new Date(now - 7_200_000).toISOString(), leaveTime: new Date(now - 3_600_000).toISOString() }],
+      }),
+    );
+  };
+
+  it("shows a published page's live figure to a signed-out visitor, and does not save it into the page", async () => {
+    seedPrickle();
+    const page = await state.repos.landingPages.create({ title: "Live", slug: "live-figures", data: liveDoc, createdBy: null });
+    await state.repos.landingPages.publish(page.id);
+
+    await renderServerPage(PublicLandingPage, params("live-figures"));
+
+    expect(screen.getByText("1").tagName).toBe("DD"); // one prickle with writers in the last 30 days
+    expect(screen.getByText("50+")).toBeInTheDocument();
+    expect(screen.queryByText("typed 7")).toBeNull();
+    expect(JSON.stringify((await state.repos.landingPages.published("live-figures"))?.data)).not.toContain('"live":{');
+  });
+
+  it("shows the typed figure when the figures cannot be read", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const page = await state.repos.landingPages.create({ title: "Live", slug: "live-broken", data: liveDoc, createdBy: null });
+    await state.repos.landingPages.publish(page.id);
+    state.repos.attendance.staysJoinedBetween = async () => {
+      throw new Error("db down");
+    };
+
+    await renderServerPage(PublicLandingPage, params("live-broken"));
+
+    expect(screen.getByText("typed 7")).toBeInTheDocument();
+    expect(log).toHaveBeenCalledWith("landing_live_stats_failed", "Error");
+    log.mockRestore();
+  });
+
+  it("shows the draft's live figure in the admin preview", async () => {
+    seedPrickle();
+    await state.repos.landingPages.create({ title: "Live", slug: "live-preview", data: liveDoc, createdBy: null });
+    await renderServerPage(PreviewLandingPage, params("live-preview"));
+    expect(screen.getByText("1").tagName).toBe("DD");
   });
 });
 

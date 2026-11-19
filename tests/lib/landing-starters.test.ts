@@ -76,7 +76,7 @@ describe("the homepage starter", () => {
     const [columns] = band.props.content as Node[];
     expect(columns.type).toBe("Columns");
     expect(columns.props.count).toBe("2");
-    expect((columns.props.col1 as Node[]).map((b) => b.type)).toEqual(["Heading", "RichText", "ButtonRow"]);
+    expect((columns.props.col1 as Node[]).map((b) => b.type)).toEqual(["Heading", "RichText", "ButtonRow", "RichText"]);
     expect((columns.props.col1 as Node[])[0].props.level).toBe("h1");
     expect((columns.props.col2 as Node[]).map((b) => b.type)).toEqual(["SchedulePanel"]);
     expect(columns.props.col3).toEqual([]);

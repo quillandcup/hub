@@ -94,6 +94,7 @@ defineWritingContract("SupabaseWritingRepository", () => ({
           note: e.note ?? null,
           tags: e.tags ?? [],
           created_at: e.createdAt,
+          deleted_at: e.deleted ? "2026-06-01T00:00:00Z" : null,
         })),
       );
       if (error) throw new Error(error.message);

@@ -13,6 +13,9 @@ export type AttendanceLink = { memberId: string; prickleId: string; joinTime: st
 /** When a member was in a prickle, one join and leave; no prickle, for time-based reports. */
 export type AttendanceSpan = { memberId: string; joinTime: string; leaveTime: string };
 
+/** A record with the window of the prickle it was at: the leave time can run past the prickle's end (Zoom stays open), so time spent is clipped to that window by the caller. */
+export type AttendanceStay = { memberId: string; prickleId: string; joinTime: string; leaveTime: string; prickleStart: string; prickleEnd: string };
+
 /** An attendance record as stored: one join and leave. Leave and rejoin makes several per prickle. */
 export type AttendanceRow = {
   id: string;
@@ -63,6 +66,8 @@ export type MemberAttendanceFilter = {
  * prickles" never counts records; that rule lives here once, not in each caller.
  */
 export interface AttendanceRepository {
+  /** Records that began between the two instants (ISO, inclusive), each with the window of the prickle it was at, for totals of time spent in prickles; a record whose prickle is gone is left out. Counts and sums only: callers must not show anyone. */
+  staysJoinedBetween(from: string, to: string): Promise<AttendanceStay[]>;
   /** Number of attendance records for the member (records, not distinct prickles). */
   countForMember(memberId: string): Promise<number>;
   /** Distinct prickles the member attended. */
@@ -232,6 +237,22 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       }
     }
     return earliest;
+  }
+
+  async staysJoinedBetween(from: string, to: string): Promise<AttendanceStay[]> {
+    const rows = await fetchAllRows((start, end) =>
+      this.db
+        .from("prickle_attendance")
+        .select("member_id, prickle_id, join_time, leave_time, prickle:prickles!inner(start_time, end_time)")
+        .gte("join_time", from)
+        .lte("join_time", to)
+        .order("id")
+        .range(start, end),
+    );
+    return rows.flatMap((row) => {
+      const prickle = one(row.prickle);
+      return prickle ? [{ memberId: row.member_id, prickleId: row.prickle_id, joinTime: row.join_time, leaveTime: row.leave_time, prickleStart: prickle.start_time, prickleEnd: prickle.end_time }] : [];
+    });
   }
 
   async joinedBetween(from: string, to: string): Promise<AttendanceSpan[]> {
@@ -435,6 +456,17 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
       if (!seen || new Date(row.joinTime) < new Date(seen)) earliest.set(row.prickleId, row.joinTime);
     }
     return earliest;
+  }
+
+  async staysJoinedBetween(from: string, to: string): Promise<AttendanceStay[]> {
+    const start = new Date(from).getTime();
+    const end = new Date(to).getTime();
+    return this.rows.flatMap((row) => {
+      const joined = new Date(row.joinTime).getTime();
+      const prickle = this.data.prickles.find((p) => p.id === row.prickleId);
+      if (joined < start || joined > end || !prickle) return [];
+      return [{ memberId: row.memberId, prickleId: row.prickleId, joinTime: row.joinTime, leaveTime: row.leaveTime, prickleStart: prickle.startTime, prickleEnd: prickle.endTime }];
+    });
   }
 
   async joinedBetween(from: string, to: string) {

@@ -3,9 +3,9 @@ import { buttonClasses } from "./blocks";
 import { BAND_SPACE, pageImage, pick } from "./theme";
 
 /**
- * The homepage's blocks (docs/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks,
- * everything typed by hand in the editor (no live data yet; a `source` prop can be added to the ones that will get it,
- * with no renaming). Layout is container queries with the named sizes, mobile first. Colours are theme tokens and fixed
+ * The homepage's blocks (docs/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks.
+ * Typed by hand in the editor; the announcement strip, schedule panel and outcome numbers can be live ("Live data"):
+ * they have a `source`, and the server hands them what they show in a render-only `live` prop (they never fetch). Layout is container queries with the named sizes, mobile first. Colours are theme tokens and fixed
  * brand colours only, and wherever a block sets its own background it also sets its own text colour, never inherits it.
  * Heading levels assume the page has a section heading (h2) above: titles inside a block are h3, and h4 under a block
  * heading, which lib/landing/a11y.ts mirrors. A link is a prop named `href` (cleaned on save), so a block with several
@@ -45,7 +45,17 @@ function LinkButton({ label, href, color = "plum", full = false }: { label?: str
 
 // ---- Announcement strip ----------------------------------------------------------------------------------------
 
-export type AnnouncementStripProps = { text: string; buttonLabel: string; href: string; tone: "gold" | "plum" | "charcoal" };
+/** `source` "live" shows the server's line about the next public prickle (`live.text`, set per render by lib/landing/live-data.ts, never stored); without it, or when the load failed, the typed `text`. */
+export type AnnouncementStripProps = {
+  text: string;
+  buttonLabel: string;
+  href: string;
+  tone: "gold" | "plum" | "charcoal";
+  source?: "manual" | "live";
+  /** Live, with no prickle coming up within a day: show nothing (default) or the typed text. */
+  whenNone?: "hide" | "typed";
+  live?: { text: string };
+};
 const STRIP_TONES = {
   gold: { band: "bg-gold text-gold-ink", dot: "bg-red-700", button: "bg-gold-ink text-gold" },
   plum: { band: "bg-plum-900 text-white", dot: "bg-gold", button: "bg-white text-plum-900" },
@@ -53,7 +63,10 @@ const STRIP_TONES = {
 } as const;
 
 /** A bar above the page: a line of news with a pulsing dot and one button. High contrast on purpose; the dot only pulses when the visitor allows motion. */
-export function AnnouncementStrip({ text, buttonLabel, href, tone }: AnnouncementStripProps) {
+export function AnnouncementStrip({ text: typed, buttonLabel, href, tone, source, whenNone, live }: AnnouncementStripProps) {
+  const isLive = source === "live" && !!live;
+  if (isLive && !live.text && whenNone !== "typed") return null;
+  const text = isLive && live.text ? live.text : typed;
   if (!text && !buttonLabel) return null;
   const look = STRIP_TONES[tone] ?? STRIP_TONES.gold;
   const target = safeHref(href);
@@ -83,13 +96,27 @@ export function AnnouncementStrip({ text, buttonLabel, href, tone }: Announcemen
 // ---- Schedule panel --------------------------------------------------------------------------------------------
 
 export type ScheduleRow = { time: string; title: string; status: string; state: "live" | "soon" | "open"; host: string };
-export type SchedulePanelProps = { title: string; zoneLabel: string; rows: ScheduleRow[] };
+/** `source` "live" shows `live.rows` (the next public prickles, built per render on the server), or `emptyText` when there are none; the typed `rows` when there is no live data (never stored, see lib/landing/live-data.ts). */
+export type SchedulePanelProps = {
+  title: string;
+  zoneLabel: string;
+  rows: ScheduleRow[];
+  source?: "manual" | "live";
+  /** Live options, read on the server: how far ahead to look (hours), the most rows, and the host line ("none", or "experience" for "An experienced host"). */
+  hoursAhead?: number;
+  maxRows?: number;
+  hostStyle?: "none" | "experience";
+  emptyText?: string;
+  live?: { rows: ScheduleRow[]; zoneLabel: string };
+};
 const STATE_CHIP = { live: "bg-emerald-700 text-white", soon: "bg-gold text-gold-ink", open: "bg-mist-100 text-mist-900" } as const;
 
 /** A panel of today's sessions, typed by hand: time, name, a status chip (live, soon, open) and an optional line about the host. A light panel in both themes, with its own text colours. */
-export function SchedulePanel({ title, zoneLabel, rows }: SchedulePanelProps) {
-  const list = rowsOf(rows, "title", 6);
-  if (list.length === 0) return null;
+export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, emptyText, live }: SchedulePanelProps) {
+  const isLive = source === "live" && !!live;
+  const list = rowsOf(isLive ? live.rows : rows, "title", 6);
+  const zoneLabel = typedZone || (isLive ? live.zoneLabel : "");
+  if (list.length === 0 && !(isLive && emptyText)) return null;
   return (
     <section aria-label={title || "Schedule"} className="landing-light mx-auto max-w-xl overflow-hidden rounded-2xl bg-card text-left text-ink shadow-xl">
       {(title || zoneLabel) && (
@@ -98,6 +125,7 @@ export function SchedulePanel({ title, zoneLabel, rows }: SchedulePanelProps) {
           {zoneLabel && <p className="text-sm">{zoneLabel}</p>}
         </div>
       )}
+      {list.length === 0 && <p className="px-4 py-4 text-ink">{emptyText}</p>}
       <ul>
         {list.map((row, i) => (
           <li key={i} className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-mist-200 px-4 py-3 first:border-t-0 ${row.state === "live" ? "bg-emerald-50" : ""}`}>
@@ -119,12 +147,18 @@ export function SchedulePanel({ title, zoneLabel, rows }: SchedulePanelProps) {
 
 // ---- Outcome numbers -------------------------------------------------------------------------------------------
 
-export type OutcomeNumbersProps = { items: { value: string; label: string; note: string }[]; padding?: "none" | "small" | "medium" | "large" };
+/**
+ * An item is typed by hand, or (`source` "live") bound to a figure from the live registry (`stat`, lib/landing/live-stats.ts):
+ * the server puts the formatted figure in `live` for one render and the typed `value` stays as the fallback. With a live
+ * figure and no typed label, the figure's own caption is the label.
+ */
+export type OutcomeItem = { value: string; label: string; note: string; source?: "manual" | "live"; stat?: string; live?: { value: string; caption: string } };
+export type OutcomeNumbersProps = { items: OutcomeItem[]; padding?: "none" | "small" | "medium" | "large"; showLiveNote?: boolean };
 const OUTCOME_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
 
 /** A full-width white band with a gold stripe on top: two to four big figures, typed by hand. Every colour is set here (plum numbers, dark ink labels), so nothing depends on the band it sits in. */
-export function OutcomeNumbers({ items, padding }: OutcomeNumbersProps) {
-  const rows = rowsOf(items, "value", MAX.outcomes);
+export function OutcomeNumbers({ items, padding, showLiveNote }: OutcomeNumbersProps) {
+  const rows = (items ?? []).filter((i) => i && (i.value || i.live?.value)).slice(0, MAX.outcomes);
   if (rows.length === 0) return null;
   return (
     <section className={`landing-light border-t-8 border-gold bg-white text-ink ${pick(BAND_SPACE.figures, padding, "medium")}`}>
@@ -132,10 +166,16 @@ export function OutcomeNumbers({ items, padding }: OutcomeNumbersProps) {
         {rows.map((row, i) => (
           <div key={i} className="flex flex-col-reverse">
             <dt className="mt-1 text-base font-semibold text-ink">
-              {row.label}
+              {row.live ? row.label || row.live.caption : row.label}
               {row.note && <span className="ml-2 text-sm font-medium text-emerald-800">({row.note})</span>}
+              {row.live && showLiveNote !== false && (
+                <span className="ml-2 inline-flex items-center gap-1 text-sm font-medium text-emerald-800">
+                  <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-emerald-700" />
+                  live
+                </span>
+              )}
             </dt>
-            <dd className="font-display text-5xl font-semibold leading-tight text-plum-900 @pair:text-6xl">{row.value}</dd>
+            <dd className="font-display text-5xl font-semibold leading-tight text-plum-900 @pair:text-6xl">{row.live ? row.live.value : row.value}</dd>
           </div>
         ))}
       </dl>
