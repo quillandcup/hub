@@ -571,6 +571,10 @@ export type MemberEventSeed = {
   focus?: string;
   description?: string;
   calendarEventId?: string;
+  /** The event kind (default "other"), whether it is announced publicly (default no) and its capacity. */
+  eventType?: string;
+  announced?: boolean;
+  capacity?: number;
 };
 
 export type MemberEventContext = {
@@ -658,6 +662,22 @@ export function defineMemberEventContract(name: string, setup: () => MemberEvent
       expect(found[0].ends_at.slice(0, 10)).toBe("2097-04-10");
       expect(unasked).toBeTruthy();
       expect(await ctx.repo().visibleEndingFrom([], "2097-04-10")).toEqual([]);
+    });
+
+    it("lists the shown, publicly announced events that start later, soonest first, narrowed to kinds and cut to a limit", async () => {
+      const later = await ctx.event({ title: `Later ${ctx.token}`, startsAt: "2097-08-01", eventType: "workshop", announced: true });
+      const retreat = await ctx.event({ title: `Retreat ${ctx.token}`, startsAt: "2097-07-01", endsAt: "2097-07-03", eventType: "in_person_retreat", announced: true, capacity: 12 });
+      await ctx.event({ title: `Secret ${ctx.token}`, startsAt: "2097-07-02", announced: false });
+      await ctx.event({ title: `Hidden ${ctx.token}`, startsAt: "2097-07-03", announced: true, hidden: true });
+      await ctx.event({ title: `Past ${ctx.token}`, startsAt: "2097-05-01", announced: true });
+      const ours = (found: { id: string }[]) => found.map((e) => e.id).filter((id) => [later, retreat].includes(id));
+
+      const all = await ctx.repo().upcomingAnnounced({ from: "2097-06-01T00:00:00Z", limit: 1000 });
+      expect(ours(all)).toEqual([retreat, later]);
+      expect(all.find((e) => e.id === retreat)).toMatchObject({ title: `Retreat ${ctx.token}`, event_type: "in_person_retreat", capacity: 12, starts_at: "2097-07-01", ends_at: "2097-07-03" });
+      expect(Object.keys(all[0]).sort()).toEqual(["capacity", "end_time", "ends_at", "event_type", "id", "registration", "start_time", "starts_at", "title"]);
+      expect(ours(await ctx.repo().upcomingAnnounced({ from: "2097-06-01T00:00:00Z", limit: 1000, kinds: ["workshop"] }))).toEqual([later]);
+      expect((await ctx.repo().upcomingAnnounced({ from: "2097-06-01T00:00:00Z", limit: 1 })).length).toBeLessThanOrEqual(1);
     });
 
     it("searches by every word across title, speakers, host, location, focus and description", async () => {

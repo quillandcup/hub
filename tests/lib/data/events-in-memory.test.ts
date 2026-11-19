@@ -157,6 +157,9 @@ defineMemberEventContract("InMemoryEventRepository", () => {
         prickle_id: `prkl_mem${n}`,
         deleted_at: e.hidden ? "2097-01-01T00:00:00Z" : null,
         focus: e.focus ?? null,
+        ...(e.eventType ? { event_type: e.eventType } : {}),
+        announced_publicly: e.announced ?? false,
+        capacity: e.capacity ?? null,
       });
       return id;
     },

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Config, Field, Fields } from "@puckeditor/core";
-import { ImageField, RichTextField, ZonedDateTimeField } from "./fields";
+import { ImageField, KindsField, RichTextField, ZonedDateTimeField } from "./fields";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
 import { renderConfig } from "./config";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
@@ -38,6 +38,13 @@ const dateTime = (label: string): Field => ({
   type: "custom",
   label,
   render: ({ value, onChange }) => <ZonedDateTimeField label={label} value={(value as string) ?? ""} onChange={onChange} />,
+});
+
+/** Tick boxes for the kinds of event a live Coming up block lists; the value is the list of ticked kinds. */
+const kindsField = (label: string): Field => ({
+  type: "custom",
+  label,
+  render: ({ value, onChange }) => <KindsField value={Array.isArray(value) ? (value as string[]) : []} onChange={onChange} />,
 });
 
 const link = (label: string): Field => ({ type: "object", label, objectFields: { label: text("Button label"), href: text("Link (https://, or a path on this site)") } });
@@ -274,9 +281,13 @@ const FIELDS: Record<string, Fields> = {
   },
   ComingUp: {
     heading: text("Heading above the cards (optional)"),
+    source: SOURCE,
+    kinds: kindsField("Live: which kinds of event to show (none ticked: every kind)"),
+    max: { type: "number", label: "Live: most cards to show (1 to 4)", min: 1, max: 4 },
+    more: link("Link under the cards (optional, for example, See all events)"),
     items: {
       type: "array",
-      label: "Cards (up to 4)",
+      label: "Cards when typed by hand (up to 4)",
       max: 4,
       arrayFields: {
         kind: text("Kind (for example, Retreat)"),

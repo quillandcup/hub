@@ -25,6 +25,7 @@ describe("SupabaseEventRepository on a database error", () => {
     await expect(failing().visiblePhotos("x")).rejects.toThrow("boom");
     await expect(failing().isVisible("x")).rejects.toThrow("boom");
     await expect(failing().visibleEndingFrom(["x"], "2097-01-01")).rejects.toThrow("boom");
+    await expect(failing().upcomingAnnounced({ from: "2097-01-01T00:00:00Z", limit: 4, kinds: ["workshop"] })).rejects.toThrow("boom");
     await expect(failing().search({ words: ["a"], limit: 5, offset: 0 })).rejects.toThrow("boom");
     await expect(failing().search({ words: ["a"], attendedBy: ["mbr_AAAAAAAAAAA1"], limit: 5, offset: 0 })).rejects.toThrow("boom");
   });

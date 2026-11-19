@@ -1,5 +1,6 @@
 import { normalizeLandingData } from "./data";
 import { isLiveStatKey, type LiveStatValue } from "./live-stats";
+import { comingUpCards, comingUpKey, comingUpOptions, type ComingUpOptions, type ComingUpSnapshot } from "./live-events";
 import { scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapshot } from "./live-schedule";
 
 /**
@@ -9,6 +10,7 @@ import { scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapsh
  * - Outcome numbers: per item (`source` "live" and a `stat`), `live: { value, caption }`.
  * - Schedule panel (`source` "live"): `live: { rows, zoneLabel }`.
  * - Announcement strip (`source` "live"): `live: { text }`, "" when nothing is coming up.
+ * - Coming up (`source` "live"): `live: { cards }`, the next events announced publicly; no `live` when there are none.
  *
  * Nothing is written back: the document the page was stored with is never changed (the result is a copy for one render),
  * and a `live` prop found in stored data is dropped, so it can't be planted. A block with no live data (the load failed,
@@ -19,6 +21,8 @@ export type LiveLoaders = {
   /** The figures for these stat keys; a key with nothing to show is absent. */
   stats: (keys: string[]) => Promise<Record<string, LiveStatValue>>;
   schedule: () => Promise<ScheduleSnapshot>;
+  /** The next announced events for one block's options (`comingUpOptions`). */
+  comingUp: (options: ComingUpOptions) => Promise<ComingUpSnapshot>;
 };
 
 type Block = { type?: unknown; props?: Record<string, unknown> };
@@ -42,7 +46,7 @@ function mapBlocks(value: unknown, change: (block: Block & { type: string; props
   return isBlock(mapped) ? { ...mapped, props: change(mapped) } : mapped;
 }
 
-const LIVE_TYPES = new Set(["OutcomeNumbers", "SchedulePanel", "AnnouncementStrip"]);
+const LIVE_TYPES = new Set(["OutcomeNumbers", "SchedulePanel", "AnnouncementStrip", "ComingUp"]);
 const isLive = (props: Record<string, unknown>) => props.source === "live";
 const withoutLive = ({ live: _live, ...rest }: Record<string, unknown>) => rest; // eslint-disable-line @typescript-eslint/no-unused-vars
 
@@ -50,14 +54,19 @@ const statKeysOf = (props: Record<string, unknown>): string[] =>
   Array.isArray(props.items) ? props.items.flatMap((i) => (isObject(i) && i.source === "live" && isLiveStatKey(i.stat) ? [i.stat] : [])) : [];
 
 /** Whether a page has anything to resolve, so a page with only typed blocks costs nothing. */
-export function needsLiveData(data: unknown): { stats: string[]; schedule: boolean } {
+export function needsLiveData(data: unknown): { stats: string[]; schedule: boolean; comingUp: ComingUpOptions[] } {
   const stats = new Set<string>();
+  const comingUp = new Map<string, ComingUpOptions>();
   let schedule = false;
   for (const block of blocksOf(data)) {
     if (block.type === "OutcomeNumbers") for (const key of statKeysOf(block.props)) stats.add(key);
     if ((block.type === "SchedulePanel" || block.type === "AnnouncementStrip") && isLive(block.props)) schedule = true;
+    if (block.type === "ComingUp" && isLive(block.props)) {
+      const options = comingUpOptions(block.props);
+      comingUp.set(comingUpKey(options), options);
+    }
   }
-  return { stats: [...stats].sort(), schedule };
+  return { stats: [...stats].sort(), schedule, comingUp: [...comingUp.values()] };
 }
 
 const failed = (code: string, error: unknown) => {
@@ -70,9 +79,10 @@ const failed = (code: string, error: unknown) => {
 export async function resolveLiveBlocks(data: unknown, loaders: LiveLoaders, nowDate: Date = new Date()): Promise<unknown> {
   const page = normalizeLandingData(data);
   const needs = needsLiveData(page);
-  const [stats, schedule] = await Promise.all([
+  const [stats, schedule, comingUp] = await Promise.all([
     needs.stats.length > 0 ? loaders.stats(needs.stats).catch((e) => failed("stats", e)) : Promise.resolve(null),
     needs.schedule ? loaders.schedule().catch((e) => failed("schedule", e)) : Promise.resolve(null),
+    Promise.all(needs.comingUp.map(async (options) => [comingUpKey(options), await loaders.comingUp(options).catch((e) => failed("coming_up", e))] as const)).then((pairs) => new Map(pairs)),
   ]);
   return mapBlocks(page, (block) => {
     const props = withoutLive(block.props);
@@ -88,6 +98,13 @@ export async function resolveLiveBlocks(data: unknown, loaders: LiveLoaders, now
           return figure ? { ...plain, live: { value: figure.value, caption: figure.caption } } : plain;
         }),
       };
+    }
+    if (block.type === "ComingUp") {
+      const options = comingUpOptions(props);
+      const snapshot = isLive(props) ? comingUp.get(comingUpKey(options)) : null;
+      if (!snapshot) return props;
+      const cards = comingUpCards(snapshot, nowDate, options);
+      return cards.length > 0 ? { ...props, live: { cards } } : props;
     }
     if (!isLive(props) || !schedule) return props;
     if (block.type === "SchedulePanel") {

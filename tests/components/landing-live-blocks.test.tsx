@@ -12,7 +12,7 @@ vi.hoisted(() => {
 });
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { AnnouncementStrip, OutcomeNumbers, SchedulePanel } from "@/components/landing/homepage-blocks";
+import { AnnouncementStrip, ComingUp, OutcomeNumbers, SchedulePanel } from "@/components/landing/homepage-blocks";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import LandingRender from "@/components/landing/LandingRender";
@@ -150,6 +150,7 @@ describe("a live page, end to end", () => {
       data,
       {
         stats: async () => ({ hours_30d: { value: "890+", caption: LIVE_STATS.hours_30d.caption } }),
+        comingUp: async () => ({ events: [{ kind: "Retreat", title: "Lakeside Retreat", when: "Mar 13 to 15, 2027", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", startTime: "2027-03-13T05:00:00Z" }] }),
         schedule: async () => ({ prickles: [{ id: "p", title: "Open Mic", startTime: new Date(NOW.getTime() + 600_000).toISOString(), endTime: new Date(NOW.getTime() + 4_200_000).toISOString(), experiencedHost: false }], writingNow: null }),
       },
       NOW,
@@ -162,7 +163,7 @@ describe("a live page, end to end", () => {
   });
 
   it("renders every live block from its defaults with no live data, as the typed block (the editor's canvas)", () => {
-    for (const name of ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers"] as const) {
+    for (const name of ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "ComingUp"] as const) {
       const props = { id: "x", ...BLOCK_DEFAULTS[name], source: "live", ...(name === "OutcomeNumbers" ? { items: BLOCK_DEFAULTS.OutcomeNumbers.items.map((i) => ({ ...i, source: "live" })) } : {}) };
       const { container, unmount } = render(<LandingRender data={{ content: [{ type: name, props }], root: {} }} />);
       expect(container.querySelector("main")!.innerHTML, name).not.toBe("");
@@ -207,5 +208,61 @@ describe("the editor's fields for live blocks", () => {
     expect(BLOCK_DEFAULTS.SchedulePanel.hostStyle).toBe("none");
     expect(BLOCK_DEFAULTS.OutcomeNumbers.items.every((i) => i.source === "manual")).toBe(true);
     expect(BLOCK_DEFAULTS.OutcomeNumbers.showLiveNote).toBe(true);
+  });
+});
+
+describe("ComingUp, live", () => {
+  const typed = [{ kind: "Retreat", title: "Typed retreat", when: "June", availability: "Spots left", status: "" as const, linkLabel: "", href: "" }];
+  const cards = [
+    { kind: "Retreat", title: "Lakeside Retreat", when: "Mar 13 to 15, 2027", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r" },
+    { kind: "Virtual retreat", title: "Online Week", when: "Apr 10", availability: "", linkLabel: "", href: "" },
+    { kind: "Workshop", title: "Full Workshop", when: "Apr 20, 7 pm EDT", availability: "Full", linkLabel: "Sign up", href: "javascript:alert(1)" },
+  ];
+
+  it("shows the live cards instead of the typed ones, with real availability and a link only where it is safe", () => {
+    render(<ComingUp heading="Coming up" items={typed} source="live" live={{ cards }} />);
+    expect(screen.queryByText("Typed retreat")).toBeNull();
+    expect(screen.getByRole("heading", { level: 4, name: "Lakeside Retreat" })).toBeInTheDocument();
+    expect(screen.getByText("3 spots left")).toBeInTheDocument();
+    expect(screen.getByText("Full")).toBeInTheDocument();
+    expect(screen.getByText("Virtual retreat")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "Sign up" });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "https://checkout.example.com/r");
+  });
+
+  it("shows the typed cards when live data is missing, or when the block is typed (a live prop on a typed block is ignored)", () => {
+    const { rerender } = render(<ComingUp heading="Coming up" items={typed} source="live" />);
+    expect(screen.getByText("Typed retreat")).toBeInTheDocument();
+    rerender(<ComingUp heading="Coming up" items={typed} source="live" live={{ cards: [] }} />);
+    expect(screen.getByText("Typed retreat")).toBeInTheDocument();
+    rerender(<ComingUp heading="Coming up" items={typed} source="manual" live={{ cards }} />);
+    expect(screen.getByText("Typed retreat")).toBeInTheDocument();
+    expect(screen.queryByText("Lakeside Retreat")).toBeNull();
+  });
+
+  it("shows one typed link under the cards, only with a safe address", () => {
+    const { rerender } = render(<ComingUp heading="" items={typed} more={{ label: "See all events", href: "/join" }} />);
+    expect(screen.getByRole("link", { name: "See all events" })).toHaveAttribute("href", "/join");
+    rerender(<ComingUp heading="" items={typed} more={{ label: "See all events", href: "javascript:alert(1)" }} />);
+    expect(screen.queryByRole("link", { name: "See all events" })).toBeNull();
+  });
+
+  it("renders through the page and the stored page keeps its typed cards", async () => {
+    const stored = { content: [{ type: "ComingUp", props: { id: "c", ...BLOCK_DEFAULTS.ComingUp, source: "live", items: typed } }], root: {} };
+    const resolved = await resolveLiveBlocks(stored, { stats: async () => ({}), schedule: async () => ({ prickles: [], writingNow: null }), comingUp: async () => ({ events: [{ ...cards[0], startTime: "2099-01-01T00:00:00Z" }] }) }, new Date("2026-11-19T15:00:00Z"));
+    render(<LandingRender data={resolved} />);
+    expect(screen.getByText("Lakeside Retreat")).toBeInTheDocument();
+    expect(JSON.stringify(stored)).not.toContain("Lakeside");
+    expect(JSON.stringify(sanitizeLandingData(stored))).not.toContain("Lakeside");
+  });
+
+  it("is typed by default, labels every field in plain words and lists every kind of event to choose from", () => {
+    expect(BLOCK_DEFAULTS.ComingUp).toMatchObject({ source: "manual", kinds: [], max: 4 });
+    const f = editorConfig.components.ComingUp.fields as unknown as Record<string, { type: string; label?: string; options?: { label: string }[] }>;
+    expect(f.source.options!.map((o) => o.label)).toEqual(["Typed in by hand", "Live from the Hub"]);
+    expect(f.source.label).toMatch(/live shows on the published page/i);
+    for (const key of ["heading", "source", "kinds", "max", "more"]) expect(f[key].label, key).toBeTruthy();
+    expect(f.kinds.type).toBe("custom");
   });
 });

@@ -38,9 +38,9 @@ describe("live data on the server", () => {
 
   it("caches each aggregate for about a minute, so traffic cannot multiply database load", () => {
     expect(LIVE_CACHE_SECONDS).toBe(60);
-    expect(mocks.cacheCalls).toHaveLength(2);
+    expect(mocks.cacheCalls).toHaveLength(3);
     for (const call of mocks.cacheCalls) expect(call.options).toEqual({ revalidate: 60, tags: [LIVE_CACHE_TAG] });
-    expect(new Set(mocks.cacheCalls.map((c) => c.keyParts.join("/"))).size).toBe(2);
+    expect(new Set(mocks.cacheCalls.map((c) => c.keyParts.join("/"))).size).toBe(3);
   });
 
   it("resolves a page against the repositories at the clock's time, without touching the stored page", async () => {

@@ -225,9 +225,18 @@ export interface EventRepository {
   setOfferWindow(eventId: string, kajabiOfferId: string, window: OfferWindow): Promise<SetOfferWindowResult>;
   /** Unlinks an offer; false when it was not linked to this event. */
   unlinkOffer(eventId: string, kajabiOfferId: string): Promise<boolean>;
+  /**
+   * The next events that may be announced to the public (shown, not hidden, `announced_publicly`) starting after `from`, soonest first,
+   * at most `limit`; `kinds` narrows to those event types (empty or absent: every kind). The public landing page's "Coming up" reads it.
+   */
+  upcomingAnnounced(query: { from: string; limit: number; kinds?: string[] }): Promise<UpcomingAnnouncedEvent[]>;
   /** For each given calendar event that has an event, whether it is shown to members or hidden. Chunked. */
   visibilityByCalendarEvent(calendarEventIds: string[]): Promise<Map<string, "shown" | "hidden">>;
 }
+
+/** What the public "Coming up" list needs of an event: its name, kind, days, times and capacity. No host or speaker columns: nothing about a person but what the title says. */
+export type UpcomingAnnouncedEvent = Pick<EventDetail, "id" | "title" | "event_type" | "capacity" | "registration" | "start_time" | "end_time" | "starts_at" | "ends_at">;
+const UPCOMING_COLUMNS = "id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at";
 
 /** An event that follows a calendar event. */
 export interface CalendarLinkedEvent {
@@ -810,6 +819,14 @@ export class SupabaseEventRepository implements EventRepository {
     return (data ?? []).length > 0;
   }
 
+  async upcomingAnnounced({ from, limit, kinds }: { from: string; limit: number; kinds?: string[] }) {
+    let query = this.db.from("community_event_details").select(UPCOMING_COLUMNS).is("deleted_at", null).eq("announced_publicly", true).gt("start_time", from);
+    if (kinds && kinds.length > 0) query = query.in("event_type", kinds);
+    const { data, error } = await query.order("start_time").order("id").limit(limit).overrideTypes<UpcomingAnnouncedEvent[], { merge: false }>(); // view columns are all nullable in the generated types
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
   async visibilityByCalendarEvent(calendarEventIds: string[]) {
     const out = new Map<string, "shown" | "hidden">();
     for (const r of await this.onCalendarEvents(calendarEventIds)) out.set(r.calendarEventId, r.deletedAt ? "hidden" : "shown");
@@ -1174,6 +1191,15 @@ export class InMemoryEventRepository implements EventRepository {
       moved++;
     }
     return moved;
+  }
+
+  async upcomingAnnounced({ from, limit, kinds }: { from: string; limit: number; kinds?: string[] }) {
+    const wanted = kinds && kinds.length > 0 ? new Set(kinds) : null;
+    return eventDetails(this.data)
+      .filter((e) => !e.deleted_at && e.announced_publicly && Date.parse(e.start_time) > Date.parse(from) && (!wanted || wanted.has(e.event_type)))
+      .sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time) || a.id.localeCompare(b.id))
+      .slice(0, limit)
+      .map(({ id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at }) => ({ id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at }));
   }
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {
