@@ -64,19 +64,19 @@ describe("Columns", () => {
     expect(grid.className).not.toMatch(/\b(bg|text)-/);
   });
 
-  it("makes every slot a block formatting context, so a heading's margin stays inside it", () => {
+  it("makes every slot a block formatting context, so a heading's margin stays inside it (a Section's slot is a grid, which is one too)", () => {
     render(<Columns count="2" gap="medium" verticalAlign="top" col1={slot("one")} col2={slot("two")} col3={slot("three")} />);
     expect(screen.getByTestId("one").className).toContain("flow-root");
     cleanup();
-    render(<Section background="none" overlay="none" width="wide" padding="medium" align="left" card fadeIn={false} content={slot("inside")} />);
-    expect(screen.getByTestId("inside").className).toContain("flow-root");
+    render(<Section background="none" overlay="none" width="wide" align="left" card fadeIn={false} content={slot("inside")} />);
+    expect(screen.getByTestId("inside").className).toContain("grid-cols-12");
   });
 });
 
 describe("Columns in a page", () => {
   const nested = page({
     type: "Section",
-    props: { id: "s1", background: "plum", overlay: "none", width: "wide", padding: "medium", align: "left", card: false, fadeIn: false, content: [columns({ col1: [heading("h1", "Left side", "h1")], col2: [heading("h2", "Right side")] })] },
+    props: { id: "s1", background: "plum", overlay: "none", width: "wide", align: "left", card: false, fadeIn: false, content: [columns({ col1: [heading("h1", "Left side", "h1")], col2: [heading("h2", "Right side")] })] },
   });
 
   it("renders blocks nested in a Columns inside a Section on the public page", () => {

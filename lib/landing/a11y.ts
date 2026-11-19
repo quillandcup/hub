@@ -144,6 +144,7 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         break;
       case "Section":
         if (str(p.backgroundImageAssetId) && p.overlay === "none") issues.push({ severity: "warning", block: "Section", message: "Text over a picture with no shade can be hard to read. Add a dark or light shade." });
+        if (p.hideOnDesktop === true && p.hideOnMobile === true) issues.push({ severity: "warning", block: "Section", message: "A section is hidden on desktop and on mobile, so nobody sees it." });
         break;
       case "Countdown":
         if (!str(p.targetAt)) issues.push({ severity: "error", block: "Countdown", message: "The countdown has no date." });

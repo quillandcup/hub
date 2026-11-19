@@ -176,6 +176,62 @@ describe("cards", () => {
   });
 });
 
+describe("spacing and width", () => {
+  const section = (props: Record<string, unknown>, kids: unknown[] = []) => ({ type: "Section", props: { ...props, content: kids } });
+
+  it("offers a Section its spacing as numbers, and not hiding", () => {
+    const prompt = systemPrompt();
+    expect(prompt).toContain("paddingDesktop");
+    expect(prompt).toContain("paddingMobile");
+    expect(prompt).toContain("`span`");
+    expect(prompt).not.toContain("hideOnMobile");
+    const sectionLine = prompt.split("\n").find((l) => l.startsWith("- Section:"))!;
+    expect(sectionLine).toContain('"paddingDesktop":{"top":48');
+    expect(sectionLine).not.toContain("padding=");
+  });
+
+  it("keeps a Section's padding as clamped whole numbers, with the defaults for what it left out, and never lets it hide a section", () => {
+    const [s] = content(cleanGeneratedBlocks({ blocks: [section({ paddingDesktop: { top: 120, bottom: 99999, left: "x" }, paddingMobile: "wide", hideOnDesktop: true, hideOnMobile: true })] }));
+    expect(s.props.paddingDesktop).toEqual({ ...BLOCK_DEFAULTS.Section.paddingDesktop, top: 120, bottom: 320 });
+    expect(s.props.paddingMobile).toEqual(BLOCK_DEFAULTS.Section.paddingMobile);
+    expect(s.props).not.toHaveProperty("hideOnDesktop");
+    expect(s.props).not.toHaveProperty("hideOnMobile");
+    expect(s.props).not.toHaveProperty("padding");
+  });
+
+  it("lets a block inside a Section take columns, and drops a width that is not 1 to 12", () => {
+    const [s] = content(
+      cleanGeneratedBlocks({
+        blocks: [section({}, [{ type: "Button", props: { label: "A", span: 6, spanMobile: 12 } }, { type: "Button", props: { label: "B", span: 0, spanMobile: "wide" } }, { type: "Heading", props: { text: "C", span: 7.4 } }])],
+      }),
+    );
+    const [a, b, c] = s.props.content as Node[];
+    expect(a.props).toMatchObject({ span: 6, spanMobile: 12 });
+    expect(b.props).not.toHaveProperty("span");
+    expect(b.props).not.toHaveProperty("spanMobile");
+    expect(c.props.span).toBe(7);
+  });
+
+  it("does not give a top-level block a width, and keeps the widths of a block the model did not mention on a change", () => {
+    const [top] = content(cleanGeneratedBlocks({ blocks: [{ type: "Heading", props: { text: "Top", span: 4 } }] }));
+    expect(top.props).not.toHaveProperty("span");
+    const current = [{ type: "Section", props: { id: "s1", content: [{ type: "Button", props: { id: "b1", label: "Go", href: "", span: 5, spanMobile: 8 } }] } }];
+    const data = cleanGeneratedBlocks({ blocks: [{ id: "s1", type: "Section", props: { content: [{ id: "b1", type: "Button", props: { label: "Go now" } }] } }] }, current);
+    const kid = (content(data)[0].props.content as Node[])[0];
+    expect(kid.props).toMatchObject({ label: "Go now", span: 5, spanMobile: 8 });
+    // The model sees the widths it may change.
+    expect(JSON.stringify(pageForModel(current))).toContain('"span":5');
+  });
+
+  it("changes a width the model sets on a block that already has one", () => {
+    const current = [{ type: "Section", props: { id: "s1", content: [{ type: "Button", props: { id: "b1", label: "Go", href: "", span: 5, spanMobile: 8 } }] } }];
+    const data = cleanGeneratedBlocks({ blocks: [{ id: "s1", type: "Section", props: { content: [{ id: "b1", type: "Button", props: { span: 12, spanMobile: null } }] } }] }, current);
+    const kid = (content(data)[0].props.content as Node[])[0];
+    expect(kid.props.span).toBe(12);
+    expect(kid.props).not.toHaveProperty("spanMobile");
+  });
+});
+
 describe("what is reported back", () => {
   const issue = (message: string) => ({ severity: "error" as const, block: "Button", message });
   it("lists only the problems a change added, counting repeats", () => {

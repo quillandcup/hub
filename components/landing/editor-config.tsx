@@ -4,6 +4,7 @@ import type { Config, Field, Fields } from "@puckeditor/core";
 import { ImageField, KindsField, RichTextField, ZonedDateTimeField } from "./fields";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
 import { renderConfig } from "./config";
+import { PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
 /**
@@ -47,6 +48,20 @@ const kindsField = (label: string): Field => ({
   render: ({ value, onChange }) => <KindsField value={Array.isArray(value) ? (value as string[]) : []} onChange={onChange} />,
 });
 
+const padding = (label: string, size: "desktop" | "mobile"): Field => ({
+  type: "custom",
+  label,
+  render: ({ value, onChange }) => <PaddingField label={label} size={size} value={value} onChange={onChange} />,
+});
+const span = (label: string): Field => ({
+  type: "custom",
+  label,
+  render: ({ value, onChange }) => <SpanField label={label} value={value} onChange={onChange} />,
+});
+
+/** What a block gets when it sits in a Section: its width on the Section's 12-column grid, for each size (lib/landing/layout.ts). */
+const SPAN_FIELDS: Fields = { span: span("Width on desktop"), spanMobile: span("Width on mobile") };
+
 const link = (label: string): Field => ({ type: "object", label, objectFields: { label: text("Button label"), href: text("Link (https://, or a path on this site)") } });
 
 /** Where a Homepage block's content comes from. A live block shows the Hub's figures on the published page and the preview; the editor's canvas shows what is typed here, which is also what the page shows if the figures can't be read. */
@@ -68,10 +83,13 @@ const FIELDS: Record<string, Fields> = {
       { label: "Light (dark text)", value: "light" },
     ]),
     width: select("Width of the content", WIDTH_OPTIONS),
-    padding: select("Space above and below", PADDING_OPTIONS),
     align: select("Text alignment", opts("left", "center")),
     card: toggle("Put the content on a white card"),
     fadeIn: toggle("Fade in as it appears"),
+    paddingDesktop: padding("Space inside on desktop", "desktop"),
+    paddingMobile: padding("Space inside on mobile", "mobile"),
+    hideOnDesktop: toggle("Hide on desktop"),
+    hideOnMobile: toggle("Hide on mobile"),
     content: { type: "slot" },
   },
   Columns: {
@@ -334,6 +352,16 @@ const ROOT_FIELDS: Fields = {
 /** The config the editor opens with. */
 export const editorConfig: Config = {
   ...renderConfig,
-  components: Object.fromEntries(Object.entries(renderConfig.components).map(([name, c]) => [name, { ...c, fields: FIELDS[name] }])),
+  components: Object.fromEntries(
+    Object.entries(renderConfig.components).map(([name, c]) => [
+      name,
+      {
+        ...c,
+        fields: FIELDS[name],
+        // The width fields appear only for a block that is inside a Section; elsewhere there is no grid to take columns from.
+        resolveFields: (_data: unknown, { fields, parent }: { fields: Fields; parent: { type: string } | null }) => (parent?.type === "Section" ? { ...fields, ...SPAN_FIELDS } : fields),
+      },
+    ]),
+  ),
   root: { ...renderConfig.root, fields: ROOT_FIELDS },
 };

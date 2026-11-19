@@ -4,6 +4,7 @@ import { ANTHROPIC } from "@/lib/config";
 import { outboundFetch } from "@/lib/http/outbound";
 import { checkLandingPage, type A11yIssue } from "./a11y";
 import type { LandingData } from "./data";
+import { clampSpace, clampSpan } from "./layout";
 import { PROMPT_MAX } from "./ai-limits";
 import { sanitizeLandingData } from "./sanitize";
 
@@ -31,7 +32,7 @@ const ALIGN = ["left", "center"];
 
 /** The values a select prop takes, per block; a prop not listed is free text. */
 const ENUMS: Record<string, Record<string, readonly string[]>> = {
-  Section: { background: Object.keys(BACKGROUNDS), overlay: ["none", "dark", "light"], width: Object.keys(WIDTHS), padding: Object.keys(PADDING), align: ALIGN },
+  Section: { background: Object.keys(BACKGROUNDS), overlay: ["none", "dark", "light"], width: Object.keys(WIDTHS), align: ALIGN },
   RichText: { align: ALIGN },
   Heading: { level: ["h1", "h2", "h3"], align: ALIGN },
   Button: { look: LOOK, color: ["plum", "light", "brown"], shape: ["pill", "rect"], align: ALIGN },
@@ -45,7 +46,10 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
 };
 
 /** What the model is shown and may set for a block: the builder's defaults, except where those are sample content (a card's price and "Buy now"). */
+const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
 const SHAPES: Partial<Record<AiBlock, Props>> = {
+  // Spacing as numbers (px) for desktop and mobile. The model is not offered hiding a section: that is the admin's call.
+  Section: SECTION_SHAPE,
   CardGrid: { columns: "3", items: [{ icon: "", title: "", description: "", price: "", buttonLabel: "", href: "" }] },
 };
 const shapeOf = (type: AiBlock): Props => SHAPES[type] ?? (BLOCK_DEFAULTS[type] as unknown as Props);
@@ -64,6 +68,7 @@ const isObject = (v: unknown): v is Props => Boolean(v) && typeof v === "object"
 
 function cleanValue(block: string, key: string, value: unknown, fallback: unknown): unknown {
   if (typeof fallback === "boolean") return typeof value === "boolean" ? value : fallback;
+  if (typeof fallback === "number") return typeof value === "number" ? clampSpace(value, fallback) : fallback;
   if (typeof fallback === "string") {
     if (typeof value !== "string") return fallback;
     const allowed = ENUMS[block]?.[key];
@@ -121,6 +126,15 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | n
     for (const key of Object.keys(cleaned)) if (key in given) props[key] = cleaned[key];
   } else {
     props = { id: newId(type), ...cleaned };
+  }
+  if (depth > 0) {
+    // A block inside a Section may take part of its 12 columns (`span` on desktop, `spanMobile` on mobile); anything but 1 to 12 means the full width.
+    for (const key of ["span", "spanMobile"]) {
+      if (!(key in given)) continue;
+      const columns = clampSpan(given[key]);
+      if (columns === undefined) delete props[key];
+      else props[key] = columns;
+    }
   }
   if (type === "Section") {
     // One level of nesting: a section holds blocks, not more sections.
@@ -182,6 +196,7 @@ export function systemPrompt(task: Task = "page"): string {
     TASK_RULES[task],
     "A Section's blocks go in its props.content list. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
     "For cards side by side (pillars, offers, features), use a CardGrid: each card has an `icon` (one fitting emoji), a `title` and a short `description`; leave price, buttonLabel and href empty unless the request gives them.",
+    "Spacing: a Section's paddingDesktop and paddingMobile are the space inside it in px (top, bottom, left, right; 0 to 320). The defaults suit most sections: change them only when asked, or for an airy opening or closing band. Width: the blocks inside a Section sit on a 12-column grid. Give a block `span` (1 to 12: its width on desktop) and, if it should differ on a phone, `spanMobile` (full width when left out) to put blocks side by side, for example two Buttons with span 6, or a Heading and some text with span 5 and 7. Leave both out for full width.",
     "Rich text (`html`) may use only p, h2, h3, ul, ol, li, strong, em, a and blockquote. There are no pictures: leave picture props out. Never mention AI.",
     "Blocks and their props (each prop you set must be one of these, with a value of the same kind):",
     describeBlocks(),

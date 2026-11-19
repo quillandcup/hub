@@ -56,6 +56,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "landing-page-spacing-and-width",
+    date: "2026-11-19",
+    audience: "staff",
+    category: "improved",
+    title: "Page builder: set the space inside a section and the width of each block, for desktop and mobile",
+    summary: "In the page builder you can now set the space inside a section on each side, with separate values for desktop and mobile, hide a section on desktop or on mobile, and give a block in a section a width out of 12 columns.",
+    body: `Open a page in the admin Pages editor and select a section.
+
+- **Space inside.** Top, bottom, left and right, in px, for desktop and for mobile, with None, Small, Medium and Large as quick picks for the top and bottom.
+- **Hide on desktop or on mobile.** A hidden section is dimmed in the editor so you can still select it, and is left out of the page for visitors on that size.
+- **Block width.** Select a block inside a section and click the Nth of twelve squares to make it N columns wide, on desktop and, if you want it different, on mobile. Reset puts it back to full width. Blocks with no width stay full width.
+
+Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
+  },
+  {
     slug: "landing-page-homepage-blocks",
     date: "2026-11-18",
     audience: "engineering",
