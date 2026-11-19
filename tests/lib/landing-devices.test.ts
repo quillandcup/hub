@@ -17,12 +17,13 @@ describe("editor device models", () => {
   });
 
   it("starts each class with the width of its existing preview button", () => {
-    expect(TABLET_MODELS[0].width).toBe(768);
-    expect(PHONE_MODELS[0].width).toBe(390);
+    expect(TABLET_MODELS[0].width).toBe(820);
+    expect(PHONE_MODELS.find((m) => m.width === 390)?.name).toBe("iPhone 14");
   });
 
   it("infers the class from a width, and nothing for desktop or an odd width", () => {
     expect(deviceClassForWidth(820)).toBe("tablet");
+    expect(deviceClassForWidth(402)).toBe("phone");
     expect(deviceClassForWidth(412)).toBe("phone");
     expect(deviceClassForWidth(1280)).toBeNull();
     expect(deviceClassForWidth(500)).toBeNull();

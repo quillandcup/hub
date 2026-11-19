@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
 import Modal from "@/components/Modal";
+import EntitySearch from "@/components/EntitySearch";
 import AppIcon from "@/components/Icon";
 import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
@@ -50,36 +51,36 @@ const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 ho
 
 const DEVICES = [
   { label: "Desktop", width: 1280 as const, Icon: Monitor, rotate: false },
-  { label: "Tablet portrait", width: 768 as const, Icon: Tablet, rotate: false },
+  { label: "Tablet portrait", width: 820 as const, Icon: Tablet, rotate: false },
   { label: "Tablet landscape", width: 1024 as const, Icon: Tablet, rotate: true },
   { label: "Phone", width: 390 as const, Icon: Smartphone, rotate: false },
 ];
 
-/** The model picker beside the Tablet and Phone buttons; shows only while the canvas is at a tablet or phone width. */
+/** The model picker beside the Tablet and Phone buttons (our searchable picker); shows only while the canvas is at a tablet or phone width. */
 function DeviceModelSelect({ width, onPick }: { width: number | string; onPick: (width: number) => void }) {
   const [picked, setPicked] = useState<string | null>(null);
   const deviceClass = deviceClassForWidth(width);
+  const models = useMemo(() => (deviceClass ? MODELS_BY_CLASS[deviceClass] : []), [deviceClass]);
+  const items = useMemo(() => models.map((m) => ({ id: m.name, name: m.name, detail: `${m.width}px` })), [models]);
   if (!deviceClass) return null;
-  const models = MODELS_BY_CLASS[deviceClass];
-  const value = models.find((m) => m.name === picked && m.width === width)?.name ?? models.find((m) => m.width === width)?.name;
+  const current = models.find((m) => m.name === picked && m.width === width)?.name ?? models.find((m) => m.width === width)?.name;
   return (
-    <select
-      aria-label={deviceClass === "tablet" ? "Tablet model" : "Phone model"}
-      value={value}
-      onChange={(e) => {
-        const model = models.find((m) => m.name === e.target.value);
+    <EntitySearch
+      key={deviceClass}
+      items={items}
+      browse
+      selectedId={null}
+      onSelect={(item) => {
+        const model = models.find((m) => m.name === item?.id);
         if (!model) return;
         setPicked(model.name);
         onPick(model.width);
       }}
-      className="h-8 rounded border border-slate-300 bg-white px-1 text-xs text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-    >
-      {models.map((m) => (
-        <option key={m.name} value={m.name}>
-          {m.name} ({m.width})
-        </option>
-      ))}
-    </select>
+      placeholder={current ?? (deviceClass === "tablet" ? "Tablet model" : "Phone model")}
+      ariaLabel={deviceClass === "tablet" ? "Tablet model" : "Phone model"}
+      emptyText="No such model"
+      className="w-44 text-xs"
+    />
   );
 }
 
