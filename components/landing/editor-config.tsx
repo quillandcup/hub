@@ -71,6 +71,18 @@ const FIELDS: Record<string, Fields> = {
   RichText: { html: richText("Text"), align: select("Alignment", opts("left", "center")) },
   Heading: { text: text("Heading"), level: select("Level", [{ label: "Page title (h1)", value: "h1" }, { label: "Section heading (h2)", value: "h2" }, { label: "Subheading (h3)", value: "h3" }]), align: select("Alignment", opts("left", "center", "right")) },
   Button: { label: text("Label"), href: text("Link (https://, or a path on this site)"), look: LOOK, color: COLOR, shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]), align: select("Alignment", opts("left", "center", "right")), full: toggle("Full width") },
+  ButtonRow: {
+    items: {
+      type: "array",
+      label: "Buttons (1 to 3)",
+      max: 3,
+      arrayFields: { label: text("Label"), href: text("Link (https://, or a path on this site)"), look: LOOK, color: COLOR, shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]) },
+      defaultItemProps: { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" },
+      getItemSummary: (i) => i.label || "Button",
+    },
+    align: select("Alignment", opts("left", "center")),
+    gap: select("Space between the buttons", opts("small", "medium")),
+  },
   Image: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), size: select("Size", opts("small", "medium", "full")), rounded: toggle("Rounded corners"), align: select("Alignment", opts("left", "center", "right")) },
   Split: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), imageSide: select("Picture on", opts("left", "right")), html: richText("Text") },
   List: {

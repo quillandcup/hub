@@ -130,6 +130,12 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Button", message: `The button "${str(p.label)}" has no link.` });
         if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Button", message: `A button that says "${str(p.label)}" doesn't say where it goes.` });
         break;
+      case "ButtonRow":
+        for (const button of rows(p.items)) {
+          if (str(button.label) && !safeHref(button.href)) issues.push({ severity: "error", block: "Buttons", message: `The button "${str(button.label)}" has no link.` });
+          if (GENERIC_LINK_TEXT.test(str(button.label))) issues.push({ severity: "warning", block: "Buttons", message: `A button that says "${str(button.label)}" doesn't say where it goes.` });
+        }
+        break;
       case "LinkList":
         for (const link of (p.items as Record<string, unknown>[]) ?? []) {
           if (str(link.label) && !safeHref(link.href)) issues.push({ severity: "error", block: "Link list", message: `The link "${str(link.label)}" has no address.` });

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
 import {
   Button,
+  ButtonRow,
   CardGrid,
   Columns,
   CountdownBlock,
@@ -127,6 +128,7 @@ export const BLOCK_DEFAULTS = {
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
   Button: { label: "Join us", href: "", look: "solid", color: "plum", shape: "pill", align: "center", full: false },
+  ButtonRow: { items: [{ label: "Join us", href: "", look: "solid", color: "plum", shape: "pill" }, { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" }], align: "left", gap: "medium" },
   Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [{ text: "First thing", icon: "✓" }, { text: "Second thing", icon: "✓" }], align: "left" },
@@ -174,6 +176,7 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   RichText: "Text",
   Heading: "Heading",
   Button: "Button",
+  ButtonRow: "Buttons",
   Image: "Image",
   Split: "Image and text",
   List: "List",
@@ -208,6 +211,7 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   RichText: RichText as never,
   Heading: Heading as never,
   Button: Button as never,
+  ButtonRow: ButtonRow as never,
   Image: Image as never,
   Split: Split as never,
   List: List as never,
@@ -262,6 +266,6 @@ export const renderConfig = {
     ready_made: { title: "Ready-made", components: ["Hero", "Steps", "Stats", "CtaBanner"] },
     homepage: { title: "Homepage", components: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"] },
     content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },
-    links: { title: "Links", components: ["Button", "LinkList", "OptInForm"] },
+    links: { title: "Links", components: ["Button", "ButtonRow", "LinkList", "OptInForm"] },
   },
 } satisfies Config;
