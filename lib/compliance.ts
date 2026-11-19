@@ -14,7 +14,7 @@ export const COMPLIANCE_STATUSES = {
   provider: "Handled by our provider",
   working: "Working toward",
   review: "Not yet reviewed",
-  notApplicable: "Not for this",
+  notApplicable: "Doesn't apply",
 } as const;
 
 export type ComplianceStatus = keyof typeof COMPLIANCE_STATUSES;
@@ -60,9 +60,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         about: "Data protection law in the EU, the EEA and the UK.",
         status: "inPlace",
         detail:
-          "If you connect from the EU, EEA or UK we ask before recording usage statistics or loading analytics cookies, and we record nothing if you decline. You can ask us to show, correct or remove what we hold, and we answer within a month. Exact IP addresses and browser details are removed after 90 days and usage statistics after 13 months.",
+          "If you connect from the EU, EEA or UK we ask before recording usage statistics or loading analytics cookies, and we record none of that if you decline. The one exception is error recordings, which we keep to fix bugs (the Privacy page explains). You can ask us to show, correct or remove what we hold, and we answer within a month. Exact IP addresses and browser details are removed after 90 days and usage statistics after 13 months.",
         evidence: ["components/ConsentBanner.tsx", "lib/gdpr-countries.ts", "lib/retention.ts", "app/privacy/page.tsx", "tests/components/pages/privacy-page.test.tsx"],
-        checked: "2026-11-17",
+        checked: "2026-11-18",
         open: [],
       },
       {

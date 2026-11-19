@@ -66,13 +66,13 @@ describe("the Privacy page and its staff view read one list", () => {
   });
 
   it("describes a table row by its first cell and its labelled columns", () => {
-    expect(privacyText(["chat-restricted"])).toBe("Restricted private channels (Activity: Yes; Content: No, except break-glass access (below))");
+    expect(privacyText(["chat-restricted"])).toBe("Restricted private channels (Activity: Yes; Content: No, except emergency access (below))");
   });
 
   it("keeps the unfinished parts worded as unfinished", () => {
     const planned = privacyText(["chat-planned"]);
     expect(planned).toContain("Not yet. Planned: yes");
-    expect(planned).toContain("Not yet. Planned: restricted, so break-glass access only");
+    expect(planned).toContain("Not yet. Planned: restricted, so emergency access only");
     expect(privacyText(["chat-break-glass"])).toContain("we will record who looked, why and when");
   });
 

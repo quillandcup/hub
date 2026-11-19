@@ -112,7 +112,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Stored tokens are kept in an encrypted vault",
         status: "inPlace",
         member:
-          "A member's chat connection, and any other token the Hub must hand to someone else, is kept in an encrypted vault inside the database, and only the Hub's server can read it back.",
+          "A member's chat connection, and any other token the Hub must hand to someone else, is kept in an encrypted vault inside the database. Through the database, only the Hub's server can read it back.",
         staff: {
           how: "Supabase Vault (extension supabase_vault 0.3.1, read from production on 2026-11-17). Per the provider's documentation: authenticated encryption with associated data, one root key per Supabase project (64 hex characters, so 256 bits) held outside the database and shared by every secret in that project, each secret with its own random nonce; secrets stay encrypted in backups and replication streams. Vault is self-contained and does not depend on the pgsodium extension that is being deprecated, and uses the same per-project root key. Production, the development project that previews use (docs/ENV_MANAGEMENT.md) and each local stack are separate projects with separate keys, so a secret from one cannot be decrypted with another's key. Production check: the anon and authenticated roles can read neither the encrypted table nor the decrypted view; only the service role can. Our own table keeps only a pointer to each secret.",
           evidence: [
@@ -122,7 +122,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
             "docs/TODO.md (Secrets at Rest)",
             "live check, 2026-11-17: the Vault extension version and which roles may read it (counts and privileges only, never values)",
           ],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "The provider's management API returns a project's root key to its owner, so anyone holding a management token for the project can decrypt the vault outside the provider. CI holds such a token (see \"Keys and passwords\"), so it is as sensitive as the service key.",
             "The service role can read every vault secret, so a leaked service key exposes them. See \"Keys and passwords\".",
@@ -353,7 +353,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         staff: {
           how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, code scanning), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot. Settings live in the repo and are pushed by script, so a change to them is reviewed too.",
           evidence: ["github-repo-config.yml", ".github/workflows/ci.yml", ".github/dependabot.yml"],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "An admin can still merge a failing pull request with \"Merge without waiting for requirements\". That is intended as a break-glass option and is not recorded anywhere else.",
           ],

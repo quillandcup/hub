@@ -32,7 +32,7 @@ export const PRIVACY_EFFECTIVE = "2026-11-18";
  * On for every signed-in member (it was behind the `message_privacy` flag until 2026-10-30). Every
  * statement must be true, so change it with the code. It states policy and lists no
  * resources one by one (what a delete keeps, for instance), so it does not need an edit for every new
- * feature. What is true of the code today (last checked in full 2026-11-03; the wording was only reworded, not changed in meaning, on 2026-11-17):
+ * feature. What is true of the code today (last checked in full 2026-11-03; reworded on 2026-11-17 and 2026-11-18 (the DM bridge is no longer described as rolling out)):
  *
  * - Chat: staff read chat content only where RLS lets admins (`chat_can_read_content`: public and
  *   non-restricted private channels); restricted channels, DMs and group DMs have no admin read path at all;
@@ -41,13 +41,13 @@ export const PRIVACY_EFFECTIVE = "2026-11-18";
  *   requires `deleted_at IS NULL`); files follow the content policy. The break-glass section is the
  *   commitment for the rare case, not a screen: there is no in-app tool yet, so anything done under it is done
  *   by hand and has to follow what that section promises (docs/SLACK_BRIDGED_CHAT.md).
- * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/SLACK_BRIDGED_CHAT.md): for a member it is on for, their
+ * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/SLACK_BRIDGED_CHAT.md), on for every member since 2026-11-13 (production flag): their
  *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `lib/chat/slack-dms.ts`,
  *   `lib/chat/slack-dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
  *   the chat as a private, restricted `dm` conversation: the Hub members in it who have pulled their own DMs (each is
  *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
  *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
- *   change with that code, in particular if a pull ever starts to cover a member the feature doesn't.
+ *   change with that code, in particular if the feature is ever switched off for some members again.
  * - Hedgie Care plan messages (decided 2026-11-12, docs/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
  *   community managers (never an assistant: `requireStaffAction()`, `care.write`) see, inside Hedgie Care, the full text of the
  *   one-on-one Slack DM(s) tracked with a member (`care_tracked_dms`; tracking comes automatically with a care plan and nothing

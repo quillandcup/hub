@@ -155,7 +155,7 @@ describe("/privacy page", () => {
     expect(chat.getByText(/can't read a deleted message's text or files in the Hub/)).toBeInTheDocument();
     expect(chat.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
-    expect(chat.getByText("Break-glass access")).toBeInTheDocument();
+    expect(chat.getByText("Emergency access")).toBeInTheDocument();
     // One-on-one Slack DMs: what is kept, who sees it, and that there is no separate switch (no objection promise).
     expect(chat.getByText(/^One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/)).toBeInTheDocument();
     // Private channels without Billie Bot are planned, not bridged yet, and the permission is asked for ahead of them.
@@ -165,7 +165,7 @@ describe("/privacy page", () => {
     expect(chat.getByText(/we plan to bring private channels Billie Bot isn't in into Hub Chat too/)).toBeInTheDocument();
     expect(chat.getByText(/the Hub brings yours into chat with your own Slack connection/)).toBeInTheDocument();
     expect(chat.getByText(/Slack only shows about 90 days of history/)).toBeInTheDocument();
-    expect(chat.getByText(/they can read the\s+text only through break-glass access/)).toBeInTheDocument();
+    expect(chat.getByText(/they can read the\s+text only through emergency access/)).toBeInTheDocument();
     expect(chat.getByText(/There is no separate switch for DMs/)).toBeInTheDocument();
     expect(chat.getByText(/closes Hub Chat for you until you reconnect/)).toBeInTheDocument();
     // What was promised before and isn't any more.
@@ -184,7 +184,7 @@ describe("/privacy page", () => {
     const chat = section("chat");
     // The table: DMs outside a plan keep break-glass; the plan messages have a row of their own.
     const dmRow = chat.getByText(/^One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/).closest("tr")!;
-    expect(within(dmRow).getByText(/No, except break-glass access/)).toBeInTheDocument();
+    expect(within(dmRow).getByText(/No, except emergency access/)).toBeInTheDocument();
     const planRow = chat.getByText(/^One-on-one Slack DMs tracked in a Hedgie Care plan/).closest("tr")!;
     expect(within(planRow).getByText(/Yes, admins and community managers can read them in Hedgie Care/)).toBeInTheDocument();
     // The section the note in Hub Chat links to (#care-plan-messages).
@@ -197,10 +197,10 @@ describe("/privacy page", () => {
     expect(text).toMatch(/Admins and community managers can then read, in Hedgie Care, the messages sent in that DM from the start of each of your plans to its end, or until now while a plan is open/);
     expect(text).toMatch(/A plan can be handed over to another staff member, or taken over by an admin, and whoever holds it then sees the messages of your earlier plans, and their own DM with you is tracked too/);
     expect(text).toMatch(/full messages, as they were sent; deleted messages are not shown/);
-    expect(text).toMatch(/other direct messages with staff are treated like direct messages between members, so staff can read them only through break-glass access/);
+    expect(text).toMatch(/other direct messages with staff are treated like direct messages between members, so staff can read them only through emergency access/);
     expect(text).toMatch(/we record who looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top/);
     expect(text).toMatch(/Slack's own app shows no note/);
-    expect(text).toMatch(/assistants cannot/);
+    expect(text).toMatch(/other team members cannot/);
     // The short version and the Slack DM section name the exception.
     const summary = within(screen.getByRole("heading", { name: "The short version" }).closest("aside")!);
     expect(summary.getByText(/with one exception:\s+the messages sent during a Hedgie Care plan/)).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe("/privacy page", () => {
   it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
     const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);
-    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Your Slack direct messages", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
+    expect(titles).toEqual(["Emergency access", "Connecting your Slack account", "Your Slack direct messages", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
     expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
 
