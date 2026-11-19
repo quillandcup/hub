@@ -11,7 +11,8 @@ type Node = { type: string; props: Record<string, unknown> };
 function blocks(content: unknown[]): Node[] {
   return content.flatMap((raw) => {
     const node = raw as Node;
-    const kids = Array.isArray(node.props.content) ? blocks(node.props.content) : [];
+    // Blocks sit in any slot: a Section's `content`, a Columns' `col1` to `col3`.
+    const kids = Object.values(node.props).flatMap((v) => (Array.isArray(v) && v.length > 0 && v.every((k) => k && typeof k === "object" && "type" in k && "props" in k) ? blocks(v) : []));
     return [node, ...kids];
   });
 }
@@ -30,7 +31,7 @@ describe.each(STARTER_KEYS)("the %s starter", (key) => {
     for (const block of all) {
       const defaults = BLOCK_DEFAULTS[block.type as keyof typeof BLOCK_DEFAULTS];
       expect(defaults, `unknown block ${block.type}`).toBeDefined();
-      for (const prop of Object.keys(block.props)) expect(prop === "id" || prop === "content" || prop in defaults, `${block.type}.${prop}`).toBe(true);
+      for (const prop of Object.keys(block.props)) expect(prop === "id" || prop === "content" || /^col[123]$/.test(prop) || prop in defaults, `${block.type}.${prop}`).toBe(true);
     }
     const ids = all.map((b) => b.props.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -66,21 +67,40 @@ describe("the homepage starter", () => {
     expect(issues.filter((i) => i.severity === "warning")).toEqual([]);
   });
 
-  it("builds the reviewed homepage: the strip first, then the hero, and each new block once", () => {
+  it("opens with the strip, then a plum band with the pitch beside the schedule, and builds each new block once", () => {
     const content = starterData("home").content as Node[];
     expect(content[0].type).toBe("AnnouncementStrip");
-    expect(content[1].type).toBe("Hero");
+    const band = content[1];
+    expect(band.type).toBe("Section");
+    expect(band.props.background).toBe("plum");
+    const [columns] = band.props.content as Node[];
+    expect(columns.type).toBe("Columns");
+    expect(columns.props.count).toBe("2");
+    expect((columns.props.col1 as Node[]).map((b) => b.type)).toEqual(["Heading", "RichText", "Button", "Button"]);
+    expect((columns.props.col1 as Node[])[0].props.level).toBe("h1");
+    expect((columns.props.col2 as Node[]).map((b) => b.type)).toEqual(["SchedulePanel"]);
+    expect(columns.props.col3).toEqual([]);
+    expect(blocks(content).map((b) => b.type)).not.toContain("Hero");
     const types = blocks(content).map((b) => b.type);
     for (const type of ["SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp", "OptInForm"]) {
       expect(types.filter((t) => t === type), type).toHaveLength(1);
     }
   });
 
-  it("keeps the owner's words: no running jargon, no FAQ, no old slogan, and small sample joiner counts", () => {
+  it("keeps the sections tight: Medium space, with only the closing sign-up airy", () => {
+    const sections = (starterData("home").content as Node[]).filter((b) => b.type === "Section");
+    expect(sections.filter((s) => s.props.padding === "large")).toHaveLength(1);
+    expect(sections.every((s) => s.props.padding === "medium" || s.props.padding === "large")).toBe(true);
+  });
+
+  it("keeps the owner's words: no running jargon, no FAQ, no old slogan, and no joiner counts", () => {
     const json = JSON.stringify(starterData("home"));
     expect(json).not.toMatch(/spark to shelf|\bbib\b|race weekend|lace up|jog|sprint\b|too slow/i);
     expect(blocks(starterData("home").content).map((b) => b.type)).not.toContain("Faq");
-    expect([...json.matchAll(/(\d+) (?:writers )?joining/g)].every((m) => Number(m[1]) <= 5)).toBe(true);
+    // Typical attendance is small, so a count is neither accurate nor welcoming: never "N joining" or "N writing", never "be the first".
+    expect(json).not.toMatch(/\d+ (?:writers |writing |people )?(?:joining|writing)|be the first/i);
+    const strip = blocks(starterData("home").content).find((b) => b.type === "AnnouncementStrip")!;
+    expect(strip.props.text).toBe("Your next prickle starts in 42 minutes");
   });
 
   it("links the member sign-in and the three trust pages from paths on this site", () => {

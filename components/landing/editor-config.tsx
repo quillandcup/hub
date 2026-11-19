@@ -60,6 +60,14 @@ const FIELDS: Record<string, Fields> = {
     fadeIn: toggle("Fade in as it appears"),
     content: { type: "slot" },
   },
+  Columns: {
+    count: select("Columns", [{ label: "Two", value: "2" }, { label: "Three", value: "3" }]),
+    gap: select("Space between the columns", opts("small", "medium", "large")),
+    verticalAlign: select("Line up the columns", [{ label: "At the top", value: "top" }, { label: "In the middle", value: "center" }]),
+    col1: { type: "slot" },
+    col2: { type: "slot" },
+    col3: { type: "slot" },
+  },
   RichText: { html: richText("Text"), align: select("Alignment", opts("left", "center")) },
   Heading: { text: text("Heading"), level: select("Level", [{ label: "Page title (h1)", value: "h1" }, { label: "Section heading (h2)", value: "h2" }, { label: "Subheading (h3)", value: "h3" }]), align: select("Alignment", opts("left", "center", "right")) },
   Button: { label: text("Label"), href: text("Link (https://, or a path on this site)"), look: LOOK, color: COLOR, shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]), align: select("Alignment", opts("left", "center", "right")), full: toggle("Full width") },
@@ -111,6 +119,7 @@ const FIELDS: Record<string, Fields> = {
     decorative: toggle("Decoration only, no description needed"),
     background: select("Background colour", BACKGROUND_OPTIONS),
     align: select("Text alignment", opts("left", "center")),
+    padding: select("Space above and below", PADDING_OPTIONS),
   },
   Steps: {
     heading: text("Heading above the steps (optional)"),
@@ -143,7 +152,7 @@ const FIELDS: Record<string, Fields> = {
       arrayFields: {
         time: text("Time"),
         title: text("Session name"),
-        status: text("Status text (for example, Live, 3 joining)"),
+        status: text("Status text (for example, Live, In 42 min)"),
         state: select("Status look", [{ label: "Live now", value: "live" }, { label: "Starting soon", value: "soon" }, { label: "Open", value: "open" }]),
         host: text("Line about the host (optional)"),
       },
@@ -152,6 +161,7 @@ const FIELDS: Record<string, Fields> = {
     },
   },
   OutcomeNumbers: {
+    padding: select("Space above and below", PADDING_OPTIONS),
     items: { type: "array", label: "Figures (2 to 4, typed in by hand)", max: 4, arrayFields: { value: text("Figure (for example 50+)"), label: text("What it counts"), note: text("Small note (optional, for example live)") }, defaultItemProps: { value: "0", label: "", note: "" }, getItemSummary: (i) => i.value || "Figure" },
   },
   FinisherCards: {

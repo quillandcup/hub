@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { parseEmbed, safeHref } from "@/lib/landing/data";
 import Countdown, { type CountdownProps } from "./Countdown";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
-import { background, pageImage, pick, PADDING, WIDTHS } from "./theme";
+import { background, BAND_SPACE, pageImage, pick, PADDING, WIDTHS } from "./theme";
 
 /**
  * The page builder's blocks as plain components: the same ones render in the editor's canvas and on the public page
@@ -14,6 +14,14 @@ import { background, pageImage, pick, PADDING, WIDTHS } from "./theme";
 
 type Slot = (props?: { className?: string }) => ReactNode;
 const noImage = null;
+
+/**
+ * Put on every slot: it makes the slot a block formatting context, so the top margin of its first block (a Heading's
+ * `my-3`) and the bottom margin of its last stay inside it instead of collapsing out. The public page looks the same
+ * (the margin lands in the same place, inside the Section's padding); in the editor, Puck draws the slot's dashed
+ * outline around its own box, so without this the first heading touches the outline.
+ */
+const SLOT_CLASS = "flow-root";
 
 const PROSE =
   "prose max-w-none text-inherit prose-headings:font-display prose-headings:text-inherit prose-p:text-inherit prose-li:text-inherit prose-strong:text-inherit prose-a:text-inherit prose-blockquote:text-inherit prose-ol:text-inherit prose-ul:text-inherit";
@@ -59,13 +67,42 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
       <div className={`relative mx-auto px-4 ${pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")}`}>
         {card ? (
           <div className="rounded-xl bg-card p-6 text-ink shadow-lg @pair:p-10">
-            <Content />
+            <Content className={SLOT_CLASS} />
           </div>
         ) : (
-          <Content />
+          <Content className={SLOT_CLASS} />
         )}
       </div>
     </section>
+  );
+}
+
+// ---- Columns -------------------------------------------------------------------------------------------------
+
+export type ColumnsProps = { count: "2" | "3"; gap: "small" | "medium" | "large"; verticalAlign: "top" | "center"; col1: Slot; col2: Slot; col3: Slot };
+const COLUMN_GAP = { small: "gap-4", medium: "gap-8", large: "gap-12" } as const;
+
+/**
+ * Two or three side-by-side areas, each holding other blocks. One column on a narrow container (mobile first), side by
+ * side from `@split`. No background and no text colour of its own: it inherits the Section it sits in. Switching from
+ * three columns to two keeps what was in the third (it is not shown, nor checked, until it is switched back).
+ */
+export function Columns({ count, gap, verticalAlign, col1: Col1, col2: Col2, col3: Col3 }: ColumnsProps) {
+  const three = count === "3";
+  return (
+    <div className={`grid ${pick(COLUMN_GAP, gap, "medium")} ${three ? "@split:grid-cols-3" : "@split:grid-cols-2"} ${verticalAlign === "center" ? "@split:items-center" : "@split:items-start"}`}>
+      <div className="min-w-0">
+        <Col1 className={SLOT_CLASS} />
+      </div>
+      <div className="min-w-0">
+        <Col2 className={SLOT_CLASS} />
+      </div>
+      {three && (
+        <div className="min-w-0">
+          <Col3 className={SLOT_CLASS} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -372,10 +409,12 @@ export type HeroProps = {
   overlay: "none" | "dark" | "light";
   background: string;
   align: "left" | "center";
+  /** Space above and below; a page saved without it keeps the original (large). */
+  padding?: "none" | "small" | "medium" | "large";
 };
 
 /** A page opening: headline (the page title by default), a line under it, up to two buttons and an optional picture, as the band's background under a shade or beside the words. */
-export function Hero({ headline, level, subhead, primary, secondary, imageAssetId, alt, decorative, imageMode, overlay, background: bg, align }: HeroProps) {
+export function Hero({ headline, level, subhead, primary, secondary, imageAssetId, alt, decorative, imageMode, overlay, background: bg, align, padding }: HeroProps) {
   const theme = background(bg);
   const src = pageImage(imageAssetId, "event_hero");
   const asBackground = !!src && imageMode !== "side";
@@ -389,7 +428,7 @@ export function Hero({ headline, level, subhead, primary, secondary, imageAssetI
   if (!headline && !subhead && !primary?.label && !secondary?.label && !src) return null;
   return (
     <section
-      className={`relative ${theme.bg} ${text} ${scope} py-16 @split:py-24`}
+      className={`relative ${theme.bg} ${text} ${scope} ${pick(BAND_SPACE.hero, padding, "large")}`}
       style={asBackground ? { backgroundImage: `url(${src})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
     >
       {asBackground && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${shade}`} />}

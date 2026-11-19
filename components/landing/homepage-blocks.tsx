@@ -1,6 +1,6 @@
 import { safeHref } from "@/lib/landing/data";
 import { buttonClasses } from "./blocks";
-import { pageImage } from "./theme";
+import { BAND_SPACE, pageImage, pick } from "./theme";
 
 /**
  * The homepage's blocks (docs/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks,
@@ -119,15 +119,15 @@ export function SchedulePanel({ title, zoneLabel, rows }: SchedulePanelProps) {
 
 // ---- Outcome numbers -------------------------------------------------------------------------------------------
 
-export type OutcomeNumbersProps = { items: { value: string; label: string; note: string }[] };
+export type OutcomeNumbersProps = { items: { value: string; label: string; note: string }[]; padding?: "none" | "small" | "medium" | "large" };
 const OUTCOME_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
 
 /** A full-width white band with a gold stripe on top: two to four big figures, typed by hand. Every colour is set here (plum numbers, dark ink labels), so nothing depends on the band it sits in. */
-export function OutcomeNumbers({ items }: OutcomeNumbersProps) {
+export function OutcomeNumbers({ items, padding }: OutcomeNumbersProps) {
   const rows = rowsOf(items, "value", MAX.outcomes);
   if (rows.length === 0) return null;
   return (
-    <section className="landing-light border-t-8 border-gold bg-white py-10 text-ink">
+    <section className={`landing-light border-t-8 border-gold bg-white text-ink ${pick(BAND_SPACE.figures, padding, "medium")}`}>
       <dl className={`mx-auto grid max-w-5xl gap-8 px-4 text-center ${OUTCOME_COLUMNS[Math.max(rows.length, 2)]}`}>
         {rows.map((row, i) => (
           <div key={i} className="flex flex-col-reverse">

@@ -39,7 +39,7 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
   LinkList: { look: LOOK, color: ["plum", "light", "brown"] },
   Divider: { look: ["short", "line"] },
   Spacer: { size: ["small", "medium", "large"] },
-  Hero: { level: ["h1", "h2"], imageMode: ["background", "side"], overlay: ["none", "dark", "light"], background: Object.keys(BACKGROUNDS), align: ALIGN },
+  Hero: { level: ["h1", "h2"], imageMode: ["background", "side"], overlay: ["none", "dark", "light"], background: Object.keys(BACKGROUNDS), align: ALIGN, padding: Object.keys(PADDING) },
   CtaBanner: { background: Object.keys(BACKGROUNDS).filter((k) => k !== "none"), align: ALIGN },
   CardGrid: { columns: ["2", "3", "4"] },
 };

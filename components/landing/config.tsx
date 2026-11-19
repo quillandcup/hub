@@ -4,6 +4,7 @@ import { safeHref } from "@/lib/landing/data";
 import {
   Button,
   CardGrid,
+  Columns,
   CountdownBlock,
   CtaBanner,
   Divider,
@@ -122,6 +123,7 @@ const rootConfig = {
 
 export const BLOCK_DEFAULTS = {
   Section: { background: "none", overlay: "none", width: "wide", padding: "medium", align: "left", card: false, fadeIn: false },
+  Columns: { count: "2", gap: "medium", verticalAlign: "top" },
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
   Button: { label: "Join us", href: "", look: "solid", color: "plum", shape: "pill", align: "center", full: false },
@@ -136,7 +138,7 @@ export const BLOCK_DEFAULTS = {
   Divider: { look: "short" },
   Spacer: { size: "medium" },
   Video: { url: "", title: "" },
-  Hero: { headline: "A headline that says what you offer", level: "h1", subhead: "One or two lines that say who it is for and why it helps.", primary: { label: "Join us", href: "" }, secondary: { label: "", href: "" }, alt: "", decorative: false, imageMode: "background", overlay: "dark", background: "plum", align: "center" },
+  Hero: { headline: "A headline that says what you offer", level: "h1", subhead: "One or two lines that say who it is for and why it helps.", primary: { label: "Join us", href: "" }, secondary: { label: "", href: "" }, alt: "", decorative: false, imageMode: "background", overlay: "dark", background: "plum", align: "center", padding: "large" },
   Steps: { heading: "How it works", items: [{ title: "Sign up", text: "Tell us a little about you." }, { title: "Join in", text: "Come to your first session." }, { title: "Keep going", text: "Write a little each day." }] },
   Stats: { items: [{ value: "1,000", label: "words written a day" }, { value: "24/7", label: "company" }, { value: "3", label: "sessions a week" }] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
@@ -147,12 +149,12 @@ export const BLOCK_DEFAULTS = {
     title: "Writing right now",
     zoneLabel: "",
     rows: [
-      { time: "9:00 am", title: "Morning pages", status: "Live · 4 writing", state: "live", host: "" },
-      { time: "10:00 am", title: "Focus hour", status: "3 joining", state: "soon", host: "" },
-      { time: "12:30 pm", title: "Lunch hour", status: "5 joining", state: "open", host: "" },
+      { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "" },
+      { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" },
+      { time: "12:30 pm", title: "Lunch hour", status: "Camera optional", state: "open", host: "" },
     ],
   },
-  OutcomeNumbers: { items: [{ value: "50+", label: "books published by members", note: "" }, { value: "100s", label: "of Finishers", note: "" }] },
+  OutcomeNumbers: { padding: "medium", items: [{ value: "50+", label: "books published by members", note: "" }, { value: "100s", label: "of Finishers", note: "" }] },
   FinisherCards: { items: [{ alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" }], more: { label: "", href: "" } },
   Timeline: { heading: "", intro: "", items: [{ when: "8:00 am", title: "Morning pages", text: "What happens, in a line or two." }], closing: "" },
   WeekStrip: { subtitle: "", items: [{ label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" }, { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" }] },
@@ -168,6 +170,7 @@ export const BLOCK_DEFAULTS = {
 
 export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   Section: "Section",
+  Columns: "Columns",
   RichText: "Text",
   Heading: "Heading",
   Button: "Button",
@@ -201,6 +204,7 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
 
 const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
   Section: Section as never,
+  Columns: Columns as never,
   RichText: RichText as never,
   Heading: Heading as never,
   Button: Button as never,
@@ -232,17 +236,18 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   ComingUp: ComingUp as never,
 };
 
-const SECTION_DEFAULTS = { ...BLOCK_DEFAULTS.Section, content: [] };
+/** The blocks that hold other blocks, and the names of their slots. Everything that walks a page finds nested blocks by their shape, so a new container only needs an entry here and in the editor's fields. */
+export const SLOTS: Partial<Record<keyof typeof BLOCK_DEFAULTS, string[]>> = { Section: ["content"], Columns: ["col1", "col2", "col3"] };
 
 function components(): Config["components"] {
   const out: Config["components"] = {};
   for (const name of Object.keys(BLOCK_DEFAULTS) as (keyof typeof BLOCK_DEFAULTS)[]) {
     out[name] = block({
       label: BLOCK_LABELS[name],
-      defaultProps: name === "Section" ? SECTION_DEFAULTS : { ...BLOCK_DEFAULTS[name] },
+      defaultProps: { ...BLOCK_DEFAULTS[name], ...Object.fromEntries((SLOTS[name] ?? []).map((slot) => [slot, []])) },
       render: RENDERERS[name] as (props: unknown) => ReactNode,
-      // A slot must be declared for Puck's Render to turn a section's stored blocks into the component it renders (the editor config declares it too).
-      ...(name === "Section" ? { fields: { content: { type: "slot" } } } : {}),
+      // A slot must be declared for Puck's Render to turn a container's stored blocks into the component it renders (the editor config declares it too).
+      ...(SLOTS[name] ? { fields: Object.fromEntries(SLOTS[name].map((slot) => [slot, { type: "slot" }])) } : {}),
     });
   }
   return out;
@@ -253,7 +258,7 @@ export const renderConfig = {
   components: components(),
   root: rootConfig as unknown as Config["root"],
   categories: {
-    layout: { title: "Layout", components: ["Section", "Split", "CardGrid", "Divider", "Spacer"] },
+    layout: { title: "Layout", components: ["Section", "Columns", "Split", "CardGrid", "Divider", "Spacer"] },
     ready_made: { title: "Ready-made", components: ["Hero", "Steps", "Stats", "CtaBanner"] },
     homepage: { title: "Homepage", components: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"] },
     content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },

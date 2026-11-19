@@ -18,45 +18,46 @@ const id = (type: string) => `${type}-home${(n++).toString(36)}`;
 
 const section = (props: Record<string, unknown>, content: unknown[]) => ({
   type: "Section",
-  props: { id: id("Section"), background: "none", overlay: "none", width: "wide", padding: "large", align: "center", card: false, fadeIn: false, ...props, content },
+  props: { id: id("Section"), background: "none", overlay: "none", width: "wide", padding: "medium", align: "center", card: false, fadeIn: false, ...props, content },
 });
 const heading = (text: string, level: "h1" | "h2" | "h3" = "h2", align: "left" | "center" = "center") => ({ type: "Heading", props: { id: id("Heading"), text, level, align } });
 const text = (html: string, align: "left" | "center" = "center") => ({ type: "RichText", props: { id: id("RichText"), html, align } });
+const button = (label: string, props: Record<string, unknown>) => ({ type: "Button", props: { id: id("Button"), label, href: "", look: "solid", color: "plum", shape: "pill", align: "left", full: false, ...props } });
+const columns = (props: Record<string, unknown>, cols: unknown[][]) => ({ type: "Columns", props: { id: id("Columns"), count: "2", gap: "medium", verticalAlign: "top", col1: cols[0] ?? [], col2: cols[1] ?? [], col3: cols[2] ?? [], ...props } });
 const block = (type: string, props: Record<string, unknown>) => ({ type, props: { id: id(type), ...props } });
 
 /**
- * The homepage as reviewed with the owner: announcement strip, hero with the day's schedule under it, outcome numbers,
- * Finishers, a day in the house, the first week, finish lines, the journey map and what is coming up, then a sign-up.
- * The schedule panel sits in its own plum section directly under the hero (Hero has no second column), so the two read as one band.
+ * The homepage as reviewed with the owner: announcement strip, an opening band with the pitch beside the day's
+ * schedule, outcome numbers, Finishers, a day in the house, the first week, finish lines, the journey map and what is
+ * coming up, then a sign-up. The opening band is a plum Section holding two Columns (the Hero block has no second
+ * column), and its headline is the page's one h1. Sections default to Medium space; only the closing sign-up is airy.
  */
 function homeContent(): unknown[] {
   n = 0;
   return [
-    block("AnnouncementStrip", { text: "Your next prickle starts in 42 minutes · 3 writers joining", buttonLabel: "Drop in", href: "", tone: "gold" }),
-    block("Hero", {
-      headline: "THE END is the best two words in the English language.",
-      level: "h1",
-      subhead: "We help writers get there, and we celebrate every Finisher who does. Someone is always writing beside you, and someone notices when you're missing.",
-      primary: { label: "Start your first prickle", href: "" },
-      secondary: { label: "Drop in now", href: "" },
-      alt: "",
-      decorative: false,
-      imageMode: "background",
-      overlay: "dark",
-      background: "plum",
-      align: "center",
-    }),
-    section({ background: "plum", width: "medium", padding: "small" }, [
-      block("SchedulePanel", {
-        title: "Writing right now",
-        zoneLabel: orgZoneLabel(),
-        rows: [
-          { time: "9:00 am", title: "Morning pages", status: "Live · 4 writing", state: "live", host: "Hosted by [Host name], who has hosted [number] prickles." },
-          { time: "10:00 am", title: "Focus hour", status: "In 42 min · 3 joining", state: "soon", host: "" },
-          { time: "12:30 pm", title: "Lunch hour", status: "5 joining", state: "open", host: "Hosted by [Host name] · first-timers welcome" },
-          { time: "8:00 pm", title: "Night owls", status: "3 joining", state: "open", host: "" },
+    block("AnnouncementStrip", { text: "Your next prickle starts in 42 minutes", buttonLabel: "Drop in", href: "", tone: "gold" }),
+    // The opening band: the pitch on the left, today's schedule beside it (stacked on a narrow page, side by side from the split size).
+    section({ background: "plum", width: "wide", padding: "medium", align: "left" }, [
+      columns({ count: "2", gap: "large", verticalAlign: "center" }, [
+        [
+          heading("THE END is the best two words in the English language.", "h1", "left"),
+          text("<p>We help writers get there, and we celebrate every Finisher who does. Someone is always writing beside you, and someone notices when you're missing.</p>", "left"),
+          button("Start your first prickle", { look: "solid", color: "light" }),
+          button("Drop in now", { look: "outline", color: "light" }),
         ],
-      }),
+        [
+          block("SchedulePanel", {
+            title: "Writing right now",
+            zoneLabel: orgZoneLabel(),
+            rows: [
+              { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "Hosted by [Host name], who has hosted [number] prickles." },
+              { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" },
+              { time: "12:30 pm", title: "Lunch hour", status: "Open", state: "open", host: "Hosted by [Host name] · first-timers welcome" },
+              { time: "8:00 pm", title: "Night owls", status: "Camera optional", state: "open", host: "" },
+            ],
+          }),
+        ],
+      ]),
     ]),
     block("OutcomeNumbers", {
       items: [
@@ -103,7 +104,7 @@ function homeContent(): unknown[] {
           { label: "Fri", emoji: "💬", text: "Say hello in chat", note: "or not yet" },
         ],
       }),
-      { type: "Button", props: { id: id("Button"), label: "Start your first prickle", href: "", look: "solid", color: "plum", shape: "pill", align: "center", full: false } },
+      button("Start your first prickle", { align: "center" }),
     ]),
     section({ background: "brown" }, [
       heading("Pick a finish line"),
@@ -145,7 +146,7 @@ function homeContent(): unknown[] {
         ],
       }),
     ]),
-    section({ background: "plum", width: "narrow" }, [
+    section({ background: "plum", width: "narrow", padding: "large" }, [
       heading("Your name could be on the wall."),
       text("<p>Hedgies at every stage cheer each other across the line.</p>"),
       // The Kajabi form is the owner's to choose in the editor (Kajabi, Marketing, Forms); empty here on purpose, so the publish check asks for it.
