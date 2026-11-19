@@ -213,8 +213,8 @@ your local CLI (it saves the password it linked with, so plain `supabase` comman
 keep the old one):
 
 ```bash
-npx dotenv -e .env.prod -- supabase link --project-ref bxwtougjidectvjegdlr
-npx dotenv -e .env.prod -- supabase migration list --linked   # auth error = still the old password
+npx dotenv run -f .env.prod -- supabase link --project-ref bxwtougjidectvjegdlr
+npx dotenv run -f .env.prod -- supabase migration list --linked   # auth error = still the old password
 ```
 
 The repo's `pnpm db:push` / `config:diff` / `config:push` need no re-link: they load
