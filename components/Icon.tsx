@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -42,6 +42,8 @@ export const ICONS = {
   external: ExternalLink,
   /** Close a panel or dismiss something. */
   close: X,
+  /** The line where a device's first screen ends in the page editor's preview. */
+  fold: SeparatorHorizontal,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

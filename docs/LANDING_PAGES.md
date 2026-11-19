@@ -24,7 +24,7 @@ Puck 0.24 peers on React 18 or 19 and was checked against this app's Next 16 and
 - **Versions**: History lists the last 20 publishes; Bring back replaces the draft (after a confirm), and the editor reopens on it. It never goes live until published again.
 - **Details**: title, address (a warning when the page is live), search title and description, the picture shown when shared.
 - **Preview** opens `/admin/pages/<slug>/preview`, the draft rendered as a visitor would see it; drafts never render on the public route.
-- Device preview uses Puck's viewports (desktop 1280, tablet 768, phone 390). Blocks lay out with container queries (`@container` on the page frame, named sizes), so the phone preview reflows as a phone does.
+- Device preview uses Puck's viewports: desktop is 1280 wide with a free height; Tablet and Phone set an exact width and height from a model (`devices.ts`: the portrait CSS screen, full height, so a phone's browser toolbars take roughly 100 to 150px more than the fold shown). The editor remembers the chosen model and the orientation separately: Tablet landscape swaps the same model's width and height. At a device size the canvas is one screen tall (Puck scales it to fit) and the page scrolls inside it; `FoldMarker.tsx` draws a dashed plum line with "Fold: Npx" at the viewport height inside the canvas iframe (Puck's `iframe` override), and a header button hides it. Blocks lay out with container queries (`@container` on the page frame, named sizes), so the phone preview reflows as a phone does.
 
 ## Accessibility checks (`lib/landing/a11y.ts`)
 
