@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { EXPERIENCED_HOST_PRICKLES, loadScheduleSnapshot, publicTitle, scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapshot } from "@/lib/landing/live-schedule";
+import { DEFAULT_EXPERIENCED_HOST_TEXT, EXPERIENCED_HOST_PRICKLES, loadScheduleSnapshot, publicTitle, scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapshot } from "@/lib/landing/live-schedule";
 
 type Seed = NonNullable<ConstructorParameters<typeof InMemoryDataset>[0]>;
 
@@ -185,15 +185,17 @@ describe("rows", () => {
   });
 
   it("bounds the options to what is allowed", () => {
-    expect(scheduleOptions({ hoursAhead: 9999, maxRows: 99, hostStyle: "first_name" })).toEqual({ hoursAhead: 144, maxRows: 6, hostStyle: "none" });
-    expect(scheduleOptions({ hoursAhead: -3, maxRows: 0 })).toEqual({ hoursAhead: 1, maxRows: 1, hostStyle: "none" });
-    expect(scheduleOptions({ hoursAhead: "x", maxRows: undefined })).toEqual({ hoursAhead: 24, maxRows: 5, hostStyle: "none" });
+    expect(scheduleOptions({ hoursAhead: 9999, maxRows: 99, hostStyle: "first_name" })).toEqual({ hoursAhead: 144, maxRows: 6, hostStyle: "none", experiencedHostText: DEFAULT_EXPERIENCED_HOST_TEXT });
+    expect(scheduleOptions({ hoursAhead: -3, maxRows: 0 })).toEqual({ hoursAhead: 1, maxRows: 1, hostStyle: "none", experiencedHostText: DEFAULT_EXPERIENCED_HOST_TEXT });
+    expect(scheduleOptions({ hoursAhead: "x", maxRows: undefined })).toEqual({ hoursAhead: 24, maxRows: 5, hostStyle: "none", experiencedHostText: DEFAULT_EXPERIENCED_HOST_TEXT });
   });
 
   it("has no host line by default, and only says An experienced host when asked and earned", () => {
     const list = snapshot([pp("a", 30, 60, { experiencedHost: true }), pp("b", 40, 70)]);
     expect(scheduleRows(list, NOW, scheduleOptions({})).map((r) => r.host)).toEqual(["", ""]);
-    expect(scheduleRows(list, NOW, scheduleOptions({ hostStyle: "experience" })).map((r) => r.host)).toEqual(["An experienced host", ""]);
+    expect(scheduleRows(list, NOW, scheduleOptions({ hostStyle: "experience" })).map((r) => r.host)).toEqual([DEFAULT_EXPERIENCED_HOST_TEXT, ""]);
+    expect(scheduleRows(list, NOW, scheduleOptions({ hostStyle: "experience", experiencedHostText: "  Hosted with care  " })).map((r) => r.host)).toEqual(["Hosted with care", ""]);
+    expect(scheduleOptions({ experiencedHostText: "   " }).experiencedHostText).toBe(DEFAULT_EXPERIENCED_HOST_TEXT);
   });
 
   it("never says a count of who is joining", () => {

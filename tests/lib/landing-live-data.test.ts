@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { needsLiveData, resolveLiveBlocks, type LiveLoaders } from "@/lib/landing/live-data";
 import type { ComingUpSnapshot } from "@/lib/landing/live-events";
-import type { ScheduleSnapshot } from "@/lib/landing/live-schedule";
+import { DEFAULT_EXPERIENCED_HOST_TEXT, type ScheduleSnapshot } from "@/lib/landing/live-schedule";
 
 const NOW = new Date("2026-11-19T15:00:00Z");
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString();
@@ -69,7 +69,7 @@ describe("resolveLiveBlocks", () => {
 
   it("fills the schedule panel with rows for its own options, and the strip with its line", async () => {
     const [panel, strip] = await resolved(page(block("SchedulePanel", { source: "live", hostStyle: "experience", hoursAhead: 24, maxRows: 5, rows: [] }), block("AnnouncementStrip", { source: "live", text: "typed" })));
-    expect(panel.props.live).toEqual({ rows: [{ time: "10:30 am", title: "Open Mic", status: "In 30 min", state: "soon", host: "An experienced host" }], zoneLabel: expect.stringMatching(/^Times in E[SD]?T$/) });
+    expect(panel.props.live).toEqual({ rows: [{ time: "10:30 am", title: "Open Mic", status: "In 30 min", state: "soon", host: DEFAULT_EXPERIENCED_HOST_TEXT }], zoneLabel: expect.stringMatching(/^Times in E[SD]?T$/) });
     expect(strip.props.live).toEqual({ text: "Your next prickle starts in 30 minutes" });
   });
 

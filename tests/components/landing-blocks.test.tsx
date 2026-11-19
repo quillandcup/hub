@@ -503,6 +503,34 @@ describe("SchedulePanel", () => {
     expect(container.firstElementChild!.className).toContain("landing-light");
   });
 
+  it("gives a row with no status of its own the open chip, in the editor's words, in mist colours", () => {
+    const open = [{ time: "Fri 4:00 am", title: "Night owls", status: "", state: "open" as const, host: "" }];
+    render(<SchedulePanel title="x" zoneLabel="" rows={open} />);
+    expect(screen.getByText("Open").className).toContain("bg-mist-100");
+    expect(screen.getByText("Open").className).toContain("text-mist-900");
+    cleanup();
+    render(<SchedulePanel title="x" zoneLabel="" rows={open} openLabel="Drop in" />);
+    expect(screen.getByText("Drop in")).toBeInTheDocument();
+    expect(screen.queryByText("Open")).toBeNull();
+  });
+
+  it("keeps the time on one line", () => {
+    render(<SchedulePanel title="x" zoneLabel="" rows={[{ time: "Fri 4:00 am", title: "Night owls", status: "", state: "open", host: "" }]} />);
+    const cell = screen.getByText("Fri 4:00 am");
+    expect(cell.className).toContain("whitespace-nowrap");
+    expect(cell.className).toContain("min-w-[5.5rem]");
+  });
+
+  it("shows the row note only under rows without a host line, never a count", () => {
+    render(<SchedulePanel title="x" zoneLabel="" rows={rows.slice(0, 2)} rowNote="Camera optional" />);
+    expect(screen.getAllByText("Camera optional")).toHaveLength(1);
+    expect(screen.getByText("Hosted by Sarah")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/joining|be the first/i);
+    cleanup();
+    render(<SchedulePanel title="x" zoneLabel="" rows={rows.slice(0, 2)} />);
+    expect(screen.queryByText("Camera optional")).toBeNull();
+  });
+
   it("shows nothing without a session", () => {
     expect(render(<SchedulePanel title="x" zoneLabel="" rows={[]} />).container).toBeEmptyDOMElement();
   });

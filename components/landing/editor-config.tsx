@@ -195,6 +195,9 @@ const FIELDS: Record<string, Fields> = {
     hoursAhead: { type: "number", label: "Live: how many hours ahead to show (1 to 144)", min: 1, max: 144 },
     maxRows: { type: "number", label: "Live: most sessions to show (1 to 6)", min: 1, max: 6 },
     hostStyle: select("Live: line about the host", [{ label: "None", value: "none" }, { label: "An experienced host (100 or more prickles hosted)", value: "experience" }]),
+    experiencedHostText: text("Live: words under a session with an experienced host (no names are ever shown)"),
+    openLabel: text("Label on a session that is not on now or starting within the hour (for example, Open)"),
+    rowNote: text("Line under every session that has no host line (for example, First-timers welcome or Camera optional)"),
     emptyText: text("Live: line to show when nothing is coming up"),
     rows: {
       type: "array",
