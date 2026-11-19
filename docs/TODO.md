@@ -1059,7 +1059,9 @@ Entries shipped 2026-11-16 to 2026-11-18 with no image: the product entries `goa
 ### Header search button fails the label-in-name check on member pages _(Needs Scheduling)_
 The demo scenes' page checks report `a11y:label-content-name-mismatch` on the search button in the header (`components/search/SearchPalette.tsx`, the `sm:mr-auto` button) on `/members`, `/settings` and the admin pages: the visible text ("Search pages, members, chat...") is not part of its accessible name. The changelog scenes for `keyboard-shortcuts` and `compliance-and-security-for-staff` skip the checks (`checks: false`) because of it. Fix the button's `aria-label` to start with the visible text, then remove the `checks: false` from those two scenes.
 
-### `pnpm demo:app` and the other `dotenv -e` scripts fail with the `dotenv` 18 bin _(Needs Scheduling)_
+### `pnpm demo:app` and the other `dotenv -e` scripts fail with the `dotenv` 18 bin
+**Resolved (2026-11-19):** the `dotenv-cli` package was removed and every script now calls the `dotenv` 18 bin as `dotenv run -f <file> -- <cmd>` (`-f` repeats for several files; a variable such as `NEXT_DIST_DIR` is set before the command). The original note follows.
+
 `package.json` has both `dotenv` (18, which came in with the dependency bump) and `dotenv-cli` (11), and both install a `dotenv` command. In a fresh install `node_modules/.bin/dotenv` printed the `dotenv run [-f <paths>] -- <cmd>` help and exited 1 for `dotenv -e demo/.env.demo -- next dev`, so `pnpm demo:app` (and `demo:build`, `demo:serve`, and the `-e .env.prod` scripts such as `db:push` and `config:push`) did not start. Worked around by running `dotenv run -f demo/.env.demo -- next dev -p 3100`. Where to start: check which package owns the bin in `pnpm-lock.yaml`, then either drop the `dotenv` package if the app does not import it, or call `dotenv-cli` explicitly in the scripts; confirm with `pnpm demo:app`.
 
 ### Hedgie Care screenshots for the staff changelog entry _(Needs Scheduling)_
