@@ -182,12 +182,12 @@ function EditorHeader({
         <DeviceModelSelect width={current} onPick={(width) => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })} />
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <Tooltip content="Undo (Ctrl/⌘ Z)">
-          <button type="button" aria-label="Undo" disabled={!history.hasPast} onClick={() => history.back()} className={ICON}>
+          <button type="button" aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" disabled={!history.hasPast} onClick={() => history.back()} className={ICON}>
             <Undo2 size={16} aria-hidden="true" />
           </button>
         </Tooltip>
         <Tooltip content="Redo (Ctrl/⌘ Shift Z)">
-          <button type="button" aria-label="Redo" disabled={!history.hasFuture} onClick={() => history.forward()} className={ICON}>
+          <button type="button" aria-label="Redo" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y Meta+Y" disabled={!history.hasFuture} onClick={() => history.forward()} className={ICON}>
             <Redo2 size={16} aria-hidden="true" />
           </button>
         </Tooltip>

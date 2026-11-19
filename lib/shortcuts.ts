@@ -90,6 +90,9 @@ const ENTRIES: Entry[] = [
   { id: "chat-newline", group: "chat", keys: [["shift", "enter"]], label: "Start a new line" },
   // `app/(admin)/admin/pages/[slug]/LandingEditor.tsx`: admin only, while a landing page is open in the editor.
   { id: "landing-editor-save", group: "landingEditor", keys: [["mod", "S"]], label: "Save the page now (it also saves by itself)" },
+  // Undo and redo are Puck's own hotkeys (the editor registers them while it is open); the header buttons carry `aria-keyshortcuts` for the same keys.
+  { id: "landing-editor-undo", group: "landingEditor", keys: [["mod", "Z"]], label: "Undo the last change" },
+  { id: "landing-editor-redo", group: "landingEditor", keys: [["mod", "shift", "Z"], ["mod", "Y"]], label: "Redo" },
   // `lib/hooks/usePhotoViewerKeys.ts`, used by `ImageLightbox.tsx` and `PhotoLightbox.tsx`: only while a photo is open full size.
   { id: "photo-viewer-previous", group: "photoViewer", keys: [["left"]], label: "Previous photo" },
   { id: "photo-viewer-next", group: "photoViewer", keys: [["right"]], label: "Next photo" },
