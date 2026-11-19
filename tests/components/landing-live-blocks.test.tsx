@@ -202,9 +202,9 @@ describe("the editor's fields for live blocks", () => {
     expect(fields("SchedulePanel").hostStyle.options!.map((o) => o.value)).toEqual(["none", "experience"]); // a first-name style is not offered
   });
 
-  it("defaults every live block to typed, so a page saved before changes nothing", () => {
-    expect(BLOCK_DEFAULTS.AnnouncementStrip.source).toBe("manual");
-    expect(BLOCK_DEFAULTS.SchedulePanel.source).toBe("manual");
+  it("starts the strip, the schedule and Coming up live (their typed values are the fallback), and keeps typed claims typed", () => {
+    expect(BLOCK_DEFAULTS.AnnouncementStrip.source).toBe("live");
+    expect(BLOCK_DEFAULTS.SchedulePanel.source).toBe("live");
     expect(BLOCK_DEFAULTS.SchedulePanel.hostStyle).toBe("none");
     expect(BLOCK_DEFAULTS.OutcomeNumbers.items.every((i) => i.source === "manual")).toBe(true);
     expect(BLOCK_DEFAULTS.OutcomeNumbers.showLiveNote).toBe(true);
@@ -257,8 +257,8 @@ describe("ComingUp, live", () => {
     expect(JSON.stringify(sanitizeLandingData(stored))).not.toContain("Lakeside");
   });
 
-  it("is typed by default, labels every field in plain words and lists every kind of event to choose from", () => {
-    expect(BLOCK_DEFAULTS.ComingUp).toMatchObject({ source: "manual", kinds: [], max: 4 });
+  it("starts live for the kinds a visitor plans a trip around, labels every field in plain words and lists every kind of event to choose from", () => {
+    expect(BLOCK_DEFAULTS.ComingUp).toMatchObject({ source: "live", kinds: ["in_person_retreat", "virtual_retreat", "workshop"], max: 4 });
     const f = editorConfig.components.ComingUp.fields as unknown as Record<string, { type: string; label?: string; options?: { label: string }[] }>;
     expect(f.source.options!.map((o) => o.label)).toEqual(["Typed in by hand", "Live from the Hub"]);
     expect(f.source.label).toMatch(/live shows on the published page/i);

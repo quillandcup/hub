@@ -47,6 +47,14 @@ describe("what a page needs", () => {
     expect(l.schedule).not.toHaveBeenCalled();
   });
 
+  it("leaves a block saved without a source typed, whatever the defaults for new blocks are", async () => {
+    const l = loaders();
+    const data = page(block("AnnouncementStrip", { text: "Hi" }), block("SchedulePanel", { rows: [] }), block("ComingUp", { items: [] }));
+    expect(needsLiveData(data)).toEqual({ stats: [], schedule: false, comingUp: [] });
+    await resolveLiveBlocks(data, l, NOW);
+    expect(l.schedule).not.toHaveBeenCalled();
+  });
+
   it("ignores a stat that is not in the registry", () => {
     expect(needsLiveData(page(outcome([{ source: "live", stat: "secret_member_list", value: "1" }])))).toEqual({ stats: [], schedule: false, comingUp: [] });
   });
