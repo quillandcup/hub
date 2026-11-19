@@ -61,7 +61,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "engineering",
     category: "new",
     title: "Page builder blocks for the new homepage, and a Homepage starter built from them",
-    summary: "Ten blocks (announcement strip, schedule panel, outcome numbers, Finisher cards, timeline, week strip, finish-line cards, plan phases, journey map, coming up) and a Homepage starter; three of them can show live Hub figures and public prickles.",
+    summary: "Ten blocks (announcement strip, schedule panel, outcome numbers, Finisher cards, timeline, week strip, finish-line cards, plan phases, journey map, coming up) and a Homepage starter; three of them can show live Hub figures and the upcoming prickles.",
     body: `The homepage design needed more than the generic blocks, so the builder has a "Homepage" group of blocks that do one job each (\`components/landing/homepage-blocks.tsx\`), and a Homepage starter that arranges them as an unpublished draft. Not offered to the AI builder.
 
 - **Rules.** Container-query sizes only; colours from theme tokens or fixed brand colours, and a block with its own background sets its own text colour; a link is a prop named \`href\`.

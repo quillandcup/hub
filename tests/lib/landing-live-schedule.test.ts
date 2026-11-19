@@ -27,7 +27,7 @@ function repos(seed: Seed) {
 const snapshotFor = (seed: Seed, now = NOW) => loadScheduleSnapshot(repos({ prickleTypes: [PUBLIC, PRIVATE, EVENT], ...seed }), now);
 
 describe("which prickles may appear", () => {
-  it("shows only prickles whose type is announced publicly", async () => {
+  it("lists every upcoming prickle whatever its type's flags, with or without a type, but not an event's schedule", async () => {
     const snapshot = await snapshotFor({
       prickles: [
         prickle("pub", PUBLIC.id, at(30), at(90), { title: "Open Mic Night" }),
@@ -36,13 +36,23 @@ describe("which prickles may appear", () => {
         prickle("evt", EVENT.id, at(40), at(100), { title: "Retreat day" }),
       ],
     });
-    expect(snapshot.prickles.map((p) => p.id)).toEqual(["pub"]);
+    expect(snapshot.prickles.map((p) => p.id)).toEqual(["priv", "none", "pub"]);
   });
 
-  it("shows nothing when no type is public, and nothing that already ended or lies beyond the window", async () => {
-    expect((await snapshotFor({ prickles: [prickle("priv", PRIVATE.id, at(20), at(80))] })).prickles).toEqual([]);
+  it("lists a prickle of a type that is not announced publicly", async () => {
+    expect((await snapshotFor({ prickles: [prickle("priv", PRIVATE.id, at(20), at(80))] })).prickles.map((p) => p.id)).toEqual(["priv"]);
+  });
+
+  it("leaves out what already ended or lies beyond the window", async () => {
     const far = await snapshotFor({ prickles: [prickle("past", PUBLIC.id, at(-90), at(-30)), prickle("far", PUBLIC.id, at(24 * 60 * 7), at(24 * 60 * 7 + 60))] });
     expect(far.prickles).toEqual([]);
+  });
+
+  it("keeps the soonest twelve", async () => {
+    const many = Array.from({ length: 15 }, (_, i) => prickle(`p${String(i).padStart(2, "0")}`, PRIVATE.id, at(10 + i * 5), at(40 + i * 5)));
+    const snapshot = await snapshotFor({ prickles: many });
+    expect(snapshot.prickles).toHaveLength(12);
+    expect(snapshot.prickles[0].id).toBe("p00");
   });
 
   it("keeps a running prickle and orders by start", async () => {
@@ -120,12 +130,12 @@ describe("writing now", () => {
     expect(scheduleRows(snapshot, NOW, scheduleOptions({}))[0].status).toBe("2 writing now");
   });
 
-  it("does not count a room that belongs to another prickle", async () => {
+  it("puts the room's count on the earliest running prickle when two run at once, whatever their types", async () => {
     const snapshot = await snapshotFor({
-      prickles: [prickle("private", PRIVATE.id, at(-90), at(30)), ...running],
+      prickles: [prickle("earlier", PRIVATE.id, at(-90), at(30)), ...running],
       zoomParticipantEvents: [joined("e1", "k1", "Alice Quill"), joined("e2", "k2", "A Guest")],
     });
-    expect(snapshot.writingNow).toBeNull();
+    expect(snapshot.writingNow).toEqual({ prickleId: "earlier", count: 2 });
   });
 
   it("never carries a name out of the room", async () => {

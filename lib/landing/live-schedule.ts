@@ -7,9 +7,10 @@ import { easternDay } from "./live-stats";
 /**
  * The public schedule behind the Schedule panel and the Announcement strip (docs/LANDING_PAGES.md, "Live data").
  *
- * Which prickles may appear: only those whose **type** is announced publicly (`prickle_types.announced_publicly`, the
- * audience chain in docs/CALENDAR_EVENTS.md). A prickle with no type, or of a type that isn't, never appears. The
- * Event type (the schedule an event stands on, with its own flag) is left out by the repository's own rule and stays out.
+ * Which prickles may appear: every upcoming one, the same set the members' Upcoming list ranks (`activeBetween`: running or
+ * starting in the window, the Event type's schedules left out by the repository), whatever its type; the one rule here is
+ * that it has not ended. `prickle_types.announced_publicly` means "worth listing as an event" and plays no part. A flag
+ * to narrow this to drop-in sessions is planned (docs/TODO.md, "Landing pages: finish and publish the new homepage").
  *
  * What may appear: a cleaned title, the start and end, and two facts that identify nobody: whether the host has hosted
  * `EXPERIENCED_HOST_PRICKLES` or more past prickles, and, while one is running, how many people are in the room.
@@ -43,13 +44,13 @@ export function publicTitle(title: string | null | undefined, typeName: string |
   return cleanEventTitle(raw).replace(/\s+w\/.*$/i, "").trim() || "Prickle";
 }
 
-/** Public prickles from now to `MAX_HOURS_AHEAD` ahead (running ones included), with the room count when one is running. Throws on a read failure; the caller falls back to typed values. */
+/** Upcoming prickles from now to `MAX_HOURS_AHEAD` ahead (running ones included), with the room count when one is running. Throws on a read failure; the caller falls back to typed values. */
 export async function loadScheduleSnapshot(repos: ScheduleRepos, nowDate: Date): Promise<ScheduleSnapshot> {
   const now = nowDate.getTime();
   const nowIso = nowDate.toISOString();
   const found = await repos.prickles.activeBetween({ from: nowIso, to: new Date(now + MAX_HOURS_AHEAD * HOUR).toISOString() });
   const open = found
-    .filter((p) => p.type?.announcedPublicly === true && Date.parse(p.endTime) > now)
+    .filter((p) => Date.parse(p.endTime) > now)
     .sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime) || a.id.localeCompare(b.id))
     .slice(0, SNAPSHOT_LIMIT);
   const running = open.find((p) => Date.parse(p.startTime) <= now);
