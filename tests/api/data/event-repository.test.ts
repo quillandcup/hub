@@ -289,10 +289,12 @@ defineMemberEventContract("SupabaseEventRepository", () => ({
       .from("community_events")
       .insert({
         slug: `event-member-${MEMBER_RUN}-${++memberCounter}`,
-        event_type: "other",
+        event_type: e.eventType ?? "other",
         prickle_id: prickle.id,
         deleted_at: e.hidden ? "2097-01-01T00:00:00Z" : null,
         focus: e.focus ?? null,
+        announced_publicly: e.announced ?? false,
+        capacity: e.capacity ?? null,
       })
       .select("id")
       .single();

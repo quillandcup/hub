@@ -179,7 +179,7 @@ export const BLOCK_DEFAULTS = {
     offer: { status: "open", statusLabel: "", title: "", text: "", buttonLabel: "", href: "" },
     compare: { label: "", href: "" },
   },
-  ComingUp: { heading: "Coming up", items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }] },
+  ComingUp: { heading: "Coming up", source: "manual", kinds: [], max: 4, more: { label: "", href: "" }, items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }] },
 } as const;
 
 export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {

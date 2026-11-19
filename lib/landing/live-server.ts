@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { clock } from "@/lib/clock";
 import { getServiceRepos } from "@/lib/data/server";
+import { loadComingUp, type ComingUpOptions } from "./live-events";
 import { resolveLiveBlocks, type LiveLoaders } from "./live-data";
 import { loadScheduleSnapshot } from "./live-schedule";
 import { loadLiveStats } from "./live-stats";
@@ -20,7 +21,9 @@ const cacheOptions = { revalidate: LIVE_CACHE_SECONDS, tags: [LIVE_CACHE_TAG] };
 const cachedStats = unstable_cache(async (keys: string[]) => loadLiveStats(getServiceRepos(), keys, new Date(clock.now())), ["landing-live-stats"], cacheOptions);
 const cachedSchedule = unstable_cache(async () => loadScheduleSnapshot(getServiceRepos(), new Date(clock.now())), ["landing-live-schedule"], cacheOptions);
 
-export const serverLoaders: LiveLoaders = { stats: cachedStats, schedule: cachedSchedule };
+const cachedComingUp = unstable_cache(async (options: ComingUpOptions) => loadComingUp(getServiceRepos(), options, new Date(clock.now())), ["landing-live-coming-up"], cacheOptions);
+
+export const serverLoaders: LiveLoaders = { stats: cachedStats, schedule: cachedSchedule, comingUp: cachedComingUp };
 
 /** A landing page's document with the live values of its live blocks in it, for one render. Never save the result. */
 export function withLiveData(data: unknown): Promise<unknown> {

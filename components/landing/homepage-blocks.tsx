@@ -429,15 +429,28 @@ export function JourneyMap({ stages, offer, compare }: JourneyMapProps) {
 
 // ---- Coming up -------------------------------------------------------------------------------------------------
 
+type ComingUpCardProps = { kind: string; title: string; when: string; availability: string; status?: OfferStatus | ""; linkLabel: string; href: string };
+/**
+ * `source` "live" shows `live.cards` (the next events announced publicly, with real dates and places left, built per render on the
+ * server and never stored: lib/landing/live-events.ts); without them, or when the load failed or nothing is coming up, the typed
+ * `items`. `kinds` and `max` are live options read on the server (which kinds of event, and how many cards, up to 4). `more` is
+ * one typed link under the cards (for example "See all events").
+ */
 export type ComingUpProps = {
   heading: string;
-  items: { kind: string; title: string; when: string; availability: string; status: OfferStatus | ""; linkLabel: string; href: string }[];
+  items: (ComingUpCardProps & { status: OfferStatus | "" })[];
+  source?: "manual" | "live";
+  kinds?: string[];
+  max?: number;
+  more?: { label: string; href: string };
+  live?: { cards: ComingUpCardProps[] };
 };
 const COMING_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-2 @cards:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
 
 /** Up to four cards for what is next (a retreat, a challenge): a kind pill, a title, dates or place, how many places are left, an optional status pill and link. */
-export function ComingUp({ heading, items }: ComingUpProps) {
-  const rows = rowsOf(items, "title", MAX.comingUp);
+export function ComingUp({ heading, items, source, more, live }: ComingUpProps) {
+  const isLive = source === "live" && !!live && live.cards.length > 0;
+  const rows: ComingUpCardProps[] = rowsOf(isLive ? live.cards : items, "title", MAX.comingUp);
   if (rows.length === 0) return null;
   return (
     <div className="py-4 text-left">
@@ -460,6 +473,11 @@ export function ComingUp({ heading, items }: ComingUpProps) {
           );
         })}
       </ul>
+      {more?.label && safeHref(more.href) && (
+        <p className="mt-6 text-center">
+          <TextLink label={more.label} href={more.href} />
+        </p>
+      )}
     </div>
   );
 }
