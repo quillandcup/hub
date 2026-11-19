@@ -178,22 +178,6 @@ Press **?** again, or the Escape key, to close the panel. These work on a comput
     image: { src: "/changelog/keyboard-shortcuts/01-shortcuts-panel.webp", alt: "The keyboard shortcuts panel open beside the Members page" },
   },
   {
-    slug: "security-page-details",
-    date: "2026-11-17",
-    audience: "product",
-    category: "improved",
-    title: "How the Hub protects your information, in more detail",
-    summary: "The Security page now explains how your information is encrypted, how our encryption keys are kept, how long a sign-in lasts, how the database is backed up, and what is not finished yet.",
-    body: `The [Security page](/security) now answers the questions people ask most, in plain words:
-
-- **Encryption.** Everything between your browser and the Hub is encrypted, browsers are told to use only secure connections, and stored data and backups are encrypted. Details such as your chat connection are kept separately, also encrypted.
-- **Signing in.** Joining is by invitation, a sign-in lasts an hour at a time and renews in the background, and staff can end a member's sessions if an account is at risk.
-- **Backups.** The database is backed up continuously and can be restored to any moment in the last 7 days.
-- **Honest about gaps.** Where something isn't finished, the line says so.
-
-The [Compliance page](/compliance) now describes the services we rely on by what they do, without naming them.`,
-  },
-  {
     slug: "compliance-and-security-for-staff",
     date: "2026-11-17",
     audience: "staff",
@@ -216,38 +200,25 @@ The pages hold nothing private: the repository is public, so they carry no names
     date: "2026-11-17",
     audience: "product",
     category: "new",
-    title: "See how the Hub keeps your information safe",
-    summary: "A new Security page explains in plain words how sign-in and access are protected, and what to do if something looks wrong.",
-    body: `The new [Security page](/security) says how the Hub is protected, one short line at a time, with whether each is finished.
+    title: "See how the Hub looks after your information and which rules it follows",
+    summary: "The footer now has three pages in plain words: Privacy says what we collect and who sees it, Security says how your information is protected, and Compliance says which rules we follow. Each line says whether it is finished.",
+    body: `Three pages in the footer answer "what happens to my information?", one short line at a time. Each line says whether it is in place, handled by one of our providers, or still in progress.
 
-- **Sign-in and access.** Joining is by invitation, and who can see what is decided by the database itself, not only by the page you are on.
-- **Behind the scenes.** How we handle messages that other services send us, how keys can be replaced, and the record kept of changes.
-- **Still in progress.** Where something isn't finished, the line says so.
-- **Something wrong?** The page says how to tell us.
+- **[Privacy](/privacy).** What we collect, who can see it, how long we keep it, and your choices.
+- **[Security](/security).** How your information is protected:
+  - Everything between your browser and the Hub is encrypted, and so are stored data and backups. Details such as your chat connection are kept separately, also encrypted.
+  - Joining is by invitation, a sign-in lasts an hour at a time and renews in the background, and staff can end a member's sessions if an account is at risk.
+  - The database is backed up continuously and can be restored to any moment in the last 7 days.
+  - Who can see what is decided by the database itself, not only by the page you are on.
+  - If something looks wrong, the page says how to tell us.
+- **[Compliance](/compliance).** The privacy rules we follow for members in the EU, the EEA and the UK and for everyone else, how card details are handled (they never reach the Hub: our payment provider handles them), the accessibility checks we run, and which parts our providers handle for us.
+
+Where something isn't finished, the line says so.
 
 ![The top of the Security page, with its key to what each label means and the Encryption section](/changelog/security-page/01-security-page.webp)
 
-It sits in the footer with [Privacy](/privacy) and [Compliance](/compliance).`,
+![The top of the Compliance page, with its key to what each label means and the Privacy and data protection section](/changelog/security-page/02-compliance-page.webp)`,
     image: { src: "/changelog/security-page/01-security-page.webp", alt: "The top of the Security page, with its key to what each label means and the Encryption section" },
-  },
-  {
-    slug: "compliance-page",
-    date: "2026-11-17",
-    audience: "product",
-    category: "new",
-    title: "See how the Hub handles your privacy, payments and accessibility",
-    summary: "The new Compliance page shows the privacy, payment and accessibility rules the Hub follows, which parts our providers handle for us, and what is still in progress.",
-    body: `The new [Compliance page](/compliance) is one place to see how the Hub treats your information and which standards it follows.
-
-- **Privacy.** What we do for members in the EU, the EEA and the UK, and for everyone else, with a link to the full [Privacy page](/privacy).
-- **Payments.** Card details never reach the Hub. Our payment provider handles them and holds the certification for handling card details safely.
-- **Accessibility.** The checks we run so the Hub works for as many people as possible, and what we haven't finished yet.
-- **Honest about gaps.** Each line says whether it is in place, handled by a provider, still in progress or not yet reviewed.
-
-![The top of the Compliance page, with its key to what each label means and the Privacy and data protection section](/changelog/compliance-page/01-compliance-page.webp)
-
-You'll find it in the footer, next to Privacy.`,
-    image: { src: "/changelog/compliance-page/01-compliance-page.webp", alt: "The top of the Compliance page, with its key to what each label means and the Privacy and data protection section" },
   },
   {
     slug: "table-keyboard-navigation",
