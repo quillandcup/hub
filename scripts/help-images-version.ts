@@ -29,7 +29,7 @@ export const HELP_IMAGE_INPUTS = [
   "demo",
   "public",
   "supabase/migrations",
-  "app.config.ts",
+  "config/app.ts",
   "next.config.ts",
   "package.json",
   "pnpm-lock.yaml",

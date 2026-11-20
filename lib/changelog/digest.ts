@@ -181,7 +181,7 @@ export interface ChannelPostOptions {
 }
 
 /**
- * Posts the entries not yet in the announcements channel (the id is `slack.changelogChannelId` in app.config.ts; empty =
+ * Posts the entries not yet in the announcements channel (the id is `slack.changelogChannelId` in config/app.ts; empty =
  * nowhere), claimed in `notification_log` under the channel like a member's, and given back when Slack refuses so the
  * next run tries again. Outside production `postToSlackChannel` logs and posts nothing, and the claims are given back.
  */

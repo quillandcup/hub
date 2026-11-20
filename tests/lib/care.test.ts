@@ -53,7 +53,7 @@ const base: CareTimes = {
 };
 
 describe("settings come from the config", () => {
-  it("reads the length, grace and quiet days and the three windows from app.config.ts", () => {
+  it("reads the length, grace and quiet days and the three windows from config/app.ts", () => {
     expect(CARE_SETTINGS).toEqual({ engagementDays: CARE_ENGAGEMENT_DAYS, lapseGraceDays: CARE_LAPSE_GRACE_DAYS, quietDays: CARE_QUIET_DAYS });
     expect(CARE_WINDOW_SETTINGS).toEqual({ beforeDays: CARE_BEFORE_DAYS, afterFromDays: CARE_AFTER_FROM_DAYS, afterToDays: CARE_AFTER_TO_DAYS });
     for (const n of [CARE_ENGAGEMENT_DAYS, CARE_LAPSE_GRACE_DAYS, CARE_QUIET_DAYS, CARE_BEFORE_DAYS]) expect(n).toBeGreaterThan(0);

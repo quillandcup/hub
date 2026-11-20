@@ -2,7 +2,7 @@
 paths:
   - "tests/**"
   - "supabase/tests/**"
-  - "vitest.config.mts"
+  - "config/vitest.mts"
   - "app/api/process/**"
   - "app/api/import/**"
   - "app/api/reconcile/**"

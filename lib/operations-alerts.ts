@@ -1,6 +1,6 @@
 import { createSlackClient } from "@/lib/slack-client";
 import * as Sentry from "@sentry/nextjs";
-import appConfig from "../app.config";
+import appConfig from "../config/app";
 import { isProduction, SLACK_ALERTS_CHANNEL_ID } from "@/lib/config";
 import { sendEmail } from "@/lib/email";
 import type { Repos } from "@/lib/data/repos";

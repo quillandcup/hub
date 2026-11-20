@@ -1,13 +1,13 @@
 #!/usr/bin/env npx tsx 
 // Syncs GitHub Actions secrets/variables from .env.prod for this repo's CI workflows,
-// reading which vars go where from env-vars.config.ts at the repo root instead of a
+// reading which vars go where from config/env-vars.ts instead of a
 // hardcoded list -- see that file for why. Counterpart to sync-to-vercel.ts, but GitHub
 // Actions has no per-environment split like Vercel's prod/preview/dev -- everything here
 // comes from .env.prod since these are ops/CI credentials, not app runtime vars.
 
 import { spawnSync } from "node:child_process";
 import { loadTargetEnv, sourceFilesFor } from "./env-files";
-import { ENV_VARS } from "../env-vars.config";
+import { ENV_VARS } from "../config/env-vars";
 import { GITHUB_SYNC_USAGE, parseSyncArgs } from "./sync-args";
 
 const REPO = "quillandcup/hub";
@@ -69,7 +69,7 @@ function main(): void {
 
   if (missing.length > 0) {
     console.error(
-      "❌ Missing values (declared in env-vars.config.ts but absent from .env.prod):",
+      "❌ Missing values (declared in config/env-vars.ts but absent from .env.prod):",
     );
     for (const m of missing) console.error(`  - ${m}`);
     process.exit(1);

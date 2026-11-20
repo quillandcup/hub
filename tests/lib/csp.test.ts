@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import appConfig from "../../app.config";
+import appConfig from "../../config/app";
 import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, reportOnlyCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";

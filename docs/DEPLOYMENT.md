@@ -32,7 +32,7 @@ Three records, all written by the `deploy` job:
   creates a record for the commit (Repo → Deployments → Production, or
   `gh api "repos/{owner}/{repo}/deployments?sha=<sha>"`). It moves from `queued` to
   `in_progress` to `success` or `failure`, and links to the canonical URL (`appUrl` in
-  `app.config.ts`), not the deployment's own `hub-<hash>.vercel.app` address. The newest
+  `config/app.ts`), not the deployment's own `hub-<hash>.vercel.app` address. The newest
   successful one carries the **Active** badge.
 - **The `production` tag**: after a successful deploy the job force-moves the tag to the
   deployed commit. `git log --decorate` shows `(tag: production)` there; everything below it

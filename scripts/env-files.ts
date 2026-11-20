@@ -1,11 +1,11 @@
-// Where env var values live, shared by the sync scripts (see env-vars.config.ts):
+// Where env var values live, shared by the sync scripts (see config/env-vars.ts):
 //   .env.shared   same in every environment -- the base for every target
 //   .env.preview  Vercel Preview overrides
 //   .env.prod     Vercel Production overrides, plus CI/ops credentials (GitHub, Vault)
 
 import { existsSync, readFileSync } from "node:fs";
 import { parse as parseDotenv } from "dotenv";
-import type { VercelTarget } from "../env-vars.config";
+import type { VercelTarget } from "../config/env-vars";
 
 export const SHARED_FILE = ".env.shared";
 export const TARGET_FILE: Record<VercelTarget, string> = {

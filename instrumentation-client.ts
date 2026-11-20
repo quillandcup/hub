@@ -3,7 +3,7 @@ import { scrubBreadcrumb, scrubEvent } from "@/lib/sentry-scrub";
 import { IGNORED_BROWSER_ERRORS } from "@/lib/sentry-ignored-errors";
 
 Sentry.init({
-  // From env-vars.config.ts. NEXT_PUBLIC_ so the browser bundle can read it too; unset
+  // From config/env-vars.ts. NEXT_PUBLIC_ so the browser bundle can read it too; unset
   // (e.g. local dev without it in .env.local) disables Sentry.
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   // Addresses that are credentials (calendar feed, sign-in links) never leave in an event (lib/sentry-scrub.ts).

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import appConfig from "@/app.config";
+import appConfig from "@/config/app";
 
 /**
  * Makes "Add to Home Screen" install the Hub as an app that opens full-screen. iOS only allows web

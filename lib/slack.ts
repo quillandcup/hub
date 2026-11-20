@@ -84,7 +84,7 @@ export interface CelebrateNewBookParams {
 }
 
 /**
- * Celebrates a new book in the community's cheering channel (app.config.ts `slack.celebrationsChannelId`) when a member adds one --
+ * Celebrates a new book in the community's cheering channel (config/app.ts `slack.celebrationsChannelId`) when a member adds one --
  * the standalone "Add a Book" flow or the book step of publishing a tracked project. Links to the member's public
  * profile, never an admin page, since everyone in the channel sees it. Posts only in production (postToSlackChannel).
  */

@@ -66,7 +66,7 @@ Row-level security: a member reads and changes their own row, an admin reads and
 
 ### Handles
 
-- Lowercase letters, digits and single hyphens (no hyphen at either end or twice in a row); `handleMinLength` to `handleMaxLength` characters (3 to 30), from `app.config.ts` `writerProfiles`. The table checks the shape; the length and the words are the app's (`validateHandle`, `lib/writer-profile.ts`).
+- Lowercase letters, digits and single hyphens (no hyphen at either end or twice in a row); `handleMinLength` to `handleMaxLength` characters (3 to 30), from `config/app.ts` `writerProfiles`. The table checks the shape; the length and the words are the app's (`validateHandle`, `lib/writer-profile.ts`).
 - **Unique, whatever the case,** among live pages and among old handles (unique indexes on the lowercased value; a handle is always stored lowercase).
 - **Reserved words** (`writerProfiles.reservedHandles`): the community and the product, staff and official-sounding words, places in the app and on the site. Compared with hyphens left out, so `quill-and-cup` is held by `quillandcup`. A list in config, tested for shape and duplicates.
 - **Changing a handle** is one database function, `set_writer_handle` (service role only; the server checks who is asking and the reserved words first). It returns `created`, `changed`, `unchanged`, `taken` or `reserved`. On a change the old handle goes to `writer_profile_handles` with `reserved_until = now + handleReservationDays` (90 days, config). During that time nobody else can take it and it redirects to the new one. The previous owner can take it back at any time. After it, someone else can have it, and the redirect then ends. The caller passes "now" (`lib/clock`), so tests choose it.

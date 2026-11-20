@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 // Syncs production secret values into Supabase Vault (database-level secrets read by SQL --
 // PL/pgSQL functions, triggers, pg_cron jobs -- via vault.decrypted_secrets), reading which
-// vars go where from env-vars.config.ts at the repo root instead of a hardcoded list -- see
+// vars go where from config/env-vars.ts instead of a hardcoded list -- see
 // that file for why.
 //
 // NOT the same as:
@@ -14,20 +14,20 @@
 // Always targets the linked project (same assumption as sync-to-vercel.ts, which always
 // targets the linked Vercel project -- run `supabase link` first if you haven't). There's no
 // local-Vault equivalent worth a flag here: these are all production-only secrets (same class
-// as CRON_SECRET in env-vars.config.ts), sourced from .env.prod, not something a separate dev
+// as CRON_SECRET in config/env-vars.ts), sourced from .env.prod, not something a separate dev
 // Supabase project would ever need -- there isn't one today anyway (see docs/TODO.md
 // Multi-Environment Setup).
 //
 // Vault secrets are looked up by NAME (vault.decrypted_secrets.name), which is independent of
-// the env var name used to source the value -- env-vars.config.ts's `vault` destination maps
+// the env var name used to source the value -- config/env-vars.ts's `vault` destination maps
 // one to the other explicitly via `vaultName`.
 
 import { spawnSync } from "node:child_process";
 import { loadTargetEnv, sourceFilesFor } from "./env-files";
-import { ENV_VARS } from "../env-vars.config";
-import appConfig from "../app.config";
+import { ENV_VARS } from "../config/env-vars";
+import appConfig from "../config/app";
 
-/** app.config.ts values that SQL (pg_cron jobs) reads from Vault, by Vault name. */
+/** config/app.ts values that SQL (pg_cron jobs) reads from Vault, by Vault name. */
 const SHARED_CONFIG_IN_VAULT: readonly {
   key: "appUrl";
   vaultName: string;
@@ -36,7 +36,7 @@ const SHARED_CONFIG_IN_VAULT: readonly {
   {
     key: "appUrl",
     vaultName: "app_url",
-    description: "Canonical app base URL (app.config.ts appUrl), read by pg_cron jobs.",
+    description: "Canonical app base URL (config/app.ts appUrl), read by pg_cron jobs.",
   },
 ];
 
@@ -98,9 +98,9 @@ function main(): void {
     }
   }
 
-  // Shared (non-env-scoped) config that SQL needs, from app.config.ts.
+  // Shared (non-env-scoped) config that SQL needs, from config/app.ts.
   for (const { key, vaultName, description } of SHARED_CONFIG_IN_VAULT) {
-    syncVaultSecret(`app.config.ts ${key}`, String(appConfig[key]), vaultName, description);
+    syncVaultSecret(`config/app.ts ${key}`, String(appConfig[key]), vaultName, description);
   }
 
   console.log("\n✅ Vault secrets synced!\n");

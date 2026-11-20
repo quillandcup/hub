@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { ORG_SETTING_KEYS, orgSettingsBody, parseSentryConfig, planOrgSettings } from "@/lib/sentry-config";
-import { ENV_VARS } from "@/env-vars.config";
+import { ENV_VARS } from "@/config/env-vars";
 
 const on = { dataScrubber: true, dataScrubberDefaults: true, scrubIPAddresses: true };
 

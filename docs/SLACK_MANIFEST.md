@@ -33,7 +33,7 @@ The job fails until all three exist.
    gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub
    ```
 
-   Paste it at the prompt. Don't put it in `.env.prod`, and it isn't in `env-vars.config.ts`: see below.
+   Paste it at the prompt. Don't put it in `.env.prod`, and it isn't in `config/env-vars.ts`: see below.
 
 ## The #hub-alerts webhook
 
@@ -49,7 +49,7 @@ The webhook is created in the Slack dashboard, not by the manifest, so a manifes
    gh secret set SLACK_ALERTS_WEBHOOK_URL --repo quillandcup/hub
    ```
 
-   Paste the URL at the prompt. It is not in `env-vars.config.ts` and not in any env file.
+   Paste the URL at the prompt. It is not in `config/env-vars.ts` and not in any env file.
 4. **Check it**: `gh workflow run audit.yml` posts only if the audit finds something, so test the webhook with a one-off `curl` of your own, or wait for the next finding.
 
 Check after the first manifest push that the webhook still exists (Incoming Webhooks page lists it) and is not wiped by a later push; manifest pushes are meant to leave it alone, but verify once. To rotate it, revoke it on the Incoming Webhooks page, add a new one for #hub-alerts and repeat step 3.

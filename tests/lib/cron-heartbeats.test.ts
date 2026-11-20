@@ -8,7 +8,7 @@ import {
   pingCronHeartbeat,
   withCronHeartbeat,
 } from "@/lib/cron-heartbeats";
-import { ENV_VARS } from "@/env-vars.config";
+import { ENV_VARS } from "@/config/env-vars";
 import { pgCronGaps, vercelCronGaps } from "../helpers/cron-coverage";
 
 const ENV_VAR = CRON_HEARTBEATS["reconcile-calendar"].envVar;
@@ -41,7 +41,7 @@ describe("CRON_HEARTBEATS coverage", () => {
     });
   });
 
-  it("declares every heartbeat env var in env-vars.config.ts", () => {
+  it("declares every heartbeat env var in config/env-vars.ts", () => {
     const declared = new Set(ENV_VARS.map((v) => v.name));
     for (const h of Object.values(CRON_HEARTBEATS)) {
       expect(declared.has(h.envVar), h.envVar).toBe(true);
