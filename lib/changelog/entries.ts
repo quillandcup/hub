@@ -56,6 +56,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "temporary-email-addresses",
+    date: "2026-11-20",
+    audience: "staff",
+    category: "new",
+    title: "Temporary-mail addresses are refused on sign-up forms, and flagged on members who arrived by import",
+    summary: "The landing-page opt-in form and a member's \"add an email alias\" now refuse throwaway-inbox addresses. A new Data Health check lists active members who have one.",
+    body: `Throwaway-inbox addresses (the kind that expire after a few minutes) are checked against a public list of such domains, including subdomains of a listed domain.
+
+- **Refused:** the opt-in form on landing pages, and "add an email alias" in a member's settings. The person is asked to use their own address.
+- **Flagged, not blocked:** most members still arrive by import from Kajabi or Stripe, and imports are never refused or changed. Open Data Health, then **Temporary Emails**, to see active members whose email, or an email alias, is on the list, with which address matched. The tile on Data Health shows the count.
+
+The check only lists them; nothing happens to the member or the import.`,
+  },
+  {
     slug: "writer-public-pages",
     date: "2026-11-20",
     audience: "engineering",
