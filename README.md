@@ -6,6 +6,7 @@
 [![OSV scan](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml)
 [![Secret scan](https://github.com/quillandcup/hub/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/secret-scan.yml)
 [![ZAP baseline](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml)
+[![License: Proprietary](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
 
 Member engagement platform for Quill & Cup — giving members visibility into their writing journey and giving staff the tools to understand community health.
 
@@ -85,3 +86,7 @@ See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documen
 ✅ Protected dashboard
 🚧 Member profile — writing streak, attendance calendar, badges
 🚧 Staff analytics — session insights, at-risk member identification
+
+## License
+
+Proprietary. Copyright (c) 2026 Quill & Cup. All rights reserved. The source is public for transparency only and no license to use, copy, modify or distribute it is granted; see [LICENSE](LICENSE). Third-party packages keep their own licenses.
