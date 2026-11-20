@@ -8674,6 +8674,10 @@ export type Database = {
           member_id: string
         }[]
       }
+      member_ask_me_about_shown: {
+        Args: { p_member_id: string }
+        Returns: string[]
+      }
       member_data_report: {
         Args: { p_member_id: string }
         Returns: {
@@ -8684,7 +8688,6 @@ export type Database = {
           why: string
         }[]
       }
-      member_ask_me_about_shown: { Args: { p_member_id: string }; Returns: string[] }
       member_directory_aliases: {
         Args: never
         Returns: {
@@ -8878,7 +8881,10 @@ export type Database = {
         Args: { p_course_id: string }
         Returns: undefined
       }
-      refresh_member_directory: { Args: { p_member_id: string }; Returns: undefined }
+      refresh_member_directory: {
+        Args: { p_member_id: string }
+        Returns: undefined
+      }
       remove_event_attendee: {
         Args: { p_event_id: string; p_member_id: string }
         Returns: undefined

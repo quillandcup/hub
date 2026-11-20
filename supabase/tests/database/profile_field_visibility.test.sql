@@ -1,4 +1,4 @@
--- pgTAP tests for who can see each profile item (20270838000000_profile_field_visibility.sql): a private item is left out of
+-- pgTAP tests for who can see each profile item (20270844000000_profile_field_visibility.sql): a private item is left out of
 -- the member directory for every member and admin, a private "Ask me about" list is hidden from others, the levels are
 -- checked, only the owner (or an admin acting for them) changes them, and a change is one audit entry without any text.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
@@ -74,7 +74,6 @@ INSERT INTO result SELECT 'bob_topics_table', to_jsonb(count(*)) FROM public.mem
 INSERT INTO result SELECT 'bob_topics_function', to_jsonb(public.member_ask_me_about_shown('mbr_pvisAlice001'));
 -- Bob cannot change Alice's levels.
 UPDATE public.member_profile_overrides SET bio_visibility = 'public' WHERE member_id = 'mbr_pvisAlice001';
-INSERT INTO result SELECT 'bob_tried_change', to_jsonb(bio_visibility) FROM public.member_profile_overrides WHERE member_id = 'mbr_pvisAlice001';
 
 -- Dana, an admin, sees none of it through the member-facing paths either.
 SELECT set_config('request.jwt.claims',
@@ -97,7 +96,7 @@ SELECT is((SELECT value ->> 'photo_url' FROM result WHERE label = 'bob_sees_list
 SELECT is((SELECT value FROM result WHERE label = 'bob_sees_listing' ) -> 'topics', '[]'::jsonb, 'and a private list of topics');
 SELECT is((SELECT value FROM result WHERE label = 'bob_topics_table'), '0'::jsonb, 'another member cannot read a private topics row from the table');
 SELECT is((SELECT value FROM result WHERE label = 'bob_topics_function'), '[]'::jsonb, 'nor through the function member-facing pages use');
-SELECT is((SELECT value FROM result WHERE label = 'bob_tried_change'), '"private"'::jsonb, 'another member cannot change someone else''s levels');
+SELECT is((SELECT bio_visibility FROM public.member_profile_overrides WHERE member_id = 'mbr_pvisAlice001'), 'private', 'another member cannot change someone else''s levels');
 SELECT is((SELECT value ->> 'bio' FROM result WHERE label = 'dana_sees_directory'), NULL, 'an admin does not see a private bio through the directory');
 SELECT is((SELECT value ->> 'photo_url' FROM result WHERE label = 'dana_sees_listing'), NULL, 'nor a private photo on the Members page');
 SELECT is((SELECT value FROM result WHERE label = 'dana_topics_function'), '[]'::jsonb, 'nor a private list of topics through the member-facing function');
