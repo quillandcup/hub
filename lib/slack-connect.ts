@@ -69,7 +69,7 @@ export const hasDmReactionScope = (scopes: string[]): boolean => SLACK_DM_REACTI
 /** Whether a stored connection has the private-channel scope. Nothing is gated on it: it only decides who is asked to reconnect. */
 export const hasPrivateChannelScope = (scopes: string[]): boolean => SLACK_PRIVATE_CHANNEL_SCOPES.every((s) => scopes.includes(s));
 
-/** Registered as a redirect URL in slack-app-manifest.yml; Slack requires an exact match. */
+/** Registered as a redirect URL in config/slack-app-manifest.yml; Slack requires an exact match. */
 export const SLACK_REDIRECT_PATH = "/api/oauth/slack/callback";
 export const slackRedirectUri = () => `${APP_URL}${SLACK_REDIRECT_PATH}`;
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env npx tsx
-// Diffs or pushes github-repo-config.yml against the live repository, so branch rules are
+// Diffs or pushes config/github.yml against the live repository, so branch rules are
 // reviewed in git instead of clicked in Settings.
 //
 //   tsx scripts/github-config.ts diff   show what a push would change (read-only)
@@ -16,7 +16,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 
-const CONFIG_FILE = "github-repo-config.yml";
+const CONFIG_FILE = "config/github.yml";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Ruleset = { name: string; [key: string]: Json };

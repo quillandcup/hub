@@ -6,7 +6,7 @@ name: CI
 # note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
 # vitest.config.mts for how tests are split between the two. On push to main, once
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
-# to production, deploys, and then pushes slack-app-manifest.yml to the Slack app if
+# to production, deploys, and then pushes config/slack-app-manifest.yml to the Slack app if
 # it changed.
 #
 # Docs-only changes skip all of that. The `changes` job lists the files the change touches
@@ -68,9 +68,9 @@ jobs:
     outputs:
       docs_only: ${{ steps.docs.outputs.docs_only }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: ".nvmrc"
 
@@ -109,12 +109,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
@@ -139,14 +139,14 @@ jobs:
 
       # Old code runs against the new schema while a deploy rolls out, so a migration that
       # drops or renames something the old code reads breaks production. Squawk fails on
-      # those (see .squawk.toml); only migrations this change adds are linted.
+      # those (see config/squawk.toml); only migrations this change adds are linted.
       - name: Lint new migrations for deploy-breaking changes
         if: github.event_name != 'workflow_dispatch'
-        run: git diff --name-only --diff-filter=A FETCH_HEAD -- 'supabase/migrations/*.sql' | xargs -r pnpm exec squawk
+        run: git diff --name-only --diff-filter=A FETCH_HEAD -- 'supabase/migrations/*.sql' | xargs -r pnpm exec squawk --config config/squawk.toml
 
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -173,12 +173,12 @@ jobs:
     # cancelled at the limit. Lower it again once the suite is sharded or measurably faster.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
@@ -237,7 +237,7 @@ jobs:
 
       - name: Upload coverage report
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-unit
           path: coverage/unit
@@ -251,19 +251,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
@@ -305,7 +305,7 @@ jobs:
       # env-vars.config.ts via `pnpm env:sync:github`.
       - name: Log in to Docker Hub
         continue-on-error: true
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -406,7 +406,7 @@ jobs:
 
       - name: Upload db coverage report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-db
           path: coverage/db
@@ -495,26 +495,26 @@ jobs:
       contents: read
       pull-requests: write # to update the sticky coverage comment
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # the new-lines check diffs against the PR's base branch
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: coverage-unit
           path: coverage/unit
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: coverage-db
           path: coverage/db
@@ -549,9 +549,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
@@ -611,7 +611,7 @@ jobs:
     with:
       ref: ${{ github.sha }}
 
-  # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
+  # config/slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
   # description, scopes, slash commands, event subscriptions and request URLs. The push
   # REPLACES the live configuration, so anything changed in the Slack dashboard but not in
   # the manifest is reset here -- change the manifest instead. See docs/SLACK_MANIFEST.md.
@@ -640,7 +640,7 @@ jobs:
     permissions:
       contents: write # moves the `slack-manifest-pushed` tag
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Check whether the manifest changed since it was last pushed
         id: manifest
@@ -651,18 +651,18 @@ jobs:
           elif ! git fetch --quiet --depth=1 origin "+refs/tags/slack-manifest-pushed:refs/tags/slack-manifest-pushed"; then
             echo "The manifest has never been pushed from CI: pushing it."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet slack-manifest-pushed HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
-            echo "slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
+          elif git diff --quiet slack-manifest-pushed HEAD -- config/slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "config/slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "They differ from the last push: pushing the manifest."
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
@@ -695,7 +695,7 @@ jobs:
           git tag --force slack-manifest-pushed "$GITHUB_SHA"
           git push --force origin refs/tags/slack-manifest-pushed
 
-  # vercel-project-config.yml is the source of truth for the Vercel project settings that
+  # config/vercel.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
   # those rules, so change the file, not the dashboard. See docs/VERCEL_CONFIG.md.
   #
@@ -707,7 +707,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Check whether the config changed
         id: config
@@ -715,8 +715,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
             echo "No previous commit to compare against: pushing the config."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- vercel-project-config.yml scripts/vercel-config.ts; then
-            echo "vercel-project-config.yml and scripts/vercel-config.ts are unchanged: skipping the push."
+          elif git diff --quiet "$BEFORE" HEAD -- config/vercel.yml scripts/vercel-config.ts; then
+            echo "config/vercel.yml and scripts/vercel-config.ts are unchanged: skipping the push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -724,10 +724,10 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         if: steps.config.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
@@ -744,7 +744,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # sentry-config.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
+  # config/sentry.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
   # file, not the Settings page. See docs/SENTRY_CONFIG.md.
   #
   # Only runs when the push to main changed the file or the script; a push whose previous commit can't be
@@ -755,7 +755,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Check whether the config changed
         id: config
@@ -763,8 +763,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
             echo "No previous commit to compare against: pushing the config."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- sentry-config.yml scripts/sentry-config.ts; then
-            echo "sentry-config.yml and scripts/sentry-config.ts are unchanged: skipping the push."
+          elif git diff --quiet "$BEFORE" HEAD -- config/sentry.yml scripts/sentry-config.ts; then
+            echo "config/sentry.yml and scripts/sentry-config.ts are unchanged: skipping the push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -772,10 +772,10 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         if: steps.config.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"

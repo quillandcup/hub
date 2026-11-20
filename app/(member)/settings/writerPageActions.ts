@@ -22,6 +22,7 @@ import {
   writerPageUrl,
 } from "@/lib/writer-profile";
 import { withAction } from "@/lib/analytics/server";
+import { WRITER_PAGES_NOT_AVAILABLE, memberHasWriterPages } from "@/lib/writer-pages-access";
 
 /**
  * Settings > Profile > "Your page on the web" (docs/WRITER_PROFILES.md): the member's own public writer page. Everything
@@ -37,6 +38,8 @@ export interface WriterPageNameChoice {
 }
 
 export interface WriterPageSettings {
+  /** The `writer_pages` flag is on for them. When it is not, the settings show nothing about the page and nothing can be switched on. */
+  available: boolean;
   /** They have chosen a handle, so the page exists (still off until they switch it on). */
   hasPage: boolean;
   handle: string | null;
@@ -71,17 +74,24 @@ async function requireIdentity(): Promise<Context> {
   return { supabase: await createClient(), userId: user.id, memberId: identity.memberId, isSudo: identity.isSudo };
 }
 
+/** The flag is decided for the effective member, so sudo asks about the member whose page it is. */
+async function requireWriterPages(memberId: string): Promise<{ error: string } | null> {
+  return (await memberHasWriterPages(getServiceRepos(), memberId)) ? null : { error: WRITER_PAGES_NOT_AVAILABLE };
+}
+
 export async function getWriterPageSettings(): Promise<WriterPageSettings | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const repos = createRepos(ctx.supabase);
-  const [page, member, aliases] = await Promise.all([
+  const [page, member, aliases, available] = await Promise.all([
     repos.writerProfiles.ofMember(ctx.memberId),
     repos.members.byId(ctx.memberId),
     repos.aliases.namesOf(ctx.memberId),
+    memberHasWriterPages(getServiceRepos(), ctx.memberId),
   ]);
   const displayName = member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : "";
   return {
+    available,
     hasPage: page !== null,
     handle: page?.handle ?? null,
     isPublic: page?.isPublic ?? false,
@@ -119,6 +129,8 @@ async function claimWriterHandleImpl(input: string): Promise<{ success: true; ha
   if ("error" in ctx) return ctx;
   const checked = validateHandle(input);
   if (!checked.ok) return { error: checked.message };
+  const closed = await requireWriterPages(ctx.memberId);
+  if (closed) return closed;
 
   const now = new Date(clock.now());
   const outcome = await getServiceRepos().writerProfiles.setHandle(ctx.memberId, checked.handle, { reserveDays: WRITER_PROFILES.handleReservationDays, now });
@@ -149,6 +161,11 @@ async function claimWriterHandleImpl(input: string): Promise<{ success: true; ha
 async function setWriterPageSwitchImpl(isPublic: boolean): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
+  // Turning it off is always allowed, so a page can be taken down whatever the flag says; turning it on needs the flag.
+  if (isPublic) {
+    const closed = await requireWriterPages(ctx.memberId);
+    if (closed) return closed;
+  }
   const repos = createRepos(ctx.supabase);
   const updated = await repos.writerProfiles.update(ctx.memberId, { isPublic });
   if (!updated) return { error: "Choose the address for your page first." };
@@ -162,6 +179,8 @@ async function saveWriterPageDetailsImpl(input: { publicNameAliasId: string | nu
   if ("error" in ctx) return ctx;
   const bio = cleanBio(input.bio);
   if (!bio.ok) return { error: bio.message };
+  const closed = await requireWriterPages(ctx.memberId);
+  if (closed) return closed;
 
   const repos = createRepos(ctx.supabase);
   if (input.showPhoto) {

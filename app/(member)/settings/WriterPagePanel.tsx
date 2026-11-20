@@ -120,6 +120,8 @@ export function WriterPagePanel() {
   if (!data) {
     return error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null;
   }
+  // The `writer_pages` flag is off for them: no section at all (docs/WRITER_PROFILES.md, "The feature flag").
+  if (!data.available) return null;
 
   const addressChanged = data.handle !== handleInput.trim().toLowerCase();
   const canSaveAddress = !busy && handleInput.trim() !== "" && addressChanged && (handleStatus === null || handleStatus.status === "available");

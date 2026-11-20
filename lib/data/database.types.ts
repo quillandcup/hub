@@ -8759,6 +8759,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      publish_announced_event_covers: { Args: never; Returns: number }
       publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
       publish_landing_page_with_note: {
         Args: { p_note?: string; p_page_id: string }

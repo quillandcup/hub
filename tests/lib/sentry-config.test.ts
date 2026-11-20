@@ -6,9 +6,9 @@ import { ENV_VARS } from "@/env-vars.config";
 
 const on = { dataScrubber: true, dataScrubberDefaults: true, scrubIPAddresses: true };
 
-describe("sentry-config.yml", () => {
+describe("config/sentry.yml", () => {
   it("lists every managed setting, switched on", () => {
-    const parsed = parseSentryConfig(parseYaml(readFileSync("sentry-config.yml", "utf8")));
+    const parsed = parseSentryConfig(parseYaml(readFileSync("config/sentry.yml", "utf8")));
     expect(Object.keys(parsed).sort()).toEqual([...ORG_SETTING_KEYS].sort());
     expect(Object.values(parsed).every((value) => value === true)).toBe(true);
   });

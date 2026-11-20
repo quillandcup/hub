@@ -15,7 +15,7 @@ import {
 
 /**
  * Where Slack sends the member back after they approve (or refuse). This exact path is the redirect
- * URL registered in slack-app-manifest.yml. Checks the flow started in this browser (state cookie),
+ * URL registered in config/slack-app-manifest.yml. Checks the flow started in this browser (state cookie),
  * that the signed-in member is the one connecting (not in sudo), and that the Slack account that
  * approved is in our workspace and not another member's (it is bound to them now, replacing any
  * guess), then stores the user token in Vault.

@@ -42,9 +42,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6.1.1
-      - uses: checkly/checkly-action@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: checkly/checkly-action@681b97c6f347b61bf2407c96d94707c3442af9f0 # v1
         with:
           command: test
           install-command: pnpm install --frozen-lockfile
@@ -68,8 +68,8 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - run: pnpm install --frozen-lockfile
       # `checkly deploy` prints each heartbeat's ping URL, and anyone holding one can mark that job
       # healthy. The logs are public, so redact the secret part of the URL before it reaches them.

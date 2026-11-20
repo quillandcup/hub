@@ -1,11 +1,11 @@
-// Reads skewProtection.maxAgeSeconds from vercel-project-config.yml. Shared by scripts/vercel-config.ts (which
+// Reads skewProtection.maxAgeSeconds from config/vercel.yml. Shared by scripts/vercel-config.ts (which
 // applies it to the Vercel project) and next.config.ts (which gives the page the same number, so the app can warn a
 // tab before the deployment it came from stops being served). Node only: never import it from app code.
 
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 
-export const PROJECT_CONFIG_FILE = "vercel-project-config.yml";
+export const PROJECT_CONFIG_FILE = "config/vercel.yml";
 
 /** Vercel keeps production deployments for 30 days at most (Deployment Retention); the max age can't exceed that. */
 const MAX_AGE_LIMIT_SECONDS = 30 * 24 * 60 * 60;

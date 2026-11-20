@@ -84,7 +84,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         status: "inPlace",
         reads: ["stats-recordings"],
         how: "Session replay masks text, form fields and media by default (Sentry's defaults, kept on purpose); only the app's own navigation labels are unmasked. The monitoring provider scrubs on its side and does not store IP addresses.",
-        evidence: ["instrumentation-client.ts", "components/SessionReplay.tsx", "sentry-config.yml", "docs/SENTRY_CONFIG.md"],
+        evidence: ["instrumentation-client.ts", "components/SessionReplay.tsx", "config/sentry.yml", "docs/SENTRY_CONFIG.md"],
         checked: "2026-11-17",
         open: [
           "Recordings are kept up to 90 days, set by the monitoring provider's plan, not by us. The Privacy page says so; nothing here enforces it.",

@@ -1,6 +1,6 @@
 # Sentry config as code
 
-`sentry-config.yml` is the source of truth for the Sentry organization's data-scrubbing settings (Settings → Security & Privacy): server-side data scrubbing, the default scrubbers, and not storing IP addresses. They are organization-wide, so every project inherits them and shows its own switches as locked.
+`config/sentry.yml` is the source of truth for the Sentry organization's data-scrubbing settings (Settings → Security & Privacy): server-side data scrubbing, the default scrubbers, and not storing IP addresses. They are organization-wide, so every project inherits them and shows its own switches as locked.
 
 On a push to main that changes the file or `scripts/sentry-config.ts`, after the production deploy, CI's `push-sentry-config` job runs `scripts/sentry-config.ts push`. It prints the difference from the live organization, writes only the settings that differ, then reads them back to confirm. Change the file, not the Settings page: the next push puts the values back.
 

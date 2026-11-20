@@ -83,6 +83,15 @@ The check only lists them; nothing happens to the member or the import.`,
     ].join("\n\n"),
   },
   {
+    slug: "writer-pages-flag",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "improved",
+    title: "Writers' public pages are behind a feature flag",
+    summary: "Whether a member can have a public page is now decided by a feature flag, for the page's owner. Until it is on for them the settings hide the section and the page answers 404.",
+    body: "A public page now exists only for owners the `writer_pages` flag covers (global switch, segment or the member's own preview, as every flag). The flag is checked for the **owner**, since a visitor has none, with `memberHasWriterPages` / `ownersWithWriterPages` (`lib/writer-pages-access.ts`) over `membersWithFeature`.\n\n- **Rule:** anything that serves or lists a page asks about its owner; a list does it once for the whole batch, never per page (the sitemap checks one file's owners together).\n- **Off is quiet:** the Settings section is hidden, switching on is refused in the action, and `/w/<handle>`, its metadata and the preview answer the same 404 as a missing page. Nothing is deleted or changed, so the page returns when the flag does.\n- **Hooks:** `PublicLookup.ownerId` and the sitemap entries' `memberId` carry the owner for the server only; they are never part of the public profile.\n\nDetail: `docs/WRITER_PROFILES.md`, \"The feature flag\".",
+  },
+  {
     slug: "writer-public-pages",
     date: "2026-11-20",
     audience: "engineering",
@@ -2214,7 +2223,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "The Slack app configuration is now code, pushed after each production deploy when it changes.",
     body: [
-      "slack-app-manifest.yml is the source of truth and scripts/slack-manifest.ts pushes it after the production deploy, and only when it has changed.",
+      "config/slack-app-manifest.yml is the source of truth and scripts/slack-manifest.ts pushes it after the production deploy, and only when it has changed.",
     ].join("\n\n"),
   },
   {
