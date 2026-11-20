@@ -9,6 +9,9 @@ const ID_CHUNK_SIZE = 100;
 /** A member's private note about another member, as shown back to its author. */
 export type MemberNote = Pick<Row<"member_notes">, "body" | "updated_at">;
 
+/** Who can see a member's "Ask me about" topics: only them, or signed-in members. Never the open web. */
+export type AskMeAboutVisibility = "private" | "community";
+
 /** The tour state a member's Getting started guide is built from (`member_onboarding`). */
 export type OnboardingRecord = Pick<Row<"member_onboarding">, "marked_steps" | "dismissed_at" | "completed_at" | "acknowledged_steps">;
 /** The tour fields a save may change; `updated_at` is stamped by the repository. */
@@ -27,8 +30,16 @@ export type SlackConnection = Pick<Row<"member_slack_connections">, "slack_user_
  */
 export interface MemberProfileRepository {
   // --- Ask me about ---
-  /** The topics a member listed, in order; none when they never saved any. */
-  askMeAbout(memberId: string): Promise<string[]>;
+  /**
+   * The topics a member listed that the caller may see, in order; none when they never saved any, or when the list is private
+   * and the caller is not its owner (an admin included). The database decides who the caller is; `viewerMemberId` is only for
+   * the in-memory twin, which has no session.
+   */
+  askMeAbout(memberId: string, viewerMemberId?: string): Promise<string[]>;
+  /** The member's own list and who can see it, for their Settings (the owner, or an admin acting for them). Community when never set. */
+  askMeAboutOf(memberId: string): Promise<{ topics: string[]; visibility: AskMeAboutVisibility }>;
+  /** Sets who can see the topics (and who set it), keeping the topics. Creates the member's row when there is none. */
+  saveAskMeAboutVisibility(memberId: string, visibility: AskMeAboutVisibility, updatedBy: string): Promise<void>;
   /** Saves the member's topics (creating their row), and who saved them. */
   saveAskMeAbout(memberId: string, topics: string[], updatedBy: string): Promise<void>;
 
@@ -73,9 +84,20 @@ export class SupabaseMemberProfileRepository implements MemberProfileRepository 
   constructor(private readonly db: Db) {}
 
   async askMeAbout(memberId: string) {
-    const { data, error } = await this.db.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle();
+    const { data, error } = await this.db.rpc("member_ask_me_about_shown", { p_member_id: memberId });
     if (error) throw new Error(error.message);
-    return data?.topics ?? [];
+    return data ?? [];
+  }
+
+  async askMeAboutOf(memberId: string) {
+    const { data, error } = await this.db.from("member_ask_me_about").select("topics, visibility").eq("member_id", memberId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return { topics: data?.topics ?? [], visibility: (data?.visibility ?? "community") as AskMeAboutVisibility };
+  }
+
+  async saveAskMeAboutVisibility(memberId: string, visibility: AskMeAboutVisibility, updatedBy: string) {
+    const { error } = await this.db.from("member_ask_me_about").upsert({ member_id: memberId, visibility, updated_by: updatedBy }, { onConflict: "member_id" });
+    if (error) throw new Error(error.message);
   }
 
   async saveAskMeAbout(memberId: string, topics: string[], updatedBy: string) {
@@ -216,15 +238,29 @@ export class InMemoryMemberProfileRepository implements MemberProfileRepository 
     if (!this.data.members.some((m) => m.id === id)) throw new Error("violates foreign key constraint on member_id");
   }
 
-  async askMeAbout(memberId: string) {
-    return [...(this.data.askMeAbout.find((a) => a.member_id === memberId)?.topics ?? [])];
+  async askMeAbout(memberId: string, viewerMemberId?: string) {
+    const row = this.data.askMeAbout.find((a) => a.member_id === memberId);
+    if (row?.visibility === "private" && viewerMemberId !== memberId) return [];
+    return [...(row?.topics ?? [])];
+  }
+
+  async askMeAboutOf(memberId: string) {
+    const row = this.data.askMeAbout.find((a) => a.member_id === memberId);
+    return { topics: [...(row?.topics ?? [])], visibility: (row?.visibility ?? "community") as AskMeAboutVisibility };
+  }
+
+  async saveAskMeAboutVisibility(memberId: string, visibility: AskMeAboutVisibility, updatedBy: string) {
+    this.requireMember(memberId);
+    const existing = this.data.askMeAbout.find((a) => a.member_id === memberId);
+    if (existing) Object.assign(existing, { visibility, updated_by: updatedBy, updated_at: this.now() });
+    else this.data.askMeAbout.push({ member_id: memberId, topics: [], visibility, updated_by: updatedBy, created_at: this.now(), updated_at: this.now() });
   }
 
   async saveAskMeAbout(memberId: string, topics: string[], updatedBy: string) {
     this.requireMember(memberId);
     const existing = this.data.askMeAbout.find((a) => a.member_id === memberId);
     if (existing) Object.assign(existing, { topics: [...topics], updated_by: updatedBy, updated_at: this.now() });
-    else this.data.askMeAbout.push({ member_id: memberId, topics: [...topics], updated_by: updatedBy, created_at: this.now(), updated_at: this.now() });
+    else this.data.askMeAbout.push({ member_id: memberId, topics: [...topics], visibility: "community", updated_by: updatedBy, created_at: this.now(), updated_at: this.now() });
   }
 
   async noteAbout(authorMemberId: string, subjectMemberId: string) {

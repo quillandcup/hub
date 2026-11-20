@@ -5,6 +5,28 @@ import userEvent from "@testing-library/user-event";
 import VisibilityControl, { visibilityLabel } from "@/components/writing/VisibilityControl";
 import { tooltipText } from "@/tests/helpers/tooltip";
 
+describe("VisibilityControl with a list of levels", () => {
+  it("cycles only those levels, and says what a click does in the words it is given", async () => {
+    const onChange = vi.fn();
+    const describe_ = (visibility: string, next: string) => `now ${visibility}, click for ${next}`;
+    render(<VisibilityControl visibility="community" onChange={onChange} levels={["private", "community"]} describe={describe_} noun="bio" />);
+    const button = screen.getByRole("button", { name: "Who can see this bio: Other members" });
+
+    expect(tooltipText(button)).toEqual("now community, click for private");
+    await userEvent.click(button);
+    expect(onChange).toHaveBeenCalledWith("private");
+  });
+
+  it("moves from a level it no longer offers to the first one it does", async () => {
+    const onChange = vi.fn();
+    render(<VisibilityControl visibility="public" onChange={onChange} levels={["private", "community"]} noun="bio" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Who can see this bio: Everyone" }));
+
+    expect(onChange).toHaveBeenCalledWith("private");
+  });
+});
+
 describe("VisibilityControl", () => {
   it("shows a lock and says only you can see it when private, and a click asks for community", async () => {
     const onChange = vi.fn();

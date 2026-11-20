@@ -9,6 +9,7 @@ const profile = (changes: Partial<PublicWriterProfile> = {}): PublicWriterProfil
   name: "Ada Example",
   photoUrl: null,
   bio: null,
+  links: { instagram: null, facebook: null, x: null },
   publishedAt: "2027-03-01T12:00:00Z",
   updatedAt: "2027-03-02T12:00:00Z",
   ...changes,

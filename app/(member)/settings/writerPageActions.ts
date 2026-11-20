@@ -9,7 +9,6 @@ import { getServiceRepos } from "@/lib/data/server";
 import { PublicNameNotAllowedError } from "@/lib/data/writer-profiles";
 import { clock } from "@/lib/clock";
 import { APP_URL, WRITER_PROFILES } from "@/lib/config";
-import { getMemberDisplayName } from "@/lib/member-display-name";
 import {
   HANDLE_UNAVAILABLE_MESSAGES,
   WRITER_PAGE_PATH,
@@ -22,7 +21,7 @@ import {
   writerPageUrl,
 } from "@/lib/writer-profile";
 import { withAction } from "@/lib/analytics/server";
-import { WRITER_PAGES_NOT_AVAILABLE, memberHasWriterPages } from "@/lib/writer-pages-access";
+import { WRITER_PAGES_NOT_AVAILABLE, WRITER_PAGE_NAME_NEEDED, memberHasWriterPages } from "@/lib/writer-pages-access";
 
 /**
  * Settings > Profile > "Your page on the web" (docs/WRITER_PROFILES.md): the member's own public writer page. Everything
@@ -46,11 +45,13 @@ export interface WriterPageSettings {
   isPublic: boolean;
   /** The pen name chosen, or null for the display name. */
   publicNameAliasId: string | null;
-  showPhoto: boolean;
-  bio: string;
-  /** The display name first, then each pen name they allowed. */
+  /** The separate bio written for the page ("" when there is none: the page then uses their own bio, if its level is the globe). */
+  publicBio: string;
+  /** The page has a name they chose: a display name, or a pen name for the page. Without one the page would show the name on the account. */
+  nameChosen: boolean;
+  /** The display name first (when they have one), then each pen name they allowed. Never the name on the account. */
   nameChoices: WriterPageNameChoice[];
-  /** A photo exists that may be put on a public page. */
+  /** A photo exists that may be put on a public page (a Gravatar picture never is). */
   photoAvailable: boolean;
   /** A handle to start from, made from their display name; "" when none fits. */
   suggestedHandle: string;
@@ -89,17 +90,18 @@ export async function getWriterPageSettings(): Promise<WriterPageSettings | { er
     repos.aliases.namesOf(ctx.memberId),
     memberHasWriterPages(getServiceRepos(), ctx.memberId),
   ]);
-  const displayName = member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : "";
+  // The name on the account is the legal name for many members: it is never offered as the page's name or used to suggest an address.
+  const displayName = member?.displayName?.trim() ?? "";
   return {
     available,
     hasPage: page !== null,
     handle: page?.handle ?? null,
     isPublic: page?.isPublic ?? false,
     publicNameAliasId: page?.publicNameAliasId ?? null,
-    showPhoto: page?.showPhoto ?? false,
-    bio: page?.bio ?? "",
+    publicBio: page?.bio ?? "",
+    nameChosen: Boolean(member?.displayName?.trim()) || (page?.publicNameAliasId ?? null) !== null,
     nameChoices: [
-      { aliasId: null, label: displayName },
+      ...(displayName ? [{ aliasId: null, label: displayName }] : []),
       ...aliases.filter((a) => a.isPublic && a.active && a.source === "member" && a.alias !== displayName).map((a) => ({ aliasId: a.id, label: a.alias })),
     ],
     photoAvailable: publishablePhotoUrl(member?.photoUrl) !== null,
@@ -167,6 +169,12 @@ async function setWriterPageSwitchImpl(isPublic: boolean): Promise<{ success: tr
     if (closed) return closed;
   }
   const repos = createRepos(ctx.supabase);
+  if (isPublic) {
+    // The page needs an address and a name chosen on purpose, so it never goes up under an address or a name nobody picked.
+    const [page, member] = await Promise.all([repos.writerProfiles.ofMember(ctx.memberId), repos.members.byId(ctx.memberId)]);
+    if (!page) return { error: "Choose the address for your page first." };
+    if (!member?.displayName?.trim() && page.publicNameAliasId === null) return { error: WRITER_PAGE_NAME_NEEDED };
+  }
   const updated = await repos.writerProfiles.update(ctx.memberId, { isPublic });
   if (!updated) return { error: "Choose the address for your page first." };
   revalidatePath("/settings", "layout");
@@ -174,7 +182,7 @@ async function setWriterPageSwitchImpl(isPublic: boolean): Promise<{ success: tr
   return { success: true };
 }
 
-async function saveWriterPageDetailsImpl(input: { publicNameAliasId: string | null; showPhoto: boolean; bio: string }): Promise<{ success: true } | { error: string }> {
+async function saveWriterPageDetailsImpl(input: { publicNameAliasId: string | null; bio: string }): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const bio = cleanBio(input.bio);
@@ -183,12 +191,8 @@ async function saveWriterPageDetailsImpl(input: { publicNameAliasId: string | nu
   if (closed) return closed;
 
   const repos = createRepos(ctx.supabase);
-  if (input.showPhoto) {
-    const member = await repos.members.byId(ctx.memberId);
-    if (publishablePhotoUrl(member?.photoUrl) === null) return { error: "There is no photo that can be shown on your page." };
-  }
   try {
-    const updated = await repos.writerProfiles.update(ctx.memberId, { publicNameAliasId: input.publicNameAliasId, showPhoto: input.showPhoto, bio: bio.bio });
+    const updated = await repos.writerProfiles.update(ctx.memberId, { publicNameAliasId: input.publicNameAliasId, bio: bio.bio });
     if (!updated) return { error: "Choose the address for your page first." };
     revalidatePath(writerPagePath(updated.handle));
   } catch (error) {

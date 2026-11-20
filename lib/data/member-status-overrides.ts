@@ -1,5 +1,7 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId } from "./query";
+import { VISIBILITY_COLUMN, defaultProfileVisibilities, type WebItem } from "@/lib/profile-visibility";
+import type { Visibility } from "@/lib/writing-visibility";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -100,6 +102,12 @@ export interface MemberStatusRepository {
   profileOverrides(): Promise<ProfileOverrideRow[]>;
   /** Saves the given fields (and who saved them), keeping the ones not given. Creates the member's row when there is none. */
   saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string | null): Promise<void>;
+
+  // --- who can see each profile item ---
+  /** The level of each web item (bio, photo, Instagram, Facebook, X); community for any the member never changed. */
+  profileVisibilitiesOf(memberId: string): Promise<Record<WebItem, Visibility>>;
+  /** Sets one item's level (and who set it), keeping everything else on the row. Creates the member's row when there is none. */
+  saveProfileVisibility(memberId: string, item: WebItem, level: Visibility, updatedBy: string | null): Promise<void>;
 }
 
 export class SupabaseMemberStatusRepository implements MemberStatusRepository {
@@ -236,6 +244,30 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
     const { error } = await this.db
       .from("member_profile_overrides")
       .upsert({ member_id: memberId, ...fields, updated_by: updatedBy }, { onConflict: "member_id" });
+    if (error) throw new Error(error.message);
+  }
+
+  async profileVisibilitiesOf(memberId: string) {
+    const { data, error } = await this.db
+      .from("member_profile_overrides")
+      .select("bio_visibility, photo_visibility, instagram_visibility, facebook_visibility, twitter_visibility")
+      .eq("member_id", memberId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return {
+      bio: (data?.bio_visibility ?? "community") as Visibility,
+      photo: (data?.photo_visibility ?? "community") as Visibility,
+      instagram: (data?.instagram_visibility ?? "community") as Visibility,
+      facebook: (data?.facebook_visibility ?? "community") as Visibility,
+      x: (data?.twitter_visibility ?? "community") as Visibility,
+    };
+  }
+
+  async saveProfileVisibility(memberId: string, item: WebItem, level: Visibility, updatedBy: string | null) {
+    const column: Partial<Record<(typeof VISIBILITY_COLUMN)[WebItem], Visibility>> = { [VISIBILITY_COLUMN[item]]: level };
+    const { error } = await this.db
+      .from("member_profile_overrides")
+      .upsert({ member_id: memberId, ...column, updated_by: updatedBy }, { onConflict: "member_id" });
     if (error) throw new Error(error.message);
   }
 }
@@ -384,11 +416,35 @@ export class InMemoryMemberStatusRepository implements MemberStatusRepository {
       facebook_url: null,
       twitter_url: null,
       photo_path: null,
+      bio_visibility: "community",
+      photo_visibility: "community",
+      instagram_visibility: "community",
+      facebook_visibility: "community",
+      twitter_visibility: "community",
       created_at: this.now(),
       updated_at: this.now(),
       ...stripUndefined(fields),
       updated_by: updatedBy,
     });
+  }
+
+  async profileVisibilitiesOf(memberId: string) {
+    const row = this.data.memberProfileOverrides.find((p) => p.member_id === memberId);
+    const { bio, photo, instagram, facebook, x } = defaultProfileVisibilities();
+    return {
+      bio: (row?.bio_visibility as Visibility | undefined) ?? bio,
+      photo: (row?.photo_visibility as Visibility | undefined) ?? photo,
+      instagram: (row?.instagram_visibility as Visibility | undefined) ?? instagram,
+      facebook: (row?.facebook_visibility as Visibility | undefined) ?? facebook,
+      x: (row?.twitter_visibility as Visibility | undefined) ?? x,
+    };
+  }
+
+  async saveProfileVisibility(memberId: string, item: WebItem, level: Visibility, updatedBy: string | null) {
+    await this.saveProfileOverride(memberId, {}, updatedBy);
+    const row = this.data.memberProfileOverrides.find((p) => p.member_id === memberId)!;
+    row[VISIBILITY_COLUMN[item]] = level;
+    row.updated_at = this.now();
   }
 }
 

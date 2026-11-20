@@ -113,21 +113,26 @@ export class SupabaseMemberDirectoryRepository implements MemberDirectoryReposit
 export class InMemoryMemberDirectoryRepository implements MemberDirectoryRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
+  /** A member's directory row leaves out each item whose level is private, as the database's `refresh_member_directory` does. */
   private rows(): DirectoryRow[] {
-    return this.data.members.map((m) => ({
+    return this.data.members.map((m) => {
+      const levels = this.data.memberProfileOverrides.find((o) => o.member_id === m.id);
+      const shown = <T>(value: T, level: string | undefined) => (level === "private" ? null : value);
+      return {
       id: m.id,
       name: m.name,
       display_name: m.displayName ?? null,
-      photo_url: m.photoUrl ?? null,
-      bio: m.bio ?? null,
-      instagram_url: m.instagramUrl ?? null,
-      facebook_url: m.facebookUrl ?? null,
-      twitter_url: m.twitterUrl ?? null,
+      photo_url: shown(m.photoUrl ?? null, levels?.photo_visibility),
+      bio: shown(m.bio ?? null, levels?.bio_visibility),
+      instagram_url: shown(m.instagramUrl ?? null, levels?.instagram_visibility),
+      facebook_url: shown(m.facebookUrl ?? null, levels?.facebook_visibility),
+      twitter_url: shown(m.twitterUrl ?? null, levels?.twitter_visibility),
       joined_at: m.joinedAt ?? "2026-01-01T00:00:00Z",
       first_joined_at: m.firstJoinedAt ?? null,
       most_recent_joined_at: m.mostRecentJoinedAt ?? null,
       total_active_months: m.totalActiveMonths ?? 0,
-    }));
+      };
+    });
   }
 
   private byName(rows: DirectoryRow[]) {

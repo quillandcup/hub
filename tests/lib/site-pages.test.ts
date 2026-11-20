@@ -111,7 +111,7 @@ describe("settings sections", () => {
   const ids = new Set([...source.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
 
   /** The tab's own heading, which the tab label already finds. */
-  const TAB_HEADINGS = new Set(["Public Profile", "Notifications", "Feature Previews"]);
+  const TAB_HEADINGS = new Set(["Profile", "Notifications", "Feature Previews"]);
 
   it("anchors every listed section in a panel", () => {
     const gone = SETTINGS_SECTIONS.filter((s) => !ids.has(s.id)).map((s) => s.id);

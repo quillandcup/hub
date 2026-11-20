@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { MemberDirectoryRepository } from "@/lib/data/member-directory";
 
-export type SeedPerson = { key: string; name: string; displayName?: string; bio?: string; photoUrl?: string };
+export type SeedPerson = { key: string; name: string; displayName?: string; bio?: string; photoUrl?: string; instagramUrl?: string };
 
 export type DirectoryContractContext = {
   repo: () => MemberDirectoryRepository;
   /** Replaces the members this context created with these (a member's directory row follows it); returns each one's id by key. */
   seed: (people: SeedPerson[]) => Promise<Record<string, string>>;
+  /** Sets who can see one of a seeded member's items (the directory follows it). */
+  setLevel: (memberId: string, item: "bio" | "photo" | "instagram", level: "private" | "community") => Promise<void>;
   /** Gives a seeded member an alternate name; `active: false` is one switched off. */
   addAlias: (memberId: string, alias: string, active: boolean) => Promise<void>;
   /** A string no other run has used, to keep names unique across a shared database. */
@@ -36,6 +38,23 @@ export function defineMemberDirectoryContract(name: string, setup: () => Directo
       const both = await ctx.repo().byIds([ids.a, ids.b, ids.a, NONE]);
       expect(both.map((m) => m.id).sort()).toEqual([ids.a, ids.b].sort());
       expect(await ctx.repo().byIds([])).toEqual([]);
+    });
+
+    it("leaves out each item a member made private, for everyone, and brings it back when they share it again", async () => {
+      const tag = ctx.unique("Private");
+      const ids = await ctx.seed([{ key: "a", name: `${tag} Ada`, bio: "A private bio", photoUrl: "https://example.test/a.jpg", instagramUrl: "https://instagram.com/ada" }]);
+
+      await ctx.setLevel(ids.a, "bio", "private");
+      await ctx.setLevel(ids.a, "photo", "private");
+      expect(await ctx.repo().byId(ids.a)).toMatchObject({ bio: null, photo_url: null, instagram_url: "https://instagram.com/ada", name: `${tag} Ada` });
+      expect((await ctx.repo().byIds([ids.a]))[0]).toMatchObject({ bio: null, photo_url: null });
+      expect((await ctx.repo().all()).find((m) => m.id === ids.a)).toMatchObject({ bio: null, photo_url: null });
+      // A private bio is not searchable either.
+      expect((await ctx.repo().searchWords([{ text: "private bio", alsoIds: [] }], { offset: 0, limit: 50 })).some((m) => m.id === ids.a)).toBe(false);
+
+      await ctx.setLevel(ids.a, "bio", "community");
+      await ctx.setLevel(ids.a, "photo", "community");
+      expect(await ctx.repo().byId(ids.a)).toMatchObject({ bio: "A private bio", photo_url: "https://example.test/a.jpg" });
     });
 
     it("lists the active alternate names of members in the directory, and none that are switched off", async () => {

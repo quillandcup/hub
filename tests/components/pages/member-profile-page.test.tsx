@@ -332,7 +332,7 @@ describe("member profile page: Writing Progress", () => {
 
 describe("member profile page: Ask me about", () => {
   it("shows the member's topics as chips linking to a directory search", async () => {
-    useFakeSupabase(tables({ member_ask_me_about: { data: { topics: ["cozy mysteries", "querying agents"] } } }));
+    useFakeSupabase(tables({ "rpc:member_ask_me_about_shown": { data: ["cozy mysteries", "querying agents"] } }));
     await renderServerPage(MemberProfilePage, params);
 
     expect(screen.getByRole("heading", { name: "Ask me about…" })).toBeInTheDocument();

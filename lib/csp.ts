@@ -87,9 +87,11 @@ export function generateNonce(): string {
 /**
  * The script and style half of the policy, for one request.
  *
- * - `script-src`: our own files and anything carrying the nonce. `'strict-dynamic'` lets a nonced script load others (the Google
- *   Analytics tag, Vercel's scripts), so no host list has to be kept; browsers that know it ignore `'self'` and the hosts.
- *   Development adds `'unsafe-eval'` (React's debugging needs it; production does not).
+ * - `script-src`: anything carrying the nonce, and what a nonced script loads (`'strict-dynamic'`: our own chunks, the Google
+ *   Analytics tag, Vercel's scripts), so no host list has to be kept. No `'self'`: a browser that knows `'strict-dynamic'`
+ *   ignores `'self'` and every host or scheme source (MDN), so it would do nothing for any browser our members use. A browser
+ *   too old for `'strict-dynamic'` reports our chunks as violations instead, which is how it would show up in Sentry
+ *   (docs/TODO.md, "CSP for scripts and styles"). Development adds `'unsafe-eval'` (React's debugging needs it; production does not).
  * - `style-src`: our own files and nonced `<style>` tags. Style attributes (`style="..."`, many components set one) cannot carry a
  *   nonce, so `style-src-attr` allows them; that is the weaker part, and it cannot run script.
  * - `worker-src`: session replay and Sentry start workers from `blob:` addresses.
@@ -99,7 +101,7 @@ export function generateNonce(): string {
  */
 function scriptStyleDirectives(nonce: string, dev: boolean): string[] {
   return [
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
     "worker-src 'self' blob:",

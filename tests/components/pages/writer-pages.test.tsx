@@ -35,7 +35,8 @@ const GRACE = "mbr_AAAAAAAAAAA2";
 
 async function makePage(handle: string, options: { on?: boolean; bio?: string; photo?: boolean } = {}) {
   await state.repos.writerProfiles.setHandle(ADA, handle, { reserveDays: WRITER_PROFILES.handleReservationDays, now: NOW });
-  await state.repos.writerProfiles.update(ADA, { isPublic: options.on ?? true, bio: options.bio ?? null, showPhoto: options.photo ?? false });
+  await state.repos.writerProfiles.update(ADA, { isPublic: options.on ?? true, bio: options.bio ?? null });
+  if (options.photo) await state.repos.memberStatus.saveProfileVisibility(ADA, "photo", "public", null);
 }
 
 beforeEach(() => {
@@ -66,6 +67,34 @@ describe("/w/[handle]", () => {
     await makePage("ada-example", { photo: true });
     await renderServerPage(WriterPage, params("ada-example"));
     expect(screen.getByRole("img", { name: "Ada Example" })).toHaveAttribute("src", "https://photos.example.com/ada.png");
+  });
+
+  it("shows the member's own bio only at the globe, and the social links the member opened, each over https", async () => {
+    const ada = state.dataset.members.find((m) => m.id === ADA)!;
+    Object.assign(ada, { bio: "My bio.", instagramUrl: "https://instagram.com/ada", facebookUrl: "https://facebook.com/ada", twitterUrl: "http://x.com/ada" });
+    await makePage("ada-example");
+
+    const closed = await renderServerPage(WriterPage, params("ada-example"));
+    expect(screen.queryByText("My bio.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Instagram" })).not.toBeInTheDocument();
+    closed.unmount();
+
+    for (const item of ["bio", "instagram", "x"] as const) await state.repos.memberStatus.saveProfileVisibility(ADA, item, "public", null);
+    await renderServerPage(WriterPage, params("ada-example"));
+    expect(screen.getByText("My bio.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Instagram" })).toHaveAttribute("href", "https://instagram.com/ada");
+    expect(screen.queryByRole("link", { name: "Facebook" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Twitter / X" })).not.toBeInTheDocument();
+  });
+
+  it("lists the opened social links as the person's other profiles in the structured data", async () => {
+    state.dataset.members.find((m) => m.id === ADA)!.instagramUrl = "https://instagram.com/ada";
+    await makePage("ada-example");
+    await state.repos.memberStatus.saveProfileVisibility(ADA, "instagram", "public", null);
+
+    const { container } = await renderServerPage(WriterPage, params("ada-example"));
+
+    expect(JSON.parse(container.querySelector('script[type="application/ld+json"]')!.textContent!).sameAs).toEqual(["https://instagram.com/ada"]);
   });
 
   it("renders a bio as text, never as markup", async () => {
