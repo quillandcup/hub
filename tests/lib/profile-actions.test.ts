@@ -34,6 +34,7 @@ import {
   updateInstagramHandle,
   updateProfileDetails,
   getProfileSettings,
+  getRosterSetting,
   setRosterVisibility,
 } from "@/app/(member)/settings/profileActions";
 import { createClient } from "@/lib/supabase/server";
@@ -534,6 +535,7 @@ describe("getProfileSettings", () => {
       instagramUrl: "https://instagram.com/new_handle",
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       askMeAbout: ["worldbuilding"],
+      visibilities: { bio: "community", photo: "community", instagram: "community", facebook: "community", x: "community", ask_me_about: "community" },
       syncPending: true,
       showInRoster: true,
     });
@@ -614,6 +616,19 @@ describe("roster visibility", () => {
     expect(await getProfileSettings()).toMatchObject({ showInRoster: true });
     setup({ rosterOptedOut: true });
     expect(await getProfileSettings()).toMatchObject({ showInRoster: false });
+  });
+
+  it("reads just this setting for Preferences, without loading the rest of the profile", async () => {
+    setup();
+    expect(await getRosterSetting()).toEqual({ showInRoster: true });
+    setup({ rosterOptedOut: true });
+    expect(await getRosterSetting()).toEqual({ showInRoster: false });
+    expect(service.schema).not.toHaveBeenCalled();
+  });
+
+  it("answers an error, not a guess, for no member record or a failed read", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect(await getRosterSetting()).toEqual({ error: "No member record" });
   });
 
   it("opting out records it for the effective member, once", async () => {

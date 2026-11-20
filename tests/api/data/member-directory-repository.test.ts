@@ -1,6 +1,7 @@
 import { afterAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseMemberDirectoryRepository } from "@/lib/data/member-directory";
+import { SupabaseMemberStatusRepository } from "@/lib/data/member-status-overrides";
 import { defineMemberDirectoryContract } from "@/tests/helpers/member-directory-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
@@ -20,6 +21,9 @@ afterAll(clear);
 
 defineMemberDirectoryContract("SupabaseMemberDirectoryRepository", () => ({
   repo: () => new SupabaseMemberDirectoryRepository(db),
+  setLevel: async (memberId, item, level) => {
+    await new SupabaseMemberStatusRepository(db).saveProfileVisibility(memberId, item, level, null);
+  },
   addAlias: async (memberId, alias, active) => {
     const { error } = await db.from("member_name_aliases").insert({ member_id: memberId, alias, source: "zoom", active });
     if (error) throw new Error(error.message);
@@ -36,6 +40,7 @@ defineMemberDirectoryContract("SupabaseMemberDirectoryRepository", () => ({
           display_name: p.displayName ?? null,
           bio: p.bio ?? null,
           photo_url: p.photoUrl ?? null,
+          instagram_url: p.instagramUrl ?? null,
           email: `directory-${RUN}-${++counter}@example.com`,
           joined_at: "2026-01-01",
           status: "active",

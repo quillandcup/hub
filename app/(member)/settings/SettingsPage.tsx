@@ -12,6 +12,7 @@ import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
 import { MilestonesPanel } from "./MilestonesPanel";
+import { WhosComingSetting } from "./WhosComingSetting";
 import { PreviewsPanel } from "./PreviewsPanel";
 import BlockedPreviewsList from "@/components/chat/BlockedPreviewsList";
 import { NotificationsPanel } from "./NotificationsPanel";
@@ -166,6 +167,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     <AnimationsSwitcher />
                     <TimezoneSwitcher initialTimezone={timezonePreference} />
                     <SecondaryTimezoneSwitcher initialTimezone={profile?.secondary_timezone ?? null} />
+                    <WhosComingSetting />
                     {blockedPreviews && (
                       <div>
                         <h2 id="link-previews" className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">

@@ -17,9 +17,13 @@ export function visibilityRank(visibility: Visibility): number {
   return VISIBILITIES.indexOf(visibility);
 }
 
-/** The level one click moves to: private, community, public, then back to private. */
-export function nextVisibility(visibility: Visibility): Visibility {
-  return VISIBILITIES[(visibilityRank(visibility) + 1) % VISIBILITIES.length];
+/**
+ * The level one click moves to: private, community, public, then back to private. With `levels` (a profile item that has no
+ * globe), the cycle is only those, in the same order; a level outside them moves to the first.
+ */
+export function nextVisibility(visibility: Visibility, levels: readonly Visibility[] = VISIBILITIES): Visibility {
+  const at = levels.indexOf(visibility);
+  return levels[(at + 1) % levels.length];
 }
 
 /** Whether other members can see it (the old "on my profile" flag). */
