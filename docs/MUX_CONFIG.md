@@ -1,6 +1,6 @@
 # Mux configuration as code
 
-`mux-config.yml` is the source of truth for the Mux settings its API can manage: the webhook that tells the Hub a course video is ready, and the playback restriction (which sites may play a signed video). `scripts/mux-config.ts` compares it with the live Mux environment (`diff`, read-only) and applies it (`push`). Unlike the Slack, Supabase and Vercel configs, **CI never pushes this one**: the webhook's signing secret is shown once and has to land in `.env.prod`, so the operator runs it.
+`config/mux-config.yml` is the source of truth for the Mux settings its API can manage: the webhook that tells the Hub a course video is ready, and the playback restriction (which sites may play a signed video). `scripts/mux-config.ts` compares it with the live Mux environment (`diff`, read-only) and applies it (`push`). Unlike the Slack, Supabase and Vercel configs, **CI never pushes this one**: the webhook's signing secret is shown once and has to land in `.env.prod`, so the operator runs it.
 
 The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `app.config.ts`). The logic that builds the desired state and compares it is `lib/mux-config.ts` (unit-tested); the script only does the HTTP calls.
 
@@ -53,7 +53,7 @@ It is configuration, not a secret. `pnpm mux:config:diff` prints it on the "play
 
 ## The Local Dev environment
 
-Preview deployments and local development use a different Mux environment with its own keys, so they need their own restriction. The `:dev` scripts manage the restriction too (they read `.env.local`, whose `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET` are that environment's): `pnpm mux:config:diff:dev`, then `pnpm mux:config:push:dev` creates it (the webhook part needs `TUNNEL_DOMAIN` and a System token and is independent of this). The dev restriction uses the same domain list from `mux-config.yml`. Then set the printed id as `MUX_PLAYBACK_RESTRICTION_ID` in `.env.local` and `.env.preview`.
+Preview deployments and local development use a different Mux environment with its own keys, so they need their own restriction. The `:dev` scripts manage the restriction too (they read `.env.local`, whose `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET` are that environment's): `pnpm mux:config:diff:dev`, then `pnpm mux:config:push:dev` creates it (the webhook part needs `TUNNEL_DOMAIN` and a System token and is independent of this). The dev restriction uses the same domain list from `config/mux-config.yml`. Then set the printed id as `MUX_PLAYBACK_RESTRICTION_ID` in `.env.local` and `.env.preview`.
 
 ## Day to day
 
@@ -62,7 +62,7 @@ pnpm mux:config:diff    # read-only: what a push would change
 pnpm mux:config:push    # apply it (production Mux environment, from .env.prod)
 ```
 
-Before changing `mux-config.yml`, run the diff and check it shows only what you intend. Without `MUX_SYSTEM_TOKEN_ID` / `MUX_SYSTEM_TOKEN_SECRET` the webhook part says "not checked" and only the restriction is compared (with the app token, `MUX_TOKEN_ID`).
+Before changing `config/mux-config.yml`, run the diff and check it shows only what you intend. Without `MUX_SYSTEM_TOKEN_ID` / `MUX_SYSTEM_TOKEN_SECRET` the webhook part says "not checked" and only the restriction is compared (with the app token, `MUX_TOKEN_ID`).
 
 ## Tokens
 

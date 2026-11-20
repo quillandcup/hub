@@ -31,10 +31,10 @@ const restriction = (domains: string[], noRef = true, id = "r1"): LiveRestrictio
   referrer: { allowed_domains: domains, allow_no_referrer: noRef },
 });
 
-describe("mux-config.yml", () => {
+describe("config/mux-config.yml", () => {
   it("parses the committed file against the real app host", () => {
     const parsed = parseMuxConfig(
-      parseYaml(readFileSync("mux-config.yml", "utf8")),
+      parseYaml(readFileSync("config/mux-config.yml", "utf8")),
       new URL(appConfig.appUrl).host,
     );
     expect(parsed.webhookPath).toBe("/api/webhooks/mux");

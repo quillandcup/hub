@@ -8,10 +8,12 @@ on:
     types: [closed]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   cleanup:
+    permissions:
+      contents: write # pushes the removal to the help-previews branch
     name: Remove the PR's screenshots
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04

@@ -26,8 +26,8 @@ export type Theme = "light" | "dark";
 // The library formats the message time in this process's zone; pin it to the org's so "10:42" is 10:42 everywhere.
 process.env.TZ = appConfig.orgTimezone;
 
-const BOT_NAME = (readFileSync("slack-app-manifest.yml", "utf8").match(/^\s*display_name:\s*(.+)$/m)?.[1] ?? appConfig.appName).trim();
-const BOT_COLOR = (readFileSync("slack-app-manifest.yml", "utf8").match(/^\s*background_color:\s*"?(#[0-9a-fA-F]{6})"?/m)?.[1] ?? "#4A154B");
+const BOT_NAME = (readFileSync("config/slack-app-manifest.yml", "utf8").match(/^\s*display_name:\s*(.+)$/m)?.[1] ?? appConfig.appName).trim();
+const BOT_COLOR = (readFileSync("config/slack-app-manifest.yml", "utf8").match(/^\s*background_color:\s*"?(#[0-9a-fA-F]{6})"?/m)?.[1] ?? "#4A154B");
 // The bot's avatar as Slack shows an app without an uploaded icon: its initial on its brand colour.
 const BOT_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" rx="10" fill="${BOT_COLOR}"/><text x="36" y="50" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="700" text-anchor="middle" fill="#fff">${BOT_NAME.slice(0, 1)}</text></svg>`)}`;
 const SLACK_CSS = readFileSync(path.join(process.cwd(), "node_modules", "slack-blocks-to-jsx", "dist", "style.css"), "utf8");

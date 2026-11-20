@@ -1,5 +1,5 @@
 #!/usr/bin/env npx tsx
-// Diffs or pushes sentry-config.yml against the live Sentry organization, so the data-scrubbing settings are
+// Diffs or pushes config/sentry-config.yml against the live Sentry organization, so the data-scrubbing settings are
 // reviewed in git instead of clicked in the dashboard. CI runs `push` after every production deploy that changed
 // the file or this script (ci.yml, push-sentry-config job); `pnpm sentry:config:diff` is the read-only preview.
 //
@@ -17,7 +17,7 @@ import appConfig from "../app.config";
 import { orgSettingsBody, parseSentryConfig, planOrgSettings, type OrgSettingChange } from "../lib/sentry-config";
 import { outboundFetch } from "@/lib/http/outbound";
 
-const CONFIG_FILE = "sentry-config.yml";
+const CONFIG_FILE = "config/sentry-config.yml";
 
 function fail(message: string): never {
   console.error(`✗ ${message}`);

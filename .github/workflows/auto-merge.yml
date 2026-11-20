@@ -2,7 +2,7 @@ name: Auto-merge
 
 # Turns on GitHub's native auto-merge for every new pull request, so it merges
 # by itself once the required checks on main (Test (unit), Test (db) & build,
-# Coverage report; see github-repo-config.yml) pass. It never merges anything
+# Coverage report; see config/github-repo-config.yml) pass. It never merges anything
 # early: with a required check failing or pending, the PR just waits.
 #
 # Runs when the PR is opened, reopened or marked ready for review, and on every push
@@ -30,11 +30,13 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   auto-merge:
+    permissions:
+      contents: write
+      pull-requests: write
     if: |
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -43,7 +45,7 @@ jobs:
       - name: Fetch Dependabot metadata
         id: metadata
         if: github.actor == 'dependabot[bot]'
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 

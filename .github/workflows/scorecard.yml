@@ -13,7 +13,7 @@ on:
     branches: [main]
     paths:
       - .github/**
-      - github-repo-config.yml
+      - config/github-repo-config.yml
   workflow_dispatch:
 
 permissions: read-all
@@ -29,17 +29,17 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - uses: ossf/scorecard-action@v2.6.0
+      - uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5 # v2.6.0
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
 
-      - uses: github/codeql-action/upload-sarif@v4
+      - uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4
         with:
           sarif_file: results.sarif
           category: scorecard
