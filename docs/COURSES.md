@@ -584,7 +584,7 @@ All done as of 2026-10-28:
 
 - [x] Mux keys in `.env.preview` too, and the Mux variables synced to Vercel (Preview and Production).
 - [x] The env var PR (#102) merged and `pnpm env:sync` run.
-- [x] The production Mux webhook for `/api/webhooks/mux` (production logs show its POSTs answering 200). Now declared in `config/mux-config.yml` (`pnpm mux:config:diff`; `docs/MUX_CONFIG.md`).
+- [x] The production Mux webhook for `/api/webhooks/mux` (production logs show its POSTs answering 200). Now declared in `config/mux.yml` (`pnpm mux:config:diff`; `docs/MUX_CONFIG.md`).
 - [ ] Create the playback restriction (`pnpm mux:config:push`) and the Mux "checks" environment's test asset for the nightly check (`docs/MUX_CONFIG.md`); neither blocks launch.
 - [x] A separate migration token (`MUX_MIGRATION_TOKEN_ID`/`MUX_MIGRATION_TOKEN_SECRET` in `.env.prod`); revoke it after launch.
 - [x] Billing alerts in Mux (above $10, $25 and $75).
