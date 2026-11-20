@@ -508,11 +508,8 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
   const quoted = name ? ` “${name}”` : "";
   const text = (change: FieldChange | undefined) => (typeof change?.old === "string" && change.old ? ` “${formatValue(change.old)}”` : "");
   const isTemplate = row.entity_type === "landing_page_template";
-  // The first templates were their own table (name, current_version, last_save_kind); their entries read as before until that table is removed.
-  const oldTemplate = isTemplate && ("name" in fields || "current_version" in fields || "description" in fields);
-  if ((row.entity_type === "landing_page" || isTemplate) && !oldTemplate) {
+  if (row.entity_type === "landing_page" || isTemplate) {
     const noun = isTemplate ? "template" : "page";
-    const kept = isTemplate ? "template" : "page";
     if (row.event_type === "insert") return `created the ${noun}${quoted}`;
     if (row.event_type === "delete") return `deleted the ${noun}${quoted}`;
     if (row.event_type !== "update") return null;
@@ -520,27 +517,12 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
     if (fields.status?.new === "published" || (fields.published_at?.new && fields.status?.new !== "draft")) return `published the ${noun}${quoted}`;
     if (fields.status?.new === "draft") return `took the ${noun}${quoted} down`;
     if (fields.restored_at?.new) return `brought back an earlier version of the ${noun}${quoted} into its draft`;
-    if (fields.starter_applied_at?.new) return `replaced the draft of the ${kept}${quoted} with a starter, a template or an imported file`;
+    if (fields.starter_applied_at?.new) return `replaced the draft of the ${noun}${quoted} with a starter, a template or an imported file`;
     if (fields.imported_at?.new) return `imported a Kajabi page into the draft of${quoted || " a page"}`;
     if (fields.title) return `renamed the ${noun}${text(fields.title)} to “${formatValue(fields.title.new)}”`;
     if (fields.slug) return `changed the address of the ${noun}${quoted}`;
     if (fields.seo_title || fields.seo_description || fields.social_image_asset_id) return `changed the search and sharing details of the ${noun}${quoted}`;
     return null;
-  }
-  if (isTemplate) {
-    if (row.event_type === "insert") return `saved${quoted || " a page"} as a new template`;
-    if (row.event_type === "delete") return `deleted the template${quoted}`;
-    if (row.event_type !== "update") return null;
-    if (fields.deleted_at?.new && !fields.deleted_at.old) return `deleted the template${quoted}`;
-    const version = fields.current_version?.new;
-    if (version) {
-      const from = fields.last_restored_from_version?.new;
-      return fields.last_save_kind?.new === "restored"
-        ? `brought back ${from ? `version ${formatValue(from)}` : "an earlier version"} of the template${quoted} as version ${formatValue(version)}`
-        : `saved version ${formatValue(version)} of the template${quoted}`;
-    }
-    if (fields.name) return `renamed the template${text(fields.name)} to “${formatValue(fields.name.new)}”`;
-    if (fields.description) return `changed the description of the template${quoted}`;
   }
   return null;
 }

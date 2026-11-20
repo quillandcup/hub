@@ -126,7 +126,7 @@ uniqueness against Tier 1.
 | `slack_channels` | `slch_` | `zoom_meetings` | `zmtg_` |
 | `slack_messages` | `slmsg_` | `zoom_participant_events` | `zmpev_` |
 
-Tables added after this list was made record their prefix in the table comment (`[id prefix: xxx_]`) and take the next free one: the page builder's `landing_pages` `lpg_`, `landing_page_versions` `lpgv_`, `landing_page_templates` `lpgt_` and `landing_page_template_versions` `lpgtv_` (all Tier 2: never in a URL).
+Tables added after this list was made record their prefix in the table comment (`[id prefix: xxx_]`) and take the next free one: the page builder's `landing_pages` `lpg_`, `landing_page_versions` `lpgv_`. They are Tier 2: never in a URL. (`lpgt_` and `lpgtv_` were used briefly by snapshot-template tables that were dropped; templates are pages of kind template.)
 
 Not in the list: tables keyed by something other than a server-generated uuid (see "Ids we
 don't generate"). Tier 2 ids
