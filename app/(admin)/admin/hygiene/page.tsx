@@ -14,6 +14,7 @@ import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
+import { findMembersWithDisposableEmail } from "@/lib/disposable-email-members";
 import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { formatDateInZone } from "@/lib/formatters";
@@ -285,12 +286,17 @@ export default async function DataHygienePage() {
     kajabiContactsForConflicts,
     stripeCustomersForConflicts,
     slackUsersForConflicts,
+    activeEmailAliases,
   ] = await Promise.all([
     createRepos(supabase).aliases.emailAliases(),
     createRepos(supabase).billing.kajabiContacts(),
     createRepos(supabase).billing.stripeCustomers(),
     createRepos(supabase).slackUsers.list({ excludeSlackbot: true, excludeBots: true }),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
   ]);
+
+  // Temporary-mail addresses: same check as /admin/hygiene/temporary-emails (active members; primary email or alias)
+  const temporaryEmailCount = findMembersWithDisposableEmail(membersForDuplicates, activeEmailAliases ?? []).length;
 
   const conflictsAliasMap = buildAliasMap(emailAliasesForConflicts ?? []);
   const totalConflicts =
@@ -900,6 +906,35 @@ export default async function DataHygienePage() {
               <p className="text-xs text-plum-600 dark:text-plum-400 mt-2">
                 View all aliases →
               </p>
+            </Link>
+
+            {/* Temporary Emails */}
+            <Link
+              href="/admin/hygiene/temporary-emails"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Temporary Emails
+                </h3>
+                <span className="text-2xl">📭</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {temporaryEmailCount}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                active member{temporaryEmailCount !== 1 ? "s" : ""} with a temporary-mail address
+              </p>
+              {temporaryEmailCount > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  Review addresses →
+                </p>
+              )}
+              {temporaryEmailCount === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  None found ✓
+                </p>
+              )}
             </Link>
           </div>
           </div>

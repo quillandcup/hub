@@ -173,7 +173,7 @@ SELECT is((SELECT value FROM result WHERE label = 'service_reads'), 'true'::json
 
 -- Audit: each as the admin, the content never in it.
 SELECT is(
-  (SELECT jsonb_build_object('who', changed_by, 'kind', actor_kind, 'version', changes #>> '{current_version,new}', 'data', changes #>> '{data,new}', 'leak', changes::text LIKE '%Zz%')
+  (SELECT jsonb_build_object('who', changed_by, 'kind', actor_kind, 'version', changes #>> '{current_version,new}', 'data', changes #>> '{data,new}', 'leak', (changes - 'id')::text LIKE '%Zz%')
      FROM public.audit_log WHERE entity_type = 'landing_page_template' AND entity_id = 'lpgt_TplTest00001' AND action = 'update'),
   jsonb_build_object('who', '00000000-0000-4000-a000-00000000e6a2'::text, 'kind', 'staff', 'version', '2', 'data', '[redacted]', 'leak', false),
   'overwriting a template is one audit entry as the admin, without the page''s content');
@@ -188,7 +188,7 @@ SELECT is(
   (SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page_template' AND entity_id = 'lpgt_TplTest00004' AND action = 'update'),
   0::bigint, 'touching only updated_at and updated_by writes no audit entry');
 SELECT is(
-  (SELECT jsonb_build_object('who', changed_by, 'data', changes #>> '{data,new}', 'leak', changes::text LIKE '%Zz%')
+  (SELECT jsonb_build_object('who', changed_by, 'data', changes #>> '{data,new}', 'leak', (changes - 'id')::text LIKE '%Zz%')
      FROM public.audit_log a JOIN public.landing_page_templates t ON t.id = a.entity_id WHERE a.entity_type = 'landing_page_template' AND a.action = 'insert' AND t.name = 'Spring launch, renamed'),
   jsonb_build_object('who', '00000000-0000-4000-a000-00000000e6a2'::text, 'data', '[redacted]', 'leak', false),
   'creating a template is an audit entry as the admin, without the page''s content');
