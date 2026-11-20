@@ -60,6 +60,11 @@ active (on hiatus counts as not active), and unban when they become active again
 `/api/process/members` and `recomputeMemberStatus`, plus a periodic sweep as the safety net.
 Never ban staff or admins.
 
+### What may leads, former members and members on hiatus do? _(Needs Scheduling)_
+- **What is missing:** no written rule for what each non-active status can see or do. Today the working assumption is that anyone who is not active cannot sign in or see anything (see the access sync entry above, where hiatus counts as not active). Questions to settle per status (lead, on hiatus, cancelled/former, course-only): sign in at all; read-only access to their own writing, profile and certificates; whether their public writer profile and Finisher entries stay up after they leave (and whether they can still edit them); whether they can still be listed on the Bookshelf; export of their own data.
+- **Why deferred:** needs the owner's decision, and the answer changes the sign-in ban (access sync), the public writer profile (see "Writer profiles") and the retention work for former members.
+- **Where to start:** `app/(member)/layout.tsx`, `lib/auth-provisioning.ts`, `MemberStatusRepository`; write the decision table in `docs/` and link it from the entries above.
+
 ### Rename `members` to `contacts` _(Needs Scheduling)_
 The `members` table holds everyone (leads, active, on hiatus, cancelled), so "member" is
 the wrong word for most of its rows. Its ids are being converted to short prefixed text ids
@@ -1824,6 +1829,24 @@ Decisions so far:
 - **Plan:** two PRs: (1) columns, settings form, docs; (2) reveal, access log, notification, alert. Tests: pgTAP for the columns and log table, server-action tests for refusal (non-host, not attending), log, notification and alert, and an analytics event with no property that could hold the values.
 
 **Priority:** Not a priority; pick up when scheduled.
+
+### Writer profiles: public author pages, Finishers, three-level visibility _(Needs Scheduling)_
+One home on the web for each writer, opt-in, indexed by search engines, with the writer choosing what shows. Split into packages, each its own PR and brief; this entry holds the decisions so each brief can point here.
+
+**Decided (owner, 2026-11-19)**
+- **Visibility** has three levels, one click-cycle control: lock (private), house or hedgehog (inside Quill & Cup, signed-in members), globe (open to the internet). Today `components/writing/VisibilityToggles.tsx` is a single click between two states (`show_on_profile` boolean on projects and goals; goals follow their project). The new control replaces it.
+- **Books and awards** are public by default, no per-item switch for now (revisit if a member asks). They still show publicly only if the author turned their public profile on.
+- **Profile is opt-in as a whole**, and **indexed** (no noindex): it is the writer's home on the web. Needs a sitemap, canonical URL, social card and structured data for a person.
+- **Name:** the display name by default; the writer should be nudged to pick from their pen names (`member_name_aliases` gets `is_public`, see "Public Pen Names"). Each book shows its own pen name.
+- **Handle:** a chosen handle in the URL that members can change, so a handle needs history: the old URL redirects, old handles stay reserved for a while, and reserved words are refused.
+- **Finishers** are people who wrote THE END. The staff can add them too, hidden until the member confirms; backfill as much as possible, starting from published books (a published book implies at least one THE END).
+- **Templates:** extend the versioned page template system another session is building (saving, overwriting, versions) with a gallery of 5 to 10 starters for writer profiles. Check its branch before starting so the two do not collide.
+- **Fact thresholds** ("only above 150 prickles", "2+ years") are rules for the schedule panel's claims about a host, not controls for authors. On their own page, authors show what they choose; share one fact formatter with a `minToShow` option the panel sets and the profile does not.
+- **Lapsed members** cannot sign in, so their profile's fate is part of "What may leads, former members and members on hiatus do?".
+
+**Packages (order)**: (1) three-level visibility, migrating the boolean (backfill `true` to the house level, which is today's real behavior; clamp a goal to its project; expand then contract), with pgTAP; (2) public profile foundation: opt-in switch in Settings → Profile, handle, public read through the service role, preview as visitor; (3) profile facts (the ten formats, one fact kind per ticked box); (4) Finishers record: two milestones, date, photo, before/after story, consent per use (profile, homepage, testimonial), self-report, staff backfill, a public Finishers page, homepage live data; the trigger is the project's stage change (below); (5) public Bookshelf; (6) a profile block set for the page editor, member-authored, with a security review; (7) the template gallery.
+
+**Finishers and the project stage:** the project Status list (Planning, Outlining, Drafting, First read-through, Revising, Developmental edit, Beta readers, Line & copy edit, Final read-through, Final beta read, Publishing, Complete, Hibernating) is the natural trigger, like Publish collecting more data. Moving a project from Drafting to anything after it asks "Did you write THE END?" (date, photo, story); reaching Publishing or Complete asks for the second milestone and the book entry. **Open, to brainstorm:** the name of the second milestone (the first is THE END), and whether Hibernating or going back a stage cancels or only pauses a Finisher record. **Verify first:** the migration that created `writing_projects.phase` allows only planning, drafting, revising, on_hold, complete and abandoned, while the app shows the longer list above; read `lib/writing-projects.ts` and later migrations before relying on either.
 
 ---
 
