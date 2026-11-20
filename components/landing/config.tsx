@@ -179,8 +179,11 @@ export const BLOCK_DEFAULTS = {
   FinishLineCards: { items: [{ title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" }] },
   PlanPhases: { heading: "What the first weeks look like", items: [{ title: "Weeks 1 to 4", text: "What happens." }, { title: "Weeks 5 to 8", text: "What happens next." }] },
   JourneyMap: {
-    stages: [{ name: "Idea", helps: "Membership", current: false }, { name: "Drafting", helps: "A program", current: false }, { name: "Revising", helps: "A course", current: true }],
-    offer: { status: "open", statusLabel: "", title: "", text: "", buttonLabel: "", href: "" },
+    stages: [
+      { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
+      { name: "Drafting", helps: "A program", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "A program", text: "", buttonLabel: "", href: "" }] },
+      { name: "Revising", helps: "A course", current: true, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "A course", text: "", buttonLabel: "", href: "" }] },
+    ],
     compare: { label: "", href: "" },
   },
   ComingUp: { heading: "Coming up", source: "live", kinds: ["in_person_retreat", "virtual_retreat", "workshop"], max: 4, more: { label: "", href: "" }, items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }] },

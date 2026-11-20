@@ -23,7 +23,7 @@ const old = () => ({
 });
 
 describe("landing data migrations", () => {
-  it("has no steps yet, so the current version is 0 and unmarked data stays as it is", () => {
+  it("stamps the current version and leaves content with nothing to migrate as it is", () => {
     expect(LANDING_SCHEMA_VERSION).toBe(LANDING_MIGRATIONS.length);
     const data = { content: [{ type: "Heading", props: { text: "Hi" } }], root: {} };
     expect(normalizeLandingData(data)).toEqual({ ...data, schemaVersion: LANDING_SCHEMA_VERSION });
@@ -79,5 +79,61 @@ describe("landing data migrations", () => {
   it("stamps what the editor sends as current, and passes non-objects through", () => {
     expect(stampLandingVersion({ content: [], root: {} })).toEqual({ content: [], root: {}, schemaVersion: LANDING_SCHEMA_VERSION });
     expect(stampLandingVersion(null)).toBeNull();
+  });
+});
+
+describe("the Journey map step (one offer under the stepper becomes a stage's offers)", () => {
+  const offer = { status: "waitlist", statusLabel: "", title: "Academy", text: "About it", buttonLabel: "See Academy", href: "/academy" };
+  const stage = (name: string, current = false) => ({ name, helps: "", current });
+  const map = (props: Record<string, unknown>) => ({ type: "JourneyMap", props: { id: "j", compare: { label: "Compare", href: "/compare" }, ...props } });
+  const run = (...content: unknown[]) => migrateLandingData({ root: {}, content }, LANDING_MIGRATIONS) as any;
+
+  it("moves the offer to the stage marked current, keeps the compare link and drops the old prop", () => {
+    const out = run(map({ stages: [stage("Idea"), stage("Revising", true), stage("Sharing")], offer }));
+    const props = out.content[0].props;
+    expect(props.offer).toBeUndefined();
+    expect(props.compare).toEqual({ label: "Compare", href: "/compare" });
+    expect(props.stages.map((s: any) => s.offers?.length ?? 0)).toEqual([0, 1, 0]);
+    expect(props.stages[1].offers[0]).toEqual(offer);
+    expect(out.schemaVersion).toBe(LANDING_SCHEMA_VERSION);
+  });
+
+  it("uses the first named stage when none is current, and puts the offer before offers the stage already has", () => {
+    const out = run(map({ stages: [stage(""), { ...stage("Idea"), offers: [{ title: "Existing" }] }, stage("Drafting")], offer }));
+    const stages = out.content[0].props.stages;
+    expect(stages[0].offers).toBeUndefined();
+    expect(stages[1].offers.map((o: any) => o.title)).toEqual(["Academy", "Existing"]);
+  });
+
+  it("drops an empty offer, and keeps the stages when there is nowhere to put it", () => {
+    const empty = { status: "open", statusLabel: "", title: "", text: "", buttonLabel: "", href: "" };
+    expect(run(map({ stages: [stage("Idea", true)], offer: empty })).content[0].props).toEqual({ id: "j", compare: { label: "Compare", href: "/compare" }, stages: [stage("Idea", true)] });
+    expect(run(map({ stages: [], offer })).content[0].props.stages).toEqual([]);
+    expect(run(map({ offer })).content[0].props.offer).toBeUndefined();
+  });
+
+  it("is idempotent, and leaves a block that has no offer prop alone", () => {
+    const once = run(map({ stages: [stage("Idea", true)], offer }));
+    expect(migrateLandingData({ ...once }, LANDING_MIGRATIONS)).toEqual(once);
+    // Even forced through the step again (a document marked 0), nothing more changes.
+    const again = migrateLandingData({ ...once, schemaVersion: 0 }, LANDING_MIGRATIONS) as any;
+    expect(again.content).toEqual(once.content);
+    const fresh = { stages: [{ ...stage("Idea", true), offers: [offer] }], compare: {} };
+    expect(run(map(fresh)).content[0].props).toEqual({ id: "j", ...fresh });
+  });
+
+  it("migrates blocks inside a Section, in Columns and in zones", () => {
+    const block = () => map({ stages: [stage("Idea", true)], offer });
+    const out = run({ type: "Section", props: { id: "s", content: [block()] } }, { type: "Columns", props: { id: "c", col1: [block()], col2: [] } });
+    expect(out.content[0].props.content[0].props.stages[0].offers).toEqual([offer]);
+    expect(out.content[1].props.col1[0].props.stages[0].offers).toEqual([offer]);
+    const zoned = migrateLandingData({ root: {}, content: [], zones: { "x:slot": [block()] } }, LANDING_MIGRATIONS) as any;
+    expect(zoned.zones["x:slot"][0].props.stages[0].offers).toEqual([offer]);
+  });
+
+  it("normalizes a stored page on read, as the editor and the public page do", () => {
+    const out = normalizeLandingData({ content: [map({ stages: [stage("Idea", true)], offer })], root: {} }) as any;
+    expect(out.content[0].props.stages[0].offers).toEqual([offer]);
+    expect(out.schemaVersion).toBe(LANDING_MIGRATIONS.length);
   });
 });

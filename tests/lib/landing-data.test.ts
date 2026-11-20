@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { checkLandingPage } from "@/lib/landing/a11y";
 import { collectAssetIds, cleanLinks, normalizeLandingData, parseEmbed, safeHref } from "@/lib/landing/data";
+import { LANDING_SCHEMA_VERSION } from "@/lib/landing/migrations";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
 import { isLandingPageId, isValidSlug, slugify } from "@/lib/landing/slug";
 
@@ -76,8 +77,8 @@ describe("sanitizing", () => {
     const clean = sanitizeLandingData({ content: [{ type: "RichText", props: { html: "<p>ok</p><script>x</script>" } }, { type: "Button", props: { href: "javascript:x" } }] });
     expect(JSON.stringify(clean)).not.toMatch(/script|javascript/);
     expect(clean.root).toEqual({});
-    expect(normalizeLandingData(null)).toEqual({ content: [], root: {}, schemaVersion: 0 });
-    expect(normalizeLandingData([1])).toEqual({ content: [], root: {}, schemaVersion: 0 });
+    expect(normalizeLandingData(null)).toEqual({ content: [], root: {}, schemaVersion: LANDING_SCHEMA_VERSION });
+    expect(normalizeLandingData([1])).toEqual({ content: [], root: {}, schemaVersion: LANDING_SCHEMA_VERSION });
   });
 });
 

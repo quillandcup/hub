@@ -12,10 +12,12 @@ vi.hoisted(() => {
 });
 
 import { readFileSync } from "node:fs";
-import { cleanup, render, screen, act } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { AnnouncementStrip, ComingUp, FinishLineCards, FinisherCards, JourneyMap, OutcomeNumbers, PlanPhases, SchedulePanel, Timeline, WeekStrip } from "@/components/landing/homepage-blocks";
 import { Button, CardGrid, CtaBanner, Divider, Faq, Heading, Hero, Image, LinkList, List, RichText, Section, Spacer, Split, Stats, Steps, Testimonials, Video } from "@/components/landing/blocks";
 import { BLOCK_DEFAULTS, PageFrame } from "@/components/landing/config";
+import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage } from "@/lib/landing/a11y";
 import Countdown from "@/components/landing/Countdown";
 import LandingRender from "@/components/landing/LandingRender";
@@ -690,39 +692,128 @@ describe("FinishLineCards and PlanPhases", () => {
 });
 
 describe("JourneyMap and ComingUp", () => {
+  const o = (title: string, extra: Record<string, unknown> = {}) => ({ status: "open" as const, statusLabel: "", title, text: `About ${title}`, buttonLabel: `See ${title}`, href: `/${title.toLowerCase().replace(/\W+/g, "-")}`, ...extra });
   const stages = [
-    { name: "Idea", helps: "Membership", current: false },
-    { name: "Revising", helps: "Self-Editing Academy", current: true },
-    { name: "", helps: "skipped", current: false },
+    { name: "Idea", helps: "Membership", current: false, offers: [o("Membership")] },
+    { name: "Drafting", helps: "Two programs", current: false, offers: [o("Ready Writer", { status: "waitlist" }), o("The 180")] },
+    { name: "Revising", helps: "Self-Editing Academy", current: true, offers: [o("Academy")] },
+    { name: "", helps: "skipped", current: false, offers: [o("Skipped")] },
+    { name: "Published", helps: "", current: false, note: "Celebrate with the Finishers", link: { label: "Meet them", href: "/finishers" }, offers: [] },
   ];
-  const offer = { status: "waitlist" as const, statusLabel: "", title: "Self-Editing Academy", text: "[One-line description.]", buttonLabel: "See the Academy", href: "/academy" };
-  const noOffer = { status: "open" as const, statusLabel: "", title: "", text: "", buttonLabel: "", href: "" };
+  const compare = { label: "Compare all programs", href: "/compare" };
+  const panels = () => screen.getAllByRole("tabpanel", { hidden: true });
+  const tabs = () => screen.getAllByRole("tab");
 
-  it("lays the stages out as a stepper that stacks on a narrow page, marks the current one and shows the offer with its compare link", () => {
-    const { container } = render(<JourneyMap stages={stages} offer={offer} compare={{ label: "Compare all programs", href: "/compare" }} />);
-    const steps = container.querySelectorAll("ol > li");
-    expect(steps).toHaveLength(2);
-    expect(container.querySelector("ol")!.className).toContain("flex-col");
-    expect(container.querySelector("ol")!.className).toContain("@cards:flex-row");
-    expect(steps[1]).toHaveAttribute("aria-current", "step");
-    expect(steps[1].className).toContain("text-white");
-    expect(steps[0].className).toContain("text-ink");
-    expect(screen.getByText("Waitlist").className).toContain("bg-gold");
-    expect(screen.getByRole("heading", { level: 3, name: "Self-Editing Academy" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "See the Academy" })).toHaveAttribute("href", "/academy");
+  it("puts every stage's panel in the server's HTML, with the current stage first on show and no script needed", () => {
+    const html = renderToString(<JourneyMap stages={stages} compare={compare} />);
+    for (const text of ["About Membership", "About Ready Writer", "About The 180", "About Academy", "Celebrate with the Finishers"]) expect(html).toContain(text);
+    expect(html).not.toContain("Skipped");
+    // Before the browser has hydrated it is the plain stepper (the current stage marked) with each panel under its stage's name, and no dead buttons.
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain('role="tab');
+    expect(html).toContain('aria-current="step"');
+    expect(html).not.toMatch(/ hidden(=| |>)/);
+  });
+
+  it("is a tab list once hydrated: the current stage selected, the others hidden, every part wired together", () => {
+    const { container } = render(<JourneyMap stages={stages} compare={compare} />);
+    expect(screen.getByRole("tablist", { name: "Stages of a book" })).toBeInTheDocument();
+    expect(tabs().map((t) => t.textContent)).toEqual(["IdeaMembership", "DraftingTwo programs", "RevisingSelf-Editing Academy", "Published"]);
+    expect(tabs().map((t) => t.getAttribute("aria-selected"))).toEqual(["false", "false", "true", "false"]);
+    expect(tabs().map((t) => t.tabIndex)).toEqual([-1, -1, 0, -1]);
+    expect(panels().map((p) => p.hasAttribute("hidden"))).toEqual([true, true, false, true]);
+    tabs().forEach((tab, i) => {
+      expect(tab.getAttribute("aria-controls")).toBe(panels()[i].id);
+      expect(panels()[i].getAttribute("aria-labelledby")).toBe(tab.id);
+    });
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("About Academy");
+    expect(screen.getByRole("heading", { level: 3, name: "Academy" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Membership" })).toBeNull();
+    expect(container.querySelector("[role=tablist]")!.className).toContain("flex-col");
+    expect(container.querySelector("[role=tablist]")!.className).toContain("@cards:flex-row");
+    expect(tabs()[2].className).toContain("text-white");
+    expect(tabs()[0].className).toContain("text-ink");
     expect(screen.getByRole("link", { name: "Compare all programs" })).toHaveAttribute("href", "/compare");
   });
 
-  it("takes its own status text, hides the offer when empty, and drops unsafe links", () => {
-    render(<JourneyMap stages={stages} offer={{ ...offer, statusLabel: "Opens in spring", href: "javascript:x" }} compare={{ label: "Compare", href: "javascript:x" }} />);
+  it("selects the first stage when none is marked current, without navigating when one is clicked", () => {
+    render(<JourneyMap stages={stages.map((s) => ({ ...s, current: false }))} compare={compare} />);
+    expect(tabs()[0]).toHaveAttribute("aria-selected", "true");
+    const before = window.location.href;
+    fireEvent.click(tabs()[1]);
+    expect(window.location.href).toBe(before);
+    expect(tabs()[1]).toHaveAttribute("aria-selected", "true");
+    expect(tabs()[1].tabIndex).toBe(0);
+    expect(tabs()[0].tabIndex).toBe(-1);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("About Ready Writer");
+    // Two offers side by side with room, stacked when narrow.
+    expect(screen.getByRole("tabpanel").querySelector("ul")!.className).toContain("@pair:grid-cols-2");
+    expect(screen.getByRole("tabpanel").querySelectorAll("li")).toHaveLength(2);
+    expect(screen.getByText("Waitlist").className).toContain("bg-gold");
+  });
+
+  it("moves with Left, Right, Home and End, wrapping at the ends, and focus follows", () => {
+    render(<JourneyMap stages={stages} compare={compare} />);
+    tabs()[2].focus();
+    fireEvent.keyDown(tabs()[2], { key: "ArrowRight" });
+    expect(tabs()[3]).toHaveAttribute("aria-selected", "true");
+    expect(tabs()[3]).toHaveFocus();
+    fireEvent.keyDown(tabs()[3], { key: "ArrowRight" });
+    expect(tabs()[0]).toHaveFocus();
+    fireEvent.keyDown(tabs()[0], { key: "ArrowLeft" });
+    expect(tabs()[3]).toHaveFocus();
+    fireEvent.keyDown(tabs()[3], { key: "Home" });
+    expect(tabs()[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(tabs()[0], { key: "End" });
+    expect(tabs()[3]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(tabs()[3], { key: "ArrowUp" });
+    expect(tabs()[2]).toHaveFocus();
+    fireEvent.keyDown(tabs()[2], { key: "ArrowDown" });
+    expect(tabs()[3]).toHaveFocus();
+    // Another key does nothing.
+    fireEvent.keyDown(tabs()[3], { key: "a" });
+    expect(tabs()[3]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows the note and link of a stage with no offers, and nothing for one with neither", () => {
+    render(<JourneyMap stages={stages} compare={compare} />);
+    fireEvent.click(tabs()[3]);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Celebrate with the Finishers");
+    expect(screen.getByRole("link", { name: "Meet them" })).toHaveAttribute("href", "/finishers");
+    cleanup();
+    render(<JourneyMap stages={[{ name: "Idea", helps: "", current: true }, { name: "Late", helps: "", current: false, note: "", link: { label: "Go", href: "javascript:x" } }]} compare={{ label: "", href: "" }} />);
+    expect(screen.getByRole("tabpanel")).toBeEmptyDOMElement();
+    fireEvent.click(tabs()[1]);
+    expect(screen.getByRole("tabpanel")).toBeEmptyDOMElement();
+  });
+
+  it("takes its own status text, shows a button with no safe link disabled, and drops unsafe links", () => {
+    render(<JourneyMap stages={[{ name: "A", helps: "", current: true, offers: [o("Academy", { statusLabel: "Opens in spring", href: "javascript:x" })] }]} compare={{ label: "Compare", href: "javascript:x" }} />);
     expect(screen.getByText("Opens in spring")).toBeInTheDocument();
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("See Academy")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("limits stages to 6 and offers to 4, and shows nothing without a named stage", () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ name: `Stage ${i}`, helps: "", current: false, offers: Array.from({ length: 6 }, (_, k) => o(`Offer ${k}`)) }));
+    render(<JourneyMap stages={many} compare={compare} />);
+    expect(tabs()).toHaveLength(6);
+    expect(screen.getByRole("tabpanel").querySelectorAll("li")).toHaveLength(4);
+    expect(screen.getByRole("tabpanel").querySelector("ul")!.className).toContain("@columns:grid-cols-4");
     cleanup();
-    const none = render(<JourneyMap stages={stages} offer={noOffer} compare={{ label: "Compare all", href: "/compare" }} />);
-    expect(none.container.querySelectorAll("ol > li")).toHaveLength(2);
-    expect(screen.getByRole("link", { name: "Compare all" })).toBeInTheDocument();
+    expect(render(<JourneyMap stages={[]} compare={compare} />).container).toBeEmptyDOMElement();
+    expect(render(<JourneyMap stages={[{ name: "", helps: "x", current: false }]} compare={compare} />).container).toBeEmptyDOMElement();
+  });
+
+  it("renders a page saved with the single offer the same as the migrated one", () => {
+    const old = { content: [{ type: "JourneyMap", props: { id: "j", stages: stages.slice(0, 3).map((s) => ({ name: s.name, helps: s.helps, current: s.current })), offer: o("Academy"), compare } }], root: {} };
+    const { container } = render(<LandingRender data={old} />);
+    const fromOld = container.innerHTML.replace(/(id|aria-controls|aria-labelledby)="[^"]*"/g, "");
     cleanup();
-    expect(render(<JourneyMap stages={[]} offer={noOffer} compare={{ label: "", href: "" }} />).container).toBeEmptyDOMElement();
+    const migrated = { content: [{ type: "JourneyMap", props: { id: "j", stages: stages.slice(0, 3).map((s, i) => ({ ...s, offers: i === 2 ? [o("Academy")] : [] })), compare } }], root: {} };
+    const { container: again } = render(<LandingRender data={migrated} />);
+    expect(again.innerHTML.replace(/(id|aria-controls|aria-labelledby)="[^"]*"/g, "")).toBe(fromOld);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("About Academy");
   });
 
   it("shows up to four cards with kind, dates, availability, status and a link only when there is a safe address", () => {
@@ -757,11 +848,11 @@ describe("checks for the homepage blocks", () => {
       { type: "AnnouncementStrip", props: { text: "News", buttonLabel: "Drop in", href: "" } },
       { type: "FinisherCards", props: { items: [{ alt: "", name: "Ada", linkLabel: "Read her story", href: "" }], more: { label: "See every Finisher", href: "" } } },
       { type: "FinishLineCards", props: { items: [{ title: "A year", buttonLabel: "See plan", href: "" }] } },
-      { type: "JourneyMap", props: { stages: [], offer: { title: "Academy", buttonLabel: "See Academy", href: "" }, compare: { label: "Compare all programs", href: "" } } },
+      { type: "JourneyMap", props: { stages: [{ name: "Revising", offers: [{ title: "Academy", buttonLabel: "See Academy", href: "" }], link: { label: "More", href: "" } }], compare: { label: "Compare all programs", href: "" } } },
       { type: "ComingUp", props: { heading: "", items: [{ title: "Cabin", linkLabel: "Details", href: "" }] } },
     );
     const errors = messages(bad);
-    expect(errors).toHaveLength(7);
+    expect(errors).toHaveLength(8);
     expect(errors.join("\n")).toContain("Announcement strip");
     expect(errors.join("\n")).toContain("Coming up");
     const vague = page({ type: "AnnouncementStrip", props: { text: "News", buttonLabel: "Learn more", href: "/x" } }, { type: "FinishLineCards", props: { items: [{ title: "A", buttonLabel: "click here", href: "/y" }] } });
@@ -775,12 +866,23 @@ describe("checks for the homepage blocks", () => {
       { type: "Timeline", props: { heading: "", items: [{ title: "Morning" }] } },
       { type: "FinishLineCards", props: { items: [{ title: "A year" }] } },
       { type: "PlanPhases", props: { heading: "First weeks", items: [] } },
-      { type: "JourneyMap", props: { offer: { title: "Academy" }, compare: {} } },
+      { type: "JourneyMap", props: { stages: [{ name: "Revising", offers: [{ title: "Academy" }] }], compare: {} } },
       { type: "ComingUp", props: { heading: "Coming up", items: [{ title: "Cabin" }] } },
     );
     expect(checkLandingPage(ok)).toEqual([]);
     const jump = { content: [{ type: "Heading", props: { id: "a", text: "Home", level: "h1" } }, { type: "ComingUp", props: { id: "b", heading: "Coming up", items: [{ title: "A" }] } }], root: {} };
     expect(messages(jump, "warning").join()).toContain("skips a level");
+  });
+
+  it("checks each stage of a Journey map: offers' buttons, a nameless stage, a repeated name", () => {
+    const map = (stages: unknown[]) => page({ type: "JourneyMap", props: { stages, compare: {} } });
+    expect(messages(map([{ name: "Drafting", offers: [{ title: "Ready Writer", buttonLabel: "See it", href: "" }, { title: "The 180", buttonLabel: "See it", href: "/180" }] }]))).toEqual([
+      'Journey map: The "Ready Writer" button in Drafting (See it) has no link.',
+    ]);
+    expect(messages(map([{ name: "Published", note: "Celebrate", link: { label: "Meet them", href: "" } }]))).toEqual(["Journey map: The link for Published (Meet them) has no link."]);
+    expect(messages(map([{ name: "", helps: "Membership" }]))).toEqual(["Journey map: Stage 1 has no name, so it is not shown."]);
+    expect(messages(map([{ name: "", helps: "" }]))).toEqual([]);
+    expect(messages(map([{ name: "Idea" }, { name: "idea" }]), "warning")).toEqual(['Journey map: Two stages are called "idea".']);
   });
 
   it("does not choke on stored blocks with props missing", () => {
@@ -813,5 +915,36 @@ describe("LandingRender", () => {
     expect(container.querySelector("script")).toBeNull();
     expect(screen.queryByRole("link", { name: "Go" })).toBeNull();
     expect(screen.getByText("Quill and cup")).toBeInTheDocument();
+  });
+});
+
+describe("the Journey map in the editor", () => {
+  type F = { type: string; label?: string; max?: number; arrayFields?: Record<string, F>; objectFields?: Record<string, F>; getItemSummary?: (i: Record<string, string>) => string; defaultItemProps?: Record<string, unknown> };
+  const fields = editorConfig.components.JourneyMap.fields as unknown as Record<string, F>;
+  const unlabelled = (group: Record<string, F>, path = ""): string[] =>
+    Object.entries(group).flatMap(([name, f]) => [...(f.label ? [] : [`${path}${name}`]), ...unlabelled(f.arrayFields ?? f.objectFields ?? {}, `${path}${name}.`)]);
+
+  it("labels every field, at every depth, and limits stages to 6 and each stage's offers to 4", () => {
+    expect(unlabelled(fields)).toEqual([]);
+    expect(Object.keys(fields)).toEqual(["stages", "compare"]);
+    expect(fields.stages.max).toBe(6);
+    expect(Object.keys(fields.stages.arrayFields!)).toEqual(["name", "helps", "current", "note", "link", "offers"]);
+    expect(fields.stages.arrayFields!.offers.max).toBe(4);
+    expect(Object.keys(fields.stages.arrayFields!.offers.arrayFields!)).toEqual(["status", "statusLabel", "title", "text", "buttonLabel", "href"]);
+  });
+
+  it("names each row in the list, and gives new rows empty fields to fill", () => {
+    expect(fields.stages.getItemSummary!({ name: "Idea" })).toBe("Idea");
+    expect(fields.stages.getItemSummary!({ name: "" })).toBe("Stage");
+    expect(fields.stages.arrayFields!.offers.getItemSummary!({ title: "Academy" })).toBe("Academy");
+    expect(fields.stages.arrayFields!.offers.getItemSummary!({ title: "" })).toBe("Offer");
+    expect(fields.stages.defaultItemProps).toMatchObject({ offers: [], note: "", link: { label: "", href: "" } });
+  });
+
+  it("starts a new block with stages that each have an offer, and no block-level offer", () => {
+    const d = BLOCK_DEFAULTS.JourneyMap as unknown as { stages: { current: boolean; offers: unknown[] }[] };
+    expect("offer" in BLOCK_DEFAULTS.JourneyMap).toBe(false);
+    expect(d.stages.every((s) => s.offers.length === 1)).toBe(true);
+    expect(d.stages.filter((s) => s.current)).toHaveLength(1);
   });
 });

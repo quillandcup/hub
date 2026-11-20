@@ -208,6 +208,20 @@ html[data-animations="off"] *::after {
     opacity: 0.35;
   }
 }
+/* The Journey map's panel when a stage is chosen: a plain fade (no movement, no height change), only when motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-panel-fade {
+    animation: landing-panel-fade 0.25s ease-out both;
+  }
+}
+@keyframes landing-panel-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 @keyframes landing-fade-in {
   from {
     opacity: 0;
