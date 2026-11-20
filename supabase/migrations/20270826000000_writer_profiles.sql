@@ -28,7 +28,8 @@ CREATE TABLE public.writer_profiles (
   -- The switch. Nothing about the page is public until it is true.
   is_public boolean NOT NULL DEFAULT false,
   -- The name shown: NULL is the member's display name (never the legal name); otherwise one of their public pen names.
-  public_name_alias_id text REFERENCES public.member_name_aliases(id) ON DELETE SET NULL,
+  -- member_name_aliases still has uuid ids (Tier 2, docs/SHORT_IDS_PLAN.md phase 2): this column follows it when it converts.
+  public_name_alias_id uuid REFERENCES public.member_name_aliases(id) ON DELETE SET NULL,
   -- Their photo is shown only when this is true.
   show_photo boolean NOT NULL DEFAULT false,
   -- Plain text the member wrote for the page (the length limit is in app.config.ts).

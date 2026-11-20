@@ -26,21 +26,21 @@ INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
 
 -- Names: Alice has a pen name she added and a Zoom name staff matched; Bob has a pen name he added.
 INSERT INTO public.member_name_aliases (id, member_id, alias, source) VALUES
-  ('nalias_wprofAl001', 'mbr_wprofAlice01', 'A. W. Pen', 'member'),
-  ('nalias_wprofAl002', 'mbr_wprofAlice01', 'Alice On Zoom', 'zoom'),
-  ('nalias_wprofBo001', 'mbr_wprofBob0001', 'B. W. Pen', 'member');
+  ('00000000-0000-4000-a000-00000000a101', 'mbr_wprofAlice01', 'A. W. Pen', 'member'),
+  ('00000000-0000-4000-a000-00000000a102', 'mbr_wprofAlice01', 'Alice On Zoom', 'zoom'),
+  ('00000000-0000-4000-a000-00000000b101', 'mbr_wprofBob0001', 'B. W. Pen', 'member');
 
 -- The database refuses a Zoom or Slack name as a public name, whoever asks, and takes a name the member added.
 SELECT throws_ok(
-  $$UPDATE public.member_name_aliases SET is_public = true WHERE id = 'nalias_wprofAl002'$$,
+  $$UPDATE public.member_name_aliases SET is_public = true WHERE id = '00000000-0000-4000-a000-00000000a102'$$,
   '23514', NULL, 'a name matched from Zoom cannot be marked public'
 );
 SELECT lives_ok(
-  $$UPDATE public.member_name_aliases SET is_public = true WHERE id = 'nalias_wprofAl001'$$,
+  $$UPDATE public.member_name_aliases SET is_public = true WHERE id = '00000000-0000-4000-a000-00000000a101'$$,
   'a name the member added can be marked public'
 );
 SELECT is(
-  (SELECT is_public FROM public.member_name_aliases WHERE id = 'nalias_wprofBo001'), false,
+  (SELECT is_public FROM public.member_name_aliases WHERE id = '00000000-0000-4000-a000-00000000b101'), false,
   'a name is private until marked: the default is false'
 );
 
@@ -180,15 +180,15 @@ SELECT throws_ok(
 );
 -- The name shown: their own public pen name, never a matching-only name or someone else's.
 SELECT lives_ok(
-  $$UPDATE public.writer_profiles SET public_name_alias_id = 'nalias_wprofAl001' WHERE member_id = 'mbr_wprofAlice01'$$,
+  $$UPDATE public.writer_profiles SET public_name_alias_id = '00000000-0000-4000-a000-00000000a101' WHERE member_id = 'mbr_wprofAlice01'$$,
   'a page can show a pen name the member marked for it'
 );
 SELECT throws_ok(
-  $$UPDATE public.writer_profiles SET public_name_alias_id = 'nalias_wprofAl002' WHERE member_id = 'mbr_wprofAlice01'$$,
+  $$UPDATE public.writer_profiles SET public_name_alias_id = '00000000-0000-4000-a000-00000000a102' WHERE member_id = 'mbr_wprofAlice01'$$,
   '23514', 'public_name_not_allowed', 'a page cannot show a name matched from Zoom'
 );
 SELECT throws_ok(
-  $$UPDATE public.writer_profiles SET public_name_alias_id = 'nalias_wprofBo001' WHERE member_id = 'mbr_wprofAlice01'$$,
+  $$UPDATE public.writer_profiles SET public_name_alias_id = '00000000-0000-4000-a000-00000000b101' WHERE member_id = 'mbr_wprofAlice01'$$,
   '23514', 'public_name_not_allowed', 'a page cannot show another member''s pen name'
 );
 RESET ROLE;
