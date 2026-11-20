@@ -9176,7 +9176,10 @@ export type Database = {
       }
       valid_book_editions: { Args: { editions: Json }; Returns: boolean }
       valid_book_genres: { Args: { genres: string[] }; Returns: boolean }
-      writing_visibility_rank: { Args: { p_visibility: string }; Returns: number }
+      writing_visibility_rank: {
+        Args: { p_visibility: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
