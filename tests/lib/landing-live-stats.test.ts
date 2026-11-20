@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
+import { InMemoryBookRepository, type BookSeed } from "@/lib/data/books";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryWritingRepository } from "@/lib/data/writing";
 import { easternDay, easternDayStart, friendlyFloor, isLiveStatKey, LIVE_STAT_KEYS, LIVE_STAT_OPTIONS, LIVE_STATS, loadLiveStats } from "@/lib/landing/live-stats";
@@ -14,9 +15,11 @@ const entry = (id: string, member: string, date: string, amount: number, over: R
   id, member_id: member, project_id: "wprj_1", prickle_id: null, entry_date: date, measure: "words", mode: "delta", amount, note: null, tags: [], external_id: null, created_at: `${date}T12:00:00Z`, deleted_at: null, ...over,
 });
 
-function repos(init: { prickles?: ReturnType<typeof prickle>[]; attendance?: ReturnType<typeof stay>[]; words?: ReturnType<typeof entry>[] } = {}) {
-  const data = new InMemoryDataset({ prickleTypes: [typeRow], prickles: init.prickles ?? [], attendance: init.attendance ?? [], writingEntries: init.words ?? [] } as never);
-  return { attendance: new InMemoryAttendanceRepository(data), writing: new InMemoryWritingRepository(data) };
+const book = (id: string, publishedDate: string, over: Partial<BookSeed> = {}): BookSeed => ({ id, member_id: "mbr_AAAAAAAAAAA1", title: `Book ${id}`, published_date: publishedDate, cover_asset_id: null, ...over });
+
+function repos(init: { prickles?: ReturnType<typeof prickle>[]; attendance?: ReturnType<typeof stay>[]; words?: ReturnType<typeof entry>[]; books?: BookSeed[] } = {}) {
+  const data = new InMemoryDataset({ prickleTypes: [typeRow], prickles: init.prickles ?? [], attendance: init.attendance ?? [], writingEntries: init.words ?? [], memberBooks: init.books ?? [] } as never);
+  return { attendance: new InMemoryAttendanceRepository(data), writing: new InMemoryWritingRepository(data), books: new InMemoryBookRepository(data) };
 }
 
 const PRICKLES = [
@@ -34,6 +37,32 @@ const STAYS = [
   stay("6", "m5", "D", "2026-11-13T04:59:00Z", "2026-11-13T05:30:00Z"), // 23:59 Eastern on Nov 12: the day before the 7-day window; 31 min
   stay("7", "m6", "D", "2026-11-13T05:00:00Z", "2026-11-13T05:30:00Z"), // exactly midnight Eastern: inside; 30 min
 ];
+
+describe("books_published", () => {
+  it("counts the books members have published so far, all time, as a plain count", async () => {
+    const books = [book("a", "2022-10-11"), book("b", "2026-11-19"), book("c", "2026-11-20"), book("d", "2025-03-01", { deleted_at: "2026-01-01T00:00:00Z" })];
+    const out = await loadLiveStats(repos({ books }), ["books_published"], NOW);
+    expect(out.books_published).toEqual({ value: "2", caption: "books published by members" }); // c is not out yet, d was deleted
+  });
+
+  it("counts a book on its publish day (Eastern), and not an hour before", async () => {
+    const books = [book("a", "2026-11-20")];
+    expect((await loadLiveStats(repos({ books }), ["books_published"], new Date("2026-11-20T04:30:00Z"))).books_published).toBeUndefined(); // 23:30 Nov 19 Eastern
+    expect((await loadLiveStats(repos({ books }), ["books_published"], new Date("2026-11-20T05:30:00Z"))).books_published?.value).toBe("1"); // 00:30 Nov 20 Eastern
+  });
+
+  it("leaves the figure out when there are no books, so the typed value shows", async () => {
+    expect(await loadLiveStats(repos(), ["books_published"], NOW)).toEqual({});
+  });
+
+  it("loads nothing from the bookshelf when no figure needs it, and says nothing about titles or authors", async () => {
+    const r = repos({ books: [book("a", "2022-10-11")] });
+    const spy = vi.spyOn(r.books, "countPublishedOnOrBefore");
+    await loadLiveStats(r, ["hours_30d"], NOW);
+    expect(spy).not.toHaveBeenCalled();
+    expect(JSON.stringify(await loadLiveStats(r, ["books_published"], NOW))).not.toMatch(/Book a|mbr_/);
+  });
+});
 
 describe("friendlyFloor", () => {
   it.each([

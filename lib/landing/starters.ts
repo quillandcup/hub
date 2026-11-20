@@ -75,7 +75,8 @@ function homeContent(): unknown[] {
     ]),
     block("OutcomeNumbers", {
       items: [
-        { value: "50+", label: "books published by members in 5 years", note: "" },
+        // Live: the Bookshelf's count of books members have published; the typed figure shows if it can't be read.
+        { source: "live", stat: "books_published", value: "50+", label: "", note: "" },
         { value: "100s", label: "of Finishers who typed THE END", note: "" },
         // Live from the Hub once the page is published ("Live from the Hub" in the block's settings); the typed figure is only what shows if it can't be read.
         { source: "live", stat: "hours_30d", value: "[number]", label: "", note: "" },
