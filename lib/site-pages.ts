@@ -165,6 +165,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Health Check", href: "/admin/hygiene", section: "System", nav: { icon: "🏥" }, keywords: ["hygiene", "data quality"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
+  admin({ title: "Finishers", href: "/admin/finishers", section: "Community", nav: { icon: "🏁" }, keywords: ["milestones", "the end", "writer titles", "backfill", "published books"] }),
   admin({ title: "Security", href: "/admin/security", section: "System", nav: { icon: "🛡️" }, keywords: ["rls", "secrets", "webhooks", "open items", "compliance", "privacy"] }),
   admin({ title: "Privacy", href: "/admin/privacy", section: "System", nav: { icon: "🔏" }, keywords: ["retention", "consent", "chat privacy", "break-glass", "who can see", "open items", "gdpr"] }),
   admin({ title: "Compliance", href: "/admin/compliance", section: "System", nav: { icon: "📋" }, keywords: ["gdpr", "pci", "wcag", "accessibility", "standards", "certification", "open items", "privacy law"] }),

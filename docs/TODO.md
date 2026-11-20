@@ -1918,6 +1918,20 @@ Package 1 of the writer profiles added `visibility` (private, community, public)
 ### Visibility control on books and awards _(Needs Scheduling)_
 Books and awards stay public by default with no switch (decided 2026-11-19, "Writer profiles" above), so they have no `visibility` column. If a member asks for one, add the column the same way as `20270831000000_writing_three_level_visibility.sql` and use `VisibilityControl` with `noun="book"` or `noun="award"`; its tooltip copy already handles other nouns. **Why deferred:** nothing needs it until the public profile exists and a member asks.
 
+
+### Finisher record: what is left _(Needs Scheduling)_
+The record exists (`member_milestones`, `docs/FINISHERS.md`): staff backfill, hand-add and the member's confirmation card. It was shipped without the pieces below; each was left out on purpose so this change stays data, staff tool and member confirmation only.
+
+- **Photo upload** for a milestone (the day-of photo). Needs the media library flow (`media_assets`, as `member_books.cover_asset_id` does it), ownership and usage rules, and removal handling. Add `photo_asset_id text REFERENCES media_assets(id)` to `member_milestones` and the upload to the card in `app/(member)/settings/MilestonesPanel.tsx`.
+- **The project-stage prompt**: moving a project from Drafting to a later stage asks "Did you write THE END?" and reaching Publishing or Complete asks for the second milestone (source `project_stage`, `project_id` set). Start from `lib/writing-projects.ts`; the verify-first note in "Writer profiles" about `writing_projects.phase` still applies.
+- **Course pre-fill**: a completed course (The Ready Writer or The 180 Program for THE END, Self-Editing Academy for publish-ready) proposes the milestone with source `course`. Never proof, only a question.
+- **Notify proposed members.** Nobody is told today; a member finds the card only by opening Settings, Profile. Send it through `createNotifier` with a new kind and a dry-run rollout (`.claude/rules/member-notifications.md`), after the owner approves the copy.
+- **The public Finishers page and the homepage numbers**, reading only confirmed rows with the matching consent flag, through the service role. The homepage should show counts only for `consent_homepage`.
+- **The name of milestone 2's stamp** (FINAL DRAFT is a placeholder in `PUBLISH_READY_STAMP`, `lib/finishers.ts`). See `docs/WRITER_TITLES.md`, "Still open".
+- **Members adding a milestone themselves** (source `member`): the table allows it by design, but the RLS has no member INSERT policy yet and the card has no form.
+- **Going back a stage or Hibernating:** whether it cancels or pauses a milestone is undecided (`docs/WRITER_TITLES.md`).
+- **Member merge** does not move `member_milestones` (it is on `NOT_MOVED` in `lib/member-merge-coverage.ts`, like the other member tables, see "Member merge drops most of a member's data"): a merged duplicate's milestones go with it. Moving them needs the one-live-row-per-kind rule respected (keep the kept member's row, and the more confirmed of the two).
+
 ---
 
 ## Analytics & Matching

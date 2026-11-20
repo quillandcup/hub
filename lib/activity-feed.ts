@@ -5,6 +5,7 @@ import { withMentionNames } from "@/lib/chat/names";
 import { createRepos } from "@/lib/data/repos";
 import { throwIfDbError } from "@/lib/db-error";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { milestoneLabel } from "@/lib/finishers";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import { withReferenceNames } from "@/lib/audit-references";
 import { careActivitySentence, careEventOfAudit, careSentence } from "@/lib/care-events";
@@ -446,6 +447,7 @@ const ENTITY_LABELS: Record<string, string> = {
   care_engagement: "care plan",
   landing_page: "page",
   landing_page_template: "template",
+  member_milestone: "milestone",
   writer_profile: "public writer page",
 };
 
@@ -543,6 +545,24 @@ function writerPagePhrase(row: ActivityFeedRow, fields: Record<string, { old: un
   return changed.length > 0 ? `changed ${changed.join(" and ")} on their public writer page` : null;
 }
 
+/**
+ * The Finisher record in plain words (docs/FINISHERS.md). A proposal names the milestone; an answer says what the member
+ * did without repeating the dates or stories they wrote (the trigger redacts the stories, and nothing here reads them).
+ */
+function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChange>): string | null {
+  if (row.entity_type !== "member_milestone") return null;
+  if (row.event_type === "insert") {
+    const kind = typeof fields.kind?.new === "string" ? milestoneLabel(fields.kind.new) : "a writing";
+    return `proposed the “${kind}” milestone for ${row.member_name ?? "a member"}`;
+  }
+  if (row.event_type !== "update") return null;
+  if (fields.deleted_at?.new && !fields.deleted_at.old) return `took back a proposed milestone for ${row.member_name ?? "a member"}`;
+  if (fields.status?.new === "confirmed") return "confirmed a writing milestone";
+  if (fields.status?.new === "declined") return "said a proposed writing milestone is not theirs, or not yet";
+  if (fields.consent_profile || fields.consent_homepage || fields.consent_testimonial) return "changed where a writing milestone may be shown";
+  return null;
+}
+
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
   const feature = featurePhrase(row, fields);
@@ -551,6 +571,8 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   if (pageBuilder) return pageBuilder;
   const writerPage = writerPagePhrase(row, fields);
   if (writerPage) return writerPage;
+  const milestone = milestonePhrase(row, fields);
+  if (milestone) return milestone;
   if (row.entity_type === "event_attendee" && row.event_type !== "update") {
     const who = row.member_name ?? "a member";
     const event = row.description ? ` “${formatValue(row.description)}”` : "";

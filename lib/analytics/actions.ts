@@ -117,6 +117,7 @@ export const OUTCOME_ACTIONS = [
   "writer_page_handle_set",
   "writer_page_switched",
   "writer_page_settings_saved",
+  "milestone_answered",
   "email_alias_added",
   "email_verification_sent",
   "email_made_primary",
