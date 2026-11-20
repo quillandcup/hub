@@ -1,0 +1,17 @@
+# OSV-Scanner accepted findings (read by .github/workflows/osv-scan.yml; the file sits next to the lockfile it applies to).
+# An entry needs a reason and an expiry: when ignoreUntil passes, the finding fails the scheduled run again, so it gets
+# looked at instead of forgotten. A finding that is not listed here still fails the scheduled run.
+
+# Both are "sandbox breakout" advisories in the npm package `sandbox` (4.1.0), with no fixed version published (checked
+# 2026-11-20, api.osv.dev). It is only a transitive dependency of the dev-only `vercel` CLI (nothing in package.json names
+# it), so it is not in the app's runtime or its production build. Reachability from the CLI is not verified.
+# Revisit: when `vercel` drops or upgrades it (Dependabot), or by the date below.
+[[IgnoredVulns]]
+id = "GHSA-fm4j-4xhm-xpwx"
+ignoreUntil = 2027-02-20
+reason = "No fix published; dev-only transitive dependency of the vercel CLI, not in the production build."
+
+[[IgnoredVulns]]
+id = "GHSA-gc25-3vc5-2jf9"
+ignoreUntil = 2027-02-20
+reason = "No fix published; dev-only transitive dependency of the vercel CLI, not in the production build."
