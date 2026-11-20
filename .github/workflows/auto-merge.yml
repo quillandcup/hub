@@ -17,7 +17,9 @@ name: Auto-merge
 # by GITHUB_TOKEN doesn't trigger the push CI run on main (no migrations, deploy or
 # Slack manifest push). Rotate it before it expires, see docs/SECRET_ROTATION.md.
 #
-# Skipped for drafts and for forks (their GITHUB_TOKEN can't write). Dependabot PRs get
+# Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and for PRs whose author is neither
+# Dependabot nor an owner, member or collaborator of the repository: the merge is made with the
+# owner's token, so it must never be enabled for a stranger's change. Dependabot PRs get
 # the stricter rule: only patch/minor version bumps are enabled, majors are far more likely
 # to carry breaking changes and always need a human. That is a deliberate safety choice, not
 # something to make configurable. Dependabot runs read Dependabot secrets, not Actions
@@ -39,7 +41,9 @@ jobs:
       pull-requests: write
     if: |
       !github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.pull_request.user.login == 'dependabot[bot]' ||
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
     runs-on: ubuntu-24.04
     steps:
       - name: Fetch Dependabot metadata
