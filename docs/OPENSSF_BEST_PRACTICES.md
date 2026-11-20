@@ -83,7 +83,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 | `delivery_unsigned` [MUST NOT] | Met | Nothing fetches a hash over HTTP. |
 | `vulnerabilities_fixed_60_days` [MUST] | Met | `pnpm audit` reports none as of 2026-11-20. OSV-Scanner accepts two advisories with no published fix, in a dev-only dependency of the Vercel CLI, with an expiry (`osv-scanner.toml`); Dependabot weekly. |
 | `vulnerabilities_critical_fixed` [SHOULD] | Met | Same. |
-| `no_leaked_credentials` [MUST NOT] | Partly | Secrets live outside the repo (`.claude/rules/public-repo-hygiene.md`, `docs/SECRET_ROTATION.md`) and gitleaks scans the full history. Triaged 2026-11-20: 22 of 23 findings are the public local Supabase demo keys and fake test values. One, a database password in an early version of a deployment doc, could not be shown to be a placeholder; it counts as met once that password is confirmed rotated (`docs/TODO.md`, "First scanner runs"). |
+| `no_leaked_credentials` [MUST NOT] | Met | Secrets live outside the repo (`.claude/rules/public-repo-hygiene.md`, `docs/SECRET_ROTATION.md`) and gitleaks scans the full history. Triaged 2026-11-20: 22 of 23 findings are the public local Supabase demo keys and fake test values; the other was a database password in an early deployment doc, rotated long ago (owner-confirmed). No valid credential is in the repository. |
 
 ### Analysis
 | Criterion | Status | Evidence or gap |
@@ -160,7 +160,7 @@ Gold also requires Silver.
 ## What is worth doing even without the badge
 Ordered by value for effort; each is, or should become, an entry in `docs/TODO.md`.
 
-1. Confirm the one historic database password found by gitleaks is rotated, so `no_leaked_credentials` is met. (The OSV and ZAP results are triaged.)
+1. Work through the ZAP warnings recorded in `docs/TODO.md` (the gitleaks, OSV and ZAP first results are triaged).
 2. Take the lint warnings to zero, rule by rule, then make the rules errors (`warnings_fixed`, `warnings_strict`).
 3. Run the Observatory and securityheaders checks and enforce the CSP for scripts and styles (`hardening`, `hardened_site`).
 4. Publish the combined coverage figure in the CI report, and raise the `app/api` floor.
