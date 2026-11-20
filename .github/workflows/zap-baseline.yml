@@ -3,9 +3,9 @@ name: ZAP baseline
 # OWASP ZAP's baseline scan against production: it crawls the public pages for a couple of minutes and only
 # watches the responses (headers, cookies, leaked info). It sends no attack payloads and signs in as nobody, so
 # it is safe to point at the live site. There are no preview deploys to aim it at. An authenticated or active scan
-# does NOT belong here: run those against a local or demo stack. Weekly, informational (not a required check, no
-# GitHub issue is opened); the HTML report is the run's artifact. The target is `appUrl` from app.config.ts.
-# Nothing here uses a secret.
+# does NOT belong here: run those against a local or demo stack. Weekly, not a required check (it fails and posts to the alerts
+# channel on findings; no GitHub issue is opened); the HTML report is the run's artifact. The target is `appUrl` from app.config.ts.
+# The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL), as in audit.yml.
 on:
   schedule:
     - cron: "11 7 * * 4"
@@ -39,5 +39,17 @@ jobs:
         with:
           target: ${{ steps.target.outputs.url }}
           allow_issue_writing: false
-          fail_action: false
+          fail_action: true
           artifact_name: zap-baseline-report
+
+      # fail_action is on, so a finding turns the step red; tell the alerts channel (same webhook and pattern as audit.yml).
+      - name: Post findings to Slack
+        if: failure()
+        env:
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_ALERTS_WEBHOOK_URL" ]; then echo "SLACK_ALERTS_WEBHOOK_URL is not set; not posting."; exit 0; fi
+          curl -sS --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\": \"ZAP baseline scan of production reported findings. The report is an artifact on the run: $RUN_URL\"}" \
+            "$SLACK_ALERTS_WEBHOOK_URL"
