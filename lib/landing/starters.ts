@@ -41,7 +41,8 @@ const COPY = {
   membership: "Show up to a prickle any day, and someone is already writing beside you. Track your words, keep your streak, and be noticed when you're missing.",
   readyWriter: "Write your book in a year with a plan, a pace and a prickle to show up to. Membership is included, so you're never writing alone.",
   oneEighty: "Finish your draft in six months, alongside a cohort of writers moving through the same stretch. The faster path, with membership included.",
-  feedbackFriends: "Honest, kind feedback from fellow writers who want your book to be as good as their own.",
+  // The owner's own line for it: "critique partner" sounds scary, so we call them friends.
+  feedbackFriends: "Because “critique partner” sounds scary. Friendly, honest feedback from fellow writers.",
   selfEditing: "Learn to edit your own manuscript alongside a cohort, with reflection exercises and levels that show how far you've come.",
   retreats: "Write, learn and be with your people, in person or from home.",
   published: "When you type THE END, you become a Finisher, and the whole house celebrates.",
