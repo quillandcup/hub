@@ -40,6 +40,8 @@ export type SaveTemplateInput = {
   name?: string;
   /** Replace this template's draft with the page (the template's previous draft is kept in its History). */
   replaceId?: string;
+  /** The page being saved (its title goes in the version's automatic note: "Saved from the page ..."). The page is only read. */
+  fromPageId?: string;
   /** Publish the template at once (a new version of its published copy; the template rules: checks are warnings, pictures stay private). */
   publish?: boolean;
 };
@@ -59,13 +61,14 @@ async function saveImpl(auth: Auth, data: unknown, input: SaveTemplateInput): Pr
   if (JSON.stringify(clean).length > MAX_LANDING_BYTES) return { error: "This page is too large to save as a template." };
   const repo = createRepos(auth.supabase).landingPages;
   try {
+    const from = input?.fromPageId && isLandingPageId(input.fromPageId) ? await repo.byId(input.fromPageId) : null;
     let template;
     if (input?.replaceId !== undefined) {
       if (!isLandingPageId(input.replaceId)) return { error: TEMPLATE_GONE };
       const existing = await repo.byId(input.replaceId);
       if (!existing || existing.kind !== "template") return { error: TEMPLATE_GONE };
       // The template's draft as it is now is kept in its History first (the same kept version as before a starter), so this can be undone with Bring back.
-      if (!(await repo.keepDraftBeforeStarter(existing.id, auth.user.id))) return { error: TEMPLATE_GONE };
+      if (!(await repo.keepDraftBeforeStarter(existing.id, auth.user.id, `Replaced by ${from ? `the page “${from.title}”` : "a page"}`))) return { error: TEMPLATE_GONE };
       template = await repo.replaceDraftWithStarter(existing.id, clean, auth.user.id);
       if (!template) return { error: TEMPLATE_GONE };
     } else {
@@ -84,7 +87,7 @@ async function saveImpl(auth: Auth, data: unknown, input: SaveTemplateInput): Pr
       if (!template) return { error: "Couldn't find a free address for the template. Try another name." };
     }
     // Publishing a template keeps a version of the published copy. It is not on the public site, so no picture is made public.
-    const published = input?.publish === true ? await repo.publish(template.id) : null;
+    const published = input?.publish === true ? await repo.publish(template.id, from ? `Saved from the page “${from.title}”` : "Saved from a page") : null;
     if (input?.publish === true && !published) return { error: TEMPLATE_GONE };
     revalidatePath("/admin/pages", "layout");
     return { templateId: template.id, slug: template.slug, name: template.title, published: Boolean(published) };
@@ -114,7 +117,7 @@ async function applyImpl(auth: Auth, pageId: string, templateId: string): Promis
     const target = await repos.landingPages.byId(pageId);
     if (!target) return { error: "That page no longer exists." };
     // The draft as it is now is kept in History first (the same version as before a starter), so the replacement can be undone with Bring back.
-    if (!(await repos.landingPages.keepDraftBeforeStarter(pageId, auth.user.id))) return { error: "That page no longer exists." };
+    if (!(await repos.landingPages.keepDraftBeforeStarter(pageId, auth.user.id, `Replaced by the template “${draft.name}”`))) return { error: "That page no longer exists." };
     const page = await repos.landingPages.replaceDraftWithStarter(pageId, draft.data, auth.user.id);
     if (!page) return { error: "That page no longer exists." };
     revalidatePath("/admin/pages");

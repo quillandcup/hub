@@ -12,7 +12,7 @@ import { MAX_LANDING_BYTES, countBlocks, parseLandingImport, pruneToKnownBlocks,
 import { stampLandingVersion } from "@/lib/landing/migrations";
 import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
-import { isStarterKey, starterData } from "@/lib/landing/starters";
+import { LANDING_STARTERS, isStarterKey, starterData } from "@/lib/landing/starters";
 import { loadTemplateDraft } from "@/lib/landing/template-data";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
@@ -195,7 +195,7 @@ export async function updateLandingPageDetails(pageId: string, input: DetailsInp
 
 // ---- publish ---------------------------------------------------------------------------------------------
 
-async function publishImpl(auth: Auth, pageId: string, data: unknown): Promise<PublishResult> {
+async function publishImpl(auth: Auth, pageId: string, data: unknown, note?: string): Promise<PublishResult> {
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (tooBig(data)) return { error: "This page is too large to publish." };
   const repos = createRepos(auth.supabase);
@@ -211,7 +211,7 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown): Promise<P
     if (errors.length > 0) return { error: "Fix these before publishing.", issues };
     // The draft the editor is showing is what goes live: save it, then publish it, so nothing typed a moment ago is left out.
     if (!(await repos.landingPages.saveDraft(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
-    const page = await repos.landingPages.publish(pageId);
+    const page = await repos.landingPages.publish(pageId, note);
     if (!page) return { error: NOT_FOUND };
     // A signed-out visitor is served only assets marked public (docs/MEDIA_LIBRARY.md), so the ones this page uses are marked now.
     // A template's pictures stay private: they become public only when a page made from it is published.
@@ -227,11 +227,11 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown): Promise<P
   }
 }
 
-/** Publishes what the editor is showing: checks it, keeps a version, and makes its pictures public. Stops on problems that would stop a visitor. */
-export async function publishLandingPage(pageId: string, data: unknown): Promise<PublishResult> {
+/** Publishes what the editor is showing: checks it, keeps a version (with an optional note on what changed, at most 200 characters, shown in History and never in the Activity Log), and makes its pictures public. Stops on problems that would stop a visitor. */
+export async function publishLandingPage(pageId: string, data: unknown, options?: { note?: string }): Promise<PublishResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
-  return withAction("landing_page_published", () => publishImpl(auth, pageId, data), (r) => ({ ok: !r.error, detail: r.error ? "refused" : undefined }));
+  return withAction("landing_page_published", () => publishImpl(auth, pageId, data, typeof options?.note === "string" ? options.note : undefined), (r) => ({ ok: !r.error, detail: r.error ? "refused" : undefined }));
 }
 
 async function unpublishImpl(auth: Auth, pageId: string): Promise<PageResult> {
@@ -299,7 +299,7 @@ async function starterImpl(auth: Auth, pageId: string, starter: string): Promise
   const repo = createRepos(auth.supabase).landingPages;
   try {
     // The draft as it is now is kept in History first, so the replacement can be undone with Bring back.
-    const kept = await repo.keepDraftBeforeStarter(pageId, auth.user.id);
+    const kept = await repo.keepDraftBeforeStarter(pageId, auth.user.id, `Replaced by the starter “${LANDING_STARTERS[starter].label}”`);
     if (!kept) return { error: NOT_FOUND };
     const page = await repo.replaceDraftWithStarter(pageId, sanitizeLandingData(starterData(starter)), auth.user.id);
     if (!page) return { error: NOT_FOUND };
@@ -373,7 +373,7 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
     if (dryRun || summary.identical) return { summary, applied: false };
 
     // The draft as it is now is kept in History first, so the import can be undone with Bring back.
-    if (!(await repo.keepDraftBeforeStarter(pageId, auth.user.id))) return { error: NOT_FOUND };
+    if (!(await repo.keepDraftBeforeStarter(pageId, auth.user.id, "Replaced by a JSON import"))) return { error: NOT_FOUND };
     if (!(await repo.replaceDraftWithStarter(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
     refresh();
     return { summary, applied: true };

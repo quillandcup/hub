@@ -82,7 +82,7 @@ Desktop and mobile follow the room the page has, so the phone and tablet preview
 - **Never public.** The one read behind the public route and the opt-in relay (\`published(slug)\`) returns only pages, and \`kind\` can't change once a row is made. Publishing a template shows its checks as warnings only and doesn't make its pictures public; a page made from it does that when it is published.
 - **Using one.** New page's "Start from" and "Start over from a starter or template" list built-in starters and published templates, and copy the template's published copy (never its draft) into a draft. The old draft stays in History.
 - **Saving one.** "Save as template" makes a new template from a page's draft, or replaces a template's draft (the old one stays in its History), optionally publishing in the same step. The page is never changed.
-- **Immutable versions.** No role can change or delete a version row.
+- **Immutable versions, with who and why.** No role can change or delete a version row. Each version shows who made it and an optional note (what changed at publish, or what replaced the draft it kept); the note stays on the version and out of the Activity Log.
 - **Hooks.** \`LandingPageRepository.list(kind)\`, \`usableTemplates\`, the lifecycle registry's \`saveAsTemplate\` and \`replaceTemplate\`, the Templates tab under Pages.
 - **Detail.** \`docs/LANDING_PAGES.md\`, "Templates".`,
   },

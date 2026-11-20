@@ -23,7 +23,7 @@ const DANGER = "rounded bg-red-700 px-4 py-2 text-sm font-medium text-white hove
  * "Publish the template now" does the publish in the same step (a new version; the template rules apply: nothing public). The page
  * itself is never changed. `getDraft` returns the page as the editor holds it, so what is typed and not yet autosaved is included.
  */
-export default function SaveAsTemplate({ templates: initial, getDraft }: { templates: TemplateOption[]; getDraft: () => unknown }) {
+export default function SaveAsTemplate({ templates: initial, getDraft, pageId }: { templates: TemplateOption[]; getDraft: () => unknown; pageId: string }) {
   const [known, setKnown] = useState(initial);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"new" | "replace">("new");
@@ -62,7 +62,7 @@ export default function SaveAsTemplate({ templates: initial, getDraft }: { templ
       return setError("Give the template a name.");
     }
     start(async () => {
-      const result = await saveLandingTemplate(getDraft(), mode === "replace" ? { replaceId, publish } : { name, publish });
+      const result = await saveLandingTemplate(getDraft(), mode === "replace" ? { replaceId, publish, fromPageId: pageId } : { name, publish, fromPageId: pageId });
       if (result.error || !result.templateId || !result.slug) return setError(result.error ?? "Couldn't save the template.");
       const savedName = result.name ?? name;
       setKnown((list) => [...list.filter((t) => t.id !== result.templateId), { id: result.templateId!, name: savedName, published: Boolean(result.published) || Boolean(list.find((t) => t.id === result.templateId)?.published) }].sort((a, b) => a.name.localeCompare(b.name)));

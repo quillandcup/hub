@@ -3997,6 +3997,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          note: string | null
           page_id: string
           published_by: string | null
           title: string
@@ -4006,6 +4007,7 @@ export type Database = {
           data: Json
           id?: string
           kind?: string
+          note?: string | null
           page_id: string
           published_by?: string | null
           title: string
@@ -4015,6 +4017,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          note?: string | null
           page_id?: string
           published_by?: string | null
           title?: string
@@ -8751,6 +8754,10 @@ export type Database = {
         }
       }
       publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
+      publish_landing_page_with_note: {
+        Args: { p_note?: string; p_page_id: string }
+        Returns: undefined
+      }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean

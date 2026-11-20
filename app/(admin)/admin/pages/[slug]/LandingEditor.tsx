@@ -26,6 +26,7 @@ import JsonTransfer from "./JsonTransfer";
 import SaveAsTemplate, { type TemplateOption } from "./SaveAsTemplate";
 import StarterReplace, { type StarterOption } from "./StarterReplace";
 import { replaceLandingDraftWithTemplate } from "../template-actions";
+import { VERSION_NOTE_MAX } from "@/lib/landing/version-notes";
 import { isLandingPageId } from "@/lib/landing/slug";
 import { importLandingDraftJson, publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
@@ -48,7 +49,8 @@ export type EditorPage = {
   /** A template is a page kept to start others from: never public, and its publish checks are warnings only. */
   kind?: "page" | "template";
 };
-export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter" };
+/** One version in History: who made it (a display name, never a user id), what it is, and the note (what changed, or what replaced the draft it kept). */
+export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null };
 
 type SaveState = "saved" | "unsaved" | "saving" | "error";
 
@@ -285,6 +287,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
   const [dialog, setDialog] = useState<"details" | "history" | "publish" | null>(null);
   const [issues, setIssues] = useState<A11yIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
   const [foldVisible, setFoldVisible] = useState(true);
   const foldContext = useMemo(() => ({ visible: foldVisible, setVisible: setFoldVisible }), [foldVisible]);
@@ -367,7 +370,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
 
   function publish() {
     startBusy(async () => {
-      const result = await publishLandingPage(page.id, JSON.parse(latest.current));
+      const result = await publishLandingPage(page.id, JSON.parse(latest.current), { note });
       if (result.error) {
         setIssues(result.issues ?? issues);
         setMessage(result.error);
@@ -376,6 +379,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
       lastSaved.current = latest.current;
       publishedJson.current = latest.current;
       setHasUnpublished(false);
+      setNote("");
       setPage((p) => ({ ...p, status: "published" }));
       setSave("saved");
       setDialog(null);
@@ -469,6 +473,16 @@ export default function LandingEditor({ page: initial, data, versions, starters 
             </p>
           )}
           {issues.length > 0 && <IssueList issues={issues} />}
+          <label className="block text-sm font-medium">
+            What changed? (optional)
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={VERSION_NOTE_MAX}
+              placeholder="A few words, shown in History"
+              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
           {message && (
             <p role="alert" className="text-sm text-red-700 dark:text-red-400">
               {message}
@@ -520,7 +534,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
             return null;
           }}
         />
-        {page.kind !== "template" && <SaveAsTemplate templates={templates} getDraft={() => JSON.parse(latest.current)} />}
+        {page.kind !== "template" && <SaveAsTemplate templates={templates} getDraft={() => JSON.parse(latest.current)} pageId={page.id} />}
         <JsonTransfer
           slug={page.slug}
           title={page.title}
@@ -623,11 +637,12 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
       <ul className="divide-y divide-slate-200 dark:divide-slate-700">
         {versions.map((v) => (
           <li key={v.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-            <span>
+            <span className="min-w-0">
               {v.title}
               <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
-                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before it was replaced" : "Published"} {new Date(v.createdAt).toLocaleString()}
+                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before it was replaced" : "Published"} by {v.by ?? "Someone"}, {new Date(v.createdAt).toLocaleString()}
               </time>
+              {v.note && <span className="block text-xs">“{v.note}”</span>}
             </span>
             <LifecycleButton action="restore" noun="version" disabled={pending} className={SECONDARY} onRun={() => start(async () => setError(await onRestore(v.id)))} />
           </li>

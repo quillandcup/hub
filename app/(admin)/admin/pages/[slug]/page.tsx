@@ -4,6 +4,8 @@ import { requireAdminPage } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { normalizeLandingData } from "@/lib/landing/data";
 import { isValidSlug } from "@/lib/landing/slug";
+import { UNKNOWN_EDITOR } from "@/lib/landing/version-notes";
+import { editorNames } from "@/lib/landing/version-people";
 import { LANDING_STARTERS, STARTER_KEYS } from "@/lib/landing/starters";
 import { createClient } from "@/lib/supabase/server";
 import LandingEditor from "./LandingEditor";
@@ -19,6 +21,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
   const page = await repos.landingPages.bySlug(slug);
   if (!page) notFound();
   const [versions, templates] = await Promise.all([repos.landingPages.versions(page.id, 20), repos.landingPages.usableTemplates()]);
+  const names = await editorNames(repos, versions.map((v) => v.published_by));
   const allTemplates = page.kind === "template" ? [] : await repos.landingPages.list("template");
 
   return (
@@ -38,7 +41,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
         kind: page.kind === "template" ? "template" : "page",
       }}
       data={normalizeLandingData(page.draft_data)}
-      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
+      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
       starters={[
         ...STARTER_KEYS.map((key) => ({ key, label: LANDING_STARTERS[key].label, description: LANDING_STARTERS[key].description })),
         // Only a published template is offered, and what is copied is its published copy. A template is never offered to itself.

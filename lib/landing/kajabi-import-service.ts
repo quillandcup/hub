@@ -148,7 +148,7 @@ export async function importKajabiExport(
   if (existing) {
     // The old draft stays restorable from the page's history, unless there was nothing in it.
     const keep = !isEmptyDocument(existing.draft_data) && !sameDocument(existing.draft_data, data);
-    if (keep) await deps.pages.keepDraftBeforeImport(existing.id, input.userId);
+    if (keep) await deps.pages.keepDraftBeforeImport(existing.id, input.userId, "Replaced by a Kajabi import");
     const page = await deps.pages.replaceImportedDraft(existing.id, data, input.userId);
     if (!page) return { status: "error", error: "That page was deleted while the import ran." };
     return { status: "imported", action: "updated", slug: page.slug, title: page.title, published: page.status === "published", keptBefore: keep, notes, issues, counts };

@@ -72,13 +72,17 @@ describe("saveLandingTemplate: a new template", () => {
 
   it("can publish it in the same step: one version, a published copy, no picture made public", async () => {
     const picture = await asset();
-    const result = await saveLandingTemplate(doc("Hello", { type: "Image", props: { id: "i", imageAssetId: picture.id, alt: "A picture", decorative: false, align: "center" } }), { name: "Kit", publish: true });
+    const source = await page("spring", "Spring words");
+    const result = await saveLandingTemplate(doc("Hello", { type: "Image", props: { id: "i", imageAssetId: picture.id, alt: "A picture", decorative: false, align: "center" } }), { name: "Kit", publish: true, fromPageId: source.id });
 
     expect(result.published).toBe(true);
     const template = await templateBySlug("kit");
     expect(template.status).toBe("published");
     expect(words(template, "published_data")).toBe("Hello");
-    expect(await state.repos.landingPages.versions(template.id)).toHaveLength(1);
+    const made = await state.repos.landingPages.versions(template.id);
+    expect(made).toHaveLength(1);
+    // The automatic note names the page by its title only, never what is on it.
+    expect(made[0].note).toBe("Saved from the page “Page spring”");
     expect((await state.repos.media.byId(picture.id))?.is_public).toBe(false);
     expect((await state.repos.landingPages.usableTemplates()).map((t) => t.id)).toEqual([template.id]);
     expect(await state.repos.landingPages.published("kit")).toBeNull();
@@ -117,7 +121,7 @@ describe("saveLandingTemplate: replace a template's draft with a page", () => {
     const sourceBefore = JSON.stringify(source);
     const versionsBefore = JSON.stringify(await state.repos.landingPages.versions(template.id));
 
-    const result = await saveLandingTemplate(doc("New words"), { replaceId: template.id });
+    const result = await saveLandingTemplate(doc("New words"), { replaceId: template.id, fromPageId: source.id });
 
     expect(result).toMatchObject({ templateId: template.id, name: "Kit", published: false });
     const after = await templateBySlug("kit");
@@ -126,6 +130,7 @@ describe("saveLandingTemplate: replace a template's draft with a page", () => {
     expect(after.status).toBe("published");
     const versions = await state.repos.landingPages.versions(template.id);
     expect(versions.map((v) => v.kind)).toEqual(["before_starter", "published"]);
+    expect(versions[0].note).toBe("Replaced by the page “Page spring”");
     expect(JSON.stringify(versions.filter((v) => v.kind === "published"))).toBe(JSON.stringify(JSON.parse(versionsBefore)));
     expect(words({ draft_data: await state.repos.landingPages.versionData(versions[0].id) })).toBe("Unpublished edits");
     expect(JSON.stringify(await state.repos.landingPages.bySlug("spring"))).toBe(sourceBefore);
@@ -138,7 +143,7 @@ describe("saveLandingTemplate: replace a template's draft with a page", () => {
     const source = await page("spring", "New words");
     const sourceBefore = JSON.stringify(source);
 
-    const result = await saveLandingTemplate(doc("New words"), { replaceId: template.id, publish: true });
+    const result = await saveLandingTemplate(doc("New words"), { replaceId: template.id, publish: true, fromPageId: source.id });
 
     expect(result.published).toBe(true);
     const after = await templateBySlug("kit");
@@ -147,6 +152,7 @@ describe("saveLandingTemplate: replace a template's draft with a page", () => {
     // The draft kept before the replacement, the first publish and the new publish: one more published version than before.
     expect(versions.filter((v) => v.kind === "published")).toHaveLength(2);
     expect(versions).toHaveLength(3);
+    expect(versions[0].note).toBe("Saved from the page “Page spring”");
     expect(JSON.stringify(await state.repos.landingPages.bySlug("spring"))).toBe(sourceBefore);
     expect(await state.repos.landingPages.published("kit")).toBeNull();
   });
@@ -258,6 +264,7 @@ describe("using a template", () => {
     expect(after).toMatchObject({ title: "Live page", slug: "live", status: "published" });
     const versions = await state.repos.landingPages.versions(live.id);
     expect(versions[0].kind).toBe("before_starter");
+    expect(versions[0].note).toBe("Replaced by the template “Kit”");
     expect(JSON.stringify(await state.repos.landingPages.versionData(versions[0].id))).toContain("Unpublished edits");
   });
 

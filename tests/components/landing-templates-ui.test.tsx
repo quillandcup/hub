@@ -36,7 +36,7 @@ afterEach(cleanup);
 
 describe("Save as template", () => {
   const open = async (templates = [kit, unpublishedKit]) => {
-    render(<SaveAsTemplate templates={templates} getDraft={() => draft} />);
+    render(<SaveAsTemplate templates={templates} getDraft={() => draft} pageId="lpg_SOURCE000001" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Save as template/ }));
     });
@@ -49,7 +49,7 @@ describe("Save as template", () => {
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Save as template" }));
     });
-    expect(mocks.save).toHaveBeenCalledWith(draft, { name: "Spring", publish: false });
+    expect(mocks.save).toHaveBeenCalledWith(draft, { name: "Spring", publish: false, fromPageId: "lpg_SOURCE000001" });
     expect(screen.getByRole("status")).toHaveTextContent("Saved as the template “Spring”: it is a draft until you publish it.");
     expect(screen.getByRole("link", { name: "the template's editor" })).toHaveAttribute("href", "/admin/pages/spring");
   });
@@ -63,7 +63,7 @@ describe("Save as template", () => {
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Save as template" }));
     });
-    expect(mocks.save).toHaveBeenCalledWith(draft, { name: "Spring", publish: true });
+    expect(mocks.save).toHaveBeenCalledWith(draft, { name: "Spring", publish: true, fromPageId: "lpg_SOURCE000001" });
     expect(screen.getByRole("status")).toHaveTextContent("Saved as the template “Spring” and published it.");
   });
 
@@ -83,7 +83,7 @@ describe("Save as template", () => {
     expect(confirm).toHaveTextContent("keeps its current draft in its History, and you can bring it back");
     expect(confirm).toHaveTextContent("Its published copy doesn't change until you publish it.");
     await answer("Replace template draft");
-    expect(mocks.save).toHaveBeenCalledWith(draft, { replaceId: kit.id, publish: false });
+    expect(mocks.save).toHaveBeenCalledWith(draft, { replaceId: kit.id, publish: false, fromPageId: "lpg_SOURCE000001" });
     expect(screen.getByRole("status")).toHaveTextContent("Replaced the draft of “Launch kit”.");
   });
 
@@ -98,8 +98,22 @@ describe("Save as template", () => {
     });
     expect(screen.getAllByRole("dialog").at(-1)).toHaveTextContent("The template is published right after, so its published copy changes.");
     await answer("Replace template draft");
-    expect(mocks.save).toHaveBeenCalledWith(draft, { replaceId: kit.id, publish: true });
+    expect(mocks.save).toHaveBeenCalledWith(draft, { replaceId: kit.id, publish: true, fromPageId: "lpg_SOURCE000001" });
     expect(screen.getByRole("status")).toHaveTextContent("Replaced the draft of “Launch kit” and published it.");
+  });
+
+  it("lets the person choose which template's draft to replace", async () => {
+    mocks.save.mockResolvedValue({ templateId: unpublishedKit.id, slug: "draft-kit", name: unpublishedKit.name, published: false });
+    await open();
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByLabelText("Replace a template's draft with this page"));
+    fireEvent.change(within(dialog).getByLabelText("Template whose draft to replace"), { target: { value: unpublishedKit.id } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Replace template draft" }));
+    });
+    expect(screen.getAllByRole("dialog").at(-1)).toHaveTextContent("“Draft kit” keeps its current draft in its History");
+    await answer("Replace template draft");
+    expect(mocks.save).toHaveBeenCalledWith(draft, { replaceId: unpublishedKit.id, publish: false, fromPageId: "lpg_SOURCE000001" });
   });
 
   it("saves nothing when the replacement is cancelled", async () => {
