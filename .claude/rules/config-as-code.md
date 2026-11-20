@@ -1,8 +1,8 @@
 ---
 paths:
   - "supabase/config.toml"
-  - "config/github-repo-config.yml"
-  - "config/sentry-config.yml"
+  - "config/github.yml"
+  - "config/sentry.yml"
   - "config/slack-app-manifest.yml"
   - "scripts/slack-manifest.ts"
   - "scripts/sentry-config.ts"
@@ -23,11 +23,11 @@ paths:
 
 ### GitHub repo settings as code
 
-`config/github-repo-config.yml` is the source of truth for the repo's settings (`settings:`, today `allow_auto_merge: true`, which `.github/workflows/auto-merge.yml` relies on to enable auto-merge on every new non-draft PR: it squash-merges itself once the required checks pass; open a draft or click "Disable auto-merge" to hold one back; it re-checks on every push, since a PR opened while conflicting never got it, but never after you turned it off) and rulesets (today: `main` requires the `Test (unit)`, `Test (db) & build`, `Coverage report`, `Check migrations` and `CodeQL` (code scanning: no new alerts in the PR) checks, needs every PR review thread resolved (bots' included; no approvals required), and can't be deleted or force-pushed; nothing is pushed to `main` directly, admins included, so land changes through a PR, where an admin can still override with "Merge without waiting for requirements"). `pnpm github:config:diff` previews against the live repo (read-only) and `pnpm github:config:push` applies it; both go through `gh` and need repo admin, since Actions' `GITHUB_TOKEN` can't manage rulesets, so this is run by hand. A push replaces a declared ruleset's settings, so change the file, not the Settings page. When a CI job is renamed or added, update the required check names there. The coverage floors are `AREA_FLOORS` in `scripts/coverage-report.ts`. Rulesets on a private repo need a paid GitHub plan; the org is on the free plan.
+`config/github.yml` is the source of truth for the repo's settings (`settings:`, today `allow_auto_merge: true`, which `.github/workflows/auto-merge.yml` relies on to enable auto-merge on every new non-draft PR: it squash-merges itself once the required checks pass; open a draft or click "Disable auto-merge" to hold one back; it re-checks on every push, since a PR opened while conflicting never got it, but never after you turned it off) and rulesets (today: `main` requires the `Test (unit)`, `Test (db) & build`, `Coverage report`, `Check migrations` and `CodeQL` (code scanning: no new alerts in the PR) checks, needs every PR review thread resolved (bots' included; no approvals required), and can't be deleted or force-pushed; nothing is pushed to `main` directly, admins included, so land changes through a PR, where an admin can still override with "Merge without waiting for requirements"). `pnpm github:config:diff` previews against the live repo (read-only) and `pnpm github:config:push` applies it; both go through `gh` and need repo admin, since Actions' `GITHUB_TOKEN` can't manage rulesets, so this is run by hand. A push replaces a declared ruleset's settings, so change the file, not the Settings page. When a CI job is renamed or added, update the required check names there. The coverage floors are `AREA_FLOORS` in `scripts/coverage-report.ts`. Rulesets on a private repo need a paid GitHub plan; the org is on the free plan.
 
 ### Sentry config as code
 
-`config/sentry-config.yml` is the source of truth for the Sentry organization's data-scrubbing settings (server-side scrubbing, default scrubbers, no IP storage). On a push to main that changes it or `scripts/sentry-config.ts`, after the production deploy, the `push-sentry-config` job applies it, so change the file, not the Settings page. `pnpm sentry:config:diff` previews against the live organization (read-only). Needs the `SENTRY_CONFIG_TOKEN` secret, an internal integration token, not the build token `SENTRY_AUTH_TOKEN`. Session Replay masking is in code (`instrumentation-client.ts`, `data-sentry-unmask`), retention is Sentry's plan. Details: `docs/SENTRY_CONFIG.md`.
+`config/sentry.yml` is the source of truth for the Sentry organization's data-scrubbing settings (server-side scrubbing, default scrubbers, no IP storage). On a push to main that changes it or `scripts/sentry-config.ts`, after the production deploy, the `push-sentry-config` job applies it, so change the file, not the Settings page. `pnpm sentry:config:diff` previews against the live organization (read-only). Needs the `SENTRY_CONFIG_TOKEN` secret, an internal integration token, not the build token `SENTRY_AUTH_TOKEN`. Session Replay masking is in code (`instrumentation-client.ts`, `data-sentry-unmask`), retention is Sentry's plan. Details: `docs/SENTRY_CONFIG.md`.
 
 ### Slack app manifest as code
 

@@ -181,7 +181,7 @@ as the last step of `.github/workflows/ci.yml`, after tests pass and migrations 
 
 ### Always-on tracing
 
-Sampling rules are managed as code: `config/vercel-project-config.yml` is the source of truth, applied
+Sampling rules are managed as code: `config/vercel.yml` is the source of truth, applied
 by CI after a production deploy (see `docs/VERCEL_CONFIG.md`). Edit the file, not the dashboard
 page above. Production only, with 0% on `/api/health` (Checkly's uptime monitor).
 

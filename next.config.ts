@@ -42,7 +42,7 @@ const nextConfig: NextConfig = {
   // Derived from git at build time, not configuration: "local" outside CI.
   env: {
     HELP_IMAGES_VERSION: helpImagesVersion(),
-    // When this build was made, and how long Vercel keeps serving a deployment to the tabs opened on it (config/vercel-project-config.yml,
+    // When this build was made, and how long Vercel keeps serving a deployment to the tabs opened on it (config/vercel.yml,
     // applied by scripts/vercel-config.ts): the page can tell when its own deployment is about to stop being served (lib/skew-deadline.ts).
     BUILD_TIME: new Date().toISOString(),
     SKEW_PROTECTION_MAX_AGE_SECONDS: String(readSkewMaxAgeSeconds()),

@@ -1,5 +1,5 @@
 // Pure logic behind `pnpm sentry:config:diff` / `:push` (scripts/sentry-config.ts): turn the committed
-// config/sentry-config.yml into the desired organization settings, and compare them with what Sentry reports. No
+// config/sentry.yml into the desired organization settings, and compare them with what Sentry reports. No
 // network and no secrets here, so it is unit-tested (tests/lib/sentry-config.test.ts). See docs/SENTRY_CONFIG.md.
 
 /** The organization settings the file manages, under their names in Sentry's API. */
@@ -14,17 +14,17 @@ export interface OrgSettingChange {
   desired: boolean;
 }
 
-/** Reads `organization:` from config/sentry-config.yml. Every setting must be listed, so none is dropped by accident. */
+/** Reads `organization:` from config/sentry.yml. Every setting must be listed, so none is dropped by accident. */
 export function parseSentryConfig(raw: unknown): OrgSettings {
   const org = ((raw ?? {}) as Record<string, unknown>).organization;
-  if (typeof org !== "object" || org === null) throw new Error("config/sentry-config.yml: organization must be a map");
+  if (typeof org !== "object" || org === null) throw new Error("config/sentry.yml: organization must be a map");
   const entries = org as Record<string, unknown>;
   const unknown = Object.keys(entries).filter((key) => !(ORG_SETTING_KEYS as readonly string[]).includes(key));
-  if (unknown.length > 0) throw new Error(`config/sentry-config.yml: unknown organization setting ${unknown.join(", ")}`);
+  if (unknown.length > 0) throw new Error(`config/sentry.yml: unknown organization setting ${unknown.join(", ")}`);
   const settings = {} as OrgSettings;
   for (const key of ORG_SETTING_KEYS) {
     const value = entries[key];
-    if (typeof value !== "boolean") throw new Error(`config/sentry-config.yml: organization.${key} must be true or false`);
+    if (typeof value !== "boolean") throw new Error(`config/sentry.yml: organization.${key} must be true or false`);
     settings[key] = value;
   }
   return settings;
