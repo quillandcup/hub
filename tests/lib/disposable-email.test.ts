@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DISPOSABLE_EMAIL_DOMAINS } from "@/lib/disposable-email-domains.generated";
-import { isDisposableEmail, parseBlocklist, renderDomainsModule } from "@/lib/disposable-email";
+import { MAINSTREAM_EMAIL_DOMAINS, isDisposableEmail, parseBlocklist, renderDomainsModule } from "@/lib/disposable-email";
 
 describe("isDisposableEmail", () => {
   it("blocks a listed domain, whatever the case", () => {
@@ -23,6 +23,10 @@ describe("isDisposableEmail", () => {
     expect(isDisposableEmail("ada@")).toBe(false);
   });
 
+  it("never blocks a mainstream provider", () => {
+    for (const domain of MAINSTREAM_EMAIL_DOMAINS) expect(isDisposableEmail(`ada@${domain}`)).toBe(false);
+  });
+
   it("ships a list of real size", () => {
     expect(DISPOSABLE_EMAIL_DOMAINS.length).toBeGreaterThan(5000);
   });
@@ -35,7 +39,7 @@ describe("blocklist file helpers", () => {
 
   it("renders a module that names its source", () => {
     const out = renderDomainsModule(["a.example"], "https://source.test/list", "2026-11-20");
-    expect(out).toContain('["a.example"]');
+    expect(out).toContain('[\n  "a.example",\n];');
     expect(out).toContain("https://source.test/list");
   });
 });
