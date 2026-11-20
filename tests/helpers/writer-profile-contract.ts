@@ -90,8 +90,11 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
         expect(await claim(ada, second)).toBe("changed");
 
         expect((await ctx.profiles().ofMember(ada))?.handle).toBe(second);
-        expect(await ctx.profiles().publicByHandle(first)).toEqual({ kind: "redirect", handle: second });
-        expect(await ctx.profiles().publicByHandle(second)).toMatchObject({ kind: "page", profile: { handle: second } });
+        expect(await ctx.profiles().publicByHandle(first)).toEqual({ kind: "redirect", handle: second, ownerId: ada });
+        // The owner is for the server's flag check; it is never part of the public profile.
+        const page = await ctx.profiles().publicByHandle(second);
+        expect(page).toMatchObject({ kind: "page", ownerId: ada, profile: { handle: second } });
+        expect(JSON.stringify(page.kind === "page" ? page.profile : null)).not.toContain(ada);
       });
 
       it("keeps the old handle for the previous owner for the configured days: someone else cannot take it", async () => {
@@ -354,6 +357,9 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
         const ours = all.filter((h) => [a, b].includes(h.handle));
         expect(ours.map((h) => h.handle).sort()).toEqual([a, b].sort());
         expect(ours.every((h) => !Number.isNaN(Date.parse(h.updatedAt)))).toBe(true);
+        // Each entry names its owner, so the server can check the flag for a whole file of pages at once.
+        expect(ours.find((h) => h.handle === a)?.memberId).toBe(ada);
+        expect(ours.find((h) => h.handle === b)?.memberId).toBe(grace);
         expect(await ctx.profiles().publicCount()).toBeGreaterThanOrEqual(2);
         // Two pages of one entry each cover the same entries as one page.
         const total = await ctx.profiles().publicCount();

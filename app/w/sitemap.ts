@@ -20,5 +20,5 @@ export async function generateSitemaps() {
 
 export default async function sitemap(props: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
   const page = Number(await props.id);
-  return writerSitemapEntries(getServiceRepos().writerProfiles, Number.isInteger(page) && page >= 0 ? page : 0, WRITER_PROFILES.sitemapPageSize);
+  return writerSitemapEntries(getServiceRepos(), Number.isInteger(page) && page >= 0 ? page : 0, WRITER_PROFILES.sitemapPageSize);
 }

@@ -2,7 +2,22 @@
 
 A member can opt in to a page of their own on the open web, at an address they choose: `/w/<handle>`. Anyone can open it without signing in, and search engines list it. It is the writer's home on the web. This document is the foundation: who a page is for, the handle, the name, photo and bio, and how a visitor is served. It shows no writing, goals, books or awards yet; those need the three-level visibility control and come in later packages (see `docs/TODO.md`, "Writer profiles: public author pages, Finishers, three-level visibility").
 
-**Default is off for everyone.** A page exists once the member picks a handle, and stays private until they switch it on in Settings, Profile, "Your page on the web".
+**Default is off for everyone.** A page exists once the member picks a handle, and stays private until they switch it on in Settings, Profile, "Your page on the web". On top of that the whole feature is behind a feature flag (below): until it is on for a member, they do not see the section at all.
+
+## The feature flag
+
+`writer_pages` ("Writers' pages on the web", `lib/features.ts`; switched at `/admin/previews`) decides who can have a page. It is decided **for the page's owner**, never the visitor (an anonymous visitor has no flag), with the same rules as every flag: on for everyone with the global switch, otherwise for members in a linked segment or with their own preview (`membersWithFeature`, `lib/features.server.ts`; the helper is `lib/writer-pages-access.ts`).
+
+| Place | Flag off for the owner |
+|---|---|
+| Settings, Profile, "Your page on the web" | the section is not shown (`getWriterPageSettings` says `available: false`); universal search leaves it out (`feature` in `sections.ts`) |
+| Claiming an address, saving the name, photo and bio, switching the page **on** | refused in the action (`WRITER_PAGES_NOT_AVAILABLE`). Switching **off** is always allowed |
+| `/w/<handle>` and `generateMetadata`, also a given-up handle's redirect | the same 404 as a page nobody has |
+| `/writer-page/preview` | the same 404 |
+| `/w/sitemap/<n>.xml` | the page is left out; the owners of one file's pages are checked together (`writerSitemapEntries`: one batched `membersWithFeature` call per file, never a query per page) |
+| `/robots.txt` | lists only the sitemap files; it never names a page. The number of files comes from `publicCount`, which does not know the flag, so a file can be empty (valid) |
+
+**The flag never deletes or changes data.** The row, its handle, name, photo switch, bio and `is_public` stay exactly as the member left them; the page stops being served and comes back when the flag is on again. The one read that carries the owner is `PublicLookup.ownerId` (and `memberId` in a sitemap entry): server-only, never part of `PublicWriterProfile`. A flag that is on only for some members means a public page can disappear for the others, which is the point of a staged rollout, but it also means a page that was public before the flag existed is hidden until the flag is on for its owner.
 
 ## What a visitor sees
 

@@ -16,6 +16,7 @@ vi.mock("@/app/(member)/settings/writerPageActions", () => ({
 }));
 
 const noPage: actions.WriterPageSettings = {
+  available: true,
   hasPage: false,
   handle: null,
   isPublic: false,
@@ -38,6 +39,15 @@ beforeEach(() => {
 });
 
 describe("WriterPagePanel", () => {
+  it("shows nothing at all when the writer_pages flag is not on for the member", async () => {
+    vi.mocked(actions.getWriterPageSettings).mockResolvedValue({ ...withPage, available: false });
+    const { container } = render(<WriterPagePanel />);
+
+    await waitFor(() => expect(actions.getWriterPageSettings).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("heading", { name: "Your page on the web" })).not.toBeInTheDocument();
+  });
+
   it("says what becomes public, calmly, and that it is off until switched on", async () => {
     vi.mocked(actions.getWriterPageSettings).mockResolvedValue(noPage);
     render(<WriterPagePanel />);

@@ -30,6 +30,8 @@ import robots from "@/app/robots";
 
 const params = (handle: string) => ({ params: Promise.resolve({ handle }) });
 const NOW = new Date("2027-03-01T12:00:00Z");
+const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_pages", enabled_globally, created_at: NOW.toISOString(), updated_at: NOW.toISOString() });
+const GRACE = "mbr_AAAAAAAAAAA2";
 
 async function makePage(handle: string, options: { on?: boolean; bio?: string; photo?: boolean } = {}) {
   await state.repos.writerProfiles.setHandle(ADA, handle, { reserveDays: WRITER_PROFILES.handleReservationDays, now: NOW });
@@ -39,7 +41,8 @@ async function makePage(handle: string, options: { on?: boolean; bio?: string; p
 beforeEach(() => {
   resetServerPageMocks();
   state.dataset = new InMemoryDataset({
-    members: [{ id: ADA, name: "Ada Legalname", displayName: "Ada Example", email: "ada.private@example.test", photoUrl: "https://photos.example.com/ada.png" }],
+    members: [{ id: ADA, name: "Ada Legalname", displayName: "Ada Example", email: "ada.private@example.test", photoUrl: "https://photos.example.com/ada.png", userId: "user-ada" }],
+    featureFlags: [flagRow(true)],
   });
   state.repos = createInMemoryRepos(state.dataset);
   signInAs(null);
@@ -131,6 +134,85 @@ describe("/w/[handle]", () => {
     expect(container.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
     expect(container.querySelector('script[type="application/ld+json"]')!.innerHTML).not.toContain("</script>");
     expect(JSON.parse(container.querySelector('script[type="application/ld+json"]')!.textContent!).description).toBe("</script><script>alert(1)</script>");
+  });
+});
+
+describe("the writer_pages flag", () => {
+  const MEMBER_USER = { id: "user-ada", email: "ada.private@example.test" };
+  const IDENTITY = { memberId: ADA, memberName: "Ada Legalname", memberEmail: "ada.private@example.test", isSudo: false };
+  const flagOff = () => {
+    state.dataset.featureFlags = [flagRow(false)];
+  };
+  const notFoundError = { digest: "NEXT_HTTP_ERROR_FALLBACK;404" };
+
+  it("answers a public page whose owner lacks the flag with the same 404 as a page nobody has, in the page and its metadata", async () => {
+    await makePage("ada-example", { bio: "Hidden by the flag." });
+    flagOff();
+
+    await expect(WriterPage(params("ada-example"))).rejects.toMatchObject(notFoundError);
+    const [flagged, missing] = await Promise.all([generateMetadata(params("ada-example")), generateMetadata(params("never-made"))]);
+    expect(flagged).toEqual(missing);
+    expect(flagged.robots).toEqual({ index: false });
+  });
+
+  it("serves it again when the flag comes back, with nothing changed", async () => {
+    await makePage("ada-example", { bio: "Still here." });
+    flagOff();
+    await expect(WriterPage(params("ada-example"))).rejects.toMatchObject(notFoundError);
+
+    state.dataset.featureFlags = [];
+    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_pages", enabled_at: NOW.toISOString() }];
+    await renderServerPage(WriterPage, params("ada-example"));
+    expect(screen.getByText("Still here.")).toBeInTheDocument();
+  });
+
+  it("does not redirect from a given-up handle either", async () => {
+    await makePage("ada-old");
+    await state.repos.writerProfiles.setHandle(ADA, "ada-new", { reserveDays: 90, now: NOW });
+    flagOff();
+
+    await expect(WriterPage(params("ada-old"))).rejects.toMatchObject(notFoundError);
+  });
+
+  it("gives the owner's preview the same 404 while the flag is off, and keeps the page's data", async () => {
+    signInAs(MEMBER_USER, IDENTITY);
+    await makePage("ada-example", { on: false, bio: "Draft." });
+    flagOff();
+
+    await expect(WriterPagePreview()).rejects.toMatchObject(notFoundError);
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ handle: "ada-example", bio: "Draft." });
+  });
+
+  it("leaves the pages of owners without the flag out of the sitemap, whatever the other pages are, and keeps robots to the sitemap list", async () => {
+    await makePage("ada-example");
+    state.dataset.members.push({ id: GRACE, name: "Grace Example", userId: "user-grace" });
+    await state.repos.writerProfiles.setHandle(GRACE, "grace-example", { reserveDays: 90, now: NOW });
+    await state.repos.writerProfiles.update(GRACE, { isPublic: true });
+    state.dataset.featureFlags = [flagRow(false)];
+    state.dataset.userFeaturePreviews = [{ user_id: "user-grace", feature_key: "writer_pages", enabled_at: NOW.toISOString() }];
+
+    expect(await sitemap({ id: Promise.resolve("0") })).toEqual([{ url: `${APP_URL}/w/grace-example`, lastModified: expect.any(String) }]);
+
+    state.dataset.userFeaturePreviews = [];
+    expect(await sitemap({ id: Promise.resolve("0") })).toEqual([]);
+    const rules = await robots();
+    expect(JSON.stringify(rules)).not.toContain("grace-example");
+    expect(rules.sitemap).toEqual([`${APP_URL}/w/sitemap/0.xml`]);
+  });
+
+  it("checks the owners of a whole sitemap file together, not one by one", async () => {
+    for (const [i, name] of ["one", "two", "three"].entries()) {
+      const id = `mbr_BBBBBBBBBBB${i}`;
+      state.dataset.members.push({ id, name, userId: `user-${name}` });
+      await state.repos.writerProfiles.setHandle(id, `writer-${name}`, { reserveDays: 90, now: NOW });
+      await state.repos.writerProfiles.update(id, { isPublic: true });
+    }
+    state.dataset.featureFlags = [flagRow(false)];
+    const spy = vi.spyOn(state.repos.featureFlags, "userIdsWithPreview");
+
+    await sitemap({ id: Promise.resolve("0") });
+
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 
