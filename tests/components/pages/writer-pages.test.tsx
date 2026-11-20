@@ -207,6 +207,11 @@ describe("sitemap and robots", () => {
     });
   });
 
+  it("still makes the first sitemap when the count cannot be read, so a build without a database does not fail", async () => {
+    vi.spyOn(state.repos.writerProfiles, "publicCount").mockRejectedValue(new Error("down"));
+    expect(await generateSitemaps()).toEqual([{ id: 0 }]);
+  });
+
   it("still lists the first sitemap when the count cannot be read", async () => {
     vi.spyOn(state.repos.writerProfiles, "publicCount").mockRejectedValue(new Error("down"));
     expect((await robots()).sitemap).toEqual([`${APP_URL}/w/sitemap/0.xml`]);
