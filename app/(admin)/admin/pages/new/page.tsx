@@ -12,11 +12,11 @@ export const maxDuration = 120;
 
 export default async function NewLandingPage() {
   await requireAdminPage();
-  const templates = await createRepos(await createClient()).landingTemplates.list();
+  const templates = await createRepos(await createClient()).landingPages.usableTemplates();
   return (
     <div className="container mx-auto max-w-xl px-6 py-8">
       <h1 className="mb-6 text-3xl font-bold">New page</h1>
-      <NewPageForm aiAvailable={aiConfigured()} templates={templates.map((t) => ({ id: t.id, name: t.name, description: t.description }))} />
+      <NewPageForm aiAvailable={aiConfigured()} templates={templates.map((t) => ({ id: t.id, name: t.title }))} />
     </div>
   );
 }

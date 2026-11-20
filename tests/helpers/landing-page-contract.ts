@@ -240,6 +240,22 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().byId(kit.id)).toBeNull();
     });
 
+    it("keeps a note on a version: at publish, and on the draft kept before an import or a starter, trimmed and cut to 200 characters", async () => {
+      const page = await ctx.repo().create({ title: "Notes", slug: ctx.unique("notes"), data: doc("one"), createdBy: null });
+      await ctx.repo().publish(page.id, "  First publish  ");
+      await ctx.repo().publish(page.id, "x".repeat(300));
+      await ctx.repo().publish(page.id, "   ");
+      await ctx.repo().publish(page.id);
+      const kept = await ctx.repo().keepDraftBeforeStarter(page.id, null, "Replaced by the starter “Homepage”");
+      const keptImport = await ctx.repo().keepDraftBeforeImport(page.id, null, "Replaced by a Kajabi import");
+      expect(kept?.note).toBe("Replaced by the starter “Homepage”");
+      expect(keptImport?.note).toBe("Replaced by a Kajabi import");
+      expect((await ctx.repo().keepDraftBeforeStarter(page.id, null))?.note).toBeNull();
+
+      const notes = (await ctx.repo().versions(page.id)).map((v) => v.note);
+      expect(notes).toEqual([null, "Replaced by a Kajabi import", "Replaced by the starter “Homepage”", null, null, "x".repeat(200), "First publish"]);
+    });
+
     it("answers null for a page that is gone", async () => {
       const missing = `lpg_${"A".repeat(12)}`;
       expect(await ctx.repo().publish(missing)).toBeNull();

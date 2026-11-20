@@ -13,20 +13,25 @@ vi.mock("@/lib/admin-auth", () => ({
 vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => false, generateLandingPage: async () => undefined, reviseLandingPage: async () => undefined }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
-import { createLandingPage } from "@/app/(admin)/admin/pages/actions";
-import {
-  deleteLandingTemplate,
-  loadLandingTemplateOutline,
-  loadLandingTemplateVersions,
-  replaceLandingDraftWithTemplate,
-  restoreLandingTemplateVersion,
-  saveLandingTemplate,
-  updateLandingTemplateDetails,
-} from "@/app/(admin)/admin/pages/template-actions";
+import { createLandingPage, publishLandingPage, unpublishLandingPage, duplicateLandingPage, deleteLandingPage } from "@/app/(admin)/admin/pages/actions";
+import { replaceLandingDraftWithTemplate, saveLandingTemplate } from "@/app/(admin)/admin/pages/template-actions";
 
 const heading = (text: string) => ({ type: "Heading", props: { id: "h", text, level: "h1", align: "center" } });
 const doc = (text = "Welcome", ...more: unknown[]) => ({ content: [heading(text), ...more], root: { props: {} } });
-const text = (page: { draft_data: unknown } | null) => (JSON.stringify(page?.draft_data).match(/"text":"([^"]*)"/) ?? [])[1];
+const words = (value: { draft_data?: unknown; published_data?: unknown } | null, which: "draft_data" | "published_data" = "draft_data") =>
+  (JSON.stringify(value?.[which]).match(/"text":"([^"]*)"/) ?? [])[1];
+const linklessButton = { type: "Button", props: { id: "b", label: "Join", href: "", look: "solid", color: "plum", shape: "pill", align: "left" } };
+
+async function page(slug: string, text: string) {
+  await createLandingPage({ title: `Page ${slug}`, slug });
+  const made = (await state.repos.landingPages.bySlug(slug))!;
+  await state.repos.landingPages.saveDraft(made.id, doc(text) as never, null);
+  return (await state.repos.landingPages.bySlug(slug))!;
+}
+const templateBySlug = async (slug: string) => (await state.repos.landingPages.bySlug(slug))!;
+async function asset(isPublic = false) {
+  return state.repos.media.add({ storage_path: `originals/shared/${crypto.randomUUID()}.png`, mime_type: "image/png", width: 800, height: 600, bytes: 1000, sha256: crypto.randomUUID(), title: "Picture", is_public: isPublic });
+}
 
 beforeEach(() => {
   state.admin = true;
@@ -37,188 +42,250 @@ beforeEach(() => {
 });
 
 describe("who may use templates", () => {
-  it("refuses every action to someone who isn't an admin, and writes nothing", async () => {
+  it("refuses saving and using to someone who isn't an admin, and writes nothing", async () => {
     state.admin = false;
-    const results = await Promise.all([
-      saveLandingTemplate(doc(), { name: "A" }),
-      restoreLandingTemplateVersion("lpgtv_AAAAAAAAAAA1"),
-      updateLandingTemplateDetails("lpgt_AAAAAAAAAAA1", { name: "A", description: "" }),
-      deleteLandingTemplate("lpgt_AAAAAAAAAAA1"),
-      replaceLandingDraftWithTemplate("lpg_AAAAAAAAAAA1", "lpgt_AAAAAAAAAAA1"),
-      loadLandingTemplateVersions("lpgt_AAAAAAAAAAA1"),
-      loadLandingTemplateOutline("lpgtv_AAAAAAAAAAA1"),
-      createLandingPage({ title: "A", template: "lpgt_AAAAAAAAAAA1" }),
-    ]);
-    for (const result of results) expect(result).toEqual({ error: "Not authorized" });
-    expect(state.dataset.landingPageTemplates).toEqual([]);
+    expect(await saveLandingTemplate(doc(), { name: "A" })).toEqual({ error: "Not authorized" });
+    expect(await replaceLandingDraftWithTemplate("lpg_AAAAAAAAAAA1", "lpg_AAAAAAAAAAA2")).toEqual({ error: "Not authorized" });
+    expect(await createLandingPage({ title: "A", template: "lpg_AAAAAAAAAAA2" })).toEqual({ error: "Not authorized" });
     expect(state.dataset.landingPages).toEqual([]);
   });
 });
 
-describe("saveLandingTemplate", () => {
-  it("saves a new template as version 1, cleaned like a save, and publishes and changes nothing else", async () => {
-    const result = await saveLandingTemplate(doc("Hello", { type: "RichText", props: { id: "r", html: "<p>Hi</p><script>x</script>", align: "left" } }), { name: "  Spring launch ", description: " A start ", note: "first" });
+describe("saveLandingTemplate: a new template", () => {
+  it("makes a template whose DRAFT is the page, cleaned like a save; it is not published and not in the pages list; the page is untouched", async () => {
+    const source = await page("spring", "Spring words");
+    const before = JSON.stringify(source);
 
-    expect(result).toEqual({ templateId: expect.stringMatching(/^lpgt_/), name: "Spring launch", version: 1 });
-    const template = (await state.repos.landingTemplates.byId(result.templateId!))!;
-    expect(template).toMatchObject({ name: "Spring launch", description: "A start", current_version: 1 });
-    expect(JSON.stringify(template.data)).toContain("<p>Hi</p>");
-    expect(JSON.stringify(template.data)).not.toContain("script");
-    expect(state.dataset.landingPages).toEqual([]);
-    expect(revalidated).toContain("/admin/pages");
+    const result = await saveLandingTemplate(doc("Hello", { type: "RichText", props: { id: "r", html: "<p>Hi</p><script>x</script>", align: "left" } }), { name: "  Launch kit " });
+
+    expect(result).toMatchObject({ name: "Launch kit", slug: "launch-kit", published: false });
+    const template = await templateBySlug("launch-kit");
+    expect(template).toMatchObject({ kind: "template", title: "Launch kit", status: "draft", published_data: null });
+    expect(JSON.stringify(template.draft_data)).toContain("<p>Hi</p>");
+    expect(JSON.stringify(template.draft_data)).not.toContain("script");
+    expect((await state.repos.landingPages.list()).map((p) => p.slug)).toEqual(["spring"]);
+    expect((await state.repos.landingPages.list("template")).map((p) => p.slug)).toEqual(["launch-kit"]);
+    expect(JSON.stringify(await state.repos.landingPages.bySlug("spring"))).toBe(before);
+    expect(await state.repos.landingPages.published("launch-kit")).toBeNull();
+    expect(await state.repos.landingPages.usableTemplates()).toEqual([]);
   });
 
-  it("overwrites as version 2 and keeps version 1, with the note", async () => {
-    const first = await saveLandingTemplate(doc("One"), { name: "Kit" });
+  it("can publish it in the same step: one version, a published copy, no picture made public", async () => {
+    const picture = await asset();
+    const source = await page("spring", "Spring words");
+    const result = await saveLandingTemplate(doc("Hello", { type: "Image", props: { id: "i", imageAssetId: picture.id, alt: "A picture", decorative: false, align: "center" } }), { name: "Kit", publish: true, fromPageId: source.id });
 
-    const second = await saveLandingTemplate(doc("Two"), { overwriteId: first.templateId, description: "Better", note: "A better headline" });
-
-    expect(second).toEqual({ templateId: first.templateId, name: "Kit", version: 2 });
-    const versions = await state.repos.landingTemplates.versions(first.templateId!);
-    expect(versions.map((v) => [v.version, v.kind, v.note])).toEqual([[2, "overwritten", "A better headline"], [1, "created", null]]);
-    expect(JSON.stringify((await state.repos.landingTemplates.versionData(versions[1].id))?.data)).toContain("One");
-    expect(JSON.stringify((await state.repos.landingTemplates.byId(first.templateId!))?.data)).toContain("Two");
+    expect(result.published).toBe(true);
+    const template = await templateBySlug("kit");
+    expect(template.status).toBe("published");
+    expect(words(template, "published_data")).toBe("Hello");
+    const made = await state.repos.landingPages.versions(template.id);
+    expect(made).toHaveLength(1);
+    // The automatic note names the page by its title only, never what is on it.
+    expect(made[0].note).toBe("Saved from the page “Page spring”");
+    expect((await state.repos.media.byId(picture.id))?.is_public).toBe(false);
+    expect((await state.repos.landingPages.usableTemplates()).map((t) => t.id)).toEqual([template.id]);
+    expect(await state.repos.landingPages.published("kit")).toBeNull();
   });
 
-  it("refuses a name another template has, a missing name, an empty page, a long note and a template that is gone", async () => {
-    await saveLandingTemplate(doc(), { name: "Kit" });
+  it("gives each template a free address, refuses a name that is taken, a missing name, an empty page and a page over the size cap", async () => {
+    expect((await saveLandingTemplate(doc(), { name: "New" })).slug).toBe("new-template");
+    expect((await saveLandingTemplate(doc(), { name: "Kit" })).slug).toBe("kit");
+    await createLandingPage({ title: "Kit page", slug: "kit-2" });
+    expect((await saveLandingTemplate(doc(), { name: "Kit!" })).slug).toBe("kit-3");
     expect((await saveLandingTemplate(doc(), { name: " kit " })).error).toContain("already exists");
     expect(await saveLandingTemplate(doc(), { name: "  " })).toEqual({ error: "Give the template a name." });
-    expect((await saveLandingTemplate({ content: [], root: {} }, { name: "Blank" })).error).toContain("empty");
-    expect((await saveLandingTemplate(doc(), { name: "Noted", note: "x".repeat(501) })).error).toContain("note");
     expect((await saveLandingTemplate(doc(), { name: "x".repeat(81) })).error).toContain("name");
-    expect(await saveLandingTemplate(doc(), { overwriteId: "lpgt_AAAAAAAAAAA1" })).toEqual({ error: "That template no longer exists." });
-    expect(await saveLandingTemplate(doc(), { overwriteId: "not-an-id" })).toEqual({ error: "That template no longer exists." });
-    expect(state.dataset.landingPageTemplates).toHaveLength(1);
-  });
-
-  it("refuses a page over the size cap", async () => {
+    expect((await saveLandingTemplate({ content: [], root: {} }, { name: "Blank" })).error).toContain("empty");
     const big = doc("Big", { type: "RichText", props: { id: "r", html: `<p>${"x".repeat(2_100_000)}</p>`, align: "left" } });
     expect((await saveLandingTemplate(big, { name: "Big" })).error).toContain("too large");
-    expect(state.dataset.landingPageTemplates).toEqual([]);
+    expect((await state.repos.landingPages.list("template")).map((t) => t.title).sort()).toEqual(["Kit", "Kit!", "New"]);
   });
 
   it("reports a failure calmly, without the database's words", async () => {
-    vi.spyOn(state.repos.landingTemplates, "save").mockRejectedValueOnce(new Error('relation "landing_page_templates" does not exist'));
-    const result = await saveLandingTemplate(doc(), { name: "Kit" });
-    expect(result).toEqual({ error: "Couldn't save the template." });
+    vi.spyOn(state.repos.landingPages, "create").mockRejectedValueOnce(new Error('relation "landing_pages" does not exist'));
+    expect(await saveLandingTemplate(doc(), { name: "Kit" })).toEqual({ error: "Couldn't save the template." });
   });
 });
 
-describe("restoring, renaming and deleting", () => {
-  it("brings a version back as a new version, keeping every old one", async () => {
-    const first = await saveLandingTemplate(doc("One"), { name: "Kit" });
-    await saveLandingTemplate(doc("Two"), { overwriteId: first.templateId });
-    const [, v1] = await state.repos.landingTemplates.versions(first.templateId!);
+describe("saveLandingTemplate: replace a template's draft with a page", () => {
+  async function publishedTemplate() {
+    await saveLandingTemplate(doc("Version one"), { name: "Kit", publish: true });
+    return templateBySlug("kit");
+  }
 
-    const restored = await restoreLandingTemplateVersion(v1.id);
+  it("without publishing: keeps the published copy and its versions as they were, keeps the old draft in History, and leaves the page alone", async () => {
+    const template = await publishedTemplate();
+    await state.repos.landingPages.saveDraft(template.id, doc("Unpublished edits") as never, null);
+    const source = await page("spring", "New words");
+    const sourceBefore = JSON.stringify(source);
+    const versionsBefore = JSON.stringify(await state.repos.landingPages.versions(template.id));
 
-    expect(restored).toEqual({ templateId: first.templateId, name: "Kit", version: 3 });
-    expect((await state.repos.landingTemplates.versions(first.templateId!)).map((v) => [v.version, v.kind])).toEqual([[3, "restored"], [2, "overwritten"], [1, "created"]]);
-    expect(JSON.stringify((await state.repos.landingTemplates.byId(first.templateId!))?.data)).toContain("One");
-    expect(await restoreLandingTemplateVersion("lpgtv_AAAAAAAAAAA1")).toEqual({ error: "That version no longer exists." });
-    expect(await restoreLandingTemplateVersion("nope")).toEqual({ error: "That version no longer exists." });
+    const result = await saveLandingTemplate(doc("New words"), { replaceId: template.id, fromPageId: source.id });
+
+    expect(result).toMatchObject({ templateId: template.id, name: "Kit", published: false });
+    const after = await templateBySlug("kit");
+    expect(words(after)).toBe("New words");
+    expect(words(after, "published_data")).toBe("Version one");
+    expect(after.status).toBe("published");
+    const versions = await state.repos.landingPages.versions(template.id);
+    expect(versions.map((v) => v.kind)).toEqual(["before_starter", "published"]);
+    expect(versions[0].note).toBe("Replaced by the page “Page spring”");
+    expect(JSON.stringify(versions.filter((v) => v.kind === "published"))).toBe(JSON.stringify(JSON.parse(versionsBefore)));
+    expect(words({ draft_data: await state.repos.landingPages.versionData(versions[0].id) })).toBe("Unpublished edits");
+    expect(JSON.stringify(await state.repos.landingPages.bySlug("spring"))).toBe(sourceBefore);
+    // Still offered, and still with the published copy.
+    expect((await state.repos.landingPages.usableTemplateData(template.id))?.data).toMatchObject({ content: [{ props: { text: "Version one" } }] });
   });
 
-  it("renames without a new version and refuses a name that is taken or blank", async () => {
-    const a = await saveLandingTemplate(doc(), { name: "Kit" });
-    await saveLandingTemplate(doc(), { name: "Other" });
+  it("with publishing: adds exactly one new version and the published copy becomes the page, and the page is untouched", async () => {
+    const template = await publishedTemplate();
+    const source = await page("spring", "New words");
+    const sourceBefore = JSON.stringify(source);
 
-    expect(await updateLandingTemplateDetails(a.templateId!, { name: "Kit two", description: "Words" })).toEqual({ templateId: a.templateId, name: "Kit two", version: 1 });
-    expect((await state.repos.landingTemplates.versions(a.templateId!)).length).toBe(1);
-    expect((await updateLandingTemplateDetails(a.templateId!, { name: "other", description: "" })).error).toContain("already exists");
-    expect(await updateLandingTemplateDetails(a.templateId!, { name: " ", description: "" })).toEqual({ error: "Give the template a name." });
-    expect((await updateLandingTemplateDetails(a.templateId!, { name: "x".repeat(81), description: "" })).error).toContain("name");
-    expect((await updateLandingTemplateDetails(a.templateId!, { name: "Fine", description: "x".repeat(501) })).error).toContain("description");
-    expect(await updateLandingTemplateDetails("lpgt_AAAAAAAAAAA1", { name: "Fine", description: "" })).toEqual({ error: "That template no longer exists." });
+    const result = await saveLandingTemplate(doc("New words"), { replaceId: template.id, publish: true, fromPageId: source.id });
+
+    expect(result.published).toBe(true);
+    const after = await templateBySlug("kit");
+    expect(words(after, "published_data")).toBe("New words");
+    const versions = await state.repos.landingPages.versions(template.id);
+    // The draft kept before the replacement, the first publish and the new publish: one more published version than before.
+    expect(versions.filter((v) => v.kind === "published")).toHaveLength(2);
+    expect(versions).toHaveLength(3);
+    expect(versions[0].note).toBe("Saved from the page “Page spring”");
+    expect(JSON.stringify(await state.repos.landingPages.bySlug("spring"))).toBe(sourceBefore);
+    expect(await state.repos.landingPages.published("kit")).toBeNull();
   });
 
-  it("deletes softly: gone from the lists, its versions kept, its name free, pages made from it untouched", async () => {
-    const saved = await saveLandingTemplate(doc("One"), { name: "Kit" });
-    await createLandingPage({ title: "From kit", slug: "from-kit", template: saved.templateId });
-
-    expect(await deleteLandingTemplate(saved.templateId!)).toEqual({});
-
-    expect(await state.repos.landingTemplates.list()).toEqual([]);
-    expect(state.dataset.landingPageTemplates[0].deleted_at).toEqual(expect.any(String));
-    expect(state.dataset.landingPageTemplateVersions).toHaveLength(1);
-    expect(await state.repos.landingPages.bySlug("from-kit")).not.toBeNull();
-    expect((await saveLandingTemplate(doc(), { name: "Kit" })).version).toBe(1);
-    expect(await deleteLandingTemplate(saved.templateId!)).toEqual({ error: "That template no longer exists." });
-    expect(await deleteLandingTemplate("nope")).toEqual({ error: "That template no longer exists." });
+  it("refuses a template that is gone, an id that isn't one, and a page that isn't a template", async () => {
+    const normal = await page("spring", "Words");
+    expect(await saveLandingTemplate(doc(), { replaceId: "lpg_AAAAAAAAAAA1" })).toEqual({ error: "That template is no longer available." });
+    expect(await saveLandingTemplate(doc(), { replaceId: "nope" })).toEqual({ error: "That template is no longer available." });
+    expect(await saveLandingTemplate(doc("Other"), { replaceId: normal.id })).toEqual({ error: "That template is no longer available." });
+    expect(words(await state.repos.landingPages.bySlug("spring"))).toBe("Words");
+    expect(await state.repos.landingPages.versions(normal.id)).toEqual([]);
   });
 });
 
-describe("reading a template's history", () => {
-  it("lists versions newest first with who saved them, and counts the blocks of one", async () => {
-    const saved = await saveLandingTemplate(doc("One", heading("Two")), { name: "Kit", note: "first" });
-    await saveLandingTemplate(doc("Three"), { overwriteId: saved.templateId });
+describe("a template publishes like a page, with its own rules", () => {
+  it("publishes with a button that has no link (a warning for a template, an error for a page) and makes no picture public", async () => {
+    await saveLandingTemplate(doc("Kit", linklessButton), { name: "Kit" });
+    const template = await templateBySlug("kit");
+    const picture = await asset();
+    const content = doc("Kit", linklessButton, { type: "Image", props: { id: "i", imageAssetId: picture.id, alt: "A picture", decorative: false, align: "center" } });
 
-    const listed = await loadLandingTemplateVersions(saved.templateId!);
+    const result = await publishLandingPage(template.id, content);
 
-    expect(listed.versions?.map((v) => [v.version, v.kind, v.note, v.by])).toEqual([[2, "overwritten", null, "An admin"], [1, "created", "first", "An admin"]]);
-    const first = listed.versions![1];
-    expect(await loadLandingTemplateOutline(first.id)).toEqual({ blocks: [{ type: "Heading", count: 2 }] });
-    expect(await loadLandingTemplateVersions("lpgt_AAAAAAAAAAA1")).toEqual({ error: "That template no longer exists." });
-    expect(await loadLandingTemplateOutline("lpgtv_AAAAAAAAAAA1")).toEqual({ error: "That version no longer exists." });
-    expect(await loadLandingTemplateVersions("nope")).toEqual({ error: "That template no longer exists." });
-    expect(await loadLandingTemplateOutline("nope")).toEqual({ error: "That version no longer exists." });
+    expect(result.error).toBeUndefined();
+    expect(result.issues?.every((i) => i.severity === "warning")).toBe(true);
+    expect(result.issues?.length).toBeGreaterThan(0);
+    expect((await state.repos.media.byId(picture.id))?.is_public).toBe(false);
+    expect(revalidated).not.toContain("/p/kit");
+
+    const normal = await page("spring", "Words");
+    const refused = await publishLandingPage(normal.id, content);
+    expect(refused.error).toBe("Fix these before publishing.");
+    expect(await state.repos.landingPages.versions(normal.id)).toEqual([]);
+
+    // A page made from the template marks its pictures public when IT is published.
+    await createLandingPage({ title: "From kit", slug: "from-kit", template: template.id });
+  });
+
+  it("is offered only while published: taking it down, deleting it or never publishing it keeps it out", async () => {
+    await saveLandingTemplate(doc("Kit"), { name: "Kit" });
+    const template = await templateBySlug("kit");
+    expect(await createLandingPage({ title: "X", slug: "x", template: template.id })).toEqual({ error: "That template is no longer available." });
+
+    await publishLandingPage(template.id, doc("Kit"));
+    expect((await state.repos.landingPages.usableTemplates()).map((t) => t.id)).toEqual([template.id]);
+
+    await unpublishLandingPage(template.id);
+    expect(await state.repos.landingPages.usableTemplates()).toEqual([]);
+    expect(await createLandingPage({ title: "X", slug: "x", template: template.id })).toEqual({ error: "That template is no longer available." });
+
+    await publishLandingPage(template.id, doc("Kit"));
+    expect(await deleteLandingPage(template.id)).toEqual({});
+    expect(await state.repos.landingPages.usableTemplates()).toEqual([]);
+  });
+
+  it("duplicates as a template, with the draft, and is not public either", async () => {
+    await saveLandingTemplate(doc("Kit"), { name: "Kit", publish: true });
+    const template = await templateBySlug("kit");
+
+    const copy = await duplicateLandingPage(template.id);
+
+    expect(copy).toEqual({ slug: "kit-copy" });
+    expect(await templateBySlug("kit-copy")).toMatchObject({ kind: "template", status: "draft", title: "Kit (copy)" });
+    expect(await state.repos.landingPages.published("kit-copy")).toBeNull();
   });
 });
 
 describe("using a template", () => {
-  it("makes a draft page from it, never published, cleaned again as it is used", async () => {
-    const saved = await saveLandingTemplate(doc("Kit headline"), { name: "Kit" });
+  async function published(text: string) {
+    await saveLandingTemplate(doc(text), { name: "Kit", publish: true });
+    return templateBySlug("kit");
+  }
+
+  it("makes a draft page from its PUBLISHED copy, never its draft, never published, cleaned again", async () => {
+    const template = await published("Published words");
+    await state.repos.landingPages.saveDraft(template.id, doc("Draft words") as never, null);
     // Whatever the database holds, what is used is cleaned again.
-    state.dataset.landingPageTemplates[0].data = { content: [{ type: "RichText", props: { id: "r", html: "<p>Hi</p><script>x</script>", align: "left" } }], root: {} };
+    const row = state.dataset.landingPages.find((p) => p.id === template.id)!;
+    row.published_data = { content: [{ type: "RichText", props: { id: "r", html: "<p>Hi</p><script>x</script>", align: "left" } }], root: {} };
 
-    expect(await createLandingPage({ title: "From kit", slug: "from-kit", template: saved.templateId })).toEqual({ slug: "from-kit" });
+    expect(await createLandingPage({ title: "From kit", slug: "from-kit", template: template.id })).toEqual({ slug: "from-kit" });
 
-    const page = (await state.repos.landingPages.bySlug("from-kit"))!;
-    expect(page).toMatchObject({ status: "draft", published_data: null, title: "From kit" });
-    expect(JSON.stringify(page.draft_data)).toContain("<p>Hi</p>");
-    expect(JSON.stringify(page.draft_data)).not.toContain("script");
-    expect(await createLandingPage({ title: "X", template: "lpgt_AAAAAAAAAAA1" })).toEqual({ error: "That template no longer exists." });
-    expect(await createLandingPage({ title: "X", template: "nope" })).toEqual({ error: "That template no longer exists." });
-    expect(state.dataset.landingPages).toHaveLength(1);
+    const made = (await state.repos.landingPages.bySlug("from-kit"))!;
+    expect(made).toMatchObject({ kind: "page", status: "draft", published_data: null, title: "From kit" });
+    expect(JSON.stringify(made.draft_data)).toContain("<p>Hi</p>");
+    expect(JSON.stringify(made.draft_data)).not.toContain("script");
+    expect(JSON.stringify(made.draft_data)).not.toContain("Draft words");
+    expect(await createLandingPage({ title: "X", template: "nope" })).toEqual({ error: "That template is no longer available." });
+    expect(await createLandingPage({ title: "X", template: "lpg_AAAAAAAAAAA1" })).toEqual({ error: "That template is no longer available." });
+    // A plain page is not a template.
+    const normal = await page("spring", "Words");
+    await publishLandingPage(normal.id, doc("Words"));
+    expect(await createLandingPage({ title: "Y", template: normal.id })).toEqual({ error: "That template is no longer available." });
   });
 
   it("replaces a page's draft, keeping the previous draft in History and leaving the published copy, title and address alone", async () => {
-    const saved = await saveLandingTemplate(doc("From the template"), { name: "Kit" });
+    const template = await published("From the template");
     await createLandingPage({ title: "Live page", slug: "live" });
-    const page = (await state.repos.landingPages.bySlug("live"))!;
-    await state.repos.landingPages.saveDraft(page.id, { content: [heading("My own words")] as never, root: { props: {} } }, null);
-    await state.repos.landingPages.publish(page.id);
-    await state.repos.landingPages.saveDraft(page.id, { content: [heading("Unpublished edits")] as never, root: { props: {} } }, null);
+    const live = (await state.repos.landingPages.bySlug("live"))!;
+    await state.repos.landingPages.saveDraft(live.id, doc("My own words") as never, null);
+    await state.repos.landingPages.publish(live.id);
+    await state.repos.landingPages.saveDraft(live.id, doc("Unpublished edits") as never, null);
 
-    expect(await replaceLandingDraftWithTemplate(page.id, saved.templateId!)).toEqual({ slug: "live" });
+    expect(await replaceLandingDraftWithTemplate(live.id, template.id)).toEqual({ slug: "live" });
 
     const after = (await state.repos.landingPages.bySlug("live"))!;
-    expect(text(after)).toBe("From the template");
-    expect(JSON.stringify(after.published_data)).toContain("My own words");
+    expect(words(after)).toBe("From the template");
+    expect(words(after, "published_data")).toBe("My own words");
     expect(after).toMatchObject({ title: "Live page", slug: "live", status: "published" });
-    const versions = await state.repos.landingPages.versions(page.id);
+    const versions = await state.repos.landingPages.versions(live.id);
     expect(versions[0].kind).toBe("before_starter");
+    expect(versions[0].note).toBe("Replaced by the template “Kit”");
     expect(JSON.stringify(await state.repos.landingPages.versionData(versions[0].id))).toContain("Unpublished edits");
   });
 
   it("refuses a template or page that is gone and changes nothing", async () => {
-    await createLandingPage({ title: "Live page", slug: "live" });
-    const page = (await state.repos.landingPages.bySlug("live"))!;
-    expect(await replaceLandingDraftWithTemplate(page.id, "lpgt_AAAAAAAAAAA1")).toEqual({ error: "That template no longer exists." });
-    const saved = await saveLandingTemplate(doc(), { name: "Kit" });
-    expect(await replaceLandingDraftWithTemplate("lpg_AAAAAAAAAAA1", saved.templateId!)).toEqual({ error: "That page no longer exists." });
-    expect(await replaceLandingDraftWithTemplate("nope", saved.templateId!)).toEqual({ error: "That page no longer exists." });
-    expect(await state.repos.landingPages.versions(page.id)).toEqual([]);
+    await page("live", "Words");
+    const live = (await state.repos.landingPages.bySlug("live"))!;
+    expect(await replaceLandingDraftWithTemplate(live.id, "lpg_AAAAAAAAAAA1")).toEqual({ error: "That template is no longer available." });
+    const template = await published("Kit words");
+    expect(await replaceLandingDraftWithTemplate("lpg_AAAAAAAAAAA1", template.id)).toEqual({ error: "That page no longer exists." });
+    expect(await replaceLandingDraftWithTemplate("nope", template.id)).toEqual({ error: "That page no longer exists." });
+    expect(await state.repos.landingPages.versions(live.id)).toEqual([]);
+    expect(words(await state.repos.landingPages.bySlug("live"))).toBe("Words");
   });
 
   it("reports a failure calmly", async () => {
-    const saved = await saveLandingTemplate(doc(), { name: "Kit" });
-    await createLandingPage({ title: "Live page", slug: "live" });
-    const page = (await state.repos.landingPages.bySlug("live"))!;
+    const template = await published("Kit words");
+    await page("live", "Words");
+    const live = (await state.repos.landingPages.bySlug("live"))!;
     vi.spyOn(state.repos.landingPages, "keepDraftBeforeStarter").mockRejectedValueOnce(new Error("boom"));
-    expect(await replaceLandingDraftWithTemplate(page.id, saved.templateId!)).toEqual({ error: "Couldn't replace the draft." });
-    vi.spyOn(state.repos.landingTemplates, "byId").mockRejectedValueOnce(new Error("boom"));
-    expect(await createLandingPage({ title: "X", template: saved.templateId })).toEqual({ error: "Couldn't create the page." });
+    expect(await replaceLandingDraftWithTemplate(live.id, template.id)).toEqual({ error: "Couldn't replace the draft." });
+    vi.spyOn(state.repos.landingPages, "usableTemplateData").mockRejectedValueOnce(new Error("boom"));
+    expect(await createLandingPage({ title: "X", template: template.id })).toEqual({ error: "Couldn't create the page." });
   });
 });

@@ -29,7 +29,9 @@ function Glyph({ name, label }: { name: IconName; label: string }) {
   );
 }
 
-export default function PagesTable({ pages, publicBase }: { pages: LandingPageSummary[]; publicBase: string }) {
+/** The list of pages, or (`kind="template"`) of templates: a template has no public address, no link to copy, and is "Published" when it can be used to start a page. */
+export default function PagesTable({ pages, publicBase, kind = "page" }: { pages: LandingPageSummary[]; publicBase: string; kind?: "page" | "template" }) {
+  const noun = kind === "template" ? "template" : "page";
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -62,22 +64,22 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <DataTableSearch table={table} label="Search pages" />
+        <DataTableSearch table={table} label={`Search ${noun}s`} />
         {message && (
           <p role="status" className="text-sm text-slate-700 dark:text-slate-300">
             {message}
           </p>
         )}
       </div>
-      <TableKeyboardNav table={table} label="Pages">
+      <TableKeyboardNav table={table} label={kind === "template" ? "Templates" : "Pages"}>
       {pages.length === 0 ? (
-        <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">No pages yet. Make the first one with New page.</p>
+        <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">{kind === "template" ? "No templates yet. Open a page, then History, then Save as template." : "No pages yet. Make the first one with New page."}</p>
       ) : (
         <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 dark:border-slate-800">
               <tr>
-                <SortableTh label="Page" {...table.sortProps("title")} />
+                <SortableTh label={kind === "template" ? "Template" : "Page"} {...table.sortProps("title")} />
                 <SortableTh label="Status" {...table.sortProps("status")} />
                 <SortableTh label="Changed" {...table.sortProps("updated")} />
                 <th className="px-6 py-3" />
@@ -90,7 +92,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     <Link href={`/admin/pages/${p.slug}`} className="font-medium text-plum-700 hover:underline dark:text-plum-300">
                       {p.title}
                     </Link>
-                    <span className="block text-xs text-slate-600 dark:text-slate-400">/p/{p.slug}</span>
+                    {kind === "page" && <span className="block text-xs text-slate-600 dark:text-slate-400">/p/{p.slug}</span>}
                   </td>
                   <td className="px-6 py-3">
                     <LifecycleStatusChip published={p.status === "published"} />
@@ -105,7 +107,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     <Link href={`/admin/pages/${p.slug}/preview`} className={ACTION} title={lifecycleLabel("preview")}>
                       <Glyph name={lifecycleIcon("preview")} label={lifecycleLabel("preview")} />
                     </Link>
-                    {p.status === "published" && (
+                    {p.status === "published" && kind === "page" && (
                       <Tooltip content="Copy link">
                         <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION}>
                           <Glyph name="link" label="Copy link" />
@@ -114,7 +116,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     )}
                     <LifecycleButton
                       action="duplicate"
-                      noun="page"
+                      noun={noun}
                       variant="icon"
                       disabled={pending}
                       onRun={() => run(() => duplicateLandingPage(p.id), (slug) => router.push(`/admin/pages/${slug}`))}
@@ -122,9 +124,9 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     />
                     <LifecycleButton
                       action="delete"
-                      noun="page"
+                      noun={noun}
                       title={p.title}
-                      detail={p.status === "published" ? "It disappears from the public site." : undefined}
+                      detail={p.status === "published" ? (kind === "template" ? "It is no longer offered when you start a page. Pages made from it are not affected." : "It disappears from the public site.") : undefined}
                       variant="icon"
                       disabled={pending}
                       onRun={() => run(() => deleteLandingPage(p.id))}
@@ -137,7 +139,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
           </table>
         </div>
       )}
-      <DataTablePager table={table} itemLabel="pages" />
+      <DataTablePager table={table} itemLabel={`${noun}s`} />
       </TableKeyboardNav>
     </div>
   );

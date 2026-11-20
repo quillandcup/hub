@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   restore: vi.fn(),
   reset: vi.fn(),
   starter: vi.fn(),
+  template: vi.fn(),
+  saveTemplate: vi.fn(),
   importJson: vi.fn(),
   details: vi.fn(),
   dispatch: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock("../../app/(admin)/admin/pages/actions", () => ({
   importLandingDraftJson: mocks.importJson,
   updateLandingPageDetails: mocks.details,
 }));
+vi.mock("../../app/(admin)/admin/pages/template-actions", () => ({ replaceLandingDraftWithTemplate: mocks.template, saveLandingTemplate: mocks.saveTemplate }));
 vi.mock("@puckeditor/core", () => ({
   // The editor itself is Puck's; what is ours is the header, the autosave and the publish step around it.
   Puck: ({ onChange, overrides }: { onChange: (data: unknown) => void; overrides: { header: () => ReactNode } }) => {
@@ -59,7 +62,7 @@ const heading = { type: "Heading", props: { id: "h", text: "Welcome", level: "h1
 const data = { content: [heading], root: {} };
 const STARTERS = [{ key: "home", label: "Homepage", description: "The public front door." }];
 
-function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter" }[] = []) {
+function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null }[] = []) {
   return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} starters={STARTERS} />);
 }
 
@@ -250,6 +253,25 @@ describe("the header", () => {
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { rightSideBarVisible: true } });
   });
 
+  it("labels a template, links back to the templates, has no public link even when published, and can't be saved as a template", () => {
+    editor({ kind: "template", publicPath: "", status: "published", publishedJson: JSON.stringify(data) });
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to templates" })).toHaveAttribute("href", "/admin/pages/templates");
+    expect(screen.queryByRole("link", { name: "View live" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.queryByRole("heading", { name: "Save as a template" })).toBeNull();
+  });
+
+  it("publishes a template whose checks only warn: it is never blocked and never says it goes live", async () => {
+    mocks.publish.mockResolvedValue({ publishedAt: "2027-01-01T00:00:00Z", issues: [{ severity: "warning", block: "Button", message: "The button has no link." }] });
+    editor({ kind: "template", publicPath: "" });
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    const dialog = screen.getByRole("dialog", { name: "Publish this template" });
+    expect(dialog).toHaveTextContent("never on the public site");
+    expect(within(dialog).getByRole("button", { name: /Publish/ })).not.toBeDisabled();
+    expect(dialog).not.toHaveTextContent("goes live");
+  });
+
   it("shows the page's state, and the live link only once published", () => {
     const { unmount } = editor();
     expect(screen.getByText("Draft")).toBeInTheDocument();
@@ -294,7 +316,7 @@ describe("publishing", () => {
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1)!);
     });
-    expect(mocks.publish).toHaveBeenCalledWith(page.id, data);
+    expect(mocks.publish).toHaveBeenCalledWith(page.id, data, { note: "" });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -325,6 +347,14 @@ describe("publishing", () => {
       fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1)!);
     });
     expect(screen.getByRole("alert")).toHaveTextContent("Fix these before publishing.");
+  });
+
+  it("takes a published template down with its own words: it stops being offered, nothing public changes", async () => {
+    editor({ kind: "template", publicPath: "", status: "published", publishedJson: JSON.stringify(data) });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    });
+    expect(screen.getByText(/no longer offered when you start a page/)).toBeInTheDocument();
   });
 
   it("takes a published page down only after confirming", async () => {
@@ -413,6 +443,32 @@ describe("reset to published", () => {
 });
 
 describe("history and details", () => {
+  it("shows who made each version, when, how it came to be and the note, and says Someone when it can't tell", () => {
+    editor({}, [
+      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_starter", by: "Bramble Admin", note: "Replaced by the starter “Homepage”" },
+      { id: "lpgv_AAAAAAAAAAA1", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", note: null },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByText(/Your draft before it was replaced by Bramble Admin,/)).toBeInTheDocument();
+    expect(screen.getByText("“Replaced by the starter “Homepage””")).toBeInTheDocument();
+    expect(screen.getByText(/Published by Someone,/)).toBeInTheDocument();
+  });
+
+  it("sends the note typed in the publish dialog, and clears it for the next publish", async () => {
+    editor();
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.change(screen.getByLabelText("What changed? (optional)"), { target: { value: "New headline" } });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1)!);
+    });
+    expect(mocks.publish).toHaveBeenCalledWith(page.id, data, { note: "New headline" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));
+    expect(screen.getByLabelText("What changed? (optional)")).toHaveValue("");
+  });
+
   it("lists the versions kept at each publish and brings one back after confirming", async () => {
     mocks.restore.mockResolvedValue({ error: "That version no longer exists." });
     editor({}, [{ id: "lpgv_AAAAAAAAAAA1", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z" }]);
@@ -428,6 +484,42 @@ describe("history and details", () => {
     await answer("Bring back");
     expect(mocks.restore).toHaveBeenCalledWith("lpgv_AAAAAAAAAAA1");
     expect(screen.getByRole("alert")).toHaveTextContent("That version no longer exists.");
+  });
+
+  describe("starting over from a template", () => {
+    const reload = vi.fn();
+    const TEMPLATE_ID = "lpg_TEMPLATEAAA1";
+    beforeEach(() => {
+      reload.mockReset();
+      vi.stubGlobal("location", { ...window.location, reload });
+      mocks.template.mockResolvedValue({ slug: "spring" });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("lists published templates beside the starters, and replaces the draft through the template action, not the starter one", async () => {
+      render(<LandingEditor page={page} data={data} versions={[]} starters={[...STARTERS, { key: TEMPLATE_ID, label: "Launch kit", description: "A template you published.", group: "template" }]} />);
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      fireEvent.change(screen.getByLabelText("Starter"), { target: { value: TEMPLATE_ID } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
+      });
+      await answer("Replace draft");
+      expect(mocks.template).toHaveBeenCalledWith(page.id, TEMPLATE_ID);
+      expect(mocks.starter).not.toHaveBeenCalled();
+      expect(reload).toHaveBeenCalled();
+    });
+
+    it("shows the template's reason when it can't be used", async () => {
+      mocks.template.mockResolvedValue({ error: "That template is no longer available." });
+      render(<LandingEditor page={page} data={data} versions={[]} starters={[{ key: TEMPLATE_ID, label: "Launch kit", description: "A template you published.", group: "template" }]} />);
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
+      });
+      await answer("Replace draft");
+      expect(screen.getByRole("alert")).toHaveTextContent("no longer available");
+      expect(reload).not.toHaveBeenCalled();
+    });
   });
 
   describe("starting over from a starter", () => {
@@ -660,6 +752,17 @@ describe("history and details", () => {
     editor();
     fireEvent.click(screen.getByRole("button", { name: "History" }));
     expect(screen.getByText(/Nothing has been published yet/)).toBeInTheDocument();
+  });
+
+  it("keeps a template's details to its name and editor address, with no search fields", async () => {
+    editor({ kind: "template", publicPath: "" });
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByLabelText(/Address in the editor/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Title in search results and shared links")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save details" }));
+    });
+    expect(mocks.details).toHaveBeenCalled();
   });
 
   it("saves the details and follows a changed address", async () => {

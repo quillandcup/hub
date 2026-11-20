@@ -39,7 +39,7 @@ export default function StarterReplace({ starters, onReplace }: { starters: Star
       <h3 id="starter-replace-heading" className="text-sm font-semibold">
         Start over from a starter{saved.length > 0 ? " or template" : ""}
       </h3>
-      <p className="text-sm">Replaces your draft with a ready-made page{saved.length > 0 ? " or one of your saved templates" : ""}. Your current draft is kept in History.</p>
+      <p className="text-sm">Replaces your draft with a ready-made page{saved.length > 0 ? " or one of your published templates" : ""}. Your current draft is kept in History.</p>
       <div className="flex flex-wrap items-center gap-2">
         <label className="sr-only" htmlFor="starter-replace-choice">
           Starter
@@ -67,7 +67,7 @@ export default function StarterReplace({ starters, onReplace }: { starters: Star
                   ))}
                 </optgroup>
               )}
-              <optgroup label="Saved templates">
+              <optgroup label="Templates">
                 {saved.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}

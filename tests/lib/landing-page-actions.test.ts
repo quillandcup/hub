@@ -157,6 +157,16 @@ describe("publishLandingPage", () => {
     expect(revalidated).toContain(`/p/${slug}`);
   });
 
+  it("keeps the note typed at publish on the version, trimmed and cut to 200 characters, and never in the Activity Log's rows", async () => {
+    const { id } = await pageWith(null);
+    await publishLandingPage(id, doc(), { note: "  Fixed the headline  " });
+    await publishLandingPage(id, doc(), { note: "x".repeat(300) });
+    await publishLandingPage(id, doc(), { note: "   " });
+    await publishLandingPage(id, doc());
+    const versions = await state.repos.landingPages.versions(id);
+    expect(versions.map((v) => v.note)).toEqual([null, null, "x".repeat(200), "Fixed the headline"]);
+  });
+
   it("stops on problems a visitor couldn't work around, and publishes nothing", async () => {
     const { slug, id } = await pageWith(null);
     const result = await publishLandingPage(id, doc({ type: "Image", props: { id: "i", imageAssetId: "media_AAAAAAAAAAA1", alt: "", decorative: false } }));
@@ -274,7 +284,7 @@ describe("replaceLandingDraftWithStarter", () => {
     expect(page.starter_applied_at).toEqual(expect.any(String));
     const versions = await state.repos.landingPages.versions(id);
     expect(versions).toHaveLength(versionsBefore.length + 1);
-    expect(versions[0]).toMatchObject({ kind: "before_starter", title: "My page" });
+    expect(versions[0]).toMatchObject({ kind: "before_starter", title: "My page", note: "Replaced by the starter “Homepage”" });
     expect(revalidated).toContain("/admin/pages");
   });
 

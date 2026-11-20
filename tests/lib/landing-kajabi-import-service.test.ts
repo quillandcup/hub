@@ -95,6 +95,7 @@ describe("importKajabiExport: the same page again", () => {
     const versions = await repos.landingPages.versions(first.id);
     expect(versions.map((v) => v.kind).sort()).toEqual(["before_import", "published"]);
     const kept = versions.find((v) => v.kind === "before_import")!;
+    expect(kept.note).toBe("Replaced by a Kajabi import");
     expect(JSON.stringify(await repos.landingPages.versionData(kept.id))).not.toContain("A new label");
   });
 

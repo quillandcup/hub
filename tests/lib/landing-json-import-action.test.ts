@@ -94,7 +94,7 @@ describe("importLandingDraftJson", () => {
     expect(page).toMatchObject({ title: "My page", slug: "mine", seo_title: "Search title", seo_description: "Words", status: "published", published_at: before.published_at });
     const versions = await state.repos.landingPages.versions(id);
     expect(versions).toHaveLength(versionsBefore.length + 1);
-    expect(versions[0]).toMatchObject({ kind: "before_starter", title: "My page" });
+    expect(versions[0]).toMatchObject({ kind: "before_starter", title: "My page", note: "Replaced by a JSON import" });
     expect(versions.slice(1).map((v) => v.id)).toEqual(versionsBefore.map((v) => v.id));
     expect(await state.repos.landingPages.published("mine")).toMatchObject({ title: "My page" });
     expect(revalidated).toContain("/admin/pages");

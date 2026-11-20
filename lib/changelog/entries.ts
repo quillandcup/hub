@@ -72,17 +72,18 @@ Desktop and mobile follow the room the page has, so the phone and tablet preview
   },
   {
     slug: "landing-page-templates",
-    date: "2026-11-19",
+    date: "2026-11-20",
     audience: "engineering",
     category: "new",
-    title: "Page builder: save a page as a template, and keep every version of it",
-    summary: "An admin can save the page on screen as a named template, start new pages or restart a page from it, and save a better version over it while the older ones stay in its history.",
-    body: `Templates are saved pages that live in the database, next to the built-in starters in code. A template has no draft and published split: the page is the draft, saving over a template is a new version at once, and History is the safety net.
+    title: "Page builder: templates are pages of their own kind, with a draft, a published copy and History",
+    summary: "An admin can save a page as a template, edit and publish it like any page, and start new pages or restart a page from its published copy. Templates are never on the public site.",
+    body: `A template is a landing page with \`kind = 'template'\`, not a parallel system: the same editor, autosaved draft, published copy, versions, Bring back, JSON export and Activity Log entries. Only what is different is new.
 
-- **One rule.** A template's content is always its latest version. Saving and bringing a version back are one database function each (\`save_landing_page_template\`, \`restore_landing_page_template_version\`) that write the template and its next version in one transaction. Versions are insert-only, so history is never rewritten.
-- **Safety.** Admin only; content is cleaned like any save and again when used; a template never publishes anything or changes a page's address, title or search settings. Ids never appear in a URL.
-- **In the Activity Log.** Each save, bring-back, rename and delete is one plain sentence as the admin, never the typed note, description or content.
-- **Hooks.** \`LandingTemplateRepository\` (in-memory twin and one contract test), the lifecycle registry (\`saveAsTemplate\`, \`overwrite\`), and the Templates tab under Pages.
+- **Never public.** The one read behind the public route and the opt-in relay (\`published(slug)\`) returns only pages, and \`kind\` can't change once a row is made. Publishing a template shows its checks as warnings only and doesn't make its pictures public; a page made from it does that when it is published.
+- **Using one.** New page's "Start from" and "Start over from a starter or template" list built-in starters and published templates, and copy the template's published copy (never its draft) into a draft. The old draft stays in History.
+- **Saving one.** "Save as template" makes a new template from a page's draft, or replaces a template's draft (the old one stays in its History), optionally publishing in the same step. The page is never changed.
+- **Immutable versions, with who and why.** No role can change or delete a version row. Each version shows who made it and an optional note (what changed at publish, or what replaced the draft it kept); the note stays on the version and out of the Activity Log.
+- **Hooks.** \`LandingPageRepository.list(kind)\`, \`usableTemplates\`, the lifecycle registry's \`saveAsTemplate\` and \`replaceTemplate\`, the Templates tab under Pages.
 - **Detail.** \`docs/LANDING_PAGES.md\`, "Templates".`,
   },
   {
