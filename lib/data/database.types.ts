@@ -8401,11 +8401,7 @@ export type Database = {
         Returns: string
       }
       csp_rollout_activity: {
-        Args: {
-          p_history_since: string
-          p_since: string
-          p_until: string
-        }
+        Args: { p_history_since: string; p_since: string; p_until: string }
         Returns: {
           history_page_views_with_ga: number
           page_views: number
