@@ -148,6 +148,13 @@ export const appConfig = {
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 
   /**
+   * OpenSSF Scorecard (.github/workflows/scorecard.yml): the lowest published score (0 to 10) before the weekly
+   * run fails and posts to the alerts channel. Set a little under the score at the time, so ordinary noise does not
+   * alert, and raise it in a pull request when the score improves (a ratchet). Measured 2026-11-20: 4.8.
+   */
+  scorecard: { minScore: 4 },
+
+  /**
    * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own
    * and Supabase storage that pictures may load from. Member photos, book covers and Slack link previews can come from
    * anywhere, so the reports will name hosts missing here; Slack app pictures go through our own proxy

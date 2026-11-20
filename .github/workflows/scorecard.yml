@@ -3,7 +3,9 @@ name: OpenSSF Scorecard
 # Grades the repository's own supply-chain habits (pinned actions, token permissions, branch protection, review,
 # dependency update tooling, security policy). Informational, like audit.yml: not a required check and it never
 # blocks a merge. Findings land in the Security tab (code scanning) and the score is published to the OpenSSF
-# API, which only works for a public repository. Nothing here uses a secret.
+# API, which only works for a public repository. The `floor` job then fails, and posts to the alerts channel, when the
+# published score is under `scorecard.minScore` in app.config.ts (it is a separate job because Scorecard's publishing
+# check rejects `run` steps next to its action). The only secret is the alerts webhook, as in audit.yml.
 on:
   schedule:
     - cron: "41 6 * * 2"
@@ -41,3 +43,48 @@ jobs:
         with:
           sarif_file: results.sarif
           category: scorecard
+
+  floor:
+    name: Score floor
+    needs: scorecard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+
+      # The published score can lag the run by a little: wait for the one for this commit, and use whatever is
+      # newest if it never shows. A missing score fails the job, so a broken or unpublished run is noticed.
+      - name: Compare the published score with the floor
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          floor=$(node --no-warnings --input-type=module -e "console.log((await import('./app.config.ts')).default.scorecard.minScore)")
+          for i in 1 2 3 4 5 6; do
+            json=$(curl -sf "https://api.scorecard.dev/projects/github.com/$REPO" || true)
+            [ "$(echo "$json" | jq -r '.repo.commit // empty')" = "$SHA" ] && break
+            sleep 20
+          done
+          score=$(echo "$json" | jq -r '.score // empty')
+          echo "Published score: ${score:-none} (floor $floor)"
+          [ -n "$score" ] || { echo "No published score."; exit 1; }
+          awk -v s="$score" -v f="$floor" 'BEGIN { exit !(s >= f) }' || { echo "Score $score is under the floor $floor."; exit 1; }
+
+      - name: Post to Slack
+        if: failure()
+        env:
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_ALERTS_WEBHOOK_URL" ]; then echo "SLACK_ALERTS_WEBHOOK_URL is not set; not posting."; exit 0; fi
+          curl -sS --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\": \"OpenSSF Scorecard score is under its floor, or was not published. Details: $RUN_URL\"}" \
+            "$SLACK_ALERTS_WEBHOOK_URL"
