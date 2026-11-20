@@ -71,6 +71,21 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
   },
   {
+    slug: "landing-page-json-round-trip",
+    date: "2026-11-19",
+    audience: "engineering",
+    category: "new",
+    title: "Page builder: export a page as JSON and import a changed file back",
+    summary: "History in the page editor can download or copy a page's JSON (draft or published) and replace the draft from a file or pasted text, after a preview of what would change.",
+    body: `A page can now leave the editor as a file, be changed elsewhere (this is how the owner and Claude iterate on a page, since Claude cannot write to production), and come back in one step.
+
+- **Export** is built in the browser from what the editor holds: a small wrapper (\`format\`, \`version\`, address, title, which copy) around the document, with no row, user or audit data.
+- **Import** treats the file as untrusted. A dry run and the real call share one code path (\`importLandingDraftJson\`): migrate, keep only blocks and props the builder has, clear pictures this library lacks, then sanitize as on save. The preview lists what was left out and what the publish check would raise.
+- **It replaces the draft only.** The old draft is kept in History like a starter replacement, so Bring back undoes it.
+- **Hook.** The set of props a block keeps is its defaults plus \`EXTRA_PROPS\` (\`lib/landing/json-transfer.ts\`); a test fails when the editor gains a field that is in neither.
+- **Detail.** \`docs/LANDING_PAGES.md\`, "Export and import".`,
+  },
+  {
     slug: "landing-page-homepage-blocks",
     date: "2026-11-18",
     audience: "engineering",

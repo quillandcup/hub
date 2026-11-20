@@ -22,7 +22,7 @@ export default function StarterReplace({ starters, onReplace }: { starters: Star
     setError(null);
     const ok = await ask({
       title: `Replace your draft with the ${chosen.label} starter?`,
-      body: `Your draft is replaced by the ${chosen.label} starter's page. The draft you have now is kept in History as "Your draft before starting over", and you can bring it back. The live page, the title, the address and the search settings don't change, and nothing goes live.`,
+      body: `Your draft is replaced by the ${chosen.label} starter's page. The draft you have now is kept in History as "Your draft before it was replaced", and you can bring it back. The live page, the title, the address and the search settings don't change, and nothing goes live.`,
       confirmLabel: "Replace draft",
       tone: "danger",
     });

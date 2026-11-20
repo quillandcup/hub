@@ -21,8 +21,10 @@ import { addPlugin, panelOverrides } from "./SidePanels";
 import { useMirrorHostTheme } from "./useMirrorHostTheme";
 import { MODEL_SIZES, MODELS_BY_CLASS, deviceClassForSize, isLandscape, modelForSize, modelSize, type DeviceClass, type DeviceModel } from "./devices";
 import { FoldContext, FoldFrame } from "./FoldMarker";
-import StarterReplace,{ type StarterOption } from "./StarterReplace";
-import { publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
+import IssueList from "./IssueList";
+import JsonTransfer from "./JsonTransfer";
+import StarterReplace, { type StarterOption } from "./StarterReplace";
+import { importLandingDraftJson, publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 
@@ -101,19 +103,6 @@ const SAVE_TEXT: Record<SaveState, string> = { saved: "Saved", unsaved: "Unsaved
 
 const AUTOSAVE_MS = 1200;
 const RETRY_MS = 5000;
-
-function IssueList({ issues }: { issues: A11yIssue[] }) {
-  return (
-    <ul className="space-y-2 text-sm">
-      {issues.map((issue, i) => (
-        <li key={i} className={issue.severity === "error" ? "text-red-700 dark:text-red-400" : "text-amber-800 dark:text-amber-300"}>
-          <span className="font-semibold">{issue.severity === "error" ? "Fix: " : "Check: "}</span>
-          {issue.block}: {issue.message}
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 /** The header Puck shows in place of its own: back, title and save state, device and history controls, preview and publish. */
 function EditorHeader({
@@ -517,6 +506,25 @@ export default function LandingEditor({ page: initial, data, versions, starters 
             return null;
           }}
         />
+        <JsonTransfer
+          slug={page.slug}
+          title={page.title}
+          publishedJson={page.publishedJson}
+          getDraft={() => JSON.parse(latest.current)}
+          onPreview={async (text) => {
+            // Save what is typed first, so the preview compares with the draft on screen.
+            if (!(await flush())) return { error: "Couldn't save your latest changes first. Try again in a moment." };
+            return importLandingDraftJson(page.id, text, { dryRun: true });
+          }}
+          onApply={async (text) => {
+            // Same as a starter: the draft kept in History is the one on screen, and autosave can't write it back over the import.
+            if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
+            const result = await importLandingDraftJson(page.id, text);
+            if (result.error) return result.error;
+            window.location.reload();
+            return null;
+          }}
+        />
       </Modal>
     </div>
   );
@@ -599,7 +607,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
             <span>
               {v.title}
               <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
-                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before starting over" : "Published"} {new Date(v.createdAt).toLocaleString()}
+                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before it was replaced" : "Published"} {new Date(v.createdAt).toLocaleString()}
               </time>
             </span>
             <LifecycleButton action="restore" noun="version" disabled={pending} className={SECONDARY} onRun={() => start(async () => setError(await onRestore(v.id)))} />
