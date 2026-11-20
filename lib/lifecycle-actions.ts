@@ -9,9 +9,9 @@ import type { IconName } from "@/components/Icon";
  * `components/ConfirmDialog.tsx`; `components/LifecycleButton.tsx` puts them together.
  *
  * Not every thing has every action: only a landing page keeps a draft apart from what is published, so only it has
- * `reset`, `restore` and `history`; only something saved as a template has `overwrite`. A course's "draft" is whether members can see it, and its versions don't exist.
+ * `reset`, `restore` and `history`; only a template has `replaceTemplate` (replace its draft with a page). A course's "draft" is whether members can see it, and its versions don't exist.
  */
-export type LifecycleAction = "publish" | "unpublish" | "duplicate" | "delete" | "reset" | "restore" | "history" | "preview" | "viewLive" | "saveAsTemplate" | "overwrite";
+export type LifecycleAction = "publish" | "unpublish" | "duplicate" | "delete" | "reset" | "restore" | "history" | "preview" | "viewLive" | "saveAsTemplate" | "replaceTemplate";
 
 /** What the confirmation needs to say. `noun` is "page", "course", "lesson". */
 export type LifecycleContext = {
@@ -78,15 +78,15 @@ export const LIFECYCLE_ACTIONS: Record<LifecycleAction, Entry> = {
   history: { icon: "history", label: () => "History" },
   preview: { icon: "eye", label: () => "Preview" },
   viewLive: { icon: "external", label: () => "View live" },
-  // Saving a page as a template (the page builder), and saving over one that exists: the old version stays in its history.
+  // Saving a page as a template (the page builder), and replacing an existing template's draft with it (the old draft is kept in its History).
   saveAsTemplate: { icon: "template", label: () => "Save as template" },
-  overwrite: {
+  replaceTemplate: {
     icon: "save",
-    label: (noun) => `Overwrite ${noun}`,
-    confirm: ({ noun, title }) => ({
-      title: `Overwrite this ${noun}?`,
-      body: `${title ? `“${title}”` : `This ${noun}`} keeps its current version in its history, and you can bring it back. The page you are saving becomes its newest version.`,
-      confirmLabel: `Overwrite ${noun}`,
+    label: () => "Replace template draft",
+    confirm: ({ noun, detail }) => ({
+      title: `Replace the ${noun}'s draft?`,
+      body: detail ?? `The ${noun}'s current draft is kept in its History and can be brought back. Its published copy doesn't change until you publish it.`,
+      confirmLabel: "Replace template draft",
       tone: "danger",
     }),
   },

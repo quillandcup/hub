@@ -84,7 +84,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [
     () => import("@/app/(admin)/admin/pages/template-actions"),
     "app/(admin)/admin/pages/template-actions.ts",
-    [["saveLandingTemplate", "landing_template_saved"], ["restoreLandingTemplateVersion", "landing_template_restored"], ["updateLandingTemplateDetails", "landing_template_renamed"], ["deleteLandingTemplate", "landing_template_deleted"], ["replaceLandingDraftWithTemplate", "landing_template_applied"]],
+    [["saveLandingTemplate", "landing_template_saved"], ["replaceLandingDraftWithTemplate", "landing_template_applied"]],
   ],
   [() => import("@/app/api/admin/landing-pages/import/route"), "app/api/admin/landing-pages/import/route.ts", [["POST", "landing_page_imported"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],

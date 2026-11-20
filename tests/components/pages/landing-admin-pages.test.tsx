@@ -15,15 +15,10 @@ const state = { repos: createInMemoryRepos(new InMemoryDataset()) };
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
 vi.mock("@/app/(admin)/admin/pages/PagesTable", () => ({
-  default: ({ pages, publicBase }: { pages: { title: string }[]; publicBase: string }) => (
-    <div data-testid="table" data-base={publicBase}>
+  default: ({ pages, publicBase, kind }: { pages: { title: string }[]; publicBase: string; kind?: string }) => (
+    <div data-testid="table" data-base={publicBase} data-kind={kind ?? "page"}>
       {pages.map((p) => p.title).join(",")}
     </div>
-  ),
-}));
-vi.mock("@/app/(admin)/admin/pages/templates/TemplatesPanel", () => ({
-  default: ({ templates }: { templates: { name: string; versions: number; updatedBy: string }[] }) => (
-    <div data-testid="templates">{templates.map((t) => `${t.name}:${t.versions}:${t.updatedBy}`).join(",")}</div>
   ),
 }));
 vi.mock("@/app/(admin)/admin/pages/new/NewPageForm", () => ({ default: () => <form aria-label="New page form" /> }));
@@ -61,13 +56,24 @@ describe("/admin/pages", () => {
 });
 
 describe("/admin/pages/templates", () => {
-  it("checks for an admin, then lists the templates with their versions on the Templates tab", async () => {
+  it("checks for an admin, then lists only the templates on the Templates tab", async () => {
     const { default: TemplatesTab } = await import("@/app/(admin)/admin/pages/templates/page");
-    await state.repos.landingTemplates.save({ name: "Launch kit", description: "", data: { content: [], root: {} }, createdBy: null });
+    await state.repos.landingPages.create({ title: "A page", slug: "a-page", createdBy: null });
+    await state.repos.landingPages.create({ title: "Launch kit", slug: "launch-kit", createdBy: null, kind: "template" });
     await renderServerPage(TemplatesTab, {});
     expect(requireAdminPage).toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: "Templates", selected: true })).toBeInTheDocument();
-    expect(screen.getByTestId("templates")).toHaveTextContent("Launch kit:1:An admin");
+    expect(screen.getByTestId("table")).toHaveAttribute("data-kind", "template");
+    expect(screen.getByTestId("table")).toHaveTextContent("Launch kit");
+    expect(screen.getByTestId("table")).not.toHaveTextContent("A page");
+  });
+
+  it("keeps templates out of the Pages tab", async () => {
+    await state.repos.landingPages.create({ title: "A page", slug: "a-page", createdBy: null });
+    await state.repos.landingPages.create({ title: "Launch kit", slug: "launch-kit", createdBy: null, kind: "template" });
+    await renderServerPage(AdminPagesPage, {});
+    expect(screen.getByTestId("table")).toHaveTextContent("A page");
+    expect(screen.getByTestId("table")).not.toHaveTextContent("Launch kit");
   });
 });
 

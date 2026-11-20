@@ -26,7 +26,7 @@ import JsonTransfer from "./JsonTransfer";
 import SaveAsTemplate, { type TemplateOption } from "./SaveAsTemplate";
 import StarterReplace, { type StarterOption } from "./StarterReplace";
 import { replaceLandingDraftWithTemplate } from "../template-actions";
-import { isLandingTemplateId } from "@/lib/landing/templates";
+import { isLandingPageId } from "@/lib/landing/slug";
 import { importLandingDraftJson, publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
@@ -43,8 +43,10 @@ export type EditorPage = {
   socialImageAssetId: string;
   /** The published document as JSON text, to tell whether the draft has changes that aren't live yet. */
   publishedJson: string | null;
-  /** Path of the public page, for the "view" link once published. */
+  /** Path of the public page, for the "view" link once published. A template has none: it is never public. */
   publicPath: string;
+  /** A template is a page kept to start others from: never public, and its publish checks are warnings only. */
+  kind?: "page" | "template";
 };
 export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter" };
 
@@ -144,13 +146,17 @@ function EditorHeader({
   const leftOpen = usePuck((s) => s.appState.ui.leftSideBarVisible);
   const rightOpen = usePuck((s) => s.appState.ui.rightSideBarVisible);
   const published = page.status === "published";
+  const isTemplate = page.kind === "template";
   return (
     <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900">
-      <Link href="/admin/pages" className={`${ICON} w-auto gap-1 px-2 text-sm`} aria-label="Back to pages">
-        <ArrowLeft size={16} aria-hidden="true" /> Pages
+      <Link href={isTemplate ? "/admin/pages/templates" : "/admin/pages"} className={`${ICON} w-auto gap-1 px-2 text-sm`} aria-label={isTemplate ? "Back to templates" : "Back to pages"}>
+        <ArrowLeft size={16} aria-hidden="true" /> {isTemplate ? "Templates" : "Pages"}
       </Link>
       <div className="min-w-0">
-        <p className="truncate font-semibold">{page.title}</p>
+        <p className="truncate font-semibold">
+          {page.title}
+          {isTemplate && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">Template</span>}
+        </p>
         <p role="status" className={`text-xs ${save === "error" ? "text-red-700" : "text-slate-600 dark:text-slate-400"}`}>
           {SAVE_TEXT[save]}
         </p>
@@ -237,7 +243,7 @@ function EditorHeader({
         )}
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <LifecycleButton action="preview" noun="page" variant="icon" onRun={onPreview} className={ICON} />
-        {published && (
+        {published && !isTemplate && (
           <Tooltip content={lifecycleLabel("viewLive")}>
             <a href={page.publicPath} target="_blank" rel="noopener noreferrer" aria-label={lifecycleLabel("viewLive")} className={ICON}>
               <AppIcon name={lifecycleIcon("viewLive")} />
@@ -247,9 +253,9 @@ function EditorHeader({
         {published && (
           <LifecycleButton
             action="unpublish"
-            noun="page"
+            noun={isTemplate ? "template" : "page"}
             variant="icon"
-            detail="It comes off the public site at once. Your draft and its versions stay."
+            detail={isTemplate ? "It is no longer offered when you start a page. Its draft and versions stay." : "It comes off the public site at once. Your draft and its versions stay."}
             onRun={onUnpublish}
             disabled={busy}
             className={ICON}
@@ -432,7 +438,8 @@ export default function LandingEditor({ page: initial, data, versions, starters 
     [page, save, hasUnpublished, resetError, busy],
   );
 
-  const errors = issues.filter((i) => i.severity === "error");
+  // A template legitimately has placeholders and empty links, so for it every check is a warning that never blocks.
+  const errors = page.kind === "template" ? [] : issues.filter((i) => i.severity === "error");
 
   return (
     <div className="landing-editor h-[calc(100dvh-4rem)]">
@@ -448,10 +455,14 @@ export default function LandingEditor({ page: initial, data, versions, starters 
         />
       </FoldContext.Provider>
 
-      <Modal isOpen={dialog === "publish"} onClose={() => setDialog(null)} title={page.status === "published" ? "Publish changes" : "Publish this page"} maxWidth="lg">
+      <Modal isOpen={dialog === "publish"} onClose={() => setDialog(null)} title={page.status === "published" ? "Publish changes" : page.kind === "template" ? "Publish this template" : "Publish this page"} maxWidth="lg">
         <div className="space-y-4">
           {errors.length > 0 ? (
             <p className="text-sm">These need fixing before the page can go live.</p>
+          ) : page.kind === "template" ? (
+            <p className="text-sm">
+              Publishing makes this version of the template the one offered when you start a page, or restart one. It is never on the public site, and its pictures are not made public. Checks below are only things to know about.
+            </p>
           ) : (
             <p className="text-sm">
               The page goes live at <span className="font-mono">{page.publicPath}</span> for anyone with the link. The pictures it uses become visible to visitors who aren&apos;t signed in.
@@ -502,14 +513,14 @@ export default function LandingEditor({ page: initial, data, versions, starters 
           onReplace={async (key) => {
             // Save what is typed first, so the draft kept in History is the one on screen, and autosave can't write it back over the starter.
             if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
-            const result = isLandingTemplateId(key) ? await replaceLandingDraftWithTemplate(page.id, key) : await replaceLandingDraftWithStarter(page.id, key);
+            const result = isLandingPageId(key) ? await replaceLandingDraftWithTemplate(page.id, key) : await replaceLandingDraftWithStarter(page.id, key);
             if (result.error) return result.error;
             // The editor takes its document once, so a replacement reloads the page to open the new draft.
             window.location.reload();
             return null;
           }}
         />
-        <SaveAsTemplate templates={templates} getDraft={() => JSON.parse(latest.current)} />
+        {page.kind !== "template" && <SaveAsTemplate templates={templates} getDraft={() => JSON.parse(latest.current)} />}
         <JsonTransfer
           slug={page.slug}
           title={page.title}
@@ -553,7 +564,7 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
           start(async () => {
             const result = await updateLandingPageDetails(page.id, { title, slug, seoTitle, seoDescription, socialImageAssetId: social });
             if (result.error) return setError(result.error);
-            onSaved({ title, slug: result.slug ?? slug, seoTitle, seoDescription, socialImageAssetId: social, publicPath: `/p/${result.slug ?? slug}` });
+            onSaved({ title, slug: result.slug ?? slug, seoTitle, seoDescription, socialImageAssetId: social, publicPath: page.kind === "template" ? "" : `/p/${result.slug ?? slug}` });
           });
         }}
       >
@@ -562,24 +573,28 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
           <input value={title} onChange={(e) => setTitle(e.target.value)} required className={input} />
         </label>
         <label className="block text-sm font-medium">
-          Address (/p/…)
+          {page.kind === "template" ? "Address in the editor (/admin/pages/…)" : "Address (/p/…)"}
           <input value={slug} onChange={(e) => setSlug(e.target.value)} pattern="[a-z0-9]+(-[a-z0-9]+)*" title="Lowercase letters, numbers and dashes" className={input} />
-          {page.status === "published" && <span className="mt-1 block text-xs text-amber-800 dark:text-amber-300">The page is live: changing the address breaks links people already have.</span>}
+          {page.status === "published" && page.kind !== "template" && <span className="mt-1 block text-xs text-amber-800 dark:text-amber-300">The page is live: changing the address breaks links people already have.</span>}
         </label>
-        <label className="block text-sm font-medium">
-          Title in search results and shared links
-          <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder={title} className={input} />
-        </label>
-        <label className="block text-sm font-medium">
-          Description
-          <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} rows={3} className={input} />
-        </label>
-        <div className="text-sm font-medium">
-          Picture when the page is shared
-          <div className="mt-1">
-            <MediaPicker value={social || null} onChange={(id) => setSocial(id ?? "")} surface="landing_page" preview="event_card" noun="picture" />
-          </div>
-        </div>
+        {page.kind !== "template" && (
+          <>
+            <label className="block text-sm font-medium">
+              Title in search results and shared links
+              <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder={title} className={input} />
+            </label>
+            <label className="block text-sm font-medium">
+              Description
+              <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} rows={3} className={input} />
+            </label>
+            <div className="text-sm font-medium">
+              Picture when the page is shared
+              <div className="mt-1">
+                <MediaPicker value={social || null} onChange={(id) => setSocial(id ?? "")} surface="landing_page" preview="event_card" noun="picture" />
+              </div>
+            </div>
+          </>
+        )}
         {error && (
           <p role="alert" className="text-sm text-red-700 dark:text-red-400">
             {error}
