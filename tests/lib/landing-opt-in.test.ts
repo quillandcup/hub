@@ -24,6 +24,7 @@ vi.mock("@/lib/data/server", () => ({
   }),
 }));
 
+import { DISPOSABLE_EMAIL_MESSAGE } from "@/lib/disposable-email";
 import { POST } from "@/app/api/landing/opt-in/route";
 import { optInDestination } from "@/lib/landing/opt-in-destination";
 import { findOptInTarget, type OptInDestination } from "@/lib/landing/opt-in";
@@ -76,6 +77,13 @@ describe("POST /api/landing/opt-in", () => {
     expect((await post({ ...valid, email: "nope" })).status).toBe(400);
     expect((await post({ ...valid, instagram: "not a handle!" })).status).toBe(400);
     expect((await post({ ...valid, page: "Not A Slug!" })).status).toBe(400);
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("refuses a temporary-mail address and sends nothing", async () => {
+    const res = await post({ ...valid, email: "ada@mailinator.com" });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe(DISPOSABLE_EMAIL_MESSAGE);
     expect(submit).not.toHaveBeenCalled();
   });
 
