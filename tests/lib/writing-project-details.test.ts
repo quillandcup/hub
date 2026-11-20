@@ -26,7 +26,7 @@ import {
   getProject,
   getProjectSeries,
   setStartingBalances,
-  toggleProjectVisibility,
+  setProjectVisibility,
   updateProjectCover,
   updateProjectDetails,
   updateProjectPhase,
@@ -223,18 +223,33 @@ describe("updateProjectCover", () => {
   });
 });
 
-describe("toggleProjectVisibility and updateProjectPhase", () => {
-  it("shows a project on the profile and revalidates the profile", async () => {
-    expect(await toggleProjectVisibility(PROJECT, true)).toEqual({ success: true });
-
-    expect(dataset.writingProjects.find((p) => p.id === PROJECT)?.show_on_profile).toBe(true);
+describe("setProjectVisibility and updateProjectPhase", () => {
+  it("sets a project's level, keeps show_on_profile in step, and revalidates the profile", async () => {
+    for (const [level, shown] of [["community", true], ["public", true], ["private", false]] as const) {
+      expect(await setProjectVisibility(PROJECT, level)).toEqual({ success: true });
+      expect(dataset.writingProjects.find((p) => p.id === PROJECT)).toMatchObject({ visibility: level, show_on_profile: shown });
+    }
     expect(revalidatePath).toHaveBeenCalledWith(`/members/${ME}`);
+  });
+
+  it("rejects a level that is not private, community or public", async () => {
+    vi.mocked(revalidatePath).mockClear();
+    expect(await setProjectVisibility(PROJECT, "everyone" as never)).toEqual({ error: "Choose private, community or public" });
+    expect(await setProjectVisibility(PROJECT, true as never)).toEqual({ error: "Choose private, community or public" });
+    expect(dataset.writingProjects.find((p) => p.id === PROJECT)?.visibility).toBeUndefined();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("leaves another member's project alone", async () => {
+    expect(await setProjectVisibility(THEIRS, "public")).toEqual({ success: true });
+    expect(dataset.writingProjects.find((p) => p.id === THEIRS)).toMatchObject({ show_on_profile: false });
+    expect(dataset.writingProjects.find((p) => p.id === THEIRS)?.visibility).toBeUndefined();
   });
 
   it("surfaces a visibility error", async () => {
     vi.spyOn(repos.writing, "updateProject").mockRejectedValue(new Error("boom"));
 
-    expect(await toggleProjectVisibility(PROJECT, true)).toEqual({ error: "boom" });
+    expect(await setProjectVisibility(PROJECT, "community")).toEqual({ error: "boom" });
   });
 
   it("changes the phase, refusing one that can't be set by hand", async () => {

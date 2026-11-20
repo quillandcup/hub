@@ -1,6 +1,8 @@
 "use client";
 
-import "@puckeditor/core/puck.css";
+// The same stylesheet as `puck.css` without its `@import` of Inter from a third-party host (blocked by the CSP, and a
+// request to a font site on every editor load). The app's own font stack applies instead.
+import "@puckeditor/core/no-external.css";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

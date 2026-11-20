@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   change: undefined as undefined | ((data: unknown) => void),
 }));
 
-vi.mock("@puckeditor/core/puck.css", () => ({}));
+vi.mock("@puckeditor/core/no-external.css", () => ({}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace, push: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/landing/editor-config", () => ({ editorConfig: {} }));

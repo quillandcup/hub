@@ -24,7 +24,7 @@ import {
   getArchivedGoals,
   getStarredGoals,
   toggleGoalStar,
-  toggleGoalVisibility,
+  setGoalVisibility,
   updateGoal,
 } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
@@ -174,31 +174,53 @@ describe("archiveGoal", () => {
   });
 });
 
-describe("toggleGoalStar and toggleGoalVisibility", () => {
+describe("toggleGoalStar and setGoalVisibility", () => {
   it("star the goal, scoped to the acting member", async () => {
     expect(await toggleGoalStar("wgol_1", true)).toEqual({ success: true });
     expect(await toggleGoalStar("wgol_other", true)).toEqual({ success: true });
     expect(dataset.writingGoals.map((g) => g.is_starred)).toEqual([true, false]);
   });
 
-  it("updates show_on_profile scoped to the acting member and revalidates their profile", async () => {
-    expect(await toggleGoalVisibility("wgol_1", true)).toEqual({ success: true });
-    expect(dataset.writingGoals.map((g) => g.show_on_profile)).toEqual([true, false]);
+  it("sets the level scoped to the acting member, keeps show_on_profile in step, and revalidates their profile", async () => {
+    expect(await setGoalVisibility("wgol_1", "community")).toEqual({ success: true });
+    expect(dataset.writingGoals.map((g) => [g.visibility, g.show_on_profile])).toEqual([["community", true], [undefined, false]]);
     expect(revalidatePath).toHaveBeenCalledWith(`/members/${ME}`);
+    await setGoalVisibility("wgol_1", "private");
+    expect(dataset.writingGoals[0]).toMatchObject({ visibility: "private", show_on_profile: false });
   });
 
-  it("showing a goal shows its project too, and hiding a goal leaves the project alone", async () => {
-    const shown = () => dataset.writingProjects.find((p) => p.id === "wprj_1")!.show_on_profile;
-    expect(shown()).toBe(false);
-    await toggleGoalVisibility("wgol_1", true);
-    expect(shown()).toBe(true);
-    await toggleGoalVisibility("wgol_1", false);
-    expect(shown()).toBe(true);
+  it("showing a goal raises its project to that level, and lowering a goal leaves the project alone", async () => {
+    const level = () => dataset.writingProjects.find((p) => p.id === "wprj_1")!.visibility;
+    expect(level()).toBeUndefined();
+    await setGoalVisibility("wgol_1", "community");
+    expect(level()).toBe("community");
+    await setGoalVisibility("wgol_1", "public");
+    expect(level()).toBe("public");
+    await setGoalVisibility("wgol_1", "private");
+    expect(level()).toBe("public");
+    expect(dataset.writingProjects.find((p) => p.id === "wprj_1")!.show_on_profile).toBe(true);
   });
 
-  it("refuses to show someone else's goal, and leaves their project alone", async () => {
-    expect(await toggleGoalVisibility("wgol_other", true)).toEqual({ error: "Goal not found" });
+  it("never lets a goal be more visible than its project", async () => {
+    // The project is raised first, so the goal can follow; a goal written above a project that stays lower is clamped.
+    await setGoalVisibility("wgol_1", "community");
+    await repos.writing.updateProject(ME, "wprj_1", { visibility: "private" });
+    await repos.writing.updateGoal(ME, "wgol_1", { visibility: "public" });
+    expect(dataset.writingGoals[0]).toMatchObject({ visibility: "private", show_on_profile: false });
+  });
+
+  it("rejects a level that is not private, community or public, without touching anything", async () => {
+    expect(await setGoalVisibility("wgol_1", "everyone" as never)).toEqual({ error: "Choose private, community or public" });
+    expect(await setGoalVisibility("wgol_1", true as never)).toEqual({ error: "Choose private, community or public" });
+    expect(dataset.writingGoals[0].show_on_profile).toBe(false);
+    expect(dataset.writingProjects[0].show_on_profile).toBe(false);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("refuses to change someone else's goal, and leaves their project alone", async () => {
+    expect(await setGoalVisibility("wgol_other", "public")).toEqual({ error: "Goal not found" });
     expect(dataset.writingProjects.find((p) => p.id === "wprj_2")!.show_on_profile).toBe(false);
+    expect(dataset.writingGoals[1].show_on_profile).toBe(false);
   });
 
   it("shows the project when a goal is created or edited onto the profile", async () => {
@@ -208,7 +230,8 @@ describe("toggleGoalStar and toggleGoalVisibility", () => {
     await createGoal({ projectId: "wprj_1", measure: "words", goalType: "target", targetAmount: 100, showOnProfile: true });
     expect(shown()).toBe(true);
 
-    dataset.writingProjects.find((p) => p.id === "wprj_1")!.show_on_profile = false;
+    await repos.writing.updateProject(ME, "wprj_1", { show_on_profile: false });
+    expect(shown()).toBe(false);
     await updateGoal("wgol_1", { habitThreshold: 2, showOnProfile: true });
     expect(shown()).toBe(true);
   });
@@ -216,7 +239,7 @@ describe("toggleGoalStar and toggleGoalVisibility", () => {
   it("surface a database error", async () => {
     failWith("updateGoal");
     expect(await toggleGoalStar("wgol_1", true)).toEqual({ error: "boom" });
-    expect(await toggleGoalVisibility("wgol_1", false)).toEqual({ error: "boom" });
+    expect(await setGoalVisibility("wgol_1", "private")).toEqual({ error: "boom" });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

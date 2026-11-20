@@ -21,7 +21,7 @@ type Row = Record<string, unknown>;
 let onInsert: (payload: { new: Row }) => void = () => {};
 let onUpdate: (payload: { new: Row }) => void = () => {};
 const loadCounts = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/chat/load", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/chat/load")>()), loadUnreadCounts: loadCounts }));
+vi.mock("@/lib/chat/channels", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/chat/channels")>()), loadUnreadCounts: loadCounts }));
 const subscribe = vi.fn();
 const realtime: { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> } = {
   on: vi.fn((_t: string, f: { event: string }, cb: (p: { new: Row }) => void) => {

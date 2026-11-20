@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt } from "@/lib/random-int";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";

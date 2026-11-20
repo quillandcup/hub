@@ -70,6 +70,19 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 The check only lists them; nothing happens to the member or the import.`,
   },
   {
+    slug: "client-bundle-node-builtins-guard",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "improved",
+    title: "Browser code no longer pulls in Node's crypto, and a test keeps it out",
+    summary: "The pages' browser bundle no longer carries copies of Node's crypto and vm modules, which asked the browser to run eval() and would have broken under a strict Content-Security-Policy.",
+    body: [
+      "**Rule: a module a client component can reach never imports a Node built-in** (`crypto`, `vm`, `stream`, `fs`...). The bundler answers such an import by shipping browser copies of those modules, and the `vm` copy calls `eval()`, which the Content-Security-Policy we are moving to refuses (Sentry reported it as a blocked string evaluation).",
+      "- **Random ids and numbers** in shared code come from Web Crypto: `randomInt` in `lib/random-int.ts` and the global `crypto.randomUUID()`, the same in Node and the browser.\n- **A client component that needs a little of a server module** imports a small client-safe module instead (the chat sidebar uses `lib/chat/channels.ts`, which `lib/chat/load.ts` re-exports), never the whole loader.\n- **The guard** is `tests/lib/client-node-builtins.test.ts`: it follows imports from every `\"use client\"` file and fails with the chain that reaches a built-in. Files marked `server-only` or `\"use server\"` stop the walk.",
+      "The page builder also loads Puck's `no-external.css`, which is `puck.css` without its import of a font from another site. Context: `docs/TODO.md`, \"CSP for scripts and styles (nonces)\".",
+    ].join("\n\n"),
+  },
+  {
     slug: "writer-public-pages",
     date: "2026-11-20",
     audience: "engineering",
@@ -92,6 +105,20 @@ The check only lists them; nothing happens to the member or the import.`,
 - **Block width.** Select a block inside a section and click the Nth of twelve squares to make it N columns wide, on desktop and, if you want it different, on mobile. Reset puts it back to full width. Blocks with no width stay full width.
 
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
+  },
+  {
+    slug: "writing-visibility-control",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "One three-level visibility control for a writer's own work",
+    summary: "Projects and goals now have a lock, house, globe control: only me, other members, or (once the public profile exists) everyone.",
+    body: `A writer's project or goal now has a level, not an on/off switch, so the same control can later decide what a public profile shows. One click cycles private, community, public.
+
+- **Rule.** \`visibility\` (private, community, public) is the source of truth; nothing reads \`public\` yet, so nobody outside the community sees anything new. A goal is never more visible than its project: a goal write is clamped, and the profile reads the lower of the two.
+- **Expand step.** \`show_on_profile\` stays, kept equal to \`visibility <> 'private'\` by triggers, so old readers keep working until it is dropped (\`docs/TODO.md\`, "Drop show_on_profile").
+- **Hooks.** \`components/writing/VisibilityControl.tsx\` (reuse it for the next thing a writer owns, with \`noun\`), \`lib/writing-visibility.ts\` (levels, cycle, the twin's copy of the triggers), \`setProjectVisibility\` and \`setGoalVisibility\`, and the \`community\` icon (house) beside the lock and globe.
+- **Detail.** "Writer profiles" in \`docs/TODO.md\`.`,
   },
   {
     slug: "landing-page-templates",

@@ -12,8 +12,8 @@ vi.mock("@/app/(member)/projects/actions", () => ({
   deleteEntry: vi.fn(),
   deleteGoal: vi.fn(),
   toggleGoalStar: vi.fn(),
-  toggleGoalVisibility: vi.fn(),
-  toggleProjectVisibility: vi.fn(),
+  setGoalVisibility: vi.fn(),
+  setProjectVisibility: vi.fn(),
   updateGoal: vi.fn(),
   updateProjectPhase: vi.fn(),
 }));
@@ -28,7 +28,7 @@ const project = {
   title: "Lantern Draft Two",
   phase: "planning",
   createdAt: "2026-01-01T00:00:00Z",
-  showOnProfile: true,
+  showOnProfile: true, visibility: "community",
   coverUrl: null,
   description: null,
   startingBalances: {},
@@ -48,6 +48,6 @@ describe("the project page's header row", () => {
     expect(editButton.parentElement).toHaveClass("flex-wrap");
     expect(exportLink).toHaveClass("whitespace-nowrap");
     expect(editButton).toHaveClass("whitespace-nowrap");
-    expect(screen.getByText("On my profile")).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("Other members")).toHaveClass("whitespace-nowrap");
   });
 });

@@ -1,0 +1,43 @@
+name: OpenSSF Scorecard
+
+# Grades the repository's own supply-chain habits (pinned actions, token permissions, branch protection, review,
+# dependency update tooling, security policy). Informational, like audit.yml: not a required check and it never
+# blocks a merge. Findings land in the Security tab (code scanning) and the score is published to the OpenSSF
+# API, which only works for a public repository. Nothing here uses a secret.
+on:
+  schedule:
+    - cron: "41 6 * * 2"
+  push:
+    branches: [main]
+    paths:
+      - .github/**
+      - github-repo-config.yml
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  scorecard:
+    name: Scorecard analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@v2.6.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: scorecard

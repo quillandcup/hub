@@ -1,10 +1,7 @@
-import Icon from "@/components/Icon";
 import Tooltip from "@/components/Tooltip";
 
-// Icon toggles for the two independent per-item settings on writing projects and goals:
-// the star pins a goal to the member's own dashboard (only they see it), and the lock/globe
-// controls whether other members can see it on their profile. The same icons label the
-// matching checkboxes in the goal form, so the row icons are learnable.
+// The star pins a goal to the member's own dashboard (only they see it). Who else can see a project or goal is
+// a separate setting, `VisibilityControl` (lock, house, globe).
 
 export const STAR_ON = "⭐";
 export const STAR_OFF = "☆";
@@ -31,40 +28,6 @@ export function StarToggle({ on, onToggle, disabled, className = "" }: TogglePro
         className={`${buttonClass} ${className}`}
       >
         {on ? STAR_ON : STAR_OFF}
-      </button>
-    </Tooltip>
-  );
-}
-
-export function ProfileVisibilityToggle({
-  on,
-  onToggle,
-  disabled,
-  className = "",
-  noun = "goal",
-  withText = false,
-}: ToggleProps & { noun?: string; withText?: boolean }) {
-  const label = on
-    ? noun === "goal"
-      ? `Visible on your profile to other members, with its project (click to hide)`
-      : noun === "project"
-        ? `Visible on your profile to other members (click to hide it and its goals)`
-        : `Visible on your profile to other members (click to hide)`
-    : noun === "goal"
-      ? `Only you can see this goal (click to show it on your profile, with its project)`
-      : `Only you can see this ${noun} (click to show on your profile)`;
-  return (
-    <Tooltip content={label}>
-      <button data-track="visibility-toggles-show-on-my-profile"
-        type="button"
-        onClick={onToggle}
-        disabled={disabled}
-        aria-label="Show on my profile"
-        aria-pressed={on}
-        className={withText ? `flex items-center gap-1.5 disabled:opacity-50 ${className}` : `${buttonClass} ${className}`}
-      >
-        <Icon name={on ? "publish" : "unpublish"} className="h-5 w-5" />
-        {withText && <span className="whitespace-nowrap">{on ? "On my profile" : "Only me"}</span>}
       </button>
     </Tooltip>
   );

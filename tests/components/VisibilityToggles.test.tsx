@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StarToggle, ProfileVisibilityToggle } from "@/components/writing/VisibilityToggles";
+import { StarToggle } from "@/components/writing/VisibilityToggles";
 import { tooltipText } from "@/tests/helpers/tooltip";
 
 describe("StarToggle", () => {
@@ -23,41 +23,5 @@ describe("StarToggle", () => {
     expect(tooltipText(button)).toEqual("Pinned to your dashboard (click to unpin)");
     await userEvent.click(button);
     expect(onToggle).toHaveBeenCalledOnce();
-  });
-});
-
-describe("ProfileVisibilityToggle", () => {
-  it("shows a lock and says only you can see it when private", () => {
-    render(<ProfileVisibilityToggle on={false} onToggle={() => {}} />);
-    const button = screen.getByRole("button", { name: "Show on my profile" });
-    expect(button.querySelector("svg")).not.toBeNull();
-    expect(button.querySelector("svg.lucide-globe")).toBeNull();
-    expect(button).toHaveAttribute("aria-pressed", "false");
-    expect(tooltipText(button)).toEqual("Only you can see this goal (click to show it on your profile, with its project)");
-  });
-
-  it("shows a globe and says other members can see it when public", async () => {
-    const onToggle = vi.fn();
-    render(<ProfileVisibilityToggle on onToggle={onToggle} />);
-    const button = screen.getByRole("button", { name: "Show on my profile" });
-    expect(button.querySelector("svg.lucide-globe")).not.toBeNull();
-    expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(tooltipText(button)).toEqual("Visible on your profile to other members, with its project (click to hide)");
-    await userEvent.click(button);
-    expect(onToggle).toHaveBeenCalledOnce();
-  });
-
-  it("adds a text label and uses the given noun for the project-level toggle", () => {
-    render(<ProfileVisibilityToggle on={false} onToggle={() => {}} noun="project" withText />);
-    const button = screen.getByRole("button", { name: "Show on my profile" });
-    expect(button).toHaveTextContent("Only me");
-    expect(tooltipText(button)).toEqual("Only you can see this project (click to show on your profile)");
-  });
-
-  it("doesn't fire while disabled", async () => {
-    const onToggle = vi.fn();
-    render(<ProfileVisibilityToggle on={false} onToggle={onToggle} disabled />);
-    await userEvent.click(screen.getByRole("button", { name: "Show on my profile" }));
-    expect(onToggle).not.toHaveBeenCalled();
   });
 });

@@ -3,18 +3,19 @@ import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import { inChunks } from "./query";
 import type { InMemoryDataset } from "./in-memory";
+import { lessVisible, reconcileVisibility, visibilityOf, type Visibility } from "@/lib/writing-visibility";
 
 /** Stored rows, as the database has them; the twin keeps these. */
 // `deleted_at` is optional on the twin's rows so a fixture that predates soft delete still reads as live.
-export type WritingProjectRow = Omit<Row<"writing_projects">, "deleted_at" | "sort_position"> & { deleted_at?: string | null; sort_position?: number | null };
-export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at" | "sort_position"> & { deleted_at?: string | null; sort_position?: number | null };
+export type WritingProjectRow = Omit<Row<"writing_projects">, "deleted_at" | "sort_position" | "visibility"> & { deleted_at?: string | null; sort_position?: number | null; visibility?: Visibility };
+export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at" | "sort_position" | "visibility"> & { deleted_at?: string | null; sort_position?: number | null; visibility?: Visibility };
 export type WritingEntryRow = Omit<Row<"writing_progress_entries">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingBalanceRow = Row<"writing_project_starting_balances">;
 
 // --- projects and starting balances: shapes ---
 
 /** A project with the columns the projects pages show. */
-export type ProjectSummary = Pick<WritingProjectRow, "id" | "title" | "phase" | "created_at" | "show_on_profile" | "cover_url" | "description">;
+export type ProjectSummary = Pick<WritingProjectRow, "id" | "title" | "phase" | "created_at" | "show_on_profile" | "cover_url" | "description"> & { visibility: Visibility };
 /** An entry with the columns the project totals need. */
 export type ProjectEntry = Pick<WritingEntryRow, "id" | "project_id" | "entry_date" | "measure" | "mode" | "amount" | "note" | "tags" | "created_at">;
 /** The prickle an entry was logged against, with its type and host joined in. */
@@ -27,9 +28,9 @@ export interface EntryPrickle {
 export type ProjectEntryDetail = ProjectEntry & { prickle_id: string | null; prickle: EntryPrickle | null };
 export type ProjectGoal = GoalColumns;
 export type StartingBalance = Pick<WritingBalanceRow, "project_id" | "measure" | "amount">;
-export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "cover_asset_id" | "show_on_profile" | "phase">>;
+export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "cover_asset_id" | "show_on_profile" | "visibility" | "phase">>;
 
-const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, cover_url, description";
+const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, visibility, cover_url, description";
 const ENTRY_COLUMNS = "id, project_id, entry_date, measure, mode, amount, note, tags, created_at";
 const IMPORT_PREFIX = "trackbear:%";
 
@@ -164,7 +165,7 @@ export interface LoggedAgainstPrickle {
 export type GoalColumns = Pick<
   WritingGoalRow,
   "id" | "project_id" | "goal_type" | "measure" | "target_amount" | "start_date" | "end_date" | "habit_period" | "habit_threshold" | "is_starred" | "title" | "description" | "show_on_profile"
->;
+> & { visibility: Visibility };
 
 /** A goal with the member and the fields editing it starts from. */
 export type GoalForEdit = Pick<WritingGoalRow, "id" | "project_id" | "member_id" | "goal_type" | "measure" | "target_amount" | "start_date" | "end_date" | "habit_period" | "habit_threshold">;
@@ -182,7 +183,7 @@ export interface GoalCandidateRow {
   measure: string;
 }
 
-const GOAL_COLUMNS = "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile";
+const GOAL_COLUMNS = "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, visibility";
 const GOAL_PAGE = 1000;
 
 const goalColumns = (g: WritingGoalRow): GoalColumns => ({
@@ -199,6 +200,7 @@ const goalColumns = (g: WritingGoalRow): GoalColumns => ({
   title: g.title,
   description: g.description,
   show_on_profile: g.show_on_profile,
+  visibility: visibilityOf(g),
 });
 
 /** One logged addition of words (a `delta` entry), for community totals: the member is there only so callers can count distinct writers, never to show anyone. */
@@ -214,6 +216,8 @@ export interface WritingRepository {
   activeProjects(memberId: string, options?: { limit?: number }): Promise<ProjectChoice[]>;
   /** Whether the project exists, is this member's and isn't deleted. */
   ownsProject(memberId: string, projectId: string): Promise<boolean>;
+  /** Who can see the member's project (private, community or public), or null when it isn't theirs or is deleted. */
+  projectVisibility(memberId: string, projectId: string): Promise<Visibility | null>;
   /** Every member's projects whose cover is a link rather than a library image (for moving them in), by id. Paginated. */
   projectsWithLegacyCovers(): Promise<{ id: string; member_id: string; title: string; cover_url: string }[]>;
   /** The media library asset the member's project uses as its cover, or null (no cover, an older cover, or not theirs). */
@@ -364,6 +368,12 @@ export class SupabaseWritingRepository implements WritingRepository {
     return data ?? [];
   }
 
+  async projectVisibility(memberId: string, projectId: string) {
+    const { data, error } = await this.db.from("writing_projects").select("visibility").eq("id", projectId).eq("member_id", memberId).is("deleted_at", null).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data?.visibility as Visibility | undefined) ?? null;
+  }
+
   async ownsProject(memberId: string, projectId: string) {
     const { data, error } = await this.db.from("writing_projects").select("id").eq("id", projectId).eq("member_id", memberId).is("deleted_at", null).maybeSingle();
     if (error) throw new Error(error.message);
@@ -468,8 +478,9 @@ export class SupabaseWritingRepository implements WritingRepository {
       .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
+    // The CHECK constraint keeps `visibility` to the three levels; the generated type only knows it is text.
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []) as GoalColumns[];
   }
 
   async starredGoals(memberId: string): Promise<StarredGoal[]> {
@@ -486,7 +497,8 @@ export class SupabaseWritingRepository implements WritingRepository {
     // The member's few starred goals follow their projects' order, then the order of the goals in their project
     // (the sort is stable, so goals that were never placed stay oldest first).
     return (data ?? [])
-      .map(({ project, sort_position, ...goal }) => {
+      .map(({ project, sort_position, ...raw }) => {
+        const goal = raw as GoalColumns;
         const p = Array.isArray(project) ? project[0] : project;
         return { goal: { ...goal, project_title: p?.title ?? "" }, project: { id: goal.project_id, created_at: p?.created_at ?? "", sort_position: p?.sort_position ?? null }, position: sort_position };
       })
@@ -615,7 +627,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []) as ProjectSummary[];
   }
 
   async reorderProjects(memberId: string, orderedIds: string[]): Promise<void> {
@@ -637,7 +649,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .is("deleted_at", null)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return data;
+    return data as ProjectSummary | null;
   }
 
   async projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]> {
@@ -665,7 +677,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       let query = this.db.from("writing_goals").select(GOAL_COLUMNS).eq("member_id", memberId).is("archived_at", null).is("deleted_at", null);
       if (projectId) query = query.eq("project_id", projectId);
       // Placed goals by position, then the ones never placed by id (the order goals always had). The range pages stay stable on the id tie-break.
-      return query.order("sort_position", { ascending: true, nullsFirst: false }).order("id").range(from, to);
+      return query.order("sort_position", { ascending: true, nullsFirst: false }).order("id").range(from, to).overrideTypes<{ visibility: Visibility }[]>();
     });
   }
 
@@ -893,6 +905,11 @@ export class InMemoryWritingRepository implements WritingRepository {
       .map(({ id, title }) => ({ id, title }));
   }
 
+  async projectVisibility(memberId: string, projectId: string) {
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
+    return project ? visibilityOf(project) : null;
+  }
+
   async ownsProject(memberId: string, projectId: string) {
     return this.data.writingProjects.some((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
   }
@@ -967,7 +984,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       habit_threshold: goal.habit_threshold ?? null,
       is_starred: goal.is_starred ?? false,
       measure: goal.measure,
-      show_on_profile: goal.show_on_profile ?? false,
+      ...this.goalVisibility(goal.project_id, undefined, goal),
       start_date: goal.start_date ?? null,
       end_date: goal.end_date ?? null,
       target_amount: goal.target_amount ?? null,
@@ -987,8 +1004,17 @@ export class InMemoryWritingRepository implements WritingRepository {
 
   async updateGoal(memberId: string, goalId: string, patch: Update<"writing_goals">) {
     for (const g of this.liveGoals()) {
-      if (g.id === goalId && g.member_id === memberId) Object.assign(g, patch);
+      if (g.id !== goalId || g.member_id !== memberId) continue;
+      Object.assign(g, patch, this.goalVisibility(g.project_id, g, patch));
     }
+  }
+
+  /** What the database triggers do to a goal's two visibility columns on a write: keep them together, never above the project's level. */
+  private goalVisibility(projectId: string, before: WritingGoalRow | undefined, write: { visibility?: string; show_on_profile?: boolean }) {
+    const next = reconcileVisibility(before ? { visibility: visibilityOf(before), show_on_profile: before.show_on_profile } : null, write as { visibility?: Visibility; show_on_profile?: boolean }, { visibility: "private", show_on_profile: false });
+    const project = this.data.writingProjects.find((p) => p.id === projectId);
+    const visibility = project ? lessVisible(next.visibility, visibilityOf(project)) : next.visibility;
+    return { visibility, show_on_profile: visibility !== "private" };
   }
 
   async deleteGoal(memberId: string, goalId: string) {
@@ -1160,6 +1186,7 @@ export class InMemoryWritingRepository implements WritingRepository {
         title: g.title,
         description: g.description,
         show_on_profile: g.show_on_profile,
+        visibility: visibilityOf(g),
       }));
   }
 
@@ -1182,6 +1209,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       cover_url: null,
       external_id: null,
       show_on_profile: true,
+      visibility: "community",
       sort_position: null,
       deleted_at: null,
       created_at: new Date().toISOString(),
@@ -1202,7 +1230,9 @@ export class InMemoryWritingRepository implements WritingRepository {
 
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
     const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
-    if (project) Object.assign(project, patch);
+    if (!project) return;
+    Object.assign(project, patch, reconcileVisibility({ visibility: visibilityOf(project), show_on_profile: project.show_on_profile }, patch, { visibility: "community", show_on_profile: true }));
+    // Lowering a project leaves its goals' own setting alone (the profile reads the lower of the two).
   }
 
   async adoptCover(memberId: string, projectId: string, currentUrl: string, cover: { url: string; assetId: string }): Promise<boolean> {
@@ -1304,7 +1334,7 @@ export class InMemoryWritingRepository implements WritingRepository {
         cover_asset_id: r.cover_asset_id ?? null,
         cover_url: r.cover_url ?? null,
         external_id: r.external_id ?? null,
-        show_on_profile: r.show_on_profile ?? true,
+        ...reconcileVisibility(null, { show_on_profile: r.show_on_profile ?? undefined }, { visibility: "community", show_on_profile: true }),
         created_at: r.created_at ?? new Date().toISOString(),
       });
       if (r.external_id) created.push({ id, external_id: r.external_id });
@@ -1359,7 +1389,7 @@ export class InMemoryWritingRepository implements WritingRepository {
         is_starred: r.is_starred ?? false,
         title: r.title ?? null,
         description: r.description ?? null,
-        show_on_profile: r.show_on_profile ?? false,
+        ...this.goalVisibility(r.project_id, undefined, r),
         external_id: r.external_id ?? null,
         archived_at: null,
         created_at: r.created_at ?? new Date().toISOString(),
@@ -1390,7 +1420,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   async overwriteImportedGoal(memberId: string, externalId: string, patch: ImportedGoalPatch) {
     const goal = this.data.writingGoals.find((g) => g.member_id === memberId && g.external_id === externalId && !g.deleted_at);
     if (!goal) return 0;
-    Object.assign(goal, patch);
+    Object.assign(goal, patch, this.goalVisibility(goal.project_id, goal, patch));
     return 1;
   }
 }
@@ -1402,6 +1432,7 @@ const summaryOf = (p: WritingProjectRow): ProjectSummary => ({
   phase: p.phase,
   created_at: p.created_at,
   show_on_profile: p.show_on_profile,
+  visibility: visibilityOf(p),
   cover_url: p.cover_url,
   description: p.description,
 });

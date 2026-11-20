@@ -406,7 +406,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const id = await ctx.repo().createProject(a, "Fresh Start", "planning");
 
       expect(await ctx.repo().projectSummaries(a)).toEqual([
-        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: true, cover_url: null, description: null },
+        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: true, visibility: "community", cover_url: null, description: null },
       ]);
       expect((await ctx.repo().projectSummary(a, id))?.title).toBe("Fresh Start");
       expect(await ctx.repo().projectSummary(b, id)).toBeNull();
@@ -671,6 +671,51 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         show_on_profile: true,
         phase: "revising",
       });
+    });
+
+    it("keeps a project's level and the old on/off flag together, and never lets a goal be more visible than its project", async () => {
+      const [a, b] = ctx.memberIds;
+      await ctx.seed({});
+      const repo = ctx.repo();
+      const ids = { p: await repo.createProject(a, "Levels", "planning") };
+      const project = async () => {
+        const p = await repo.projectSummary(a, ids.p);
+        return `${p?.visibility}/${p?.show_on_profile}`;
+      };
+      const goalLevel = async (id: string) => {
+        const g = (await repo.projectGoals(a, ids.p)).find((x) => x.id === id);
+        return `${g?.visibility}/${g?.show_on_profile}`;
+      };
+
+      expect(await project()).toBe("community/true");
+      expect(await repo.projectVisibility(a, ids.p)).toBe("community");
+      expect(await repo.projectVisibility(b, ids.p)).toBeNull();
+
+      await repo.updateProject(a, ids.p, { visibility: "public" });
+      expect(await project()).toBe("public/true");
+      await repo.updateProject(a, ids.p, { show_on_profile: true });
+      expect(await project()).toBe("public/true");
+      await repo.updateProject(a, ids.p, { show_on_profile: false });
+      expect(await project()).toBe("private/false");
+      await repo.updateProject(a, ids.p, { show_on_profile: true });
+      expect(await project()).toBe("community/true");
+      await repo.updateProject(b, ids.p, { visibility: "public" });
+      expect(await project()).toBe("community/true");
+
+      // A goal starts private, and is clamped to its project's level whichever way it is written.
+      const fresh = await repo.createGoal({ member_id: a, project_id: ids.p, measure: "words", goal_type: "target", target_amount: 100 });
+      expect(await goalLevel(fresh)).toBe("private/false");
+      await repo.updateGoal(a, fresh, { visibility: "public" });
+      expect(await goalLevel(fresh)).toBe("community/true");
+      await repo.updateProject(a, ids.p, { visibility: "public" });
+      await repo.updateGoal(a, fresh, { visibility: "public" });
+      expect(await goalLevel(fresh)).toBe("public/true");
+
+      // Lowering the project leaves the goal's own setting; a later write to the goal is held to the project's level.
+      await repo.updateProject(a, ids.p, { visibility: "private" });
+      expect(await goalLevel(fresh)).toBe("public/true");
+      await repo.updateGoal(a, fresh, { visibility: "community" });
+      expect(await goalLevel(fresh)).toBe("private/false");
     });
 
     it("lists a member's entries, and one project's entries newest date first with the prickle's type and host", async () => {

@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt } from "@/lib/random-int";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Commitment, CommitmentSlot, CommitmentStatus } from "@/lib/commitments";
 import { checkinFromRow, checkinToRow, CHECKIN_COLUMNS, frequentEmotions, isEmptyCheckin, type CheckinInput, type Emotion } from "@/lib/prickle-checkins";
