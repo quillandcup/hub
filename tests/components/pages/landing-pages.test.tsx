@@ -72,7 +72,11 @@ describe("/p/[slug]", () => {
     const gone = await makePage("deleted", "Gone");
     await state.repos.landingPages.remove(gone.id, null);
 
-    for (const slug of ["draft-only", "taken-down", "deleted", "never-made", "Not Valid", "../etc"]) {
+    // A published template is not on the public site: its address answers like an unknown one.
+    const template = await state.repos.landingPages.create({ title: "Kit", slug: "a-template", data: doc("Template words") as never, createdBy: null, kind: "template" });
+    await state.repos.landingPages.publish(template.id);
+
+    for (const slug of ["draft-only", "taken-down", "deleted", "a-template", "never-made", "Not Valid", "../etc"]) {
       await expect(PublicLandingPage(params(slug))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
     }
   });

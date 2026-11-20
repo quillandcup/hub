@@ -703,6 +703,18 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(template("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");
   });
 
+  it("says the same things about a page of kind template, as the template", () => {
+    const kit = (event_type: string, data: ActivityFeedRow["data"]) => row({ entity_type: "landing_page_template", event_type, description: "Launch & <Kit>", data });
+    expect(describeRow(kit("insert", { title: { old: null, new: "x" }, kind: { old: null, new: "template" }, draft_data: { old: null, new: "[redacted]" } }))).toBe("created the template “Launch & <Kit>”");
+    expect(describeRow(kit("update", { status: { old: "draft", new: "published" } }))).toBe("published the template “Launch & <Kit>”");
+    expect(describeRow(kit("update", { published_at: { old: "2026-10-01", new: "2026-10-05" } }))).toBe("published the template “Launch & <Kit>”");
+    expect(describeRow(kit("update", { status: { old: "published", new: "draft" } }))).toBe("took the template “Launch & <Kit>” down");
+    expect(describeRow(kit("update", { restored_at: { old: null, new: "2026-10-05" } }))).toBe("brought back an earlier version of the template “Launch & <Kit>” into its draft");
+    expect(describeRow(kit("update", { starter_applied_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the template “Launch & <Kit>” with a starter, a template or an imported file");
+    expect(describeRow(kit("update", { title: { old: "Old & <name>", new: "New" } }))).toBe("renamed the template “Old & <name>” to “New”");
+    expect(describeRow(kit("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");
+  });
+
   it("never repeats a typed description, note or page content, even if the row carried them", () => {
     const sentence = describeRow(template("update", { current_version: { old: 1, new: 2 }, last_save_kind: { old: "created", new: "overwritten" }, description: { old: "secret words", new: "more secret words" }, note: { old: null, new: "secret note" }, data: { old: "secret page", new: "secret page" } }));
     expect(sentence).not.toMatch(/secret/);

@@ -171,7 +171,7 @@ async function detailsImpl(auth: Auth, pageId: string, input: DetailsInput): Pro
   if (!isValidSlug(slug)) return { error: "The address can use lowercase letters, numbers and dashes." };
   const repo = createRepos(auth.supabase).landingPages;
   try {
-    const before = (await repo.list()).find((p) => p.id === pageId);
+    const before = await repo.byId(pageId);
     const page = await repo.updateDetails(
       pageId,
       { title, slug, seoTitle: input.seoTitle.trim() || null, seoDescription: input.seoDescription.trim() || null, socialImageAssetId: input.socialImageAssetId.trim() || null },
@@ -340,8 +340,7 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
   const repos = createRepos(auth.supabase);
   const repo = repos.landingPages;
   try {
-    const source = (await repo.list()).find((p) => p.id === pageId);
-    const page = source ? await repo.bySlug(source.slug) : null;
+    const page = await repo.byId(pageId);
     if (!page) return { error: NOT_FOUND };
 
     // The file is untrusted: bring it up to date, keep only blocks and props the builder has, then check its pictures and clean it as a save does.
@@ -399,15 +398,14 @@ async function duplicateImpl(auth: Auth, pageId: string): Promise<PageResult> {
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   const repo = createRepos(auth.supabase).landingPages;
   try {
-    const source = (await repo.list()).find((p) => p.id === pageId);
+    const source = await repo.byId(pageId);
     if (!source) return { error: NOT_FOUND };
-    const full = await repo.bySlug(source.slug);
-    if (!full) return { error: NOT_FOUND };
+    const full = source;
     // The copy is always a draft, with the draft document as it is now.
     for (let n = 1; n <= 20; n++) {
       const slug = `${source.slug}-copy${n === 1 ? "" : `-${n}`}`.slice(0, 80).replace(/-+$/, "");
       try {
-        const copy = await repo.create({ title: `${source.title} (copy)`, slug, data: sanitizeLandingData(full.draft_data), createdBy: auth.user.id });
+        const copy = await repo.create({ title: `${source.title} (copy)`, slug, data: sanitizeLandingData(full.draft_data), createdBy: auth.user.id, kind: source.kind === "template" ? "template" : "page" });
         refresh();
         return { slug: copy.slug };
       } catch (error) {
@@ -431,7 +429,7 @@ async function deleteImpl(auth: Auth, pageId: string): Promise<PageResult> {
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   try {
     const repo = createRepos(auth.supabase).landingPages;
-    const before = (await repo.list()).find((p) => p.id === pageId);
+    const before = await repo.byId(pageId);
     if (!(await repo.remove(pageId, auth.user.id))) return { error: NOT_FOUND };
     refresh(before?.slug);
     return {};

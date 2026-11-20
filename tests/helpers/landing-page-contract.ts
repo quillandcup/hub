@@ -199,6 +199,47 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(page.imported_at).toBeNull();
     });
 
+    it("keeps templates apart from pages: lists, the public read and what can be used", async () => {
+      const pageSlug = ctx.unique("kind-page");
+      const kitSlug = ctx.unique("kind-kit");
+      const page = await ctx.repo().create({ title: "A page", slug: pageSlug, data: doc("page"), createdBy: null });
+      const kit = await ctx.repo().create({ title: "Kit", slug: kitSlug, data: doc("draft one"), createdBy: null, kind: "template" });
+      expect(page.kind).toBe("page");
+      expect(kit.kind).toBe("template");
+
+      expect((await ctx.repo().list()).map((p) => p.id)).toContain(page.id);
+      expect((await ctx.repo().list()).map((p) => p.id)).not.toContain(kit.id);
+      expect((await ctx.repo().list("template")).map((p) => p.id)).toContain(kit.id);
+      expect((await ctx.repo().list("template")).map((p) => p.id)).not.toContain(page.id);
+      expect((await ctx.repo().list("all")).map((p) => p.id)).toEqual(expect.arrayContaining([page.id, kit.id]));
+      expect((await ctx.repo().byId(kit.id))?.slug).toBe(kitSlug);
+      expect(await ctx.repo().byId(`lpg_${"A".repeat(12)}`)).toBeNull();
+
+      // Never published, or only a draft: not offered, and no published copy to give.
+      expect((await ctx.repo().usableTemplates()).map((t) => t.id)).not.toContain(kit.id);
+      expect(await ctx.repo().usableTemplateData(kit.id)).toBeNull();
+
+      // Published: offered, with the PUBLISHED document (not the draft being edited), and still never served to a visitor.
+      await ctx.repo().publish(kit.id);
+      await ctx.repo().saveDraft(kit.id, doc("draft two"), null);
+      expect(await ctx.repo().published(kitSlug)).toBeNull();
+      expect((await ctx.repo().usableTemplates()).find((t) => t.id === kit.id)).toMatchObject({ title: "Kit", publishedAt: expect.any(String) });
+      expect(await ctx.repo().usableTemplateData(kit.id)).toEqual({ title: "Kit", data: normalizeLandingData(doc("draft one")) });
+      // A page is not a template.
+      await ctx.repo().publish(page.id);
+      expect((await ctx.repo().usableTemplates()).map((t) => t.id)).not.toContain(page.id);
+      expect(await ctx.repo().usableTemplateData(page.id)).toBeNull();
+
+      // Taken down: no longer offered. Deleted: gone.
+      await ctx.repo().unpublish(kit.id, null);
+      expect((await ctx.repo().usableTemplates()).map((t) => t.id)).not.toContain(kit.id);
+      expect(await ctx.repo().usableTemplateData(kit.id)).toBeNull();
+      await ctx.repo().publish(kit.id);
+      await ctx.repo().remove(kit.id, null);
+      expect(await ctx.repo().usableTemplateData(kit.id)).toBeNull();
+      expect(await ctx.repo().byId(kit.id)).toBeNull();
+    });
+
     it("answers null for a page that is gone", async () => {
       const missing = `lpg_${"A".repeat(12)}`;
       expect(await ctx.repo().publish(missing)).toBeNull();
