@@ -18,7 +18,7 @@ describe("buildCsp", () => {
 
   it("closes plugins, base tag, form targets and framing", () => {
     expect(directive("object-src")).toBe("object-src 'none'");
-    expect(directive("base-uri")).toBe("base-uri 'self'");
+    expect(directive("base-uri")).toBe("base-uri 'none'");
     expect(directive("form-action")).toBe("form-action 'self'");
     expect(directive("frame-ancestors")).toBe("frame-ancestors 'self'");
   });
@@ -33,7 +33,7 @@ describe("buildCsp", () => {
 
   it("still works without Supabase or Sentry configured, and lists each origin once", () => {
     const bare = buildCsp({ imageHosts: ["https://a.example.test", "https://a.example.test"] });
-    expect(bare).toBe("img-src 'self' data: blob: https://a.example.test; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'");
+    expect(bare).toBe("img-src 'self' data: blob: https://a.example.test; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'");
   });
 });
 
@@ -61,7 +61,7 @@ describe("next.config headers", () => {
     expect(withCsp.length).toBeGreaterThan(0);
     expect(withCsp.map((r) => r.source)).not.toContain("/:path*");
     const value = withCsp[0].headers.find((h) => h.key === CSP_HEADER)!.value;
-    for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'"]) expect(value).toContain(part);
+    for (const part of ["img-src ", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'self'"]) expect(value).toContain(part);
   });
 
   it("covers each prefix the proxy matcher excludes", async () => {
@@ -124,7 +124,7 @@ describe("buildMetaCsp", () => {
   const meta = buildMetaCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts, sentryDsn: DSN });
 
   it("keeps the picture, plugin, base and form directives", () => {
-    for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'"]) expect(meta).toContain(part);
+    for (const part of ["img-src ", "object-src 'none'", "base-uri 'none'", "form-action 'self'"]) expect(meta).toContain(part);
     expect(meta).toContain("https://project.supabase.co");
   });
 
