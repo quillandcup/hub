@@ -27,8 +27,25 @@ const button = (label: string, props: Record<string, unknown>) => ({ type: "Butt
 const columns = (props: Record<string, unknown>, cols: unknown[][]) => ({ type: "Columns", props: { id: id("Columns"), count: "2", gap: "medium", verticalAlign: "top", col1: cols[0] ?? [], col2: cols[1] ?? [], col3: cols[2] ?? [], ...props } });
 const block = (type: string, props: Record<string, unknown>) => ({ type, props: { id: id(type), ...props } });
 const NO_LINK = { label: "", href: "" };
-/** One program under a Journey map stage; the link stays empty unless given, so the publish check asks for it. */
-const offer = (status: "open" | "waitlist" | "soon" | "dates", statusLabel: string, title: string, text: string, buttonLabel: string, href = "") => ({ status, statusLabel, title, text, buttonLabel, href });
+/** One program under a Journey map stage; the link stays empty unless given, so the publish check asks for it. `featured` leads the stage's panel. */
+const offer = (status: "open" | "waitlist" | "soon" | "dates", statusLabel: string, title: string, text: string, buttonLabel: string, href = "", featured = false) => ({ status, statusLabel, title, text, buttonLabel, href, featured });
+
+/**
+ * The program copy of the journey map (written with the owner's facts: no prices, no dates, nothing about a program that isn't known).
+ * Each says what the program is for in a sentence or two. What is true of a program is only: Membership (daily prickles, a community
+ * that notices when you're missing, tools for words, goals and streaks); The Ready Writer (a book in a year, one year from purchase,
+ * membership included, a plan and a pace); The 180 Program (a draft in six months, in a cohort, membership included); Self-Editing
+ * Academy (cohort, reflection exercises and levels, membership not included); retreats (in person or online).
+ */
+const COPY = {
+  membership: "Show up to a prickle any day, and someone is already writing beside you. Track your words, keep your streak, and be noticed when you're missing.",
+  readyWriter: "Write your book in a year with a plan, a pace and a prickle to show up to. Membership is included, so you're never writing alone.",
+  oneEighty: "Finish your draft in six months, alongside a cohort of writers moving through the same stretch. The faster path, with membership included.",
+  feedbackFriends: "Honest, kind feedback from fellow writers who want your book to be as good as their own.",
+  selfEditing: "Learn to edit your own manuscript alongside a cohort, with reflection exercises and levels that show how far you've come.",
+  retreats: "Write, learn and be with your people, in person or from home.",
+  published: "When you type THE END, you become a Finisher, and the whole house celebrates.",
+} as const;
 
 /**
  * The homepage as reviewed with the owner: announcement strip, an opening band with the pitch beside the day's
@@ -148,9 +165,10 @@ function homeContent(): unknown[] {
     ]),
     section({ background: "cream" }, [
       heading("Wherever your book is, there's a next step"),
+      // One panel per stage: the first offer (or the one marked featured) is large, the rest are a short list of links.
       block("JourneyMap", {
         stages: [
-          { name: "Idea", helps: "Membership", current: false, note: "", link: NO_LINK, offers: [offer("open", "", "Membership", "[One-line description.]", "See membership")] },
+          { name: "Idea", helps: "Membership", current: false, note: "", link: NO_LINK, offers: [offer("open", "", "Membership", COPY.membership, "See membership", "", true)] },
           {
             name: "Drafting",
             helps: "The Ready Writer · The 180 Program (Accelerated)",
@@ -158,8 +176,9 @@ function homeContent(): unknown[] {
             note: "",
             link: NO_LINK,
             offers: [
-              offer("waitlist", "", "The Ready Writer", "[One-line description.]", "See The Ready Writer", FEATURED_COURSE.offerUrl),
-              offer("open", "[Status]", "The 180 Program (Accelerated)", "[One-line description.]", "See The 180 Program"),
+              offer("waitlist", "", "The Ready Writer", COPY.readyWriter, "See The Ready Writer", FEATURED_COURSE.offerUrl, true),
+              offer("open", "", "The 180 Program (Accelerated)", COPY.oneEighty, "See The 180 Program"),
+              offer("open", "", "Best Feedback Friends", COPY.feedbackFriends, "See Best Feedback Friends"),
             ],
           },
           {
@@ -169,8 +188,8 @@ function homeContent(): unknown[] {
             note: "",
             link: NO_LINK,
             offers: [
-              offer("open", "[Status]", "Self-Editing Academy", "[One-line description.]", "See Self-Editing Academy"),
-              offer("open", "[Status]", "Best Feedback Friends", "[One-line description.]", "See Best Feedback Friends"),
+              offer("open", "", "Self-Editing Academy", COPY.selfEditing, "See Self-Editing Academy", "", true),
+              offer("open", "", "Best Feedback Friends", COPY.feedbackFriends, "See Best Feedback Friends"),
             ],
           },
           {
@@ -179,35 +198,47 @@ function homeContent(): unknown[] {
             current: false,
             note: "",
             link: NO_LINK,
-            offers: [
-              offer("open", "[Status]", "Retreats", "[One-line description.]", "See Retreats"),
-              offer("open", "[Status]", "Virtual Retreats", "[One-line description.]", "See Virtual Retreats"),
-            ],
+            offers: [offer("open", "", "Retreats and Virtual Retreats", COPY.retreats, "See retreats", "", true)],
           },
-          { name: "Published", helps: "Celebrate with the Finishers", current: false, note: "Celebrate with the Finishers", link: NO_LINK, offers: [] },
+          { name: "Published", helps: "Celebrate with the Finishers", current: false, note: COPY.published, link: NO_LINK, offers: [] },
         ],
         compare: { label: "Compare all programs", href: "" },
       }),
-      block("ComingUp", {
-        heading: "Coming up",
-        // Live: upcoming events announced publicly, of these kinds; the typed cards are the fallback and what the editor canvas shows.
-        source: "live",
-        kinds: ["in_person_retreat", "virtual_retreat", "workshop", "educational", "other"],
-        max: 4,
-        items: [
-          { kind: "Retreat", title: "[Name]", when: "[Dates · place]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
-          { kind: "Virtual retreat", title: "[Name]", when: "[Dates]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
-          { kind: "Challenge", title: "[Name]", when: "[Starts on date]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
+    ]),
+    // On the page colour (no dark band): big events as tall picture tiles beside a plain dated list of sessions. Both are live from the Hub.
+    section({ background: "white" }, [
+      heading("Coming up"),
+      columns({ count: "2", gap: "large", verticalAlign: "top" }, [
+        [
+          block("ComingUp", {
+            heading: "",
+            style: "feature",
+            // Live: upcoming events announced publicly, of these kinds; the typed tiles are the fallback and what the editor canvas shows.
+            source: "live",
+            kinds: ["in_person_retreat", "virtual_retreat", "workshop"],
+            max: 2,
+            more: NO_LINK,
+            // Shown on a sold-out event, once the address is set.
+            waitlist: { label: "Join the waitlist", href: "" },
+            items: [
+              { kind: "Retreat", title: "[Name]", when: "[Dates · place]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
+              { kind: "Virtual retreat", title: "[Name]", when: "[Dates]", availability: "[Spots left]", status: "", linkLabel: "", href: "" },
+            ],
+          }),
         ],
-      }),
-      // A second list under the first, for the community's own gatherings (no heading: it continues "Coming up").
-      block("ComingUp", {
-        heading: "",
-        source: "live",
-        kinds: ["session", "social", "book_launch"],
-        max: 4,
-        items: [{ kind: "Session", title: "[Name]", when: "[Date]", availability: "", status: "", linkLabel: "", href: "" }],
-      }),
+        [
+          block("ComingUp", {
+            heading: "Upcoming sessions",
+            style: "list",
+            source: "live",
+            kinds: ["session", "social", "book_launch", "educational", "other"],
+            max: 4,
+            more: { label: "See all events", href: "" },
+            waitlist: NO_LINK,
+            items: [{ kind: "Session", title: "[Name]", when: "[Date and time]", date: "", time: "", availability: "", status: "", linkLabel: "", href: "" }],
+          }),
+        ],
+      ]),
     ]),
     section({ background: "plum", width: "narrow", ...presetPadding("large") }, [
       heading("Your name could be on the wall."),

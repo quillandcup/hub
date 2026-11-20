@@ -36,11 +36,17 @@ export function comingUpOptions(props: { kinds?: unknown; max?: unknown }): Comi
 /** The same options as a stable string, so equal options share one load and one cache entry. */
 export const comingUpKey = (options: ComingUpOptions) => `${options.max}:${options.kinds.join(",")}`;
 
-export type ComingUpCard = { kind: string; title: string; when: string; availability: string; linkLabel: string; href: string };
+/**
+ * What one event shows. `date` is its first Eastern day (YYYY-MM-DD, for the list's date tile), `time` the line under a list row's
+ * title (the time of day of a timed single-day event, the dates of a several-day one, nothing for an all-day day), `soldOut` whether
+ * it has a capacity, a linked offer and no places left, and `imageAssetId` its cover when, and only when, that asset is public ("" otherwise).
+ */
+export type ComingUpCard = { kind: string; title: string; when: string; availability: string; linkLabel: string; href: string; date: string; time: string; soldOut: boolean; imageAssetId: string };
 /** What is cached for a minute and handed to every visitor: nothing here is about a person. `startTime` lets the render drop an event that has started since. */
 export type ComingUpSnapshot = { events: (ComingUpCard & { startTime: string })[] };
 
 export const SIGN_UP_LABEL = "Sign up";
+export const SOLD_OUT_TEXT = "Sold out";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const parts = (day: string) => {
@@ -68,14 +74,33 @@ export function formatEventWhen(event: Pick<UpcomingAnnouncedEvent, "start_time"
   return `${first.month} ${first.d} to ${last.month} ${last.d}${yearOf(first)}`;
 }
 
-/** "6 spots left", "1 spot left", "Full"; "" when the places left are not known (no capacity, or no linked offer to count against). */
+/** "6 spots left", "1 spot left", "Sold out"; "" when the places left are not known (no capacity, or no linked offer to count against). */
 export function availabilityText(signup: { spotsLeft: number | null; soldOut: boolean } | undefined): string {
   if (!signup || signup.spotsLeft === null) return "";
-  if (signup.soldOut || signup.spotsLeft <= 0) return "Full";
+  if (signup.soldOut || signup.spotsLeft <= 0) return SOLD_OUT_TEXT;
   return `${signup.spotsLeft} ${signup.spotsLeft === 1 ? "spot" : "spots"} left`;
 }
 
-type ComingUpRepos = Pick<Repos, "aliases" | "billing" | "events" | "members">;
+type ComingUpRepos = Pick<Repos, "aliases" | "billing" | "events" | "media" | "members">;
+
+/**
+ * The cover of each event whose cover a signed-out visitor may be served: the asset is a live image marked `is_public`
+ * (docs/LANDING_PAGES.md, "Pictures and public assets"; an admin's save of a publicly announced event marks it, `publishEventCover`).
+ * Anything else, or a read that fails, is simply no picture: the tile falls back to its neutral look and the page never breaks for
+ * an image. Only the asset id leaves, which the block turns into the same `/api/media/<id>/<preset>` address every landing picture uses.
+ */
+async function publicCovers(media: ComingUpRepos["media"], events: { id: string; image_id: string | null }[]): Promise<Map<string, string>> {
+  const ids = [...new Set(events.flatMap((e) => (e.image_id ? [e.image_id] : [])))];
+  const assets = await Promise.all(ids.map((id) => media.byId(id).catch(() => null)));
+  const open = new Set(assets.flatMap((a) => (a && a.is_public && !a.deleted_at && a.kind === "image" ? [a.id] : [])));
+  return new Map(events.flatMap((e) => (e.image_id && open.has(e.image_id) ? [[e.id, e.image_id] as const] : [])));
+}
+
+/** The line under a list row's title: the time of a timed single-day event, the dates of a several-day one, "" for an all-day day. */
+function listTime(event: Pick<UpcomingAnnouncedEvent, "start_time" | "end_time" | "starts_at" | "ends_at">, when: string): string {
+  if (event.starts_at < event.ends_at) return when;
+  return isAllDay(event.start_time, event.end_time) ? "" : formatTimeSpan(event.start_time, event.end_time, ORG_TIMEZONE);
+}
 
 /**
  * The next events for a block's options, ready to show. Places left come from `eventSignups` (the same count the member Events page
@@ -85,20 +110,26 @@ type ComingUpRepos = Pick<Repos, "aliases" | "billing" | "events" | "members">;
 export async function loadComingUp(repos: ComingUpRepos, options: ComingUpOptions, nowDate: Date): Promise<ComingUpSnapshot> {
   const found = await repos.events.upcomingAnnounced({ from: nowDate.toISOString(), limit: options.max + SNAPSHOT_SLACK, kinds: options.kinds });
   if (found.length === 0) return { events: [] };
-  const signups = await eventSignups(repos, found.map((e) => ({ id: e.id, capacity: e.capacity })));
+  const [signups, covers] = await Promise.all([eventSignups(repos, found.map((e) => ({ id: e.id, capacity: e.capacity }))), publicCovers(repos.media, found)]);
   return {
     events: found.map((e) => {
       const signup = signups.get(e.id);
       const availability = availabilityText(signup);
+      const soldOut = availability === SOLD_OUT_TEXT;
       // A link only while there are places and a checkout page to go to.
-      const href = signup?.checkoutUrl && availability !== "Full" ? signup.checkoutUrl : "";
+      const href = signup?.checkoutUrl && !soldOut ? signup.checkoutUrl : "";
+      const when = formatEventWhen(e, nowDate);
       return {
         kind: kindLabel(e.event_type),
         title: publicTitle(e.title, null),
-        when: formatEventWhen(e, nowDate),
+        when,
         availability,
         linkLabel: href ? SIGN_UP_LABEL : "",
         href,
+        date: e.starts_at,
+        time: listTime(e, when),
+        soldOut,
+        imageAssetId: covers.get(e.id) ?? "",
         startTime: e.start_time,
       };
     }),

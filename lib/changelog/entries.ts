@@ -92,11 +92,12 @@ Desktop and mobile follow the room the page has, so the phone and tablet preview
     category: "new",
     title: "Page builder blocks for the new homepage, and a Homepage starter built from them",
     summary: "Ten blocks (announcement strip, schedule panel, outcome numbers, Finisher cards, timeline, week strip, finish-line cards, plan phases, journey map, coming up) and a Homepage starter; four of them can show live Hub data: figures, upcoming prickles and upcoming events.",
-    body: `The homepage design needed more than the generic blocks, so the builder has a "Homepage" group of blocks that do one job each (\`components/landing/homepage-blocks.tsx\`), and a Homepage starter that arranges them as an unpublished draft. Not offered to the AI builder.
+    body: `The homepage needed blocks that do one job each, so the builder has a "Homepage" group (\`components/landing/homepage-blocks.tsx\`) and a Homepage starter that arranges them as an unpublished draft. Not offered to the AI builder.
 
-- **Rules.** Container-query sizes only; colours from theme tokens or fixed brand colours, and a block with its own background sets its own text colour; a link is a prop named \`href\`.
-- **Live data.** The announcement strip, schedule panel, outcome numbers and coming up have a \`source\` (typed or live). The server fills live values in before the render (\`resolveLiveBlocks\`, cached for a minute, never saved) as a render-only \`live\` prop, and any failure shows the typed values. Every schedule row carries a chip (live, soon, or the editable open label). A figure is one registry entry (\`lib/landing/live-stats.ts\`); counts only, never a person. Coming up lists events marked announced publicly through \`EventRepository.upcomingAnnounced\`, with places left from the member Events page's own count and a link only to a public checkout page, never a sign-in-only event page.
-- **Journey map.** Each stage carries its own offers; choosing a stage shows them. The one client part is \`JourneyTabs\`: the server renders every stage's panel (crawlers and visitors without JavaScript read them all), and once hydrated it is an accessible tab list. Stored pages with the old single offer are moved into the current stage by a \`LANDING_MIGRATIONS\` step.
+- **Rules.** Container-query sizes only, theme tokens or fixed brand colours, a link is a prop named \`href\`. Fewer boxes on purpose: a page should not be a wall of identical cards.
+- **Live data.** Four blocks take a \`source\` (typed or live). The server fills live values in before the render (\`resolveLiveBlocks\`, cached for a minute, never saved) as a render-only \`live\` prop; a failure shows the typed values. Counts and public titles only, never a person.
+- **Journey map.** One panel per stage, led by one featured offer with the rest as a short list of links; the one client part is \`JourneyTabs\`, over server-rendered panels.
+- **Coming up** has three styles: cards, feature tiles with the event's cover (only when its media asset is already public; saving a publicly announced event marks it), and a plain dated list.
 - **Detail.** \`docs/LANDING_PAGES.md\`, "Homepage blocks" and "Live data".`,
   },
   {

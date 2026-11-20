@@ -69,26 +69,51 @@ describe("the homepage starter", () => {
     expect(issues.filter((i) => i.severity === "warning")).toEqual([]);
   });
 
-  it("gives each Journey map stage its programs, with the current stage Revising and no block-level offer", () => {
+  it("gives each Journey map stage its programs, one of them featured, with the current stage Revising and no block-level offer", () => {
     const map = blocks(starterData("home").content).find((b) => b.type === "JourneyMap")!;
     expect("offer" in map.props).toBe(false);
-    const stages = map.props.stages as { name: string; current: boolean; note: string; offers: { title: string; status: string; statusLabel: string; text: string; href: string }[] }[];
+    type Offer = { title: string; status: string; statusLabel: string; text: string; buttonLabel: string; href: string; featured: boolean };
+    const stages = map.props.stages as { name: string; current: boolean; note: string; offers: Offer[] }[];
     expect(stages.map((s) => [s.name, s.offers.map((o) => o.title)])).toEqual([
       ["Idea", ["Membership"]],
-      ["Drafting", ["The Ready Writer", "The 180 Program (Accelerated)"]],
+      ["Drafting", ["The Ready Writer", "The 180 Program (Accelerated)", "Best Feedback Friends"]],
       ["Revising", ["Self-Editing Academy", "Best Feedback Friends"]],
-      ["Sharing", ["Retreats", "Virtual Retreats"]],
+      ["Sharing", ["Retreats and Virtual Retreats"]],
       ["Published", []],
     ]);
+    // The lead program of each stage is marked; the others are the "Also for" list.
+    expect(stages.map((s) => s.offers.filter((o) => o.featured).map((o) => o.title))).toEqual([["Membership"], ["The Ready Writer"], ["Self-Editing Academy"], ["Retreats and Virtual Retreats"], []]);
     expect(stages.filter((s) => s.current).map((s) => s.name)).toEqual(["Revising"]);
-    expect(stages[4].note).toBe("Celebrate with the Finishers");
-    const [membership, readyWriter, oneEighty] = [stages[0].offers[0], stages[1].offers[0], stages[1].offers[1]];
-    expect(membership.status).toBe("open");
-    expect(readyWriter).toMatchObject({ status: "waitlist", href: FEATURED_COURSE.offerUrl });
-    // What only the owner knows stays a bracketed placeholder, and no other link is filled in.
-    expect(oneEighty).toMatchObject({ statusLabel: "[Status]", text: "[One-line description.]", href: "" });
-    expect(stages.flatMap((s) => s.offers).filter((o) => o.href).map((o) => o.title)).toEqual(["The Ready Writer"]);
+    expect(stages[4].note).toBe("When you type THE END, you become a Finisher, and the whole house celebrates.");
+    const offers = stages.flatMap((s) => s.offers);
+    expect(stages[0].offers[0].status).toBe("open");
+    expect(stages[1].offers[0]).toMatchObject({ status: "waitlist", href: FEATURED_COURSE.offerUrl });
+    // The rest are open, with no status text; only the Ready Writer has a link, so the publish check asks for the others.
+    expect(offers.filter((o) => o.title !== "The Ready Writer").every((o) => o.status === "open" && o.statusLabel === "")).toBe(true);
+    expect(offers.filter((o) => o.href).map((o) => o.title)).toEqual(["The Ready Writer"]);
+    // Written copy and buttons that say what happens: no placeholders left.
+    for (const o of offers) {
+      expect(o.text.length, o.title).toBeGreaterThan(20);
+      expect(o.buttonLabel, o.title).toMatch(/^See /);
+    }
+    expect(JSON.stringify(map.props)).not.toMatch(/\[Status\]|\[One-line|\bFull\b/);
+    // A program typed under two stages reads the same under both.
+    const friends = offers.filter((o) => o.title === "Best Feedback Friends");
+    expect(friends).toHaveLength(2);
+    expect(friends[0].text).toBe(friends[1].text);
+    // No prices, dates or invented facts in the copy.
+    expect(offers.map((o) => o.text).join(" ")).not.toMatch(/\$|\d{4}|weekend|guarantee|best|#1/i);
   });
+
+  it("says membership is included only for the programs that include it", () => {
+    const map = blocks(starterData("home").content).find((b) => b.type === "JourneyMap")!;
+    const offers = (map.props.stages as { offers: { title: string; text: string }[] }[]).flatMap((s) => s.offers);
+    const text = (title: string) => offers.find((o) => o.title === title)!.text;
+    expect(text("The Ready Writer")).toMatch(/membership is included/i);
+    expect(text("The 180 Program (Accelerated)")).toMatch(/membership included/i);
+    expect(text("Self-Editing Academy")).not.toMatch(/membership/i);
+  });
+
 
   it("opens with the strip, then a plum band with the pitch beside the schedule, and builds each new block once", () => {
     const content = starterData("home").content as Node[];
@@ -108,13 +133,24 @@ describe("the homepage starter", () => {
     for (const type of ["SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "OptInForm"]) {
       expect(types.filter((t) => t === type), type).toHaveLength(1);
     }
-    // Two live lists: retreats and workshops first, then the community's own gatherings, so no kind appears in both.
+    // Coming up sits on a white band, not a dark one, in two columns: big events as feature tiles, sessions as a list. Both live from the Hub.
     const lists = blocks(content).filter((b) => b.type === "ComingUp");
     expect(lists).toHaveLength(2);
-    const kinds = lists.map((l) => l.props.kinds as string[]);
-    expect(kinds.every((k) => k.length > 0)).toBe(true);
-    expect(kinds[0].filter((k) => kinds[1].includes(k))).toEqual([]);
-    expect(lists.map((l) => l.props.source)).toEqual(["live", "live"]);
+    const eventsBand = (content as Node[]).find((b) => b.type === "Section" && blocks([b]).some((n) => n.type === "ComingUp"))!;
+    expect(eventsBand.props.background).toBe("white");
+    const [columnsOfBand] = (eventsBand.props.content as Node[]).filter((n) => n.type === "Columns");
+    expect((columnsOfBand.props.col1 as Node[]).map((b) => [b.type, b.props.style])).toEqual([["ComingUp", "feature"]]);
+    expect((columnsOfBand.props.col2 as Node[]).map((b) => [b.type, b.props.style])).toEqual([["ComingUp", "list"]]);
+    const [feature, list] = lists;
+    expect(feature.props).toMatchObject({ kinds: ["in_person_retreat", "virtual_retreat", "workshop"], max: 2, waitlist: { label: "Join the waitlist", href: "" }, source: "live" });
+    expect(list.props).toMatchObject({ heading: "Upcoming sessions", kinds: ["session", "social", "book_launch", "educational", "other"], max: 4, more: { label: "See all events", href: "" }, source: "live" });
+    // No kind is in both, and the sold-out word is "Sold out".
+    expect((feature.props.kinds as string[]).filter((k) => (list.props.kinds as string[]).includes(k))).toEqual([]);
+    expect(JSON.stringify(lists)).not.toContain('"Full"');
+    // No dark band anywhere around the events, and the journey map keeps its cream.
+    const journey = (content as Node[]).find((b) => b.type === "Section" && blocks([b]).some((n) => n.type === "JourneyMap"))!;
+    expect(journey.props.background).toBe("cream");
+    expect(["brown", "brownMid", "charcoal", "plum"]).not.toContain(eventsBand.props.background);
   });
 
   it("keeps the owner's first-week order: courage, write, goal, hello, streak", () => {

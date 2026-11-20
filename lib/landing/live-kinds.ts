@@ -21,3 +21,6 @@ export const COMING_UP_KIND_OPTIONS = EVENT_TYPES.map((value) => ({ value, label
 
 /** The label for an event's kind; "Event" for one this code doesn't know. */
 export const kindLabel = (eventType: string): string => (isEventType(eventType) ? COMING_UP_KIND_LABELS[eventType] : "Event");
+
+/** What a Coming up list is headed when its heading was never set (a block saved without one; an empty heading is on purpose and stays empty). */
+export const COMING_UP_LIST_HEADING = "Upcoming sessions";

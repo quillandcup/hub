@@ -755,9 +755,10 @@ describe("JourneyMap and ComingUp", () => {
     expect(tabs()[1].tabIndex).toBe(0);
     expect(tabs()[0].tabIndex).toBe(-1);
     expect(screen.getByRole("tabpanel")).toHaveTextContent("About Ready Writer");
-    // Two offers side by side with room, stacked when narrow.
-    expect(screen.getByRole("tabpanel").querySelector("ul")!.className).toContain("@pair:grid-cols-2");
-    expect(screen.getByRole("tabpanel").querySelectorAll("li")).toHaveLength(2);
+    // The first offer leads (large, with its status); the other is one row of the "Also for" list.
+    expect(screen.getByRole("heading", { level: 3, name: "Ready Writer" })).toBeInTheDocument();
+    expect(screen.getByRole("tabpanel").querySelectorAll("li")).toHaveLength(1);
+    expect(screen.getByText("Also for Drafting")).toBeInTheDocument();
     expect(screen.getByText("Waitlist").className).toContain("bg-gold");
   });
 
@@ -807,8 +808,10 @@ describe("JourneyMap and ComingUp", () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ name: `Stage ${i}`, helps: "", current: false, offers: Array.from({ length: 6 }, (_, k) => o(`Offer ${k}`)) }));
     render(<JourneyMap stages={many} compare={compare} />);
     expect(tabs()).toHaveLength(6);
-    expect(screen.getByRole("tabpanel").querySelectorAll("li")).toHaveLength(4);
-    expect(screen.getByRole("tabpanel").querySelector("ul")!.className).toContain("@columns:grid-cols-4");
+    // Four offers: one featured and three in the list.
+    expect(screen.getByRole("tabpanel").querySelectorAll("li")).toHaveLength(3);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Offer 3");
+    expect(screen.getByRole("tabpanel")).not.toHaveTextContent("Offer 4");
     cleanup();
     expect(render(<JourneyMap stages={[]} compare={compare} />).container).toBeEmptyDOMElement();
     expect(render(<JourneyMap stages={[{ name: "", helps: "x", current: false }]} compare={compare} />).container).toBeEmptyDOMElement();
@@ -939,7 +942,7 @@ describe("the Journey map in the editor", () => {
     expect(fields.stages.max).toBe(6);
     expect(Object.keys(fields.stages.arrayFields!)).toEqual(["name", "helps", "current", "note", "link", "offers"]);
     expect(fields.stages.arrayFields!.offers.max).toBe(4);
-    expect(Object.keys(fields.stages.arrayFields!.offers.arrayFields!)).toEqual(["status", "statusLabel", "title", "text", "buttonLabel", "href"]);
+    expect(Object.keys(fields.stages.arrayFields!.offers.arrayFields!)).toEqual(["status", "statusLabel", "title", "text", "buttonLabel", "href", "featured"]);
   });
 
   it("names each row in the list, and gives new rows empty fields to fill", () => {

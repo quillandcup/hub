@@ -6,6 +6,9 @@ export type JourneyTab = { name: string; helps: string; panel: ReactNode };
 
 const subscribe = () => () => {};
 
+/** The one container a stage's content sits in: a left accent rail on a card, not a stack of bordered boxes. Attached to the stepper once it is a tab list. */
+const PANEL = "border-2 border-l-8 border-accent bg-card p-5 text-ink @split:p-6";
+
 /**
  * The Journey map's stepper and the panel under it (docs/LANDING_PAGES.md, "Homepage blocks"). The server renders every
  * stage's panel, so crawlers and visitors without JavaScript read all of them: before the browser has hydrated (and
@@ -39,7 +42,7 @@ export default function JourneyTabs({ tabs, initial }: { tabs: JourneyTab[]; ini
         {tabs.map((tab, i) => (
           <div key={i} className="mt-5">
             <p className="mb-2 font-bold">{tab.name}</p>
-            {tab.panel}
+            <div className={`rounded-xl ${PANEL}`}>{tab.panel}</div>
           </div>
         ))}
       </>
@@ -82,7 +85,7 @@ export default function JourneyTabs({ tabs, initial }: { tabs: JourneyTab[]; ini
         ))}
       </div>
       {tabs.map((tab, i) => (
-        <div key={i} role="tabpanel" id={`${base}-panel-${i}`} aria-labelledby={`${base}-tab-${i}`} hidden={i !== selected} className={`mt-5 ${i === selected ? "landing-panel-fade" : ""}`}>
+        <div key={i} role="tabpanel" id={`${base}-panel-${i}`} aria-labelledby={`${base}-tab-${i}`} hidden={i !== selected} className={`rounded-b-xl border-t-0 ${PANEL} ${i === selected ? "landing-panel-fade" : ""}`}>
           {tab.panel}
         </div>
       ))}
