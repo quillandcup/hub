@@ -694,15 +694,6 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(page("update", { imported_at: { old: null, new: "2026-10-05" } }))).toBe("imported a Kajabi page into the draft of “Spring & <Summer> sale”");
   });
 
-  it("says each thing done to a template in plain words, naming the template and never what was typed", () => {
-    expect(describeRow(template("insert", { name: { old: null, new: "x" }, description: { old: null, new: "[redacted]" }, data: { old: null, new: "[redacted]" } }))).toBe("saved “Launch & <Kit>” as a new template");
-    expect(describeRow(template("update", { current_version: { old: 1, new: 3 }, last_save_kind: { old: "created", new: "overwritten" }, data: { old: "[redacted]", new: "[redacted]" } }))).toBe("saved version 3 of the template “Launch & <Kit>”");
-    expect(describeRow(template("update", { current_version: { old: 3, new: 4 }, last_save_kind: { old: "overwritten", new: "restored" } }))).toBe("brought back an earlier version of the template “Launch & <Kit>” as version 4");
-    expect(describeRow(template("update", { name: { old: "Old & <name>", new: "New" } }))).toBe("renamed the template “Old & <name>” to “New”");
-    expect(describeRow(template("update", { description: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed the description of the template “Launch & <Kit>”");
-    expect(describeRow(template("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");
-  });
-
   it("says the same things about a page of kind template, as the template", () => {
     const kit = (event_type: string, data: ActivityFeedRow["data"]) => row({ entity_type: "landing_page_template", event_type, description: "Launch & <Kit>", data });
     expect(describeRow(kit("insert", { title: { old: null, new: "x" }, kind: { old: null, new: "template" }, draft_data: { old: null, new: "[redacted]" } }))).toBe("created the template “Launch & <Kit>”");
@@ -715,8 +706,8 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(kit("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");
   });
 
-  it("never repeats a typed description, note or page content, even if the row carried them", () => {
-    const sentence = describeRow(template("update", { current_version: { old: 1, new: 2 }, last_save_kind: { old: "created", new: "overwritten" }, description: { old: "secret words", new: "more secret words" }, note: { old: null, new: "secret note" }, data: { old: "secret page", new: "secret page" } }));
+  it("never repeats a typed search text, description, note or page content, even if the row carried them", () => {
+    const sentence = describeRow(row({ entity_type: "landing_page_template", event_type: "update", description: "Launch Kit", data: { seo_title: { old: "secret words", new: "more secret words" }, note: { old: null, new: "secret note" }, draft_data: { old: "secret page", new: "secret page" } } }));
     expect(sentence).not.toMatch(/secret/);
   });
 });

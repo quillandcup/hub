@@ -57,6 +57,9 @@ SELECT public.publish_landing_page('lpg_KindTest00002');
 INSERT INTO result SELECT 'rows_after', to_jsonb(count(*)) FROM public.landing_page_versions;
 INSERT INTO result SELECT 'earlier_rows_changed', to_jsonb(count(*)) FROM snap s JOIN public.landing_page_versions v ON v.id = s.id WHERE md5(v::text) <> s.h;
 
+-- A page's typed search words are not logged.
+UPDATE public.landing_pages SET seo_title = 'Zzsearch words' WHERE id = 'lpg_KindTest00001';
+
 -- No one changes or deletes a version.
 INSERT INTO result SELECT 'admin_update_refused', to_jsonb(pg_temp.refused($$UPDATE public.landing_page_versions SET title = 'x'$$));
 INSERT INTO result SELECT 'admin_delete_refused', to_jsonb(pg_temp.refused($$DELETE FROM public.landing_page_versions$$));
@@ -79,6 +82,7 @@ SELECT is(
   (SELECT jsonb_build_object('type', entity_type, 'leak', changes::text LIKE '%Zz%') FROM public.audit_log WHERE entity_id = 'lpg_KindTest00001'),
   jsonb_build_object('type', 'landing_page', 'leak', false),
   'a page''s entry keeps its own type, without its content');
+SELECT is((SELECT changes #>> '{seo_title,new}' FROM public.audit_log WHERE entity_id = 'lpg_KindTest00001'), '[redacted]', 'a page''s typed search words are redacted from its entry');
 SELECT is((SELECT value FROM result WHERE label = 'rows_after'), ((SELECT value FROM result WHERE label = 'rows_before')::text::int + 2)::text::jsonb, 'each publish adds exactly one version row');
 SELECT is((SELECT value FROM result WHERE label = 'earlier_rows_changed'), '0'::jsonb, 'earlier versions are byte for byte as they were');
 SELECT is((SELECT value FROM result WHERE label = 'admin_update_refused'), 'true'::jsonb, 'an admin can''t change a version');

@@ -306,8 +306,6 @@ export class InMemoryDataset implements PeopleTables {
   /** Landing pages and the version kept at each publish (LandingPageRepository). */
   landingPages: Row<"landing_pages">[];
   landingPageVersions: Row<"landing_page_versions">[];
-  landingPageTemplates: Row<"landing_page_templates">[];
-  landingPageTemplateVersions: Row<"landing_page_template_versions">[];
   /** Writers' public pages and the handles they gave up (WriterProfileRepository). */
   writerProfiles: Row<"writer_profiles">[];
   writerProfileHandles: Row<"writer_profile_handles">[];
@@ -323,7 +321,6 @@ export class InMemoryDataset implements PeopleTables {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "notificationLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "eventOffers" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiLessonComments" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "stripeInvoices" | "stripeCharges" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseAddressRedirects" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "videoTextTracks" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomAccounts" | "zoomDecisions" | "resendEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "hostVibes" | "scheduleLocks" | "checkinDmLog" | "wheelMatches" | "accessEvents" | "chatMessageVideos" | "lessonComments" | "lessonCommentReports" | "lessonCommentFollows" | "lessonCommentReads" | "careEngagements" | "careTrackedDms" | "memberInteractions" | "chatLinkPreviews" | "chatHiddenUnfurls" | "chatPreviewBlocks" | "chatDrafts" | "adminNotes" | "joinSettings" | "segments" | "segmentMembers" | "featureFlags" | "featureFlagSegments" | "userFeaturePreviews" | "slackIdentities" | "slackSignInTokens" | "analyticsEvents" | "calendarWatchChannels" | "authUsers" | "landingPages" | "landingPageVersions" | "landingPageTemplates" | "landingPageTemplateVersions" | "writerProfiles" | "writerProfileHandles">
 
     > &
       Partial<ZoomSeeds> &
@@ -478,8 +475,6 @@ export class InMemoryDataset implements PeopleTables {
     this.analyticsEvents = (init.analyticsEvents ?? []).map((row) => ({ ...row }));
     this.landingPages = (init.landingPages ?? []).map((row) => ({ ...row }));
     this.landingPageVersions = (init.landingPageVersions ?? []).map((row) => ({ ...row }));
-    this.landingPageTemplates = (init.landingPageTemplates ?? []).map((row) => ({ ...row }));
-    this.landingPageTemplateVersions = (init.landingPageTemplateVersions ?? []).map((row) => ({ ...row }));
     this.writerProfiles = (init.writerProfiles ?? []).map((row) => ({ ...row }));
     this.writerProfileHandles = (init.writerProfileHandles ?? []).map((row) => ({ ...row }));
     this.calendarWatchChannels = (init.calendarWatchChannels ?? []).map((row) => ({ ...row }));

@@ -220,11 +220,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   slack_sign_in_tokens: [],
   analytics_events: [],
   calendar_watch_channels: [],
-  // Landing pages and their saved templates from the page builder (LandingPageRepository, LandingTemplateRepository): every query is in the repository.
+  // Landing pages (templates are pages of kind template) from the page builder (LandingPageRepository): every query is in the repository.
   landing_pages: [],
   landing_page_versions: [],
-  landing_page_templates: [],
-  landing_page_template_versions: [],
   // Writers' public pages and their handle history (WriterProfileRepository): every query is in the repository.
   writer_profiles: [],
   writer_profile_handles: [],
