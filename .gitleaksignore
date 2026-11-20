@@ -1,6 +1,6 @@
 # gitleaks: findings reviewed 2026-11-20 and accepted as false positives. Each line is a finding's fingerprint (commit:file:rule:line):
 # the public local Supabase demo keys (iss supabase-demo) in CI config and test setup, and obviously fake tokens, ids and file keys in tests.
-# A new finding is not listed, so it still fails the scheduled run. Used by .github/workflows/secret-scan.yml.
+# A new finding is not listed, so it still fails the scheduled run. Used by .github/workflows/gitleaks.yml.
 095c9162e69def14c9a4a2040868e2e5b205d973:.env.example:generic-api-key:21
 095c9162e69def14c9a4a2040868e2e5b205d973:.env.example:generic-api-key:24
 095c9162e69def14c9a4a2040868e2e5b205d973:docs/DEPLOYMENT_SETUP.md:generic-api-key:232
