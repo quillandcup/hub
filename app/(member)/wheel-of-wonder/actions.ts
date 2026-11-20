@@ -66,7 +66,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
     Date.now() - SLACK_ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
 
-  const [membersResult, allMembersForMatching, attendance, slackActivity, slackAliases, slackUsers] =
+  const [membersResult, allMembersForMatching, attendance, slackActivity, slackAliases, slackUsers, directory] =
     await Promise.all([
       createRepos(supabase).members.list({ status: "active" }),
       // matchSlackUsersToMembers needs the full member roster (with email) to
@@ -78,11 +78,14 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
       createRepos(supabase).activities.slackCountsSince(activityWindowStart),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       createRepos(supabase).slackUsers.list(),
+      // Photos come from the member directory, which leaves out a photo its member made private.
+      createRepos(supabase).directory.all(),
     ]);
+  const directoryPhotos = new Map(directory.map((d) => [d.id, d.photo_url]));
 
   const members = membersResult
     .filter((m) => m.id !== viewerMemberId)
-    .map((m) => ({ id: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.displayName }), photo_url: m.photoUrl }));
+    .map((m) => ({ id: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.displayName }), photo_url: directoryPhotos.get(m.id) ?? null }));
 
   // Same matching logic the Slack data-hygiene pages use (alias > email >
   // normalized name), not just a raw alias lookup — otherwise a member

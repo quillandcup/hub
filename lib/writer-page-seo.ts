@@ -32,6 +32,7 @@ export function writerPageMetadata(profile: PublicWriterProfile, options: { inde
 
 /** The structured data for a page (schema.org `Person`): what the page itself shows, nothing more. */
 export function writerPageJsonLd(profile: PublicWriterProfile): Record<string, unknown> {
+  const sameAs = [profile.links.instagram, profile.links.facebook, profile.links.x].filter((link): link is string => link !== null);
   return {
     "@context": "https://schema.org",
     "@type": "Person",
@@ -39,6 +40,7 @@ export function writerPageJsonLd(profile: PublicWriterProfile): Record<string, u
     url: writerPageUrl(profile.handle),
     ...(profile.bio ? { description: profile.bio } : {}),
     ...(profile.photoUrl ? { image: profile.photoUrl } : {}),
+    ...(sameAs.length > 0 ? { sameAs } : {}),
   };
 }
 

@@ -55,6 +55,7 @@ vi.mock("@/lib/data/repos", async () => {
   };
 });
 
+import { InMemoryMemberStatusRepository } from "@/lib/data/member-status-overrides";
 import { InMemoryWheelOfWonderRepository } from "@/lib/data/wheel-of-wonder";
 import { introduceOnSlack, spinWheel } from "@/app/(member)/wheel-of-wonder/actions";
 
@@ -94,6 +95,17 @@ describe("Wheel of Wonder actions", () => {
       tables.data = { members: [{ id: "mbr_winner", name: "Laura May Best", display_name: "Bestie", photo_url: null }] };
 
       expect(await spinWheel()).toMatchObject({ winner: { memberId: "mbr_winner", memberName: "Bestie" } });
+    });
+
+    it("shows a match's photo only when they have not made it private", async () => {
+      const { InMemoryDataset } = await import("@/lib/data/in-memory");
+      const member = { id: "mbr_winner", name: "Fern Example", photoUrl: "https://photos.example.com/fern.png" };
+      tables.dataset = new InMemoryDataset({ members: [member] });
+      expect(await spinWheel()).toMatchObject({ winner: { memberId: "mbr_winner", photoUrl: "https://photos.example.com/fern.png" } });
+
+      tables.dataset = new InMemoryDataset({ members: [member] });
+      await new InMemoryMemberStatusRepository(tables.dataset).saveProfileVisibility("mbr_winner", "photo", "private", null);
+      expect(await spinWheel()).toMatchObject({ winner: { memberId: "mbr_winner", photoUrl: null } });
     });
 
     it("reports no one available when nobody is active on Slack", async () => {

@@ -36,6 +36,8 @@ export default function VisibilityControl({
   className = "",
   noun = "goal",
   withText = false,
+  levels,
+  describe,
 }: {
   visibility: Visibility;
   /** Called with the level a click moves to; the caller saves it and shows the result. */
@@ -44,12 +46,17 @@ export default function VisibilityControl({
   className?: string;
   noun?: string;
   withText?: boolean;
+  /** The levels a click cycles through, in order; all three by default. An item the internet cannot see leaves out "public". */
+  levels?: readonly Visibility[];
+  /** The tooltip, for an item whose words differ from a project's (a profile item); `next` is where a click goes. */
+  describe?: (visibility: Visibility, next: Visibility) => string;
 }) {
+  const next = nextVisibility(visibility, levels);
   return (
-    <Tooltip content={visibilityLabel(visibility, noun)}>
+    <Tooltip content={describe ? describe(visibility, next) : visibilityLabel(visibility, noun)}>
       <button data-track="visibility-control-cycle"
         type="button"
-        onClick={() => onChange(nextVisibility(visibility))}
+        onClick={() => onChange(next)}
         disabled={disabled}
         aria-label={`Who can see this ${noun}: ${SHORT[visibility]}`}
         className={withText ? `flex items-center gap-1.5 disabled:opacity-50 ${className}` : `flex-shrink-0 text-lg leading-none disabled:opacity-50 ${className}`}

@@ -24,14 +24,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: "account", id: "two-step-sign-in", title: "Two-step sign-in", keywords: ["2fa", "mfa", "two factor", "authenticator", "totp", "security", "code", "extra security"] },
   { tab: "account", id: "active-sessions", title: "Devices", keywords: ["active sessions", "sessions", "sign out", "logout", "devices", "revoke", "browsers"] },
 
-  { tab: "profile", id: "profile-bio", title: "Bio", keywords: ["about", "about me", "introduce"] },
+  { tab: "profile", id: "profile-photo", title: "Photo", keywords: ["picture", "avatar", "who can see", "visibility", "private", "public"] },
+  { tab: "profile", id: "profile-bio", title: "Bio", keywords: ["about", "about me", "introduce", "public bio", "who can see", "visibility", "private", "public"] },
   { tab: "profile", id: "profile-ask-me-about", title: "Ask me about", keywords: ["topics", "interests"] },
   { tab: "profile", id: "profile-instagram", title: "Instagram", keywords: ["social", "link"] },
   { tab: "profile", id: "profile-facebook", title: "Facebook", keywords: ["social", "link"] },
   { tab: "profile", id: "profile-x", title: "X (Twitter)", keywords: ["twitter", "social", "link"] },
-  { tab: "profile", id: "profile-writer-page", title: "Your page on the web", keywords: ["public", "writer page", "handle", "address", "url", "website", "search engines", "google", "seo", "author page", "visitor", "pen name"], feature: "writer_pages" },
+  { tab: "profile", id: "profile-writer-page", title: "Your writer page on the web", keywords: ["public", "writer page", "handle", "address", "url", "website", "search engines", "google", "seo", "author page", "visitor", "pen name"], feature: "writer_pages" },
   { tab: "profile", id: "your-milestones", title: "Your milestones", keywords: ["finisher", "the end", "writing milestones", "confirm", "consent"] },
-  { tab: "profile", id: "profile-whos-coming", title: "Who's coming", keywords: ["roster", "privacy", "hide", "list", "calendar", "committed"] },
 
   { tab: "identity", id: "identity-real-name", title: "Real name", keywords: ["name", "legal"] },
   { tab: "identity", id: "identity-display-name", title: "Display name", keywords: ["name", "pen name", "shown"] },
@@ -42,6 +42,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: "preferences", id: "theme", title: "Theme", keywords: ["dark mode", "light mode", "appearance", "color"] },
   { tab: "preferences", id: "timezone", title: "Time zone", keywords: ["timezone", "clock", "local time"] },
 
+  { tab: "preferences", id: "profile-whos-coming", title: "Who's coming", keywords: ["roster", "privacy", "hide", "list", "calendar", "committed", "prickle"] },
   { tab: "preferences", id: "link-previews", title: "Blocked link previews", keywords: ["chat", "unfurl", "block", "website", "remove preview", "sites"], feature: "chat_link_previews" },
 
   { tab: "notifications", id: "browser-notifications", title: "Browser notifications", keywords: ["push", "devices", "test notification"] },

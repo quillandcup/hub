@@ -433,6 +433,7 @@ const ENTITY_LABELS: Record<string, string> = {
   calendar_feed_item: "calendar item",
   wheel_of_wonder_match: "Wheel of Wonder match",
   member_ask_me_about: "“Ask me about” topics",
+  member_profile_visibility: "who can see their profile",
   restricted_slack_channel: "restricted Slack channel",
   care_dm_read: "read of a member's care plan messages",
   segment_member: "segment membership",
@@ -563,8 +564,28 @@ function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChang
   return null;
 }
 
+/** The items of a member's profile whose level changed, by name; the levels' own words are not repeated (the log keeps old and new). */
+const PROFILE_LEVEL_FIELDS: Record<string, string> = {
+  bio_visibility: "bio",
+  photo_visibility: "photo",
+  instagram_visibility: "Instagram link",
+  facebook_visibility: "Facebook link",
+  twitter_visibility: "X link",
+};
+
+/** Who can see a member's profile items (docs/WRITER_PROFILES.md): which items changed, never what they hold (the trigger redacts the text). */
+function profileVisibilityPhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown } | undefined>): string | null {
+  if (row.entity_type === "member_ask_me_about" && fields.visibility && row.event_type === "update") return "changed who can see their “Ask me about” topics";
+  if (row.entity_type !== "member_profile_visibility") return null;
+  const items = Object.keys(PROFILE_LEVEL_FIELDS).filter((key) => fields[key]).map((key) => PROFILE_LEVEL_FIELDS[key]);
+  if (items.length === 0) return null;
+  return `changed who can see their ${items.length === 1 ? items[0] : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`}`;
+}
+
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
+  const profileVisibility = profileVisibilityPhrase(row, fields);
+  if (profileVisibility) return profileVisibility;
   const feature = featurePhrase(row, fields);
   if (feature) return feature;
   const pageBuilder = pageBuilderPhrase(row, fields);

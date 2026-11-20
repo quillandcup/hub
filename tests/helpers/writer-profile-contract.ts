@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { PublicNameNotAllowedError, type WriterProfileRepository } from "@/lib/data/writer-profiles";
 import type { AliasRepository } from "@/lib/data/aliases";
 import { WRITER_PROFILES } from "@/lib/config";
+import type { WebItem } from "@/lib/profile-visibility";
+import type { Visibility } from "@/lib/writing-visibility";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RESERVE = WRITER_PROFILES.handleReservationDays;
@@ -15,10 +17,14 @@ export type WriterProfileContractContext = {
   members: readonly [string, string];
   /** A handle no other test or run uses. */
   unique: (label: string) => string;
-  /** Removes both members' pages and old handles, and their pen names. */
+  /** Removes both members' pages and old handles, their pen names and the levels they set (everything is community again). */
   reset: () => Promise<void>;
   setDisplayName: (memberId: string, name: string | null) => Promise<void>;
   setPhoto: (memberId: string, url: string | null) => Promise<void>;
+  /** Sets the member's own bio and social links (the fields on `members`), leaving out the ones not given. */
+  setProfileFields: (memberId: string, fields: { bio?: string | null; instagram?: string | null; facebook?: string | null; x?: string | null }) => Promise<void>;
+  /** Sets who can see one of the member's profile items (`member_profile_overrides`). */
+  setLevel: (memberId: string, item: WebItem, level: Visibility) => Promise<void>;
   /** Adds a pen name; `isPublic` is only possible for source "member". Returns its id. */
   addAlias: (memberId: string, alias: string, source: "member" | "zoom" | "slack", options?: { isPublic?: boolean; active?: boolean }) => Promise<string>;
   /** Changes a pen name's switches behind the repository's back (as staff could). */
@@ -54,7 +60,7 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
 
         expect(await claim(ada, handle)).toBe("created");
 
-        expect(await ctx.profiles().ofMember(ada)).toEqual({ handle, isPublic: false, publicNameAliasId: null, showPhoto: false, bio: null, publishedAt: null });
+        expect(await ctx.profiles().ofMember(ada)).toEqual({ handle, isPublic: false, publicNameAliasId: null, bio: null, publishedAt: null });
         expect(await ctx.profiles().publicByHandle(handle)).toEqual({ kind: "none" });
         expect(await ctx.profiles().publicCount()).toBe(before);
       });
@@ -214,32 +220,74 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
         const handle = ctx.unique("ada");
         await ctx.setPhoto(ada, "https://photos.example.com/ada.png");
         await claim(ada, handle);
-        await ctx.profiles().update(ada, { isPublic: true, showPhoto: true, bio: "Hello." });
+        await ctx.setLevel(ada, "photo", "public");
+        await ctx.profiles().update(ada, { isPublic: true, bio: "Hello." });
 
         const found = await ctx.profiles().publicByHandle(handle);
 
         if (found.kind !== "page") throw new Error("expected a page");
-        expect(Object.keys(found.profile).sort()).toEqual(["bio", "handle", "name", "photoUrl", "publishedAt", "updatedAt"]);
+        expect(Object.keys(found.profile).sort()).toEqual(["bio", "handle", "links", "name", "photoUrl", "publishedAt", "updatedAt"]);
         expect(found.profile).toMatchObject({ handle, name: "Ada Example", photoUrl: "https://photos.example.com/ada.png", bio: "Hello." });
       });
 
-      it("shows no photo unless the member chose to show it", async () => {
+      it("shows no photo unless its level is the globe", async () => {
         const handle = ctx.unique("ada");
         await ctx.setPhoto(ada, "https://photos.example.com/ada.png");
         await claim(ada, handle);
         await turnOn(ada);
 
         expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { photoUrl: null } });
-        await ctx.profiles().update(ada, { showPhoto: true });
-        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { photoUrl: "https://photos.example.com/ada.png" } });
-        await ctx.profiles().update(ada, { showPhoto: false });
+        await ctx.setLevel(ada, "photo", "community");
         expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { photoUrl: null } });
+        await ctx.setLevel(ada, "photo", "public");
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { photoUrl: "https://photos.example.com/ada.png" } });
+        await ctx.setLevel(ada, "photo", "private");
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { photoUrl: null } });
+      });
+
+      it("uses the separate public bio when there is one, otherwise the member's own bio only at the globe", async () => {
+        const handle = ctx.unique("ada");
+        await ctx.setProfileFields(ada, { bio: "My bio for members." });
+        await claim(ada, handle);
+        await turnOn(ada);
+
+        for (const level of ["community", "private"] as const) {
+          await ctx.setLevel(ada, "bio", level);
+          expect(await ctx.profiles().publicByHandle(handle), level).toMatchObject({ profile: { bio: null } });
+        }
+        await ctx.setLevel(ada, "bio", "public");
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { bio: "My bio for members." } });
+
+        await ctx.profiles().update(ada, { bio: "Written for the web." });
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { bio: "Written for the web." } });
+        await ctx.setLevel(ada, "bio", "private");
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { bio: "Written for the web." } });
+
+        await ctx.profiles().update(ada, { bio: null });
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { bio: null } });
+      });
+
+      it("shows a social link only at the globe, only over https, and each on its own", async () => {
+        const handle = ctx.unique("ada");
+        await ctx.setProfileFields(ada, { instagram: "https://instagram.com/ada", facebook: "https://facebook.com/ada", x: "http://x.com/ada" });
+        await claim(ada, handle);
+        await turnOn(ada);
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { links: { instagram: null, facebook: null, x: null } } });
+
+        await ctx.setLevel(ada, "instagram", "public");
+        await ctx.setLevel(ada, "x", "public");
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { links: { instagram: "https://instagram.com/ada", facebook: null, x: null } } });
+
+        await ctx.setLevel(ada, "facebook", "public");
+        await ctx.setLevel(ada, "instagram", "private");
+        expect(await ctx.profiles().publicByHandle(handle)).toMatchObject({ profile: { links: { instagram: null, facebook: "https://facebook.com/ada", x: null } } });
       });
 
       it("never publishes a photo that is not https or comes from a host kept private, even when switched on", async () => {
         const handle = ctx.unique("ada");
         await claim(ada, handle);
-        await ctx.profiles().update(ada, { isPublic: true, showPhoto: true });
+        await ctx.profiles().update(ada, { isPublic: true });
+        await ctx.setLevel(ada, "photo", "public");
 
         for (const url of ["http://photos.example.com/ada.png", "https://secure.gravatar.com/avatar/0123456789abcdef", "javascript:alert(1)"]) {
           await ctx.setPhoto(ada, url);

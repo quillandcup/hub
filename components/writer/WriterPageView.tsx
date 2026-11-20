@@ -1,10 +1,11 @@
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import MemberSocialLinks from "@/components/member/MemberSocialLinks";
 import type { PublicWriterProfile } from "@/lib/data/writer-profiles";
 import { SITE_URL } from "@/lib/config";
 import { jsonLdScript, writerPageJsonLd } from "@/lib/writer-page-seo";
 
 /**
- * A writer's public page (docs/WRITER_PROFILES.md): the name, the photo when they chose to show it, and their bio. Made only
+ * A writer's public page (docs/WRITER_PROFILES.md): the name, and the photo, bio and social links they opened to the internet. Made only
  * from `PublicWriterProfile`, which holds nothing else, so no other field can end up here. The bio is plain text (React
  * escapes it; line breaks are kept by the style). `banner` is the member-only preview's note above the page.
  */
@@ -19,6 +20,7 @@ export default function WriterPageView({ profile, banner }: { profile: PublicWri
             <h1 className="font-display text-3xl font-bold text-slate-900 dark:text-slate-100 sm:text-4xl">{profile.name}</h1>
           </header>
           {profile.bio && <p className="mt-8 whitespace-pre-line break-words text-base leading-relaxed text-slate-700 dark:text-slate-300">{profile.bio}</p>}
+          <MemberSocialLinks className="mt-6 justify-center" instagramUrl={profile.links.instagram} facebookUrl={profile.links.facebook} twitterUrl={profile.links.x} />
         </article>
       </main>
       <footer className="px-6 pb-10 text-center text-sm text-slate-600 dark:text-slate-400">

@@ -8,6 +8,9 @@ export const WRITER_PAGES_FEATURE: FeatureKey = "writer_pages";
 /** Why a change is refused while the flag is not on for the member (the page's settings stay as they are). */
 export const WRITER_PAGES_NOT_AVAILABLE = "Pages on the web are not open to you yet.";
 
+/** Why the page cannot be switched on yet: no name was chosen for it (only the name on the account, never the legal name by default). */
+export const WRITER_PAGE_NAME_NEEDED = "Choose the name for your page first: set a display name under Identity, or pick a pen name for the page.";
+
 type FlagRepos = Pick<Repos, "featureFlags" | "members" | "segments">;
 
 /**

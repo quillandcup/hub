@@ -1,4 +1,4 @@
-import { isProfilePubliclyServable, publicName, publishablePhotoUrl, type SetHandleOutcome } from "@/lib/writer-profile";
+import { isProfilePubliclyServable, publicName, publishableLink, publishablePhotoUrl, type SetHandleOutcome } from "@/lib/writer-profile";
 import type { Db, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { must } from "./query";
@@ -9,7 +9,7 @@ export interface WriterProfileSettings {
   isPublic: boolean;
   /** One of their pen names (`member_name_aliases` id) shown instead of the display name; null shows the display name. */
   publicNameAliasId: string | null;
-  showPhoto: boolean;
+  /** The separate bio written for the page, or null when the page uses the member's own bio (if its level is the globe). */
   bio: string | null;
   publishedAt: string | null;
 }
@@ -22,9 +22,12 @@ export interface PublicWriterProfile {
   handle: string;
   /** The display name, or the pen name the member allowed (never the legal name). */
   name: string;
-  /** Their photo, only when they chose to show it and it may be published. */
+  /** Their photo, only when its level is the globe and it may be published. */
   photoUrl: string | null;
+  /** The separate public bio when there is one; otherwise the member's own bio, only when its level is the globe. */
   bio: string | null;
+  /** Social links whose level is the globe (https only); each null when it is not shown. */
+  links: { instagram: string | null; facebook: string | null; x: string | null };
   /** When the page first went public. */
   publishedAt: string | null;
   updatedAt: string;
@@ -43,7 +46,6 @@ export type HandleAvailability = "available" | "yours" | "taken" | "reserved";
 export interface WriterProfileChanges {
   isPublic?: boolean;
   publicNameAliasId?: string | null;
-  showPhoto?: boolean;
   bio?: string | null;
 }
 
@@ -85,48 +87,76 @@ export interface WriterProfileRepository {
   publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string; memberId: string }[]>;
 }
 
-const SETTINGS_COLUMNS = "handle, is_public, public_name_alias_id, show_photo, public_bio, published_at";
+const SETTINGS_COLUMNS = "handle, is_public, public_name_alias_id, public_bio, published_at";
 
-type SettingsRow = Pick<Row<"writer_profiles">, "handle" | "is_public" | "public_name_alias_id" | "show_photo" | "public_bio" | "published_at">;
+type SettingsRow = Pick<Row<"writer_profiles">, "handle" | "is_public" | "public_name_alias_id" | "public_bio" | "published_at">;
 
 function toSettings(row: SettingsRow | null | undefined): WriterProfileSettings | null {
   return row
-    ? { handle: row.handle, isPublic: row.is_public, publicNameAliasId: row.public_name_alias_id, showPhoto: row.show_photo, bio: row.public_bio, publishedAt: row.published_at }
+    ? { handle: row.handle, isPublic: row.is_public, publicNameAliasId: row.public_name_alias_id, bio: row.public_bio, publishedAt: row.published_at }
     : null;
 }
+
+type PublicLevels = {
+  bio_visibility: string;
+  photo_visibility: string;
+  instagram_visibility: string;
+  facebook_visibility: string;
+  twitter_visibility: string;
+};
 
 /** A page row with the member and the chosen pen name joined in: just what a public page is built from. */
 type PublicRow = {
   handle: string;
-  show_photo: boolean;
   public_bio: string | null;
   published_at: string | null;
   updated_at: string;
   deleted_at: string | null;
   member_id: string;
   public_name_alias_id: string | null;
-  member: { name: string; display_name: string | null; photo_url: string | null; status: string } | null;
+  member: {
+    name: string;
+    display_name: string | null;
+    photo_url: string | null;
+    status: string;
+    bio: string | null;
+    instagram_url: string | null;
+    facebook_url: string | null;
+    twitter_url: string | null;
+    /** The member's level for each item (one row, or none when they never changed one: then everything is community). */
+    levels: PublicLevels | PublicLevels[] | null;
+  } | null;
   alias: { alias: string; is_public: boolean; active: boolean; source: string; member_id: string } | null;
 };
 
 const PUBLIC_COLUMNS =
-  "handle, show_photo, public_bio, published_at, updated_at, deleted_at, member_id, public_name_alias_id, member:members!writer_profiles_member_id_fkey(name, display_name, photo_url, status), alias:member_name_aliases!writer_profiles_public_name_alias_id_fkey(alias, is_public, active, source, member_id)";
+  "handle, public_bio, published_at, updated_at, deleted_at, member_id, public_name_alias_id, member:members!writer_profiles_member_id_fkey(name, display_name, photo_url, status, bio, instagram_url, facebook_url, twitter_url, levels:member_profile_overrides(bio_visibility, photo_visibility, instagram_visibility, facebook_visibility, twitter_visibility)), alias:member_name_aliases!writer_profiles_public_name_alias_id_fkey(alias, is_public, active, source, member_id)";
 
 /**
  * The one place a page's fields become public. A pen name is shown only when it is the member's own, still switched on
- * for the page, active and added by the member themselves; anything else falls back to the display name. A photo only
- * when the member chose to show it and its address may be published. Null when the member's page may not be served.
+ * for the page, active and added by the member themselves; anything else falls back to the display name. Every other item
+ * only when its level is the globe (`public`): the photo when its address may be published, a social link when it is https,
+ * the member's own bio only when they have no separate public bio (a separate one is the member's choice for the page, so
+ * it needs no level). Null when the member's page may not be served.
  */
 function toPublic(row: PublicRow): PublicWriterProfile | null {
   if (!row.member) return null;
   if (!isProfilePubliclyServable({ deletedAt: row.deleted_at, memberStatus: row.member.status })) return null;
   const alias = row.alias;
   const penName = alias && alias.is_public && alias.active && alias.source === "member" && alias.member_id === row.member_id ? alias.alias : null;
+  const levels = Array.isArray(row.member.levels) ? (row.member.levels[0] ?? null) : row.member.levels;
+  const isPublic = (level: string | undefined) => level === "public";
+  const separateBio = row.public_bio?.trim() ? row.public_bio : null;
   return {
     handle: row.handle,
     name: publicName(row.member, penName),
-    photoUrl: row.show_photo ? publishablePhotoUrl(row.member.photo_url) : null,
-    bio: row.public_bio,
+    photoUrl: isPublic(levels?.photo_visibility) ? publishablePhotoUrl(row.member.photo_url) : null,
+    bio: separateBio ?? (isPublic(levels?.bio_visibility) && row.member.bio?.trim() ? row.member.bio : null),
+    links: {
+      instagram: isPublic(levels?.instagram_visibility) ? publishableLink(row.member.instagram_url) : null,
+      facebook: isPublic(levels?.facebook_visibility) ? publishableLink(row.member.facebook_url) : null,
+      x: isPublic(levels?.twitter_visibility) ? publishableLink(row.member.twitter_url) : null,
+    },
     publishedAt: row.published_at,
     updatedAt: row.updated_at,
   };
@@ -147,7 +177,6 @@ export class SupabaseWriterProfileRepository implements WriterProfileRepository 
     const patch: Update<"writer_profiles"> = {};
     if (changes.isPublic !== undefined) patch.is_public = changes.isPublic;
     if (changes.publicNameAliasId !== undefined) patch.public_name_alias_id = changes.publicNameAliasId;
-    if (changes.showPhoto !== undefined) patch.show_photo = changes.showPhoto;
     if (changes.bio !== undefined) patch.public_bio = changes.bio;
     if (Object.keys(patch).length === 0) return this.ofMember(memberId);
     const { data, error } = await this.db.from("writer_profiles").update(patch).eq("member_id", memberId).is("deleted_at", null).select(SETTINGS_COLUMNS).maybeSingle();
@@ -261,7 +290,6 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
     }
     if (changes.isPublic !== undefined) row.is_public = changes.isPublic;
     if (changes.publicNameAliasId !== undefined) row.public_name_alias_id = changes.publicNameAliasId;
-    if (changes.showPhoto !== undefined) row.show_photo = changes.showPhoto;
     if (changes.bio !== undefined) row.public_bio = changes.bio;
     const now = new Date().toISOString();
     if (row.is_public && !row.published_at) row.published_at = now;
@@ -320,14 +348,25 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
     const alias = row.public_name_alias_id ? this.data.nameAliases.find((a) => a.id === row.public_name_alias_id) : undefined;
     return {
       handle: row.handle,
-      show_photo: row.show_photo,
       public_bio: row.public_bio,
       published_at: row.published_at,
       updated_at: row.updated_at,
       deleted_at: row.deleted_at,
       member_id: row.member_id,
       public_name_alias_id: row.public_name_alias_id,
-      member: member ? { name: member.name, display_name: member.displayName ?? null, photo_url: member.photoUrl ?? null, status: member.status ?? "active" } : null,
+      member: member
+        ? {
+            name: member.name,
+            display_name: member.displayName ?? null,
+            photo_url: member.photoUrl ?? null,
+            status: member.status ?? "active",
+            bio: member.bio ?? null,
+            instagram_url: member.instagramUrl ?? null,
+            facebook_url: member.facebookUrl ?? null,
+            twitter_url: member.twitterUrl ?? null,
+            levels: this.data.memberProfileOverrides.find((o) => o.member_id === row.member_id) ?? null,
+          }
+        : null,
       alias: alias ? { alias: alias.alias, is_public: alias.isPublic ?? false, active: alias.active, source: alias.source, member_id: alias.member_id } : null,
     };
   }

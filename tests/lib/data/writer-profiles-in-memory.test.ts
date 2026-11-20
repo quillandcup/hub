@@ -1,5 +1,6 @@
 import { InMemoryAliasRepository } from "@/lib/data/aliases";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { InMemoryMemberStatusRepository } from "@/lib/data/member-status-overrides";
 import { InMemoryWriterProfileRepository } from "@/lib/data/writer-profiles";
 import { defineWriterProfileContract } from "@/tests/helpers/writer-profile-contract";
 
@@ -24,6 +25,18 @@ defineWriterProfileContract("InMemoryWriterProfileRepository", () => {
       data.writerProfiles = [];
       data.writerProfileHandles = [];
       data.nameAliases = [];
+      data.memberProfileOverrides = [];
+      for (const m of data.members) Object.assign(m, { bio: null, instagramUrl: null, facebookUrl: null, twitterUrl: null });
+    },
+    setProfileFields: async (id, fields) => {
+      const m = member(id);
+      if (fields.bio !== undefined) m.bio = fields.bio;
+      if (fields.instagram !== undefined) m.instagramUrl = fields.instagram;
+      if (fields.facebook !== undefined) m.facebookUrl = fields.facebook;
+      if (fields.x !== undefined) m.twitterUrl = fields.x;
+    },
+    setLevel: async (id, item, level) => {
+      await new InMemoryMemberStatusRepository(data).saveProfileVisibility(id, item, level, null);
     },
     setDisplayName: async (id, name) => {
       member(id).displayName = name;

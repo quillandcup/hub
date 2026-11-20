@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   getProfileSettings,
-  setRosterVisibility,
   updateAskMeAbout,
   updateInstagramHandle,
   updateProfileDetails,
@@ -17,6 +16,12 @@ import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics } from "@/lib/ask-me-abou
 import TagInput from "@/components/TagInput";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { WriterPagePanel } from "./WriterPagePanel";
+import ProfileItemVisibility from "./ProfileItemVisibility";
+import SeparatePublicBio from "./SeparatePublicBio";
+import { getWriterPageSettings, type WriterPageSettings } from "./writerPageActions";
+import { setProfileVisibility } from "./profileVisibilityActions";
+import type { ProfileItem } from "@/lib/profile-visibility";
+import type { Visibility } from "@/lib/writing-visibility";
 
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
@@ -43,10 +48,21 @@ function ClearHint({ value, noun, onClear }: { value: string; noun: string; onCl
   );
 }
 
+/** A label with the lock, house or globe of its item on the right. */
+function ItemHeader({ children, control }: { children: React.ReactNode; control: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 mb-1">
+      <div className="min-w-0 flex-1">{children}</div>
+      <div className="shrink-0">{control}</div>
+    </div>
+  );
+}
+
 /**
- * Settings > Profile: everything on the public member profile a member can
- * change, saved together without leaving the Hub. Instagram goes to Kajabi's
- * "Instagram Handle" field; bio / Facebook / X are Hub-owned overrides.
+ * Settings > Profile: everything on the member profile a member can change, saved together without leaving the Hub, and
+ * who can see each item (the lock, house or globe beside it, saved at once). Instagram goes to Kajabi's "Instagram Handle"
+ * field; bio / Facebook / X are Hub-owned overrides. Below it, when pages on the web are open to the member, the block
+ * about their writer page (`WriterPagePanel`). "Who's coming" lives in Preferences (`WhosComingSetting`).
  */
 export function ProfilePanel() {
   const [data, setData] = useState<ProfileSettings | null>(null);
@@ -59,8 +75,14 @@ export function ProfilePanel() {
   const [xInput, setXInput] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [rosterSaving, setRosterSaving] = useState(false);
-  const [rosterStatus, setRosterStatus] = useState<{ error: boolean; text: string } | null>(null);
+  const [page, setPage] = useState<WriterPageSettings | null>(null);
+  const [savingItem, setSavingItem] = useState<ProfileItem | null>(null);
+
+  // The writer page's settings: they decide whether a globe is offered and what its note says. A failed read leaves the page block out.
+  const loadPage = useCallback(async () => {
+    const result = await getWriterPageSettings();
+    setPage("error" in result ? null : result);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,7 +103,8 @@ export function ProfilePanel() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadPage();
+  }, [load, loadPage]);
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -127,21 +150,20 @@ export function ProfilePanel() {
     await load();
   }
 
-  // Saved on its own as soon as it's ticked, apart from the profile form's Save.
-  // Its confirmation or error shows beside the checkbox, not in the form's status line at the top,
-  // which would push the page down under the pointer.
-  async function handleRosterChange(show: boolean) {
+  // A level is saved the moment it is clicked, apart from the form's Save. It shows at once and goes back when the save fails.
+  async function handleVisibility(item: ProfileItem, next: Visibility) {
     if (!data) return;
-    setRosterStatus(null);
-    setData({ ...data, showInRoster: show });
-    setRosterSaving(true);
-    const result = await setRosterVisibility(show);
-    setRosterSaving(false);
+    setError(null);
+    setMessage(null);
+    const before = data.visibilities[item];
+    setData({ ...data, visibilities: { ...data.visibilities, [item]: next } });
+    setSavingItem(item);
+    const result = await setProfileVisibility(item, next);
+    setSavingItem(null);
     if ("error" in result) {
-      setData((current) => (current ? { ...current, showInRoster: !show } : current));
-      return setRosterStatus({ error: true, text: result.error });
+      setData((current) => (current ? { ...current, visibilities: { ...current.visibilities, [item]: before } } : current));
+      setError(result.error);
     }
-    setRosterStatus({ error: false, text: "Saved." });
   }
 
   if (loading && !data) {
@@ -157,11 +179,26 @@ export function ProfilePanel() {
     return <p className="text-sm text-red-600 dark:text-red-400">{error ?? "Couldn't load your profile."}</p>;
   }
 
+  const web = { available: page?.available ?? false, on: page?.isPublic ?? false };
+  const separateBio = (page?.publicBio ?? "").trim() !== "";
+  const level = (item: ProfileItem) => data.visibilities[item];
+  const control = (item: ProfileItem) => (
+    <ProfileItemVisibility
+      item={item}
+      visibility={level(item)}
+      page={web}
+      disabled={savingItem === item}
+      onChange={(next) => void handleVisibility(item, next)}
+      separateBio={item === "bio" ? separateBio : undefined}
+      photoPublishable={item === "photo" ? (page?.photoAvailable ?? true) : undefined}
+    />
+  );
+
   return (
     <div className="space-y-8">
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">Public Profile</h2>
+          <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">Profile</h2>
           {data.syncPending && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
               Syncing to your profile…
@@ -169,11 +206,12 @@ export function ProfilePanel() {
           )}
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Shown on your{" "}
+          What other members see on your{" "}
           <Link data-track="settings-profile-member-profile" href={`/members/${data.memberId}`} className="underline">
             member profile
           </Link>
-          .
+          . The icon beside each item says who can see it: the lock is only you, the house is other members
+          {web.available ? ", and the globe is anyone on the internet, on your writer page below" : ""}. Click it to change it.
         </p>
       </div>
 
@@ -185,15 +223,23 @@ export function ProfilePanel() {
       )}
 
       <form onSubmit={handleSave} className="space-y-4 max-w-md">
+        <div>
+          <ItemHeader control={control("photo")}>
+            <span id="profile-photo" className="text-sm font-medium text-slate-900 dark:text-slate-100">Photo</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400">The picture shown next to your name.</span>
+          </ItemHeader>
+        </div>
         <div data-tour="profile-bio">
-          <div className="flex items-baseline justify-between mb-1">
-            <label htmlFor="profile-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              Bio
-            </label>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {bioInput.trim().length}/{MAX_BIO_LENGTH}
-            </span>
-          </div>
+          <ItemHeader control={control("bio")}>
+            <div className="flex items-baseline justify-between">
+              <label htmlFor="profile-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                Bio
+              </label>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {bioInput.trim().length}/{MAX_BIO_LENGTH}
+              </span>
+            </div>
+          </ItemHeader>
           <textarea
             id="profile-bio"
             value={bioInput}
@@ -204,11 +250,26 @@ export function ProfilePanel() {
             className={INPUT_CLASS}
           />
           <ClearHint value={bioInput} noun="bio" onClear={() => setBioInput("")} />
+          {page?.available && (
+            <div className="mt-2">
+              <SeparatePublicBio
+                saved={page.publicBio}
+                publicNameAliasId={page.publicNameAliasId}
+                onChanged={async (text) => {
+                  setError(null);
+                  setMessage(text);
+                  await loadPage();
+                }}
+              />
+            </div>
+          )}
         </div>
         <div>
-          <label htmlFor="profile-ask-me-about" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-            Ask me about…
-          </label>
+          <ItemHeader control={control("ask_me_about")}>
+            <label htmlFor="profile-ask-me-about" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+              Ask me about…
+            </label>
+          </ItemHeader>
           <TagInput
             id="profile-ask-me-about"
             tags={topics}
@@ -223,9 +284,11 @@ export function ProfilePanel() {
         </div>
         {/* Instagram — written to Kajabi's "Instagram Handle" contact custom field. */}
         <div>
-          <label htmlFor="profile-instagram" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-            Instagram
-          </label>
+          <ItemHeader control={control("instagram")}>
+            <label htmlFor="profile-instagram" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+              Instagram
+            </label>
+          </ItemHeader>
           {data.kajabiLinked ? (
             <>
               <input
@@ -251,9 +314,11 @@ export function ProfilePanel() {
           )}
         </div>
         <div>
-          <label htmlFor="profile-facebook" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-            Facebook
-          </label>
+          <ItemHeader control={control("facebook")}>
+            <label htmlFor="profile-facebook" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+              Facebook
+            </label>
+          </ItemHeader>
           <input
             id="profile-facebook"
             type="text"
@@ -267,9 +332,11 @@ export function ProfilePanel() {
           <ClearHint value={facebookInput} noun="Facebook link" onClear={() => setFacebookInput("")} />
         </div>
         <div>
-          <label htmlFor="profile-x" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-            X / Twitter
-          </label>
+          <ItemHeader control={control("x")}>
+            <label htmlFor="profile-x" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+              X / Twitter
+            </label>
+          </ItemHeader>
           <input
             id="profile-x"
             type="text"
@@ -287,42 +354,11 @@ export function ProfilePanel() {
         </button>
       </form>
 
-      <div className="max-w-md">
-        <h2 id="profile-whos-coming" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">
-          Who&apos;s coming
-        </h2>
-        <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={data.showInRoster}
-            disabled={rosterSaving}
-            data-track="settings-profile-show-in-roster"
-            onChange={(e) => handleRosterChange(e.target.checked)}
-            className="mt-0.5 rounded"
-          />
-          <span>
-            Show me in &ldquo;Who&apos;s coming&rdquo;
-            <span className="block text-xs text-slate-600 dark:text-slate-400">
-              On an upcoming prickle&apos;s page, other members see your name if you committed to it or added it to your
-              calendar. Untick to stay off those lists; you still see yourself.
-            </span>
-          </span>
-        </label>
-        {rosterStatus && (
-          <p
-            role="status"
-            className={`mt-1 ml-6 text-xs ${
-              rosterStatus.error ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-            }`}
-          >
-            {rosterStatus.text}
-          </p>
-        )}
-      </div>
-
-      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-        <WriterPagePanel />
-      </div>
+      {page?.available && (
+        <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+          <WriterPagePanel settings={page} onChanged={loadPage} />
+        </div>
+      )}
     </div>
   );
 }
