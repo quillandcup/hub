@@ -55,7 +55,7 @@ function pictureDirectives({ supabaseUrl, imageHosts }: CspInputs): string[] {
   return [
     `img-src ${[...new Set(images)].join(" ")}`,
     "object-src 'none'",
-    "base-uri 'self'",
+    "base-uri 'none'",
     "form-action 'self'",
     "frame-ancestors 'self'",
   ];
