@@ -188,6 +188,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Members Without Slack", href: "/admin/hygiene/members-without-slack", section: "System" }),
   admin({ title: "Merge & Fix", href: "/admin/hygiene/merge-fix", section: "System", keywords: ["duplicates", "merge"] }),
   admin({ title: "External Conflicts", href: "/admin/hygiene/external-conflicts", section: "System" }),
+  admin({ title: "Temporary Email Addresses", href: "/admin/hygiene/temporary-emails", section: "System", keywords: ["disposable", "throwaway", "temp mail"] }),
   admin({ title: "Missing Member Data", href: "/admin/hygiene/missing-member-data", section: "System" }),
   admin({ title: "Name Matching Game", href: "/admin/hygiene/name-matching", section: "System" }),
   admin({ title: "Name Aliases", href: "/admin/data/aliases", section: "System" }),
