@@ -1,6 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { eventImageError } from "@/lib/media/event-image";
+import { eventImageError, publishEventCover } from "@/lib/media/event-image";
 import { NextRequest, NextResponse } from "next/server";
 import { parseEventAudience, parseGuestSpeakers } from "@/lib/event-audience";
 import { eventWindow } from "@/lib/event-window";
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    await publishEventCover(repos.media, event);
     return NextResponse.json({ event }, { status: 201 });
   } catch (error: any) {
     console.error("Error processing request:", error);

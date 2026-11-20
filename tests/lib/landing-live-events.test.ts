@@ -101,7 +101,8 @@ describe("loadComingUp", () => {
     );
     const by = Object.fromEntries(out.events.map((e) => [e.title, e]));
     expect(by["Open Retreat"]).toMatchObject({ availability: "3 spots left", href: CHECKOUT, linkLabel: SIGN_UP_LABEL });
-    expect(by["Full Retreat"]).toMatchObject({ availability: "Full", href: "", linkLabel: "" });
+    expect(by["Full Retreat"]).toMatchObject({ availability: "Sold out", soldOut: true, href: "", linkLabel: "" });
+    expect(by["Open Retreat"].soldOut).toBe(false);
     expect(by["No Limit"]).toMatchObject({ availability: "", href: "", linkLabel: "" });
     // An address that is not http(s) is never passed on; the places are still counted.
     expect(by["Odd Link"]).toMatchObject({ availability: "4 spots left", href: "", linkLabel: "" });
@@ -111,7 +112,7 @@ describe("loadComingUp", () => {
 
   it("never carries ids or counts of people", async () => {
     const out = await load([spec("evt_r", { title: "Retreat", capacity: 2, registration: "signup" })]);
-    expect(Object.keys(out.events[0]).sort()).toEqual(["availability", "href", "kind", "linkLabel", "startTime", "title", "when"]);
+    expect(Object.keys(out.events[0]).sort()).toEqual(["availability", "date", "href", "imageAssetId", "kind", "linkLabel", "soldOut", "startTime", "time", "title", "when"]);
     expect(JSON.stringify(out)).not.toContain("evt_r");
   });
 
@@ -157,7 +158,7 @@ describe("availabilityText", () => {
     expect(availabilityText({ spotsLeft: null, soldOut: false })).toBe("");
     expect(availabilityText({ spotsLeft: 6, soldOut: false })).toBe("6 spots left");
     expect(availabilityText({ spotsLeft: 1, soldOut: false })).toBe("1 spot left");
-    expect(availabilityText({ spotsLeft: 0, soldOut: true })).toBe("Full");
+    expect(availabilityText({ spotsLeft: 0, soldOut: true })).toBe("Sold out");
   });
 });
 
@@ -180,7 +181,7 @@ describe("kinds and options", () => {
   });
 
   it("drops events that have started since the snapshot was taken, and keeps to the limit", () => {
-    const card = (title: string, startTime: string) => ({ kind: "Event", title, when: "", availability: "", linkLabel: "", href: "", startTime });
+    const card = (title: string, startTime: string) => ({ kind: "Event", title, when: "", availability: "", linkLabel: "", href: "", date: "", time: "", soldOut: false, imageAssetId: "", startTime });
     const snapshot = { events: [card("Gone", "2026-11-19T14:59:00Z"), card("One", "2026-11-20T00:00:00Z"), card("Two", "2026-11-21T00:00:00Z")] };
     expect(comingUpCards(snapshot, new Date(NOW), { kinds: [], max: 1 }).map((c) => c.title)).toEqual(["One"]);
   });

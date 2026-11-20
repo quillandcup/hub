@@ -675,7 +675,8 @@ export function defineMemberEventContract(name: string, setup: () => MemberEvent
       const all = await ctx.repo().upcomingAnnounced({ from: "2097-06-01T00:00:00Z", limit: 1000 });
       expect(ours(all)).toEqual([retreat, later]);
       expect(all.find((e) => e.id === retreat)).toMatchObject({ title: `Retreat ${ctx.token}`, event_type: "in_person_retreat", capacity: 12, starts_at: "2097-07-01", ends_at: "2097-07-03" });
-      expect(Object.keys(all[0]).sort()).toEqual(["capacity", "end_time", "ends_at", "event_type", "id", "registration", "start_time", "starts_at", "title"]);
+      expect(Object.keys(all[0]).sort()).toEqual(["capacity", "end_time", "ends_at", "event_type", "id", "image_id", "registration", "start_time", "starts_at", "title"]);
+      expect(all.find((e) => e.id === retreat)?.image_id).toBeNull(); // no cover unless one was picked
       expect(ours(await ctx.repo().upcomingAnnounced({ from: "2097-06-01T00:00:00Z", limit: 1000, kinds: ["workshop"] }))).toEqual([later]);
       expect((await ctx.repo().upcomingAnnounced({ from: "2097-06-01T00:00:00Z", limit: 1 })).length).toBeLessThanOrEqual(1);
     });

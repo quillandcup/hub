@@ -9,8 +9,8 @@ const SNAPSHOT: ScheduleSnapshot = { prickles: [{ id: "p1", title: "Open Mic", s
 
 const COMING: ComingUpSnapshot = {
   events: [
-    { kind: "Retreat", title: "Lakeside Retreat", when: "Mar 14 to 16", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", startTime: at(60 * 24 * 30) },
-    { kind: "Workshop", title: "Started already", when: "Nov 19", availability: "", linkLabel: "", href: "", startTime: at(-5) },
+    { kind: "Retreat", title: "Lakeside Retreat", when: "Mar 14 to 16", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", date: "2027-03-14", time: "Mar 14 to 16", soldOut: false, imageAssetId: "", startTime: at(60 * 24 * 30) },
+    { kind: "Workshop", title: "Started already", when: "Nov 19", availability: "", linkLabel: "", href: "", date: "2026-11-19", time: "", soldOut: false, imageAssetId: "", startTime: at(-5) },
   ],
 };
 
@@ -115,7 +115,7 @@ describe("Coming up", () => {
   it("injects the cards that have not started, render-only, and asks once per set of options", async () => {
     const l = loaders();
     const out = await resolved(page(coming(), coming({ source: "live" }), coming({ kinds: ["workshop", "nonsense"], max: 9 })), l);
-    expect(out[0].props.live).toEqual({ cards: [{ kind: "Retreat", title: "Lakeside Retreat", when: "Mar 14 to 16", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r" }] });
+    expect(out[0].props.live).toEqual({ cards: [{ kind: "Retreat", title: "Lakeside Retreat", when: "Mar 14 to 16", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", date: "2027-03-14", time: "Mar 14 to 16", soldOut: false, imageAssetId: "" }] });
     expect(JSON.stringify(out)).not.toContain("startTime");
     expect(l.comingUp).toHaveBeenCalledTimes(2);
     expect(l.comingUp).toHaveBeenCalledWith({ kinds: [], max: 4 });

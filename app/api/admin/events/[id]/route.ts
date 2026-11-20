@@ -8,7 +8,7 @@ import { parseEventAudience, parseGuestSpeakers } from "@/lib/event-audience";
 import { eventWindow } from "@/lib/event-window";
 import type { HubSessionPatch } from "@/lib/data/hub-sessions";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
-import { eventImageError } from "@/lib/media/event-image";
+import { eventImageError, publishEventCover } from "@/lib/media/event-image";
 import { applyPrickleEdits, type EventOverrides, type PrickleEdits } from "@/lib/prickle-edits";
 import { loadEventDecision } from "@/lib/prickle-event-decisions";
 import { isId } from "@/lib/ids";
@@ -187,6 +187,8 @@ export async function PATCH(
     updates.automatic = false;
 
     const event = await repos.events.edit(id, updates);
+    // A publicly announced event's cover is shown to signed-out visitors in the landing pages' Coming up, so it is marked public now.
+    await publishEventCover(repos.media, event);
 
     return NextResponse.json({ event, overridden: await overridesOf(supabase, prickle?.calendarEventId) });
   } catch (error: any) {

@@ -161,7 +161,7 @@ describe("a live page, end to end", () => {
       data,
       {
         stats: async () => ({ hours_30d: { value: "890+", caption: LIVE_STATS.hours_30d.caption } }),
-        comingUp: async () => ({ events: [{ kind: "Retreat", title: "Lakeside Retreat", when: "Mar 13 to 15, 2027", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", startTime: "2027-03-13T05:00:00Z" }] }),
+        comingUp: async () => ({ events: [{ kind: "Retreat", title: "Lakeside Retreat", when: "Mar 13 to 15, 2027", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", date: "2027-03-13", time: "Mar 13 to 15, 2027", soldOut: false, imageAssetId: "", startTime: "2027-03-13T05:00:00Z" }] }),
         schedule: async () => ({ prickles: [{ id: "p", title: "Open Mic", startTime: new Date(NOW.getTime() + 600_000).toISOString(), endTime: new Date(NOW.getTime() + 4_200_000).toISOString(), experiencedHost: false }], writingNow: null }),
       },
       NOW,
@@ -227,9 +227,9 @@ describe("the editor's fields for live blocks", () => {
 describe("ComingUp, live", () => {
   const typed = [{ kind: "Retreat", title: "Typed retreat", when: "June", availability: "Spots left", status: "" as const, linkLabel: "", href: "" }];
   const cards = [
-    { kind: "Retreat", title: "Lakeside Retreat", when: "Mar 13 to 15, 2027", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r" },
-    { kind: "Virtual retreat", title: "Online Week", when: "Apr 10", availability: "", linkLabel: "", href: "" },
-    { kind: "Workshop", title: "Full Workshop", when: "Apr 20, 7 pm EDT", availability: "Full", linkLabel: "Sign up", href: "javascript:alert(1)" },
+    { kind: "Retreat", title: "Lakeside Retreat", when: "Mar 13 to 15, 2027", availability: "3 spots left", linkLabel: "Sign up", href: "https://checkout.example.com/r", date: "2027-03-13", time: "Mar 13 to 15, 2027", soldOut: false, imageAssetId: "" },
+    { kind: "Virtual retreat", title: "Online Week", when: "Apr 10", availability: "", linkLabel: "", href: "", date: "2027-04-10", time: "", soldOut: false, imageAssetId: "" },
+    { kind: "Workshop", title: "Full Workshop", when: "Apr 20, 7 pm EDT", availability: "Sold out", linkLabel: "Sign up", href: "javascript:alert(1)", date: "2027-04-20", time: "7 – 8 pm EDT", soldOut: true, imageAssetId: "" },
   ];
 
   it("shows the live cards instead of the typed ones, with real availability and a link only where it is safe", () => {
@@ -237,7 +237,7 @@ describe("ComingUp, live", () => {
     expect(screen.queryByText("Typed retreat")).toBeNull();
     expect(screen.getByRole("heading", { level: 4, name: "Lakeside Retreat" })).toBeInTheDocument();
     expect(screen.getByText("3 spots left")).toBeInTheDocument();
-    expect(screen.getByText("Full")).toBeInTheDocument();
+    expect(screen.getByText("Sold out")).toBeInTheDocument();
     expect(screen.getByText("Virtual retreat")).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: "Sign up" });
     expect(links).toHaveLength(1);

@@ -234,9 +234,9 @@ export interface EventRepository {
   visibilityByCalendarEvent(calendarEventIds: string[]): Promise<Map<string, "shown" | "hidden">>;
 }
 
-/** What the public "Coming up" list needs of an event: its name, kind, days, times and capacity. No host or speaker columns: nothing about a person but what the title says. */
-export type UpcomingAnnouncedEvent = Pick<EventDetail, "id" | "title" | "event_type" | "capacity" | "registration" | "start_time" | "end_time" | "starts_at" | "ends_at">;
-const UPCOMING_COLUMNS = "id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at";
+/** What the public "Coming up" list needs of an event: its name, kind, days, times, capacity and cover (the media asset id, which the loader passes on only when the asset is public). No host or speaker columns: nothing about a person but what the title says. */
+export type UpcomingAnnouncedEvent = Pick<EventDetail, "id" | "title" | "event_type" | "capacity" | "registration" | "start_time" | "end_time" | "starts_at" | "ends_at" | "image_id">;
+const UPCOMING_COLUMNS = "id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at, image_id";
 
 /** An event that follows a calendar event. */
 export interface CalendarLinkedEvent {
@@ -1199,7 +1199,7 @@ export class InMemoryEventRepository implements EventRepository {
       .filter((e) => !e.deleted_at && e.announced_publicly && Date.parse(e.start_time) > Date.parse(from) && (!wanted || wanted.has(e.event_type)))
       .sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time) || a.id.localeCompare(b.id))
       .slice(0, limit)
-      .map(({ id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at }) => ({ id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at }));
+      .map(({ id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at, image_id }) => ({ id, title, event_type, capacity, registration, start_time, end_time, starts_at, ends_at, image_id }));
   }
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {

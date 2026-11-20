@@ -1,4 +1,6 @@
 import { normalizeLandingData, parseEmbed, safeHref } from "./data";
+import { featuredOfferIndex } from "./journey";
+import { COMING_UP_LIST_HEADING } from "./live-kinds";
 
 /**
  * Checks a page before it is published (docs/LANDING_PAGES.md, "Accessibility checks"). A problem a visitor can't work
@@ -120,9 +122,10 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
           }
           if (seen.has(name.toLowerCase())) issues.push({ severity: "warning", block: "Journey map", message: `Two stages are called "${name}".` });
           seen.add(name.toLowerCase());
-          // Offers show only with a title; each is a card with a heading under the section's.
-          for (const offer of offers.filter((o) => str(o.title)).slice(0, 4)) {
-            headings.push({ level: 3, text: str(offer.title) });
+          // Offers show only with a title. Only the featured one (the one marked, else the first) is a heading under the section's; the others are a short list of links.
+          const shown = offers.filter((o) => str(o.title)).slice(0, 4);
+          if (shown.length > 0) headings.push({ level: 3, text: str(shown[featuredOfferIndex(shown)].title) });
+          for (const offer of shown) {
             checkButton("Journey map", offer.buttonLabel, offer.href, `The "${str(offer.title)}" button in ${name}`);
           }
           const link = (stage.link ?? {}) as Record<string, unknown>;
@@ -132,13 +135,16 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         checkButton("Journey map", compare.label, compare.href, "The compare link");
         break;
       }
-      case "ComingUp":
-        if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
+      case "ComingUp": {
+        // The same heading the block draws: a list never given one says "Upcoming sessions" (components/landing/homepage-blocks.tsx).
+        const heading = p.heading === undefined && p.style === "list" ? COMING_UP_LIST_HEADING : str(p.heading);
+        if (heading) headings.push({ level: 3, text: heading });
         for (const [i, card] of rows(p.items).entries()) {
-          if (str(card.title)) headings.push({ level: str(p.heading) ? 4 : 3, text: str(card.title) });
+          if (str(card.title)) headings.push({ level: heading ? 4 : 3, text: str(card.title) });
           checkButton("Coming up", card.linkLabel, card.href, `Card ${i + 1}'s link`);
         }
         break;
+      }
       case "Heading":
         if (str(p.text)) headings.push({ level: Number(String(p.level).replace("h", "")) || 2, text: str(p.text) });
         break;
