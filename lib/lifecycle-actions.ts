@@ -9,9 +9,9 @@ import type { IconName } from "@/components/Icon";
  * `components/ConfirmDialog.tsx`; `components/LifecycleButton.tsx` puts them together.
  *
  * Not every thing has every action: only a landing page keeps a draft apart from what is published, so only it has
- * `reset`, `restore` and `history`. A course's "draft" is whether members can see it, and its versions don't exist.
+ * `reset`, `restore` and `history`; only something saved as a template has `overwrite`. A course's "draft" is whether members can see it, and its versions don't exist.
  */
-export type LifecycleAction = "publish" | "unpublish" | "duplicate" | "delete" | "reset" | "restore" | "history" | "preview" | "viewLive";
+export type LifecycleAction = "publish" | "unpublish" | "duplicate" | "delete" | "reset" | "restore" | "history" | "preview" | "viewLive" | "saveAsTemplate" | "overwrite";
 
 /** What the confirmation needs to say. `noun` is "page", "course", "lesson". */
 export type LifecycleContext = {
@@ -68,9 +68,9 @@ export const LIFECYCLE_ACTIONS: Record<LifecycleAction, Entry> = {
   restore: {
     icon: "history",
     label: () => "Bring back",
-    confirm: () => ({
+    confirm: ({ detail }) => ({
       title: "Bring this version back?",
-      body: "It replaces your current draft. Nothing goes live until you publish.",
+      body: detail ?? "It replaces your current draft. Nothing goes live until you publish.",
       confirmLabel: "Bring back",
       tone: "danger",
     }),
@@ -78,6 +78,18 @@ export const LIFECYCLE_ACTIONS: Record<LifecycleAction, Entry> = {
   history: { icon: "history", label: () => "History" },
   preview: { icon: "eye", label: () => "Preview" },
   viewLive: { icon: "external", label: () => "View live" },
+  // Saving a page as a template (the page builder), and saving over one that exists: the old version stays in its history.
+  saveAsTemplate: { icon: "template", label: () => "Save as template" },
+  overwrite: {
+    icon: "save",
+    label: (noun) => `Overwrite ${noun}`,
+    confirm: ({ noun, title }) => ({
+      title: `Overwrite this ${noun}?`,
+      body: `${title ? `“${title}”` : `This ${noun}`} keeps its current version in its history, and you can bring it back. The page you are saving becomes its newest version.`,
+      confirmLabel: `Overwrite ${noun}`,
+      tone: "danger",
+    }),
+  },
 };
 
 export const lifecycleLabel = (action: LifecycleAction, noun = "") => LIFECYCLE_ACTIONS[action].label(noun);

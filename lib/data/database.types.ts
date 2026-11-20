@@ -3958,6 +3958,7 @@ export type Database = {
           deleted_at: string | null
           description: string
           id: string
+          last_save_kind: string | null
           name: string
           updated_at: string
           updated_by: string | null
@@ -3970,6 +3971,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string
           id?: string
+          last_save_kind?: string | null
           name: string
           updated_at?: string
           updated_by?: string | null
@@ -3982,6 +3984,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string
           id?: string
+          last_save_kind?: string | null
           name?: string
           updated_at?: string
           updated_by?: string | null

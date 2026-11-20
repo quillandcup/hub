@@ -444,6 +444,8 @@ const ENTITY_LABELS: Record<string, string> = {
   prickle_host_vibe: "host vibe",
   mentorship: "Big Sister match",
   care_engagement: "care plan",
+  landing_page: "page",
+  landing_page_template: "template",
 };
 
 const NAME_FIELDS = ["title", "name", "alias"] as const;
@@ -495,11 +497,54 @@ function featurePhrase(row: ActivityFeedRow, fields: Record<string, { old: unkno
   return null;
 }
 
+/**
+ * The page builder's pages and templates in plain words (docs/LANDING_PAGES.md). A page is named by its title and a template by
+ * its name (the trigger puts it on the row as the description); never page content, a template's typed description or note, or a
+ * page's search text, which the audit columns redact and these sentences don't read.
+ */
+function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldChange>): string | null {
+  const name = recordName(row);
+  const quoted = name ? ` “${name}”` : "";
+  const text = (change: FieldChange | undefined) => (typeof change?.old === "string" && change.old ? ` “${formatValue(change.old)}”` : "");
+  if (row.entity_type === "landing_page") {
+    if (row.event_type === "insert") return `created the page${quoted}`;
+    if (row.event_type === "delete") return `deleted the page${quoted}`;
+    if (row.event_type !== "update") return null;
+    if (fields.deleted_at?.new && !fields.deleted_at.old) return `deleted the page${quoted}`;
+    if (fields.status?.new === "published" || (fields.published_at?.new && fields.status?.new !== "draft")) return `published the page${quoted}`;
+    if (fields.status?.new === "draft") return `took the page${quoted} down`;
+    if (fields.restored_at?.new) return `brought back an earlier version of the page${quoted} into its draft`;
+    if (fields.starter_applied_at?.new) return `replaced the draft of the page${quoted} with a starter, a template or an imported file`;
+    if (fields.imported_at?.new) return `imported a Kajabi page into the draft of${quoted || " a page"}`;
+    if (fields.title) return `renamed the page${text(fields.title)} to “${formatValue(fields.title.new)}”`;
+    if (fields.slug) return `changed the address of the page${quoted}`;
+    if (fields.seo_title || fields.seo_description || fields.social_image_asset_id) return `changed the search and sharing details of the page${quoted}`;
+    return null;
+  }
+  if (row.entity_type === "landing_page_template") {
+    if (row.event_type === "insert") return `saved${quoted || " a page"} as a new template`;
+    if (row.event_type === "delete") return `deleted the template${quoted}`;
+    if (row.event_type !== "update") return null;
+    if (fields.deleted_at?.new && !fields.deleted_at.old) return `deleted the template${quoted}`;
+    const version = fields.current_version?.new;
+    if (version) {
+      return fields.last_save_kind?.new === "restored"
+        ? `brought back an earlier version of the template${quoted} as version ${formatValue(version)}`
+        : `saved version ${formatValue(version)} of the template${quoted}`;
+    }
+    if (fields.name) return `renamed the template${text(fields.name)} to “${formatValue(fields.name.new)}”`;
+    if (fields.description) return `changed the description of the template${quoted}`;
+  }
+  return null;
+}
+
 /** Phrases for events that read better than "changed calendar link — first fetched at". */
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
   const feature = featurePhrase(row, fields);
   if (feature) return feature;
+  const pageBuilder = pageBuilderPhrase(row, fields);
+  if (pageBuilder) return pageBuilder;
   if (row.entity_type === "event_attendee" && row.event_type !== "update") {
     const who = row.member_name ?? "a member";
     const event = row.description ? ` “${formatValue(row.description)}”` : "";

@@ -9,7 +9,9 @@ import { createLandingPage, createLandingPageWithAi } from "../actions";
 
 const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 
-export default function NewPageForm({ aiAvailable }: { aiAvailable: boolean }) {
+export type TemplateChoice = { id: string; name: string; description: string };
+
+export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailable: boolean; templates?: TemplateChoice[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -18,6 +20,7 @@ export default function NewPageForm({ aiAvailable }: { aiAvailable: boolean }) {
   const [starter, setStarter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const template = templates.find((t) => t.id === starter);
   const useAi = !starter && Boolean(prompt.trim());
 
   return (
@@ -26,7 +29,7 @@ export default function NewPageForm({ aiAvailable }: { aiAvailable: boolean }) {
         e.preventDefault();
         setError(null);
         start(async () => {
-          const result = useAi ? await createLandingPageWithAi({ title, slug, prompt }) : await createLandingPage({ title, slug, starter: starter || undefined });
+          const result = useAi ? await createLandingPageWithAi({ title, slug, prompt }) : await createLandingPage(template ? { title, slug, template: template.id } : { title, slug, starter: starter || undefined });
           if (result.error || !result.slug) return setError(result.error ?? "Couldn't create the page.");
           router.push(`/admin/pages/${result.slug}`);
         });
@@ -68,6 +71,8 @@ export default function NewPageForm({ aiAvailable }: { aiAvailable: boolean }) {
           onChange={(e) => {
             const next = e.target.value;
             setStarter(next);
+            const chosen = templates.find((t) => t.id === next);
+            if (chosen && !title.trim()) setTitle(chosen.name);
             if (isStarterKey(next)) {
               if (!title.trim()) setTitle(LANDING_STARTERS[next].title);
               if (!edited && !slug) setSlug(LANDING_STARTERS[next].slug);
@@ -76,14 +81,29 @@ export default function NewPageForm({ aiAvailable }: { aiAvailable: boolean }) {
           className={`${INPUT} mt-1`}
         >
           <option value="">A blank page</option>
-          {STARTER_KEYS.map((key) => (
-            <option key={key} value={key}>
-              {LANDING_STARTERS[key].label}
-            </option>
-          ))}
+          <optgroup label="Built in">
+            {STARTER_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {LANDING_STARTERS[key].label}
+              </option>
+            ))}
+          </optgroup>
+          {templates.length > 0 && (
+            <optgroup label="Saved templates">
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
         <span className="mt-1 block text-xs font-normal text-slate-600 dark:text-slate-400">
-          {starter && isStarterKey(starter) ? `${LANDING_STARTERS[starter].description} It is saved as a draft for you to edit; nothing is published.` : "Or begin with a ready-made draft."}
+          {starter && isStarterKey(starter)
+            ? `${LANDING_STARTERS[starter].description} It is saved as a draft for you to edit; nothing is published.`
+            : template
+              ? `${template.description ? `${template.description} ` : ""}It is saved as a draft for you to edit; nothing is published.`
+              : "Or begin with a ready-made draft or one of your saved templates."}
         </span>
       </label>
       <label className="block text-sm font-medium">

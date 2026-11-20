@@ -18,6 +18,26 @@ export const isLandingTemplateVersionId = (value: unknown): value is string => t
 /** What a name is compared by: trimmed and lower-cased, as the database's unique index does. */
 export const templateNameKey = (name: string) => name.trim().toLowerCase();
 
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The blocks of a document by type with how many of each, nested ones included, most first: a preview of what a template holds without drawing it. */
+export function blockTally(content: unknown): { type: string; count: number }[] {
+  const counts = new Map<string, number>();
+  const walk = (list: unknown) => {
+    if (!Array.isArray(list)) return;
+    for (const raw of list) {
+      if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props)) continue;
+      counts.set(raw.type, (counts.get(raw.type) ?? 0) + 1);
+      for (const value of Object.values(raw.props)) walk(value);
+    }
+  };
+  walk(content);
+  return [...counts].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count || (a.type < b.type ? -1 : 1));
+}
+
+/** "ImageText" becomes "Image text": a block type as a person would say it. */
+export const blockTypeLabel = (type: string) => type.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+
 /** The plain-words label of a version's kind, shown in History. */
 export const TEMPLATE_KIND_LABELS: Record<TemplateVersionKind, string> = {
   created: "First saved",

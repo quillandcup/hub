@@ -18,7 +18,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
   const repos = createRepos(await createClient());
   const page = await repos.landingPages.bySlug(slug);
   if (!page) notFound();
-  const versions = await repos.landingPages.versions(page.id, 20);
+  const [versions, templates] = await Promise.all([repos.landingPages.versions(page.id, 20), repos.landingTemplates.list()]);
 
   return (
     // Keyed by the last restore, so bringing a version back opens the restored draft (the editor takes its document once).
@@ -37,7 +37,11 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
       }}
       data={normalizeLandingData(page.draft_data)}
       versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
-      starters={STARTER_KEYS.map((key) => ({ key, label: LANDING_STARTERS[key].label, description: LANDING_STARTERS[key].description }))}
+      starters={[
+        ...STARTER_KEYS.map((key) => ({ key, label: LANDING_STARTERS[key].label, description: LANDING_STARTERS[key].description })),
+        ...templates.map((t) => ({ key: t.id, label: t.name, description: t.description || "A template you saved.", group: "template" as const })),
+      ]}
+      templates={templates.map((t) => ({ id: t.id, name: t.name, description: t.description, version: t.current_version }))}
     />
   );
 }
