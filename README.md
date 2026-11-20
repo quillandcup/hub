@@ -4,7 +4,7 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/quillandcup/hub/badge)](https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub)
 [![Dependency audit](https://github.com/quillandcup/hub/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/audit.yml)
 [![OSV scan](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml)
-[![Secret scan](https://github.com/quillandcup/hub/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/secret-scan.yml)
+[![gitleaks](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml)
 [![ZAP baseline](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml)
 [![License: Proprietary](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
 

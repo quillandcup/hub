@@ -1,4 +1,4 @@
-name: Secret scan
+name: gitleaks
 
 # gitleaks over the full git history, because the repository is public: a secret that was ever committed is out,
 # even if a later commit removed it. Weekly, and on demand. The job fails when it finds something and posts to the alerts
