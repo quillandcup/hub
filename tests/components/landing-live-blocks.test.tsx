@@ -72,15 +72,15 @@ describe("SchedulePanel, live", () => {
     expect(screen.queryByText("Typed session")).toBeNull();
   });
 
-  it("puts a chip on every live row: the open chip (with its editable text) for one that is neither running nor soon", () => {
+  it("puts a chip only where it tells something: Live and In N min; an open label only when the owner types one", () => {
     const withOpen = [...liveRows, { time: "Fri 4:00 am", title: "Late", status: "", state: "open" as const, host: "" }];
     render(<SchedulePanel {...base} source="live" rowNote="Camera optional" live={{ rows: withOpen, zoneLabel: "" }} />);
-    expect(screen.getByText("Open").className).toContain("bg-mist-100");
+    expect(screen.queryByText("Open")).toBeNull();
     expect(screen.getByText("In 30 min").className).toContain("bg-gold");
     expect(screen.getAllByText("Camera optional")).toHaveLength(2); // not under the row that has a host line
     cleanup();
     render(<SchedulePanel {...base} source="live" openLabel="Come along" live={{ rows: withOpen, zoneLabel: "" }} />);
-    expect(screen.getByText("Come along")).toBeInTheDocument();
+    expect(screen.getByText("Come along").className).toContain("bg-mist-100");
   });
 
   it("keeps a typed zone note over the live one", () => {
@@ -217,8 +217,8 @@ describe("the editor's fields for live blocks", () => {
     expect(BLOCK_DEFAULTS.AnnouncementStrip.source).toBe("live");
     expect(BLOCK_DEFAULTS.SchedulePanel.source).toBe("live");
     expect(BLOCK_DEFAULTS.SchedulePanel.hostStyle).toBe("none");
-    expect(BLOCK_DEFAULTS.SchedulePanel).toMatchObject({ openLabel: "Open", rowNote: "", experiencedHostText: "An experienced host, sure to make you feel at home" });
-    for (const k of ["experiencedHostText", "openLabel", "rowNote"]) expect(fields("SchedulePanel")[k].label, k).toBeTruthy();
+    expect(BLOCK_DEFAULTS.SchedulePanel).toMatchObject({ openLabel: "", rowNote: "", footer: "", experiencedHostText: "An experienced host, sure to make you feel at home" });
+    for (const k of ["experiencedHostText", "openLabel", "rowNote", "footer"]) expect(fields("SchedulePanel")[k].label, k).toBeTruthy();
     expect(BLOCK_DEFAULTS.OutcomeNumbers.items.every((i) => i.source === "manual")).toBe(true);
     expect(BLOCK_DEFAULTS.OutcomeNumbers.showLiveNote).toBe(true);
   });

@@ -109,22 +109,24 @@ export type SchedulePanelProps = {
   hostStyle?: "none" | "experience";
   /** Live: the line under a row with an experienced host (applied on the server, see `scheduleOptions`); default "An experienced host, sure to make you feel at home". */
   experiencedHostText?: string;
-  /** The chip on a row that is neither running nor starting within the hour; default "Open". */
+  /** The chip on a row that is neither running nor starting within the hour. Default none: a chip that is the same on most rows says nothing, so only "Live" and "In N min" show unless the owner asks for one. */
   openLabel?: string;
+  /** One line under the whole list for what is true of every session (for example "Camera optional. Everyone is welcome."); default none. */
+  footer?: string;
   /** An optional line under every row that has no host line of its own (for example "Camera optional"); default none. Never a name or a count. */
   rowNote?: string;
   emptyText?: string;
   live?: { rows: ScheduleRow[]; zoneLabel: string };
 };
-const DEFAULT_OPEN_LABEL = "Open";
+const DEFAULT_OPEN_LABEL = "";
 const STATE_CHIP = { live: "bg-emerald-700 text-white", soon: "bg-gold text-gold-ink", open: "bg-mist-100 text-mist-900" } as const;
 
 /** A panel of today's sessions, typed by hand: time, name, a status chip (live, soon, open) and an optional line about the host. A light panel in both themes, with its own text colours. */
-export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, emptyText, openLabel, rowNote, live }: SchedulePanelProps) {
+export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, emptyText, openLabel, rowNote, footer, live }: SchedulePanelProps) {
   const isLive = source === "live" && !!live;
   const list = rowsOf(isLive ? live.rows : rows, "title", 6);
   const zoneLabel = typedZone || (isLive ? live.zoneLabel : "");
-  // A row that is neither running nor soon has no status of its own: it gets the panel's "open" chip, so every row carries one.
+  // Only a row that is running or starting soon carries a chip by default; an "open" chip appears only when the owner types a label for it.
   const open = openLabel ?? DEFAULT_OPEN_LABEL;
   if (list.length === 0 && !(isLive && emptyText)) return null;
   return (
@@ -157,6 +159,7 @@ export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, empty
           );
         })}
       </ul>
+      {footer && <p className="border-t border-mist-200 px-4 py-3 text-sm text-ink-muted">{footer}</p>}
     </section>
   );
 }
