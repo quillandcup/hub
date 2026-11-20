@@ -59,6 +59,7 @@ import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, typ
 import { InMemoryAuthUserRepository, SupabaseAuthUserRepository, type AuthUserRepository } from "./auth-users";
 import { InMemoryLandingPageRepository, SupabaseLandingPageRepository, type LandingPageRepository } from "./landing-pages";
 import { InMemoryLandingTemplateRepository, SupabaseLandingTemplateRepository, type LandingTemplateRepository } from "./landing-templates";
+import { InMemoryWriterProfileRepository, SupabaseWriterProfileRepository, type WriterProfileRepository } from "./writer-profiles";
 import { InMemoryRateLimitRepository, SupabaseRateLimitRepository, type RateLimitRepository } from "./rate-limit";
 
 /**
@@ -126,6 +127,7 @@ export interface Repos {
   rateLimit: RateLimitRepository;
   landingPages: LandingPageRepository;
   landingTemplates: LandingTemplateRepository;
+  writerProfiles: WriterProfileRepository;
   /** Supabase Auth accounts. Service role only: the admin API refuses a user client. */
   authUsers: AuthUserRepository;
 }
@@ -192,6 +194,7 @@ export function createRepos(db: Db): Repos {
     rateLimit: new SupabaseRateLimitRepository(db),
     landingPages: new SupabaseLandingPageRepository(db),
     landingTemplates: new SupabaseLandingTemplateRepository(db),
+    writerProfiles: new SupabaseWriterProfileRepository(db),
     authUsers: new SupabaseAuthUserRepository(db),
   };
 }
@@ -261,6 +264,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     rateLimit: new InMemoryRateLimitRepository(dataset),
     landingPages: new InMemoryLandingPageRepository(dataset),
     landingTemplates: new InMemoryLandingTemplateRepository(dataset),
+    writerProfiles: new InMemoryWriterProfileRepository(dataset),
     authUsers: new InMemoryAuthUserRepository(dataset),
   };
 }

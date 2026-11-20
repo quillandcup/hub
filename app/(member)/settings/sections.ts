@@ -29,6 +29,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: "profile", id: "profile-instagram", title: "Instagram", keywords: ["social", "link"] },
   { tab: "profile", id: "profile-facebook", title: "Facebook", keywords: ["social", "link"] },
   { tab: "profile", id: "profile-x", title: "X (Twitter)", keywords: ["twitter", "social", "link"] },
+  { tab: "profile", id: "profile-writer-page", title: "Your page on the web", keywords: ["public", "writer page", "handle", "address", "url", "website", "search engines", "google", "seo", "author page", "visitor", "pen name"] },
   { tab: "profile", id: "profile-whos-coming", title: "Who's coming", keywords: ["roster", "privacy", "hide", "list", "calendar", "committed"] },
 
   { tab: "identity", id: "identity-real-name", title: "Real name", keywords: ["name", "legal"] },

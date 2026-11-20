@@ -25,6 +25,8 @@ export interface NameAliasRow {
   source: string;
   active: boolean;
   createdAt: string | null;
+  /** Allowed on the member's public writer page as a pen name (docs/WRITER_PROFILES.md). */
+  isPublic: boolean;
 }
 
 export interface EmailAliasRow {
@@ -261,6 +263,33 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   return { success: true };
 }
 
+/**
+ * Allows one of the member's own names on their public writer page as a pen name (docs/WRITER_PROFILES.md), or stops
+ * allowing it. Only a name they added themselves can be shown: a name matched from Zoom or Slack never is. Turning it off
+ * also takes it off the page if the page was using it.
+ */
+async function setNameAliasPublicImpl(aliasId: string, isPublic: boolean): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const repos = createRepos(supabase);
+  let changed: boolean;
+  try {
+    changed = await repos.aliases.setNamePublic(effectiveIdentity.memberId, aliasId, isPublic);
+    if (changed && !isPublic) {
+      const page = await repos.writerProfiles.ofMember(effectiveIdentity.memberId);
+      if (page?.publicNameAliasId === aliasId) await repos.writerProfiles.update(effectiveIdentity.memberId, { publicNameAliasId: null });
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save that" };
+  }
+  if (!changed) return { error: "Only a name you added yourself can be shown on your page." };
+
+  revalidatePath("/settings", "layout");
+  return { success: true };
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function addEmailAliasImpl(email: string): Promise<{ success: true; verificationSent: boolean } | { error: string }> {
@@ -446,6 +475,10 @@ export async function addEmailAlias(...args: Parameters<typeof addEmailAliasImpl
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function setDisplayName(...args: Parameters<typeof setDisplayNameImpl>): ReturnType<typeof setDisplayNameImpl> {
   return withAction("display_name_changed", () => setDisplayNameImpl(...args));
+}
+
+export async function setNameAliasPublic(...args: Parameters<typeof setNameAliasPublicImpl>): ReturnType<typeof setNameAliasPublicImpl> {
+  return withAction("name_alias_public_set", () => setNameAliasPublicImpl(...args));
 }
 
 export async function addNameAlias(...args: Parameters<typeof addNameAliasImpl>): ReturnType<typeof addNameAliasImpl> {

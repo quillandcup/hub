@@ -89,6 +89,12 @@ export function postalAddress(): string {
   return value;
 }
 
+/** The public site writers' pages link back to, no trailing slash (app.config.ts `siteUrl`). */
+export const SITE_URL = appConfig.siteUrl.replace(/\/+$/, "");
+
+/** Writers' public pages: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (app.config.ts `writerProfiles`). */
+export const WRITER_PROFILES = appConfig.writerProfiles;
+
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
 
 /** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */

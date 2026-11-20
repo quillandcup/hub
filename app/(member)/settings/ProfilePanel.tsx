@@ -16,6 +16,7 @@ import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "
 import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics } from "@/lib/ask-me-about";
 import TagInput from "@/components/TagInput";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import { WriterPagePanel } from "./WriterPagePanel";
 
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
@@ -317,6 +318,10 @@ export function ProfilePanel() {
             {rosterStatus.text}
           </p>
         )}
+      </div>
+
+      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+        <WriterPagePanel />
       </div>
     </div>
   );

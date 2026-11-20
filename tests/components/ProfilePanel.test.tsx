@@ -6,6 +6,8 @@ import { ProfilePanel } from '@/app/(member)/settings/ProfilePanel'
 import * as profileActions from '@/app/(member)/settings/profileActions'
 import { SUPPORT_EMAIL } from '@/lib/config'
 
+vi.mock('@/app/(member)/settings/WriterPagePanel', () => ({ WriterPagePanel: () => null }))
+
 vi.mock('@/app/(member)/settings/profileActions', () => ({
   getProfileSettings: vi.fn(),
   updateInstagramHandle: vi.fn(),

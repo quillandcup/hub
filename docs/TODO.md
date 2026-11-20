@@ -63,7 +63,7 @@ Never ban staff or admins.
 ### What may leads, former members and members on hiatus do? _(Needs Scheduling)_
 - **What is missing:** no written rule for what each non-active status can see or do. Today the working assumption is that anyone who is not active cannot sign in or see anything (see the access sync entry above, where hiatus counts as not active). Questions to settle per status (lead, on hiatus, cancelled/former, course-only): sign in at all; read-only access to their own writing, profile and certificates; whether their public writer profile and Finisher entries stay up after they leave (and whether they can still edit them); whether they can still be listed on the Bookshelf; export of their own data.
 - **Why deferred:** needs the owner's decision, and the answer changes the sign-in ban (access sync), the public writer profile (see "Writer profiles") and the retention work for former members.
-- **Where to start:** `app/(member)/layout.tsx`, `lib/auth-provisioning.ts`, `MemberStatusRepository`; write the decision table in `docs/` and link it from the entries above.
+- **Where to start:** `app/(member)/layout.tsx`, `lib/auth-provisioning.ts`, `MemberStatusRepository`; write the decision table in `docs/` and link it from the entries above. The public page's side of the answer goes in one function, `isProfilePubliclyServable` (`lib/writer-profile.ts`, `docs/WRITER_PROFILES.md`), which already receives the member's status; until then a page is served unless it was removed.
 
 ### Rename `members` to `contacts` _(Needs Scheduling)_
 The `members` table holds everyone (leads, active, on hiatus, cancelled), so "member" is
@@ -1825,15 +1825,15 @@ Track external competitions (awards, contests, anthologies, showcases) that memb
 ### Profile goals follow the member's goal order
 Members can now put a project's goals in their own order (`writing_goals.sort_position`, `reorder_writing_goals`), and the project page and the dashboard's starred goals follow it. The profile's goals (`get_profile_writing`, `jsonb_agg` over `shown_goals`) have no `ORDER BY` today, so they show in whatever order the database returns, and the member directory doesn't list goals. Deferred because it means redefining that large SQL function in a new migration for a small gain. To do it: order `shown_goals` by the project's `sort_position` (nulls first, newest first), then the goal's `sort_position` (nulls last), then id, and check `components` that render the profile goals keep that order.
 
-### Public Pen Names ("Also writes as …") _(Idea)_
-Let members choose which of their alternate names show on their public profile. Today the only public name is `members.display_name` (the "default pen name", used as the profile heading via `getMemberDisplayName`). Other pen names live in `member_name_aliases`, mixed in with internal Zoom/Slack matching names that can include typos or legal names, and RLS only lets a member read their own aliases (`20260831180000_add_alias_self_service.sql`) — so they can't be shown to other members as-is.
+### Public Pen Names ("Also writes as …") _(Partly Resolved)_
+Let members choose which of their alternate names show on their public profile. Pen names live in `member_name_aliases`, mixed in with internal Zoom/Slack matching names that can include typos or legal names, and RLS only lets a member read their own aliases (`20260831180000_add_alias_self_service.sql`) — so they can't be shown to other members as-is.
 
-- **Schema:** add an `is_public` boolean to `member_name_aliases`, default `false`, so nothing becomes visible without an explicit opt-in (existing aliases stay private).
-- **Settings → Identity:** a "Show on my profile" toggle next to each alias the member added themselves.
-- **Read path:** serve only public aliases through a narrow read (e.g. a view or `SECURITY INVOKER` function returning just `member_id` + alias text for `is_public = true`) rather than loosening the table's RLS, so matching-only aliases never leak.
-- **Profile:** list them under the heading as "Also writes as …".
+**Resolved (writers' public page foundation, `docs/WRITER_PROFILES.md`):**
+- `member_name_aliases.is_public` (default `false`, a check constraint allows it only for a name the member added themselves) and a "Show on my writer page" switch in Settings → Identity next to those names.
+- The read path is the writer-page repository (`lib/data/writer-profiles.ts`): it shows a pen name only when it is the member's own, marked public, active and added by them, and nothing loosens the alias table's RLS. The member picks which one heads their public page ("Name shown").
 
-**Priority:** Not scoped yet — idea only, no code started.
+**Still open:**
+- List the other public pen names on the page under the heading as "Also writes as …", and use them on the member profile inside the Hub (the Hub profile still shows only the display name). Each book shows its own pen name (see "Writer profiles").
 
 ### Member Emergency Contact _(Idea, Not a Priority)_
 A member (early adopter) pointed out that if a Hedgie has an urgent health issue or emergency on a Zoom, hosts wouldn't know who to alert or how. Idea: members optionally save an emergency contact in settings, hidden from other members, which a host can reveal in an emergency without waiting for staff. Nothing built; deferred as not a priority.
@@ -1863,9 +1863,29 @@ One home on the web for each writer, opt-in, indexed by search engines, with the
 - **Fact thresholds** ("only above 150 prickles", "2+ years") are rules for the schedule panel's claims about a host, not controls for authors. On their own page, authors show what they choose; share one fact formatter with a `minToShow` option the panel sets and the profile does not.
 - **Lapsed members** cannot sign in, so their profile's fate is part of "What may leads, former members and members on hiatus do?".
 
+**Status:** package 2 (public profile foundation) is built: `docs/WRITER_PROFILES.md`. The page shows the name, an optional photo and a bio; it shows no writing yet.
+
 **Packages (order)**: (1) three-level visibility, migrating the boolean (backfill `true` to the house level, which is today's real behavior; clamp a goal to its project; expand then contract), with pgTAP; (2) public profile foundation: opt-in switch in Settings → Profile, handle, public read through the service role, preview as visitor; (3) profile facts (the ten formats, one fact kind per ticked box); (4) Finishers record: milestones 1 and 2, date, photo, before/after story, consent per use (profile, homepage, testimonial), self-report, staff backfill, a public Finishers page, homepage live data; the trigger is the project's stage change (below); (5) public Bookshelf; (6) a profile block set for the page editor, member-authored, with a security review; (7) the template gallery.
 
 **Finishers and the project stage:** the project Status list (Planning, Outlining, Drafting, First read-through, Revising, Developmental edit, Beta readers, Line & copy edit, Final read-through, Final beta read, Publishing, Complete, Hibernating) is the natural trigger, like Publish collecting more data. Moving a project from Drafting to anything after it asks "Did you write THE END?" (date, photo, story); reaching Publishing or Complete asks for the second milestone and the book entry. **Open, to brainstorm:** the name of milestone 2 (the stamp "Release Ready" is a candidate, and a noun for the people who reach it: Refiner, Polisher; the ladder Finisher, ?, Author), and whether Hibernating or going back a stage cancels or only pauses a Finisher record. **Verify first:** the migration that created `writing_projects.phase` allows only planning, drafting, revising, on_hold, complete and abandoned, while the app shows the longer list above; read `lib/writing-projects.ts` and later migrations before relying on either.
+
+### Writer profiles: show writing, goals, books and facts on the public page _(Needs Scheduling)_
+The public page (`/w/<handle>`, `docs/WRITER_PROFILES.md`) shows only the name, photo and bio. **Why deferred:** what a writer shows needs the three-level visibility control (package 1) so an item can be "open to the internet" separately from "inside Quill & Cup", and the Bookshelf and the profile facts are their own packages. **Where to start:** add a method to `WriterProfileRepository` that returns the items at the globe level for the page (a field only enters `PublicWriterProfile` through `toPublic`, and `tests/helpers/writer-profile-contract.ts` pins the keys: extend it with the new field), render them in `components/writer/WriterPageView.tsx`, and add them to the JSON-LD only if the page shows them. Books and awards are public by default but only once the page is on.
+
+### Writer profiles: a photo for members who only have a Gravatar _(Needs Scheduling)_
+A public page never shows a Gravatar picture (its address carries a hash of the member's email), and most members' photo is one: prod, 2026-11: 640 of 947 members' photo addresses are Gravatar, 307 are copies in our own storage, none other. So for most members "Show my photo" is unavailable. **Why deferred:** the foundation only shows the photo the Hub already has; letting a member choose or upload one for the page is its own piece (storage, size and type checks, removal when they leave). **Where to start:** the public `member-photos` bucket and `member_profile_overrides.photo_path` (`lib/member-photo.ts`, `docs/MEDIA_LIBRARY.md`), which member processing already prefers; add an upload in Settings → Profile, "Your page on the web", that writes the copy there, and the page's `publishablePhotoUrl` (`lib/writer-profile.ts`) then allows it.
+
+### Writer profiles: report a page, and staff takedown _(Needs Scheduling)_
+A public page can hold anything a member types (a bio), and a visitor has no way to report one; staff have no screen to take one down. **Why deferred:** the foundation is off for everyone until announced, and a takedown policy needs the owner. **Where to start:** `writer_profiles.deleted_at` already hides a page and frees its handle, but only the service role can set it; add an admin action (`requireAdminAction()`, audited, a plain sentence in `describeRow`) and a "Report this page" link on the page that sends an alert (`docs/SLACK_OPERATIONS_ALERTS.md`) with the handle only, never the visitor's details. Decide what a removed member sees.
+
+### Writer profiles: rate limiting the public pages _(Needs Scheduling)_
+`/w/<handle>` does one service-role read per request, with nothing to slow a script that tries many handles. **Why deferred:** a page is cheap and cached per request, and there is no member data to guess; worth doing before the feature is announced widely. **Where to start:** `RateLimitRepository` (`lib/data/rate-limit.ts`) and how `/api/` routes use it; key on the visitor's address and answer the same 404 shape.
+
+### Writer profiles: handle squatting and impersonation _(Needs Scheduling)_
+Anyone with an account can claim any handle that is not reserved, and a given-up handle is held for 90 days. **Why deferred:** needs the owner's policy: who may take a name close to a real writer's or to the community's, and whether staff can reclaim one. **Where to start:** `writerProfiles` in `app.config.ts` (`reservedHandles`, `handleReservationDays`) and `set_writer_handle` in `supabase/migrations/20270828000000_writer_profiles.sql`; staff reclaiming a handle would be a second service-role path that also writes an Activity Log entry.
+
+### Writer profiles: custom domains _(Idea)_
+A writer's own domain pointing at their page (`ada-example.com`). **Why deferred:** not asked for; it changes the canonical URL, the CSP, the proxy and Vercel's domain setup, and needs the handle history to follow. **Where to start:** Vercel domains API and `writerPageUrl` (`lib/writer-profile.ts`), the one place the canonical address is built.
 
 ---
 

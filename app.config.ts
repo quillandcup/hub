@@ -165,6 +165,47 @@ export const appConfig = {
    */
   kajabiSiteUrl: "https://www.quillandcup.com",
 
+  /** The public site members arrive from, no trailing slash: where the footer of a writer's public page links to. */
+  siteUrl: "https://www.quillandcup.com",
+
+  /**
+   * Writers' public pages (lib/writer-profile.ts, docs/WRITER_PROFILES.md), at `/w/<handle>`.
+   * `handleMinLength`, `handleMaxLength`: the length of a handle (letters, digits and single hyphens).
+   * `handleReservationDays`: how long a handle a member gave up stays theirs alone; until then nobody else can take it, and
+   * its old address redirects to the new one until someone takes it afterwards.
+   * `bioMaxLength`: characters in the bio on the page.
+   * `sitemapPageSize`: addresses in one sitemap file (the limit is 50,000).
+   * `unpublishablePhotoHosts`: where a profile photo can come from but is never put on a public page. Gravatar's address
+   * carries a hash of the member's email.
+   * `reservedHandles`: handles nobody can choose, so a page cannot pass for the community, its staff or a place in the app.
+   * Compared with hyphens left out, so "quill-and-cup" is held by "quillandcup".
+   */
+  writerProfiles: {
+    handleMinLength: 3,
+    handleMaxLength: 30,
+    handleReservationDays: 90,
+    bioMaxLength: 1000,
+    sitemapPageSize: 10000,
+    unpublishablePhotoHosts: ["gravatar.com", "www.gravatar.com", "secure.gravatar.com"],
+    reservedHandles: [
+      // The community and the product.
+      "quillandcup", "quill", "cup", "qandc", "hedgie", "hedgies", "hedgiehub", "hedgiecare", "billie", "billiebot", "hub",
+      // People who run it, and words that sound official.
+      "staff", "team", "admin", "admins", "administrator", "moderator", "mod", "mods", "owner", "owners", "founder", "founders",
+      "official", "support", "help", "helpdesk", "contact", "info", "press", "security", "privacy", "legal", "abuse",
+      "postmaster", "webmaster", "hello", "careers", "jobs", "sales", "billing", "payments",
+      // Places in the app and on the site.
+      "api", "app", "auth", "login", "logout", "signin", "signup", "register", "account", "accounts", "settings", "profile",
+      "profiles", "member", "members", "writer", "writers", "author", "authors", "finisher", "finishers", "dashboard", "home",
+      "about", "blog", "news", "courses", "course", "lessons", "lesson", "events", "event", "prickle", "prickles", "chat",
+      "calendar", "books", "bookshelf", "projects", "goals", "awards", "badges", "compliance", "terms", "unsubscribe",
+      "verify", "sitemap", "robots", "static", "assets", "public", "images", "media", "download", "downloads", "www", "mail",
+      "email", "ftp", "cdn", "status", "docs", "wiki", "search", "explore", "feed", "new", "edit", "delete",
+      // Words that read as nobody or as the system.
+      "null", "undefined", "root", "system", "test", "demo", "example", "anonymous", "everyone", "all",
+    ],
+  },
+
   /** An offer's edit page in the Kajabi admin, for the admin Offers page; `{offerId}` is filled in. */
   kajabiAdminOfferUrl: "https://app.kajabi.com/admin/offers/{offerId}/edit",
 
