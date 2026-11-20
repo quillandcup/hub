@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   restore: vi.fn(),
   reset: vi.fn(),
   starter: vi.fn(),
+  importJson: vi.fn(),
   details: vi.fn(),
   dispatch: vi.fn(),
   back: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../../app/(admin)/admin/pages/actions", () => ({
   restoreLandingPageVersion: mocks.restore,
   resetLandingDraftToPublished: mocks.reset,
   replaceLandingDraftWithStarter: mocks.starter,
+  importLandingDraftJson: mocks.importJson,
   updateLandingPageDetails: mocks.details,
 }));
 vi.mock("@puckeditor/core", () => ({
@@ -449,7 +451,7 @@ describe("history and details", () => {
       await open();
       expect(screen.getByRole("option", { name: "Homepage" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Replace your draft with the Homepage starter?" })).toBeInTheDocument();
-      expect(screen.getByText(/kept in History as "Your draft before starting over"/)).toBeInTheDocument();
+      expect(screen.getByText(/kept in History as "Your draft before it was replaced"/)).toBeInTheDocument();
       expect(screen.getByText(/nothing goes live/)).toBeInTheDocument();
       await answer("Cancel");
       expect(mocks.starter).not.toHaveBeenCalled();
@@ -486,7 +488,171 @@ describe("history and details", () => {
     it("names a draft kept before starting over in the list", () => {
       editor({}, [{ id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", kind: "before_starter" }]);
       fireEvent.click(screen.getByRole("button", { name: "History" }));
-      expect(screen.getByText(/Your draft before starting over/, { selector: "time" })).toBeInTheDocument();
+      expect(screen.getByText(/Your draft before it was replaced/, { selector: "time" })).toBeInTheDocument();
+    });
+  });
+
+  describe("export and import as JSON", () => {
+    const reload = vi.fn();
+    const summary = { blocksBefore: 1, blocksAfter: 3, leftOut: [{ type: "Gizmo", count: 2 }, { type: "Widget", count: 1 }], droppedProps: 0, removedPictures: 2, issues: [{ severity: "error", block: "Button", message: 'The button "Join" has no link.' }], identical: false };
+    const FILE = JSON.stringify({ format: "hedgie-landing-page", version: 1, data: { content: [], root: {} } });
+    beforeEach(() => {
+      reload.mockReset();
+      vi.stubGlobal("location", { ...window.location, reload });
+      mocks.importJson.mockResolvedValue({ summary, applied: false });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    const openHistory = () => {
+      editor();
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+    };
+    const pasteAndCheck = async (text = FILE) => {
+      openHistory();
+      fireEvent.click(screen.getByRole("button", { name: "Import JSON" }));
+      fireEvent.change(screen.getByLabelText("Or paste the JSON"), { target: { value: text } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Check the JSON" }));
+      });
+    };
+    const replaceButton = () => within(screen.getAllByRole("dialog").at(-1)!).getByRole("button", { name: "Replace draft" });
+
+    it("copies the draft as it is on screen, in the wrapper, with no ids of rows", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      openHistory();
+      edit("Welcome back");
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Copy JSON" }));
+      });
+      const file = JSON.parse(writeText.mock.calls[0][0]);
+      expect(file).toMatchObject({ format: "hedgie-landing-page", version: 1, slug: "spring", title: "Spring sprint", kind: "draft" });
+      expect(file.data.content[0].props.text).toBe("Welcome back");
+      expect(JSON.stringify(file)).not.toContain(page.id);
+      expect(screen.getByText("Copied the page's JSON.")).toBeInTheDocument();
+    });
+
+    it("says when copying is not possible", async () => {
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: vi.fn().mockRejectedValue(new Error("no")) } });
+      openHistory();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Copy JSON" }));
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent("Couldn't copy");
+    });
+
+    it("downloads a file named from the address, which copy and the day", async () => {
+      const created: Blob[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      vi.stubGlobal("URL", { createObjectURL: (b: Blob) => (created.push(b), "blob:x"), revokeObjectURL: vi.fn() });
+      editor({ publishedJson: JSON.stringify({ content: [], root: {} }), status: "published" });
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      fireEvent.click(screen.getByLabelText("Published"));
+      fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+      expect(click).toHaveBeenCalled();
+      expect(screen.getByText(/^Downloaded spring-published-\d{4}-\d{2}-\d{2}\.json\.$/)).toBeInTheDocument();
+      expect(JSON.parse(await created[0].text())).toMatchObject({ kind: "published", data: { content: [] } });
+      click.mockRestore();
+    });
+
+    it("offers the published copy only when there is one", () => {
+      openHistory();
+      expect(screen.getByLabelText("Published")).toBeDisabled();
+    });
+
+    it("previews first: what was left out, removed and flagged, and writes nothing", async () => {
+      await pasteAndCheck();
+      expect(mocks.importJson).toHaveBeenCalledWith(page.id, FILE, { dryRun: true });
+      expect(screen.getByText(/The file has 3 blocks\. Your draft has 1 block\./)).toBeInTheDocument();
+      expect(screen.getByText(/3 blocks the builder doesn't have were left out: Gizmo \(2\), Widget\./)).toBeInTheDocument();
+      expect(screen.getByText(/2 pictures were not found in this media library and were removed\./)).toBeInTheDocument();
+      expect(screen.getByText(/The button "Join" has no link\./)).toBeInTheDocument();
+      expect(mocks.importJson).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks before replacing, saying what is kept and that nothing goes live, then reloads on the new draft", async () => {
+      await pasteAndCheck();
+      mocks.importJson.mockResolvedValue({ summary, applied: true });
+      await act(async () => {
+        fireEvent.click(replaceButton());
+      });
+      expect(screen.getByRole("heading", { name: "Replace your draft with this file?" })).toBeInTheDocument();
+      expect(screen.getByText(/kept in History as "Your draft before it was replaced"/)).toBeInTheDocument();
+      expect(screen.getByText(/nothing goes live/)).toBeInTheDocument();
+      await answer("Replace draft");
+      expect(mocks.importJson).toHaveBeenLastCalledWith(page.id, FILE);
+      expect(reload).toHaveBeenCalled();
+    });
+
+    it("does nothing when the confirm is cancelled", async () => {
+      await pasteAndCheck();
+      await act(async () => {
+        fireEvent.click(replaceButton());
+      });
+      await answer("Cancel");
+      expect(mocks.importJson).toHaveBeenCalledTimes(1);
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("saves what is typed before the preview", async () => {
+      openHistory();
+      edit("Typed just now");
+      fireEvent.click(screen.getByRole("button", { name: "Import JSON" }));
+      fireEvent.change(screen.getByLabelText("Or paste the JSON"), { target: { value: FILE } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Check the JSON" }));
+      });
+      expect(mocks.save).toHaveBeenCalled();
+      expect(mocks.save.mock.invocationCallOrder[0]).toBeLessThan(mocks.importJson.mock.invocationCallOrder[0]);
+    });
+
+    it("shows the server's reason for a file it can't read, and keeps Replace draft off", async () => {
+      mocks.importJson.mockResolvedValue({ error: "That isn't JSON. Choose a file exported from the page builder, or paste its whole text." });
+      await pasteAndCheck("nope");
+      expect(screen.getByRole("alert")).toHaveTextContent("That isn't JSON");
+      expect(replaceButton()).toBeDisabled();
+    });
+
+    it("says when the file matches the draft already and will not replace it", async () => {
+      mocks.importJson.mockResolvedValue({ summary: { ...summary, leftOut: [], removedPictures: 0, issues: [], identical: true }, applied: false });
+      await pasteAndCheck();
+      expect(screen.getByText(/same as your draft, so nothing would change/)).toBeInTheDocument();
+      expect(replaceButton()).toBeDisabled();
+    });
+
+    it("shows why a replacement failed and does not reload", async () => {
+      await pasteAndCheck();
+      mocks.importJson.mockResolvedValue({ error: "Couldn't import the page." });
+      await act(async () => {
+        fireEvent.click(replaceButton());
+      });
+      await answer("Replace draft");
+      expect(screen.getByRole("alert")).toHaveTextContent("Couldn't import the page.");
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("reads a chosen file and previews it without a button press", async () => {
+      openHistory();
+      fireEvent.click(screen.getByRole("button", { name: "Import JSON" }));
+      const file = new File([FILE], "home-draft.json", { type: "application/json" });
+      Object.defineProperty(file, "text", { value: () => Promise.resolve(FILE) });
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("File"), { target: { files: [file] } });
+      });
+      expect(screen.getByText("Using home-draft.json.")).toBeInTheDocument();
+      expect(mocks.importJson).toHaveBeenCalledWith(page.id, FILE, { dryRun: true });
+    });
+
+    it("refuses a file over the size limit without sending it", async () => {
+      openHistory();
+      fireEvent.click(screen.getByRole("button", { name: "Import JSON" }));
+      const big = new File(["x"], "big.json", { type: "application/json" });
+      Object.defineProperty(big, "size", { value: 2_000_001 });
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("File"), { target: { files: [big] } });
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent("over the 2 MB limit");
+      expect(mocks.importJson).not.toHaveBeenCalled();
     });
   });
 

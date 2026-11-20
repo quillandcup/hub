@@ -1,12 +1,14 @@
 "use server";
 
+import { isDeepStrictEqual } from "node:util";
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { LandingPageSlugTakenError } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
-import { collectAssetIds, type LandingData } from "@/lib/landing/data";
+import { collectAssetIds, mapAssetIds, normalizeLandingData, type LandingData } from "@/lib/landing/data";
+import { MAX_LANDING_BYTES, countBlocks, parseLandingImport, pruneToKnownBlocks, type ImportSource } from "@/lib/landing/json-transfer";
 import { stampLandingVersion } from "@/lib/landing/migrations";
 import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
@@ -25,7 +27,7 @@ export type PublishResult = { error?: string; issues?: A11yIssue[]; publishedAt?
 type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
 
 const NOT_FOUND = "That page no longer exists.";
-const MAX_BYTES = 2_000_000;
+const MAX_BYTES = MAX_LANDING_BYTES;
 
 const tooBig = (data: unknown) => JSON.stringify(data ?? null).length > MAX_BYTES;
 
@@ -294,6 +296,88 @@ export async function replaceLandingDraftWithStarter(pageId: string, starter: st
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_starter_applied", () => starterImpl(auth, pageId, starter));
+}
+
+// ---- import a page's JSON --------------------------------------------------------------------------------
+
+export type JsonImportSummary = {
+  blocksBefore: number;
+  blocksAfter: number;
+  /** Blocks the builder doesn't have, by type, that were left out. */
+  leftOut: { type: string; count: number }[];
+  /** Props a block doesn't have, dropped. */
+  droppedProps: number;
+  /** Pictures that aren't in this media library, cleared. */
+  removedPictures: number;
+  /** What the publish check would say about the imported page. */
+  issues: A11yIssue[];
+  /** The imported page is the same as the draft now, so nothing would change. */
+  identical: boolean;
+  /** Where the file says it came from (informational: it never changes this page's title or address). */
+  source?: ImportSource;
+};
+/** `applied` is true when the draft was replaced: never on a dry run, or when the file matches the draft already. */
+export type JsonImportResult = { error?: string; summary?: JsonImportSummary; applied?: boolean };
+
+async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun: boolean): Promise<JsonImportResult> {
+  if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
+  if (typeof text !== "string") return { error: "Choose a file or paste the page's JSON first." };
+  const parsed = parseLandingImport(text);
+  if (!parsed.ok) return { error: parsed.error };
+  const repos = createRepos(auth.supabase);
+  const repo = repos.landingPages;
+  try {
+    const source = (await repo.list()).find((p) => p.id === pageId);
+    const page = source ? await repo.bySlug(source.slug) : null;
+    if (!page) return { error: NOT_FOUND };
+
+    // The file is untrusted: bring it up to date, keep only blocks and props the builder has, then check its pictures and clean it as a save does.
+    const pruned = pruneToKnownBlocks(normalizeLandingData(parsed.document));
+    const ids = collectAssetIds(pruned.data);
+    const found = await Promise.all(ids.map((id) => repos.media.byId(id)));
+    const missing = new Set(ids.filter((_, i) => !found[i] || found[i]?.deleted_at));
+    let removedPictures = 0;
+    const withPictures = missing.size === 0 ? pruned.data : mapAssetIds(pruned.data, (id) => (missing.has(id) ? (removedPictures++, "") : id));
+    const clean = sanitizeLandingData(stampLandingVersion(withPictures));
+    if (tooBig(clean)) return { error: "This page is too large to import." };
+
+    const current = sanitizeLandingData(stampLandingVersion(page.draft_data));
+    const summary: JsonImportSummary = {
+      blocksBefore: countBlocks(current.content),
+      blocksAfter: countBlocks(clean.content),
+      leftOut: pruned.leftOut,
+      droppedProps: pruned.droppedProps,
+      removedPictures,
+      issues: checkLandingPage(clean),
+      identical: isDeepStrictEqual(clean, current),
+      source: parsed.source,
+    };
+    if (dryRun || summary.identical) return { summary, applied: false };
+
+    // The draft as it is now is kept in History first, so the import can be undone with Bring back.
+    if (!(await repo.keepDraftBeforeStarter(pageId, auth.user.id))) return { error: NOT_FOUND };
+    if (!(await repo.replaceDraftWithStarter(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
+    refresh();
+    return { summary, applied: true };
+  } catch (error) {
+    return failed("json import", error, "Couldn't import the page.");
+  }
+}
+
+/**
+ * Replaces the draft with a page's JSON (a file exported from the builder, or a bare document): unknown blocks and props are
+ * left out, missing pictures cleared, rich text and links cleaned as on save. `dryRun` returns the same summary and writes
+ * nothing. The old draft is kept in History; the published copy, title, address and search settings are untouched, and nothing goes live.
+ */
+export async function importLandingDraftJson(pageId: string, text: string, options?: { dryRun?: boolean }): Promise<JsonImportResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  const dryRun = options?.dryRun === true;
+  return withAction(
+    "landing_page_json_imported",
+    () => jsonImportImpl(auth, pageId, text, dryRun),
+    (r) => ({ ok: !r.error, detail: r.error ? undefined : dryRun ? "preview" : r.applied ? undefined : "unchanged" }),
+  );
 }
 
 // ---- duplicate and delete --------------------------------------------------------------------------------

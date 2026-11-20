@@ -18,6 +18,7 @@ import {
   createLandingPage,
   createLandingPageWithAi,
   generateLandingBlocks,
+  importLandingDraftJson,
   reviseLandingBlocks,
   deleteLandingPage,
   duplicateLandingPage,
@@ -58,6 +59,7 @@ describe("who may use the page builder", () => {
       restoreLandingPageVersion("lpgv_AAAAAAAAAAA1"),
       resetLandingDraftToPublished(id),
       replaceLandingDraftWithStarter(id, "home"),
+      importLandingDraftJson(id, "{}"),
       duplicateLandingPage(id),
       deleteLandingPage(id),
     ]);
