@@ -89,4 +89,4 @@ See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documen
 
 ## License
 
-Proprietary. Copyright (c) 2026 Quill & Cup. All rights reserved. The source is public for transparency only and no license to use, copy, modify or distribute it is granted; see [LICENSE](LICENSE). Third-party packages keep their own licenses.
+Proprietary. Copyright (c) 2026 Quill & Cup LLC. All rights reserved. The source is public for transparency only and no license to use, copy, modify or distribute it is granted; see [LICENSE](LICENSE). Third-party packages keep their own licenses.
