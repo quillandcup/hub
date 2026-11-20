@@ -81,6 +81,7 @@ Desktop and mobile follow the room the page has, so the phone and tablet preview
 
 - **Rules.** Container-query sizes only; colours from theme tokens or fixed brand colours, and a block with its own background sets its own text colour; a link is a prop named \`href\`.
 - **Live data.** The announcement strip, schedule panel, outcome numbers and coming up have a \`source\` (typed or live). The server fills live values in before the render (\`resolveLiveBlocks\`, cached for a minute, never saved) as a render-only \`live\` prop, and any failure shows the typed values. Every schedule row carries a chip (live, soon, or the editable open label). A figure is one registry entry (\`lib/landing/live-stats.ts\`); counts only, never a person. Coming up lists events marked announced publicly through \`EventRepository.upcomingAnnounced\`, with places left from the member Events page's own count and a link only to a public checkout page, never a sign-in-only event page.
+- **Journey map.** Each stage carries its own offers; choosing a stage shows them. The one client part is \`JourneyTabs\`: the server renders every stage's panel (crawlers and visitors without JavaScript read them all), and once hydrated it is an accessible tab list. Stored pages with the old single offer are moved into the current stage by a \`LANDING_MIGRATIONS\` step.
 - **Detail.** \`docs/LANDING_PAGES.md\`, "Homepage blocks" and "Live data".`,
   },
   {

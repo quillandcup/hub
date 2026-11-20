@@ -109,9 +109,25 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
         break;
       case "JourneyMap": {
-        const offer = (p.offer ?? {}) as Record<string, unknown>;
-        if (str(offer.title)) headings.push({ level: 3, text: str(offer.title) });
-        checkButton("Journey map", offer.buttonLabel, offer.href);
+        const seen = new Set<string>();
+        for (const [i, stage] of rows(p.stages).entries()) {
+          const name = str(stage.name);
+          const offers = rows(stage.offers);
+          if (!name) {
+            // The block shows only named stages, so one with words but no name would lose them.
+            if (str(stage.helps) || str(stage.note) || offers.some((o) => str(o.title) || str(o.text))) issues.push({ severity: "error", block: "Journey map", message: `Stage ${i + 1} has no name, so it is not shown.` });
+            continue;
+          }
+          if (seen.has(name.toLowerCase())) issues.push({ severity: "warning", block: "Journey map", message: `Two stages are called "${name}".` });
+          seen.add(name.toLowerCase());
+          // Offers show only with a title; each is a card with a heading under the section's.
+          for (const offer of offers.filter((o) => str(o.title)).slice(0, 4)) {
+            headings.push({ level: 3, text: str(offer.title) });
+            checkButton("Journey map", offer.buttonLabel, offer.href, `The "${str(offer.title)}" button in ${name}`);
+          }
+          const link = (stage.link ?? {}) as Record<string, unknown>;
+          checkButton("Journey map", link.label, link.href, `The link for ${name}`);
+        }
         const compare = (p.compare ?? {}) as Record<string, unknown>;
         checkButton("Journey map", compare.label, compare.href, "The compare link");
         break;

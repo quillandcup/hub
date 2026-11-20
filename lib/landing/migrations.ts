@@ -20,12 +20,42 @@ export type LandingMigration = {
   root?: (props: Props) => Props;
 };
 
+const isObject = (v: unknown): v is Props => !!v && typeof v === "object" && !Array.isArray(v);
+
+/** Step 1. Without an `offer` prop there is nothing to move (already migrated, or a new block), so running it again changes nothing. */
+function journeyMapOfferToStage(props: Props): Props {
+  if (!("offer" in props)) return props;
+  const { offer, ...rest } = props;
+  const stages = Array.isArray(rest.stages) ? rest.stages.filter(isObject) : [];
+  const hasContent = isObject(offer) && (typeof offer.title === "string" ? offer.title.trim() : "") + (typeof offer.text === "string" ? offer.text.trim() : "") !== "";
+  if (!hasContent || stages.length === 0) return { ...rest, stages: Array.isArray(rest.stages) ? rest.stages : stages };
+  const named = stages.filter((s) => typeof s.name === "string" && s.name.trim() !== "");
+  // The block shows only named stages, so the offer goes to the current one among them (else the first).
+  const target = named.find((s) => s.current === true) ?? named[0] ?? stages[0];
+  const moved = {
+    status: offer.status,
+    statusLabel: offer.statusLabel ?? "",
+    title: offer.title ?? "",
+    text: offer.text ?? "",
+    buttonLabel: offer.buttonLabel ?? "",
+    href: offer.href ?? "",
+  };
+  return {
+    ...rest,
+    stages: stages.map((s) => (s === target ? { ...s, offers: [moved, ...(Array.isArray(s.offers) ? s.offers : [])].slice(0, 4) } : s)),
+  };
+}
+
 /** Append a step to change a block's props; never edit or remove an earlier one. */
-export const LANDING_MIGRATIONS: LandingMigration[] = [];
+export const LANDING_MIGRATIONS: LandingMigration[] = [
+  {
+    // Journey map: the one `offer` under the stepper becomes the offers of a stage (the one marked current, else the first).
+    version: 1,
+    blocks: { JourneyMap: journeyMapOfferToStage },
+  },
+];
 
 export const LANDING_SCHEMA_VERSION = LANDING_MIGRATIONS.length;
-
-const isObject = (v: unknown): v is Props => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** A block as Puck stores it: `{ type, props }`. */
 const isNode = (v: unknown): v is { type: string; props: Props } => isObject(v) && typeof v.type === "string" && isObject(v.props);

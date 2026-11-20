@@ -1,18 +1,19 @@
 import { safeHref } from "@/lib/landing/data";
 import { buttonClasses } from "./blocks";
+import JourneyTabs from "./JourneyTabs";
 import { BAND_SPACE, pageImage, pick } from "./theme";
 
 /**
- * The homepage's blocks (docs/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks.
+ * The homepage's blocks (docs/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks (the Journey map's client part is `JourneyTabs.tsx`).
  * Typed by hand in the editor; the announcement strip, schedule panel and outcome numbers can be live ("Live data"):
  * they have a `source`, and the server hands them what they show in a render-only `live` prop (they never fetch). Layout is container queries with the named sizes, mobile first. Colours are theme tokens and fixed
  * brand colours only, and wherever a block sets its own background it also sets its own text colour, never inherits it.
  * Heading levels assume the page has a section heading (h2) above: titles inside a block are h3, and h4 under a block
  * heading, which lib/landing/a11y.ts mirrors. A link is a prop named `href` (cleaned on save), so a block with several
- * links keeps them in objects (`more`, `offer`, `compare`).
+ * links keeps them in objects (`more`, `compare`, a stage's `link`).
  */
 
-const MAX = { week: 7, finishers: 6, finishLines: 3, phases: 4, comingUp: 4, outcomes: 4 } as const;
+const MAX = { week: 7, finishers: 6, finishLines: 3, phases: 4, comingUp: 4, outcomes: 4, stages: 6, stageOffers: 4 } as const;
 
 const rowsOf = <T extends object>(items: T[] | undefined, key: keyof T, max: number) => (items ?? []).filter((i) => i && i[key]).slice(0, max);
 
@@ -394,47 +395,59 @@ const OFFER_STATUS = {
 } as const;
 const offerStatus = (status: unknown) => OFFER_STATUS[(typeof status === "string" && status in OFFER_STATUS ? status : "open") as OfferStatus];
 
+export type JourneyOffer = { status: OfferStatus; statusLabel: string; title: string; text: string; buttonLabel: string; href: string };
+export type JourneyStage = { name: string; helps: string; current: boolean; note?: string; link?: { label: string; href: string }; offers?: JourneyOffer[] };
 export type JourneyMapProps = {
-  stages: { name: string; helps: string; current: boolean }[];
-  offer: { status: OfferStatus; statusLabel: string; title: string; text: string; buttonLabel: string; href: string };
+  stages: JourneyStage[];
   compare: { label: string; href: string };
 };
+const OFFER_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-2 @cards:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
 
-/** Stages of a book as a connected stepper (a column on a narrow page, a row with room), one of them marked as where she is, with an optional highlighted offer under it and a "compare" link. */
-export function JourneyMap({ stages, offer, compare }: JourneyMapProps) {
-  const rows = rowsOf(stages, "name", 7);
-  const hasOffer = !!(offer?.title || offer?.text);
-  if (rows.length === 0 && !hasOffer) return null;
-  const status = offerStatus(offer?.status);
+/** What one stage shows under the stepper: its offers as cards (side by side with room, stacked when narrow), or its note and link. */
+function StagePanel({ stage }: { stage: JourneyStage }) {
+  const offers = rowsOf(stage.offers, "title", MAX.stageOffers);
+  if (offers.length === 0) {
+    if (!stage.note && !(stage.link?.label && safeHref(stage.link.href))) return null;
+    return (
+      <div className="space-y-2 rounded-xl border-t-4 border-accent bg-card p-5 text-center text-ink shadow-md">
+        {stage.note && <p className="font-semibold">{stage.note}</p>}
+        <TextLink label={stage.link?.label} href={stage.link?.href} />
+      </div>
+    );
+  }
+  return (
+    <ul className={`grid gap-4 ${OFFER_COLUMNS[offers.length]}`}>
+      {offers.map((offer, i) => {
+        const status = offerStatus(offer.status);
+        return (
+          <li key={i} className="flex flex-col gap-3 rounded-xl border-t-4 border-accent bg-card p-5 text-ink shadow-md">
+            <span className={`self-start rounded-full px-3 py-0.5 text-sm font-bold ${status.cls}`}>{offer.statusLabel || status.label}</span>
+            <h3 className="font-display text-2xl font-semibold leading-tight">{offer.title}</h3>
+            {offer.text && <p>{offer.text}</p>}
+            <div className="mt-auto pt-1">
+              <LinkButton label={offer.buttonLabel} href={offer.href} />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * Stages of a book as a connected stepper (a column on a narrow page, a row with room). Choosing a stage shows its programs
+ * under it (`JourneyTabs`, the one client part); the stage marked `current` is the one chosen on load, the first without one.
+ * Every panel is in the server's HTML. A "compare" link sits under the panel.
+ */
+export function JourneyMap({ stages, compare }: JourneyMapProps) {
+  const rows = rowsOf(stages, "name", MAX.stages);
+  if (rows.length === 0) return null;
+  const current = rows.findIndex((s) => s.current);
   return (
     <div className="py-4 text-left">
-      {rows.length > 0 && (
-        <ol className="flex flex-col @cards:flex-row">
-          {rows.map((stage, i) => (
-            <li
-              key={i}
-              aria-current={stage.current ? "step" : undefined}
-              className={`-mt-0.5 flex-1 border-2 border-accent p-3 text-center first:mt-0 @cards:mt-0 @cards:-ml-0.5 @cards:first:ml-0 ${stage.current ? "bg-plum-700 text-white" : "bg-card text-ink"}`}
-            >
-              <p className="font-bold">{stage.name}</p>
-              {stage.helps && <p className="text-sm">{stage.helps}</p>}
-            </li>
-          ))}
-        </ol>
-      )}
-      {hasOffer && (
-        <div className="mt-5 space-y-3 rounded-xl border-t-4 border-accent bg-card p-5 text-ink shadow-md">
-          <span className={`inline-block rounded-full px-3 py-0.5 text-sm font-bold ${status.cls}`}>{offer.statusLabel || status.label}</span>
-          {offer.title && <h3 className="font-display text-2xl font-semibold leading-tight">{offer.title}</h3>}
-          {offer.text && <p>{offer.text}</p>}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <LinkButton label={offer.buttonLabel} href={offer.href} />
-            <TextLink label={compare?.label} href={compare?.href} />
-          </div>
-        </div>
-      )}
-      {!hasOffer && compare?.label && safeHref(compare.href) && (
-        <p className="mt-4 text-center">
+      <JourneyTabs initial={Math.max(current, 0)} tabs={rows.map((stage) => ({ name: stage.name, helps: stage.helps, panel: <StagePanel stage={stage} /> }))} />
+      {compare?.label && safeHref(compare.href) && (
+        <p className="mt-5">
           <TextLink label={compare.label} href={compare.href} />
         </p>
       )}

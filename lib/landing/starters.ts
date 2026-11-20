@@ -26,6 +26,9 @@ const text = (html: string, align: "left" | "center" = "center") => ({ type: "Ri
 const button = (label: string, props: Record<string, unknown>) => ({ type: "Button", props: { id: id("Button"), label, href: "", look: "solid", color: "plum", shape: "pill", align: "left", full: false, ...props } });
 const columns = (props: Record<string, unknown>, cols: unknown[][]) => ({ type: "Columns", props: { id: id("Columns"), count: "2", gap: "medium", verticalAlign: "top", col1: cols[0] ?? [], col2: cols[1] ?? [], col3: cols[2] ?? [], ...props } });
 const block = (type: string, props: Record<string, unknown>) => ({ type, props: { id: id(type), ...props } });
+const NO_LINK = { label: "", href: "" };
+/** One program under a Journey map stage; the link stays empty unless given, so the publish check asks for it. */
+const offer = (status: "open" | "waitlist" | "soon" | "dates", statusLabel: string, title: string, text: string, buttonLabel: string, href = "") => ({ status, statusLabel, title, text, buttonLabel, href });
 
 /**
  * The homepage as reviewed with the owner: announcement strip, an opening band with the pitch beside the day's
@@ -145,13 +148,42 @@ function homeContent(): unknown[] {
       heading("Wherever your book is, there's a next step"),
       block("JourneyMap", {
         stages: [
-          { name: "Idea", helps: "Membership", current: false },
-          { name: "Drafting", helps: "The Ready Writer · The 180 Program (Accelerated)", current: false },
-          { name: "Revising", helps: "Self-Editing Academy · Best Feedback Friends", current: true },
-          { name: "Sharing", helps: "Retreats and Virtual Retreats", current: false },
-          { name: "Published", helps: "Celebrate with the Finishers", current: false },
+          { name: "Idea", helps: "Membership", current: false, note: "", link: NO_LINK, offers: [offer("open", "", "Membership", "[One-line description.]", "See membership")] },
+          {
+            name: "Drafting",
+            helps: "The Ready Writer · The 180 Program (Accelerated)",
+            current: false,
+            note: "",
+            link: NO_LINK,
+            offers: [
+              offer("waitlist", "", "The Ready Writer", "[One-line description.]", "See The Ready Writer", FEATURED_COURSE.offerUrl),
+              offer("open", "[Status]", "The 180 Program (Accelerated)", "[One-line description.]", "See The 180 Program"),
+            ],
+          },
+          {
+            name: "Revising",
+            helps: "Self-Editing Academy · Best Feedback Friends",
+            current: true,
+            note: "",
+            link: NO_LINK,
+            offers: [
+              offer("open", "[Status]", "Self-Editing Academy", "[One-line description.]", "See Self-Editing Academy"),
+              offer("open", "[Status]", "Best Feedback Friends", "[One-line description.]", "See Best Feedback Friends"),
+            ],
+          },
+          {
+            name: "Sharing",
+            helps: "Retreats and Virtual Retreats",
+            current: false,
+            note: "",
+            link: NO_LINK,
+            offers: [
+              offer("open", "[Status]", "Retreats", "[One-line description.]", "See Retreats"),
+              offer("open", "[Status]", "Virtual Retreats", "[One-line description.]", "See Virtual Retreats"),
+            ],
+          },
+          { name: "Published", helps: "Celebrate with the Finishers", current: false, note: "Celebrate with the Finishers", link: NO_LINK, offers: [] },
         ],
-        offer: { status: "open", statusLabel: "", title: "Self-Editing Academy", text: "[One-line description.]", buttonLabel: "See Self-Editing Academy", href: "" },
         compare: { label: "Compare all programs", href: "" },
       }),
       block("ComingUp", {

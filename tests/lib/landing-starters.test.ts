@@ -69,6 +69,27 @@ describe("the homepage starter", () => {
     expect(issues.filter((i) => i.severity === "warning")).toEqual([]);
   });
 
+  it("gives each Journey map stage its programs, with the current stage Revising and no block-level offer", () => {
+    const map = blocks(starterData("home").content).find((b) => b.type === "JourneyMap")!;
+    expect("offer" in map.props).toBe(false);
+    const stages = map.props.stages as { name: string; current: boolean; note: string; offers: { title: string; status: string; statusLabel: string; text: string; href: string }[] }[];
+    expect(stages.map((s) => [s.name, s.offers.map((o) => o.title)])).toEqual([
+      ["Idea", ["Membership"]],
+      ["Drafting", ["The Ready Writer", "The 180 Program (Accelerated)"]],
+      ["Revising", ["Self-Editing Academy", "Best Feedback Friends"]],
+      ["Sharing", ["Retreats", "Virtual Retreats"]],
+      ["Published", []],
+    ]);
+    expect(stages.filter((s) => s.current).map((s) => s.name)).toEqual(["Revising"]);
+    expect(stages[4].note).toBe("Celebrate with the Finishers");
+    const [membership, readyWriter, oneEighty] = [stages[0].offers[0], stages[1].offers[0], stages[1].offers[1]];
+    expect(membership.status).toBe("open");
+    expect(readyWriter).toMatchObject({ status: "waitlist", href: FEATURED_COURSE.offerUrl });
+    // What only the owner knows stays a bracketed placeholder, and no other link is filled in.
+    expect(oneEighty).toMatchObject({ statusLabel: "[Status]", text: "[One-line description.]", href: "" });
+    expect(stages.flatMap((s) => s.offers).filter((o) => o.href).map((o) => o.title)).toEqual(["The Ready Writer"]);
+  });
+
   it("opens with the strip, then a plum band with the pitch beside the schedule, and builds each new block once", () => {
     const content = starterData("home").content as Node[];
     expect(content[0].type).toBe("AnnouncementStrip");
