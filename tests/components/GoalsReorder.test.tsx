@@ -22,8 +22,8 @@ vi.mock("@/app/(member)/projects/actions", () => ({
   deleteEntry: vi.fn(),
   deleteGoal: vi.fn(),
   toggleGoalStar: vi.fn(),
-  toggleGoalVisibility: vi.fn(),
-  toggleProjectVisibility: vi.fn(),
+  setGoalVisibility: vi.fn(),
+  setProjectVisibility: vi.fn(),
   updateGoal: vi.fn(),
   updateProjectPhase: vi.fn(),
   reorderMyGoals: m.reorder,
@@ -46,12 +46,12 @@ vi.mock("@/components/books/BookFormModal", () => ({ default: () => null }));
 
 const goal = (id: string, title: string, status: "active" | "ended" = "active"): GoalRow =>
   ({
-    id, projectId: "wprj_1", measure: "words", isStarred: false, title, description: null, showOnProfile: false, kind: "target", targetAmount: 1000, startDate: null,
+    id, projectId: "wprj_1", measure: "words", isStarred: false, title, description: null, showOnProfile: false, visibility: "private", kind: "target", targetAmount: 1000, startDate: null,
     endDate: status === "ended" ? "2026-03-13" : null, current: 700, percent: 70, includesStartingBalance: false, excludedStartingBalance: null, projectTotal: 700, parTarget: null, onPace: null, status,
   }) as unknown as GoalRow;
 
 const project = (goals: GoalRow[]) =>
-  ({ id: "wprj_1", title: "Lantern Draft Two", phase: "drafting", createdAt: "2026-01-01T00:00:00Z", showOnProfile: false, coverUrl: null, description: null, startingBalances: {}, totalsByMeasure: {}, goals, book: null }) as unknown as WritingProjectRow;
+  ({ id: "wprj_1", title: "Lantern Draft Two", phase: "drafting", createdAt: "2026-01-01T00:00:00Z", showOnProfile: false, visibility: "private", coverUrl: null, description: null, startingBalances: {}, totalsByMeasure: {}, goals, book: null }) as unknown as WritingProjectRow;
 
 const three = () => [goal("g1", "Daily words"), goal("g2", "Finish draft"), goal("g3", "Read aloud")];
 const titles = () => [...document.querySelectorAll("[data-sortable-row]")].map((row) => within(row as HTMLElement).getByText(/Daily words|Finish draft|Read aloud/).textContent);

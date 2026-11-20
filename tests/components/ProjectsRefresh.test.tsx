@@ -38,7 +38,7 @@ const project = {
   title: "Lantern Draft Two",
   phase: "drafting",
   createdAt: "2026-01-01T00:00:00Z",
-  showOnProfile: false,
+  showOnProfile: false, visibility: "private",
   coverUrl: null,
   description: null,
   startingBalances: {},

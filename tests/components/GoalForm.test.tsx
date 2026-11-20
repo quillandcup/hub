@@ -14,8 +14,8 @@ vi.mock("@/app/(member)/projects/actions", () => ({
   deleteEntry: vi.fn(),
   deleteGoal: vi.fn(),
   toggleGoalStar: vi.fn(),
-  toggleGoalVisibility: vi.fn(),
-  toggleProjectVisibility: vi.fn(),
+  setGoalVisibility: vi.fn(),
+  setProjectVisibility: vi.fn(),
   updateProjectPhase: vi.fn(),
 }));
 vi.mock("@/app/(member)/bookshelf/actions", () => ({ deleteBook: vi.fn() }));

@@ -16,8 +16,8 @@ vi.mock("@/app/(member)/projects/actions", () => ({
   deleteEntry: vi.fn(),
   deleteGoal: vi.fn(),
   toggleGoalStar: vi.fn(),
-  toggleGoalVisibility: vi.fn(),
-  toggleProjectVisibility: vi.fn(),
+  setGoalVisibility: vi.fn(),
+  setProjectVisibility: vi.fn(),
   updateGoal: vi.fn(),
   updateProjectPhase: vi.fn(),
 }));
@@ -39,6 +39,7 @@ function targetGoal(id: string, title: string, status: "active" | "achieved" | "
     title,
     description: null,
     showOnProfile: false,
+    visibility: "private",
     kind: "target",
     targetAmount: 1000,
     startDate: null,
@@ -66,6 +67,7 @@ const project = {
   phase: "drafting",
   createdAt: "2026-01-01T00:00:00Z",
   showOnProfile: false,
+  visibility: "private" as const,
   coverUrl: null,
   description: null,
   startingBalances: {},
@@ -115,7 +117,7 @@ describe("goal row controls on the project page", () => {
     refresh.mockReset();
     alertSpy.mockReset();
     vi.mocked(actions.toggleGoalStar).mockResolvedValue({ success: true } as never);
-    vi.mocked(actions.toggleGoalVisibility).mockResolvedValue({ success: true } as never);
+    vi.mocked(actions.setGoalVisibility).mockResolvedValue({ success: true } as never);
     vi.mocked(actions.deleteGoal).mockResolvedValue({ success: true } as never);
     vi.mocked(actions.archiveGoal).mockResolvedValue({ success: true } as never);
     Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
@@ -141,50 +143,69 @@ describe("goal row controls on the project page", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("shows a missed goal on the profile and refreshes in place, or alerts when the action fails", async () => {
-    renderMissedOnly();
-    // The page's own project-level toggle comes first; the goal row's is the last one.
-    const goalToggle = () => screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!;
-    await userEvent.click(goalToggle());
-    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
+  const levels = () => screen.getAllByRole("button", { name: /^Who can see this/ });
+
+  it("moves a missed goal one level up and refreshes in place, or alerts when the action fails", async () => {
+    // The project's own control comes first; the goal row's is the last one. The project is community, so the goal can go up to it.
+    render(<ProjectDetailClient project={{ ...project, visibility: "community", showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
+    const goalControl = () => levels().at(-1)!;
+    expect(goalControl()).toHaveAccessibleName("Who can see this goal: Only me");
+    await userEvent.click(goalControl());
+    expect(actions.setGoalVisibility).toHaveBeenCalledWith("g3", "community");
     expect(refresh).toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
 
-    vi.mocked(actions.toggleGoalVisibility).mockResolvedValueOnce({ error: "Could not change" } as never);
-    await userEvent.click(goalToggle());
+    vi.mocked(actions.setGoalVisibility).mockResolvedValueOnce({ error: "Could not change" } as never);
+    await userEvent.click(goalControl());
     expect(alertSpy).toHaveBeenCalledWith("Could not change");
   });
 
-  it("takes the goals off the profile with their project, and puts them back with it", async () => {
-    vi.mocked(actions.toggleProjectVisibility).mockReset().mockResolvedValue({ success: true } as never);
-    vi.mocked(actions.toggleGoalVisibility).mockClear();
-    const shownGoal = { ...goals[2], showOnProfile: true };
-    render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [shownGoal] }} entries={[]} archivedGoals={[]} />);
-    const toggles = () => screen.getAllByRole("button", { name: "Show on my profile" });
-    expect(toggles()[1]).toHaveAttribute("aria-pressed", "true");
-
-    await userEvent.click(toggles()[0]);
-    await waitFor(() => expect(toggles()[1]).toHaveAttribute("aria-pressed", "false"));
-    await userEvent.click(toggles()[0]);
-    await waitFor(() => expect(toggles()[1]).toHaveAttribute("aria-pressed", "true"));
-    expect(actions.toggleProjectVisibility).toHaveBeenNthCalledWith(1, "wpr_AAAAAAAAAAA1", false);
-    expect(actions.toggleProjectVisibility).toHaveBeenNthCalledWith(2, "wpr_AAAAAAAAAAA1", true);
+  it("cycles a project private, community, public and back, and does not refresh", async () => {
+    vi.mocked(actions.setProjectVisibility).mockReset().mockResolvedValue({ success: true } as never);
+    renderMissedOnly();
+    const projectControl = () => levels()[0];
+    expect(projectControl()).toHaveAccessibleName("Who can see this project: Only me");
+    for (const [from, to] of [["Only me", "Other members"], ["Other members", "Everyone"], ["Everyone", "Only me"]]) {
+      expect(projectControl()).toHaveAccessibleName(`Who can see this project: ${from}`);
+      await userEvent.click(projectControl());
+      await waitFor(() => expect(projectControl()).toHaveAccessibleName(`Who can see this project: ${to}`));
+    }
+    expect(actions.setProjectVisibility).toHaveBeenNthCalledWith(1, "wpr_AAAAAAAAAAA1", "community");
+    expect(actions.setProjectVisibility).toHaveBeenNthCalledWith(2, "wpr_AAAAAAAAAAA1", "public");
+    expect(actions.setProjectVisibility).toHaveBeenNthCalledWith(3, "wpr_AAAAAAAAAAA1", "private");
     expect(refresh).not.toHaveBeenCalled();
-    expect(actions.toggleGoalVisibility).not.toHaveBeenCalled();
   });
 
-  it("shows a goal whose project is hidden as off, and turning it on shows both", async () => {
-    vi.mocked(actions.toggleGoalVisibility).mockClear();
-    // The goal's own flag is on, but its project is not on the profile.
-    render(<ProjectDetailClient project={{ ...project, goals: [{ ...goals[2], showOnProfile: true }] }} entries={[]} archivedGoals={[]} />);
-    const goalToggle = screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!;
-    expect(goalToggle).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(goalToggle);
-    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
+  it("keeps a goal's own level when its project goes private, shows it as private meanwhile, and brings it back with the project", async () => {
+    vi.mocked(actions.setProjectVisibility).mockReset().mockResolvedValue({ success: true } as never);
+    vi.mocked(actions.setGoalVisibility).mockClear();
+    const shownGoal = { ...goals[2], showOnProfile: true, visibility: "community" as const };
+    render(<ProjectDetailClient project={{ ...project, visibility: "community", showOnProfile: true, goals: [shownGoal] }} entries={[]} archivedGoals={[]} />);
+    expect(levels()[1]).toHaveAccessibleName("Who can see this goal: Other members");
+
+    // community -> public -> private: the project goes private and the goal reads as private too.
+    await userEvent.click(levels()[0]);
+    await waitFor(() => expect(levels()[0]).toHaveAccessibleName("Who can see this project: Everyone"));
+    expect(levels()[1]).toHaveAccessibleName("Who can see this goal: Other members");
+    await userEvent.click(levels()[0]);
+    await waitFor(() => expect(levels()[0]).toHaveAccessibleName("Who can see this project: Only me"));
+    expect(levels()[1]).toHaveAccessibleName("Who can see this goal: Only me");
+    await userEvent.click(levels()[0]);
+    await waitFor(() => expect(levels()[0]).toHaveAccessibleName("Who can see this project: Other members"));
+    expect(levels()[1]).toHaveAccessibleName("Who can see this goal: Other members");
+    expect(actions.setGoalVisibility).not.toHaveBeenCalled();
+  });
+
+  it("reads a goal that is more visible than its project as the project's level, and a click goes up from there", async () => {
+    vi.mocked(actions.setGoalVisibility).mockClear();
+    render(<ProjectDetailClient project={{ ...project, goals: [{ ...goals[2], showOnProfile: true, visibility: "public" }] }} entries={[]} archivedGoals={[]} />);
+    expect(levels().at(-1)).toHaveAccessibleName("Who can see this goal: Only me");
+    await userEvent.click(levels().at(-1)!);
+    expect(actions.setGoalVisibility).toHaveBeenCalledWith("g3", "community");
   });
 
   it("starts a new goal on the profile when its project is on the profile, and off when it is not", async () => {
-    const { unmount } = render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [] }} entries={[]} archivedGoals={[]} />);
+    const { unmount } = render(<ProjectDetailClient project={{ ...project, showOnProfile: true, visibility: "community", goals: [] }} entries={[]} archivedGoals={[]} />);
     await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
     expect(screen.getByRole("checkbox", { name: /Show on my profile/ })).toBeChecked();
     unmount();
@@ -198,15 +219,6 @@ describe("goal row controls on the project page", () => {
     await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
     await userEvent.click(screen.getAllByRole("button", { name: "Cancel" }).at(-1)!);
     expect(screen.queryByRole("button", { name: "Add goal" })).not.toBeInTheDocument();
-  });
-
-  it("does not refresh when a project is put on the profile", async () => {
-    vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
-    renderMissedOnly();
-    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
-    expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", true);
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Show on my profile" })[0]).toHaveAttribute("aria-pressed", "true"));
-    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("deletes a missed goal once confirmed", async () => {
