@@ -1,5 +1,12 @@
 # Hedgie Hub
 
+[![CI](https://github.com/quillandcup/hub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/quillandcup/hub/badge)](https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub)
+[![Dependency audit](https://github.com/quillandcup/hub/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/audit.yml)
+[![OSV scan](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml)
+[![Secret scan](https://github.com/quillandcup/hub/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/secret-scan.yml)
+[![ZAP baseline](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml)
+
 Member engagement platform for Quill & Cup — giving members visibility into their writing journey and giving staff the tools to understand community health.
 
 ## Quick Start
