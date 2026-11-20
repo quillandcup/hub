@@ -1,0 +1,49 @@
+name: OSV scan
+
+# Known vulnerabilities in the lockfile from the OSV database, which covers more than the npm advisories that
+# `pnpm audit` (audit.yml) reads. Results go to the Security tab. Not a required check. The scheduled run fails on a
+# vulnerability and posts to the alerts channel; a pull request only reports (fail-on-vuln is off there), for the same reason audit.yml doesn't block: an advisory with
+# no patched version would stop every PR. Dependabot raises the fix PRs. The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL), as in audit.yml.
+on:
+  schedule:
+    - cron: "53 6 * * 1"
+  pull_request:
+    paths:
+      - pnpm-lock.yaml
+      - .github/workflows/osv-scan.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  osv:
+    name: OSV-Scanner
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.7.1
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+      fail-on-vuln: ${{ github.event_name == 'schedule' }}
+
+  # The scheduled run fails on a vulnerability (fail-on-vuln above); pull requests only report, so a lockfile
+  # change is never blocked by an advisory that has no fix. Tell the alerts channel, same pattern as audit.yml.
+  notify:
+    name: Post findings to Slack
+    needs: osv
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Post
+        env:
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_ALERTS_WEBHOOK_URL" ]; then echo "SLACK_ALERTS_WEBHOOK_URL is not set; not posting."; exit 0; fi
+          curl -sS --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\": \"OSV-Scanner found vulnerable dependencies in the lockfile. Details: $RUN_URL\"}" \
+            "$SLACK_ALERTS_WEBHOOK_URL"
