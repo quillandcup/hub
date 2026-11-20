@@ -1,0 +1,26 @@
+# gitleaks: findings reviewed 2026-11-20 and accepted as false positives. Each line is a finding's fingerprint (commit:file:rule:line):
+# the public local Supabase demo keys (iss supabase-demo) in CI config and test setup, and obviously fake tokens, ids and file keys in tests.
+# A new finding is not listed, so it still fails the scheduled run. Used by .github/workflows/secret-scan.yml.
+095c9162e69def14c9a4a2040868e2e5b205d973:.env.example:generic-api-key:21
+095c9162e69def14c9a4a2040868e2e5b205d973:.env.example:generic-api-key:24
+095c9162e69def14c9a4a2040868e2e5b205d973:docs/DEPLOYMENT_SETUP.md:generic-api-key:232
+795ad937962722a1cb56c66575e53ed5e6fefc87:tests/helpers/supabase.ts:jwt:6
+7d18cdddbde2eef43a61416e7e63b6e6b7bed213:.github/workflows/help-screenshots.yml:jwt:41
+7d18cdddbde2eef43a61416e7e63b6e6b7bed213:.github/workflows/help-screenshots.yml:jwt:42
+872e8beed8d27df4d40c05f0253ea07de651abaa:docs/superpowers/specs/writing-projects-tracking.md:generic-api-key:141
+a6e04b9fd02cb1a9e90a107cab9d3ae8db3541fd:.github/workflows/ci.yml:jwt:42
+a6e04b9fd02cb1a9e90a107cab9d3ae8db3541fd:.github/workflows/ci.yml:jwt:43
+b7f5240a9d8b1a6664600c54e52c1e111c2629aa:tests/helpers/supabase.ts:jwt:17
+ba1cd71e42d4d4a4400f036850faa41718aa1a62:tests/lib/calendar-feed-route.test.ts:generic-api-key:19
+ba1cd71e42d4d4a4400f036850faa41718aa1a62:tests/lib/data/calendar-feed-errors.test.ts:generic-api-key:18
+c493daa5ff6933ad5e0439d3724217146d48e15c:docs/DEPLOYMENT.md:generic-api-key:32
+d76d345f86e62eace24277b64b34489adee03efb:tests/lib/calendar-feed.test.ts:generic-api-key:13
+dae559ed6a90f3ebb1ab0e013163328b82216cc6:tests/setup.ts:jwt:9
+dc2d6df0d1878858e668c87fcc2a1718571e63c8:tests/api/courses/lesson-file-actions.test.ts:generic-api-key:153
+dc2d6df0d1878858e668c87fcc2a1718571e63c8:tests/api/courses/lesson-file-actions.test.ts:generic-api-key:154
+dc2d6df0d1878858e668c87fcc2a1718571e63c8:tests/api/courses/lesson-file-actions.test.ts:generic-api-key:168
+dc2d6df0d1878858e668c87fcc2a1718571e63c8:tests/api/courses/lesson-file-actions.test.ts:generic-api-key:174
+dceb450b6b8632fdf2e8bcc6960773d405e5db50:tests/helpers/supabase.ts:jwt:35
+e5a6ea84ea59907da1de1d78856290b9c98ad1aa:tests/setup.ts:jwt:9
+f6f5a540062bc44b2c17e7a7d1784bdecdbb2de0:supabase/tests/database/slack_workspaces.test.sql:generic-api-key:54
+f6f5a540062bc44b2c17e7a7d1784bdecdbb2de0:supabase/tests/database/slack_workspaces.test.sql:generic-api-key:57
