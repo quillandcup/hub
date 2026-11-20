@@ -19,7 +19,7 @@ All three match CSP reports only (the tag `logger=csp`, which every report carri
 
 **Why 100 an hour.** Measured in Sentry on 2026-11-20 (14 days): the noisiest issue, a font host blocked on every page builder load, had 847 events in two days (about 18 an hour on average), the next 660 in eight hours (about 80 an hour), and every deploy to a preview URL produces a burst of 30 events within seconds. 100 stays quiet on those and still catches a policy that starts blocking something on every page view of the 90 or so active members.
 
-**Email only for now.** Routing to the `#hub-alerts` Slack channel needs Sentry's Slack integration, which `docs/INTEGRATION_LINKS.md` records as a paid-plan feature; the integrations endpoint did not answer for the config token, so whether it is installed is unconfirmed (`docs/TODO.md`, "Route the CSP alerts to Slack").
+**Email only.** Our Sentry plan cannot send to Slack. The emails go to the issue's owners (ownership rules), or, when an issue has no owner, to the active members of the project's teams. Slack routing for CSP problems comes from the daily health check below, which posts through `lib/operations-alerts.ts`.
 
 ## The daily health check
 

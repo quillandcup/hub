@@ -16,8 +16,8 @@ organization:
 # Issue alerts for the project (Sentry's workflows), emailed to the issue owners or, without an owner, the active
 # members. Only rules named "Hub: ..." are managed: delete one here and the next push deletes it from Sentry;
 # Sentry's own default alerts are left alone. All three watch CSP reports (they carry the tag logger=csp), for the
-# nonce-based Content-Security-Policy rollout (docs/CSP_ALERTS.md). Routing to the #hub-alerts Slack channel needs
-# the Sentry Slack integration (docs/TODO.md, "Route the CSP alerts to Slack").
+# nonce-based Content-Security-Policy rollout (docs/CSP_ALERTS.md). Email only: this Sentry plan cannot
+# send to Slack; the daily health check posts to #hub-alerts instead.
 alerts:
   # A violation of a kind not seen before: a new blocked host or directive.
   - name: "Hub: CSP violation, new issue"

@@ -21,7 +21,9 @@ Read-only. It needs `SENTRY_CONFIG_TOKEN` in `.env.prod` or `.env.shared`. It li
 
 ## Adding a rule
 
-Add an entry under `alerts:` with a name starting `Hub: `, a `when` (`new_issue`, `regression` or `every_event`), the `logger` tag it is limited to, and `frequencyMinutes` (the pause between two emails for the same issue). `when: every_event` needs `moreThan: { count, interval }` (more than `count` events within `interval`, such as `1h`). The shapes are checked by `parseAlertRules` (`lib/sentry-config.ts`). To notify somewhere other than email (Slack), the action in `workflowBody` changes; see `docs/TODO.md`, "Route the CSP alerts to Slack".
+Add an entry under `alerts:` with a name starting `Hub: `, a `when` (`new_issue`, `regression` or `every_event`), the `logger` tag it is limited to, and `frequencyMinutes` (the pause between two emails for the same issue). `when: every_event` needs `moreThan: { count, interval }` (more than `count` events within `interval`, such as `1h`). The shapes are checked by `parseAlertRules` (`lib/sentry-config.ts`).
+
+**Sentry alerts email only on this plan** (to the issue owners, or the active members of the project's teams when an issue has no owner). Sentry cannot send to Slack here; Slack routing for CSP problems comes from the daily health check (`docs/CSP_ALERTS.md`) through `lib/operations-alerts.ts`.
 
 ## Not covered
 
