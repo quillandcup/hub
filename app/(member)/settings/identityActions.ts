@@ -16,6 +16,7 @@ import { changePrimaryEmail, normalizeEmail } from "@/lib/member-email";
 import { sendVerificationEmail } from "@/lib/email-verification";
 import { sendPrimaryEmailChangedNotice } from "@/lib/email-change-notice";
 import { createRepos } from "@/lib/data/repos";
+import { DISPOSABLE_EMAIL_MESSAGE, isDisposableEmail } from "@/lib/disposable-email";
 
 import { withAction } from "@/lib/analytics/server";
 export interface NameAliasRow {
@@ -270,6 +271,7 @@ async function addEmailAliasImpl(email: string): Promise<{ success: true; verifi
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) return { error: "Enter an email first" };
   if (!EMAIL_RE.test(trimmed)) return { error: "Enter a valid email address" };
+  if (isDisposableEmail(trimmed)) return { error: DISPOSABLE_EMAIL_MESSAGE };
   if (trimmed === effectiveIdentity.memberEmail.toLowerCase()) {
     return { error: "That's already your primary email" };
   }

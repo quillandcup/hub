@@ -3,6 +3,7 @@ import { getServiceRepos } from "@/lib/data/server";
 import { isValidSlug } from "@/lib/landing/slug";
 import { findOptInTarget } from "@/lib/landing/opt-in";
 import { optInDestination } from "@/lib/landing/opt-in-destination";
+import { DISPOSABLE_EMAIL_MESSAGE, isDisposableEmail } from "@/lib/disposable-email";
 import { clientIpFrom, hitRateLimits } from "@/lib/rate-limit";
 
 /**
@@ -40,7 +41,8 @@ export async function POST(request: NextRequest) {
     .replace(/\/+$/, "");
   if (!isValidSlug(slug) || !formId || !name) return reply({ error: "Please add your name and email." }, 400);
   if (!EMAIL.test(email)) return reply({ error: "That email address doesn't look right." }, 400);
-  if (instagram && !/^[A-Za-z0-9._]{1,30}$/.test(instagram)) return reply({ error: "That Instagram handle doesn't look right." }, 400);
+  if (isDisposableEmail(email)) return reply({ error: DISPOSABLE_EMAIL_MESSAGE }, 422);
+  if (instagram &&!/^[A-Za-z0-9._]{1,30}$/.test(instagram)) return reply({ error: "That Instagram handle doesn't look right." }, 400);
 
   const repos = getServiceRepos();
   const allowed = await hitRateLimits(repos, [

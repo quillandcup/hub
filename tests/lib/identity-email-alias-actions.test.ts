@@ -104,6 +104,14 @@ describe("addEmailAlias", () => {
     expect(calls.some((c) => c.op === "insert")).toBe(false);
   });
 
+  it("refuses a temporary-mail address", async () => {
+    const { client, calls } = makeClient();
+    vi.mocked(createClient).mockResolvedValue(client);
+
+    expect(await addEmailAlias("x@mailinator.com")).toEqual({ error: "Please use your own email address, not a temporary one." });
+    expect(calls.some((c) => c.op === "insert")).toBe(false);
+  });
+
   it("refuses an invalid email", async () => {
     const { client } = makeClient();
     vi.mocked(createClient).mockResolvedValue(client);
