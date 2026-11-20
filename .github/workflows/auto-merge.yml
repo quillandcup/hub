@@ -17,8 +17,8 @@ name: Auto-merge
 # by GITHUB_TOKEN doesn't trigger the push CI run on main (no migrations, deploy or
 # Slack manifest push). Rotate it before it expires, see docs/SECRET_ROTATION.md.
 #
-# Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and for PRs whose author is neither
-# Dependabot nor an owner, member or collaborator of the repository: the merge is made with the
+# Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and, in the first step, for PRs whose
+# author is neither Dependabot nor someone with write access to the repository: the merge is made with the
 # owner's token, so it must never be enabled for a stranger's change. Dependabot PRs get
 # the stricter rule: only patch/minor version bumps are enabled, majors are far more likely
 # to carry breaking changes and always need a human. That is a deliberate safety choice, not
@@ -41,23 +41,41 @@ jobs:
       pull-requests: write
     if: |
       !github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event.pull_request.user.login == 'dependabot[bot]' ||
-       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
+      # The webhook's author_association reads NONE for organization members whose membership is
+      # private, so ask for the author's permission on the repository instead.
+      - name: Check the author may have auto-merge
+        id: trusted
+        run: |
+          if [ "$AUTHOR" = "dependabot[bot]" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          permission=$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq .permission || echo none)
+          case "$permission" in
+            admin|maintain|write) echo "ok=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "$AUTHOR has '$permission' permission; leaving auto-merge off." ;;
+          esac
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Fetch Dependabot metadata
         id: metadata
-        if: github.actor == 'dependabot[bot]'
+        if: steps.trusted.outputs.ok == 'true' && github.actor == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Enable auto-merge
         if: |
+          steps.trusted.outputs.ok == 'true' && (
           github.actor != 'dependabot[bot]' ||
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
         run: |
           if [ "$EVENT_ACTION" = "synchronize" ]; then
             opted_out=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/timeline" --jq '.[] | select(.event == "auto_merge_disabled") | .event')
