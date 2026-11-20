@@ -18,7 +18,7 @@ import { slackRedirectUri } from "@/lib/slack-connect";
 /** Marks the OAuth state of a bot install, so the one registered callback can tell it from a member connecting Slack. */
 export const BOT_STATE_PREFIX = "bot.";
 
-/** The bot scopes the app is configured with (slack-app-manifest.yml, oauth_config.scopes.bot); a test keeps the two equal. */
+/** The bot scopes the app is configured with (config/slack-app-manifest.yml, oauth_config.scopes.bot); a test keeps the two equal. */
 export const SLACK_BOT_SCOPES = [
   "channels:history",
   "channels:read",

@@ -1,6 +1,6 @@
 ## ship-via-pr
 
-Finished work lands through a pull request. Nothing goes to `main` directly, admins included (the `main` ruleset in `github-repo-config.yml` forbids it), and `pr-watch.md` takes over once the PR exists.
+Finished work lands through a pull request. Nothing goes to `main` directly, admins included (the `main` ruleset in `config/github-repo-config.yml` forbids it), and `pr-watch.md` takes over once the PR exists.
 
 1. **Work in your own worktree on a branch**, never in the main checkout (other sessions leave work in progress there). Copy `.env.local` per `worktree-setup.md`.
 2. **Before opening the PR**: `pnpm typecheck`, the tests for what you changed (`tests-with-every-change.md`), and `pnpm check:migrations` if you added a migration. The pre-commit hook also runs a production build.

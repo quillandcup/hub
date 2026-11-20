@@ -6,7 +6,7 @@ name: CI
 # note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
 # vitest.config.mts for how tests are split between the two. On push to main, once
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
-# to production, deploys, and then pushes slack-app-manifest.yml to the Slack app if
+# to production, deploys, and then pushes config/slack-app-manifest.yml to the Slack app if
 # it changed.
 #
 # Docs-only changes skip all of that. The `changes` job lists the files the change touches
@@ -139,10 +139,10 @@ jobs:
 
       # Old code runs against the new schema while a deploy rolls out, so a migration that
       # drops or renames something the old code reads breaks production. Squawk fails on
-      # those (see .squawk.toml); only migrations this change adds are linted.
+      # those (see config/squawk.toml); only migrations this change adds are linted.
       - name: Lint new migrations for deploy-breaking changes
         if: github.event_name != 'workflow_dispatch'
-        run: git diff --name-only --diff-filter=A FETCH_HEAD -- 'supabase/migrations/*.sql' | xargs -r pnpm exec squawk
+        run: git diff --name-only --diff-filter=A FETCH_HEAD -- 'supabase/migrations/*.sql' | xargs -r pnpm exec squawk --config config/squawk.toml
 
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
@@ -611,7 +611,7 @@ jobs:
     with:
       ref: ${{ github.sha }}
 
-  # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
+  # config/slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
   # description, scopes, slash commands, event subscriptions and request URLs. The push
   # REPLACES the live configuration, so anything changed in the Slack dashboard but not in
   # the manifest is reset here -- change the manifest instead. See docs/SLACK_MANIFEST.md.
@@ -651,8 +651,8 @@ jobs:
           elif ! git fetch --quiet --depth=1 origin "+refs/tags/slack-manifest-pushed:refs/tags/slack-manifest-pushed"; then
             echo "The manifest has never been pushed from CI: pushing it."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet slack-manifest-pushed HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
-            echo "slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
+          elif git diff --quiet slack-manifest-pushed HEAD -- config/slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "config/slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "They differ from the last push: pushing the manifest."
@@ -695,7 +695,7 @@ jobs:
           git tag --force slack-manifest-pushed "$GITHUB_SHA"
           git push --force origin refs/tags/slack-manifest-pushed
 
-  # vercel-project-config.yml is the source of truth for the Vercel project settings that
+  # config/vercel-project-config.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
   # those rules, so change the file, not the dashboard. See docs/VERCEL_CONFIG.md.
   #
@@ -715,8 +715,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
             echo "No previous commit to compare against: pushing the config."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- vercel-project-config.yml scripts/vercel-config.ts; then
-            echo "vercel-project-config.yml and scripts/vercel-config.ts are unchanged: skipping the push."
+          elif git diff --quiet "$BEFORE" HEAD -- config/vercel-project-config.yml scripts/vercel-config.ts; then
+            echo "config/vercel-project-config.yml and scripts/vercel-config.ts are unchanged: skipping the push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -744,7 +744,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # sentry-config.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
+  # config/sentry-config.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
   # file, not the Settings page. See docs/SENTRY_CONFIG.md.
   #
   # Only runs when the push to main changed the file or the script; a push whose previous commit can't be
@@ -763,8 +763,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
             echo "No previous commit to compare against: pushing the config."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- sentry-config.yml scripts/sentry-config.ts; then
-            echo "sentry-config.yml and scripts/sentry-config.ts are unchanged: skipping the push."
+          elif git diff --quiet "$BEFORE" HEAD -- config/sentry-config.yml scripts/sentry-config.ts; then
+            echo "config/sentry-config.yml and scripts/sentry-config.ts are unchanged: skipping the push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"

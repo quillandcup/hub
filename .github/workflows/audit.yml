@@ -42,7 +42,7 @@ jobs:
 
       # Tell #hub-alerts when the audit finds something, so a finding is not only a line in a log. The secret is a
       # Slack incoming-webhook URL for that one channel: it can only post there. It belongs to Billie Bot's installation
-      # (the incoming-webhook scope in slack-app-manifest.yml, docs/SLACK_MANIFEST.md). Not set (or a fork): the step does nothing.
+      # (the incoming-webhook scope in config/slack-app-manifest.yml, docs/SLACK_MANIFEST.md). Not set (or a fork): the step does nothing.
       - name: Post findings to Slack
         if: steps.audit.outcome == 'failure'
         env:

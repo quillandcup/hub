@@ -110,7 +110,7 @@ Webhook secret env var: `ZOOM_WEBHOOK_SECRET_TOKEN`
 Webhook URL: `https://hub.quillandcup.com/api/webhooks/slack`
 Signing secret env var: `SLACK_SIGNING_SECRET`
 
-The app's configuration is defined as code in `slack-app-manifest.yml` and pushed by the
+The app's configuration is defined as code in `config/slack-app-manifest.yml` and pushed by the
 `push-slack-manifest` job in `.github/workflows/ci.yml` after each production deploy -- edit
 the manifest, not the dashboard (dashboard edits get overwritten on the next push to main).
 The job authenticates with an App Configuration Token: `SLACK_CONFIG_REFRESH_TOKEN`, a GitHub
@@ -181,7 +181,7 @@ as the last step of `.github/workflows/ci.yml`, after tests pass and migrations 
 
 ### Always-on tracing
 
-Sampling rules are managed as code: `vercel-project-config.yml` is the source of truth, applied
+Sampling rules are managed as code: `config/vercel-project-config.yml` is the source of truth, applied
 by CI after a production deploy (see `docs/VERCEL_CONFIG.md`). Edit the file, not the dashboard
 page above. Production only, with 0% on `/api/health` (Checkly's uptime monitor).
 
