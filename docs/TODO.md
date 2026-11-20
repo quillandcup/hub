@@ -178,7 +178,7 @@ Templates are pages of kind `template` with a draft, a published copy and Histor
 
 ### Landing pages: drop two leftover snapshot-template functions _(Needs Scheduling)_
 
-The snapshot-template tables were dropped (`20270829000000_drop_snapshot_templates.sql`; templates are pages of kind `template`), but the two functions that wrote them, `save_landing_page_template(text, text, jsonb, text, text)` and `restore_landing_page_template_version(text)` (`20270821000000`, `20270822000000`), remain: dropping a function trips squawk's `ban-drop-function`, and the owner's approved ignore covered only the tables. They are unused and fail if called (their tables are gone). Drop them in a migration once the owner approves the one `ban-drop-function` ignore for these two statements (reason: unused, replaced by pages of kind template), then delete this entry.
+The snapshot-template tables were dropped (`20270833000000_drop_snapshot_templates.sql`; templates are pages of kind `template`), but the two functions that wrote them, `save_landing_page_template(text, text, jsonb, text, text)` and `restore_landing_page_template_version(text)` (`20270821000000`, `20270822000000`), remain: dropping a function trips squawk's `ban-drop-function`, and the owner's approved ignore covered only the tables. They are unused and fail if called (their tables are gone). Drop them in a migration once the owner approves the one `ban-drop-function` ignore for these two statements (reason: unused, replaced by pages of kind template), then delete this entry.
 
 ### Landing pages: saved sections, site-wide header and footer defaults, and thank-you page templates _(Idea)_
 
