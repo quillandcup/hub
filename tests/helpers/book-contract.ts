@@ -90,6 +90,17 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       expect((await ctx.repo().ofMember(m1.id)).some((x) => x.published_date === "2026-07-01")).toBe(false);
     });
 
+    it("counts live books published on or before a day, and not deleted or later ones", async () => {
+      const [m1] = await ctx.members();
+      const before = await ctx.repo().countPublishedOnOrBefore("2026-06-01");
+      await ctx.repo().add(book(m1.id, ctx.unique("Count a"), { published_date: "2026-06-01" }));
+      await ctx.repo().add(book(m1.id, ctx.unique("Count b"), { published_date: "2026-05-31" }));
+      await ctx.repo().add(book(m1.id, ctx.unique("Count later"), { published_date: "2026-06-02" }));
+      const gone = await ctx.repo().add(book(m1.id, ctx.unique("Count deleted"), { published_date: "2026-05-01" }));
+      await ctx.repo().remove(gone);
+      expect(await ctx.repo().countPublishedOnOrBefore("2026-06-01")).toBe(before + 2);
+    });
+
     it("refuses a second live book for one project, but allows it once the first is deleted", async () => {
       const [m1] = await ctx.members();
       const project = await ctx.project(m1.id);

@@ -97,6 +97,7 @@ Four Homepage blocks have a `source`: "Typed in by hand" (`manual`) or "Live fro
 | `prickles_30d` | Distinct prickles that had at least one stay in those 30 days | prickles with writers in them in the last 30 days |
 | `writers_7d` | Distinct members with a stay that began in the trailing 7 Eastern days | writers joined a prickle in the last 7 days |
 | `words_30d` | `writing_progress_entries` with `measure` words and `mode` delta, not deleted, by Eastern entry date over 30 days. Never `set_total` (a project's running total) | words logged by members in the Hub in the last 30 days |
+| `books_published` | `member_books` rows not deleted whose `published_date` is on or before today (Eastern): a count through `BookRepository.countPublishedOnOrBefore`, never a title or an author. All time, no window. A book a member did not add to the Bookshelf is not known, so it is a floor | books published by members |
 
 Windows are Eastern days (`ORG_TIMEZONE`): "30 days" is today and the 29 Eastern days before it, from Eastern midnight, across a daylight saving change. **Adding a figure** is one entry in `LIVE_STATS` (a label for the editor's list, a caption, the data it `needs` (`stays` or `words`, or a new input in `loadLiveStats` with its repository method) and `compute`), plus a case in `tests/lib/landing-live-stats.test.ts`; the editor's list, the resolver and the block pick it up from the registry.
 

@@ -99,6 +99,8 @@ export interface BookRepository {
   countLive(memberId: string): Promise<number>;
   /** Live books per member (a member with none is left out). Paginated. */
   liveCountsByMember(): Promise<Map<string, number>>;
+  /** How many live books were published on or before `date` (a YYYY-MM-DD day): a count, never a title or an author. A book with a later date is not published yet. */
+  countPublishedOnOrBefore(date: string): Promise<number>;
   /** Live books matching the words, by author and publish date, newest published first. */
   search(query: BookSearch): Promise<BookHit[]>;
   /** Books (deleted ones included) whose cover is not a library image yet, by id. Paginated. */
@@ -177,6 +179,12 @@ export class SupabaseBookRepository implements BookRepository {
 
   async countLive(memberId: string) {
     const { count, error } = await this.db.from("member_books").select("id", { count: "exact", head: true }).eq("member_id", memberId).is("deleted_at", null);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  async countPublishedOnOrBefore(date: string) {
+    const { count, error } = await this.db.from("member_books").select("id", { count: "exact", head: true }).is("deleted_at", null).lte("published_date", date);
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
@@ -345,6 +353,10 @@ export class InMemoryBookRepository implements BookRepository {
 
   async countLive(memberId: string) {
     return this.live().filter((b) => b.member_id === memberId).length;
+  }
+
+  async countPublishedOnOrBefore(date: string) {
+    return this.live().filter((b) => b.published_date <= date).length;
   }
 
   async liveCountsByMember() {

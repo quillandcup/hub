@@ -1,5 +1,6 @@
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { AttendanceRepository, AttendanceStay } from "@/lib/data/attendance";
+import type { BookRepository } from "@/lib/data/books";
 import type { WordsLogged, WritingRepository } from "@/lib/data/writing";
 import { zonedLocalToUtc } from "./countdown";
 
@@ -20,6 +21,8 @@ export type LiveStatInputs = {
   stays: AttendanceStay[];
   /** Words logged as additions on the trailing 30 days (entry dates). */
   words: WordsLogged[];
+  /** Live books published so far, all time (a count; no titles or authors). */
+  books: number;
   /** The instant the windows end at, and the first instant of the trailing 7 and 30 Eastern days. */
   now: number;
   since7: number;
@@ -31,7 +34,7 @@ export type LiveStatDefinition = {
   label: string;
   /** The line under the figure when the editor leaves the label empty. Says what is counted and over what. */
   caption: string;
-  needs: "stays" | "words";
+  needs: "stays" | "words" | "books";
   /** The raw number, or null when there is nothing to show. */
   compute: (inputs: LiveStatInputs) => number | null;
 };
@@ -68,6 +71,13 @@ export const LIVE_STATS = {
     needs: "words",
     // Only additions (`delta`), never a project's running total; a correction below zero can't make the sum negative.
     compute: ({ words }) => Math.max(0, words.reduce((sum, w) => sum + (Number.isFinite(w.amount) ? w.amount : 0), 0)),
+  },
+  books_published: {
+    label: "Books published by members (all time)",
+    caption: "books published by members",
+    needs: "books",
+    // Books members put on the Bookshelf whose publish date has come; a book still to be released is not counted, and a book nobody added is not known.
+    compute: ({ books }) => books,
   },
 } as const satisfies Record<string, LiveStatDefinition>;
 
@@ -109,7 +119,7 @@ export function easternDayStart(now: number, daysBack: number): number {
 
 export type LiveStatValue = { value: string; caption: string };
 
-type LiveStatRepos = { attendance: Pick<AttendanceRepository, "staysJoinedBetween">; writing: Pick<WritingRepository, "wordsLoggedBetween"> };
+type LiveStatRepos = { attendance: Pick<AttendanceRepository, "staysJoinedBetween">; writing: Pick<WritingRepository, "wordsLoggedBetween">; books: Pick<BookRepository, "countPublishedOnOrBefore"> };
 
 /**
  * The figures asked for, each formatted, loaded with one pass over what they need (so three figures from attendance cost one
@@ -123,11 +133,12 @@ export async function loadLiveStats(repos: LiveStatRepos, keys: readonly string[
   const since7 = easternDayStart(now, 6);
   const since30 = easternDayStart(now, 29);
   const needs = new Set(wanted.map((k) => LIVE_STATS[k].needs));
-  const [stays, words] = await Promise.all([
+  const [stays, words, books] = await Promise.all([
     needs.has("stays") ? repos.attendance.staysJoinedBetween(new Date(since30).toISOString(), nowDate.toISOString()) : Promise.resolve([]),
     needs.has("words") ? repos.writing.wordsLoggedBetween(easternDay(now, 29), easternDay(now, 0)) : Promise.resolve([]),
+    needs.has("books") ? repos.books.countPublishedOnOrBefore(easternDay(now, 0)) : Promise.resolve(0),
   ]);
-  const inputs: LiveStatInputs = { stays, words, now, since7, since30 };
+  const inputs: LiveStatInputs = { stays, words, books, now, since7, since30 };
   const out: Record<string, LiveStatValue> = {};
   for (const key of wanted) {
     const value = LIVE_STATS[key].compute(inputs);
