@@ -24,7 +24,7 @@ export class LandingTemplateNameTakenError extends Error {
 }
 
 const UNIQUE_VIOLATION = "23505";
-const SUMMARY_COLUMNS = "id, name, description, current_version, created_by, updated_by, created_at, updated_at, deleted_at";
+const SUMMARY_COLUMNS = "id, name, description, current_version, last_save_kind, created_by, updated_by, created_at, updated_at, deleted_at";
 const VERSION_COLUMNS = "id, template_id, version, name, description, note, kind, restored_from_version, created_by, created_at";
 
 /**
@@ -181,7 +181,7 @@ export class InMemoryLandingTemplateRepository implements LandingTemplateReposit
       const template = this.find(input.templateId);
       if (!template) return null;
       if (this.nameTaken(name, template.id)) throw new LandingTemplateNameTakenError(name);
-      Object.assign(template, { name, description: input.description, data: asJson(structuredClone(input.data)), current_version: template.current_version + 1, updated_by: input.createdBy, updated_at: now });
+      Object.assign(template, { name, description: input.description, data: asJson(structuredClone(input.data)), current_version: template.current_version + 1, last_save_kind: "overwritten", updated_by: input.createdBy, updated_at: now });
       this.addVersion(template, "overwritten", note, null, input.createdBy, now);
       return { id: template.id, version: template.current_version };
     }
@@ -192,6 +192,7 @@ export class InMemoryLandingTemplateRepository implements LandingTemplateReposit
       description: input.description,
       data: asJson(structuredClone(input.data)),
       current_version: 1,
+      last_save_kind: "created",
       created_by: input.createdBy,
       updated_by: input.createdBy,
       created_at: now,
@@ -225,7 +226,7 @@ export class InMemoryLandingTemplateRepository implements LandingTemplateReposit
     const template = version ? this.find(version.template_id) : undefined;
     if (!version || !template) return null;
     const now = new Date().toISOString();
-    Object.assign(template, { description: version.description, data: asJson(structuredClone(version.data)), current_version: template.current_version + 1, updated_by: restoredBy, updated_at: now });
+    Object.assign(template, { description: version.description, data: asJson(structuredClone(version.data)), current_version: template.current_version + 1, last_save_kind: "restored", updated_by: restoredBy, updated_at: now });
     this.addVersion(template, "restored", null, version.version, restoredBy, now);
     return { id: template.id, version: template.current_version };
   }
