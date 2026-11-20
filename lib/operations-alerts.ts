@@ -14,6 +14,7 @@ export type OperationsAlert =
   | { type: "video_failed"; what: VideoFailure; route?: string; detail?: string; playback?: PlaybackFailure }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
+  | { type: "csp_health"; problems: string[] }
   | { type: "slack_blocks_refused"; where: "post" | "edit" | "upload" }
   | { type: "slack_unfurl_removal_failed"; reason: string }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
@@ -129,6 +130,15 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       title: "Slack kept a link preview an author removed",
       // No message id or address: this goes to Slack. The Vercel log line has the message id.
       text: `A member removed a link preview from a message they wrote in Hub Chat, and the update that takes it off the Slack copy failed (${alert.reason}). The Hub no longer shows the card; Slack readers may still see it. Look for "taking a preview off the Slack copy" in the Vercel logs (lib/chat/slack-unfurl-removal.ts).`,
+    };
+  }
+
+  if (alert.type === "csp_health") {
+    // Counts and browser names only (lib/csp-health.ts): this goes to Slack.
+    return {
+      bucket: "operations_alert:csp_health",
+      title: "Content-Security-Policy health check",
+      text: `The daily Content-Security-Policy check found a problem:\n${alert.problems.map((p) => `• ${p}`).join("\n")}\nWhat to check: "CSP alerts" in docs/CSP_ALERTS.md. If it started with a deploy, compare the policy sent by the proxy with the previous one.`,
     };
   }
 

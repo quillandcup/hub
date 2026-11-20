@@ -8400,6 +8400,22 @@ export type Database = {
         }
         Returns: string
       }
+      csp_rollout_activity: {
+        Args: {
+          p_history_since: string
+          p_since: string
+          p_until: string
+        }
+        Returns: {
+          history_page_views_with_ga: number
+          page_views: number
+          page_views_with_ga: number
+          requests: number
+          script_requests: number
+          user_agent: string
+          user_id: string
+        }[]
+      }
       current_acting_as_member_id: { Args: never; Returns: string }
       current_member_id: { Args: never; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }

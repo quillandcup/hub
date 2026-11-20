@@ -51,7 +51,7 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 | `RESEND_API_KEY` | https://resend.com/api-keys | `pnpm env:sync:github`, then the next push to main (or `pnpm config:push`) updates Supabase's SMTP password |
 | `RESEND_WEBHOOK_SECRET` | https://resend.com/webhooks (the webhook to `/api/webhooks/resend`; see `docs/EMAIL_TIMELINE.md`) | `pnpm env:sync --only=RESEND_WEBHOOK_SECRET` |
 | `SENTRY_AUTH_TOKEN` | https://quillandcup.sentry.io/settings/auth-tokens/ | `pnpm env:sync:github` |
-| `SENTRY_CONFIG_TOKEN` | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ (the `hub-iac` internal integration, Organization: Read & Write; a token from it) | `pnpm env:sync:github --only=SENTRY_CONFIG_TOKEN` |
+| `SENTRY_CONFIG_TOKEN` | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ (the `hub-iac` internal integration, Organization: Read & Write, plus Alerts: Read & Write and Project & Team: Read for the alert rules; a token from it) | `pnpm env:sync:github --only=SENTRY_CONFIG_TOKEN` |
 | `SENTRY_ALERTS_AUTH_TOKEN` (unused) | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ | No sync needed. Sentry's Slack integration requires a paid plan; app alerts use Billie Bot instead. It is a token of the same `hub-iac` integration that `SENTRY_CONFIG_TOKEN` now uses, so the line can be renamed to `SENTRY_CONFIG_TOKEN` locally instead of creating a new token. |
 | `CHECKLY_API_KEY` | https://app.checklyhq.com/settings/user/api-keys | `pnpm env:sync:github` |
 | `CHECKLY_HEARTBEAT_*` | Each heartbeat monitor's ping URL, under https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks | `pnpm env:sync` |

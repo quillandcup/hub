@@ -65,6 +65,19 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own table, apart from projects; the third, published, is derived from the Bookshelf and never stored. The rule to follow: staff and courses only propose, the member alone confirms, and a confirmed milestone is shown only where its own consent flag (profile, homepage, testimonial) is on. Row-level security enforces it, so a proposal is invisible to everyone but the member and admins. The hooks are `MilestoneRepository` (`lib/data/milestones.ts`), the wording and answer parsing in `lib/finishers.ts` (the second stamp's name is one string there), the set-based `propose_milestones_from_books()` behind `/admin/finishers`, and the member's card in Settings, Profile. Member removal deletes the rows. Detail: `docs/FINISHERS.md`.",
   },
   {
+    slug: "csp-rollout-alerts",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "Alerts for the strict Content-Security-Policy rollout",
+    summary: "Email alerts for new or returning CSP violations in Sentry, and a daily check that posts to the alerts channel when browsers ignore the nonces or the Google tag stops working.",
+    body: [
+      "A strict, nonce-based policy can fail quietly: a browser that ignores nonces never runs our scripts, and one without 'strict-dynamic' blocks the Google tag. Two layers now say so instead of waiting for someone to notice.",
+      "- **Sentry alert rules as code.** `config/sentry.yml` lists issue alerts (a new CSP issue, one back after being resolved, one flooding in), pushed by CI with the organization settings. Only rules named `Hub: ...` are managed, so removing one from the file removes it from Sentry.\n- **A daily health check** (`/api/internal/csp-health`, `lib/csp-health.ts`) reads one SQL aggregate of the access log and posts through `lib/operations-alerts.ts` only when a check trips: members who load pages but never run our scripts, members who lost a Google cookie they used to have (each compared with their own history), and browsers below the minimum for nonces. Thresholds live in `app.config.ts` (`cspHealth`); the post carries counts and browser names only.",
+      "What each alert means and what to check: `docs/CSP_ALERTS.md`.",
+    ].join("\n\n"),
+  },
+  {
     slug: "temporary-email-addresses",
     date: "2026-11-20",
     audience: "staff",

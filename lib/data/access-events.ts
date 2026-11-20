@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -20,6 +21,30 @@ export interface AccessEventRepository {
   placesBySession(userId: string, sessionIds: string[]): Promise<Map<string, SessionPlace>>;
   /** The time of each user's latest event, for every user with one (a user with none is absent). Needs the service role. */
   lastSeenByUser(): Promise<Map<string, string>>;
+  /**
+   * What the CSP health check (lib/csp-health.ts) reads: for each user and user agent seen in [since, until), the
+   * requests the proxy recorded, the beacon page views, and how many of those carried the `_ga` cookie, plus the
+   * user's page views with the cookie in [historySince, since). Aggregated in SQL (one row per user and user agent,
+   * not per request); paged because a busy week has more than 1000. Needs the service role.
+   */
+  activityForCspHealth(window: { since: Date; until: Date; historySince: Date }): Promise<AccessActivityRow[]>;
+}
+
+/** One user's activity from one user agent in a window (`AccessEventRepository.activityForCspHealth`). */
+export interface AccessActivityRow {
+  userId: string;
+  userAgent: string | null;
+  requests: number;
+  /**
+   * Of the requests, those only running scripts produce: calls to our own API (not the image routes) and a burst of
+   * three or more different pages in one second (the router prefetching links). A tab left open for days has them
+   * without a page view; a browser that never runs our scripts has none.
+   */
+  scriptRequests: number;
+  pageViews: number;
+  pageViewsWithGa: number;
+  /** The user's page views with the cookie in the history window; the same on each of their rows. */
+  historyPageViewsWithGa: number;
 }
 
 /** The coarse place a session came from, as recorded from the request's geolocation. */
@@ -63,6 +88,23 @@ export class SupabaseAccessEventRepository implements AccessEventRepository {
     if (error) throw new Error(error.message);
     return new Map((data ?? []).map((r) => [r.user_id, r.last_access_at]));
   }
+
+  async activityForCspHealth({ since, until, historySince }: { since: Date; until: Date; historySince: Date }) {
+    const rows = await fetchAllRows((from, to) =>
+      this.db
+        .rpc("csp_rollout_activity", { p_since: since.toISOString(), p_until: until.toISOString(), p_history_since: historySince.toISOString() })
+        .range(from, to),
+    );
+    return rows.map((r) => ({
+      userId: r.user_id,
+      userAgent: r.user_agent,
+      requests: Number(r.requests),
+      scriptRequests: Number(r.script_requests),
+      pageViews: Number(r.page_views),
+      pageViewsWithGa: Number(r.page_views_with_ga),
+      historyPageViewsWithGa: Number(r.history_page_views_with_ga),
+    }));
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -102,5 +144,45 @@ export class InMemoryAccessEventRepository implements AccessEventRepository {
       if (!seen || e.created_at > seen) latest.set(e.user_id, e.created_at);
     }
     return latest;
+  }
+
+  async activityForCspHealth({ since, until, historySince }: { since: Date; until: Date; historySince: Date }) {
+    const at = (e: { created_at: string }) => Date.parse(e.created_at);
+    const history = new Map<string, number>();
+    for (const e of this.data.accessEvents) {
+      if (e.is_page && e.ga_client_id && at(e) >= historySince.getTime() && at(e) < since.getTime()) history.set(e.user_id, (history.get(e.user_id) ?? 0) + 1);
+    }
+    const inWindow = this.data.accessEvents.filter((e) => at(e) >= since.getTime() && at(e) < until.getTime());
+    // The same rules as the SQL function: API calls (not the image routes), and three or more pages in one second.
+    const isApi = (path: string) => path.startsWith("/api/");
+    const isImage = (path: string) => path.startsWith("/api/media/") || path.startsWith("/api/chat/unfurl-image");
+    const pagesPerSecond = new Map<string, Set<string>>();
+    for (const e of inWindow) {
+      if (e.is_page || isApi(e.path)) continue;
+      const key = `${e.user_id}\u0000${Math.floor(at(e) / 1000)}`;
+      pagesPerSecond.set(key, (pagesPerSecond.get(key) ?? new Set()).add(e.path));
+    }
+    const rows = new Map<string, AccessActivityRow>();
+    for (const e of inWindow) {
+      const key = `${e.user_id}\u0000${e.user_agent ?? ""}`;
+      const row = rows.get(key) ?? {
+        userId: e.user_id,
+        userAgent: e.user_agent,
+        requests: 0,
+        scriptRequests: 0,
+        pageViews: 0,
+        pageViewsWithGa: 0,
+        historyPageViewsWithGa: history.get(e.user_id) ?? 0,
+      };
+      if (e.is_page) row.pageViews += 1;
+      else {
+        row.requests += 1;
+        const burst = (pagesPerSecond.get(`${e.user_id}\u0000${Math.floor(at(e) / 1000)}`)?.size ?? 0) >= 3;
+        if (isApi(e.path) ? !isImage(e.path) : burst) row.scriptRequests += 1;
+      }
+      if (e.is_page && e.ga_client_id) row.pageViewsWithGa += 1;
+      rows.set(key, row);
+    }
+    return [...rows.values()].sort((a, b) => a.userId.localeCompare(b.userId) || (a.userAgent ?? "").localeCompare(b.userAgent ?? ""));
   }
 }

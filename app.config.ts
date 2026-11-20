@@ -148,6 +148,28 @@ export const appConfig = {
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 
   /**
+   * The daily check that the nonce-based Content-Security-Policy is not breaking browsers
+   * (app/api/internal/csp-health, lib/csp-health.ts, docs/CSP_ALERTS.md). Measured 2026-11-20 on production over 30
+   * days: no member loaded pages without running our scripts (0 of 91 active), about 13 of 91 never get the Google
+   * cookie in any browser (steady), and every browser was far above the minimums below.
+   * - `windowHours`, `historyDays`: the window checked, and how far back a member's own `_ga` history reaches.
+   * - `strandedUsers`: alert when at least `minUsers` (or `minShare` of the active users, if more) loaded pages
+   *   but never ran our scripts.
+   * - `lostGoogleCookie`: members with at least `minPageViews` page views in the window and the cookie on none,
+   *   though it was on some earlier page view in the history. Alert at `minUsers` of them and `minShare` of the
+   *   members who had it before.
+   * - `minBrowserVersions`: what nonces plus 'strict-dynamic' need ("15.4" is major.minor). `ios` applies to every
+   *   browser on an iPhone or iPad, since they all run WebKit and the iOS version decides.
+   */
+  cspHealth: {
+    windowHours: 24,
+    historyDays: 30,
+    strandedUsers: { minUsers: 2, minShare: 0.05 },
+    lostGoogleCookie: { minPageViews: 3, minUsers: 4, minShare: 0.25 },
+    minBrowserVersions: { chrome: "52", chromium: "52", edge: "79", firefox: "52", safari: "15.4", ios: "15.4" },
+  },
+
+  /**
    * OpenSSF Scorecard (.github/workflows/scorecard.yml): the lowest published score (0 to 10) before the weekly
    * run fails and posts to the alerts channel. Set a little under the score at the time, so ordinary noise does not
    * alert, and raise it in a pull request when the score improves (a ratchet). Measured 2026-11-20: 4.8.
