@@ -1,5 +1,5 @@
 // Pure logic behind `pnpm mux:config:diff` / `:push` (scripts/mux-config.ts): turn the committed
-// config/mux-config.yml into the desired state, and compare it with what Mux reports. No network and no
+// config/mux.yml into the desired state, and compare it with what Mux reports. No network and no
 // secrets here, so it is unit-tested (tests/lib/mux-config.test.ts). See docs/MUX_CONFIG.md.
 
 export const MAX_ALLOWED_DOMAINS = 10;
@@ -35,24 +35,24 @@ export function parseMuxConfig(raw: unknown, appHost: string): MuxConfig {
 
   const path = webhook.path;
   if (typeof path !== "string" || !path.startsWith("/")) {
-    throw new Error("config/mux-config.yml: webhook.path must be a path starting with /");
+    throw new Error("config/mux.yml: webhook.path must be a path starting with /");
   }
   const domains = restriction.allowedDomains;
   if (!Array.isArray(domains) || domains.some((d) => typeof d !== "string" || !d.trim())) {
-    throw new Error("config/mux-config.yml: playbackRestriction.allowedDomains must be a list of domains");
+    throw new Error("config/mux.yml: playbackRestriction.allowedDomains must be a list of domains");
   }
   if (typeof restriction.allowNoReferrer !== "boolean") {
-    throw new Error("config/mux-config.yml: playbackRestriction.allowNoReferrer must be true or false");
+    throw new Error("config/mux.yml: playbackRestriction.allowNoReferrer must be true or false");
   }
   // {appHost} is the production host from app.config.ts, so no domain is written out twice.
   const allowedDomains = [
     ...new Set((domains as string[]).map((d) => d.trim().replace("{appHost}", appHost))),
   ];
   if (allowedDomains.length > MAX_ALLOWED_DOMAINS) {
-    throw new Error(`config/mux-config.yml: Mux allows at most ${MAX_ALLOWED_DOMAINS} allowed domains`);
+    throw new Error(`config/mux.yml: Mux allows at most ${MAX_ALLOWED_DOMAINS} allowed domains`);
   }
   if (allowedDomains.includes("*") && allowedDomains.length > 1) {
-    throw new Error('config/mux-config.yml: a "*" entry must be the only allowed domain');
+    throw new Error('config/mux.yml: a "*" entry must be the only allowed domain');
   }
   return { webhookPath: path, restriction: { allowedDomains, allowNoReferrer: restriction.allowNoReferrer } };
 }

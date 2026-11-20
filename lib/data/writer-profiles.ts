@@ -32,8 +32,8 @@ export interface PublicWriterProfile {
 
 /** What a visitor's address leads to: the page, a redirect from a handle the member gave up, or nothing. */
 export type PublicLookup =
-  | { kind: "page"; profile: PublicWriterProfile }
-  | { kind: "redirect"; handle: string }
+  | { kind: "page"; profile: PublicWriterProfile; ownerId: string }
+  | { kind: "redirect"; handle: string; ownerId: string }
   | { kind: "none" };
 
 /** Whether a member can have a handle: free, already theirs, in use, or held for someone who just gave it up. */
@@ -81,8 +81,8 @@ export interface WriterProfileRepository {
   previewOfMember(memberId: string): Promise<PublicWriterProfile | null>;
   /** How many pages are public (service role): the sitemap's size. */
   publicCount(): Promise<number>;
-  /** One sitemap page of public pages' handles, in a stable order (service role). `page` starts at 0. */
-  publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string }[]>;
+  /** One sitemap page of public pages' handles, in a stable order (service role). `page` starts at 0. `memberId` is the owner, for the server's flag check; it never goes into a sitemap. */
+  publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string; memberId: string }[]>;
 }
 
 const SETTINGS_COLUMNS = "handle, is_public, public_name_alias_id, show_photo, public_bio, published_at";
@@ -191,13 +191,13 @@ export class SupabaseWriterProfileRepository implements WriterProfileRepository 
     const row = await this.publicRow("handle", handle, true);
     if (row) {
       const profile = toPublic(row);
-      return profile ? { kind: "page", profile } : { kind: "none" };
+      return profile ? { kind: "page", profile, ownerId: row.member_id } : { kind: "none" };
     }
     const old = must(await this.db.from("writer_profile_handles").select("member_id").eq("handle", handle).maybeSingle());
     if (!old) return { kind: "none" };
     const current = await this.publicRow("member_id", old.member_id, true);
     const profile = current ? toPublic(current) : null;
-    return profile ? { kind: "redirect", handle: profile.handle } : { kind: "none" };
+    return profile && current ? { kind: "redirect", handle: profile.handle, ownerId: current.member_id } : { kind: "none" };
   }
 
   async previewOfMember(memberId: string): Promise<PublicWriterProfile | null> {
@@ -211,22 +211,22 @@ export class SupabaseWriterProfileRepository implements WriterProfileRepository 
     return count ?? 0;
   }
 
-  async publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string }[]> {
+  async publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string; memberId: string }[]> {
     const from = page * pageSize;
     const rows = must(
       await this.db
         .from("writer_profiles")
-        .select("handle, updated_at, deleted_at, member:members!writer_profiles_member_id_fkey(status)")
+        .select("handle, updated_at, deleted_at, member_id, member:members!writer_profiles_member_id_fkey(status)")
         .eq("is_public", true)
         .is("deleted_at", null)
         .order("id")
         .range(from, from + pageSize - 1)
         // The embedded member is one object, which the generated types read as a list: typed by hand.
-        .overrideTypes<{ handle: string; updated_at: string; deleted_at: string | null; member: { status: string } | null }[], { merge: false }>()
+        .overrideTypes<{ handle: string; updated_at: string; deleted_at: string | null; member_id: string; member: { status: string } | null }[], { merge: false }>()
     );
     return (rows ?? [])
       .filter((r) => r.member && isProfilePubliclyServable({ deletedAt: r.deleted_at, memberStatus: r.member.status }))
-      .map((r) => ({ handle: r.handle, updatedAt: r.updated_at }));
+      .map((r) => ({ handle: r.handle, updatedAt: r.updated_at, memberId: r.member_id }));
   }
 }
 
@@ -336,12 +336,12 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
     const row = this.live().find((p) => p.handle === handle && p.is_public);
     if (row) {
       const profile = toPublic(this.toPublicRow(row));
-      return profile ? { kind: "page", profile } : { kind: "none" };
+      return profile ? { kind: "page", profile, ownerId: row.member_id } : { kind: "none" };
     }
     const old = this.data.writerProfileHandles.find((h) => h.handle === handle);
     const current = old ? this.live().find((p) => p.member_id === old.member_id && p.is_public) : undefined;
     const profile = current ? toPublic(this.toPublicRow(current)) : null;
-    return profile ? { kind: "redirect", handle: profile.handle } : { kind: "none" };
+    return profile && current ? { kind: "redirect", handle: profile.handle, ownerId: current.member_id } : { kind: "none" };
   }
 
   async previewOfMember(memberId: string) {
@@ -359,6 +359,6 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
       .slice(page * pageSize, page * pageSize + pageSize)
       .filter((p) => toPublic(this.toPublicRow(p)))
-      .map((p) => ({ handle: p.handle, updatedAt: p.updated_at }));
+      .map((p) => ({ handle: p.handle, updatedAt: p.updated_at, memberId: p.member_id }));
   }
 }

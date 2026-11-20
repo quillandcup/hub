@@ -352,7 +352,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code.",
         staff: {
           how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, code scanning), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot. Settings live in the repo and are pushed by script, so a change to them is reviewed too.",
-          evidence: ["config/github-repo-config.yml", ".github/workflows/ci.yml", ".github/dependabot.yml"],
+          evidence: ["config/github.yml", ".github/workflows/ci.yml", ".github/dependabot.yml"],
           checked: "2026-11-18",
           open: [
             "An admin can still merge a failing pull request with \"Merge without waiting for requirements\". That is intended as a break-glass option and is not recorded anywhere else.",
@@ -373,7 +373,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "We watch for errors and for scheduled jobs that don't run, and the team is alerted. Error recordings mask what is typed on screen.",
         staff: {
           how: "Error and performance monitoring with masked recordings and server-side scrubbing (configured in the repo), heartbeat monitors on scheduled jobs, uptime and end-to-end checks, and operations alerts posted to a staff channel.",
-          evidence: ["docs/SENTRY_CONFIG.md", "config/sentry-config.yml", "lib/cron-heartbeats.ts", "checkly.config.ts", "docs/SLACK_OPERATIONS_ALERTS.md"],
+          evidence: ["docs/SENTRY_CONFIG.md", "config/sentry.yml", "lib/cron-heartbeats.ts", "checkly.config.ts", "docs/SLACK_OPERATIONS_ALERTS.md"],
           checked: "2026-11-17",
           open: [],
         },

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import WriterPageView from "@/components/writer/WriterPageView";
 import { getCurrentUser } from "@/lib/auth";
 import { createRepos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { memberHasWriterPages } from "@/lib/writer-pages-access";
 import { createClient } from "@/lib/supabase/server";
 
 /** Never indexed, and only for a signed-in member: it can show a page that is still off. */
@@ -22,8 +23,12 @@ export default async function WriterPagePreview() {
   const identity = await getEffectiveIdentity(user);
   if (!identity) redirect("/admin");
 
+  // Without the flag there is no page to preview: the same 404 as a page that does not exist.
+  const serviceRepos = getServiceRepos();
+  if (!(await memberHasWriterPages(serviceRepos, identity.memberId))) notFound();
+
   const [profile, settings] = await Promise.all([
-    getServiceRepos().writerProfiles.previewOfMember(identity.memberId),
+    serviceRepos.writerProfiles.previewOfMember(identity.memberId),
     createRepos(await createClient()).writerProfiles.ofMember(identity.memberId),
   ]);
 

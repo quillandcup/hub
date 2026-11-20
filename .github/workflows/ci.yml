@@ -695,7 +695,7 @@ jobs:
           git tag --force slack-manifest-pushed "$GITHUB_SHA"
           git push --force origin refs/tags/slack-manifest-pushed
 
-  # config/vercel-project-config.yml is the source of truth for the Vercel project settings that
+  # config/vercel.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
   # those rules, so change the file, not the dashboard. See docs/VERCEL_CONFIG.md.
   #
@@ -715,8 +715,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
             echo "No previous commit to compare against: pushing the config."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- config/vercel-project-config.yml scripts/vercel-config.ts; then
-            echo "config/vercel-project-config.yml and scripts/vercel-config.ts are unchanged: skipping the push."
+          elif git diff --quiet "$BEFORE" HEAD -- config/vercel.yml scripts/vercel-config.ts; then
+            echo "config/vercel.yml and scripts/vercel-config.ts are unchanged: skipping the push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -744,7 +744,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # config/sentry-config.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
+  # config/sentry.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
   # file, not the Settings page. See docs/SENTRY_CONFIG.md.
   #
   # Only runs when the push to main changed the file or the script; a push whose previous commit can't be
@@ -763,8 +763,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
             echo "No previous commit to compare against: pushing the config."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- config/sentry-config.yml scripts/sentry-config.ts; then
-            echo "config/sentry-config.yml and scripts/sentry-config.ts are unchanged: skipping the push."
+          elif git diff --quiet "$BEFORE" HEAD -- config/sentry.yml scripts/sentry-config.ts; then
+            echo "config/sentry.yml and scripts/sentry-config.ts are unchanged: skipping the push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"

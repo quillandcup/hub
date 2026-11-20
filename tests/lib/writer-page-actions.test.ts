@@ -25,16 +25,21 @@ vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
 
 import { claimWriterHandle, getWriterPageSettings, loadHandleStatus, saveWriterPageDetails, setWriterPageSwitch } from "@/app/(member)/settings/writerPageActions";
 
+import { WRITER_PAGES_NOT_AVAILABLE } from "@/lib/writer-pages-access";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+const AT = "2027-01-01T00:00:00Z";
+const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_pages", enabled_globally, created_at: AT, updated_at: AT });
 
 beforeEach(() => {
   state.user = { id: "00000000-0000-4000-a000-0000000000a1", email: "ada@example.test" };
   state.identity = { memberId: ADA, isSudo: false };
   state.dataset = new InMemoryDataset({
     members: [
-      { id: ADA, name: "Ada Legalname", displayName: "Ada Example", photoUrl: "https://photos.example.com/ada.png" },
-      { id: GRACE, name: "Grace Example" },
+      { id: ADA, name: "Ada Legalname", displayName: "Ada Example", photoUrl: "https://photos.example.com/ada.png", userId: "user-ada" },
+      { id: GRACE, name: "Grace Example", userId: "user-grace" },
     ],
+    featureFlags: [flagRow(true)],
   });
   state.repos = createInMemoryRepos(state.dataset);
   revalidated.length = 0;
@@ -50,6 +55,56 @@ describe("who may use it", () => {
     }
     expect(state.dataset.writerProfiles).toEqual([]);
     expect(state.dataset.activities).toEqual([]);
+  });
+});
+
+describe("the writer_pages flag", () => {
+  it("is decided for the member: on globally, by a segment, or by their own preview", async () => {
+    state.dataset.featureFlags = [flagRow(false)];
+    expect(await getWriterPageSettings()).toMatchObject({ available: false });
+
+    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_pages", enabled_at: AT }];
+    expect(await getWriterPageSettings()).toMatchObject({ available: true });
+
+    state.identity = { memberId: GRACE, isSudo: false };
+    expect(await getWriterPageSettings()).toMatchObject({ available: false });
+
+    state.dataset.segments = [{ id: "seg-1", name: "Early writers", created_at: AT, created_by: null }];
+    state.dataset.featureFlagSegments = [{ feature_key: "writer_pages", segment_id: "seg-1", created_at: AT }];
+    state.dataset.segmentMembers = [{ segment_id: "seg-1", member_id: GRACE, added_at: AT }];
+    expect(await getWriterPageSettings()).toMatchObject({ available: true });
+  });
+
+  it("refuses to claim an address, switch the page on or save its details while it is off, and changes nothing", async () => {
+    state.dataset.featureFlags = [flagRow(false)];
+    const closed = { error: WRITER_PAGES_NOT_AVAILABLE };
+
+    expect(await claimWriterHandle("ada-example")).toEqual(closed);
+    expect(await setWriterPageSwitch(true)).toEqual(closed);
+    expect(await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: false, bio: "Hi" })).toEqual(closed);
+    expect(state.dataset.writerProfiles).toEqual([]);
+    expect(state.dataset.activities).toEqual([]);
+  });
+
+  it("never deletes or changes a page when it goes off, and a page that is on can still be switched off", async () => {
+    await claimWriterHandle("ada-example");
+    await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: true, bio: "Kept as it was." });
+    await setWriterPageSwitch(true);
+    const before = structuredClone(await state.repos.writerProfiles.ofMember(ADA));
+
+    state.dataset.featureFlags = [flagRow(false)];
+
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toEqual(before);
+    expect(await setWriterPageSwitch(false)).toEqual({ success: true });
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ isPublic: false, bio: "Kept as it was.", showPhoto: true });
+  });
+
+  it("asks about the member whose page it is when an admin acts as them (sudo)", async () => {
+    state.dataset.featureFlags = [flagRow(false)];
+    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_pages", enabled_at: AT }];
+    state.identity = { memberId: GRACE, isSudo: true };
+
+    expect(await claimWriterHandle("grace-example")).toEqual({ error: WRITER_PAGES_NOT_AVAILABLE });
   });
 });
 

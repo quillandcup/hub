@@ -143,9 +143,16 @@ export const appConfig = {
 
   /**
    * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
-   * settings are read and written on (config/sentry-config.yml, scripts/sentry-config.ts). The org is in the EU region.
+   * settings are read and written on (config/sentry.yml, scripts/sentry-config.ts). The org is in the EU region.
    */
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
+
+  /**
+   * OpenSSF Scorecard (.github/workflows/scorecard.yml): the lowest published score (0 to 10) before the weekly
+   * run fails and posts to the alerts channel. Set a little under the score at the time, so ordinary noise does not
+   * alert, and raise it in a pull request when the score improves (a ratchet). Measured 2026-11-20: 4.8.
+   */
+  scorecard: { minScore: 4 },
 
   /**
    * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own

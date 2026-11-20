@@ -17,7 +17,7 @@ type Why = "action" | "old";
 
 /**
  * A tab left open across deploys still runs the old page. Vercel keeps answering it from its own deployment for the
- * Skew Protection maximum age (config/vercel-project-config.yml), counted from that deployment's creation; after that the
+ * Skew Protection maximum age (config/vercel.yml), counted from that deployment's creation; after that the
  * first button it presses calls a server action the live deployment doesn't know, Next refuses it
  * (UnrecognizedActionError) and the click does nothing.
  *
