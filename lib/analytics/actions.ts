@@ -80,9 +80,6 @@ export const OUTCOME_ACTIONS = [
   "landing_page_ai_added",
   "landing_page_ai_revised",
   "landing_template_saved",
-  "landing_template_restored",
-  "landing_template_renamed",
-  "landing_template_deleted",
   "landing_template_applied",
   // Chat
   "chat_message_sent",

@@ -250,6 +250,25 @@ describe("the header", () => {
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { rightSideBarVisible: true } });
   });
 
+  it("labels a template, links back to the templates, has no public link even when published, and can't be saved as a template", () => {
+    editor({ kind: "template", publicPath: "", status: "published", publishedJson: JSON.stringify(data) });
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to templates" })).toHaveAttribute("href", "/admin/pages/templates");
+    expect(screen.queryByRole("link", { name: "View live" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.queryByRole("heading", { name: "Save as a template" })).toBeNull();
+  });
+
+  it("publishes a template whose checks only warn: it is never blocked and never says it goes live", async () => {
+    mocks.publish.mockResolvedValue({ publishedAt: "2027-01-01T00:00:00Z", issues: [{ severity: "warning", block: "Button", message: "The button has no link." }] });
+    editor({ kind: "template", publicPath: "" });
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    const dialog = screen.getByRole("dialog", { name: "Publish this template" });
+    expect(dialog).toHaveTextContent("never on the public site");
+    expect(within(dialog).getByRole("button", { name: /Publish/ })).not.toBeDisabled();
+    expect(dialog).not.toHaveTextContent("goes live");
+  });
+
   it("shows the page's state, and the live link only once published", () => {
     const { unmount } = editor();
     expect(screen.getByText("Draft")).toBeInTheDocument();

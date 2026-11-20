@@ -71,7 +71,7 @@ export async function createLandingPage(input: { title: string; slug?: string; s
   return withAction("landing_page_created", async () => {
     if (input?.template) {
       try {
-        const draft = await loadTemplateDraft(createRepos(auth.supabase).landingTemplates, input.template);
+        const draft = await loadTemplateDraft(createRepos(auth.supabase).landingPages, input.template);
         if (!draft.ok) return { error: draft.error };
         return createImpl(auth, { title: input.title, slug: input.slug, data: draft.data });
       } catch (error) {
@@ -200,21 +200,27 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown): Promise<P
   if (tooBig(data)) return { error: "This page is too large to publish." };
   const repos = createRepos(auth.supabase);
   const clean = sanitizeLandingData(stampLandingVersion(data));
-  const issues = checkLandingPage(clean);
-  const errors = issues.filter((i) => i.severity === "error");
-  if (errors.length > 0) return { error: "Fix these before publishing.", issues };
   try {
+    const current = await repos.landingPages.byId(pageId);
+    if (!current) return { error: NOT_FOUND };
+    // A template legitimately has placeholders and empty links: its checks are warnings and never block. It is not on the public site either.
+    const isTemplate = current.kind === "template";
+    const found = checkLandingPage(clean);
+    const issues: A11yIssue[] = isTemplate ? found.map((i) => ({ ...i, severity: "warning" as const })) : found;
+    const errors = issues.filter((i) => i.severity === "error");
+    if (errors.length > 0) return { error: "Fix these before publishing.", issues };
     // The draft the editor is showing is what goes live: save it, then publish it, so nothing typed a moment ago is left out.
     if (!(await repos.landingPages.saveDraft(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
     const page = await repos.landingPages.publish(pageId);
     if (!page) return { error: NOT_FOUND };
     // A signed-out visitor is served only assets marked public (docs/MEDIA_LIBRARY.md), so the ones this page uses are marked now.
-    const assetIds = [...new Set([...collectAssetIds(clean), ...(page.social_image_asset_id ? [page.social_image_asset_id] : [])])];
+    // A template's pictures stay private: they become public only when a page made from it is published.
+    const assetIds = isTemplate ? [] : [...new Set([...collectAssetIds(clean), ...(page.social_image_asset_id ? [page.social_image_asset_id] : [])])];
     for (const id of assetIds) {
       const asset = await repos.media.byId(id);
       if (asset && !asset.deleted_at && !asset.is_public) await repos.media.edit(id, { is_public: true });
     }
-    refresh(page.slug);
+    refresh(isTemplate ? undefined : page.slug);
     return { issues, publishedAt: page.published_at ?? undefined };
   } catch (error) {
     return failed("publish", error, "Couldn't publish the page.");

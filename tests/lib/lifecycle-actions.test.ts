@@ -25,14 +25,14 @@ describe("lifecycle actions", () => {
     expect(lifecycleLabel("reset")).toBe("Reset to published");
     expect(lifecycleLabel("viewLive")).toBe("View live");
     expect(lifecycleLabel("saveAsTemplate")).toBe("Save as template");
-    expect(lifecycleLabel("overwrite", "template")).toBe("Overwrite template");
+    expect(lifecycleLabel("replaceTemplate", "template")).toBe("Replace template draft");
   });
 
   describe("the confirmations follow .claude/rules/confirmations.md", () => {
     const asking = ACTIONS.filter((a) => lifecycleConfirm(a, { noun: "page", title: "Spring" }));
 
     it("ask before the actions that destroy, discard, replace or take something down, and only those", () => {
-      expect(asking).toEqual(["unpublish", "delete", "reset", "restore", "overwrite"]);
+      expect(asking).toEqual(["unpublish", "delete", "reset", "restore", "replaceTemplate"]);
     });
 
     it("ask with a question title, a body that says what happens, and a confirm button that names the action", () => {
@@ -54,10 +54,11 @@ describe("lifecycle actions", () => {
       expect(lifecycleConfirm("delete", { noun: "page" })!.body).toBe("This page will be deleted.");
     });
 
-    it("says in an overwrite that the old version is kept, and lets a place word a bring-back for what it restores", () => {
-      const overwrite = lifecycleConfirm("overwrite", { noun: "template", title: "Spring" })!;
-      expect(overwrite.title).toBe("Overwrite this template?");
-      expect(overwrite.body).toContain("keeps its current version in its history");
+    it("says when replacing a template's draft that the old draft is kept, and lets a place word a bring-back for what it restores", () => {
+      const replace = lifecycleConfirm("replaceTemplate", { noun: "template", title: "Spring" })!;
+      expect(replace.title).toBe("Replace the template's draft?");
+      expect(replace.body).toContain("kept in its History");
+      expect(lifecycleConfirm("replaceTemplate", { noun: "template", detail: "Kept." })!.body).toBe("Kept.");
       expect(lifecycleConfirm("restore", { noun: "template", detail: "It becomes the newest version." })!.body).toBe("It becomes the newest version.");
     });
 

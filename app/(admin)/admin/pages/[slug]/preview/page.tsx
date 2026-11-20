@@ -20,7 +20,7 @@ export default async function PreviewLandingPage({ params }: { params: Promise<{
   return (
     <>
       <div role="note" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
-        Preview of the draft{page.status === "published" ? " (the live page may differ)" : ""}.{" "}
+        {page.kind === "template" ? "This is a template: it is never on the public site. " : ""}Preview of the draft{page.status === "published" ? (page.kind === "template" ? " (the published template may differ)" : " (the live page may differ)") : ""}.{" "}
         <Link href={`/admin/pages/${page.slug}`} className="underline">
           Back to the editor
         </Link>

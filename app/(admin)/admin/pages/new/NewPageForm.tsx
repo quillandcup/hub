@@ -9,7 +9,7 @@ import { createLandingPage, createLandingPageWithAi } from "../actions";
 
 const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 
-export type TemplateChoice = { id: string; name: string; description: string };
+export type TemplateChoice = { id: string; name: string };
 
 export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailable: boolean; templates?: TemplateChoice[] }) {
   const router = useRouter();
@@ -89,7 +89,7 @@ export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailab
             ))}
           </optgroup>
           {templates.length > 0 && (
-            <optgroup label="Saved templates">
+            <optgroup label="Templates">
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -102,8 +102,8 @@ export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailab
           {starter && isStarterKey(starter)
             ? `${LANDING_STARTERS[starter].description} It is saved as a draft for you to edit; nothing is published.`
             : template
-              ? `${template.description ? `${template.description} ` : ""}It is saved as a draft for you to edit; nothing is published.`
-              : "Or begin with a ready-made draft or one of your saved templates."}
+              ? "A template you published. Its published copy is saved as a draft for you to edit; nothing is published."
+              : "Or begin with a ready-made draft or one of your published templates."}
         </span>
       </label>
       <label className="block text-sm font-medium">
