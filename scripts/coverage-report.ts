@@ -34,6 +34,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseAddedLines } from "./added-lines";
 
 export const MIN_PATCH_SCORE = 80;
 /**
@@ -194,26 +195,6 @@ export function flags(m: Metrics): string[] {
   if (present.every((k) => m[k].covered === 0)) return ["🚫 untested"];
   const zero = present.filter((k) => m[k].covered === 0);
   return zero.length ? [`⚠️ no ${zero.join("/")} covered`] : [];
-}
-
-/** Added line numbers per file from `git diff -U0` output. */
-export function parseAddedLines(diff: string): Map<string, Set<number>> {
-  const added = new Map<string, Set<number>>();
-  let file: string | null = null;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("+++ ")) {
-      file = line.startsWith("+++ b/") ? line.slice(6) : null;
-    } else if (file && line.startsWith("@@")) {
-      const m = /\+(\d+)(?:,(\d+))?/.exec(line);
-      if (!m) continue;
-      const start = Number(m[1]);
-      const count = m[2] === undefined ? 1 : Number(m[2]);
-      const lines = added.get(file) ?? new Set<number>();
-      for (let i = 0; i < count; i++) lines.add(start + i);
-      added.set(file, lines);
-    }
-  }
-  return added;
 }
 
 export type PatchResult = { metrics: Metrics; uncovered: Map<string, number[]> };

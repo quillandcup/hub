@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+# code-quality report output (pnpm knip:report, dup:report, lint:quality)
+/reports
 
 # next.js
 /.next/
