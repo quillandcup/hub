@@ -188,3 +188,9 @@ REVOKE ALL ON FUNCTION public.set_writer_handle(text, text, integer, timestamptz
 GRANT EXECUTE ON FUNCTION public.set_writer_handle(text, text, integer, timestamptz) TO service_role;
 COMMENT ON FUNCTION public.set_writer_handle(text, text, integer, timestamptz) IS
   'Claims or changes a member''s writer page handle (created, changed, unchanged, taken, reserved), keeping the old handle as a redirect reserved for them. Service role only.';
+
+-- A removal request (supabase/tests/database/member_data_handling.test.sql keeps this list complete): the page is the member's own
+-- public work in their own words, and an old address means nothing without it, so both go with them.
+INSERT INTO public.member_data_handling (table_name, column_name, action, why) VALUES
+  ('writer_profiles', 'member_id', 'delete', 'their own public page, with a bio in their own words'),
+  ('writer_profile_handles', 'member_id', 'delete', 'the old addresses of their page, which goes with it');

@@ -1,4 +1,4 @@
--- pgTAP tests for writers' public pages (20270826000000_writer_profiles.sql): the handle rules and their history, who can
+-- pgTAP tests for writers' public pages (20270828000000_writer_profiles.sql): the handle rules and their history, who can
 -- read and change what, the pen names that may be shown, and the audit entries.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
