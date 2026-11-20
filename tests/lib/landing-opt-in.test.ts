@@ -9,6 +9,8 @@ const state = {
   allow: true,
   hits: [] as string[],
   page: null as { data: unknown } | null,
+  /** When set, the relay reads pages from this real repository instead of the canned page. */
+  real: null as { published: (slug: string) => Promise<{ data: unknown } | null> } | null,
 };
 vi.mock("@/lib/data/server", () => ({
   getServiceRepos: () => ({
@@ -18,7 +20,7 @@ vi.mock("@/lib/data/server", () => ({
         return state.allow;
       },
     },
-    landingPages: { published: async () => state.page },
+    landingPages: { published: async (slug: string) => (state.real ? state.real.published(slug) : state.page) },
   }),
 }));
 
@@ -44,6 +46,7 @@ beforeEach(() => {
   state.allow = true;
   state.hits = [];
   state.page = page();
+  state.real = null;
   submit.mockReset().mockResolvedValue({ ok: true });
   optInDestination.current = { submit };
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -97,6 +100,22 @@ describe("POST /api/landing/opt-in", () => {
     state.page = null;
     expect((await post(valid)).status).toBe(404);
     expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("refuses a form on a template, even a published one: a template is never public", async () => {
+    const { InMemoryDataset } = await import("@/lib/data/in-memory");
+    const { InMemoryLandingPageRepository } = await import("@/lib/data/landing-pages");
+    const repo = new InMemoryLandingPageRepository(new InMemoryDataset());
+    state.real = repo;
+    const template = await repo.create({ title: "Kit", slug: "spring", data: page().data as never, createdBy: null, kind: "template" });
+    await repo.publish(template.id);
+    expect((await post(valid)).status).toBe(404);
+    expect(submit).not.toHaveBeenCalled();
+    // The same document on a page is served.
+    await repo.remove(template.id, null);
+    const real = await repo.create({ title: "Page", slug: "spring", data: page().data as never, createdBy: null });
+    await repo.publish(real.id);
+    expect((await post(valid)).status).toBe(200);
   });
 
   it("tells the visitor to check their details when the destination refuses them", async () => {

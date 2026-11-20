@@ -21,6 +21,7 @@ const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
   id: "lpg_AAAAAAAAAAA1",
   slug: "spring",
   title: "Spring sprint",
+  kind: "page",
   status: "draft",
   seo_title: null,
   seo_description: null,

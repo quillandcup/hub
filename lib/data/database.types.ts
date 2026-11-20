@@ -4039,6 +4039,7 @@ export type Database = {
           id: string
           import_key: string | null
           imported_at: string | null
+          kind: string
           published_at: string | null
           published_data: Json | null
           restored_at: string | null
@@ -4062,6 +4063,7 @@ export type Database = {
           id?: string
           import_key?: string | null
           imported_at?: string | null
+          kind?: string
           published_at?: string | null
           published_data?: Json | null
           restored_at?: string | null
@@ -4085,6 +4087,7 @@ export type Database = {
           id?: string
           import_key?: string | null
           imported_at?: string | null
+          kind?: string
           published_at?: string | null
           published_data?: Json | null
           restored_at?: string | null
