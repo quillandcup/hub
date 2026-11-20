@@ -87,6 +87,10 @@ See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documen
 🚧 Member profile — writing streak, attendance calendar, badges
 🚧 Staff analytics — session insights, at-risk member identification
 
+## Contributing and security
+
+How to report a bug, what we accept and how decisions are made: [CONTRIBUTING](.github/CONTRIBUTING.md), [GOVERNANCE](.github/GOVERNANCE.md), [CODE_OF_CONDUCT](.github/CODE_OF_CONDUCT.md). To report a vulnerability privately, see [SECURITY](.github/SECURITY.md). How we measure up against the OpenSSF best-practices checklist: [docs/OPENSSF_BEST_PRACTICES.md](docs/OPENSSF_BEST_PRACTICES.md).
+
 ## License
 
 Proprietary. Copyright (c) 2026 Quill & Cup LLC. All rights reserved. The source is public for transparency only and no license to use, copy, modify or distribute it is granted; see [LICENSE](LICENSE). Third-party packages keep their own licenses.
