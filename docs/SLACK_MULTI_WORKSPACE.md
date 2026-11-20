@@ -51,5 +51,5 @@ Four PRs, merged in order.
 - **Large tables.** Check production sizes read-only first (`.claude/rules/verify-against-prod.md`); `slack_messages` is big, so backfills are batched to fit the 8s statement timeout.
 - **One-time step:** installing Billie Bot into the second workspace is done by a person in Slack; the code only provides the flow.
 - **Slack content privacy** (service role only text, column grants on `raw_payload`) applies to every new column and table.
-- Update `slack-app-manifest.yml` only through its own process (`docs/SLACK_MANIFEST.md`).
+- Update `config/slack-app-manifest.yml` only through its own process (`docs/SLACK_MANIFEST.md`).
 - An earlier attempt at PR 1 exists on the branch `slack-multi-workspace-1` (closed PR #1294, never merged). It was not reviewed or verified; treat it as a starting point at most.

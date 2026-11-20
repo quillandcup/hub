@@ -36,7 +36,7 @@ afterEach(() => {
 
 describe("the bot scopes", () => {
   it("are exactly the manifest's, so an install asks for what the app is configured with", () => {
-    const manifest = parseYaml(fs.readFileSync(path.resolve(__dirname, "../../slack-app-manifest.yml"), "utf8")) as { oauth_config: { scopes: { bot: string[] } } };
+    const manifest = parseYaml(fs.readFileSync(path.resolve(__dirname, "../../config/slack-app-manifest.yml"), "utf8")) as { oauth_config: { scopes: { bot: string[] } } };
     expect([...SLACK_BOT_SCOPES].sort()).toEqual([...manifest.oauth_config.scopes.bot].sort());
   });
 });

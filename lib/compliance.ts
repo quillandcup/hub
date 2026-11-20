@@ -190,7 +190,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Error recordings mask text and form fields, our monitoring provider scrubs sensitive data on its servers and does not store IP addresses, and its data is held in the EU. These settings are kept in the repository so a change is reviewed.",
-        evidence: ["sentry-config.yml", "docs/SENTRY_CONFIG.md", "instrumentation-client.ts"],
+        evidence: ["config/sentry-config.yml", "docs/SENTRY_CONFIG.md", "instrumentation-client.ts"],
         checked: "2026-11-17",
         open: [],
       },

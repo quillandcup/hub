@@ -1,5 +1,5 @@
 #!/usr/bin/env npx tsx
-// Diffs or pushes slack-app-manifest.yml against the live Slack app (Billie Bot), so the
+// Diffs or pushes config/slack-app-manifest.yml against the live Slack app (Billie Bot), so the
 // manifest in the repo is the source of truth instead of a file someone remembers to paste
 // into api.slack.com. CI runs `push` after every production deploy (ci.yml,
 // push-slack-manifest job); `pnpm slack:manifest:diff` is the read-only preview.
@@ -24,7 +24,7 @@ import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { outboundFetch } from "@/lib/http/outbound";
 
-const MANIFEST_FILE = "slack-app-manifest.yml";
+const MANIFEST_FILE = "config/slack-app-manifest.yml";
 const REFRESH_TOKEN_SECRET = "SLACK_CONFIG_REFRESH_TOKEN";
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };

@@ -348,7 +348,7 @@ describe("the direct message scopes", () => {
   });
 
   it("are in the app manifest's user scopes, with the DM and group DM messages and the reactions as the user events", async () => {
-    const manifest = (await import("node:fs")).readFileSync("slack-app-manifest.yml", "utf8");
+    const manifest = (await import("node:fs")).readFileSync("config/slack-app-manifest.yml", "utf8");
     const user = manifest.slice(manifest.indexOf("    user:\n"), manifest.indexOf("  # Where Slack sends a member back"));
     for (const scope of SLACK_USER_SCOPES) expect(user).toContain(`- ${scope}\n`);
     // The only user event is the DM message, which the webhook keeps only for members the DM bridge covers.

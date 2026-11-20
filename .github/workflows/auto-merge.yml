@@ -2,7 +2,7 @@ name: Auto-merge
 
 # Turns on GitHub's native auto-merge for every new pull request, so it merges
 # by itself once the required checks on main (Test (unit), Test (db) & build,
-# Coverage report; see github-repo-config.yml) pass. It never merges anything
+# Coverage report; see config/github-repo-config.yml) pass. It never merges anything
 # early: with a required check failing or pending, the PR just waits.
 #
 # Runs when the PR is opened, reopened or marked ready for review, and on every push

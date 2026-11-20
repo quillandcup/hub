@@ -2325,7 +2325,7 @@ Database migrations deployed to production:
 
 1. Go to https://api.slack.com/apps
 2. Create New App → From an app manifest
-3. Upload `slack-app-manifest.yml`
+3. Upload `config/slack-app-manifest.yml`
 4. Replace `REPLACE_WITH_YOUR_DOMAIN` with Vercel domain (if deploying Phase 2 webhooks later)
 5. Install App to Workspace
 6. Copy Bot User OAuth Token (`xoxb-...`)
@@ -2454,7 +2454,7 @@ Verifying types across tasks:
 - Task 28: Add Slack analytics page
 
 **Phase 2 (Webhooks) - Future:**
-- Update slack-app-manifest.yml (enable event subscriptions)
+- Update config/slack-app-manifest.yml (enable event subscriptions)
 - Build `/api/webhooks/slack` endpoint
 - Deploy and verify webhook signature
 - Test real-time message/reaction events

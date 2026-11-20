@@ -20,7 +20,7 @@ const page = (css: string, body: string) =>
 
 /** The bot's name and avatar as the Slack app manifest declares them (the frames in frames.tsx do the same). */
 export function botIdentity(): { name: string; logo: string } {
-  const manifest = readFileSync("slack-app-manifest.yml", "utf8");
+  const manifest = readFileSync("config/slack-app-manifest.yml", "utf8");
   const name = (manifest.match(/^\s*display_name:\s*(.+)$/m)?.[1] ?? "Bot").trim();
   const color = manifest.match(/^\s*background_color:\s*"?(#[0-9a-fA-F]{6})"?/m)?.[1] ?? "#4A154B";
   const logo = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" rx="10" fill="${color}"/><text x="36" y="50" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="700" text-anchor="middle" fill="#fff">${name.slice(0, 1)}</text></svg>`)}`;

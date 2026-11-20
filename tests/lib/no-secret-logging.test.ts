@@ -53,7 +53,7 @@ describe("Sentry events carry no credential from an address", () => {
   });
 
   it("is wired into every Sentry.init", () => {
-    for (const file of ["sentry.server.config.ts", "sentry.edge.config.ts", "instrumentation-client.ts"]) {
+    for (const file of ["config/sentry.server.config.ts", "config/sentry.edge.config.ts", "instrumentation-client.ts"]) {
       const source = fs.readFileSync(path.resolve(__dirname, "../..", file), "utf8");
       expect(source, file).toMatch(/beforeSend: scrubEvent/);
       expect(source, file).toMatch(/beforeSendTransaction: scrubEvent/);

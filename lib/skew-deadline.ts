@@ -1,7 +1,7 @@
 /**
  * When a tab's deployment stops being served to it. Vercel keeps answering a tab's requests from the deployment
  * it was opened on for the project's Skew Protection maximum age, counted from that deployment's creation
- * (vercel-project-config.yml). After that the tab's requests land on the live deployment, and a server action it
+ * (config/vercel-project-config.yml). After that the tab's requests land on the live deployment, and a server action it
  * sends is refused. The build records its own time and the maximum age (next.config.ts), so the page can say so
  * a little before.
  */

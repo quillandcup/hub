@@ -11,7 +11,7 @@ on:
     branches: [main]
     paths:
       - .github/**
-      - github-repo-config.yml
+      - config/github-repo-config.yml
   workflow_dispatch:
 
 permissions: read-all

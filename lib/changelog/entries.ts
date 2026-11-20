@@ -2214,7 +2214,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "The Slack app configuration is now code, pushed after each production deploy when it changes.",
     body: [
-      "slack-app-manifest.yml is the source of truth and scripts/slack-manifest.ts pushes it after the production deploy, and only when it has changed.",
+      "config/slack-app-manifest.yml is the source of truth and scripts/slack-manifest.ts pushes it after the production deploy, and only when it has changed.",
     ].join("\n\n"),
   },
   {

@@ -1,8 +1,8 @@
 # Slack app manifest as code
 
-`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot): its name and description, bot scopes, the `/hub` slash command, event subscriptions and request URLs.
+`config/slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot): its name and description, bot scopes, the `/hub` slash command, event subscriptions and request URLs.
 
-On a run on main where `slack-app-manifest.yml` or `scripts/slack-manifest.ts` differs from the last commit pushed (the `slack-manifest-pushed` tag, moved after each successful push; a busy main cancels the run for the merge that changed the manifest, so a later run picks the change up), after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). Runs where neither file differs from the last push skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
+On a run on main where `config/slack-app-manifest.yml` or `scripts/slack-manifest.ts` differs from the last commit pushed (the `slack-manifest-pushed` tag, moved after each successful push; a busy main cancels the run for the merge that changed the manifest, so a later run picks the change up), after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). Runs where neither file differs from the last push skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
 
 **The push replaces everything.** Anything set in the Slack dashboard but absent from the manifest is removed on the next manifest push. Change the manifest, not the dashboard.
 
@@ -37,7 +37,7 @@ The job fails until all three exist.
 
 ## The #hub-alerts webhook
 
-Billie Bot also holds the incoming webhook the weekly dependency audit (`.github/workflows/audit.yml`) uses to post one line to #hub-alerts. It is the `incoming-webhook` bot scope in `slack-app-manifest.yml`; the workflow does a plain `curl` POST to the URL in the `SLACK_ALERTS_WEBHOOK_URL` GitHub secret, with no bot token involved. A webhook URL can only post to the one channel picked when it was added. (It used to be a second Slack app; the free plan allows only 10 installed apps, so it moved here.)
+Billie Bot also holds the incoming webhook the weekly dependency audit (`.github/workflows/audit.yml`) uses to post one line to #hub-alerts. It is the `incoming-webhook` bot scope in `config/slack-app-manifest.yml`; the workflow does a plain `curl` POST to the URL in the `SLACK_ALERTS_WEBHOOK_URL` GitHub secret, with no bot token involved. A webhook URL can only post to the one channel picked when it was added. (It used to be a second Slack app; the free plan allows only 10 installed apps, so it moved here.)
 
 The webhook is created in the Slack dashboard, not by the manifest, so a manifest push never creates one. After the first push with the `incoming-webhook` scope (a scope change):
 

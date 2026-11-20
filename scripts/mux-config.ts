@@ -1,5 +1,5 @@
 #!/usr/bin/env npx tsx
-// Diffs or pushes mux-config.yml against the live Mux environment, so the webhook and the
+// Diffs or pushes config/mux-config.yml against the live Mux environment, so the webhook and the
 // playback restriction are reviewed in git instead of clicked in the dashboard. Run by hand
 // (never from CI); `pnpm mux:config:diff` is read-only. See docs/MUX_CONFIG.md.
 //
@@ -79,7 +79,7 @@ async function listAll<T>(auth: { id: string; secret: string }, path: string): P
   }
 }
 
-const config = parseMuxConfig(parseYaml(readFileSync("mux-config.yml", "utf8")), new URL(appConfig.appUrl).host);
+const config = parseMuxConfig(parseYaml(readFileSync("config/mux-config.yml", "utf8")), new URL(appConfig.appUrl).host);
 let changes = 0;
 const note = (line: string) => console.log(line);
 
@@ -178,7 +178,7 @@ async function restrictions() {
 }
 
 async function main() {
-  note(`${push ? "Pushing" : "Diffing"} mux-config.yml against ${dev ? "your dev" : "the production"} Mux environment`);
+  note(`${push ? "Pushing" : "Diffing"} config/mux-config.yml against ${dev ? "your dev" : "the production"} Mux environment`);
   // Restriction first: with --dev the webhook part stops without a tunnel, the restriction does not need one.
   await restrictions();
   await webhooks();

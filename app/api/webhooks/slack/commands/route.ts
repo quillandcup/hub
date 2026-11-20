@@ -10,7 +10,7 @@ export const maxDuration = 10;
  * Slack slash commands. Currently just `/hub`: replies ephemerally (only the person who ran it
  * sees it) with their one-time "Open Hedgie Hub" sign-in button -- see lib/slack-sign-in.ts.
  * Slash command payloads are application/x-www-form-urlencoded, so this is its own endpoint
- * (like interactions/). Requires the command in slack-app-manifest.yml to point here.
+ * (like interactions/). Requires the command in config/slack-app-manifest.yml to point here.
  */
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();

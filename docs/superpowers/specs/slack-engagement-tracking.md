@@ -872,7 +872,7 @@ it('should handle message event and create Bronze record', async () => {
 1. **Create Slack App**
    - Visit https://api.slack.com/apps
    - Create New App → From an app manifest
-   - Upload `slack-app-manifest.yml` from repo
+   - Upload `config/slack-app-manifest.yml` from repo
    - Replace `REPLACE_WITH_YOUR_DOMAIN` with Vercel domain
 
 2. **Install to Workspace**

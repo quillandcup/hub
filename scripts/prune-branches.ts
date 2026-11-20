@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 // Deletes branches whose pull request has merged. GitHub deletes the remote branch itself
-// (`delete_branch_on_merge` in github-repo-config.yml) but nothing deletes local ones, and
+// (`delete_branch_on_merge` in config/github-repo-config.yml) but nothing deletes local ones, and
 // branches that merged before that setting existed are still on the remote.
 //
 //   tsx scripts/prune-branches.ts                 list local branches that can go (read-only)

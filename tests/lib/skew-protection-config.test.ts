@@ -25,7 +25,7 @@ describe("skewMaxAgeSeconds", () => {
     expect(skewMaxAgeSeconds({ skewProtection: { maxAgeSeconds: 30 * DAY } })).toBe(30 * DAY);
   });
 
-  it("is valid in the committed vercel-project-config.yml, which next.config.ts and the Vercel push both read", () => {
+  it("is valid in the committed config/vercel-project-config.yml, which next.config.ts and the Vercel push both read", () => {
     const seconds = readSkewMaxAgeSeconds();
     expect(seconds).toBeGreaterThan(WARN_BEFORE_MS / 1000);
   });
