@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 import { aiConfigured } from "@/lib/landing/ai";
+import { createClient } from "@/lib/supabase/server";
 import NewPageForm from "./NewPageForm";
 
 export const metadata: Metadata = { title: "New page · Pages" };
@@ -10,10 +12,11 @@ export const maxDuration = 120;
 
 export default async function NewLandingPage() {
   await requireAdminPage();
+  const templates = await createRepos(await createClient()).landingTemplates.list();
   return (
     <div className="container mx-auto max-w-xl px-6 py-8">
       <h1 className="mb-6 text-3xl font-bold">New page</h1>
-      <NewPageForm aiAvailable={aiConfigured()} />
+      <NewPageForm aiAvailable={aiConfigured()} templates={templates.map((t) => ({ id: t.id, name: t.name, description: t.description }))} />
     </div>
   );
 }

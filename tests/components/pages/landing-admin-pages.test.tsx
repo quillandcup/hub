@@ -21,6 +21,11 @@ vi.mock("@/app/(admin)/admin/pages/PagesTable", () => ({
     </div>
   ),
 }));
+vi.mock("@/app/(admin)/admin/pages/templates/TemplatesPanel", () => ({
+  default: ({ templates }: { templates: { name: string; versions: number; updatedBy: string }[] }) => (
+    <div data-testid="templates">{templates.map((t) => `${t.name}:${t.versions}:${t.updatedBy}`).join(",")}</div>
+  ),
+}));
 vi.mock("@/app/(admin)/admin/pages/new/NewPageForm", () => ({ default: () => <form aria-label="New page form" /> }));
 vi.mock("@/app/(admin)/admin/pages/[slug]/LandingEditor", () => ({
   default: ({ page, data, versions }: { page: { slug: string; seoTitle: string; publishedJson: string | null }; data: unknown; versions: unknown[] }) => (
@@ -52,6 +57,17 @@ describe("/admin/pages", () => {
     expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new");
     expect(screen.getByTestId("table")).toHaveTextContent("Spring sprint");
     expect(screen.getByTestId("table")).toHaveAttribute("data-base", APP_URL);
+  });
+});
+
+describe("/admin/pages/templates", () => {
+  it("checks for an admin, then lists the templates with their versions on the Templates tab", async () => {
+    const { default: TemplatesTab } = await import("@/app/(admin)/admin/pages/templates/page");
+    await state.repos.landingTemplates.save({ name: "Launch kit", description: "", data: { content: [], root: {} }, createdBy: null });
+    await renderServerPage(TemplatesTab, {});
+    expect(requireAdminPage).toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Templates", selected: true })).toBeInTheDocument();
+    expect(screen.getByTestId("templates")).toHaveTextContent("Launch kit:1:An admin");
   });
 });
 

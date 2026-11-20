@@ -3,7 +3,7 @@ export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export const SLUG_MAX = 80;
 
 /** Addresses the admin routes use themselves (/admin/pages/new). */
-export const RESERVED_SLUGS = ["new"];
+export const RESERVED_SLUGS = ["new", "templates"];
 
 export function isValidSlug(value: string | null | undefined): value is string {
   return Boolean(value && value.length <= SLUG_MAX && SLUG_PATTERN.test(value) && !RESERVED_SLUGS.includes(value));

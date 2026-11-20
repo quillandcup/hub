@@ -23,7 +23,10 @@ import { MODEL_SIZES, MODELS_BY_CLASS, deviceClassForSize, isLandscape, modelFor
 import { FoldContext, FoldFrame } from "./FoldMarker";
 import IssueList from "./IssueList";
 import JsonTransfer from "./JsonTransfer";
+import SaveAsTemplate, { type TemplateOption } from "./SaveAsTemplate";
 import StarterReplace, { type StarterOption } from "./StarterReplace";
+import { replaceLandingDraftWithTemplate } from "../template-actions";
+import { isLandingTemplateId } from "@/lib/landing/templates";
 import { importLandingDraftJson, publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
@@ -266,7 +269,7 @@ function EditorHeader({
   );
 }
 
-export default function LandingEditor({ page: initial, data, versions, starters = [] }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[] }) {
+export default function LandingEditor({ page: initial, data, versions, starters = [], templates = [] }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[]; templates?: TemplateOption[] }) {
   const router = useRouter();
   useMirrorHostTheme();
   const [page, setPage] = useState(initial);
@@ -499,13 +502,14 @@ export default function LandingEditor({ page: initial, data, versions, starters 
           onReplace={async (key) => {
             // Save what is typed first, so the draft kept in History is the one on screen, and autosave can't write it back over the starter.
             if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
-            const result = await replaceLandingDraftWithStarter(page.id, key);
+            const result = isLandingTemplateId(key) ? await replaceLandingDraftWithTemplate(page.id, key) : await replaceLandingDraftWithStarter(page.id, key);
             if (result.error) return result.error;
             // The editor takes its document once, so a replacement reloads the page to open the new draft.
             window.location.reload();
             return null;
           }}
         />
+        <SaveAsTemplate templates={templates} getDraft={() => JSON.parse(latest.current)} />
         <JsonTransfer
           slug={page.slug}
           title={page.title}

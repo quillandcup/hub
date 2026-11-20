@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, LayoutTemplate, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -36,6 +36,10 @@ export const ICONS = {
   unpublish: Lock,
   /** Earlier versions of something. */
   history: History,
+  /** A saved page layout to start new pages from (the page builder's templates). */
+  template: LayoutTemplate,
+  /** Save over what is already kept: a new version of a template. Not `reset` (throws the draft away) or `history`. */
+  save: Save,
   /** The settings of a thing itself (title, address, search text), as opposed to its content. */
   details: Settings2,
   /** Opens the live thing in another tab. */

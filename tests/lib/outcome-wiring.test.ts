@@ -81,6 +81,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     "app/(admin)/admin/pages/actions.ts",
     [["createLandingPage", "landing_page_created"], ["createLandingPageWithAi", "landing_page_ai_built"], ["generateLandingBlocks", "landing_page_ai_added"], ["reviseLandingBlocks", "landing_page_ai_revised"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["resetLandingDraftToPublished", "landing_page_draft_reset"], ["replaceLandingDraftWithStarter", "landing_page_starter_applied"], ["importLandingDraftJson", "landing_page_json_imported"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
   ],
+  [
+    () => import("@/app/(admin)/admin/pages/template-actions"),
+    "app/(admin)/admin/pages/template-actions.ts",
+    [["saveLandingTemplate", "landing_template_saved"], ["restoreLandingTemplateVersion", "landing_template_restored"], ["updateLandingTemplateDetails", "landing_template_renamed"], ["deleteLandingTemplate", "landing_template_deleted"], ["replaceLandingDraftWithTemplate", "landing_template_applied"]],
+  ],
   [() => import("@/app/api/admin/landing-pages/import/route"), "app/api/admin/landing-pages/import/route.ts", [["POST", "landing_page_imported"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],
   [() => import("@/app/api/feature-previews/route"), "app/api/feature-previews/route.ts", [["POST", "feature_preview_changed"]]],

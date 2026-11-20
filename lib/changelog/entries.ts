@@ -71,6 +71,21 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
   },
   {
+    slug: "landing-page-templates",
+    date: "2026-11-19",
+    audience: "engineering",
+    category: "new",
+    title: "Page builder: save a page as a template, and keep every version of it",
+    summary: "An admin can save the page on screen as a named template, start new pages or restart a page from it, and save a better version over it while the older ones stay in its history.",
+    body: `Templates are saved pages that live in the database, next to the built-in starters in code. A template has no draft and published split: the page is the draft, saving over a template is a new version at once, and History is the safety net.
+
+- **One rule.** A template's content is always its latest version. Saving and bringing a version back are one database function each (\`save_landing_page_template\`, \`restore_landing_page_template_version\`) that write the template and its next version in one transaction. Versions are insert-only, so history is never rewritten.
+- **Safety.** Admin only; content is cleaned like any save and again when used; a template never publishes anything or changes a page's address, title or search settings. Ids never appear in a URL.
+- **In the Activity Log.** Each save, bring-back, rename and delete is one plain sentence as the admin, never the typed note, description or content.
+- **Hooks.** \`LandingTemplateRepository\` (in-memory twin and one contract test), the lifecycle registry (\`saveAsTemplate\`, \`overwrite\`), and the Templates tab under Pages.
+- **Detail.** \`docs/LANDING_PAGES.md\`, "Templates".`,
+  },
+  {
     slug: "landing-page-json-round-trip",
     date: "2026-11-19",
     audience: "engineering",

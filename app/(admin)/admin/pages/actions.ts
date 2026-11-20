@@ -13,6 +13,7 @@ import { stampLandingVersion } from "@/lib/landing/migrations";
 import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { isStarterKey, starterData } from "@/lib/landing/starters";
+import { loadTemplateDraft } from "@/lib/landing/template-data";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
 /**
@@ -60,11 +61,23 @@ async function createImpl(auth: Auth, input: { title: string; slug?: string; dat
 }
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
-/** Makes a draft page, empty or from a starter (lib/landing/starters.ts); its address is the title's words unless one is given. */
-export async function createLandingPage(input: { title: string; slug?: string; starter?: string }): Promise<PageResult> {
+/**
+ * Makes a draft page, empty, from a starter (lib/landing/starters.ts) or from a saved template (`template`, its id; cleaned again
+ * as it is used); its address is the title's words unless one is given.
+ */
+export async function createLandingPage(input: { title: string; slug?: string; starter?: string; template?: string }): Promise<PageResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", async () => {
+    if (input?.template) {
+      try {
+        const draft = await loadTemplateDraft(createRepos(auth.supabase).landingTemplates, input.template);
+        if (!draft.ok) return { error: draft.error };
+        return createImpl(auth, { title: input.title, slug: input.slug, data: draft.data });
+      } catch (error) {
+        return failed("create from template", error, "Couldn't create the page.");
+      }
+    }
     if (input?.starter && !isStarterKey(input.starter)) return { error: "That starting point doesn't exist." };
     const data = input?.starter && isStarterKey(input.starter) ? sanitizeLandingData(starterData(input.starter)) : undefined;
     return createImpl(auth, { title: input?.title, slug: input?.slug, data });
