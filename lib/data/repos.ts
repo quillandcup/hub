@@ -58,6 +58,7 @@ import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type Slac
 import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
 import { InMemoryAuthUserRepository, SupabaseAuthUserRepository, type AuthUserRepository } from "./auth-users";
 import { InMemoryLandingPageRepository, SupabaseLandingPageRepository, type LandingPageRepository } from "./landing-pages";
+import { InMemoryLandingTemplateRepository, SupabaseLandingTemplateRepository, type LandingTemplateRepository } from "./landing-templates";
 import { InMemoryRateLimitRepository, SupabaseRateLimitRepository, type RateLimitRepository } from "./rate-limit";
 
 /**
@@ -124,6 +125,7 @@ export interface Repos {
   analyticsEvents: AnalyticsEventRepository;
   rateLimit: RateLimitRepository;
   landingPages: LandingPageRepository;
+  landingTemplates: LandingTemplateRepository;
   /** Supabase Auth accounts. Service role only: the admin API refuses a user client. */
   authUsers: AuthUserRepository;
 }
@@ -189,6 +191,7 @@ export function createRepos(db: Db): Repos {
     analyticsEvents: new SupabaseAnalyticsEventRepository(db),
     rateLimit: new SupabaseRateLimitRepository(db),
     landingPages: new SupabaseLandingPageRepository(db),
+    landingTemplates: new SupabaseLandingTemplateRepository(db),
     authUsers: new SupabaseAuthUserRepository(db),
   };
 }
@@ -257,6 +260,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     analyticsEvents: new InMemoryAnalyticsEventRepository(dataset),
     rateLimit: new InMemoryRateLimitRepository(dataset),
     landingPages: new InMemoryLandingPageRepository(dataset),
+    landingTemplates: new InMemoryLandingTemplateRepository(dataset),
     authUsers: new InMemoryAuthUserRepository(dataset),
   };
 }

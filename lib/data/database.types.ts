@@ -3899,6 +3899,95 @@ export type Database = {
           },
         ]
       }
+      landing_page_template_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          description: string
+          id: string
+          kind: string
+          name: string
+          note: string | null
+          restored_from_version: number | null
+          template_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          description?: string
+          id?: string
+          kind?: string
+          name: string
+          note?: string | null
+          restored_from_version?: number | null
+          template_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          description?: string
+          id?: string
+          kind?: string
+          name?: string
+          note?: string | null
+          restored_from_version?: number | null
+          template_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "landing_page_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landing_page_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_version: number
+          data: Json
+          deleted_at: string | null
+          description: string
+          id: string
+          name: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_version?: number
+          data: Json
+          deleted_at?: string | null
+          description?: string
+          id?: string
+          name: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_version?: number
+          data?: Json
+          deleted_at?: string | null
+          description?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       landing_page_versions: {
         Row: {
           created_at: string
@@ -8759,6 +8848,13 @@ export type Database = {
         }
         Returns: Json
       }
+      restore_landing_page_template_version: {
+        Args: { p_version_id: string }
+        Returns: {
+          saved_id: string
+          saved_version: number
+        }[]
+      }
       restore_landing_page_version: {
         Args: { p_version_id: string }
         Returns: undefined
@@ -8790,6 +8886,19 @@ export type Database = {
       revoke_user_sessions: {
         Args: { target_user_id: string }
         Returns: undefined
+      }
+      save_landing_page_template: {
+        Args: {
+          p_data: Json
+          p_description: string
+          p_name: string
+          p_note?: string
+          p_template_id?: string
+        }
+        Returns: {
+          saved_id: string
+          saved_version: number
+        }[]
       }
       schedule_host: {
         Args: { "": Database["public"]["Tables"]["prickle_schedules"]["Row"] }
