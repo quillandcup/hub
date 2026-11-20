@@ -168,6 +168,53 @@ describe("reportOnlyCsp", () => {
     expect(directive("font-src")).toContain("'self'");
   });
 
+  // Addresses Sentry's CSP reports named as blocked (HUB-1V/1W/1Z/20 Mux CDN, HUB-1T Mux stills as media, HUB-1Y Google beacon).
+  // A small CSP source matcher: scheme, a leading `*.` wildcard on the host, and (CSP3) a path, which with no trailing
+  // slash must equal the request's path (the query is ignored).
+  const allows = (list: readonly string[], url: string) => {
+    const target = new URL(url);
+    return list.some((source) => {
+      const wildcard = source.includes("*.");
+      const parsed = new URL(source.replace("*.", "wildcard."));
+      const hostOk = wildcard ? target.hostname.endsWith(parsed.hostname.replace("wildcard.", ".")) : target.hostname === parsed.hostname;
+      const pathOk = parsed.pathname === "/" || (parsed.pathname.endsWith("/") ? target.pathname.startsWith(parsed.pathname) : target.pathname === parsed.pathname);
+      return target.protocol === parsed.protocol && hostOk && pathOk;
+    });
+  };
+
+  it.each([
+    "https://chunk-oci-us-phoenix-1-vop1.fastly.mux.com/v1/chunk/x/0.ts",
+    "https://manifest-oci-us-phoenix-1-vop1.edgemv.mux.com/x/rendition.m3u8",
+    "https://stream.mux.com/x.m3u8",
+    "https://www.google.com/g/collect?v=2",
+  ])("lets the browser connect to %s", (url) => {
+    expect(allows(appConfig.csp.connectHosts, url)).toBe(true);
+  });
+
+  it("lets Google Analytics fall back to its image beacon on any of its own hosts, including the EU one", () => {
+    expect(allows(appConfig.csp.imageHosts, "https://region1.google-analytics.com/g/collect?v=2")).toBe(true);
+    expect(allows(appConfig.csp.imageHosts, "https://www.google-analytics.com/g/collect?v=2")).toBe(true);
+    expect(allows(appConfig.csp.imageHosts, "https://google-analytics.com.evil.example/x.gif")).toBe(false);
+    expect(directive("img-src")).toContain("https://*.google-analytics.com");
+  });
+
+  it("lets video load Mux stills as media", () => {
+    expect(allows(appConfig.csp.mediaHosts, "https://image.mux.com/x/thumbnail.jpg")).toBe(true);
+  });
+
+  it("does not open connections to arbitrary hosts", () => {
+    expect(allows(appConfig.csp.connectHosts, "https://evil.example.com/collect")).toBe(false);
+    expect(allows(appConfig.csp.connectHosts, "https://notmux.com/x")).toBe(false);
+  });
+
+  it("opens only the analytics beacon path on www.google.com, not the whole host", () => {
+    expect(allows(appConfig.csp.connectHosts, "https://www.google.com/g/collect?v=2&en=page_view")).toBe(true);
+    expect(allows(appConfig.csp.connectHosts, "https://www.google.com/search?q=x")).toBe(false);
+    expect(allows(appConfig.csp.connectHosts, "https://www.google.com/g/collect/extra")).toBe(false);
+    expect(allows(appConfig.csp.connectHosts, "https://www.google.com/")).toBe(false);
+    expect(appConfig.csp.connectHosts).not.toContain("https://www.google.com");
+  });
+
   it("names Sentry once, as the only report address", () => {
     expect(policy.match(/report-uri/g)).toHaveLength(1);
   });

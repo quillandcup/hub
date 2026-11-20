@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
-import { byRecency, loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
+import { byRecency, loadUnreadCounts, type ChannelSummary } from "@/lib/chat/channels";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { mentionsToPlainText } from "@/lib/chat/render";
 import { subscribeDraftChanges } from "@/lib/chat/draft-events";

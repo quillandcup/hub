@@ -25,7 +25,7 @@ import { saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 
 const landing = vi.hoisted(() => ({ save: vi.fn(), back: vi.fn(), forward: vi.fn(), change: undefined as undefined | ((data: unknown) => void) }));
-vi.mock("@puckeditor/core/puck.css", () => ({}));
+vi.mock("@puckeditor/core/no-external.css", () => ({}));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/landing/editor-config", () => ({ editorConfig: {} }));
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { clock } from "@/lib/clock";
 import { APP_URL } from "@/lib/config";
 import type { Db } from "./db";
@@ -196,7 +195,7 @@ export class InMemoryAuthUserRepository implements AuthUserRepository {
   async create(input: { email: string; banDuration?: Exclude<BanDuration, "none"> }): Promise<AuthUser> {
     if (this.findByEmail(input.email)) throw new Error("A user with this email address has already been registered");
     const user: AuthUser = {
-      id: randomUUID(),
+      id: crypto.randomUUID(),
       email: input.email.toLowerCase(),
       confirmed: true,
       createdAt: new Date(clock.now()).toISOString(),
@@ -213,7 +212,7 @@ export class InMemoryAuthUserRepository implements AuthUserRepository {
     if (existing?.confirmed) throw new Error("A user with this email address has already been registered");
     if (existing) return { ...existing };
     const user: AuthUser = {
-      id: randomUUID(),
+      id: crypto.randomUUID(),
       email: email.toLowerCase(),
       confirmed: false,
       createdAt: new Date(clock.now()).toISOString(),
@@ -243,7 +242,7 @@ export class InMemoryAuthUserRepository implements AuthUserRepository {
 
   async generateMagicLink(id: string): Promise<MagicLink> {
     if (!this.find(id).email) throw new Error("User not found");
-    return { hashedToken: randomUUID().replace(/-/g, ""), code: String(Math.floor(10_000_000 + Math.random() * 90_000_000)) };
+    return { hashedToken: crypto.randomUUID().replace(/-/g, ""), code: String(Math.floor(10_000_000 + Math.random() * 90_000_000)) };
   }
 
   async delete(id: string): Promise<void> {
