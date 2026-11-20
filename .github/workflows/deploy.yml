@@ -185,10 +185,17 @@ jobs:
       # `pnpm branches:prune` leaves it alone. A plain `git fetch` won't move a tag that
       # already exists locally; update it with
       # `git fetch origin +refs/tags/production:refs/tags/production`.
+      # Moved through the API, not `git push`: a push is rejected for the job's token whenever
+      # the commits since the old tag include a change to a workflow file ("refusing to allow
+      # a GitHub App to create or update workflow ... without `workflows` permission"), though
+      # the deploy itself had worked. The API only points the ref at a commit that already
+      # exists. It stays a lightweight tag, as `git tag` made it.
       - name: Move the production tag
         if: steps.guard.outputs.proceed == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           DEPLOY_SHA: ${{ inputs.ref }}
         run: |
-          git tag --force production "$DEPLOY_SHA"
-          git push --force origin refs/tags/production
+          gh api --method PATCH "repos/$REPO/git/refs/tags/production" -f sha="$DEPLOY_SHA" -F force=true \
+            || gh api --method POST "repos/$REPO/git/refs" -f ref="refs/tags/production" -f sha="$DEPLOY_SHA"
