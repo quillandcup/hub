@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { randomInt } from "@/lib/random-int";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
@@ -1037,7 +1037,7 @@ export class InMemoryCourseRepository implements CourseRepository {
   /** The downloads of one lesson on another, as the database does: a key of its own ("up-<uuid>", like a download added in the Hub), the same stored object. */
   private copyFiles(fromLesson: string, toLesson: string) {
     for (const f of this.data.courseLessonFiles.filter((x) => x.lesson_id === fromLesson)) {
-      this.data.courseLessonFiles.push({ ...f, id: newCourseId("file"), lesson_id: toLesson, source_key: `up-${randomUUID()}`, created_at: now() });
+      this.data.courseLessonFiles.push({ ...f, id: newCourseId("file"), lesson_id: toLesson, source_key: `up-${crypto.randomUUID()}`, created_at: now() });
     }
   }
 

@@ -226,6 +226,7 @@ export const appConfig = {
       "https://a.slack-edge.com", // one Slack user picture lives here
       "https://*.googleusercontent.com", // Google profile photos
       "https://www.google-analytics.com", // measurement beacons
+      "https://*.google-analytics.com", // the EU collection host (region1.google-analytics.com); Google's CSP guide lists the wildcard for img-src
       "https://www.googletagmanager.com",
     ],
     // The next three are tried report-only (docs/TODO.md, "CSP for scripts and styles"): the reports name what is missing.
@@ -238,12 +239,16 @@ export const appConfig = {
       "https://www.googletagmanager.com",
       "https://vitals.vercel-insights.com", // Vercel Speed Insights
       "https://stream.mux.com", // lesson video playback
+      "https://*.mux.com", // the player fetches HLS manifests and chunks from CDN hosts (*.fastly.mux.com, *.edgemv.mux.com)
       "https://*.litix.io", // Mux video analytics
+      // Google Analytics also sends its page_view beacon to www.google.com/g/collect (HUB-1Y). Pinned to that path: Google's
+      // own guide allows all of *.google.com, which would let a script on our pages talk to any endpoint on that host.
+      "https://www.google.com/g/collect",
     ],
     /** Sites that may be shown in a frame on our pages (lesson videos). */
     frameHosts: ["https://player.mux.com", "https://www.youtube-nocookie.com", "https://www.youtube.com", "https://player.vimeo.com"],
     /** Where audio and video files may load from besides us and Supabase storage. */
-    mediaHosts: ["https://stream.mux.com"],
+    mediaHosts: ["https://stream.mux.com", "https://image.mux.com"],
   },
 } as const;
 

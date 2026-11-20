@@ -19,7 +19,7 @@ import { stripSharedVideoLink } from "@/lib/chat/video-link";
 import { withoutSharedLessonLink } from "@/lib/chat/lesson-links";
 import { APP_URL, SLACK_WORKSPACE_URL } from "@/lib/config";
 import { getAttendedPrickleCount, getMemberBadges, type BadgeRepos, type EarnedBadge } from "@/lib/badges";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { byRecency, type ChannelSummary } from "@/lib/chat/channels";
 import type { Repos } from "@/lib/data/repos";
 import type { ChannelRecord } from "@/lib/data/chat";
 
@@ -38,25 +38,8 @@ const REPLY_AVATARS = 5;
 /** Distinct repliers read per thread before Slack-only ones are merged by user, so a duplicate does not eat a slot. */
 const REPLY_CANDIDATES = 25;
 
-/** Newest message first; a conversation with none goes last. */
-export const byRecency = (a: Pick<ChannelSummary, "lastMessageAt">, b: Pick<ChannelSummary, "lastMessageAt">): number =>
-  (b.lastMessageAt ? Date.parse(b.lastMessageAt) : -Infinity) - (a.lastMessageAt ? Date.parse(a.lastMessageAt) : -Infinity) || 0;
-
-export interface ChannelSummary {
-  id: string;
-  kind: "channel" | "dm" | "group_dm";
-  /** "#name" for channels, the other participants for group DMs. */
-  label: string;
-  visibility: "public" | "private";
-  restricted: boolean;
-  archived: boolean;
-  joined: boolean;
-  slackChannelId: string | null;
-  /** When it last had a message: direct and group messages are listed by it, newest first, as in Slack. */
-  lastMessageAt: string | null;
-  /** A direct message with an app (a bot), listed under Apps rather than Direct messages; its label is the app's name. */
-  app?: boolean;
-}
+// Defined in lib/chat/channels.ts (client-safe: the sidebar imports it); re-exported so server callers keep one entry point.
+export { byRecency, loadUnreadCounts, type ChannelSummary } from "@/lib/chat/channels";
 
 
 export async function loadChatChannels(
@@ -145,14 +128,6 @@ async function groupDmLabels(
     else if (list.length > 0) labels.set(channelId, list.join(", "));
   }
   return labels;
-}
-
-/** Unread top-level messages per conversation the signed-in member is in (capped at 100 each; none = absent). */
-export async function loadUnreadCounts(supabase: SupabaseClient): Promise<Record<string, number>> {
-  const { data } = await supabase.rpc("chat_unread_counts");
-  const counts: Record<string, number> = {};
-  for (const row of (data ?? []) as { channel_id: string; unread: number }[]) counts[row.channel_id] = row.unread;
-  return counts;
 }
 
 /** Display names and photos from member_directory, which every signed-in member can read. */

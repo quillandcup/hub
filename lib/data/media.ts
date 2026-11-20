@@ -1,4 +1,4 @@
-import { randomInt } from "crypto";
+import { randomInt } from "@/lib/random-int";
 import type { Db, Insert, Row } from "./db";
 import { eventDetails } from "./events";
 import type { InMemoryDataset } from "./in-memory";

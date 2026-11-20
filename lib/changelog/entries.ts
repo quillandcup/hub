@@ -70,6 +70,19 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 The check only lists them; nothing happens to the member or the import.`,
   },
   {
+    slug: "client-bundle-node-builtins-guard",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "improved",
+    title: "Browser code no longer pulls in Node's crypto, and a test keeps it out",
+    summary: "The pages' browser bundle no longer carries copies of Node's crypto and vm modules, which asked the browser to run eval() and would have broken under a strict Content-Security-Policy.",
+    body: [
+      "**Rule: a module a client component can reach never imports a Node built-in** (`crypto`, `vm`, `stream`, `fs`...). The bundler answers such an import by shipping browser copies of those modules, and the `vm` copy calls `eval()`, which the Content-Security-Policy we are moving to refuses (Sentry reported it as a blocked string evaluation).",
+      "- **Random ids and numbers** in shared code come from Web Crypto: `randomInt` in `lib/random-int.ts` and the global `crypto.randomUUID()`, the same in Node and the browser.\n- **A client component that needs a little of a server module** imports a small client-safe module instead (the chat sidebar uses `lib/chat/channels.ts`, which `lib/chat/load.ts` re-exports), never the whole loader.\n- **The guard** is `tests/lib/client-node-builtins.test.ts`: it follows imports from every `\"use client\"` file and fails with the chain that reaches a built-in. Files marked `server-only` or `\"use server\"` stop the walk.",
+      "The page builder also loads Puck's `no-external.css`, which is `puck.css` without its import of a font from another site. Context: `docs/TODO.md`, \"CSP for scripts and styles (nonces)\".",
+    ].join("\n\n"),
+  },
+  {
     slug: "writer-public-pages",
     date: "2026-11-20",
     audience: "engineering",
