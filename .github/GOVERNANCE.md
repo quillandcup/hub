@@ -4,8 +4,8 @@ Hedgie Hub is owned and run by Quill & Cup LLC. This page says who decides what,
 
 ## Roles
 
-- **Owner**: owns the repository and the production accounts (GitHub, Vercel, Supabase and the provider accounts listed in `docs/SECRET_ROTATION.md`), sets the roadmap and makes the final call on scope, security and licensing.
-- **Maintainer**: has write access, reviews and ships changes, answers issues and security reports. Today the owner is the only maintainer.
+- **Owners** (two people): own the repository and the production accounts (GitHub, Vercel, Supabase and the provider accounts listed in `docs/SECRET_ROTATION.md`), set the roadmap and make the final call on scope, security and licensing.
+- **Maintainer**: has write access, reviews and ships changes, answers issues and security reports. Today one owner does the day-to-day maintaining.
 - **Contributor**: anyone who opens an issue. Outside code contributions are not accepted for now (`CONTRIBUTING.md`).
 
 ## How changes are made
@@ -20,7 +20,7 @@ The plan and the list of known gaps are in `docs/TODO.md`; what members have rec
 
 ## Continuity
 
-Everything needed to run and recover the project is in the repository: setup (`docs/SETUP.md`), deployment (`docs/DEPLOYMENT.md`), credentials and how to rotate them (`docs/SECRET_ROTATION.md`), and the data model (`docs/MEDALLION_ARCHITECTURE.md`). Secrets are kept in the hosting providers and environment files, never in the repository. Access to the production accounts is held by the owner; adding a second administrator on each is the step that would remove the single point of failure.
+Everything needed to run and recover the project is in the repository: setup (`docs/SETUP.md`), deployment (`docs/DEPLOYMENT.md`), credentials and how to rotate them (`docs/SECRET_ROTATION.md`), and the data model (`docs/MEDALLION_ARCHITECTURE.md`). Secrets are kept in the hosting providers and environment files, never in the repository. Two owners hold administrator access on each primary production account (GitHub, Vercel and Supabase), so either can run and recover the project if the other is unavailable.
 
 ## Security reports
 
