@@ -1,0 +1,27 @@
+{
+  "path": ["."],
+  "format": ["typescript", "tsx", "javascript", "jsx"],
+  "minTokens": 70,
+  "minLines": 8,
+  "reporters": ["json"],
+  "output": "reports/jscpd",
+  "gitignore": true,
+  "ignore": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/.next-demo/**",
+    "reports/**",
+    "coverage/**",
+    "docs/**",
+    "public/**",
+    "supabase/migrations/**",
+    "lib/data/database.types.ts",
+    "tests/fixtures/**",
+    "test-data/**",
+    "demo/.stack/**",
+    "demo/out/**",
+    "**/*.d.ts",
+    "**/*.generated.*"
+  ],
+  "silent": true
+}
