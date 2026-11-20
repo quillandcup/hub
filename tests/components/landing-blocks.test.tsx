@@ -505,15 +505,24 @@ describe("SchedulePanel", () => {
     expect(container.firstElementChild!.className).toContain("landing-light");
   });
 
-  it("gives a row with no status of its own the open chip, in the editor's words, in mist colours", () => {
+  it("puts no chip on an ordinary row (the same chip on most rows says nothing), unless the owner types a label, then in mist colours", () => {
     const open = [{ time: "Fri 4:00 am", title: "Night owls", status: "", state: "open" as const, host: "" }];
-    render(<SchedulePanel title="x" zoneLabel="" rows={open} />);
-    expect(screen.getByText("Open").className).toContain("bg-mist-100");
-    expect(screen.getByText("Open").className).toContain("text-mist-900");
+    const { container } = render(<SchedulePanel title="x" zoneLabel="" rows={open} />);
+    expect(container.querySelector("li span.rounded-full")).toBeNull();
+    expect(screen.queryByText("Open")).toBeNull();
     cleanup();
     render(<SchedulePanel title="x" zoneLabel="" rows={open} openLabel="Drop in" />);
-    expect(screen.getByText("Drop in")).toBeInTheDocument();
-    expect(screen.queryByText("Open")).toBeNull();
+    expect(screen.getByText("Drop in").className).toContain("bg-mist-100");
+    expect(screen.getByText("Drop in").className).toContain("text-mist-900");
+  });
+
+  it("shows the footer once under the whole list, and nothing without one", () => {
+    const rows = [{ time: "7:00 pm", title: "Progress Prickle", status: "", state: "open" as const, host: "" }, { time: "8:30 pm", title: "Heads Down", status: "", state: "open" as const, host: "" }];
+    render(<SchedulePanel title="x" zoneLabel="" rows={rows} footer="Camera optional. Everyone is welcome." />);
+    expect(screen.getAllByText("Camera optional. Everyone is welcome.")).toHaveLength(1);
+    cleanup();
+    render(<SchedulePanel title="x" zoneLabel="" rows={rows} />);
+    expect(screen.queryByText(/Camera optional/)).toBeNull();
   });
 
   it("keeps the time on one line", () => {

@@ -156,8 +156,9 @@ export const BLOCK_DEFAULTS = {
     maxRows: 5,
     hostStyle: "none",
     experiencedHostText: "An experienced host, sure to make you feel at home",
-    openLabel: "Open",
+    openLabel: "",
     rowNote: "",
+    footer: "",
     emptyText: "No sessions are coming up just yet. Check back soon.",
     rows: [
       { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "" },
