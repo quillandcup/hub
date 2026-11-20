@@ -1,4 +1,4 @@
--- pgTAP tests for publish_announced_event_covers() (20270832): it marks the cover of an event that is announced publicly and shown in
+-- pgTAP tests for publish_announced_event_covers() (20270834): it marks the cover of an event that is announced publicly and shown in
 -- Events as a public media asset, and nothing else. Rolled back. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
