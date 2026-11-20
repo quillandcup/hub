@@ -8,6 +8,7 @@ import {
   setDisplayName,
   setCustomDisplayName,
   addNameAlias,
+  setNameAliasPublic,
   addEmailAlias,
   resendEmailVerification,
   makeEmailPrimary,
@@ -97,6 +98,7 @@ export function IdentityPanel() {
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [busyEmailAliasId, setBusyEmailAliasId] = useState<string | null>(null);
+  const [busyNameAliasId, setBusyNameAliasId] = useState<string | null>(null);
   /** The address waiting for a fresh sign-in before it can become the primary email. */
   const [reauthForAliasId, setReauthForAliasId] = useState<string | null>(null);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
@@ -206,6 +208,21 @@ export function IdentityPanel() {
       await load();
     }
     setAddingNameAlias(false);
+  }
+
+  /** Switches one of the member's own names on or off for their public writer page. */
+  async function handleNamePublicChange(aliasId: string, isPublic: boolean) {
+    setError(null);
+    setMessage(null);
+    setBusyNameAliasId(aliasId);
+    const result = await setNameAliasPublic(aliasId, isPublic);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setMessage(isPublic ? "Saved. You can now choose this name on your writer page, under Settings, Profile." : "Saved. This name is not available for your writer page.");
+      await load();
+    }
+    setBusyNameAliasId(null);
   }
 
   async function handleAddEmailAlias(e: FormEvent) {
@@ -381,7 +398,9 @@ export function IdentityPanel() {
           name in Zoom to match your Real Name above. If you&apos;d rather join as something else, such as a pen
           name or a nickname, add that name here (exactly as Zoom shows it) so your attendance still counts. These
           only match your attendance; they don&apos;t change the name shown in the community. Once added, you can
-          choose one as your Display Name above.
+          choose one as your Display Name above. A name you added yourself can also be shown on your public writer
+          page (Settings, Profile) as a pen name: tick &ldquo;Show on my writer page&rdquo; and it becomes a choice
+          there. Nothing is shown unless you tick it.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {data.nameAliases.length === 0 && (
@@ -394,6 +413,23 @@ export function IdentityPanel() {
               source={alias.source}
               active={alias.active}
               isDisplayName={alias.alias === data.displayName}
+              actions={
+                alias.active &&
+                alias.source === "member" && (
+                  <label className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={alias.isPublic}
+                      disabled={busyNameAliasId === alias.id}
+                      data-track="settings-identity-name-public"
+                      onChange={(e) => handleNamePublicChange(alias.id, e.target.checked)}
+                      aria-label={`Show ${alias.alias} on my writer page`}
+                      className="rounded"
+                    />
+                    Show on my writer page
+                  </label>
+                )
+              }
             />
           ))}
         </div>

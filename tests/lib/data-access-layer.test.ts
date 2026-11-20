@@ -225,6 +225,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   landing_page_versions: [],
   landing_page_templates: [],
   landing_page_template_versions: [],
+  // Writers' public pages and their handle history (WriterProfileRepository): every query is in the repository.
+  writer_profiles: [],
+  writer_profile_handles: [],
 };
 
 /**

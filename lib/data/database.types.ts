@@ -5156,6 +5156,7 @@ export type Database = {
           alias: string
           created_at: string | null
           id: string
+          is_public: boolean
           member_id: string
           source: string
         }
@@ -5164,6 +5165,7 @@ export type Database = {
           alias: string
           created_at?: string | null
           id?: string
+          is_public?: boolean
           member_id: string
           source?: string
         }
@@ -5172,6 +5174,7 @@ export type Database = {
           alias?: string
           created_at?: string | null
           id?: string
+          is_public?: boolean
           member_id?: string
           source?: string
         }
@@ -7314,6 +7317,95 @@ export type Database = {
           },
         ]
       }
+      writer_profile_handles: {
+        Row: {
+          handle: string
+          id: string
+          member_id: string
+          released_at: string
+          reserved_until: string
+        }
+        Insert: {
+          handle: string
+          id?: string
+          member_id: string
+          released_at: string
+          reserved_until: string
+        }
+        Update: {
+          handle?: string
+          id?: string
+          member_id?: string
+          released_at?: string
+          reserved_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writer_profile_handles_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      writer_profiles: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          handle: string
+          id: string
+          is_public: boolean
+          member_id: string
+          public_bio: string | null
+          public_name_alias_id: string | null
+          published_at: string | null
+          show_photo: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          handle: string
+          id?: string
+          is_public?: boolean
+          member_id: string
+          public_bio?: string | null
+          public_name_alias_id?: string | null
+          published_at?: string | null
+          show_photo?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          handle?: string
+          id?: string
+          is_public?: boolean
+          member_id?: string
+          public_bio?: string | null
+          public_name_alias_id?: string | null
+          published_at?: string | null
+          show_photo?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writer_profiles_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "writer_profiles_public_name_alias_id_fkey"
+            columns: ["public_name_alias_id"]
+            isOneToOne: false
+            referencedRelation: "member_name_aliases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       writing_goals: {
         Row: {
           archived_at: string | null
@@ -8969,6 +9061,15 @@ export type Database = {
       set_mentorship_note: {
         Args: { p_mentorship_id: string; p_note: string }
         Returns: boolean
+      }
+      set_writer_handle: {
+        Args: {
+          p_handle: string
+          p_member_id: string
+          p_now: string
+          p_reserve_days: number
+        }
+        Returns: string
       }
       slack_activity_project_message: {
         Args: { p_channel_id: string; p_message_ts: string }

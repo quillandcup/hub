@@ -25,6 +25,8 @@ export interface MemberNameAlias {
   source: string;
   active: boolean;
   createdAt: string;
+  /** The member allows this name on their public writer page as a pen name (docs/WRITER_PROFILES.md). Only a name they added themselves can be. */
+  isPublic: boolean;
 }
 
 /** One email alias by id, with what verification needs to know. */
@@ -89,6 +91,11 @@ export interface AliasRepository {
   addName(memberId: string, alias: string, source: string): Promise<boolean>;
   /** Turns the member's own alias on or off; false when the id isn't theirs. Never a hard delete. */
   setNameActive(memberId: string, id: string, active: boolean): Promise<boolean>;
+  /**
+   * Allows (or stops allowing) the member's own alias on their public writer page; false when the id isn't theirs, or when turning
+   * it on for a name they didn't add themselves (a Zoom or Slack name matched by staff). Nothing else makes a name public.
+   */
+  setNamePublic(memberId: string, id: string, isPublic: boolean): Promise<boolean>;
 
   /** Which member each active email alias belongs to, paginated. */
   emailOwners(): Promise<{ alias_email: string; member_id: string }[]>;
@@ -209,12 +216,12 @@ export class SupabaseAliasRepository implements AliasRepository {
   async namesOf(memberId: string): Promise<MemberNameAlias[]> {
     const { data, error } = await this.db
       .from("member_name_aliases")
-      .select("id, alias, source, active, created_at")
+      .select("id, alias, source, active, created_at, is_public")
       .eq("member_id", memberId)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => ({ id: r.id, alias: r.alias, source: r.source, active: r.active, createdAt: r.created_at ?? "" }));
+    return (data ?? []).map((r) => ({ id: r.id, alias: r.alias, source: r.source, active: r.active, createdAt: r.created_at ?? "", isPublic: r.is_public }));
   }
 
   async findName(memberId: string, alias: string) {
@@ -232,6 +239,15 @@ export class SupabaseAliasRepository implements AliasRepository {
 
   async setNameActive(memberId: string, id: string, active: boolean): Promise<boolean> {
     const { data, error } = await this.db.from("member_name_aliases").update({ active }).eq("id", id).eq("member_id", memberId).select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
+
+  async setNamePublic(memberId: string, id: string, isPublic: boolean): Promise<boolean> {
+    let query = this.db.from("member_name_aliases").update({ is_public: isPublic }).eq("id", id).eq("member_id", memberId);
+    // Only a name the member added themselves can be public (the database refuses anything else too).
+    if (isPublic) query = query.eq("source", "member");
+    const { data, error } = await query.select("id");
     if (error) throw new Error(error.message);
     return (data?.length ?? 0) > 0;
   }
@@ -403,7 +419,7 @@ export class SupabaseAliasRepository implements AliasRepository {
 }
 
 /** The stored rows the twin keeps; the scans return the matcher shapes. */
-export type NameAliasRow = MemberAlias & { id: string; active: boolean; createdAt?: string };
+export type NameAliasRow = MemberAlias & { id: string; active: boolean; createdAt?: string; isPublic?: boolean };
 export type EmailAliasRow = MemberEmailAlias & { id: string; memberId: string; active: boolean; source?: string; createdAt?: string; verifiedAt?: string | null; verificationSentAt?: string | null };
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -452,7 +468,7 @@ export class InMemoryAliasRepository implements AliasRepository {
   async namesOf(memberId: string) {
     return this.data.nameAliases
       .filter((a) => a.member_id === memberId)
-      .map((a) => ({ id: a.id, alias: a.alias, source: a.source, active: a.active, createdAt: a.createdAt ?? new Date(0).toISOString() }))
+      .map((a) => ({ id: a.id, alias: a.alias, source: a.source, active: a.active, createdAt: a.createdAt ?? new Date(0).toISOString(), isPublic: a.isPublic ?? false }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? 1 : -1));
   }
 
@@ -480,6 +496,13 @@ export class InMemoryAliasRepository implements AliasRepository {
     const row = this.data.nameAliases.find((a) => a.id === id && a.member_id === memberId);
     if (!row) return false;
     row.active = active;
+    return true;
+  }
+
+  async setNamePublic(memberId: string, id: string, isPublic: boolean) {
+    const row = this.data.nameAliases.find((a) => a.id === id && a.member_id === memberId);
+    if (!row || (isPublic && row.source !== "member")) return false;
+    row.isPublic = isPublic;
     return true;
   }
 

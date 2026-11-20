@@ -56,6 +56,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "writer-public-pages",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "Writers' public pages: an address, a name and a bio on the open web",
+    summary: "A member can switch on a page of their own at /w/<handle>, shown to anyone without signing in and listed by search engines. Nothing is public until they turn it on.",
+    body: "A page is off for everyone until its owner switches it on. It shows the name they choose (the display name, or a pen name they marked for it), their photo if they ticked it, and a bio written for the page. Nothing else from the member record is read into it.\n\n- **Rule:** a visitor's data comes only from `WriterProfileRepository.publicByHandle`, which builds the public fields in one place and runs with the service role; no table has an anonymous grant. `isProfilePubliclyServable` is the one function that decides whether a page is served.\n- **Handles** are lowercase letters, digits and single hyphens, unique whatever the case. A renamed handle redirects to the new one and stays held for its owner; the length, the hold and the reserved words are config (`writerProfiles` in `app.config.ts`).\n- **Pen names** show only when the member added the name themselves and marked it public.\n\nDetail and the routes: `docs/WRITER_PROFILES.md`.",
+  },
+  {
     slug: "landing-page-spacing-and-width",
     date: "2026-11-19",
     audience: "staff",

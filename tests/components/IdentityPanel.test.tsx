@@ -13,6 +13,7 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
   setDisplayName: vi.fn(),
   setCustomDisplayName: vi.fn(),
   addNameAlias: vi.fn(),
+  setNameAliasPublic: vi.fn(),
   addEmailAlias: vi.fn(),
   resendEmailVerification: vi.fn(),
   makeEmailPrimary: vi.fn(),
@@ -77,7 +78,7 @@ describe('IdentityPanel', () => {
 
   it('lets the member pick an active pen name as their display name, or go back to the real name', async () => {
     const alias = (id: string, name: string, active: boolean) => ({
-      id, alias: name, source: 'member', active, createdAt: '2026-01-01',
+      id, alias: name, source: 'member', active, createdAt: '2026-01-01', isPublic: false,
     })
     vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
       ...baseSettings,
@@ -99,7 +100,7 @@ describe('IdentityPanel', () => {
     vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
       ...baseSettings,
       displayName: 'A. Byron',
-      nameAliases: [{ id: '1', alias: 'A. Byron', source: 'member', active: true, createdAt: '2026-01-01' }],
+      nameAliases: [{ id: '1', alias: 'A. Byron', source: 'member', active: true, createdAt: '2026-01-01', isPublic: false }],
     })
     vi.mocked(identityActions.setDisplayName).mockResolvedValue({ error: 'Pick one of your active names' })
 
@@ -133,8 +134,8 @@ describe('IdentityPanel', () => {
     vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
       ...baseSettings,
       nameAliases: [
-        { id: 'n1', alias: 'Ada Pen', source: 'member', active: true, createdAt: '2026-01-01' },
-        { id: 'n2', alias: 'Old Zoom Name', source: 'zoom', active: false, createdAt: '2026-01-01' },
+        { id: 'n1', alias: 'Ada Pen', source: 'member', active: true, createdAt: '2026-01-01', isPublic: false },
+        { id: 'n2', alias: 'Old Zoom Name', source: 'zoom', active: false, createdAt: '2026-01-01', isPublic: false },
       ],
       emailAliases: [
         { id: 'e1', aliasEmail: 'ada.old@example.com', source: 'auto_detected', active: true, createdAt: '2026-01-01', verifiedAt: null },
@@ -149,6 +150,43 @@ describe('IdentityPanel', () => {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0)
     }
     expect(screen.queryByRole('button', { name: /deactivate|reactivate/i })).not.toBeInTheDocument()
+  })
+
+  it('lets a member show a name they added themselves on their writer page, and offers it for no other name', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      nameAliases: [
+        { id: 'n1', alias: 'Ada Pen', source: 'member', active: true, createdAt: '2026-01-01', isPublic: false },
+        { id: 'n2', alias: 'Ada On Zoom', source: 'zoom', active: true, createdAt: '2026-01-01', isPublic: false },
+        { id: 'n3', alias: 'Ada Old', source: 'member', active: false, createdAt: '2026-01-01', isPublic: false },
+      ],
+    })
+    vi.mocked(identityActions.setNameAliasPublic).mockResolvedValue({ success: true })
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+
+    expect(screen.getAllByRole('checkbox', { name: /on my writer page/ })).toHaveLength(1)
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show Ada Pen on my writer page' }))
+
+    expect(identityActions.setNameAliasPublic).toHaveBeenCalledWith('n1', true)
+    expect(await screen.findByText(/You can now choose this name on your writer page/)).toBeInTheDocument()
+  })
+
+  it('says so, and changes nothing on screen, when a name cannot be shown', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      nameAliases: [{ id: 'n1', alias: 'Ada Pen', source: 'member', active: true, createdAt: '2026-01-01', isPublic: true }],
+    })
+    vi.mocked(identityActions.setNameAliasPublic).mockResolvedValue({ error: 'Only a name you added yourself can be shown on your page.' })
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+
+    const box = screen.getByRole('checkbox', { name: 'Show Ada Pen on my writer page' })
+    expect(box).toBeChecked()
+    await userEvent.click(box)
+
+    expect(identityActions.setNameAliasPublic).toHaveBeenCalledWith('n1', false)
+    expect(await screen.findByText('Only a name you added yourself can be shown on your page.')).toBeInTheDocument()
   })
 
   it('offers to send a link to an unconfirmed address and to make a confirmed one primary', async () => {

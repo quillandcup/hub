@@ -19,10 +19,10 @@ vi.mock("@/lib/processing/trigger", () => ({
 }));
 
 // Aliases are stored through the repository; the twin stands in for it.
-const aliasStore = vi.hoisted(() => ({ repo: null as unknown }));
+const aliasStore = vi.hoisted(() => ({ repo: null as unknown, pages: null as unknown }));
 vi.mock("@/lib/data/repos", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/data/repos")>();
-  return { ...real, createRepos: (db: never) => ({ ...real.createRepos(db), aliases: aliasStore.repo as never }) };
+  return { ...real, createRepos: (db: never) => ({ ...real.createRepos(db), aliases: aliasStore.repo as never, writerProfiles: aliasStore.pages as never }) };
 });
 
 // The conflict check runs as the service role (members can't read each other's names).
@@ -33,7 +33,8 @@ vi.mock("@/lib/supabase/service", () => ({
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryAliasRepository } from "@/lib/data/aliases";
-import { addNameAlias } from "@/app/(member)/settings/identityActions";
+import { InMemoryWriterProfileRepository } from "@/lib/data/writer-profiles";
+import { addNameAlias, setNameAliasPublic } from "@/app/(member)/settings/identityActions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -52,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   data = new InMemoryDataset();
   aliasStore.repo = new InMemoryAliasRepository(data);
+  aliasStore.pages = new InMemoryWriterProfileRepository(data);
   afterCallbacks.length = 0;
   rpcMock.mockResolvedValue({ data: [], error: null });
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "login@example.com" } as any);
@@ -154,5 +156,44 @@ describe("addNameAlias", () => {
     expect(await addNameAlias("   ")).toEqual({ error: "Enter a name first" });
     expect(await addNameAlias("x".repeat(201))).toEqual({ error: "That name is too long" });
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("setNameAliasPublic", () => {
+  const add = (id: string, alias: string, source: string, memberId = "member-1") => data.nameAliases.push({ id, member_id: memberId, alias, source, active: true });
+
+  it("lets a member show a name they added themselves on their writer page, and take it off again", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeClient());
+    add("nal_own", "A. E. Pen", "member");
+
+    expect(await setNameAliasPublic("nal_own", true)).toEqual({ success: true });
+    expect(data.nameAliases[0].isPublic).toBe(true);
+    expect(await setNameAliasPublic("nal_own", false)).toEqual({ success: true });
+    expect(data.nameAliases[0].isPublic).toBe(false);
+  });
+
+  it("refuses a name staff matched from Zoom or Slack, and another member's name", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeClient());
+    add("nal_zoom", "Ada Zoom", "zoom");
+    add("nal_slack", "ada.s", "slack");
+    add("nal_other", "Grace Pen", "member", "member-2");
+
+    for (const id of ["nal_zoom", "nal_slack", "nal_other"]) {
+      expect(await setNameAliasPublic(id, true)).toEqual({ error: "Only a name you added yourself can be shown on your page." });
+    }
+    expect(data.nameAliases.some((a) => a.isPublic)).toBe(false);
+  });
+
+  it("takes a name off the page when it was the name the page used", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeClient());
+    add("nal_own", "A. E. Pen", "member");
+    await setNameAliasPublic("nal_own", true);
+    const pages = new InMemoryWriterProfileRepository(data);
+    await pages.setHandle("member-1", "ada-example", { reserveDays: 1, now: new Date() });
+    await pages.update("member-1", { publicNameAliasId: "nal_own" });
+
+    await setNameAliasPublic("nal_own", false);
+
+    expect((await pages.ofMember("member-1"))?.publicNameAliasId).toBeNull();
   });
 });
