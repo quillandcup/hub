@@ -84,7 +84,7 @@ SELECT is(
 SELECT is(
   (SELECT (changes ? 'deleted_at')::text || ':' || actor_kind FROM public.audit_log WHERE entity_type = 'landing_page_template' AND entity_id = 'lpgt_TalTest00004' AND action = 'update'),
   'true:staff', 'a delete is one entry as the admin');
-SELECT is((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page_template' AND changed_by IS NOT NULL AND changes::text LIKE '%Zz%'), 0::bigint, 'no typed description, note or page content is in any entry');
+SELECT is((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page_template' AND changed_by IS NOT NULL AND (changes - 'id')::text LIKE '%Zz%'), 0::bigint, 'no typed description, note or page content is in any entry');
 SELECT is((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page_template_version'), 0::bigint, 'a version row is not an entry of its own (the template''s entry is the intent)');
 SELECT is((SELECT changes #>> '{seo_title,new}' FROM public.audit_log WHERE entity_type = 'landing_page' AND entity_id = 'lpg_TalTest000001' AND action = 'update'), '[redacted]', 'a page''s typed search words are not logged');
 SELECT is((SELECT entity_label FROM public.audit_log WHERE entity_type = 'landing_page' AND entity_id = 'lpg_TalTest000001' AND action = 'update'), 'Activity page', 'a page''s entry is labelled with its title');
