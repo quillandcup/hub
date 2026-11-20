@@ -2479,6 +2479,10 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
+### Flaky db test: the seed loader collides on prickle ids _(Needs Scheduling)_
+
+`tests/api/data/seed-loader.test.ts` ("loadProfile": "loads badges, and a re-run replaces the earlier load..." and "clears only its own profile") failed once in CI with `seed prickles: duplicate key value violates unique constraint "prickles_pkey"` (PR #1536, the db suite of `Test (db) & build`), and passed on a re-run of the same commit; the same suite had passed on `main` minutes earlier and the PR did not touch this area. **Likely cause (not confirmed):** `loadProfile` (`lib/data/seed-loader.ts`) clears a profile's prickles by the `seed:<profile>` marker and then inserts the dataset's prickles with ids it derives itself, while the tests use a per-run suffix only for emails (`RUN`); two tests (or two workers) loading the same profile at the same moment against the one shared database can have one test's rows still present when the other inserts, so the ids collide. **Why deferred:** it is rare and a re-run clears it. **Where to start:** make the prickle ids in the test's datasets unique per run (as the emails are), or serialize the tests that load the same profile; then run the file in a loop against a local stack (`pnpm test:db`) to check. Do not re-run CI over it again without noting it here.
+
 ### Member merge drops most of a member's data _(High Priority: data loss)_
 A member merge (`app/api/admin/members/merge/route.ts`) deletes the duplicate, and about 45 tables that point at `members` cascade on delete, so what the merge does not move is gone. It moves prickle attendance, activities, hiatuses and status overrides, hosting, name and email aliases, program enrollments, and (since the retreat fix) event attendance, badges, Big Sister matches and the volunteer record. A merge in November 2026 lost a retreat attendance with its badge and three mentorships, found through the audit log (`audit_log` rows for the member's delete and the cascaded deletes in the same transaction, by `txid`).
 
