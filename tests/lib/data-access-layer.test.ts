@@ -226,6 +226,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Writers' public pages and their handle history (WriterProfileRepository): every query is in the repository.
   writer_profiles: [],
   writer_profile_handles: [],
+  // The Finisher record (MilestoneRepository): every query is in the repository.
+  member_milestones: [],
 };
 
 /**

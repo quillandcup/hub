@@ -5058,6 +5058,91 @@ export type Database = {
           },
         ]
       }
+      member_milestones: {
+        Row: {
+          achieved_on: string | null
+          book_id: string | null
+          confirmed_at: string | null
+          consent_homepage: boolean
+          consent_profile: boolean
+          consent_testimonial: boolean
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          kind: string
+          member_id: string
+          project_id: string | null
+          source: string
+          status: string
+          story_after: string | null
+          story_before: string | null
+          updated_at: string
+        }
+        Insert: {
+          achieved_on?: string | null
+          book_id?: string | null
+          confirmed_at?: string | null
+          consent_homepage?: boolean
+          consent_profile?: boolean
+          consent_testimonial?: boolean
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          kind: string
+          member_id: string
+          project_id?: string | null
+          source: string
+          status?: string
+          story_after?: string | null
+          story_before?: string | null
+          updated_at?: string
+        }
+        Update: {
+          achieved_on?: string | null
+          book_id?: string | null
+          confirmed_at?: string | null
+          consent_homepage?: boolean
+          consent_profile?: boolean
+          consent_testimonial?: boolean
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          kind?: string
+          member_id?: string
+          project_id?: string | null
+          source?: string
+          status?: string
+          story_after?: string | null
+          story_before?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_milestones_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "member_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_milestones_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "writing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_name_aliases: {
         Row: {
           active: boolean
@@ -8759,6 +8844,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      propose_milestones_from_books: { Args: never; Returns: number }
       publish_announced_event_covers: { Args: never; Returns: number }
       publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
       publish_landing_page_with_note: {

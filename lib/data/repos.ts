@@ -58,6 +58,7 @@ import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type Slac
 import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
 import { InMemoryAuthUserRepository, SupabaseAuthUserRepository, type AuthUserRepository } from "./auth-users";
 import { InMemoryLandingPageRepository, SupabaseLandingPageRepository, type LandingPageRepository } from "./landing-pages";
+import { InMemoryMilestoneRepository, SupabaseMilestoneRepository, type MilestoneRepository } from "./milestones";
 import { InMemoryWriterProfileRepository, SupabaseWriterProfileRepository, type WriterProfileRepository } from "./writer-profiles";
 import { InMemoryRateLimitRepository, SupabaseRateLimitRepository, type RateLimitRepository } from "./rate-limit";
 
@@ -126,6 +127,7 @@ export interface Repos {
   rateLimit: RateLimitRepository;
   landingPages: LandingPageRepository;
   writerProfiles: WriterProfileRepository;
+  milestones: MilestoneRepository;
   /** Supabase Auth accounts. Service role only: the admin API refuses a user client. */
   authUsers: AuthUserRepository;
 }
@@ -192,6 +194,7 @@ export function createRepos(db: Db): Repos {
     rateLimit: new SupabaseRateLimitRepository(db),
     landingPages: new SupabaseLandingPageRepository(db),
     writerProfiles: new SupabaseWriterProfileRepository(db),
+    milestones: new SupabaseMilestoneRepository(db),
     authUsers: new SupabaseAuthUserRepository(db),
   };
 }
@@ -261,6 +264,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     rateLimit: new InMemoryRateLimitRepository(dataset),
     landingPages: new InMemoryLandingPageRepository(dataset),
     writerProfiles: new InMemoryWriterProfileRepository(dataset),
+    milestones: new InMemoryMilestoneRepository(dataset),
     authUsers: new InMemoryAuthUserRepository(dataset),
   };
 }

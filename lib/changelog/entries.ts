@@ -56,6 +56,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "finisher-record",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "The Finisher record: milestones a member confirms",
+    summary: "Writing milestones now have a record of their own, proposed by staff and confirmed by the member, with a separate consent for each place one may be shown.",
+    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own table, apart from projects; the third, published, is derived from the Bookshelf and never stored. The rule to follow: staff and courses only propose, the member alone confirms, and a confirmed milestone is shown only where its own consent flag (profile, homepage, testimonial) is on. Row-level security enforces it, so a proposal is invisible to everyone but the member and admins. The hooks are `MilestoneRepository` (`lib/data/milestones.ts`), the wording and answer parsing in `lib/finishers.ts` (the second stamp's name is one string there), the set-based `propose_milestones_from_books()` behind `/admin/finishers`, and the member's card in Settings, Profile. Member removal deletes the rows. Detail: `docs/FINISHERS.md`.",
+  },
+  {
     slug: "temporary-email-addresses",
     date: "2026-11-20",
     audience: "staff",

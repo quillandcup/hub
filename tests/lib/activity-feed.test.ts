@@ -733,3 +733,22 @@ describe("a writer's public page in the Activity Log", () => {
     expect(describeRow(writerPage("update", { handle: { old: "a", new: "b" } }))).toMatch(/public writer page/);
   });
 });
+
+describe("the Finisher record in the Activity Log", () => {
+  const milestone = (event_type: string, data: ActivityFeedRow["data"], member_name: string | null = "Ada Example") =>
+    row({ entity_type: "member_milestone", event_type, data, member_name });
+
+  it("says a proposal, an answer, a change of consent and a take-back in plain words", () => {
+    expect(describeRow(milestone("insert", { kind: { old: null, new: "the_end" }, status: { old: null, new: "proposed" } }))).toBe("proposed the \u201cTHE END\u201d milestone for Ada Example");
+    expect(describeRow(milestone("update", { status: { old: "proposed", new: "confirmed" }, confirmed_at: { old: null, new: "2026-11-20" } }))).toBe("confirmed a writing milestone");
+    expect(describeRow(milestone("update", { status: { old: "proposed", new: "declined" } }))).toBe("said a proposed writing milestone is not theirs, or not yet");
+    expect(describeRow(milestone("update", { consent_homepage: { old: false, new: true } }))).toBe("changed where a writing milestone may be shown");
+    expect(describeRow(milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }, "Ada & <Bo>"))).toBe("took back a proposed milestone for Ada & <Bo>");
+  });
+
+  it("never repeats a story or a date the member wrote", () => {
+    const sentence = describeRow(milestone("update", { status: { old: "proposed", new: "confirmed" }, story_after: { old: "[redacted]", new: "[redacted]" }, achieved_on: { old: null, new: "2026-05-01" } }));
+    expect(sentence).toBe("confirmed a writing milestone");
+    expect(sentence).not.toMatch(/redacted|2026/);
+  });
+});

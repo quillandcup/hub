@@ -11,6 +11,7 @@ import { SessionsPanel } from "./SessionsPanel";
 import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
+import { MilestonesPanel } from "./MilestonesPanel";
 import { PreviewsPanel } from "./PreviewsPanel";
 import BlockedPreviewsList from "@/components/chat/BlockedPreviewsList";
 import { NotificationsPanel } from "./NotificationsPanel";
@@ -74,6 +75,10 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
       ? await createRepos(supabase).chatLinkPreviews.blocksOf(effectiveIdentity.memberId).catch(() => [])
       : null;
 
+  // Milestones staff or a course proposed (docs/FINISHERS.md): the member's own, listed for them to confirm or decline. A failed
+  // read just leaves the card out. In sudo the admin can look but not answer.
+  const milestones = effectiveIdentity ? await createRepos(supabase).milestones.ofMember(effectiveIdentity.memberId).catch(() => []) : [];
+
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -136,7 +141,12 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
               {
                 id: "profile",
                 label: SETTINGS_TAB_LABELS.profile,
-                content: <ProfilePanel />,
+                content: (
+                  <>
+                    <ProfilePanel />
+                    <MilestonesPanel milestones={milestones} readOnly={effectiveIdentity?.isSudo ?? false} />
+                  </>
+                ),
               },
               {
                 id: "identity",
