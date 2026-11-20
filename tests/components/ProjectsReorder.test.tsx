@@ -34,7 +34,7 @@ vi.mock("@/components/books/BookFormModal", () => ({ default: () => null }));
 vi.mock("@/app/(member)/projects/PastProjects", () => ({ default: () => null }));
 
 const project = (id: string, title: string) =>
-  ({ id, title, phase: "drafting", createdAt: "2026-01-01T00:00:00Z", showOnProfile: false, coverUrl: null, description: null, startingBalances: {}, totalsByMeasure: {}, goals: [], book: null }) as unknown as WritingProjectRow;
+  ({ id, title, phase: "drafting", createdAt: "2026-01-01T00:00:00Z", showOnProfile: false, visibility: "private", coverUrl: null, description: null, startingBalances: {}, totalsByMeasure: {}, goals: [], book: null }) as unknown as WritingProjectRow;
 
 const projects = () => [project("wprj_a", "Alpha Draft"), project("wprj_b", "Beta Draft"), project("wprj_c", "Gamma Draft")];
 

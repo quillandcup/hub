@@ -45,17 +45,18 @@ beforeEach(() => {
 });
 
 describe("project page", () => {
-  it("starts the client again when the phase or the profile setting changed on the server", async () => {
-    const drafting = await clientFor({ phase: "drafting", showOnProfile: false });
-    const published = await clientFor({ phase: "published", showOnProfile: false });
-    const shown = await clientFor({ phase: "drafting", showOnProfile: true });
-    expect(drafting?.key).toBe("drafting:false");
-    expect(new Set([drafting?.key, published?.key, shown?.key]).size).toBe(3);
+  it("starts the client again when the phase or who can see it changed on the server", async () => {
+    const drafting = await clientFor({ phase: "drafting", visibility: "private" });
+    const published = await clientFor({ phase: "published", visibility: "private" });
+    const shown = await clientFor({ phase: "drafting", visibility: "community" });
+    const open = await clientFor({ phase: "drafting", visibility: "public" });
+    expect(drafting?.key).toBe("drafting:private");
+    expect(new Set([drafting?.key, published?.key, shown?.key, open?.key]).size).toBe(4);
   });
 
   it("keeps the same client while those two values are unchanged", async () => {
-    const first = await clientFor({ phase: "drafting", showOnProfile: false, title: "Lantern" });
-    const second = await clientFor({ phase: "drafting", showOnProfile: false, title: "Lantern, renamed" });
+    const first = await clientFor({ phase: "drafting", visibility: "private", title: "Lantern" });
+    const second = await clientFor({ phase: "drafting", visibility: "private", title: "Lantern, renamed" });
     expect(second?.key).toBe(first?.key);
   });
 });

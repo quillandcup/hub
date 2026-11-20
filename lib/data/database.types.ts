@@ -7427,6 +7427,7 @@ export type Database = {
           start_date: string | null
           target_amount: number | null
           title: string | null
+          visibility: string
         }
         Insert: {
           archived_at?: string | null
@@ -7448,6 +7449,7 @@ export type Database = {
           start_date?: string | null
           target_amount?: number | null
           title?: string | null
+          visibility?: string
         }
         Update: {
           archived_at?: string | null
@@ -7469,6 +7471,7 @@ export type Database = {
           start_date?: string | null
           target_amount?: number | null
           title?: string | null
+          visibility?: string
         }
         Relationships: [
           {
@@ -7607,6 +7610,7 @@ export type Database = {
           show_on_profile: boolean
           sort_position: number | null
           title: string
+          visibility: string
         }
         Insert: {
           cover_asset_id?: string | null
@@ -7621,6 +7625,7 @@ export type Database = {
           show_on_profile?: boolean
           sort_position?: number | null
           title: string
+          visibility?: string
         }
         Update: {
           cover_asset_id?: string | null
@@ -7635,6 +7640,7 @@ export type Database = {
           show_on_profile?: boolean
           sort_position?: number | null
           title?: string
+          visibility?: string
         }
         Relationships: [
           {

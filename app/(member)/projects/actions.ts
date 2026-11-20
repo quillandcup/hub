@@ -8,6 +8,7 @@ import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
+import { isVisibility, lessVisible, type Visibility } from "@/lib/writing-visibility";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { cleanEditions } from "@/lib/book-editions";
@@ -66,6 +67,8 @@ export interface WritingProjectRow {
   phase: Phase;
   createdAt: string;
   showOnProfile: boolean;
+  /** Who can see it: private, community (signed-in members) or public. `showOnProfile` is the same thing as on/off. */
+  visibility: Visibility;
   coverUrl: string | null;
   description: string | null;
   /** How much the member already had before tracking here, by measure -- offsets totalsByMeasure and the chart, not goal progress. */
@@ -99,6 +102,7 @@ interface GoalRowBase {
   title: string | null;
   description: string | null;
   showOnProfile: boolean;
+  visibility: Visibility;
 }
 
 export interface TargetGoalRow extends GoalRowBase {
@@ -258,6 +262,7 @@ interface RawProject {
   phase: string;
   created_at: string;
   show_on_profile: boolean;
+  visibility: Visibility;
   cover_url: string | null;
   description: string | null;
 }
@@ -326,10 +331,11 @@ interface RawGoal {
   title: string | null;
   description: string | null;
   show_on_profile: boolean;
+  visibility: Visibility;
 }
 
 const GOAL_SELECT_COLUMNS =
-  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile";
+  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, visibility";
 
 function singleRelation<T>(rel: T | T[] | null | undefined): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
@@ -357,6 +363,7 @@ function buildGoalRow(
     title: g.title,
     description: g.description,
     showOnProfile: g.show_on_profile,
+    visibility: g.visibility,
   };
 
   if (g.goal_type === "habit") {
@@ -447,6 +454,7 @@ function buildProjectRows(
       phase: project.phase as Phase,
       createdAt: project.created_at,
       showOnProfile: project.show_on_profile,
+      visibility: project.visibility,
       coverUrl: project.cover_url,
       description: project.description,
       startingBalances: projectStartingBalances,
@@ -581,15 +589,17 @@ async function setStartingBalancesImpl(
   return { success: true };
 }
 
-async function toggleProjectVisibilityImpl(
+async function setProjectVisibilityImpl(
   projectId: string,
-  showOnProfile: boolean
+  visibility: Visibility
 ): Promise<{ success: true } | { error: string }> {
+  if (!isVisibility(visibility)) return { error: "Choose private, community or public" };
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { show_on_profile: showOnProfile });
+  // The database lowers the project's goals to the new level; the member's goals never end up above their project.
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { visibility });
   if (failure) return failure;
 
   revalidatePath(`/projects/${projectId}`);
@@ -1198,17 +1208,21 @@ function buildGoalFields(
 }
 
 /**
- * A goal on the profile shows its project's title and progress, so showing a goal shows its project
- * (the database refuses a shown goal on a private project and would otherwise quietly hide the goal).
+ * A goal on the profile shows its project's title and progress, so a goal is never more visible than its project (the
+ * database lowers a goal that would be). Showing a goal therefore raises its project to the goal's level first.
  */
 async function shareProjectForGoal(
   writing: ReturnType<typeof createRepos>["writing"],
   memberId: string,
   projectId: string,
-  details: { show_on_profile?: boolean }
+  visibility: Visibility | boolean | undefined
 ) {
-  if (details.show_on_profile !== true) return;
-  await writing.updateProject(memberId, projectId, { show_on_profile: true });
+  if (visibility === undefined || visibility === false || visibility === "private") return;
+  const wanted: Visibility = visibility === true ? "community" : visibility;
+  const current = await writing.projectVisibility(memberId, projectId);
+  if (current !== null && lessVisible(current, wanted) === current && current !== wanted) {
+    await writing.updateProject(memberId, projectId, { visibility: wanted });
+  }
 }
 
 async function createGoalImpl(
@@ -1232,7 +1246,7 @@ async function createGoalImpl(
   let id: string;
   try {
     const writing = createRepos(supabase).writing;
-    await shareProjectForGoal(writing, effectiveIdentity.memberId, input.projectId, details);
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, input.projectId, details.show_on_profile);
     id = await writing.createGoal({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to create goal" };
@@ -1292,7 +1306,7 @@ async function updateGoalImpl(
   if ("error" in details) return details;
 
   try {
-    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, details);
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, details.show_on_profile);
     await writing.updateGoal(effectiveIdentity.memberId, goalId, { ...fields, ...details });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update goal" };
@@ -1393,10 +1407,11 @@ async function toggleGoalStarImpl(
   return { success: true };
 }
 
-async function toggleGoalVisibilityImpl(
+async function setGoalVisibilityImpl(
   goalId: string,
-  showOnProfile: boolean
+  visibility: Visibility
 ): Promise<{ success: true } | { error: string }> {
+  if (!isVisibility(visibility)) return { error: "Choose private, community or public" };
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -1405,8 +1420,8 @@ async function toggleGoalVisibilityImpl(
     const writing = createRepos(supabase).writing;
     const existing = await writing.goalForEdit(goalId);
     if (!existing || existing.member_id !== effectiveIdentity.memberId) return { error: "Goal not found" };
-    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, { show_on_profile: showOnProfile });
-    await writing.updateGoal(effectiveIdentity.memberId, goalId, { show_on_profile: showOnProfile });
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, visibility);
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { visibility });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update goal" };
   }
@@ -1493,7 +1508,7 @@ export async function getProfileWriting(
 
   const payload = (data ?? null) as {
     projects: { id: string; title: string }[];
-    goals: (Omit<RawGoal, "is_starred" | "show_on_profile"> & { project_title: string })[];
+    goals: (Omit<RawGoal, "is_starred" | "show_on_profile" | "visibility"> & { project_title: string })[];
     entries: RawEntry[];
     starting_balances: RawStartingBalance[];
   } | null;
@@ -1533,7 +1548,7 @@ export async function getProfileWriting(
   }
 
   const goals = payload.goals.map((g) => ({
-    ...buildGoalRow({ ...g, is_starred: false, show_on_profile: true }, entriesFor(g.project_id), now, attendance, payload.starting_balances),
+    ...buildGoalRow({ ...g, is_starred: false, show_on_profile: true, visibility: "community" }, entriesFor(g.project_id), now, attendance, payload.starting_balances),
     projectTitle: g.project_title,
   }));
 
@@ -1585,8 +1600,8 @@ export async function reorderMyProjects(...args: Parameters<typeof reorderMyProj
   return withAction("projects_reordered", () => reorderMyProjectsImpl(...args));
 }
 
-export async function toggleProjectVisibility(...args: Parameters<typeof toggleProjectVisibilityImpl>): ReturnType<typeof toggleProjectVisibilityImpl> {
-  return withAction("project_visibility_changed", () => toggleProjectVisibilityImpl(...args));
+export async function setProjectVisibility(...args: Parameters<typeof setProjectVisibilityImpl>): ReturnType<typeof setProjectVisibilityImpl> {
+  return withAction("project_visibility_changed", () => setProjectVisibilityImpl(...args));
 }
 
 export async function updateProjectPhase(...args: Parameters<typeof updateProjectPhaseImpl>): ReturnType<typeof updateProjectPhaseImpl> {
@@ -1617,6 +1632,6 @@ export async function toggleGoalStar(...args: Parameters<typeof toggleGoalStarIm
   return withAction("goal_star_toggled", () => toggleGoalStarImpl(...args));
 }
 
-export async function toggleGoalVisibility(...args: Parameters<typeof toggleGoalVisibilityImpl>): ReturnType<typeof toggleGoalVisibilityImpl> {
-  return withAction("goal_visibility_changed", () => toggleGoalVisibilityImpl(...args));
+export async function setGoalVisibility(...args: Parameters<typeof setGoalVisibilityImpl>): ReturnType<typeof setGoalVisibilityImpl> {
+  return withAction("goal_visibility_changed", () => setGoalVisibilityImpl(...args));
 }

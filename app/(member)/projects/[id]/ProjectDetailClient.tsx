@@ -15,11 +15,9 @@ import { DataTablePager } from "@/components/DataTablePager";
 import BookFormModal from "@/components/books/BookFormModal";
 import BookEditionLinks from "@/components/books/BookEditionLinks";
 import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
-import {
-  StarToggle,
-  ProfileVisibilityToggle,
-  STAR_ON,
-} from "@/components/writing/VisibilityToggles";
+import { StarToggle, STAR_ON } from "@/components/writing/VisibilityToggles";
+import VisibilityControl from "@/components/writing/VisibilityControl";
+import { lessVisible, type Visibility } from "@/lib/writing-visibility";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import { isMissedGoal } from "@/lib/writing-projects";
 import {
@@ -38,8 +36,8 @@ import {
   deleteGoal,
   reorderMyGoals,
   toggleGoalStar,
-  toggleGoalVisibility,
-  toggleProjectVisibility,
+  setGoalVisibility,
+  setProjectVisibility,
   updateGoal,
   updateProjectPhase,
   type WritingProjectRow,
@@ -73,7 +71,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [editingEntry, setEditingEntry] = useState<EntryRow | null>(null);
   const [showNewGoal, setShowNewGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
-  const [showOnProfile, setShowOnProfile] = useState(project.showOnProfile);
+  const [visibility, setVisibility] = useState<Visibility>(project.visibility);
+  const showOnProfile = visibility !== "private";
   const [visibilityPending, setVisibilityPending] = useState(false);
   const [phase, setPhase] = useState(project.phase);
   const [phasePending, setPhasePending] = useState(false);
@@ -120,16 +119,15 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     handleChanged();
   }
 
-  async function handleToggleVisibility() {
-    const next = !showOnProfile;
+  async function handleChangeVisibility(next: Visibility) {
     setVisibilityPending(true);
-    const result = await toggleProjectVisibility(project.id, next);
+    const result = await setProjectVisibility(project.id, next);
     setVisibilityPending(false);
     if ("error" in result) {
       alert(result.error);
       return;
     }
-    setShowOnProfile(next);
+    setVisibility(next);
   }
 
   async function handlePhaseChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -169,8 +167,9 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     () => router.refresh()
   );
 
-  // A goal is on the profile only while its project is too; hiding a project keeps its goals' own setting.
-  const goalOnProfile = (goal: GoalRow) => goal.showOnProfile && showOnProfile;
+  // A goal is never more visible than its project.
+  const goalVisibility = (goal: GoalRow): Visibility => lessVisible(goal.visibility, visibility);
+  const goalOnProfile = (goal: GoalRow) => goalVisibility(goal) !== "private";
 
   const renderGoal = (goal: GoalRow, index?: number) => {
     const startEdit = () => {
@@ -207,10 +206,10 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                 else handleChanged();
               }}
             />
-            <ProfileVisibilityToggle
-              on={goalOnProfile(goal)}
-              onToggle={async () => {
-                const result = await toggleGoalVisibility(goal.id, !goalOnProfile(goal));
+            <VisibilityControl
+              visibility={goalVisibility(goal)}
+              onChange={async (next) => {
+                const result = await setGoalVisibility(goal.id, next);
                 if ("error" in result) alert(result.error);
                 else handleChanged();
               }}
@@ -272,10 +271,10 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <ProfileVisibilityToggle
-            on={showOnProfile}
+          <VisibilityControl
+            visibility={visibility}
             disabled={visibilityPending}
-            onToggle={handleToggleVisibility}
+            onChange={handleChangeVisibility}
             noun="project"
             withText
             className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"

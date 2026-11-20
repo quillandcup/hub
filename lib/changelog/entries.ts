@@ -80,6 +80,20 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
   },
   {
+    slug: "writing-visibility-control",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "One three-level visibility control for a writer's own work",
+    summary: "Projects and goals now have a lock, house, globe control: only me, other members, or (once the public profile exists) everyone.",
+    body: `A writer's project or goal now has a level, not an on/off switch, so the same control can later decide what a public profile shows. One click cycles private, community, public.
+
+- **Rule.** \`visibility\` (private, community, public) is the source of truth; nothing reads \`public\` yet, so nobody outside the community sees anything new. A goal is never more visible than its project: a goal write is clamped, and the profile reads the lower of the two.
+- **Expand step.** \`show_on_profile\` stays, kept equal to \`visibility <> 'private'\` by triggers, so old readers keep working until it is dropped (\`docs/TODO.md\`, "Drop show_on_profile").
+- **Hooks.** \`components/writing/VisibilityControl.tsx\` (reuse it for the next thing a writer owns, with \`noun\`), \`lib/writing-visibility.ts\` (levels, cycle, the twin's copy of the triggers), \`setProjectVisibility\` and \`setGoalVisibility\`, and the \`community\` icon (house) beside the lock and globe.
+- **Detail.** "Writer profiles" in \`docs/TODO.md\`.`,
+  },
+  {
     slug: "landing-page-templates",
     date: "2026-11-20",
     audience: "engineering",

@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, LayoutTemplate, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, House, LayoutTemplate, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -34,6 +34,8 @@ export const ICONS = {
   publish: Globe,
   /** Back to only you or staff (a draft, private): the lock, as 🔒 on the writing visibility toggles and "Only you can see this". */
   unpublish: Lock,
+  /** Visible inside the community only (signed-in members): between the lock (only me) and the globe (everyone). */
+  community: House,
   /** Earlier versions of something. */
   history: History,
   /** A saved page layout to start new pages from (the page builder's templates). */
