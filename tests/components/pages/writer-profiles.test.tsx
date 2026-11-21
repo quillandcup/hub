@@ -63,6 +63,82 @@ describe("/w/[handle]", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
+  describe("the Milestones strip", () => {
+    const confirm = (kind: "the_end" | "publish_ready", title: string, extra: { storyAfter?: string; achievedOn?: string } = {}) =>
+      state.repos.milestones.addOwn(
+        {
+          memberId: ADA,
+          kind,
+          work: { projectId: null, bookId: null, title },
+          createdBy: "11111111-1111-4111-8111-111111111111",
+          answer: { status: "confirmed", achievedOn: extra.achievedOn ?? null, storyBefore: null, storyAfter: extra.storyAfter ?? null, consent_testimonial: false },
+        },
+        NOW,
+      );
+    const level = async (id: string, visibility: "private" | "community" | "public") => state.repos.milestones.setVisibility(id, ADA, visibility, NOW);
+
+    it("shows only the milestones at the globe, with the title, the work, the day and the story, and nothing more private", async () => {
+      await makePage("ada-example");
+      const shown = await confirm("the_end", "A Fake Novel", { storyAfter: "I finally did it.", achievedOn: "2026-05-01" });
+      const members = await confirm("publish_ready", "A Community Fake Work", { storyAfter: "Community only words." });
+      const hidden = await confirm("the_end", "A Private Fake Work", { storyAfter: "Private words." });
+      await level(shown.milestone.id, "public");
+      await level(hidden.milestone.id, "private");
+      expect(members.milestone.visibility).toBe("community");
+
+      const { container } = await renderServerPage(WriterProfile, params("ada-example"));
+
+      const strip = screen.getByTestId("milestone-strip");
+      expect(strip).toHaveTextContent("Finisher · Wrote THE END");
+      expect(strip).toHaveTextContent("A Fake Novel · May 1, 2026");
+      expect(strip).toHaveTextContent("I finally did it.");
+      for (const secret of ["Community only words.", "A Community Fake Work", "Private words.", "A Private Fake Work", "mlst_"]) expect(container.innerHTML).not.toContain(secret);
+    });
+
+    it("draws no strip when no milestone is at the globe", async () => {
+      await makePage("ada-example");
+      await confirm("the_end", "A Fake Novel");
+      await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
+    });
+
+    it("is behind the writer profiles flag and the page being on: with either off it is the same 404, and the strip is never read", async () => {
+      await makePage("ada-example");
+      const { milestone } = await confirm("the_end", "A Fake Novel", { storyAfter: "I finally did it." });
+      await level(milestone.id, "public");
+      const reads = vi.spyOn(state.repos.milestones, "shownOnWeb");
+
+      state.dataset.featureFlags[0].enabled_globally = false;
+      await expect(WriterProfile(params("ada-example"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+      state.dataset.featureFlags[0].enabled_globally = true;
+      await state.repos.writerProfiles.update(ADA, { isPublic: false });
+      await expect(WriterProfile(params("ada-example"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+      expect(reads).not.toHaveBeenCalled();
+    });
+
+    it("shows a withdrawn milestone no more on the next read", async () => {
+      await makePage("ada-example");
+      const { milestone } = await confirm("the_end", "A Fake Novel", { storyAfter: "I finally did it." });
+      await level(milestone.id, "public");
+      const first = await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.getByTestId("milestone-strip")).toBeInTheDocument();
+      first.unmount();
+      await level(milestone.id, "community");
+      await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
+    });
+
+    it("shows the globe milestones in the member's own preview too, whether or not the page is on", async () => {
+      await makePage("ada-example", { on: false });
+      const { milestone } = await confirm("publish_ready", "A Fake Novel", { storyAfter: "Ready at last." });
+      await level(milestone.id, "public");
+      signInAs({ id: "user-ada", email: "ada.private@example.test" } as never, { memberId: ADA, memberName: "Ada", memberEmail: "ada.private@example.test", isSudo: false });
+      await renderServerPage(WriterProfilePreview, {});
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("Author · Manuscript ready to publish");
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("Ready at last.");
+    });
+  });
+
   it("shows the photo only when the member chose to", async () => {
     await makePage("ada-example", { photo: true });
     await renderServerPage(WriterProfile, params("ada-example"));

@@ -1,7 +1,8 @@
 import { ORG_TIMEZONE } from "@/lib/config";
+import { VISIBILITIES, type Visibility } from "@/lib/writing-visibility";
 
 /**
- * The Finisher record (docs/product/FINISHERS.md): the milestones a member can claim, the three uses they may consent to, and the
+ * The Finisher record (docs/product/FINISHERS.md): the milestones a member can claim, the one consent they may give for marketing, and the
  * rules for reading a member's answer. Plain module (no server imports) so client components can use the wording.
  *
  * Two milestones are stored (`member_milestones`); the third, published, is derived from `member_books` and never stored.
@@ -56,16 +57,73 @@ export const MILESTONE_SOURCE_NOTES: Record<MilestoneSource, string> = {
   staff: "Suggested by the Quill & Cup team.",
 };
 
-/** The uses a member can agree to, one at a time. All are off until they tick them. */
-export const MILESTONE_CONSENTS = [
-  { key: "consent_profile", label: "My writer profile", hint: "If you turn on a public profile, show this on it." },
-  { key: "consent_homepage", label: "The Quill & Cup homepage", hint: "Count me, and show my story, among the writers who finished." },
-  { key: "consent_testimonial", label: "Telling other writers", hint: "Quote my words when we tell other writers what is possible." },
-] as const;
-export type ConsentKey = (typeof MILESTONE_CONSENTS)[number]["key"];
-export type Consents = Record<ConsentKey, boolean>;
+/**
+ * The one consent a milestone carries: "Share my story to inspire other writers" (stored as `consent_testimonial`). It is for
+ * marketing: the Finishers section of the website and the testimonials we share. It is off until the member ticks it, only
+ * means something on a confirmed milestone with a story, and is never a condition of saving (docs/product/FINISHERS.md).
+ */
+export const SHARE_STORY_DEFAULT = false;
+export const SHARE_STORY_LABEL = "Share my story to inspire other writers.";
+export const SHARE_STORY_NOTE =
+  "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here, and you can change your mind any time.";
+export const SHARE_STORY_TIP = "For marketing: the Finishers section of our website, and testimonials we share.";
 
-export const NO_CONSENT: Consents = { consent_profile: false, consent_homepage: false, consent_testimonial: false };
+/** What a member is told right after they confirm a milestone, before anything else. */
+export const MILESTONE_CELEBRATION: Record<MilestoneKind, string> = {
+  the_end: "You wrote THE END. We're so proud of you.",
+  publish_ready: "Your manuscript is publish-ready. What a lot of work, and you did it.",
+};
+
+/** How a milestone reads in the strip on a profile: the title it earns, and what the writer did. */
+export const MILESTONE_SHOWN: Record<MilestoneKind, string> = {
+  the_end: "Wrote THE END",
+  publish_ready: "Manuscript ready to publish",
+};
+
+/** A calendar date a member picked ("2026-05-01"), as words. It is a day, not an instant, so no zone is applied. */
+export function milestoneDateWords(value: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" }).format(new Date(`${value}T00:00:00Z`));
+}
+
+/**
+ * The levels a click on a milestone's lock, house or globe cycles through: private, community and, only when writer profiles
+ * are open to the member (the `writer_profiles` flag), public. A milestone that is not confirmed has no control at all.
+ */
+export function milestoneLevels(webAvailable: boolean): Visibility[] {
+  return webAvailable ? [...VISIBILITIES] : ["private", "community"];
+}
+
+const LEVEL_NOW: Record<Visibility, string> = {
+  private: "Only you can see this milestone.",
+  community: "Other members can see this milestone on your profile.",
+  public: "Anyone on the internet can see this milestone on your writer profile once your writer profile is on. Other members can see it too.",
+};
+const LEVEL_CLICK: Record<Visibility, string> = {
+  private: "Click to keep it to yourself.",
+  community: "Click to show it to other members.",
+  public: "Click to show it to everyone on the internet, on your writer profile.",
+};
+
+/** The tooltip on a milestone's lock, house or globe: who sees it now, and where a click goes. A story shares the milestone's level. */
+export function describeMilestoneLevel(visibility: Visibility, next: Visibility): string {
+  return `${LEVEL_NOW[visibility]} The story you wrote goes with it. ${LEVEL_CLICK[next]}`;
+}
+
+/**
+ * The note under a milestone at the globe, so the globe never promises more than will happen: writer profiles are not open to
+ * this member, or the profile is off. Null when the level needs no note.
+ */
+export function milestoneWebNote(visibility: Visibility, page: { available: boolean; on: boolean }): string | null {
+  if (visibility !== "public") return null;
+  if (!page.available) return "Other members can see it. It is not on the web, because writer profiles are not open to you yet.";
+  if (!page.on) return "Other members already see this. It goes on the web once your writer profile is on.";
+  return null;
+}
+
+/** Whether a milestone has a story the member wrote (so the share tick makes sense). */
+export function hasStory(m: { storyBefore: string | null; storyAfter: string | null }): boolean {
+  return Boolean(m.storyBefore?.trim() || m.storyAfter?.trim());
+}
 
 export const MAX_STORY_LENGTH = 2000;
 
@@ -75,13 +133,14 @@ export type MilestoneAnswerInput = {
   achievedOn?: string | null;
   storyBefore?: string | null;
   storyAfter?: string | null;
-  consents?: Partial<Consents>;
+  /** The share tick. It only counts when a story is written. */
+  shareStory?: boolean;
 };
 
 /** A confirmed answer: what the repository stores when the member says "yes, this is me" (or adds the milestone themselves). */
-export type ConfirmedMilestoneAnswer = { status: "confirmed"; achievedOn: string | null; storyBefore: string | null; storyAfter: string | null } & Consents;
+export type ConfirmedMilestoneAnswer = { status: "confirmed"; achievedOn: string | null; storyBefore: string | null; storyAfter: string | null; consent_testimonial: boolean };
 
-/** What the repository stores for an answer (declined drops any consent: a consent only exists on a confirmed row). */
+/** What the repository stores for an answer (declined drops the consent and the level: both only exist on a confirmed row). */
 export type MilestoneAnswer = ConfirmedMilestoneAnswer | { status: "declined" };
 
 /** Today's date (YYYY-MM-DD) for the org, not for the server's zone. */
@@ -103,8 +162,8 @@ const clean = (value: string | null | undefined): string | null => {
 };
 
 /**
- * Reads a member's answer. A confirmed answer keeps the optional date and stories (blank means none) and each consent as
- * ticked (anything not ticked is off); a decline keeps nothing. `{ error }` is a sentence for the member.
+ * Reads a member's answer. A confirmed answer keeps the optional date and stories (blank means none) and the share tick (off
+ * unless ticked, and off when no story was written); a decline keeps nothing. `{ error }` is a sentence for the member.
  */
 export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number): MilestoneAnswer | { error: string } {
   if (input.answer === "decline") return { status: "declined" };
@@ -120,8 +179,8 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
   for (const story of [storyBefore, storyAfter]) {
     if (story !== null && story.length > MAX_STORY_LENGTH) return { error: `Please keep each story under ${MAX_STORY_LENGTH} characters.` };
   }
-  const consents = Object.fromEntries(MILESTONE_CONSENTS.map(({ key }) => [key, input.consents?.[key] === true])) as Consents;
-  return { status: "confirmed", achievedOn, storyBefore, storyAfter, ...consents };
+  const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null);
+  return { status: "confirmed", achievedOn, storyBefore, storyAfter, consent_testimonial };
 }
 
 /**

@@ -1,28 +1,37 @@
 "use client";
 
-import { useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   MAX_STORY_LENGTH,
+  MILESTONE_CELEBRATION,
   MILESTONE_CLAIMS,
-  MILESTONE_CONSENTS,
   MILESTONE_KINDS,
   MILESTONE_LABELS,
   MILESTONE_SELF_ADD,
   MILESTONE_SOURCE_NOTES,
   MILESTONE_TITLES,
-  NO_CONSENT,
   PUBLISHED_CLAIM,
   PUBLISHED_TITLE,
-  type ConsentKey,
-  type Consents,
+  SHARE_STORY_DEFAULT,
+  SHARE_STORY_LABEL,
+  SHARE_STORY_NOTE,
+  SHARE_STORY_TIP,
+  describeMilestoneLevel,
+  hasStory,
+  milestoneDateWords,
+  milestoneLevels,
+  milestoneWebNote,
   type MilestoneKind,
 } from "@/lib/finishers";
+import type { Visibility } from "@/lib/writing-visibility";
+import VisibilityControl from "@/components/writing/VisibilityControl";
+import { InfoTip } from "@/components/InfoTip";
 import { buildWorks, isFeaturedWork, summarizeTitles, MAX_WORK_TITLE_LENGTH, type CardBook, type CardProject, type Work } from "@/lib/finishers-works";
 import type { Milestone } from "@/lib/data/milestones";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { addMilestone, answerMilestone, takeBackMilestone } from "./milestoneActions";
+import { addMilestone, answerMilestone, setMilestoneShare, setMilestoneVisibility, takeBackMilestone } from "./milestoneActions";
 
 const INPUT = "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
 const PRIMARY = "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
@@ -30,23 +39,34 @@ const SECONDARY = "px-4 py-2 text-sm rounded-md border border-slate-300 dark:bor
 const NOTE = "mt-1 text-sm text-slate-600 dark:text-slate-400";
 
 type FormResult = { success: true } | { error: string };
-type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; consents: Consents };
+type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; shareStory: boolean };
 
+/** What the member's writer profile is, as far as the globe's note needs to know (as `WebPageState` for profile items). */
+export type MilestoneWebState = { available: boolean; on: boolean };
 
-const consentsOf = (m: Milestone): Consents => ({
-  consent_profile: m.consentProfile,
-  consent_homepage: m.consentHomepage,
-  consent_testimonial: m.consentTestimonial,
-});
-
-/** A calendar date the member picked ("2026-05-01"), as words. It is a day, not an instant, so no zone is applied. */
-function dayWords(value: string): string {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" }).format(new Date(`${value}T00:00:00Z`));
+/**
+ * The share tick: "Share my story to inspire other writers", with what it means and an info tip for the marketing uses. It is
+ * only shown beside a story that is written, never a condition of saving, and unticking is a plain choice with no warning.
+ */
+function ShareStoryTick({ id, checked, onChange, disabled }: { id: string; checked: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <input id={id} type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="mt-0.5" />
+        <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          {SHARE_STORY_LABEL}
+        </label>
+        <InfoTip label="What sharing my story means">{SHARE_STORY_TIP}</InfoTip>
+      </div>
+      <p className="mt-1 ml-6 text-xs text-slate-600 dark:text-slate-400">{SHARE_STORY_NOTE}</p>
+    </div>
+  );
 }
 
 /**
- * The answer form: an optional date, a before and an after story, and one tick per use (all unticked). It confirms a proposal,
- * changes a confirmed answer, or adds a new milestone for a work; `run` does the saving. `lead` is extra fields above the form.
+ * The answer form: an optional date, a before and an after story, and, once a story is written, the share tick (unticked until
+ * the member ticks it). It confirms a proposal, changes a confirmed answer, or adds a new milestone for a work; `run` does the
+ * saving. `lead` is extra fields above the form.
  */
 function MilestoneForm({
   idPrefix,
@@ -62,7 +82,8 @@ function MilestoneForm({
   lead?: ReactNode;
   submitLabel: string;
   run: (input: FormInput) => Promise<FormResult>;
-  onDone: () => void;
+  /** Called when the form closes; `saved` is true when it closed because the answer was saved. */
+  onDone: (saved: boolean) => void;
   readOnly: boolean;
 }) {
   const router = useRouter();
@@ -71,20 +92,21 @@ function MilestoneForm({
   const [date, setDate] = useState(initial?.achievedOn ?? "");
   const [before, setBefore] = useState(initial?.storyBefore ?? "");
   const [after, setAfter] = useState(initial?.storyAfter ?? "");
-  // Every use starts unticked; a milestone already confirmed shows what the member chose.
-  const [consents, setConsents] = useState<Consents>(initial?.status === "confirmed" ? consentsOf(initial) : NO_CONSENT);
+  // The share tick starts unticked (SHARE_STORY_DEFAULT); a milestone already confirmed shows what the member chose.
+  const [share, setShare] = useState(initial?.status === "confirmed" ? initial.consentTestimonial : SHARE_STORY_DEFAULT);
+  const written = before.trim() !== "" || after.trim() !== "";
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await run({ achievedOn: date || null, storyBefore: before, storyAfter: after, consents });
+      const result = await run({ achievedOn: date || null, storyBefore: before, storyAfter: after, shareStory: share });
       if ("error" in result) {
         setError(result.error);
         return;
       }
       router.refresh();
-      onDone();
+      onDone(true);
     });
   };
 
@@ -109,28 +131,7 @@ function MilestoneForm({
         </label>
         <textarea id={`${idPrefix}-after`} rows={3} maxLength={MAX_STORY_LENGTH} value={after} onChange={(e) => setAfter(e.target.value)} className={INPUT} />
       </div>
-      <fieldset>
-        <legend className="text-sm font-medium text-slate-700 dark:text-slate-300">Where may we show this?</legend>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-          Nothing is shown anywhere yet. Your answer is saved, and it will only be used where you tick a box. You can change your mind here at any time.
-        </p>
-        <div className="mt-2 space-y-2">
-          {MILESTONE_CONSENTS.map(({ key, label, hint }) => (
-            <label key={key} className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={consents[key as ConsentKey]}
-                onChange={(e) => setConsents((c) => ({ ...c, [key]: e.target.checked }))}
-                className="mt-1"
-              />
-              <span>
-                <span className="font-medium">{label}</span>
-                <span className="block text-xs text-slate-600 dark:text-slate-400">{hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {written && <ShareStoryTick id={`${idPrefix}-share`} checked={share} onChange={setShare} disabled={pending} />}
       {error && (
         <p role="alert" className="text-sm text-red-700 dark:text-red-400">
           {error}
@@ -140,7 +141,7 @@ function MilestoneForm({
         <button type="submit" disabled={pending || readOnly} className={PRIMARY}>
           {pending ? "Saving..." : submitLabel}
         </button>
-        <button type="button" onClick={onDone} disabled={pending} className={SECONDARY}>
+        <button type="button" onClick={() => onDone(false)} disabled={pending} className={SECONDARY}>
           Cancel
         </button>
       </div>
@@ -156,12 +157,19 @@ function RowHeading({ kind }: { kind: MilestoneKind }) {
   );
 }
 
-function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKind; milestone: Milestone | undefined; work: Work; readOnly: boolean }) {
+function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: MilestoneKind; milestone: Milestone | undefined; work: Work; readOnly: boolean; web: MilestoneWebState }) {
   const router = useRouter();
   const { ask, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // The celebration after a milestone is first confirmed, shown before anything else on the row.
+  const [celebrate, setCelebrate] = useState(false);
+  // The level and the share tick show the member's click at once and go back if the save fails; the server's value takes over when it arrives.
+  const [level, setLevel] = useState<Visibility | null>(null);
+  const [shared, setShared] = useState<boolean | null>(null);
+  useEffect(() => setLevel(null), [milestone?.visibility]);
+  useEffect(() => setShared(null), [milestone?.consentTestimonial]);
 
   const fail = (result: FormResult) => {
     if ("error" in result) setError(result.error);
@@ -188,7 +196,34 @@ function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKin
     });
   };
 
-  const chosen = milestone ? MILESTONE_CONSENTS.filter(({ key }) => consentsOf(milestone)[key]).map(({ label }) => label) : [];
+  const changeLevel = (m: Milestone, next: Visibility) =>
+    startTransition(async () => {
+      setError(null);
+      const before = level;
+      setLevel(next);
+      const result = await setMilestoneVisibility(m.id, next);
+      if ("error" in result) {
+        setLevel(before);
+        setError(result.error);
+      } else router.refresh();
+    });
+
+  const changeShare = (m: Milestone, next: boolean) =>
+    startTransition(async () => {
+      setError(null);
+      const before = shared;
+      setShared(next);
+      const result = await setMilestoneShare(m.id, next);
+      if ("error" in result) {
+        setShared(before);
+        setError(result.error);
+      } else router.refresh();
+    });
+
+  const finishForm = (saved: boolean, wasConfirmed: boolean) => {
+    setEditing(false);
+    if (saved && !wasConfirmed) setCelebrate(true);
+  };
 
   return (
     <li className="rounded-md border border-slate-200 dark:border-slate-700 p-4" data-milestone={`${work.key || "none"}-${kind}`}>
@@ -217,9 +252,9 @@ function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKin
               achievedOn: i.achievedOn,
               storyBefore: i.storyBefore,
               storyAfter: i.storyAfter,
-              consents: i.consents,
+              shareStory: i.shareStory,
             })}
-          onDone={() => setEditing(false)}
+          onDone={(saved) => finishForm(saved, false)}
           readOnly={readOnly}
         />
       )}
@@ -239,10 +274,34 @@ function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKin
       )}
       {milestone?.status === "confirmed" && !editing && (
         <>
-          <p className={NOTE}>
-            Confirmed{milestone.achievedOn ? ` (${dayWords(milestone.achievedOn)})` : ""}.{" "}
-            {chosen.length > 0 ? `You said we may show it on: ${chosen.join(", ")}.` : "You haven't chosen anywhere to show it, so it stays private."}
-          </p>
+          {celebrate && (
+            <p role="status" className="mt-2 text-sm font-medium text-plum-700 dark:text-plum-300" data-testid="milestone-celebration">
+              {MILESTONE_CELEBRATION[kind]}
+            </p>
+          )}
+          <p className={NOTE}>Confirmed{milestone.achievedOn ? ` (${milestoneDateWords(milestone.achievedOn)})` : ""}.</p>
+          <div className="mt-2">
+            <VisibilityControl
+              visibility={level ?? milestone.visibility}
+              onChange={(next) => changeLevel(milestone, next)}
+              disabled={pending || readOnly}
+              noun="milestone"
+              levels={milestoneLevels(web.available)}
+              describe={describeMilestoneLevel}
+              withText
+              className="text-sm text-slate-700 dark:text-slate-300"
+            />
+            {milestoneWebNote(level ?? milestone.visibility, web) && (
+              <p className="mt-1 max-w-md text-xs text-slate-600 dark:text-slate-400" data-testid="milestone-web-note">
+                {milestoneWebNote(level ?? milestone.visibility, web)}
+              </p>
+            )}
+          </div>
+          {hasStory(milestone) && (
+            <div className="mt-3">
+              <ShareStoryTick id={`ms-${milestone.id}-share-now`} checked={shared ?? milestone.consentTestimonial} onChange={(next) => changeShare(milestone, next)} disabled={pending || readOnly} />
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-3">
             <button type="button" onClick={() => setEditing(true)} disabled={readOnly} className={SECONDARY}>
               Change
@@ -261,7 +320,7 @@ function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKin
       )}
       {milestone?.status === "declined" && !editing && (
         <>
-          <p className={NOTE}>You said this isn&rsquo;t you, or not yet. We won&rsquo;t show it anywhere.</p>
+          <p className={NOTE}>You said no, or not yet. It isn&rsquo;t shown anywhere.</p>
           <div className="mt-3">
             <button type="button" onClick={() => setEditing(true)} disabled={readOnly} className={SECONDARY}>
               Actually, it is me
@@ -274,8 +333,8 @@ function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKin
           idPrefix={`ms-${milestone.id}`}
           initial={milestone}
           submitLabel="Save"
-          run={(i) => answerMilestone({ id: milestone.id, answer: "confirm", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, consents: i.consents })}
-          onDone={() => setEditing(false)}
+          run={(i) => answerMilestone({ id: milestone.id, answer: "confirm", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory })}
+          onDone={(saved) => finishForm(saved, milestone.status === "confirmed")}
           readOnly={readOnly}
         />
       )}
@@ -306,13 +365,13 @@ function PublishedItem() {
   );
 }
 
-function WorkItem({ work, readOnly }: { work: Work; readOnly: boolean }) {
+function WorkItem({ work, readOnly, web }: { work: Work; readOnly: boolean; web: MilestoneWebState }) {
   return (
     <li className="space-y-2" data-work={work.key || "none"}>
       <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{work.title ?? "Not linked to a work"}</h3>
       <ul className="space-y-3">
         {MILESTONE_KINDS.map((kind) => (
-          <MilestoneItem key={kind} kind={kind} milestone={work.milestones[kind]} work={work} readOnly={readOnly} />
+          <MilestoneItem key={kind} kind={kind} milestone={work.milestones[kind]} work={work} readOnly={readOnly} web={web} />
         ))}
         {work.published && <PublishedItem />}
       </ul>
@@ -325,11 +384,20 @@ function UnlistedWork({ readOnly }: { readOnly: boolean }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<MilestoneKind>("the_end");
+  // The celebration for the last one added here, shown where the form was.
+  const [celebrated, setCelebrated] = useState<MilestoneKind | null>(null);
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} disabled={readOnly} className={SECONDARY} data-track="milestone-add-unlisted-open">
-        Add a work that is not listed here
-      </button>
+      <div className="space-y-3">
+        {celebrated && (
+          <p role="status" className="text-sm font-medium text-plum-700 dark:text-plum-300" data-testid="milestone-celebration">
+            {MILESTONE_CELEBRATION[celebrated]}
+          </p>
+        )}
+        <button type="button" onClick={() => { setCelebrated(null); setOpen(true); }} disabled={readOnly} className={SECONDARY} data-track="milestone-add-unlisted-open">
+          Add a work that is not listed here
+        </button>
+      </div>
     );
   }
   return (
@@ -361,8 +429,11 @@ function UnlistedWork({ readOnly }: { readOnly: boolean }) {
           </>
         }
         submitLabel="Add it"
-        run={(i) => addMilestone({ kind, title, achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, consents: i.consents })}
-        onDone={() => setOpen(false)}
+        run={(i) => addMilestone({ kind, title, achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory })}
+        onDone={(saved) => {
+          setOpen(false);
+          if (saved) setCelebrated(kind);
+        }}
         readOnly={readOnly}
       />
     </div>
@@ -373,19 +444,22 @@ function UnlistedWork({ readOnly }: { readOnly: boolean }) {
  * Settings > Profile: "Your milestones", always there, per work (docs/product/FINISHERS.md). Each of the member's projects and
  * Bookshelf books has its own THE END and publish-ready rows, which they can add themselves, confirm (when staff suggested
  * it) or take back; a book also shows Published, which comes from the Bookshelf and is read-only. Works with a milestone, on
- * the Bookshelf or past the drafting stage come first; the rest wait under "Show all my projects". Nothing here is public: a
- * milestone is only used where its box is ticked.
+ * the Bookshelf or past the drafting stage come first; the rest wait under "Show all my projects". A confirmed step starts at "other members can
+ * see it"; its lock, house or globe changes that (the globe only once writer profiles are open to the member).
  */
 export function MilestonesPanel({
   milestones,
   projects = [],
   books = [],
   readOnly = false,
+  web = { available: false, on: false },
 }: {
   milestones: Milestone[];
   projects?: CardProject[];
   books?: CardBook[];
   readOnly?: boolean;
+  /** Whether writer profiles are open to the member (the globe is offered) and whether their profile is on. */
+  web?: MilestoneWebState;
 }) {
   const [showAll, setShowAll] = useState(false);
   const works = buildWorks(projects, books, milestones);
@@ -400,7 +474,7 @@ export function MilestonesPanel({
       </h2>
       <p className="mt-1 mb-2 text-sm text-slate-600 dark:text-slate-400">
         For each of your works, mark the steps you have reached: you wrote THE END, it is ready to publish, it is published. Only you can mark a step.
-        Nothing is shown to anyone until you choose where.
+        Once you confirm a step, other members can see it on your profile unless you change that. The lock, house or globe on a step sets who sees it. A step staff suggested stays private until you confirm it.
         {waiting && " We think you may have reached one already. Tell us if that’s right."}
         {readOnly && " (You are viewing as this member, so you can look but not change anything.)"}
       </p>
@@ -412,9 +486,9 @@ export function MilestonesPanel({
       {works.length === 0 && <p className={`${NOTE} mb-4`}>You have no projects or books yet. Add a work below, or start a project and it will be listed here.</p>}
       <ul className="space-y-6">
         {featured.map((w) => (
-          <WorkItem key={w.key || "none"} work={w} readOnly={readOnly} />
+          <WorkItem key={w.key || "none"} work={w} readOnly={readOnly} web={web} />
         ))}
-        {showAll && rest.map((w) => <WorkItem key={w.key} work={w} readOnly={readOnly} />)}
+        {showAll && rest.map((w) => <WorkItem key={w.key} work={w} readOnly={readOnly} web={web} />)}
       </ul>
       {rest.length > 0 && !showAll && (
         <button type="button" onClick={() => setShowAll(true)} className={`${SECONDARY} mt-4`}>

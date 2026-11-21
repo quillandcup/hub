@@ -71,6 +71,19 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n"),
   },
   {
+    slug: "milestones-on-your-profile",
+    date: "2026-11-21",
+    audience: "product",
+    category: "new",
+    title: "Show your writing milestones on your profile",
+    summary: "Mark when you wrote THE END or got your manuscript ready to publish, and choose who sees it: just you, other members, or anyone on the internet through your writer profile, once that is open to you.",
+    body: `In **Settings, Profile, Your milestones**, each of your projects and books has its own steps: you wrote THE END (that makes you a Finisher), and it is ready to publish (that makes you an Author). Only you can mark a step.
+
+- **Choose who sees it.** The lock keeps it to you. The house shows it to other members on your profile, and is where a step starts once you confirm it. The globe puts it on your writer profile on the web, once writer profiles are open to you.
+- **Add your story**, how it felt before and how it feels now, and it shows with the step, to the same people.
+- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.`,
+  },
+  {
     slug: "page-editor-one-panel-drilldown",
     date: "2026-11-21",
     audience: "staff",
@@ -115,9 +128,9 @@ The sign-in link doesn't know whether someone is already signed in. Custom code 
     date: "2026-11-20",
     audience: "engineering",
     category: "new",
-    title: "The Finisher record: milestones a member confirms",
-    summary: "Writing milestones now have a record of their own, proposed by staff and confirmed by the member, with a separate consent for each place one may be shown.",
-    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own table, apart from projects, and each belongs to one work (a project and/or a Bookshelf book, or a title the member wrote), so a writer can have the same milestone for many works; the third, published, is derived from the Bookshelf and never stored. The rule to follow: staff and courses only propose, the member alone confirms (or adds their own, already confirmed, in one step), and a confirmed milestone is shown only where its own consent flag (profile, homepage, testimonial) is on. Row-level security enforces it, so a proposal is invisible to everyone but the member and admins. The hooks are `MilestoneRepository` (`lib/data/milestones.ts`), the wording and answer parsing in `lib/finishers.ts` (the second stamp's name is one string there), the set-based per-book `propose_milestones_for_books()` behind `/admin/finishers`, the work logic in `lib/finishers-works.ts`, and the member's card in Settings, Profile, which is always there: add, confirm or take back. Member removal deletes the rows. Detail: `docs/product/FINISHERS.md`.",
+    title: "The Finisher record: milestones a member confirms, and who sees them",
+    summary: "Writing milestones have a record of their own, proposed by staff and confirmed by the member, with a lock, house or globe for who sees each one and one marketing consent.",
+    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own record, one per work (a project and/or a Bookshelf book, or a title the member wrote); the third, published, is derived from the Bookshelf and never stored. The rules to follow: staff and courses only propose, and the member alone confirms (or adds their own, already confirmed). Who sees a milestone is the same lock, house or globe as everywhere, one level per milestone with its story, starting at the house once confirmed. Other members and the web read only through two readers that hold back anything private, whoever asks (staff included), so a new surface uses `shownToMembers` or `shownOnWeb`, never the table. There is one marketing consent, off by default, and whatever reads it must check it when it renders. Hooks: `MilestoneRepository` (`lib/data/milestones.ts`), wording and parsing in `lib/finishers.ts`, `MilestoneStrip` for the profile strip, and the member's card in Settings, Profile. Detail, including how a withdrawal reaches the cached web page: `docs/product/FINISHERS.md`.",
   },
   {
     slug: "csp-rollout-alerts",

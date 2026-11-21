@@ -772,7 +772,11 @@ describe("the Finisher record in the Activity Log", () => {
     expect(describeRow(milestone("insert", { kind: { old: null, new: "the_end" }, status: { old: null, new: "proposed" } }))).toBe("proposed the \u201cTHE END\u201d milestone for Ada Example");
     expect(describeRow(milestone("update", { status: { old: "proposed", new: "confirmed" }, confirmed_at: { old: null, new: "2026-11-20" } }))).toBe("confirmed a writing milestone");
     expect(describeRow(milestone("update", { status: { old: "proposed", new: "declined" } }))).toBe("said a proposed writing milestone is not theirs, or not yet");
-    expect(describeRow(milestone("update", { consent_homepage: { old: false, new: true } }))).toBe("changed where a writing milestone may be shown");
+    expect(describeRow(milestone("update", { consent_testimonial: { old: false, new: true } }))).toBe("said we may feature the story of a writing milestone");
+    expect(describeRow(milestone("update", { consent_testimonial: { old: true, new: false } }))).toBe("took back permission to feature the story of a writing milestone");
+    expect(describeRow(milestone("update", { visibility: { old: "community", new: "private" } }))).toBe("made a writing milestone private");
+    expect(describeRow(milestone("update", { visibility: { old: "private", new: "community" } }))).toBe("showed a writing milestone to other members");
+    expect(describeRow(milestone("update", { visibility: { old: "community", new: "public" } }))).toBe("showed a writing milestone on their public writer profile");
     expect(describeRow(milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }, "Ada & <Bo>"))).toBe("took back a proposed milestone for Ada & <Bo>");
   });
 
