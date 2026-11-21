@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "@/content/changelog";
  * The input side of the changelog drafter (`pnpm changelog:draft`). It works in two small steps so a run stays cheap:
  * (1) a titles-only prompt asks a small model to group the merged pull requests into stories, (2) a second prompt gives
  * a larger model the trimmed bodies of only the member-visible stories to draft. It reads only public pull request text
- * and writes nothing to the changelog itself: the output is a draft for a person to review (docs/CHANGELOG_PROCESS.md,
+ * and writes nothing to the changelog itself: the output is a draft for a person to review (docs/runbooks/CHANGELOG_PROCESS.md,
  * "Drafting entries").
  */
 

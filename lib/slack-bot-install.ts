@@ -6,7 +6,7 @@ import { slackRedirectUri } from "@/lib/slack-connect";
 
 /**
  * Installing Billie Bot (the bot's token, not a member's) through Slack's OAuth flow, for an admin: the recovery
- * path when the stored rotating bot token and its refresh token are gone (docs/SECRET_ROTATION.md). A Slack app that has
+ * path when the stored rotating bot token and its refresh token are gone (docs/runbooks/SECRET_ROTATION.md). A Slack app that has
  * opted into token rotation hands out its bot token, and the refresh token the Hub needs to keep it alive, only
  * through this flow: the dashboard's Reinstall button doesn't exist for it.
  *

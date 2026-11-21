@@ -5,7 +5,7 @@ import type { InMemoryDataset } from "./in-memory";
 import { compareText, inChunks, must } from "./query";
 
 /**
- * Lesson comments (`lesson_comments`, docs/COURSES.md "Lesson comments"): questions and answers on a course lesson, plain
+ * Lesson comments (`lesson_comments`, docs/product/COURSES.md "Lesson comments"): questions and answers on a course lesson, plain
  * text, one level of replies. Reads and writes here are as the client's role says: the member pages use the service role
  * scoped to the effective member (the actions decide who may post), and row-level security is the second layer for a
  * signed-in client. Text is stored as typed and never decoded or escaped here. Throws on a database error.

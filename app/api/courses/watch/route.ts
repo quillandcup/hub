@@ -20,7 +20,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * viewing history). Lessons members can't open yet are refused, except for staff acting as
  * themselves (the lesson page only sends for a preview when the staff member turned recording on).
  *
- * `chatMessageId` says the video was watched in a chat message that shares it (docs/SLACK_BRIDGED_CHAT.md, "Lesson videos
+ * `chatMessageId` says the video was watched in a chat message that shares it (docs/product/SLACK_BRIDGED_CHAT.md, "Lesson videos
  * in messages"): it must be a message the member can read that shares exactly this lesson, and it is stored on each row so
  * the stats keep chat views apart from lesson views. The position still goes to the lesson (resume follows the video).
  * A viewer without the course is accepted only for such a message an admin opened to the channel (`mayWatchSharedVideo`); then

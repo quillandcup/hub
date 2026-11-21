@@ -58,7 +58,7 @@ export class PublicNameNotAllowedError extends Error {
 }
 
 /**
- * Writers' public pages (docs/WRITER_PROFILES.md). A member reads and changes their own page through their own
+ * Writers' public pages (docs/product/WRITER_PROFILES.md). A member reads and changes their own page through their own
  * (row-level security) repositories; the handle is written only by `setHandle`, and everything a visitor reads
  * (`publicByHandle`, `publicHandles`) must run with the service role (`getServiceRepos()`), because visitors have no
  * grants on the tables: the repository returns only what is meant to be public.

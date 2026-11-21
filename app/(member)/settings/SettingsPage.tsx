@@ -76,7 +76,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
       ? await createRepos(supabase).chatLinkPreviews.blocksOf(effectiveIdentity.memberId).catch(() => [])
       : null;
 
-  // Milestones staff or a course proposed (docs/FINISHERS.md): the member's own, listed for them to confirm or decline. A failed
+  // Milestones staff or a course proposed (docs/product/FINISHERS.md): the member's own, listed for them to confirm or decline. A failed
   // read just leaves the card out. In sudo the admin can look but not answer.
   const milestones = effectiveIdentity ? await createRepos(supabase).milestones.ofMember(effectiveIdentity.memberId).catch(() => []) : [];
 

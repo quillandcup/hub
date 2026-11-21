@@ -23,7 +23,7 @@ const CHECK_DELAY_MS = 400;
 
 /**
  * Settings > Profile > "Your writer page on the web": the switch, the address and the name of the member's public page
- * (docs/WRITER_PROFILES.md). What the page shows (the bio, photo and social links) is chosen item by item above, with the
+ * (docs/product/WRITER_PROFILES.md). What the page shows (the bio, photo and social links) is chosen item by item above, with the
  * lock, house and globe on each; this block only holds what is about the page itself. It asks for the address first and
  * then the name, because the page cannot go on without both, and it stays off until they switch it on. Turning it off and
  * moving it to a new address ask first (`.claude/rules/confirmations.md`). The settings are the parent's (they are also what

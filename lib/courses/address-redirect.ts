@@ -5,7 +5,7 @@ import { coursePath } from "@/lib/courses/preview-path";
 
 /**
  * Old course addresses. A Hub course that is published, or ever was, keeps the addresses it used to have: the database
- * records them (`course_address_redirects`, kept by a trigger on `courses`; docs/COURSES.md) and a visit to one is sent,
+ * records them (`course_address_redirects`, kept by a trigger on `courses`; docs/product/COURSES.md) and a visit to one is sent,
  * permanently, to the course's current address with the rest of the path and the query kept.
  */
 

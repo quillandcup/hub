@@ -1049,4 +1049,4 @@ POST /api/process/slack
 
 - Slack API Documentation: https://api.slack.com/
 - Existing patterns: `/api/import/zoom`, `/api/process/calendar`
-- Related specs: `docs/KAJABI_DATA_MODEL.md`, `supabase/ARCHITECTURE.md`
+- Related specs: `docs/decisions/KAJABI_DATA_MODEL.md`, `supabase/ARCHITECTURE.md`

@@ -3,7 +3,7 @@
  * on, with invented events and pictures), and a calendar description that keeps its formatting. Everything is
  * fictional and replaced on every run, so `pnpm demo:seed` can run again.
  *
- * The events come in the way production makes them: Bronze calendar items tagged `#event` (docs/CALENDAR_EVENTS.md),
+ * The events come in the way production makes them: Bronze calendar items tagged `#event` (docs/product/CALENDAR_EVENTS.md),
  * which the app's own calendar processing turns into prickles and events. Only what the calendar has no place for
  * (kind, sign-up, picture) is set afterwards.
  */

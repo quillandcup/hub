@@ -1,5 +1,5 @@
 /**
- * Moves older book covers into the media library (docs/MEDIA_LIBRARY.md, "Older covers").
+ * Moves older book covers into the media library (docs/product/MEDIA_LIBRARY.md, "Older covers").
  *
  * Covers uploaded before the library were cropped to 145 x 215 into the `book-covers` bucket, or are a link to a picture
  * somewhere else. Each one is stored as its member's own library image and the book (or project) is pointed at it, so

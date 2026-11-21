@@ -1,5 +1,5 @@
 /**
- * What the `courses:content --probe` mode prints about a Kajabi admin page (docs/COURSES.md, "Importing Kajabi
+ * What the `courses:content --probe` mode prints about a Kajabi admin page (docs/product/COURSES.md, "Importing Kajabi
  * per-lesson progress"): which JSON requests it made and the shape of each response, so the real capture can
  * be written from what the page actually loads instead of a guess. Names and types only, never values: the
  * pages show members' names and emails, and the output is meant to be pasted into a chat or a PR.

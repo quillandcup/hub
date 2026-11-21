@@ -1,7 +1,7 @@
 import { STAFF_MFA_REQUIRED_FROM } from "@/lib/config";
 
 /**
- * Second sign-in step for staff (docs/STAFF_MFA.md): a TOTP code from an authenticator app, through Supabase Auth's MFA.
+ * Second sign-in step for staff (docs/trust/STAFF_MFA.md): a TOTP code from an authenticator app, through Supabase Auth's MFA.
  * Pure (usable in the proxy and in client components); reading the session's level and factors is lib/staff-mfa.server.ts.
  *
  * A session is `aal1` after a link or code sign-in and `aal2` once it has also passed a TOTP challenge. For staff:

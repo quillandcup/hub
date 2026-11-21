@@ -1,7 +1,7 @@
 set lock_timeout = '5s';
 
 -- The public homepage's Coming up list shows an event's cover only when the cover is a public media asset (a signed-out visitor is
--- served only public assets: docs/MEDIA_LIBRARY.md, docs/LANDING_PAGES.md). Saving an event that is announced publicly and has a cover
+-- served only public assets: docs/product/MEDIA_LIBRARY.md, docs/product/LANDING_PAGES.md). Saving an event that is announced publicly and has a cover
 -- now marks the cover public (`publishEventCover`, lib/media/event-image.ts), but events announced before that shipped were never
 -- re-saved, so their covers are still private and show a neutral tile.
 --

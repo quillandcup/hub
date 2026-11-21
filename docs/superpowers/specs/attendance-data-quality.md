@@ -122,7 +122,7 @@ CREATE INDEX idx_prickle_attendance_join_time ON prickle_attendance(join_time);
 
 **Why**: Zoom meetings may run continuously (back-to-back prickles and PUPs), or there may be multiple meetings per day. Each meeting can contain multiple distinct writing sessions (prickles). Must attribute each participant's time to the correct prickle(s).
 
-**Algorithm Details**: See `/docs/ATTENDANCE_RULES.md` for the authoritative specification including:
+**Algorithm Details**: See `/docs/product/ATTENDANCE_RULES.md` for the authoritative specification including:
 - The 7-rule segmentation algorithm (20-minute threshold)
 - 15-minute edge filter for PUP attendance
 - Detailed examples with specific times and scenarios
@@ -426,5 +426,5 @@ CREATE INDEX idx_prickle_attendance_join_time ON prickle_attendance(join_time);
 
 ## References
 
-- **Algorithm Specification** (permanent docs): `/docs/ATTENDANCE_RULES.md` - authoritative source for segmentation rules, thresholds, detailed examples, and rationale
+- **Algorithm Specification** (permanent docs): `/docs/product/ATTENDANCE_RULES.md` - authoritative source for segmentation rules, thresholds, detailed examples, and rationale
 - **Current Implementation**: `/app/api/process/attendance/route.ts` (working code as of 2026-04-22)

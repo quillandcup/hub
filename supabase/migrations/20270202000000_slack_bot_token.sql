@@ -1,4 +1,4 @@
--- Slack token rotation (docs/SLACK_BRIDGED_CHAT.md, "Token rotation"): the bot token as a rotating
+-- Slack token rotation (docs/product/SLACK_BRIDGED_CHAT.md, "Token rotation"): the bot token as a rotating
 -- credential kept in Supabase Vault instead of an environment variable, and a refresh lease that stops
 -- two requests refreshing the same Slack token at once.
 --

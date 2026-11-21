@@ -123,7 +123,7 @@ export const NOTIFICATION_KINDS = [
     defaultChannels: [],
     feature: "chat_notifications",
   },
-  // Lesson comments (docs/COURSES.md, "Lesson comments"): shown in settings only to members who have comments on.
+  // Lesson comments (docs/product/COURSES.md, "Lesson comments"): shown in settings only to members who have comments on.
   {
     id: "lesson_comment_reply",
     category: "Courses",

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 // Mux playback IDs are letters and digits; anything else is rejected before it reaches a token.
 const PLAYBACK_ID = /^[A-Za-z0-9]{20,}$/
 
-// Temporary: the Video.js v10 half-day test from docs/COURSES.md. Delete once the lesson player exists.
+// Temporary: the Video.js v10 half-day test from docs/product/COURSES.md. Delete once the lesson player exists.
 // Without a query it plays Mux's public demo asset. `?signed=<playbackId>` plays a signed-policy asset instead,
 // with playback, poster and storyboard tokens minted here, server-side, after the admin check.
 export default async function PlayerSpikePage({ searchParams }: PageProps<"/admin/player-spike">) {

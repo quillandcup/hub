@@ -14,7 +14,7 @@
   --foreground: #ededed;
 }
 
-/* Landing page colours (components/landing, docs/LANDING_PAGES.md): semantic tokens as "r g b" channels, so Tailwind can add opacity.
+/* Landing page colours (components/landing, docs/product/LANDING_PAGES.md): semantic tokens as "r g b" channels, so Tailwind can add opacity.
    The page follows the theme; `.landing-light` is a band that stays light in dark mode (a white or cream band), so it sets the light values again.
    page: the page behind everything. card: a white panel (header, boxed section). tile: a testimonial or product card.
    ink / ink-muted: text and its quieter form. accent: a line or bar. accent-ink: accent text (a price, an outline button). warm: the brown outline. */
@@ -187,7 +187,7 @@ html[data-animations="off"] *::after {
   scroll-behavior: auto !important;
 }
 
-/* The page builder's style guide (lib/landing/style.ts, docs/LANDING_PAGES.md, "Settings"): a page's frame carries the classes of its chosen
+/* The page builder's style guide (lib/landing/style.ts, docs/product/LANDING_PAGES.md, "Settings"): a page's frame carries the classes of its chosen
    tokens, and the defaults carry none. The page colours are fixed light colours, so the frame is also `landing-light` (dark mode doesn't
    turn the text light on them). The primary colour sets the accent tokens, in a light and a dark mode value like the base ones. */
 .lp-bg-white.landing-light { --lp-page: 255 255 255; }

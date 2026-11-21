@@ -2,7 +2,7 @@ set lock_timeout = '5s';
 
 -- Hedgie Care: an admin can take over a care plan from its owner without the owner agreeing (the owner's decision, 2026-11-15:
 -- "admins can always take over a care plan, and tell the previous owner on their page"). This is the one exception to
--- "hand-overs need both sides" (CLAUDE.md; docs/HEDGIE_CARE.md, "Owners"), for an owner who is unreachable or when an admin has
+-- "hand-overs need both sides" (CLAUDE.md; docs/product/HEDGIE_CARE.md, "Owners"), for an owner who is unreachable or when an admin has
 -- to step in. Nobody else gets it: a community manager still needs the receiver's agreement and may only take a plan that has
 -- no owner (the owner's account was removed). The database guard on `owned_by` stays for every other path, admin and the
 -- service role included: the owner changes only through accept_care_handover or claim_care_plan.

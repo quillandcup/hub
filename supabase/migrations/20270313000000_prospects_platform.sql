@@ -1,4 +1,4 @@
--- Prospects come from more than Instagram (docs/PROSPECTING.md): each row now says which platform its
+-- Prospects come from more than Instagram (docs/product/PROSPECTING.md): each row now says which platform its
 -- handle belongs to, and one handle is unique per platform. The column keeps its data, renamed.
 ALTER TABLE public.outreach_prospects RENAME COLUMN instagram_handle TO handle;
 ALTER TABLE public.outreach_prospects DROP CONSTRAINT outreach_prospects_instagram_handle_check;

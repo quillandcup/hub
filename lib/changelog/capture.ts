@@ -7,7 +7,7 @@ import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { isChangelogSlug } from "@/lib/changelog";
 
 /**
- * Where a changelog entry's screenshots come from and go (`pnpm changelog:capture <slug>`, docs/CHANGELOG_PROCESS.md): a
+ * Where a changelog entry's screenshots come from and go (`pnpm changelog:capture <slug>`, docs/runbooks/CHANGELOG_PROCESS.md): a
  * demo scene named for the entry, captured on one project, then copied into the entry's folder in public/ to be reviewed
  * and committed. Kept apart from the Playwright run so the paths and the checks can be tested without a browser.
  */

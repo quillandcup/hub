@@ -1,5 +1,5 @@
 /**
- * Mux Data for the course player (docs/MUX_CONFIG.md, "Mux Data"): what the browser sends about a view.
+ * Mux Data for the course player (docs/infrastructure/MUX_CONFIG.md, "Mux Data"): what the browser sends about a view.
  * Pure and client-safe; the server side that decides who gets it is lib/mux-data.server.ts.
  */
 

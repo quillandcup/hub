@@ -1,4 +1,4 @@
--- The Finisher record (docs/FINISHERS.md): a member's writing milestones, kept apart from the project they came from.
+-- The Finisher record (docs/product/FINISHERS.md): a member's writing milestones, kept apart from the project they came from.
 -- Two are stored, `the_end` (they wrote THE END) and `publish_ready` (they revised it until it was ready to publish);
 -- the third, published, is never stored: it is derived from member_books. A row is a claim about a person, so it starts
 -- as `proposed` (staff or a course suggested it) and only the member makes it `confirmed`, or `declined`. Consent to show

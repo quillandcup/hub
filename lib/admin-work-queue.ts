@@ -224,7 +224,7 @@ export function buildHiatusNudgeQueue(
 }
 
 // Queue 4: a new member who has no big sister yet (Big Sister program,
-// docs/BIG_SISTERS.md): everyone who just arrived (lib/arrivals.ts), whether a
+// docs/product/BIG_SISTERS.md): everyone who just arrived (lib/arrivals.ts), whether a
 // trial, a direct sign-up, a rejoin or a program that includes membership. The
 // occurrence is the date their membership began, so a returning member's later
 // start is a new item. Matching them removes it (their arrival is in

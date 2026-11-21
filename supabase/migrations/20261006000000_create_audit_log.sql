@@ -1,5 +1,5 @@
 -- audit_log: who changed which resource, and what changed. Local layer
--- (append-only, not reprocessed). See docs/ACTIVITY_AND_AUDIT_LOG.md.
+-- (append-only, not reprocessed). See docs/architecture/ACTIVITY_AND_AUDIT_LOG.md.
 --
 -- Written only by the audit_row_change() trigger below, which is attached per
 -- audited table, so every write path (API route, server action, cron, SQL

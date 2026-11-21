@@ -1,4 +1,4 @@
--- Slack connect, phase 3 of docs/SLACK_BRIDGED_CHAT.md: a member can connect their own Slack
+-- Slack connect, phase 3 of docs/product/SLACK_BRIDGED_CHAT.md: a member can connect their own Slack
 -- account so the Hub acts as them (posting natively, reacting) instead of through the bot.
 --
 -- member_slack_connections holds who connected which Slack user and where their tokens are. The

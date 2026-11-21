@@ -4,7 +4,7 @@ import { captureEntry } from "@/lib/changelog/capture";
 
 /**
  * `pnpm changelog:capture <slug>`: runs the entry's demo scene (tests/demo/scenes/changelog/<slug>.spec.ts) on desktop light
- * against the demo app (`pnpm demo:stack up`, `pnpm demo:app`, `pnpm demo:seed` first, docs/DEMO_AND_HELP.md), then copies
+ * against the demo app (`pnpm demo:stack up`, `pnpm demo:app`, `pnpm demo:seed` first, docs/product/DEMO_AND_HELP.md), then copies
  * the screenshots into public/changelog/<slug>/ (lib/changelog/capture.ts). It touches nothing else and never a real
  * environment: the demo stack is a fictional community. Review the images before committing: the repo is public.
  */

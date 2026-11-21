@@ -3,7 +3,7 @@
 
 # Staged .md files that carry doctoc's START/END markers get their table of contents regenerated
 # (pnpm docs:toc); files without the markers are left alone. To add one to a doc, put the two
-# marker comments where the TOC should go (see docs/INTEGRATION_LINKS.md).
+# marker comments where the TOC should go (see docs/infrastructure/INTEGRATION_LINKS.md).
 STAGED_DOCS=$(git diff --cached --name-only --diff-filter=ACM -- '*.md')
 if [ -n "$STAGED_DOCS" ]; then
   echo "$STAGED_DOCS" | xargs pnpm --silent docs:toc > /dev/null

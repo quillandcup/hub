@@ -17,7 +17,7 @@ export const maxDuration = 300;
 /**
  * Which Slack channels staff can read messages in. Channels are readable unless
  * restricted here; group DMs and direct messages are always restricted
- * (docs/SLACK_BRIDGED_CHAT.md, "Access control").
+ * (docs/product/SLACK_BRIDGED_CHAT.md, "Access control").
  */
 export default async function SlackChannelsPage() {
   const timeZone = await getViewerTimeZone();

@@ -3,7 +3,7 @@
  * file, so changing who we look for is a change here and nowhere else.
  *
  * These are a first guess from the Ideal Hedgie tag and the community's description, NOT yet
- * Ania's rules: `docs/PROSPECTING.md` lists the questions that replace them.
+ * Ania's rules: `docs/product/PROSPECTING.md` lists the questions that replace them.
  */
 
 export type ProspectRule = {

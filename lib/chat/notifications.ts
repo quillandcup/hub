@@ -11,7 +11,7 @@ import { mentionedUserIds } from "@/lib/chat/render";
 
 /**
  * Hub chat notifications: a new direct message, a mention in a channel, and a message in a channel the member follows
- * (docs/SLACK_BRIDGED_CHAT.md, "Notifications"). Sent only through createNotifier, so they honor each member's per-kind
+ * (docs/product/SLACK_BRIDGED_CHAT.md, "Notifications"). Sent only through createNotifier, so they honor each member's per-kind
  * channels (all off until "Hub chat is my main place" turns them on) and show in Admin -> Test Notifications.
  *
  * A message is considered once it is stored and projected into the chat: from the Slack webhook, from a member's DM pull and

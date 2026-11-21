@@ -1,6 +1,6 @@
 // pnpm tunnel [<port>]: a public https address for your local dev server, so a vendor can
 // send webhooks to it. One command instead of each vendor's own forwarding. See
-// scripts/tunnel-command.ts and docs/WEBHOOK_SETUP.md.
+// scripts/tunnel-command.ts and docs/infrastructure/WEBHOOK_SETUP.md.
 
 import { spawn, spawnSync } from "node:child_process";
 import { planTunnel, TUNNEL_USAGE } from "./tunnel-command";

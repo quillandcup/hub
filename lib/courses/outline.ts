@@ -1,5 +1,5 @@
 /**
- * A course's modules and lessons as members read them (docs/COURSES.md, "Member experience"). Pure.
+ * A course's modules and lessons as members read them (docs/product/COURSES.md, "Member experience"). Pure.
  *
  * Order is the page order: lessons that sit outside any module first, then the modules by
  * position, each showing its own lessons before its nested modules (the weeks inside a month).

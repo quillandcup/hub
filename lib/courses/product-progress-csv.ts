@@ -1,6 +1,6 @@
 /**
  * Parser for Kajabi's "Product Progress" report CSV (admin -> a product -> Export). One row per
- * student: how much of the whole product they completed, not per lesson. See docs/COURSES.md,
+ * student: how much of the whole product they completed, not per lesson. See docs/product/COURSES.md,
  * "Importing Kajabi per-lesson progress".
  *
  * Columns are found by header name (case-insensitive, any order, extras ignored). The file does not

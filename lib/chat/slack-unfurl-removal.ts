@@ -9,7 +9,7 @@ import { sendOperationsAlert } from "@/lib/operations-alerts";
 
 /**
  * The author removed a link preview from a message written in the Hub: take Slack's own preview of that link off the Slack copy too
- * (docs/SLACK_BRIDGED_CHAT.md, "Link previews for messages written in the Hub"). Best effort and after the Hub's own mark is written,
+ * (docs/product/SLACK_BRIDGED_CHAT.md, "Link previews for messages written in the Hub"). Best effort and after the Hub's own mark is written,
  * so a failure never undoes the removal; it only means Slack readers may still see the card.
  *
  * Slack's way is `chat.update` with the message's remaining legacy attachments (an empty list removes them all); there is no call that

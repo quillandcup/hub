@@ -104,7 +104,7 @@ export function spanClasses(span: unknown, spanMobile: unknown): string {
   return `${MOBILE_SPAN[mobile]} ${DESKTOP_SPAN[desktop]}`;
 }
 
-/** A media library image at a preset's size; null when no image is chosen. Public assets are served to anyone (see docs/LANDING_PAGES.md). */
+/** A media library image at a preset's size; null when no image is chosen. Public assets are served to anyone (see docs/product/LANDING_PAGES.md). */
 export function pageImage(assetId: unknown, preset: PresetName): string | null {
   return typeof assetId === "string" && assetId ? mediaSrc(assetId, preset) : null;
 }

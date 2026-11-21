@@ -7,7 +7,7 @@ import type { ChatLinkPreviewRepository, LinkPreviewDraft } from "@/lib/data/cha
 import { fetchPage, type FetchPageResult } from "@/lib/net/safe-fetch";
 
 /**
- * Link previews for messages written in the Hub (docs/SLACK_BRIDGED_CHAT.md, "Link previews"). Slack builds none for them (the Hub
+ * Link previews for messages written in the Hub (docs/product/SLACK_BRIDGED_CHAT.md, "Link previews"). Slack builds none for them (the Hub
  * posts with unfurling off), so the server does it once, after the message is sent and again only when an edit changes its links:
  * never when a message is read, never from a viewer's request. `previewLinksIn` says which addresses, `buildPreview` looks at one and
  * `refreshLinkPreviews` does it for a message. Server only (it fetches); drawing a stored preview is `link-preview-cards.ts`.

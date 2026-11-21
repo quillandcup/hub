@@ -1,5 +1,5 @@
 /**
- * Landing page data migrations (docs/LANDING_PAGES.md, "Changing a block's props"). Stored page JSON outlives the
+ * Landing page data migrations (docs/product/LANDING_PAGES.md, "Changing a block's props"). Stored page JSON outlives the
  * code that wrote it: draft, published copy and every saved version keep the props a block had when they were saved.
  * Rename or reshape a prop and old rows would render wrongly or lose content, so each such change is a step here.
  *

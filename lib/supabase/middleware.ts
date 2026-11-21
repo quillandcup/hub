@@ -178,8 +178,8 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   // /privacy is the public privacy policy; /compliance is the public list of standards we follow; /security says how we protect the Hub.
   // /unsubscribe and /verify-email are authorized by the signed token in their link
   // (lib/email-unsubscribe.ts, lib/email-verification.ts).
-  // /p/<slug> is a published landing page (docs/LANDING_PAGES.md): the route itself 404s anything that isn't published.
-  // /w/<handle> is a writer's public page (docs/WRITER_PROFILES.md), and /w/sitemap/<n>.xml lists them: the route itself 404s a page
+  // /p/<slug> is a published landing page (docs/product/LANDING_PAGES.md): the route itself 404s anything that isn't published.
+  // /w/<handle> is a writer's public page (docs/product/WRITER_PROFILES.md), and /w/sitemap/<n>.xml lists them: the route itself 404s a page
   // that is off or missing, and shows only the fields the member chose.
   // API routes handle their own auth via requireAdmin/createApiAuth
   const isPublic =

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * A writer's public page (/w/<handle>), its preview, the sitemap and robots.txt (docs/WRITER_PROFILES.md). The repository is
+ * A writer's public page (/w/<handle>), its preview, the sitemap and robots.txt (docs/product/WRITER_PROFILES.md). The repository is
  * the in-memory twin; markup, metadata, redirects and the 404 are real. What matters here: a page that is off and a handle
  * nobody has are the same 404, a given-up handle redirects, the preview is member-only and never indexed, and nothing
  * but the chosen fields reaches the markup.

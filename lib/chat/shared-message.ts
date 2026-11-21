@@ -3,7 +3,7 @@
  * the quoted message in the sharer's `attachments` with `is_share` / `is_msg_unfurl`. This module turns one such
  * attachment into a small typed value and decides what a viewer may see of it. Pure: no database, no React.
  *
- * Privacy (docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages"): the embedded copy is shown to everyone who can read the
+ * Privacy (docs/product/SLACK_BRIDGED_CHAT.md, "Shared Slack messages"): the embedded copy is shown to everyone who can read the
  * sharing message, as in Slack: the sharer chose to share it, and the copy sits in the sharer's own content row. Looking
  * the original up in the Hub (`sharedMessageSource`) only adds a link or a note.
  */

@@ -11,10 +11,10 @@ import { LINE_IDS } from "./script";
  *   a recording  A person's reading of the line, if there is one in tests/demo/out/video/reading/ named for the line's id
  *                (L07.m4a, S03.wav ...; any common audio format). The video paces itself to the take. This is the real
  *                voice; `pnpm demo:reading:sheet` makes the sheet to read from and `pnpm demo:reading:split` cuts a
- *                straight-through recording into takes (docs/OVERVIEW_VIDEO_SCRIPT.md). `DEMO_HUMAN=0` ignores them.
+ *                straight-through recording into takes (docs/decisions/OVERVIEW_VIDEO_SCRIPT.md). `DEMO_HUMAN=0` ignores them.
  *   kokoro       (default for lines without a recording, when set up) Kokoro, an open neural text-to-speech model that
  *                runs on this machine. Default voice `af_heart`; others: af_bella, af_nova, af_sarah, af_nicole ...
- *                Setup: docs/DEMO_AND_HELP.md, "Overview videos".
+ *                Setup: docs/product/DEMO_AND_HELP.md, "Overview videos".
  *   say          macOS's built-in voices (Samantha by default): always there, but plainly synthetic.
  *
  * Nothing is sent to a service. `DEMO_TTS`, `DEMO_VOICE` and `DEMO_VOICE_RATE` (Kokoro: speed, 1 is normal; say:

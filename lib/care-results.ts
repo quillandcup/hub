@@ -66,7 +66,7 @@ const MS_PER_DAY = 86_400_000;
 
 /**
  * What the member did before, during and after an engagement, from their own activity, and how they stayed afterwards
- * (docs/HEDGIE_CARE.md, "Measuring her influence"). Computed on request, never stored, so any window can be recomputed for any
+ * (docs/product/HEDGIE_CARE.md, "Measuring her influence"). Computed on request, never stored, so any window can be recomputed for any
  * date. A window that has not passed is counted up to now (during) or not at all (after, `counts: null`); a retention
  * checkpoint that has not passed is `not_yet`. These are descriptions, not proof the outreach caused them.
  *

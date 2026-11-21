@@ -17,7 +17,7 @@ const PRIMARY = "rounded bg-plum-600 px-4 py-2 text-sm font-medium text-white ho
 const DANGER = "rounded bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50";
 
 /**
- * "Save as template" in the History dialog (docs/LANDING_PAGES.md, "Templates"). A template is a page of its own kind, so this copies the
+ * "Save as template" in the History dialog (docs/product/LANDING_PAGES.md, "Templates"). A template is a page of its own kind, so this copies the
  * page on screen into one: **a new template** (its draft is this page; edit and publish it like any page), or **replace a template's
  * draft** with this page (asks first: the template's previous draft is kept in its History, and its published copy doesn't change).
  * "Publish the template now" does the publish in the same step (a new version; the template rules apply: nothing public). The page

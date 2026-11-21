@@ -1,5 +1,5 @@
 /**
- * Caption and subtitle files for a lesson's video (docs/COURSES.md, "Video"): which languages the editor offers, and what a
+ * Caption and subtitle files for a lesson's video (docs/product/COURSES.md, "Video"): which languages the editor offers, and what a
  * file has to look like before it is kept and handed to Mux. Pure, so the browser form and the server action share it.
  */
 

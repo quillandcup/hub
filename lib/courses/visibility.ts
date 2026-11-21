@@ -1,5 +1,5 @@
 /**
- * What members see of a Kajabi course (docs/COURSES.md, "Lesson state"). Pure.
+ * What members see of a Kajabi course (docs/product/COURSES.md, "Lesson state"). Pure.
  *
  * Kajabi's publishing option decides: `published` is open, `locked`/`drip` is "Coming soon" (the
  * title shows, it can't be opened; this is how the whole plan appears from day one), and

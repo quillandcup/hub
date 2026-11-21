@@ -6,7 +6,7 @@
 //                                             token is gone). Checks the access token with Slack first.
 //
 // Runs against whatever Supabase project and Slack app the loaded env files point at (the package script
-// loads .env.prod and .env.shared). docs/SECRET_ROTATION.md, "The bot's rotating token", has the recovery order.
+// loads .env.prod and .env.shared). docs/runbooks/SECRET_ROTATION.md, "The bot's rotating token", has the recovery order.
 
 import { createClient } from "@supabase/supabase-js";
 import { createSlackClient } from "@/lib/slack-client";

@@ -1,9 +1,9 @@
 /**
- * "Last in the community" for Hedgie Care (docs/HEDGIE_CARE.md): the latest thing a member did themselves anywhere in the
+ * "Last in the community" for Hedgie Care (docs/product/HEDGIE_CARE.md): the latest thing a member did themselves anywhere in the
  * Hedgie House. One pure module, so the set of what counts is in one place and the repository, the page and the tests all
  * take it from here.
  *
- * What counts is read from the activity log (`member_activities`, docs/ACTIVITY_AND_AUDIT_LOG.md), by its two columns:
+ * What counts is read from the activity log (`member_activities`, docs/architecture/ACTIVITY_AND_AUDIT_LOG.md), by its two columns:
  * - **`actor_kind = 'member'`**: the member did it. Staff rows (care, outreach, sudo, a commitment an admin made while viewing
  *   as the member) and system rows (email events) never count.
  * - **a type in `PARTICIPATION`**: something done in the community. Left out on purpose: `hedgie_hub_login` (signing in is

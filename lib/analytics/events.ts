@@ -251,9 +251,9 @@ export const EVENTS = {
   /** A staff member renewed an engagement into a new period: `days_open` is how long the one they renewed had run. */
   care_engagement_renewed: { days_open: int(3650) },
   /**
-   * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a staff member offered a care plan to someone, the receiver
+   * Hand-overs need both sides (docs/product/HEDGIE_CARE.md, "Owners"): a staff member offered a care plan to someone, the receiver
    * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. An admin may also take an open
-   * plan over from its owner without their agreement (`care_plan_taken_over`: the one exception, docs/HEDGIE_CARE.md, "Owners"),
+   * plan over from its owner without their agreement (`care_plan_taken_over`: the one exception, docs/product/HEDGIE_CARE.md, "Owners"),
    * and the previous owner may dismiss the notice that tells them (`care_takeover_notice_dismissed`). No names, no ids.
    */
   care_handover_proposed: {},
@@ -288,7 +288,7 @@ export const EVENTS = {
    * A member signed in, and how (lib/signin-method.ts: `email_link`, `email_continue`, `email_code`, `slack_link`,
    * `slack_continue`, `slack_code`). Recorded by the browser on the first page after sign-in, if
    * tracking is allowed. Failed sign-ins are not events: they happen before there is a member (see
-   * docs/ANALYTICS.md, "Sign-in").
+   * docs/product/ANALYTICS.md, "Sign-in").
    */
   signed_in: { method: oneOf(...SIGNIN_METHODS) },
 

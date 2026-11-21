@@ -18,7 +18,7 @@ function heading(plan: CareMessagesPlan): string {
 }
 
 /**
- * The messages of a member's care plans, inside the plan's panel (docs/HEDGIE_CARE.md, "Plan messages"): every plan newest first, each with the
+ * The messages of a member's care plans, inside the plan's panel (docs/product/HEDGIE_CARE.md, "Plan messages"): every plan newest first, each with the
  * messages sent in its window, full text, who and when. Read-only. Loading them is what puts the read on record, so they load when the panel
  * opens, not with the page, and a page at a time ("Older messages"). The first answer carries every plan; later pages add messages.
  */

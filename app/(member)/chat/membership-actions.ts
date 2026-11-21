@@ -13,7 +13,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { clock } from "@/lib/clock";
 
 /**
- * Who is in a conversation, from the Hub (docs/SLACK_BRIDGED_CHAT.md, "Membership"): add people, remove
+ * Who is in a conversation, from the Hub (docs/product/SLACK_BRIDGED_CHAT.md, "Membership"): add people, remove
  * people, join and leave. For a conversation bridged to Slack the change is made in Slack first (as the
  * bot) and then here, so the Hub never says someone is in a conversation that Slack disagrees with.
  *

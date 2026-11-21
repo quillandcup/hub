@@ -1,6 +1,6 @@
 -- What happens to each table that points at a member when that member asks us to remove their data.
 --
--- /privacy promises "we either delete it or take your name off it". The approach (docs/EVENT_LOG.md, "What a
+-- /privacy promises "we either delete it or take your name off it". The approach (docs/architecture/EVENT_LOG.md, "What a
 -- scrub does"; docs/TODO.md, "Removal on request for records with a required member id") is to re-point a record at a
 -- placeholder "former member" where its content doesn't identify the person, and to delete it where it does. Those
 -- choices are per table, so they live here, next to the foreign keys they are about:

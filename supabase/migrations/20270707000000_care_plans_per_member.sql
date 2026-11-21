@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Hedgie Care: a care plan belongs to a member, not to a channel (docs/HEDGIE_CARE.md). The first build gave each plan a
+-- Hedgie Care: a care plan belongs to a member, not to a channel (docs/product/HEDGIE_CARE.md). The first build gave each plan a
 -- channel (Slack DM, prickle, email, other) and allowed one open plan per member AND channel. What the community manager
 -- needs is one plan per member, with every channel (Slack DMs now, emails and Instagram DMs later) and the member's own
 -- activity read against it, so nothing about a plan says where it happens.

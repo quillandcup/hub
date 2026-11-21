@@ -4,7 +4,7 @@ import { formatDateOnly } from "@/lib/formatters";
 import { orgYmd } from "@/lib/org-week";
 
 /**
- * Hedgie Care in the activity log (docs/ACTIVITY_AND_AUDIT_LOG.md, "A feature launches with its events in the activity log").
+ * Hedgie Care in the activity log (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "A feature launches with its events in the activity log").
  * One pure module that says, in plain words, what happened to a care plan, so the central Activity Log (audit rows), a
  * member's Activity tab and the plan card's "Activity during this plan" (member_activities rows) read the same.
  *

@@ -1,4 +1,4 @@
--- Hedgie Care, Slack DMs fill in "who spoke last" (docs/HEDGIE_CARE.md, "Slack DMs fill it in").
+-- Hedgie Care, Slack DMs fill in "who spoke last" (docs/product/HEDGIE_CARE.md, "Slack DMs fill it in").
 --
 -- 1. care_tracked_dms: the 1:1 Slack DMs a staff member chose to track. Opt-in per DM; a row says "this staff user tracks
 --    this Slack DM, whose other person is this member". Nothing about what was said is stored: the DM is a Slack channel

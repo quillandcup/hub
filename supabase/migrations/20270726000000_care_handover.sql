@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Hedgie Care: a care plan changes hands only when the receiver accepts (docs/HEDGIE_CARE.md, "Owners"; CLAUDE.md,
+-- Hedgie Care: a care plan changes hands only when the receiver accepts (docs/product/HEDGIE_CARE.md, "Owners"; CLAUDE.md,
 -- "Hand-overs need both sides"). Until now any staff member could write `owned_by` directly (the Reassign button): nobody
 -- can be given a member's care without agreeing, so the owner of a plan now changes only through four steps:
 --

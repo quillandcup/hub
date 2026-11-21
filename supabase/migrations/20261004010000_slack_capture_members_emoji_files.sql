@@ -3,7 +3,7 @@
 --
 -- The workspace is on Slack's free plan: the API only serves about 90 days of
 -- history and Slack deletes anything older than a year, so whatever isn't
--- copied while Slack still has it is gone. See docs/SLACK_BRIDGED_CHAT.md.
+-- copied while Slack still has it is gone. See docs/product/SLACK_BRIDGED_CHAT.md.
 --
 -- All of these are BRONZE. Membership, emoji and file *metadata* are readable by
 -- admins, like the other bronze Slack tables. File *contents* go in a private

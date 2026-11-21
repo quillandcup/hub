@@ -15,7 +15,7 @@ name: Auto-merge
 # Enables it with GH_TOKEN_AUTO_MERGE (a fine-grained personal token), not the built-in
 # GITHUB_TOKEN: GitHub attributes an auto-merge to whoever enabled it, and a merge made
 # by GITHUB_TOKEN doesn't trigger the push CI run on main (no migrations, deploy or
-# Slack manifest push). Rotate it before it expires, see docs/SECRET_ROTATION.md.
+# Slack manifest push). Rotate it before it expires, see docs/runbooks/SECRET_ROTATION.md.
 #
 # Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and, in the first step, for PRs whose
 # author is neither Dependabot nor someone with write access to the repository: the merge is made with the

@@ -13,7 +13,7 @@ import { loadTemplateDraft, TEMPLATE_GONE } from "@/lib/landing/template-data";
 import { TEMPLATE_NAME_MAX } from "@/lib/landing/templates";
 
 /**
- * The page builder's template actions (docs/LANDING_PAGES.md, "Templates"). A template is a page of kind `template`: it has a draft,
+ * The page builder's template actions (docs/product/LANDING_PAGES.md, "Templates"). A template is a page of kind `template`: it has a draft,
  * a published copy and versions like any page, and the page actions (publish, unpublish, duplicate, delete, restore a version,
  * rename) work on it as they do on a page. These are the two things only templates have: saving a page as a template, and
  * starting a page from one. Every one checks for an admin itself. None of them changes the page it starts from, and none makes a

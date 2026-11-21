@@ -1,5 +1,5 @@
 /**
- * The `courses:content --comments` run, apart from the browser (docs/COURSES.md, "Lesson comments"): given the
+ * The `courses:content --comments` run, apart from the browser (docs/product/COURSES.md, "Lesson comments"): given the
  * lessons with their comment-page links and a way to read one lesson's page, it saves each lesson's comments to
  * `bronze.kajabi_lesson_comments` as a snapshot.
  *

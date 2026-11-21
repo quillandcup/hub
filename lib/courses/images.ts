@@ -6,7 +6,7 @@ import { safeUrl } from "@/lib/url";
 import type { CourseImageKind } from "./image-urls";
 
 /**
- * Course images -> the media library (docs/COURSES.md, step D, images; docs/MEDIA_LIBRARY.md). Kajabi gives each
+ * Course images -> the media library (docs/product/COURSES.md, step D, images; docs/product/MEDIA_LIBRARY.md). Kajabi gives each
  * course a cover (`courses.thumbnail_url`) and a banner (`hero_url`), each module a poster (`course_modules.poster_url`)
  * and each lesson a thumbnail (`course_lessons.thumbnail_url`). Those were hotlinked from Kajabi, so they would break
  * when the Kajabi site goes. This stores each as a library image (shared, tagged `kajabi` and the course's slug, with

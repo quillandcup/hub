@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Slack 1:1 DMs, read with the members' own tokens (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members' own tokens").
+-- Slack 1:1 DMs, read with the members' own tokens (docs/product/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members' own tokens").
 -- The bot can't be in them, so a member's token lists and reads their DMs into the same Bronze tables as
 -- everything else; this lets the chat projection treat them as direct messages: kind 'dm', private and
 -- restricted (staff only through break-glass access), no name.

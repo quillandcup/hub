@@ -15,7 +15,7 @@ import { allTimeStart, describeRange, parseDayRange, rangeInstants, type DayRang
 /**
  * The central activity log: audit_log rows, member_activities rows and page
  * visit sessions in one shape, from the get_activity_feed() SQL function (see
- * docs/ACTIVITY_AND_AUDIT_LOG.md). The function enforces admin-only itself.
+ * docs/architecture/ACTIVITY_AND_AUDIT_LOG.md). The function enforces admin-only itself.
  */
 
 export type FeedKind = "audit" | "activity" | "session" | "note";
@@ -63,7 +63,7 @@ export interface ResolvedRef {
  * Audit entity types behind the Privacy view: who changed which channels staff can
  * read, and who opened the messages of a member's Hedgie Care plans (`care_dm_read`, written by
  * `care_log_messages_read`; the entry names the reader and the member, never any text). Break-glass
- * grants and reads join this list when they exist (docs/SLACK_BRIDGED_CHAT.md, "Access control").
+ * grants and reads join this list when they exist (docs/product/SLACK_BRIDGED_CHAT.md, "Access control").
  */
 export const PRIVACY_ENTITY_TYPES: readonly string[] = ["restricted_slack_channel", "care_dm_read"];
 
@@ -503,7 +503,7 @@ function featurePhrase(row: ActivityFeedRow, fields: Record<string, { old: unkno
 }
 
 /**
- * The page builder's pages and templates in plain words (docs/LANDING_PAGES.md). A page is named by its title and a template by
+ * The page builder's pages and templates in plain words (docs/product/LANDING_PAGES.md). A page is named by its title and a template by
  * its name (the trigger puts it on the row as the description); never page content, a template's typed description or note, or a
  * page's search text, which the audit columns redact and these sentences don't read.
  */
@@ -538,7 +538,7 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
 
 /** Phrases for events that read better than "changed calendar link — first fetched at". */
 /**
- * A member's public writer page (docs/WRITER_PROFILES.md): the switch, and which settings changed. Never the bio (the trigger
+ * A member's public writer page (docs/product/WRITER_PROFILES.md): the switch, and which settings changed. Never the bio (the trigger
  * redacts it) and never the address (its changes are recorded as the member's own activity, "Changed the address of ...").
  */
 function writerPagePhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown } | undefined>): string | null {
@@ -553,7 +553,7 @@ function writerPagePhrase(row: ActivityFeedRow, fields: Record<string, { old: un
 }
 
 /**
- * The Finisher record in plain words (docs/FINISHERS.md). A proposal names the milestone; an answer says what the member
+ * The Finisher record in plain words (docs/product/FINISHERS.md). A proposal names the milestone; an answer says what the member
  * did without repeating the dates or stories they wrote (the trigger redacts the stories, and nothing here reads them).
  */
 function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChange>): string | null {
@@ -579,7 +579,7 @@ const PROFILE_LEVEL_FIELDS: Record<string, string> = {
   twitter_visibility: "X link",
 };
 
-/** Who can see a member's profile items (docs/WRITER_PROFILES.md): which items changed, never what they hold (the trigger redacts the text). */
+/** Who can see a member's profile items (docs/product/WRITER_PROFILES.md): which items changed, never what they hold (the trigger redacts the text). */
 function profileVisibilityPhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown } | undefined>): string | null {
   if (row.entity_type === "member_ask_me_about" && fields.visibility && row.event_type === "update") return "changed who can see their “Ask me about” topics";
   if (row.entity_type !== "member_profile_visibility") return null;

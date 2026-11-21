@@ -5,7 +5,7 @@ import { endOfOrgDay, isRealDay, startOfOrgDay } from "@/lib/care";
  * A range of Eastern calendar days for a feed, as the URL writes it (?from=YYYY-MM-DD&to=YYYY-MM-DD). Both ends are days, not
  * instants: `from` starts at 00:00 Eastern, and the whole `to` day is included (the range ends at the next Eastern midnight), so
  * a 23- or 25-hour daylight saving day is read as the one day it is. Pure, so a page can adopt it without a clock or a zone of
- * its own (docs/ACTIVITY_AND_AUDIT_LOG.md, "Date range").
+ * its own (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "Date range").
  */
 export interface DayRange {
   /** First day, inclusive. */

@@ -1,5 +1,5 @@
 /**
- * A member's blocked link previews (docs/SLACK_BRIDGED_CHAT.md, "Link previews"): a rule they made in the "Remove preview" dialog
+ * A member's blocked link previews (docs/product/SLACK_BRIDGED_CHAT.md, "Link previews"): a rule they made in the "Remove preview" dialog
  * that stops the Hub building a card for the links in the messages they write from then on. Three scopes, from widest to narrowest:
  * - `site`: every address on the same host (a leading `www.` does not count);
  * - `path`: addresses on that host whose path is the address's first path segment or below it, matched on a segment boundary

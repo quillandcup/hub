@@ -1,4 +1,4 @@
--- People found on Instagram who might be ideal Hedgies, before they are leads (docs/PROSPECTING.md).
+-- People found on Instagram who might be ideal Hedgies, before they are leads (docs/product/PROSPECTING.md).
 -- LOCAL layer: the app owns this table, nothing reprocesses it. A prospect is found, scored by the
 -- rules in lib/prospecting/rules.ts, reviewed by a person, and worked from /admin/outreach once they
 -- sign up. Whether one joined is derived by matching the handle to members.instagram_url, never stored.

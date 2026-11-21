@@ -1,7 +1,7 @@
 set lock_timeout = '5s';
 
 -- Hedgie Care: the contract step of 20270707000000_care_plans_per_member.sql. A care plan belongs to a member, not to a
--- channel (docs/HEDGIE_CARE.md), and since that migration nothing reads or writes care_engagements.channel: the production
+-- channel (docs/product/HEDGIE_CARE.md), and since that migration nothing reads or writes care_engagements.channel: the production
 -- code leaves it to its default, renew_care_engagement no longer carries it, and the (member_id, channel) index is gone
 -- (checked read-only in production before writing this: no view, policy, trigger or function depends on the column; the
 -- only dependents are its own CHECK and default, which go with it).

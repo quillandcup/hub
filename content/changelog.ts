@@ -2,7 +2,7 @@
  * The Hedgie Hub changelog: one entry per release a member would notice, newest first or not (the
  * helpers sort). This file is the single source: the in-app pages (/changelog), the
  * admin Changelog (engineering entries too) and the "What's new" digest all read it.
- * Written for members: say what they can now do, not what changed in the code. See docs/CHANGELOG_PROCESS.md.
+ * Written for members: say what they can now do, not what changed in the code. See docs/runbooks/CHANGELOG_PROCESS.md.
  *
  * Screenshots live in public/changelog/<slug>/ (the repo and that folder are public: no member data in
  * them) and are written in `body` as `![alt](/changelog/<slug>/<file>.png)`. `image` is the one shown on
@@ -86,7 +86,7 @@ The sign-in link doesn't know whether someone is already signed in. Custom code 
     category: "new",
     title: "The Finisher record: milestones a member confirms",
     summary: "Writing milestones now have a record of their own, proposed by staff and confirmed by the member, with a separate consent for each place one may be shown.",
-    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own table, apart from projects; the third, published, is derived from the Bookshelf and never stored. The rule to follow: staff and courses only propose, the member alone confirms, and a confirmed milestone is shown only where its own consent flag (profile, homepage, testimonial) is on. Row-level security enforces it, so a proposal is invisible to everyone but the member and admins. The hooks are `MilestoneRepository` (`lib/data/milestones.ts`), the wording and answer parsing in `lib/finishers.ts` (the second stamp's name is one string there), the set-based `propose_milestones_from_books()` behind `/admin/finishers`, and the member's card in Settings, Profile. Member removal deletes the rows. Detail: `docs/FINISHERS.md`.",
+    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own table, apart from projects; the third, published, is derived from the Bookshelf and never stored. The rule to follow: staff and courses only propose, the member alone confirms, and a confirmed milestone is shown only where its own consent flag (profile, homepage, testimonial) is on. Row-level security enforces it, so a proposal is invisible to everyone but the member and admins. The hooks are `MilestoneRepository` (`lib/data/milestones.ts`), the wording and answer parsing in `lib/finishers.ts` (the second stamp's name is one string there), the set-based `propose_milestones_from_books()` behind `/admin/finishers`, and the member's card in Settings, Profile. Member removal deletes the rows. Detail: `docs/product/FINISHERS.md`.",
   },
   {
     slug: "csp-rollout-alerts",
@@ -98,7 +98,7 @@ The sign-in link doesn't know whether someone is already signed in. Custom code 
     body: [
       "A strict, nonce-based policy can fail quietly: a browser that ignores nonces never runs our scripts, and one without 'strict-dynamic' blocks the Google tag. Two layers now say so instead of waiting for someone to notice.",
       "- **Sentry alert rules as code.** `config/sentry.yml` lists issue alerts (a new CSP issue, one back after being resolved, one flooding in, and one for the health check's own events, at most one email a day per issue), pushed by CI with the organization settings. Only rules named `Hub: ...` are managed, so removing one from the file removes it from Sentry.\n- **A daily health check** (`/api/internal/csp-health`, `lib/csp-health.ts`) reads one SQL aggregate of the access log and, only when a check trips, sends one Sentry event with a fixed fingerprint (a lasting problem stays one issue; no Slack): members who load pages but never run our scripts, members who lost a Google cookie they used to have (each compared with their own history), and browsers below the minimum for nonces. Thresholds live in `config/app.ts` (`cspHealth`); the event carries counts and browser names only.",
-      "What each alert means and what to check: `docs/CSP_ALERTS.md`.",
+      "What each alert means and what to check: `docs/infrastructure/CSP_ALERTS.md`.",
     ].join("\n\n"),
   },
   {
@@ -135,7 +135,7 @@ The check only lists them; nothing happens to the member or the import.`,
     category: "new",
     title: "A lock, house or globe on each item of the profile",
     summary: "Each item of a member's profile (bio, photo, social links, Ask me about) has a level: only the member, other members, or the open internet. Settings has one Profile section built on it.",
-    body: "Every profile item now has the three levels a writing project has, in `lib/profile-visibility.ts`, and one click on `ProfileItemVisibility` cycles them (`VisibilityControl` takes a list of levels). The globe is offered only on what the writer page shows and only to members the `writer_pages` flag covers; \"Ask me about\" gets lock and house.\n\n- **Rule:** a private item must be unreadable to every other member and to admins on member-facing paths. The member directory, which those paths read, is rebuilt without it, so read other members through the directory, never through the members table.\n- **The page shows an item only when** the page is on, the flag is on for its owner and the item is at the globe; a separate public bio replaces the member bio.\n- **Expand only:** every item starts at the level it always had.\n\nDetail: `docs/WRITER_PROFILES.md`, \"Who sees what\".",
+    body: "Every profile item now has the three levels a writing project has, in `lib/profile-visibility.ts`, and one click on `ProfileItemVisibility` cycles them (`VisibilityControl` takes a list of levels). The globe is offered only on what the writer page shows and only to members the `writer_pages` flag covers; \"Ask me about\" gets lock and house.\n\n- **Rule:** a private item must be unreadable to every other member and to admins on member-facing paths. The member directory, which those paths read, is rebuilt without it, so read other members through the directory, never through the members table.\n- **The page shows an item only when** the page is on, the flag is on for its owner and the item is at the globe; a separate public bio replaces the member bio.\n- **Expand only:** every item starts at the level it always had.\n\nDetail: `docs/product/WRITER_PROFILES.md`, \"Who sees what\".",
   },
   {
     slug: "writer-pages-flag",
@@ -144,7 +144,7 @@ The check only lists them; nothing happens to the member or the import.`,
     category: "improved",
     title: "Writers' public pages are behind a feature flag",
     summary: "Whether a member can have a public page is now decided by a feature flag, for the page's owner. Until it is on for them the settings hide the section and the page answers 404.",
-    body: "A public page now exists only for owners the `writer_pages` flag covers (global switch, segment or the member's own preview, as every flag). The flag is checked for the **owner**, since a visitor has none, with `memberHasWriterPages` / `ownersWithWriterPages` (`lib/writer-pages-access.ts`) over `membersWithFeature`.\n\n- **Rule:** anything that serves or lists a page asks about its owner; a list does it once for the whole batch, never per page (the sitemap checks one file's owners together).\n- **Off is quiet:** the Settings section is hidden, switching on is refused in the action, and `/w/<handle>`, its metadata and the preview answer the same 404 as a missing page. Nothing is deleted or changed, so the page returns when the flag does.\n- **Hooks:** `PublicLookup.ownerId` and the sitemap entries' `memberId` carry the owner for the server only; they are never part of the public profile.\n\nDetail: `docs/WRITER_PROFILES.md`, \"The feature flag\".",
+    body: "A public page now exists only for owners the `writer_pages` flag covers (global switch, segment or the member's own preview, as every flag). The flag is checked for the **owner**, since a visitor has none, with `memberHasWriterPages` / `ownersWithWriterPages` (`lib/writer-pages-access.ts`) over `membersWithFeature`.\n\n- **Rule:** anything that serves or lists a page asks about its owner; a list does it once for the whole batch, never per page (the sitemap checks one file's owners together).\n- **Off is quiet:** the Settings section is hidden, switching on is refused in the action, and `/w/<handle>`, its metadata and the preview answer the same 404 as a missing page. Nothing is deleted or changed, so the page returns when the flag does.\n- **Hooks:** `PublicLookup.ownerId` and the sitemap entries' `memberId` carry the owner for the server only; they are never part of the public profile.\n\nDetail: `docs/product/WRITER_PROFILES.md`, \"The feature flag\".",
   },
   {
     slug: "writer-public-pages",
@@ -153,7 +153,7 @@ The check only lists them; nothing happens to the member or the import.`,
     category: "new",
     title: "Writers' public pages: an address, a name and a bio on the open web",
     summary: "A member can switch on a page of their own at /w/<handle>, shown to anyone without signing in and listed by search engines. Nothing is public until they turn it on.",
-    body: "A page is off for everyone until its owner switches it on. It shows the name they choose (the display name, or a pen name they marked for it), their photo if they ticked it, and a bio written for the page. Nothing else from the member record is read into it.\n\n- **Rule:** a visitor's data comes only from `WriterProfileRepository.publicByHandle`, which builds the public fields in one place and runs with the service role; no table has an anonymous grant. `isProfilePubliclyServable` is the one function that decides whether a page is served.\n- **Handles** are lowercase letters, digits and single hyphens, unique whatever the case. A renamed handle redirects to the new one and stays held for its owner; the length, the hold and the reserved words are config (`writerProfiles` in `config/app.ts`).\n- **Pen names** show only when the member added the name themselves and marked it public.\n\nDetail and the routes: `docs/WRITER_PROFILES.md`.",
+    body: "A page is off for everyone until its owner switches it on. It shows the name they choose (the display name, or a pen name they marked for it), their photo if they ticked it, and a bio written for the page. Nothing else from the member record is read into it.\n\n- **Rule:** a visitor's data comes only from `WriterProfileRepository.publicByHandle`, which builds the public fields in one place and runs with the service role; no table has an anonymous grant. `isProfilePubliclyServable` is the one function that decides whether a page is served.\n- **Handles** are lowercase letters, digits and single hyphens, unique whatever the case. A renamed handle redirects to the new one and stays held for its owner; the length, the hold and the reserved words are config (`writerProfiles` in `config/app.ts`).\n- **Pen names** show only when the member added the name themselves and marked it public.\n\nDetail and the routes: `docs/product/WRITER_PROFILES.md`.",
   },
   {
     slug: "landing-page-spacing-and-width",
@@ -197,7 +197,7 @@ Pages built before this show their items as they were; the starter homepage has 
 
 - **Rule.** Add a repeating block by giving it an entry in \`SLOT_ALLOW\` (\`components/landing/config.tsx\`), an item component that takes \`dragRef\` and \`editing\`, and the item's fields. Everything that walks a page (publish check, AI builder, JSON import, assets) follows the table.
 - **Hooks.** \`itemList\` and \`ITEM_LIMITS\` for the empty and past-the-limit behaviour, \`itemsSlot\` in tests.
-- **Detail.** "Blocks with items" in \`docs/LANDING_PAGES.md\`.`,
+- **Detail.** "Blocks with items" in \`docs/product/LANDING_PAGES.md\`.`,
   },
   {
     slug: "writing-visibility-control",
@@ -227,7 +227,7 @@ Pages built before this show their items as they were; the starter homepage has 
 - **Saving one.** "Save as template" makes a new template from a page's draft, or replaces a template's draft (the old one stays in its History), optionally publishing in the same step. The page is never changed.
 - **Immutable versions, with who and why.** No role can change or delete a version row. Each version shows who made it and an optional note (what changed at publish, or what replaced the draft it kept); the note stays on the version and out of the Activity Log.
 - **Hooks.** \`LandingPageRepository.list(kind)\`, \`usableTemplates\`, the lifecycle registry's \`saveAsTemplate\` and \`replaceTemplate\`, the Templates tab under Pages.
-- **Detail.** \`docs/LANDING_PAGES.md\`, "Templates".`,
+- **Detail.** \`docs/product/LANDING_PAGES.md\`, "Templates".`,
   },
   {
     slug: "landing-page-json-round-trip",
@@ -242,7 +242,7 @@ Pages built before this show their items as they were; the starter homepage has 
 - **Import** treats the file as untrusted. A dry run and the real call share one code path (\`importLandingDraftJson\`): migrate, keep only blocks and props the builder has, clear pictures this library lacks, then sanitize as on save. The preview lists what was left out and what the publish check would raise.
 - **It replaces the draft only.** The old draft is kept in History like a starter replacement, so Bring back undoes it.
 - **Hook.** The set of props a block keeps is its defaults plus \`EXTRA_PROPS\` (\`lib/landing/json-transfer.ts\`); a test fails when the editor gains a field that is in neither.
-- **Detail.** \`docs/LANDING_PAGES.md\`, "Export and import".`,
+- **Detail.** \`docs/product/LANDING_PAGES.md\`, "Export and import".`,
   },
   {
     slug: "landing-page-homepage-blocks",
@@ -257,7 +257,7 @@ Pages built before this show their items as they were; the starter homepage has 
 - **Live data.** Four blocks take a \`source\` (typed or live). The server fills live values in before the render (\`resolveLiveBlocks\`, cached for a minute, never saved) as a render-only \`live\` prop; a failure shows the typed values. Counts and public titles only, never a person.
 - **Journey map.** One panel per stage, led by one featured offer with the rest as a short list of links; the one client part is \`JourneyTabs\`, over server-rendered panels.
 - **Coming up** has three styles: cards, feature tiles with the event's cover (only when its media asset is already public; saving a publicly announced event marks it), and a plain dated list.
-- **Detail.** \`docs/LANDING_PAGES.md\`, "Homepage blocks" and "Live data".`,
+- **Detail.** \`docs/product/LANDING_PAGES.md\`, "Homepage blocks" and "Live data".`,
   },
   {
     slug: "fixes-2026-11-17",
@@ -328,7 +328,7 @@ Pages built before this show their items as they were; the starter homepage has 
 
 - **After you turn it on**, opening the admin pages asks for the code from your app the first time in each sign-in. Your member pages are not affected.
 - **Until it is required of everyone**, a banner at the top of the admin pages reminds you to set it up. When the date is set, staff without it will be sent to the set-up screen first.
-- **Lost your phone?** Ask the owner to reset it; the steps are in \`docs/STAFF_MFA.md\`.
+- **Lost your phone?** Ask the owner to reset it; the steps are in \`docs/trust/STAFF_MFA.md\`.
 
 ![The screen that asks for your code the first time you open the admin pages in a sign-in](/changelog/staff-two-step-sign-in/02-enter-code.webp)`,
     image: { src: "/changelog/staff-two-step-sign-in/01-set-up.webp", alt: "The set-up on the Settings page: a picture to scan, the key to type instead, and the box for the 6-digit code" },
@@ -346,7 +346,7 @@ Pages built before this show their items as they were; the starter homepage has 
 - **Row level security.** A test fails if any table in those schemas has it off.
 - **Definer functions.** A test fails if a function that runs as its owner and that callers can execute has no recognizable caller check, does not pin its search path, or is runnable signed-out. A deliberate exception is one reviewed line in the test, with a reason, and a stale one fails too.
 - **The limit.** The test proves a check exists, not that it is right. A person still reads every new definer function in its PR.
-- **Detail.** \`docs/RLS_SECURITY.md\`, "Table privileges (grants)" and "Security definer functions".`,
+- **Detail.** \`docs/trust/RLS_SECURITY.md\`, "Table privileges (grants)" and "Security definer functions".`,
   },
   {
     slug: "one-tooltip-component",
@@ -515,7 +515,7 @@ Find it on [your Projects page](/projects) once you have two or more projects.`,
 - **Slack's own buttons are untouched.** Submit and Skip in Slack already collapse the message, so they don't call it.
 - **Old DMs are skipped.** Ones sent before the message was kept have nothing to find; the live path never searches history.
 
-Detail: "Read state shared with Slack" in \`docs/SLACK_BRIDGED_CHAT.md\`.`,
+Detail: "Read state shared with Slack" in \`docs/product/SLACK_BRIDGED_CHAT.md\`.`,
   },
   {
     slug: "lesson-comments-notifications",
@@ -531,7 +531,7 @@ Detail: "Read state shared with Slack" in \`docs/SLACK_BRIDGED_CHAT.md\`.`,
 - **Replies go out as they happen**, after the response, claimed per comment so a retry or a staff approval of a held reply never sends twice. The digests run once a day from a cron route, claimed per member and Eastern day; the digest starts where the last real run ended.
 - **A new automated sender starts in dry run.** The \`lesson_comment_notifications\` flag decides who is told for real; for everyone else the sender logs the member, kind, why, channels and message, and writes no claim or run mark, so switching it on starts clean. A member with no reachable channel never uses a claim, and a member whose access ended is never told.
 
-Detail: "Phase 3 (notifications), as built" in \`docs/COURSES.md\`.`,
+Detail: "Phase 3 (notifications), as built" in \`docs/product/COURSES.md\`.`,
   },
   {
     slug: "lesson-comments-moderation",
@@ -542,13 +542,13 @@ Detail: "Phase 3 (notifications), as built" in \`docs/COURSES.md\`.`,
     summary: "Members can report a comment, a comment with more than two links waits for staff, and staff hide, delete, approve or dismiss from a moderation page. Each staff action writes one audit entry without the comment's text. Still behind the lesson comments flag.",
     body: `Moderation for lesson comments builds on the thread, behind the same flag.
 
-- **One function, one entry.** Staff actions call a database function that checks the caller is an admin, changes the comment, settles its reports and writes a single audit entry as that admin (who, which comment, the lesson's title, before and after). The table has no row-level audit trigger because that would copy every comment's text into the log; the entry never holds text either. It follows "Record the intent, not the noise" in \`docs/ACTIVITY_AND_AUDIT_LOG.md\`.
+- **One function, one entry.** Staff actions call a database function that checks the caller is an admin, changes the comment, settles its reports and writes a single audit entry as that admin (who, which comment, the lesson's title, before and after). The table has no row-level audit trigger because that would copy every comment's text into the log; the entry never holds text either. It follows "Record the intent, not the noise" in \`docs/architecture/ACTIVITY_AND_AUDIT_LOG.md\`.
 - **Visibility is enforced twice.** A held comment is its author's and staff's alone, and a hidden one is a tombstone for members, both in the row-level policy and in the repository's \`threadFor(lessonId, viewer)\`.
 - **The link rule is one helper** (\`shouldHoldComment\`), counting links the way the thread auto-links them. There is no word filter.
 - **Reports** have their own table, one open report per reporter and comment, readable by admins only; the author is never told who reported.
 - **Admin pages** are tabs by path (Unanswered questions, Moderation), admin only.
 
-Detail: "Phase 2 (moderation), as built" in \`docs/COURSES.md\`.`,
+Detail: "Phase 2 (moderation), as built" in \`docs/product/COURSES.md\`.`,
   },
   {
     slug: "landing-page-build-with-ai",
@@ -573,7 +573,7 @@ Detail: "Phase 2 (moderation), as built" in \`docs/COURSES.md\`.`,
 - **Idempotent and safe on live pages.** The export has no page id, so a key is derived from ids it does carry; the same page imported again replaces only the draft (never the published copy or versions), asks first when the draft holds edits the import would lose, and keeps the old draft in the page's history as a "before import" version you can bring back.
 - **Extension point.** A new Kajabi block type is one more branch in the mapper and a test.
 
-How to use it, what is not handled and the model: "Importing from Kajabi" in \`docs/LANDING_PAGES.md\`.`,
+How to use it, what is not handled and the model: "Importing from Kajabi" in \`docs/product/LANDING_PAGES.md\`.`,
   },
   {
     slug: "landing-page-builder",
@@ -582,7 +582,7 @@ How to use it, what is not handled and the model: "Importing from Kajabi" in \`d
     category: "new",
     title: "A page builder for landing pages, on Puck, with drafts, publishing and history",
     summary: "Admins build landing pages from blocks at Pages, see them on a phone, tablet and desktop as they edit, and publish them as a separate, explicit step. Published pages are public at /p/<address>.",
-    body: "Kajabi's landing pages are moving into the Hub. A page is Puck's JSON, edited in a shell of ours and rendered by the same blocks in the editor and on the public route, so the preview is the page. Autosave writes only the draft; publishing runs accessibility checks, keeps a version and makes the page's pictures public, so an edit never goes live by accident and an earlier version can be brought back.\n\nThe rules to follow: a page's id never appears in a URL (the address is the slug); rich text is cleaned to an allowlist on save and again before every public render; props named `*AssetId`, `href`, `url` and `html` are picture ids, links and rich text everywhere, so one set of helpers covers any block; only a signed-in admin reads the tables, and the public route reads published pages with the service role. A block is a component, its defaults and its fields, with container-query layout. Sign-up forms are a block too: the browser posts to a relay that forwards to Kajabi through an `OptInDestination`, stores nothing, and only forwards to a form the published page shows. How to add a block, the model and the checks: `docs/LANDING_PAGES.md`.",
+    body: "Kajabi's landing pages are moving into the Hub. A page is Puck's JSON, edited in a shell of ours and rendered by the same blocks in the editor and on the public route, so the preview is the page. Autosave writes only the draft; publishing runs accessibility checks, keeps a version and makes the page's pictures public, so an edit never goes live by accident and an earlier version can be brought back.\n\nThe rules to follow: a page's id never appears in a URL (the address is the slug); rich text is cleaned to an allowlist on save and again before every public render; props named `*AssetId`, `href`, `url` and `html` are picture ids, links and rich text everywhere, so one set of helpers covers any block; only a signed-in admin reads the tables, and the public route reads published pages with the service role. A block is a component, its defaults and its fields, with container-query layout. Sign-up forms are a block too: the browser posts to a relay that forwards to Kajabi through an `OptInDestination`, stores nothing, and only forwards to a form the published page shows. How to add a block, the model and the checks: `docs/product/LANDING_PAGES.md`.",
   },
   {
     slug: "lesson-comments-foundation",
@@ -597,7 +597,7 @@ How to use it, what is not handled and the model: "Importing from Kajabi" in \`d
 - **Writes.** Server actions check the flag, the lesson, sudo and rate limits, and keep the text out of analytics and logs.
 - **UI.** \`CommentThread\` renders plain text and links only http(s) addresses.
 
-Moderation, notifications and the Kajabi import are later phases: see "Lesson comments" in \`docs/COURSES.md\`.`,
+Moderation, notifications and the Kajabi import are later phases: see "Lesson comments" in \`docs/product/COURSES.md\`.`,
   },
   {
     slug: "course-video-playback-quality-in-mux-data",
@@ -606,7 +606,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Playback quality of course videos is measured in Mux Data, for the lesson page, chat and the course builder",
     summary: "Every place that plays a course video now reports how it played (start time, buffering, errors) to Mux Data, under a player name per place, so a failing video can be told apart from a wrong setting.",
-    body: "Playback failures used to be visible only as our own alerts, which say that a video failed but not why. Mux Data adds the player's own view: start time, rebuffering, errors and watch time per view, with the page it happened on.\n\nThe one player (`LessonPlayer`) takes a `surface` (`PlayerSurface` in `lib/mux-data.ts`), and each reports under its own name in the Mux dashboard: Hub Course player, Hub Course Builder player and Hub Chat player. A new place that plays a lesson video passes the viewer's consent facts from `muxDataConsentFor` and its own surface.\n\nIt is anonymous (no member id, name or email; cookies off), and it follows the usage-statistics consent: the banner's Accept where one is needed, never after \"Leave me out of statistics\", never in sudo. It ran behind a flag while it was checked against production, and is now on for everyone; there is no switch. Detail and the consent rule: `docs/MUX_CONFIG.md`, \"Mux Data\".",
+    body: "Playback failures used to be visible only as our own alerts, which say that a video failed but not why. Mux Data adds the player's own view: start time, rebuffering, errors and watch time per view, with the page it happened on.\n\nThe one player (`LessonPlayer`) takes a `surface` (`PlayerSurface` in `lib/mux-data.ts`), and each reports under its own name in the Mux dashboard: Hub Course player, Hub Course Builder player and Hub Chat player. A new place that plays a lesson video passes the viewer's consent facts from `muxDataConsentFor` and its own surface.\n\nIt is anonymous (no member id, name or email; cookies off), and it follows the usage-statistics consent: the banner's Accept where one is needed, never after \"Leave me out of statistics\", never in sudo. It ran behind a flag while it was checked against production, and is now on for everyone; there is no switch. Detail and the consent rule: `docs/infrastructure/MUX_CONFIG.md`, \"Mux Data\".",
   },
   {
     slug: "answer-check-ins-in-hub-chat",
@@ -701,7 +701,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     body: [
       "Each account is a row with a default (keep or exclude) and the prefix of its credentials. The import and the nightly reconcile cover every account and skip one whose credentials are not set; the webhook accepts the secret of any configured account and records which one it came from. Bronze rows carry their account.",
       "Exclusion is applied when Silver is read, in the Zoom repository: an instance decision beats a link's, which beats the account default, and the same function serves the twin and the review page. Reprocessing then adds or removes the prickle and attendance, so a changed decision is fully reproducible. Admins decide on Health Check, Zoom Meetings.",
-      "**For a new Zoom read:** go through `ZoomRepository` so the rule applies; don't read the Bronze tables directly. Detail and the owner's setup steps: `docs/ZOOM_ACCOUNTS.md`.",
+      "**For a new Zoom read:** go through `ZoomRepository` so the rule applies; don't read the Bronze tables directly. Detail and the owner's setup steps: `docs/architecture/ZOOM_ACCOUNTS.md`.",
     ].join("\n\n"),
   },
   {
@@ -711,7 +711,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Links to Hub pages in chat are drawn as cards, decided for each reader",
     summary: "A link to a chat message, a prickle or a member's profile in Hub Chat is drawn as a card built for whoever is reading it, instead of the sign-in page Slack previews. It is behind a feature flag.",
-    body: "Hub pages sit behind sign-in, so a link preview made by the Hub's page reader or by Slack's crawler could only ever show the login page. The card is requested when it appears, and every read is made as the reader, so row-level security applies the rule of the page the link goes to. A quoted message shows its text only to someone who can read it, and anything a reader may not see comes back as the same neutral \"Link to the Hub\" as a message that does not exist. The author can remove the card with the same X as other previews.\n\nWhen a card applies, Slack's preview of that link is left out. The decision is per reader and behind a feature flag, so with the flag off a message looks as before. To add a kind of link, give `parseHubLink` its address shape and `loadHubLinkCard` its case; steps are in `docs/SLACK_BRIDGED_CHAT.md`, \"Hub links\".",
+    body: "Hub pages sit behind sign-in, so a link preview made by the Hub's page reader or by Slack's crawler could only ever show the login page. The card is requested when it appears, and every read is made as the reader, so row-level security applies the rule of the page the link goes to. A quoted message shows its text only to someone who can read it, and anything a reader may not see comes back as the same neutral \"Link to the Hub\" as a message that does not exist. The author can remove the card with the same X as other previews.\n\nWhen a card applies, Slack's preview of that link is left out. The decision is per reader and behind a feature flag, so with the flag off a message looks as before. To add a kind of link, give `parseHubLink` its address shape and `loadHubLinkCard` its case; steps are in `docs/product/SLACK_BRIDGED_CHAT.md`, \"Hub links\".",
   },
   {
     slug: "chat-new-messages-banner",
@@ -837,7 +837,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Where pictures come from: the picture proxy, the media library, and the hosts we load directly",
     summary: "Pictures under chat messages are fetched by the Hub, our own uploads are served by the media library, and a few trusted hosts such as Gravatar and Slack's profile pictures are loaded directly. This entry says which is which, and why.",
-    body: "Which path a picture takes depends on who controls its address.\n\n- **An address someone else chose** (a link preview, an app's card or logo): the picture proxy.\n- **Our own uploads** (book covers and other library images): the media library, served from the original in private storage (`docs/MEDIA_LIBRARY.md`).\n- **Member profile photos:** rebuilt by member processing from Kajabi, then Slack, then Gravatar; a photo that must outlast its source is kept in our storage.\n- **Loaded directly, on purpose:** Gravatar, Slack's profile pictures for people not matched to a member, Mux stills, Google profile photos and analytics beacons. These are the hosts in `csp.imageHosts` in `config/app.ts`, which is also what the policy allows.\n\n**For a new feature:** an address from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string.",
+    body: "Which path a picture takes depends on who controls its address.\n\n- **An address someone else chose** (a link preview, an app's card or logo): the picture proxy.\n- **Our own uploads** (book covers and other library images): the media library, served from the original in private storage (`docs/product/MEDIA_LIBRARY.md`).\n- **Member profile photos:** rebuilt by member processing from Kajabi, then Slack, then Gravatar; a photo that must outlast its source is kept in our storage.\n- **Loaded directly, on purpose:** Gravatar, Slack's profile pictures for people not matched to a member, Mux stills, Google profile photos and analytics beacons. These are the hosts in `csp.imageHosts` in `config/app.ts`, which is also what the policy allows.\n\n**For a new feature:** an address from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string.",
   },
   {
     slug: "lesson-videos-in-chat-building-blocks",
@@ -846,7 +846,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Lesson videos in chat messages: the pieces behind the flag",
     summary: "A chat message can share a course lesson's video, played in the message with the course's rules, from Hub Chat or a link pasted in Slack. It is behind a feature flag.",
-    body: "A chat message can share one course lesson's video. The share and its message are written together by a checked database function, and a repository (`ChatVideoRepository`) points one message at one lesson. Playback links are minted per viewer, after two checks: the viewer can read the message (read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`). Watching goes through the lesson player, tagged with the message so course stats keep chat views apart.\n\nA pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`), and Hub Chat hides the link line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`). Deleting a message ends its share at once.\n\nThe sign-in and connect-Slack detours use the gates standard (`lib/gates.ts`): the destination is carried through every step and each gate page offers \"Not now\". Detail: `docs/CHAT_VIDEOS_LAUNCH.md` and `docs/SLACK_BRIDGED_CHAT.md`, \"Lesson videos in messages\".",
+    body: "A chat message can share one course lesson's video. The share and its message are written together by a checked database function, and a repository (`ChatVideoRepository`) points one message at one lesson. Playback links are minted per viewer, after two checks: the viewer can read the message (read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`). Watching goes through the lesson player, tagged with the message so course stats keep chat views apart.\n\nA pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`), and Hub Chat hides the link line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`). Deleting a message ends its share at once.\n\nThe sign-in and connect-Slack detours use the gates standard (`lib/gates.ts`): the destination is carried through every step and each gate page offers \"Not now\". Detail: `docs/decisions/CHAT_VIDEOS_LAUNCH.md` and `docs/product/SLACK_BRIDGED_CHAT.md`, \"Lesson videos in messages\".",
   },
   {
     slug: "event-places-left-and-sign-up",
@@ -882,7 +882,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Hedgie Care: keep track of your reach-outs to members, and see how they went",
     summary: "Hedgie Care is where the community manager keeps her reach-outs to members: one care plan for each stretch of time, who spoke last, and how the member's own activity looked before, during and after.",
     body: [
-      "Hedgie Care (`/admin/care`, `docs/HEDGIE_CARE.md`) replaces the spreadsheet of reach-outs. Admins and the community manager can open it; writing to it needs the `care.write` staff feature, which she and every admin have.",
+      "Hedgie Care (`/admin/care`, `docs/product/HEDGIE_CARE.md`) replaces the spreadsheet of reach-outs. Admins and the community manager can open it; writing to it needs the `care.write` staff feature, which she and every admin have.",
       "**A care plan** is one stretch of reaching out to one member. Press **Start a care plan**, pick the member, why you are reaching out (an introduction, a welcome, a check-in, a writing check-in, encouragement or something else), the day it really started (today, or an earlier day if you are catching up, never a later one) and a short note with nothing sensitive in it. A plan belongs to the member, not to a channel: a member has one open plan, whether you reach them in Slack, by email or in a prickle, so what you read about them stays in one place. A plan runs for 30 days from its start. \"Change start date\" fixes a plan entered with the wrong day; the end moves with it. When a plan ends there is simply no explicit plan for the member: you **renew** it (a new plan that continues the one before, \"second plan\", with a short reason and the results so far in front of you) or **close** it with how it ended: handed to someone else, no reply, back in the community, or ran its course.",
       "**Where each one stands** is worked out, not typed: needs your reply, waiting on them, gone quiet, review due or lapsed. A member who wrote last stays on \"needs your reply\" until you answer, renew or close, however old the plan is. The Active tab lists what needs you; the Earlier tab holds closed and lapsed plans; a summary at the top counts what is overdue and whose it is.",
       "**Slack DMs fill in who spoke last, with nothing to choose.** When you hold a care plan with a member, your own 1:1 Slack DM with them is read for it: starting a plan tracks the DM when the Hub has one, and so does a plan you hold when you open Hedgie Care. The plan is the reason, so there is no list of DMs to pick from and nothing to switch off. Who spoke last is worked out from who wrote and when (the messages themselves are in the plan's Messages, below); DMs with staff are never read for this, group DMs are not included, and other staff cannot see which DMs you track beyond those messages. On a plan that follows your DM, the \"They replied\" and \"I replied\" buttons give way to \"Filled in from your Slack DM\", and **Open the DM** takes you to it. Where your DM is not available the plan says so quietly: \"Connect Slack so your DM with them fills in\" (a link, and one dismissible note on the Active tab while you hold an open plan), or \"No DM with them yet.\" This needs Slack connected with direct message access and the `slack_dm_bridge` feature on for you. Where nothing is filled in, you log \"They replied\" and \"I replied\" yourself.",
@@ -901,7 +901,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Hub Chat makes link previews for messages written in the Hub, and authors can remove any preview",
     summary: "A link in a message sent from the Hub gets a preview card (or the picture itself, for a link to an image), behind a feature flag, and the author can remove a preview, Slack's included, with an X on the card.",
-    body: "Slack builds no preview for messages the Hub posts, so the Hub makes its own, once, on the server, when the message is sent and the sender has the feature flag. Previews are never made when someone views a message. The author can remove any preview, Hub's or Slack's, and the two sides stay in step.\n\n- **Fetch at send time only**, through the shared safe download; failures are remembered so a link is not asked for twice, and an edit only looks at links it added.\n- **One card per link:** where the Hub has its own preview, Slack's card for the same address is dropped; where it has none, Slack's is shown. A card already on screen is never swapped.\n- **Removal works both ways:** removing a card in the Hub removes it in Slack (best effort, with a visible note if it fails), and removing it in Slack hides the Hub's card.\n- **The one exception to the no-link-previews rule:** a member's own message is conversation, so it is posted with previews on. Automatic messages never unfurl.\n\nConfirmed in production in both directions on 2026-11-12. Detail: `docs/SLACK_BRIDGED_CHAT.md`, \"Link previews for messages written in the Hub\".",
+    body: "Slack builds no preview for messages the Hub posts, so the Hub makes its own, once, on the server, when the message is sent and the sender has the feature flag. Previews are never made when someone views a message. The author can remove any preview, Hub's or Slack's, and the two sides stay in step.\n\n- **Fetch at send time only**, through the shared safe download; failures are remembered so a link is not asked for twice, and an edit only looks at links it added.\n- **One card per link:** where the Hub has its own preview, Slack's card for the same address is dropped; where it has none, Slack's is shown. A card already on screen is never swapped.\n- **Removal works both ways:** removing a card in the Hub removes it in Slack (best effort, with a visible note if it fails), and removing it in Slack hides the Hub's card.\n- **The one exception to the no-link-previews rule:** a member's own message is conversation, so it is posted with previews on. Automatic messages never unfurl.\n\nConfirmed in production in both directions on 2026-11-12. Detail: `docs/product/SLACK_BRIDGED_CHAT.md`, \"Link previews for messages written in the Hub\".",
   },
   {
     slug: "outbound-user-agent",
@@ -910,7 +910,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Every outbound request says who we are: one User-Agent",
     summary: "The Hub's requests to other services now send one consistent, valid User-Agent with a version and a way to reach us, and the SDKs we use add it next to their own.",
-    body: "Some hosts refuse a request with no User-Agent (Wikimedia answers 403), and others want a name and contact so they can reach us instead of blocking us. So every request to a server that is not ours sends one User-Agent, defined once as `OUTBOUND_USER_AGENT` in `lib/config.ts`: `HedgieHub/<version> (+<app url>; <support email>)`. The version is the first 7 characters of the deployed commit (`dev` when there is none), the product token, URL and email come from `config/app.ts`, and the comment carries nothing about a member. A request can name its feature with `userAgentWith(\"slack-import/1\")`.\n\n**Rule:** a raw request to someone else's host goes through `outboundFetch` (`lib/http/outbound.ts`); an SDK gets our part wired once, where its client is built, added next to the SDK's own and never replacing it. A test fails on a new unwrapped external call or a Slack client built outside `createSlackClient`. Detail: `docs/OUTBOUND_REQUESTS.md`.",
+    body: "Some hosts refuse a request with no User-Agent (Wikimedia answers 403), and others want a name and contact so they can reach us instead of blocking us. So every request to a server that is not ours sends one User-Agent, defined once as `OUTBOUND_USER_AGENT` in `lib/config.ts`: `HedgieHub/<version> (+<app url>; <support email>)`. The version is the first 7 characters of the deployed commit (`dev` when there is none), the product token, URL and email come from `config/app.ts`, and the comment carries nothing about a member. A request can name its feature with `userAgentWith(\"slack-import/1\")`.\n\n**Rule:** a raw request to someone else's host goes through `outboundFetch` (`lib/http/outbound.ts`); an SDK gets our part wired once, where its client is built, added next to the SDK's own and never replacing it. A test fails on a new unwrapped external call or a Slack client built outside `createSlackClient`. Detail: `docs/infrastructure/OUTBOUND_REQUESTS.md`.",
   },
   {
     slug: "safe-outbound-fetch",
@@ -919,7 +919,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "One safe way to download an address somebody else chose",
     summary: "Anything the server downloads from an address that came from a member, a message or an import now goes through one shared helper that refuses internal addresses, limits size and time, and checks what came back.",
-    body: "**Rule: any server-side download of an address that came from a user, a message or an import goes through `lib/net/safe-fetch.ts`**, never a bare request. It holds the safety rules once (`fetchImage` and `fetchPage` sit on `safeGet`).\n\n- **Only public https:** the name is resolved once, every answer must be a public address, and the connection is pinned to it.\n- **Bounded:** redirects are followed by hand and re-checked at every hop; size is capped while streaming and time is budgeted on the clock helper.\n- **Judged by content, not headers:** an image's type comes from its first bytes, and SVG is refused.\n- **Testable offline:** tests swap the name lookup and the socket (`setNetHooks`).\n\nUsed by the chat picture proxy, link-preview page reads, the book-cover import and member photo copies. Detail: `docs/OUTBOUND_REQUESTS.md`.",
+    body: "**Rule: any server-side download of an address that came from a user, a message or an import goes through `lib/net/safe-fetch.ts`**, never a bare request. It holds the safety rules once (`fetchImage` and `fetchPage` sit on `safeGet`).\n\n- **Only public https:** the name is resolved once, every answer must be a public address, and the connection is pinned to it.\n- **Bounded:** redirects are followed by hand and re-checked at every hop; size is capped while streaming and time is budgeted on the clock helper.\n- **Judged by content, not headers:** an image's type comes from its first bytes, and SVG is refused.\n- **Testable offline:** tests swap the name lookup and the socket (`setNetHooks`).\n\nUsed by the chat picture proxy, link-preview page reads, the book-cover import and member photo copies. Detail: `docs/infrastructure/OUTBOUND_REQUESTS.md`.",
   },
   {
     slug: "content-security-policy-report-only",
@@ -941,7 +941,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Member photos outlive their source: a copy in our own storage",
     summary: "A member's profile photo can now be kept in our own storage, and member processing prefers that copy over Kajabi, Slack and Gravatar, so it survives Kajabi being retired.",
     body: [
-      "A member's photo is rebuilt on every members processing run from Kajabi, then Slack, then Gravatar, so a plain copy of a file would be reverted by the next run. The copy is therefore remembered as a member override that processing prefers, and the files live in our own public storage, small and keyed by content (`docs/MEDIA_LIBRARY.md`, \"Member photos\").",
+      "A member's photo is rebuilt on every members processing run from Kajabi, then Slack, then Gravatar, so a plain copy of a file would be reverted by the next run. The copy is therefore remembered as a member override that processing prefers, and the files live in our own public storage, small and keyed by content (`docs/product/MEDIA_LIBRARY.md`, \"Member photos\").",
       "- **General pattern:** when a derived field must outlive its source, store an override that the derivation prefers, rather than editing the derived value.\n- **`pnpm photos:adopt`** moves photos off the Kajabi CDN. It is a dry run unless given `--apply`, uses the shared safe download (\"One safe way to download an address somebody else chose\") and is safe to run again. It was applied in production on 2026-11-11.\n- **Still loaded directly:** Gravatar, and Slack photos for people not matched to a member (\"Where pictures come from\").",
     ].join("\n\n"),
   },
@@ -952,7 +952,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Pictures under chat messages go through the Hub, and the app sends a Content-Security-Policy in report-only mode",
     summary: "Link previews, app cards and logos in chat are fetched by the Hub instead of by each viewer's browser, and every page now reports which pictures a stricter policy would block.",
-    body: "**Rule: a picture someone else chose never loads from the viewer's browser.** Chat pictures (previews, app cards, logos) go through one route, the picture proxy, so no image host learns who looked and the Hub never trusts an address from a request.\n\n- **The request names no address.** It names a message and a key (a hash of the picture's address); the server finds the address in the message itself.\n- **Access is the viewer's own read of the message**, so row-level security decides, and a deleted message is a 404.\n- **Keyed by address, not by position**, since positions shift when Slack's copy of a message arrives.\n- **One copy is kept for a week** in our storage and swept nightly, so the other site is asked once, not per viewer. Downloads use the shared safe fetch.\n\nEvery page also sends a Content-Security-Policy in report-only mode that reports what a stricter policy would block. Detail: `docs/SLACK_BRIDGED_CHAT.md`, `docs/OUTBOUND_REQUESTS.md`.",
+    body: "**Rule: a picture someone else chose never loads from the viewer's browser.** Chat pictures (previews, app cards, logos) go through one route, the picture proxy, so no image host learns who looked and the Hub never trusts an address from a request.\n\n- **The request names no address.** It names a message and a key (a hash of the picture's address); the server finds the address in the message itself.\n- **Access is the viewer's own read of the message**, so row-level security decides, and a deleted message is a 404.\n- **Keyed by address, not by position**, since positions shift when Slack's copy of a message arrives.\n- **One copy is kept for a week** in our storage and swept nightly, so the other site is asked once, not per viewer. Downloads use the shared safe fetch.\n\nEvery page also sends a Content-Security-Policy in report-only mode that reports what a stricter policy would block. Detail: `docs/product/SLACK_BRIDGED_CHAT.md`, `docs/infrastructure/OUTBOUND_REQUESTS.md`.",
   },
   {
     slug: "see-your-image-before-you-save-it",
@@ -980,7 +980,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Passwordless sign-in with Supabase magic links and a local Supabase stack",
     summary: "Sign-in is by emailed magic link only, with Next.js middleware protecting the dashboard and a Docker-based local Supabase with Mailpit for catching emails.",
-    body: "Sign-in is by emailed magic link only: no passwords exist anywhere, which kept the later invite-only decision simple. The login page asks for an email, Supabase Auth sends the link, and a callback route exchanges it for a session. Client and server Supabase helpers use the SSR package, and middleware redirects anonymous visitors away from protected routes. Local development runs Supabase in Docker with Mailpit catching emails, so nothing real is sent. The rule: auth goes through Supabase Auth helpers, never hand-rolled sessions. See docs/SETUP.md for the local flow.",
+    body: "Sign-in is by emailed magic link only: no passwords exist anywhere, which kept the later invite-only decision simple. The login page asks for an email, Supabase Auth sends the link, and a callback route exchanges it for a session. Client and server Supabase helpers use the SSR package, and middleware redirects anonymous visitors away from protected routes. Local development runs Supabase in Docker with Mailpit catching emails, so nothing real is sent. The rule: auth goes through Supabase Auth helpers, never hand-rolled sessions. See docs/runbooks/SETUP.md for the local flow.",
   },
   {
     slug: "declarative-schema-and-prickles-naming",
@@ -989,7 +989,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Declarative database schema in Bronze, Silver and Gold layers; sessions become prickles",
     summary: "The data model is written as a declarative schema file organised as a medallion architecture, and the community's own word, prickle, replaces session in the schema and code.",
-    body: "The data model is a declarative schema file organised as a medallion architecture: Bronze (raw, as the source said it), Silver (transformed) and Gold (analytics views). Migrations are generated from the schema file. Zoom participants are stored in the shape of the Zoom API's report with the full raw payload, and a CRM-style activity log carries flexible metadata and a weighted engagement value. Hiatus periods have one source of truth. The community's own word, prickle, replaced \"session\" throughout schema and code, so new work uses community vocabulary from the start. See docs/MEDALLION_ARCHITECTURE.md.",
+    body: "The data model is a declarative schema file organised as a medallion architecture: Bronze (raw, as the source said it), Silver (transformed) and Gold (analytics views). Migrations are generated from the schema file. Zoom participants are stored in the shape of the Zoom API's report with the full raw payload, and a CRM-style activity log carries flexible metadata and a weighted engagement value. Hiatus periods have one source of truth. The community's own word, prickle, replaced \"session\" throughout schema and code, so new work uses community vocabulary from the start. See docs/architecture/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "zoom-api-import",
@@ -1025,7 +1025,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Name matching in SQL: email, alias, normalized and fuzzy",
     summary: "Zoom display names can be matched to members in four steps of decreasing confidence, using a manual alias table and trigram similarity.",
-    body: "Zoom display names are matched to members in decreasing confidence: exact email, then a manual alias, then a normalized name (all high confidence), then trigram similarity of at least 0.4 (medium or low). Attendees often join under a nickname, so the most trustworthy match is returned first and a confidence score travels with the result. A manual alias table lets staff teach the matcher. Tests cover each tier. The matching logic lives in application code, not the raw Zoom table, so raw tables stay exactly what the source said. See docs/MEMBER_MATCHING.md.",
+    body: "Zoom display names are matched to members in decreasing confidence: exact email, then a manual alias, then a normalized name (all high confidence), then trigram similarity of at least 0.4 (medium or low). Attendees often join under a nickname, so the most trustworthy match is returned first and a confidence score travels with the result. A manual alias table lets staff teach the matcher. Tests cover each tier. The matching logic lives in application code, not the raw Zoom table, so raw tables stay exactly what the source said. See docs/architecture/MEMBER_MATCHING.md.",
   },
   {
     slug: "medallion-processing-members-and-attendance",
@@ -1034,7 +1034,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Medallion split: imports write Bronze only, processing routes build Silver",
     summary: "Imports store raw data untouched and separate processing routes compute members and attendance, after matching logic was pulled back out of the raw Zoom table.",
-    body: "Imports store raw data untouched; separate processing routes compute members and attendance. The rule, written in the architecture doc: Bronze holds only what the source said, Silver is inferred. Matching columns that had been added to the raw Zoom table were reverted for that reason. Members processing builds members from the latest Kajabi snapshot per email. Attendance processing reads Zoom attendees in a date range, matches each to a member (email, alias, normalized, fuzzy), creates prickles from Zoom meetings and writes attendance with a confidence score, skipping unmatched people and reporting match rates. The data-flow dependencies between routes are documented, and so is the idea of moving to streaming. This split is the basis of everything that followed. See docs/MEDALLION_ARCHITECTURE.md.",
+    body: "Imports store raw data untouched; separate processing routes compute members and attendance. The rule, written in the architecture doc: Bronze holds only what the source said, Silver is inferred. Matching columns that had been added to the raw Zoom table were reverted for that reason. Members processing builds members from the latest Kajabi snapshot per email. Attendance processing reads Zoom attendees in a date range, matches each to a member (email, alias, normalized, fuzzy), creates prickles from Zoom meetings and writes attendance with a confidence score, skipping unmatched people and reporting match rates. The data-flow dependencies between routes are documented, and so is the idea of moving to streaming. This split is the basis of everything that followed. See docs/architecture/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "first-engagement-dashboard-and-at-risk",
@@ -1052,7 +1052,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Name matching tools: unmatched report, drag-and-drop game and alias search",
     summary: "Staff get pages that show which Zoom names did not match anyone and a quick way to link them to members as aliases.",
-    body: "A name matching report lists active members with zero attendance, Zoom names seen three or more times without a match, and possible matches by email, written to push the match rate beyond the roughly 92 percent the automatic rules achieved. It became an interactive drag-and-drop pairing page and a search-and-autocomplete form that attaches a name to any member, since writers can have several identities, pen names and emails. The unmatched list calls the real match function instead of a lookalike query, so it cannot disagree with processing. See docs/MEMBER_MATCHING.md.",
+    body: "A name matching report lists active members with zero attendance, Zoom names seen three or more times without a match, and possible matches by email, written to push the match rate beyond the roughly 92 percent the automatic rules achieved. It became an interactive drag-and-drop pairing page and a search-and-autocomplete form that attaches a name to any member, since writers can have several identities, pen names and emails. The unmatched list calls the real match function instead of a lookalike query, so it cannot disagree with processing. See docs/architecture/MEMBER_MATCHING.md.",
   },
   {
     slug: "google-calendar-sync-bronze-to-silver",
@@ -1061,7 +1061,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Google Calendar sync into a Bronze events table, processed into prickles",
     summary: "The community calendar is read with a service account into raw calendar events, and a separate step turns those into prickles, so the schedule is rebuilt from source.",
-    body: "The community calendar is read by a Google service account (the calendar is shared with it, so there is no token expiry or user interaction). A sync route writes unmodified events, full JSON with creator and organizer, to Bronze idempotently by upsert (30 days back and 90 forward by default), and a separate processing route turns them into prickles, so the schedule is always rebuilt from source. Processing extracts the prickle type and host from titles shaped like a type, \"w/\", then a host, and normalises type spellings. Rule: sync stores raw, processing infers. See docs/CALENDAR_SETUP.md and docs/CALENDAR_SYNC.md.",
+    body: "The community calendar is read by a Google service account (the calendar is shared with it, so there is no token expiry or user interaction). A sync route writes unmodified events, full JSON with creator and organizer, to Bronze idempotently by upsert (30 days back and 90 forward by default), and a separate processing route turns them into prickles, so the schedule is always rebuilt from source. Processing extracts the prickle type and host from titles shaped like a type, \"w/\", then a host, and normalises type spellings. Rule: sync stores raw, processing infers. See docs/infrastructure/CALENDAR_SETUP.md and docs/infrastructure/CALENDAR_SYNC.md.",
   },
   {
     slug: "first-pagination-and-row-limit-lesson",
@@ -1088,7 +1088,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Attendance processing rewritten to split Zoom meetings into prickle segments",
     summary: "A long Zoom meeting is now cut into scheduled prickles and pop-ups by documented time rules, and each attendee is assigned by when they were actually present.",
-    body: "The first matcher treated each attendee alone and produced overlapping or very long PUPs. The rewrite in `app/api/process/attendance/route.ts` follows the analytics logic of the earlier Python tool: it handles a whole meeting as a unit and splits it into segments. Early and late arrivals of up to 20 minutes are absorbed by the first and last scheduled prickle, longer ones form separate PUPs, and gaps between scheduled prickles become PUPs. A three-pass algorithm (match calendar prickles, create PUPs only from attendees who matched no calendar prickle, then write attendance) fixed PUP windows that stretched across a day. Attendance in a PUP counts only above 15 minutes, using each attendee's own join and leave times, so showing up early for the next prickle is not credited as a PUP. `docs/ATTENDANCE_RULES.md` lists every threshold (20, 15 and 5 minutes for host-late warnings) with rationale.",
+    body: "The first matcher treated each attendee alone and produced overlapping or very long PUPs. The rewrite in `app/api/process/attendance/route.ts` follows the analytics logic of the earlier Python tool: it handles a whole meeting as a unit and splits it into segments. Early and late arrivals of up to 20 minutes are absorbed by the first and last scheduled prickle, longer ones form separate PUPs, and gaps between scheduled prickles become PUPs. A three-pass algorithm (match calendar prickles, create PUPs only from attendees who matched no calendar prickle, then write attendance) fixed PUP windows that stretched across a day. Attendance in a PUP counts only above 15 minutes, using each attendee's own join and leave times, so showing up early for the next prickle is not credited as a PUP. `docs/product/ATTENDANCE_RULES.md` lists every threshold (20, 15 and 5 minutes for host-late warnings) with rationale.",
   },
   {
     slug: "calendar-heatmap-and-prickle-pages",
@@ -1115,7 +1115,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Row Level Security on every table, invite-only sign-in and a navigation shell",
     summary: "All tables got RLS and a user profile with a role, public sign-up was turned off, and the admin area got a collapsible navigation.",
-    body: "Every table has row level security, accounts exist only by invitation (public sign-up is off in config), and each user has a profile with a role of admin, assistant or member, created by a trigger on sign-up. At this stage every authenticated user was effectively an admin, with policies written so they can be refined per role later. An admin helper function backs the policies. The admin area got a collapsible navigation grouped into Data Hygiene and Data Management. See docs/RLS_SECURITY.md for the migration path and docs/INVITING_USERS.md.",
+    body: "Every table has row level security, accounts exist only by invitation (public sign-up is off in config), and each user has a profile with a role of admin, assistant or member, created by a trigger on sign-up. At this stage every authenticated user was effectively an admin, with policies written so they can be refined per role later. An admin helper function backs the policies. The admin area got a collapsible navigation grouped into Data Hygiene and Data Management. See docs/trust/RLS_SECURITY.md for the migration path and docs/runbooks/INVITING_USERS.md.",
   },
   {
     slug: "vercel-supabase-deployment-guide",
@@ -1124,7 +1124,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Deployment to Vercel and a hosted Supabase project documented",
     summary: "A step-by-step guide covers creating the Supabase project, pushing migrations, configuring Vercel and a security checklist before going live.",
-    body: "A step-by-step guide covers creating the Supabase project, pushing migrations, configuring Vercel, the environment variables needed, turning off public sign-up and a security checklist before going live, with troubleshooting. Type errors that only the production build caught (chart formatters, a host relationship) showed why the build must be checked before commit, which led to the pre-commit build hook. See docs/DEPLOYMENT.md.",
+    body: "A step-by-step guide covers creating the Supabase project, pushing migrations, configuring Vercel, the environment variables needed, turning off public sign-up and a security checklist before going live, with troubleshooting. Type errors that only the production build caught (chart formatters, a host relationship) showed why the build must be checked before commit, which led to the pre-commit build hook. See docs/infrastructure/DEPLOYMENT.md.",
   },
   {
     slug: "batch-processing-for-timeouts",
@@ -1160,7 +1160,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "One TypeScript library for matching names to members",
     summary: "The routes that matched Zoom names to members each did it their own way; a shared library with one priority order replaced them.",
-    body: "Name-to-member matching lives in one library with one priority order: email, then alias, then normalized name, with smart matching for variants and case-insensitive comparison. It replaced per-route implementations and SQL procedures after a quarter of active members showed zero attendance purely from name mismatches. Seed aliases cover the common cases. Processing routes and the hygiene dashboard call the same function so their counts agree. Zoom names are trimmed before the alias lookup, and a meeting window comes from matched attendees only, which removed pop-ups with zero attendees. Rule: one matcher, called everywhere. See docs/MEMBER_MATCHING.md.",
+    body: "Name-to-member matching lives in one library with one priority order: email, then alias, then normalized name, with smart matching for variants and case-insensitive comparison. It replaced per-route implementations and SQL procedures after a quarter of active members showed zero attendance purely from name mismatches. Seed aliases cover the common cases. Processing routes and the hygiene dashboard call the same function so their counts agree. Zoom names are trimmed before the alias lookup, and a meeting window comes from matched attendees only, which removed pop-ups with zero attendees. Rule: one matcher, called everywhere. See docs/architecture/MEMBER_MATCHING.md.",
   },
   {
     slug: "reprocessability-principle-and-tests",
@@ -1169,7 +1169,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Reprocessability: Silver is rebuilt from Bronze with delete and insert, with tests",
     summary: "Silver processing was changed to delete the affected rows and insert fresh ones, so a deleted source event disappears, and regression tests were added for it.",
-    body: "Silver processing deletes the affected rows and inserts fresh ones, so an event deleted at the source disappears. Selective inserts and updates had left orphans. The principle is written in CLAUDE.md with correct and incorrect examples and a status table, and tests verify four things: a first run creates rows, reprocessing after source deletion removes them, changed source updates them, and orphans are detected. The process routes accept the service role key in the Authorization header as well as cookies so integration tests can call them. Identity tables such as members are the exception and upsert on a stable key, because deleting regenerated member ids. See docs/MEDALLION_ARCHITECTURE.md.",
+    body: "Silver processing deletes the affected rows and inserts fresh ones, so an event deleted at the source disappears. Selective inserts and updates had left orphans. The principle is written in CLAUDE.md with correct and incorrect examples and a status table, and tests verify four things: a first run creates rows, reprocessing after source deletion removes them, changed source updates them, and orphans are detected. The process routes accept the service role key in the Authorization header as well as cookies so integration tests can call them. Identity tables such as members are the exception and upsert on a stable key, because deleting regenerated member ids. See docs/architecture/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "bronze-idempotency-tests-and-sync-race-fix",
@@ -1178,7 +1178,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Idempotency tests for every Bronze import, and a calendar sync race fixed",
     summary: "Each import (calendar, Zoom, members) is tested to be safe to run repeatedly, after a concurrent sync caused duplicate key errors in production.",
-    body: "Every import (calendar, Zoom, members) is tested to be safe to run repeatedly: a first import creates rows, a repeat creates none, changed data updates or appends a new snapshot, and several cycles stay stable. The suites cover the three Bronze patterns: upsert on a natural key, upsert that ignores duplicates, and append-only snapshots. A production race, where overlapping calendar syncs checked then inserted and collided, was fixed by making the write an upsert on the natural key as the final guard. A phased plan covers fixtures, mocked external APIs and per-suite databases for the shared-database interference the tests suffered from. See docs/TEST_INFRASTRUCTURE_PLAN.md.",
+    body: "Every import (calendar, Zoom, members) is tested to be safe to run repeatedly: a first import creates rows, a repeat creates none, changed data updates or appends a new snapshot, and several cycles stay stable. The suites cover the three Bronze patterns: upsert on a natural key, upsert that ignores duplicates, and append-only snapshots. A production race, where overlapping calendar syncs checked then inserted and collided, was fixed by making the write an upsert on the natural key as the final guard. A phased plan covers fixtures, mocked external APIs and per-suite databases for the shared-database interference the tests suffered from. See docs/decisions/TEST_INFRASTRUCTURE_PLAN.md.",
   },
   {
     slug: "staff-bronze-table",
@@ -1241,7 +1241,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Kajabi and Stripe ids merged across imports; automation options researched",
     summary: "Member records pick up both a Kajabi contact id and a Stripe customer id even though they come from different CSV exports.",
-    body: "Contacts exports carry the Kajabi contact id and subscriptions exports carry the Stripe customer id (as the provider id when the provider is Stripe), so using only the latest snapshot lost one of them. Processing groups snapshots by email, takes the core fields from the latest and the first non-null external id from any snapshot, which feeds the Kajabi and Stripe links on the member page header. A document compares three ways to stop exporting by hand: the Kajabi API, bulk export, and Zapier or Make versus a browser scraper. See docs/KAJABI_API_SETUP.md.",
+    body: "Contacts exports carry the Kajabi contact id and subscriptions exports carry the Stripe customer id (as the provider id when the provider is Stripe), so using only the latest snapshot lost one of them. Processing groups snapshots by email, takes the core fields from the latest and the first non-null external id from any snapshot, which feeds the Kajabi and Stripe links on the member page header. A document compares three ways to stop exporting by hand: the Kajabi API, bulk export, and Zapier or Make versus a browser scraper. See docs/infrastructure/KAJABI_API_SETUP.md.",
   },
   {
     slug: "slack-bronze-tables-and-csv-export-import",
@@ -1268,7 +1268,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Bronze tables move into their own Postgres schema; attendance becomes prickle_attendance",
     summary: "Raw import tables now live in a bronze schema and each table is labelled Bronze, Local or Silver, so the layers are visible in the database.",
-    body: "Raw import tables live in a bronze schema and every table's comment declares its layer: Bronze is raw with idempotent imports, Local is operational data this app owns and never reprocesses, Silver is derived and reprocessable, so the layers are visible in the database itself. The attendance table was renamed to match the prickle vocabulary. PostgREST has to be told about the schema: it is exposed to the API and in the search path, queries name the schema explicitly, and new tables need grants. See docs/MEDALLION_ARCHITECTURE.md.",
+    body: "Raw import tables live in a bronze schema and every table's comment declares its layer: Bronze is raw with idempotent imports, Local is operational data this app owns and never reprocesses, Silver is derived and reprocessable, so the layers are visible in the database itself. The attendance table was renamed to match the prickle vocabulary. PostgREST has to be told about the schema: it is exposed to the API and in the search path, queries name the schema explicitly, and new tables need grants. See docs/architecture/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "member-email-aliases-and-merged-identity",
@@ -1277,7 +1277,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Email aliases so one person with several addresses is one member",
     summary: "A member who appears in Kajabi under more than one email is merged into one record, with external ids combined.",
-    body: "A member who appears in Kajabi under more than one email is merged into one record, with external ids combined. Alternative emails map to a canonical one in a Local alias table. Members processing resolves aliases first, deduplicates by canonical email and merges Kajabi and Stripe ids across all of a person's addresses. See docs/MEMBER_MATCHING.md.",
+    body: "A member who appears in Kajabi under more than one email is merged into one record, with external ids combined. Alternative emails map to a canonical one in a Local alias table. Members processing resolves aliases first, deduplicates by canonical email and merges Kajabi and Stripe ids across all of a person's addresses. See docs/architecture/MEMBER_MATCHING.md.",
   },
   {
     slug: "auto-processing-dependency-triggers",
@@ -1286,7 +1286,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Imports and local changes now trigger Silver reprocessing automatically",
     summary: "After an import, or after staff change an alias, an ignored name or a prickle type, the affected Silver data is rebuilt without a button press.",
-    body: "After an import, or after staff change an alias, an ignored name or a prickle type, the affected Silver data is rebuilt without a button press. A processing trigger library knows which Silver layers depend on which source and runs them in order. Bronze imports reprocess the date range they covered; Local changes (name aliases, ignored Zoom names, prickle types, bulk alias application) reprocess the last 90 days by default. The dependency map is an ordering constraint only: a member change need not force prickles and attendance to reprocess. Import responses wait for processing and show its results, and a Manual Reprocessing section handles custom ranges. See docs/MEDALLION_ARCHITECTURE.md.",
+    body: "After an import, or after staff change an alias, an ignored name or a prickle type, the affected Silver data is rebuilt without a button press. A processing trigger library knows which Silver layers depend on which source and runs them in order. Bronze imports reprocess the date range they covered; Local changes (name aliases, ignored Zoom names, prickle types, bulk alias application) reprocess the last 90 days by default. The dependency map is an ordering constraint only: a member change need not force prickles and attendance to reprocess. Import responses wait for processing and show its results, and a Manual Reprocessing section handles custom ranges. See docs/architecture/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "default-hosts-and-missing-hosts-page",
@@ -1313,7 +1313,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Webhook receivers for Google Calendar, Zoom and Slack with signature checks and tests",
     summary: "Live updates arrive at webhook endpoints that verify who sent them, write to Bronze and start processing without making the sender wait.",
-    body: "Live updates arrive at webhook endpoints for calendar, Zoom and Slack. Each verifies its sender (Google channel token, Zoom HMAC-SHA256 signature, Slack HMAC-SHA256 with a five minute timestamp window, each degrading gracefully when a secret is unset), writes to Bronze, starts Silver processing and answers 200 quickly. Handlers without a user session, such as Slack's, use the service role client. Tests use Mock Service Worker with fixtures based on the providers' payload documentation. Rule: verify before trusting, and webhooks are latency optimizations only (see the nightly reconciliation). See docs/WEBHOOK_TESTING.md.",
+    body: "Live updates arrive at webhook endpoints for calendar, Zoom and Slack. Each verifies its sender (Google channel token, Zoom HMAC-SHA256 signature, Slack HMAC-SHA256 with a five minute timestamp window, each degrading gracefully when a secret is unset), writes to Bronze, starts Silver processing and answers 200 quickly. Handlers without a user session, such as Slack's, use the service role client. Tests use Mock Service Worker with fixtures based on the providers' payload documentation. Rule: verify before trusting, and webhooks are latency optimizations only (see the nightly reconciliation). See docs/infrastructure/WEBHOOK_TESTING.md.",
   },
   {
     slug: "atomic-reprocessing-functions",
@@ -1349,7 +1349,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Kajabi and Slack imported straight from their APIs",
     summary: "Production imports pull from the Kajabi and Slack APIs, and the CSV uploads moved to a separate testing page.",
-    body: "The Kajabi client uses the OAuth client credentials flow, caches the access token until 90 percent of its life and fetches paginated JSON:API pages with a required site filter. Kajabi has no subscriptions endpoint, so subscriptions are read from purchases (a null deactivation time means active, amounts converted from cents), and customers are fetched and joined by id because the purchase lacks the email that hiatus processing groups by; purchases with no customer are skipped with a warning. The Slack import covers messages and reactions for a 7, 30 or 90 day window, auto-joins public channels and allows five minutes. Both write Bronze idempotently and trigger processing. The import page shows API imports, and a testing page keeps the CSV forms for development. See docs/KAJABI_API_SETUP.md.",
+    body: "The Kajabi client uses the OAuth client credentials flow, caches the access token until 90 percent of its life and fetches paginated JSON:API pages with a required site filter. Kajabi has no subscriptions endpoint, so subscriptions are read from purchases (a null deactivation time means active, amounts converted from cents), and customers are fetched and joined by id because the purchase lacks the email that hiatus processing groups by; purchases with no customer are skipped with a warning. The Slack import covers messages and reactions for a 7, 30 or 90 day window, auto-joins public channels and allows five minutes. Both write Bronze idempotently and trigger processing. The import page shows API imports, and a testing page keeps the CSV forms for development. See docs/infrastructure/KAJABI_API_SETUP.md.",
   },
 {
     slug: "kajabi-bronze-tables-and-api-sync",
@@ -1369,7 +1369,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Stripe customers, products and subscriptions imported into Bronze",
     summary:
       "A Stripe client and import route copy customers, products and subscriptions into raw tables, so we can tell active from paused or cancelled members.",
-    body: "A Stripe client and import copy customers, products and subscriptions into raw tables, because Kajabi's API does not expose a paused subscription, so Stripe is the authority for active, paused and cancelled. The data was kept Bronze-only until the reconciliation rules were settled. Writes go through SQL upsert functions, since the PostgREST schema cache did not see the newly migrated tables right away. The subscription period dates were not on the root object in the Stripe API version used, so they are read with a cast, pending typings. See docs/STRIPE_KAJABI_COMPARISON.md.",
+    body: "A Stripe client and import copy customers, products and subscriptions into raw tables, because Kajabi's API does not expose a paused subscription, so Stripe is the authority for active, paused and cancelled. The data was kept Bronze-only until the reconciliation rules were settled. Writes go through SQL upsert functions, since the PostgREST schema cache did not see the newly migrated tables right away. The subscription period dates were not on the root object in the Stripe API version used, so they are read with a cast, pending typings. See docs/decisions/STRIPE_KAJABI_COMPARISON.md.",
   },
   {
     slug: "member-processing-from-kajabi-bronze",
@@ -1399,7 +1399,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Reconciliation dashboard comparing Kajabi and Stripe",
     summary:
       "An admin report finds members whose Kajabi status and Stripe subscription disagree, so staff know where to act.",
-    body: "An admin report finds members whose Kajabi status and Stripe subscription disagree, so staff know where to act. It compares the two sources for membership offers only (payment plans and retreats are ignored on both sides) and does not flag legitimate cases: a paused Stripe subscription with an inactive Kajabi record is correct. Matching goes by email through customers to purchases by customer id, because the stored Kajabi id turned out to be stale. Tests for the overrides and reconciliation routes use the real database with the service-role helper. See docs/STRIPE_KAJABI_COMPARISON.md.",
+    body: "An admin report finds members whose Kajabi status and Stripe subscription disagree, so staff know where to act. It compares the two sources for membership offers only (payment plans and retreats are ignored on both sides) and does not flag legitimate cases: a paused Stripe subscription with an inactive Kajabi record is correct. Matching goes by email through customers to purchases by customer id, because the stored Kajabi id turned out to be stale. Tests for the overrides and reconciliation routes use the real database with the service-role helper. See docs/decisions/STRIPE_KAJABI_COMPARISON.md.",
   },
   {
     slug: "react-email-auth-templates-and-mailpit-tests",
@@ -1432,7 +1432,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Admin and member route groups, with auth required by default",
     summary:
       "The app is split into an admin area and a member area, and everything except public routes now requires a signed-in user with the right role.",
-    body: "The app is split into an admin area and a member area, each with its own layout and navigation, and everything except public routes requires a signed-in user with the right role. The member area has a calendar of the member's own attendance and profile pages, and shared pieces (user menu, sign-out, week view) live in components. Middleware redirects anonymous users, skips the API (which authenticates itself) and tolerates Supabase fetch failures. A shared admin guard helper protects every non-webhook API handler. The default role is member, and row level security policies that recursed infinitely were replaced. The root redirect sends admins to the admin area and members to their calendar. See docs/RLS_SECURITY.md.",
+    body: "The app is split into an admin area and a member area, each with its own layout and navigation, and everything except public routes requires a signed-in user with the right role. The member area has a calendar of the member's own attendance and profile pages, and shared pieces (user menu, sign-out, week view) live in components. Middleware redirects anonymous users, skips the API (which authenticates itself) and tolerates Supabase fetch failures. A shared admin guard helper protects every non-webhook API handler. The default role is member, and row level security policies that recursed infinitely were replaced. The root redirect sends admins to the admin area and members to their calendar. See docs/trust/RLS_SECURITY.md.",
   },
   {
     slug: "sudo-mode-signed-cookie-and-effective-identity",
@@ -1482,7 +1482,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Merging duplicate members, with detection and conflict warnings",
     summary:
       "Admins can merge two member records from a member page, in bulk, or from a Merge and Fix page that finds likely duplicates.",
-    body: "Admins can merge two member records from a member page, in bulk, or from a Merge and Fix page that finds likely duplicates (same normalised name or email). All entry points use one merge route, which moves attendance, activities, hiatus and override rows, hosted prickles, ambiguous-name references, name and email aliases to the kept member, copies missing external ids, deletes derived metrics (recomputed later) and removes the duplicate, in a fixed foreign-key order. When both members have different external ids the primary's wins and the response lists the conflicts. An external-conflicts hygiene page and pre-merge warnings check Kajabi, Stripe and Slack, and reprocessing cannot let a secondary Kajabi contact overwrite the primary. Dismissed duplicate groups are shared by all admins. See docs/MEMBER_MERGE.md.",
+    body: "Admins can merge two member records from a member page, in bulk, or from a Merge and Fix page that finds likely duplicates (same normalised name or email). All entry points use one merge route, which moves attendance, activities, hiatus and override rows, hosted prickles, ambiguous-name references, name and email aliases to the kept member, copies missing external ids, deletes derived metrics (recomputed later) and removes the duplicate, in a fixed foreign-key order. When both members have different external ids the primary's wins and the response lists the conflicts. An external-conflicts hygiene page and pre-merge warnings check Kajabi, Stripe and Slack, and reprocessing cannot let a secondary Kajabi contact overwrite the primary. Dismissed duplicate groups are shared by all admins. See docs/product/MEMBER_MERGE.md.",
   },
   {
     slug: "zoom-history-import-and-scoped-pagination-fixes",
@@ -1502,7 +1502,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Prickle ids stay the same when calendar and attendance are reprocessed",
     summary:
       "Reprocessing used to delete and recreate prickles with new ids, breaking links and attendance; prickles are now updated in place.",
-    body: "Prickle ids are stable across reprocessing, so prickle URLs are safe to link and attendance is never orphaned. Delete-and-recreate gave every run new ids; prickles now upsert on their source key (the calendar event, or for Zoom pop-ups the meeting with its start and end times), and only prickles whose source is gone are deleted. One Zoom meeting can yield several segments, so the meeting alone is not a unique key. Duplicates are merged by repointing attendance first, and reprocessability tests cover it. See docs/MEDALLION_ARCHITECTURE.md.",
+    body: "Prickle ids are stable across reprocessing, so prickle URLs are safe to link and attendance is never orphaned. Delete-and-recreate gave every run new ids; prickles now upsert on their source key (the calendar event, or for Zoom pop-ups the meeting with its start and end times), and only prickles whose source is gone are deleted. One Zoom meeting can yield several segments, so the meeting alone is not a unique key. Duplicates are merged by repointing attendance first, and reprocessability tests cover it. See docs/architecture/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "attendance-reprocessed-after-member-changes",
@@ -1575,7 +1575,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Admin users page: invites, roles, feature previews and linked profiles",
     summary: "Admins can manage portal users in one place: invite, change role, set feature previews, delete, and link a user to a staff record.",
-    body: "An admin users page lists sign-in accounts with role and enabled feature previews, with inline edits, a delete that blocks self-deletion and a resend-invite button for pending users. A Linked Profiles column connects an account to its staff and member records in one update, matching the member by email, so no reprocess is needed. Route tests cover the auth guards, create, update and delete, feature-flag replace semantics and link and unlink. See docs/INVITING_USERS.md.",
+    body: "An admin users page lists sign-in accounts with role and enabled feature previews, with inline edits, a delete that blocks self-deletion and a resend-invite button for pending users. A Linked Profiles column connects an account to its staff and member records in one update, matching the member by email, so no reprocess is needed. Route tests cover the auth guards, create, update and delete, feature-flag replace semantics and link and unlink. See docs/runbooks/INVITING_USERS.md.",
   },
   {
     slug: "slack-engagement-insights",
@@ -1593,7 +1593,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "fixed",
     title: "Row level security on 17 exposed tables, and Supabase advisories cleared",
     summary: "Tables that the public API could reach without row level security now require a signed-in user, and the remaining warning-level advisories were addressed.",
-    body: "A migration enabled row level security on 17 tables in the public and bronze schemas that Supabase flagged as readable and writable with the anon key (five Slack and subscription tables had policies set in the dashboard without RLS switched on; the others had neither), with the usual authenticated-only policy. A second pass pinned the search path on six functions, moved the trigram extension into its own schema and restricted a security-definer function's execute grant. Two definer functions used by sign-up and the admin policies were deliberately left alone to avoid breaking them, and the skipped advisories are documented. See docs/RLS_SECURITY.md.",
+    body: "A migration enabled row level security on 17 tables in the public and bronze schemas that Supabase flagged as readable and writable with the anon key (five Slack and subscription tables had policies set in the dashboard without RLS switched on; the others had neither), with the usual authenticated-only policy. A second pass pinned the search path on six functions, moved the trigram extension into its own schema and restricted a security-definer function's execute grant. Two definer functions used by sign-up and the admin policies were deliberately left alone to avoid breaking them, and the skipped advisories are documented. See docs/trust/RLS_SECURITY.md.",
   },
   {
     slug: "engagement-metrics-computed-from-attendance",
@@ -1647,7 +1647,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Data hygiene tools: unmatched Slack users and private channel access",
     summary: "Admins can match Slack accounts to members with suggested candidates and see private channels the Slack app can no longer read.",
-    body: "An unmatched Slack users page lists Slack users with no member and offers one-click alias creation. The match suggestion function scores name similarity and email local parts at token level as well as whole string, so a short Slack name is not buried by a long legal name, and requires a length floor for substring matches. Active users sort first. A private-channel access check flags private channels whose Bronze row was not refreshed in the latest nightly import, as a proxy for the Slack app having lost access; it only detects, because an app cannot invite itself back. See docs/MEMBER_MATCHING.md.",
+    body: "An unmatched Slack users page lists Slack users with no member and offers one-click alias creation. The match suggestion function scores name similarity and email local parts at token level as well as whole string, so a short Slack name is not buried by a long legal name, and requires a length floor for substring matches. Active users sort first. A private-channel access check flags private channels whose Bronze row was not refreshed in the latest nightly import, as a proxy for the Slack app having lost access; it only detects, because an app cannot invite itself back. See docs/architecture/MEMBER_MATCHING.md.",
   },
   {
     slug: "feedback-widget",
@@ -1776,7 +1776,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Activity log for attendance, outreach and logins",
     summary: "The member activity table now mirrors prickle attendance, outreach touches and sign-ins, so one table can answer what a member has been doing.",
-    body: "The member activity table mirrors prickle attendance, outreach touches and sign-ins, so one table can answer what a member has been doing. Prickle attendance is mirrored atomically as part of its reprocess, outreach touches are backfilled, and sign-in events come from `lib/processing/login-events.ts` through `/api/reconcile/logins`, scheduled in `vercel.json`.\n\n`lib/member-engagement.ts` reads from the activity table instead of recomputing from each source. Design: `docs/ACTIVITY_AND_AUDIT_LOG.md`. Attendance reprocessability and Slack reprocess tests cover the mirror.",
+    body: "The member activity table mirrors prickle attendance, outreach touches and sign-ins, so one table can answer what a member has been doing. Prickle attendance is mirrored atomically as part of its reprocess, outreach touches are backfilled, and sign-in events come from `lib/processing/login-events.ts` through `/api/reconcile/logins`, scheduled in `vercel.json`.\n\n`lib/member-engagement.ts` reads from the activity table instead of recomputing from each source. Design: `docs/architecture/ACTIVITY_AND_AUDIT_LOG.md`. Attendance reprocessability and Slack reprocess tests cover the mirror.",
   },
   {
     slug: "member-user-id-identity-link",
@@ -1822,7 +1822,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "CI pipeline: test, push migrations, then deploy",
     summary: "Merges to main now run tests, apply database migrations and only then deploy, so new code never goes live before its schema.",
     body: [
-      "`.github/workflows/ci.yml` (merged 2026-09-22) starts a local Supabase stack, builds, starts the app and runs the unit and database suites, then pushes pending migrations to production on main. `docs/CI_MIGRATION_ORDERING.md` weighs two options: leave Vercel's own git deploy running (a minutes-long window where code can hit a table that does not exist yet, as an earlier segments page outage did) or gate the deploy on CI. On 2026-09-23 Option B was adopted and Vercel's auto-deploy on main was switched off in `vercel.json`.",
+      "`.github/workflows/ci.yml` (merged 2026-09-22) starts a local Supabase stack, builds, starts the app and runs the unit and database suites, then pushes pending migrations to production on main. `docs/decisions/CI_MIGRATION_ORDERING.md` weighs two options: leave Vercel's own git deploy running (a minutes-long window where code can hit a table that does not exist yet, as an earlier segments page outage did) or gate the deploy on CI. On 2026-09-23 Option B was adopted and Vercel's auto-deploy on main was switched off in `vercel.json`.",
       "On 2026-09-24 the deploy hook (which triggers a separate remote build and reports success the moment the hook is accepted) was replaced by `vercel pull`, `vercel build --prod` and `vercel deploy --prebuilt --prod`, so the exact commit that passed tests is the one deployed and a bad build fails the job. `.next/cache` is restored with `actions/cache`. Preview deployments still come from Vercel's git integration.",
     ].join("\n\n"),
   },
@@ -1872,7 +1872,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Commitments cover several slots and rank in Upcoming",
     summary: "A commitment can now hold several recurring slots, chosen from the All Prickles table or calendar, and committed prickles rank as a personal signal in Upcoming.",
-    body: "A commitment can hold one or more recurring slots, chosen from the All Prickles table or calendar. An upcoming prickle that is a week of the viewer's active commitment gets its own ranking tier just under hosting and above streaks (priorities are named `PRIORITY` constants), using `computeCommitmentProgress` in `lib/commitments.ts`. Creating a commitment with its slots is one atomic database function, and an overlap check replaces the one-active-commitment-per-slot rule so renewals are allowed. Row-level security follows the `current_member_id()` and `is_admin()` convention, covered by `tests/api/commitments/rls.test.ts`. Detail: `docs/COMMITMENTS.md`.",
+    body: "A commitment can hold one or more recurring slots, chosen from the All Prickles table or calendar. An upcoming prickle that is a week of the viewer's active commitment gets its own ranking tier just under hosting and above streaks (priorities are named `PRIORITY` constants), using `computeCommitmentProgress` in `lib/commitments.ts`. Creating a commitment with its slots is one atomic database function, and an overlap check replaces the one-active-commitment-per-slot rule so renewals are allowed. Row-level security follows the `current_member_id()` and `is_admin()` convention, covered by `tests/api/commitments/rls.test.ts`. Detail: `docs/product/COMMITMENTS.md`.",
   },
   {
     slug: "host-eligibility-first-join-rule",
@@ -1890,7 +1890,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "fixed",
     title: "Row-level security audit: writes, reads and self-promotion closed",
     summary: "A policy audit closed gaps where any signed-in member could write to admin tables, read other members' private rows, or make themselves an admin.",
-    body: "A policy audit of `public` and `bronze` closed three gaps: any signed-in member could write to admin tables, read other members' private rows, or make themselves an admin.\n\n- **Self-promotion:** a trigger rejects changes to a profile's role, email or id unless the caller is an admin or a privileged database role (a column-level revoke would also have blocked admins, who change roles from their own session). Test: `tests/api/admin/user-profiles-role-escalation.test.ts`.\n- **Writes:** about 45 tables whose write policies only checked for an authenticated user became admin-only (`is_admin()`) or owner-or-admin (`current_member_id()`). A member's own update to their member record is limited to name and birthday.\n- **Reads:** other members' rows are read through `member_directory`, a trigger-synced view of public profile fields. Member records are readable only for one's own row or by admins, bronze and admin note tables are admin-read, and activity reads are own-rows. Member pickers no longer send every member's email to the browser.\n\nDetail: `docs/RLS_SECURITY.md`.",
+    body: "A policy audit of `public` and `bronze` closed three gaps: any signed-in member could write to admin tables, read other members' private rows, or make themselves an admin.\n\n- **Self-promotion:** a trigger rejects changes to a profile's role, email or id unless the caller is an admin or a privileged database role (a column-level revoke would also have blocked admins, who change roles from their own session). Test: `tests/api/admin/user-profiles-role-escalation.test.ts`.\n- **Writes:** about 45 tables whose write policies only checked for an authenticated user became admin-only (`is_admin()`) or owner-or-admin (`current_member_id()`). A member's own update to their member record is limited to name and birthday.\n- **Reads:** other members' rows are read through `member_directory`, a trigger-synced view of public profile fields. Member records are readable only for one's own row or by admins, bronze and admin note tables are admin-read, and activity reads are own-rows. Member pickers no longer send every member's email to the browser.\n\nDetail: `docs/trust/RLS_SECURITY.md`.",
   },
   {
     slug: "admin-route-protection-and-role-claim",
@@ -2319,7 +2319,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "Admin changes and member actions are recorded in one audit log with readable rows and per-record history.",
     body: [
-      "The Activity Log page is admin only. The audit log records the net effect of a transaction rather than every intermediate write, and has a Hide system toggle. See docs/ACTIVITY_AND_AUDIT_LOG.md.",
+      "The Activity Log page is admin only. The audit log records the net effect of a transaction rather than every intermediate write, and has a Hide system toggle. See docs/architecture/ACTIVITY_AND_AUDIT_LOG.md.",
     ].join("\n\n"),
   },
   {
@@ -2343,7 +2343,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "A mirror of Slack conversations is projected from Bronze and updated live over Realtime, with posting back to Slack through an outbox.",
     body: [
-      "Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/SLACK_BRIDGED_CHAT.md and the Hub Chat product entry.",
+      "Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/product/SLACK_BRIDGED_CHAT.md and the Hub Chat product entry.",
     ].join("\n\n"),
   },
   {
@@ -2664,7 +2664,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Big Sisters program, behind a preview flag",
     summary:
       "Matching, volunteers, introductions and a Big Sisters page were built behind a preview flag that is not on for everyone.",
-    body: "New members get a big sister for their first 30 days. Staff choose the match; arrival dates and trial outcomes are derived from membership data. Matching, volunteers, introductions and a Big Sisters page sit behind a preview flag. See `docs/BIG_SISTERS.md`.",
+    body: "New members get a big sister for their first 30 days. Staff choose the match; arrival dates and trial outcomes are derived from membership data. Matching, volunteers, introductions and a Big Sisters page sit behind a preview flag. See `docs/product/BIG_SISTERS.md`.",
   },
   {
     slug: "coverage-reporting",
@@ -2687,7 +2687,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "Only declared events are stored, with funnels and a usage explorer for admins.",
     body: [
-      "Events are declared in lib/analytics/events.ts and funnels in lib/analytics/funnels.ts. Members can leave usage statistics from /privacy. See docs/ANALYTICS.md.",
+      "Events are declared in lib/analytics/events.ts and funnels in lib/analytics/funnels.ts. Members can leave usage statistics from /privacy. See docs/product/ANALYTICS.md.",
     ].join("\n\n"),
   },
   {
@@ -2711,7 +2711,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "Members, prickles and other visible records moved from uuids to readable prefixed ids.",
     body: [
-      "new_id(prefix) generates ids like mbr_ and prkl_, and new tables follow the same rule. Links to members and prickles use the new ids. See docs/SHORT_IDS_PLAN.md.",
+      "new_id(prefix) generates ids like mbr_ and prkl_, and new tables follow the same rule. Links to members and prickles use the new ids. See docs/decisions/SHORT_IDS_PLAN.md.",
     ].join("\n\n"),
   },
   {
@@ -2723,7 +2723,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "A separate demo stack with Playwright scenes produces the screenshots used in Hedgie Help.",
     body: [
-      "Every scene also runs page checks (accessibility, overflow, console), and screenshots are published before deploy. See docs/DEMO_AND_HELP.md.",
+      "Every scene also runs page checks (accessibility, overflow, console), and screenshots are published before deploy. See docs/product/DEMO_AND_HELP.md.",
     ].join("\n\n"),
   },
   {
@@ -3209,7 +3209,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Changelog system, weekly digest and one notification log",
     summary:
       "Changelog entries live in one typed file that feeds the What's new pages, the admin Changelog, the weekly digest and the announcements post.",
-    body: "`content/changelog.ts` is the single typed source for the What's new pages, the admin Changelog, the weekly digest and the announcements post. Each entry is for the product audience (members, plus the admin Changelog) or the engineering audience (admin Changelog only). A test fails on a malformed entry or an image that is not there, and there is no generated file to keep in sync.\n\nThe weekly digest is a notification kind sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind its own feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `config/app.ts` is sent.\n\nOne shared notification log records what the app sent, keyed by recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or overlapping run never sends twice (`NotificationLogRepository`, one contract suite for both implementations). Screenshots: `pnpm changelog:capture <slug>`. Detail: `docs/CHANGELOG_PROCESS.md`.",
+    body: "`content/changelog.ts` is the single typed source for the What's new pages, the admin Changelog, the weekly digest and the announcements post. Each entry is for the product audience (members, plus the admin Changelog) or the engineering audience (admin Changelog only). A test fails on a malformed entry or an image that is not there, and there is no generated file to keep in sync.\n\nThe weekly digest is a notification kind sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind its own feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `config/app.ts` is sent.\n\nOne shared notification log records what the app sent, keyed by recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or overlapping run never sends twice (`NotificationLogRepository`, one contract suite for both implementations). Screenshots: `pnpm changelog:capture <slug>`. Detail: `docs/runbooks/CHANGELOG_PROCESS.md`.",
   },
   {
     slug: "members-search-alternate-names",
@@ -3312,7 +3312,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Hub Chat draws Slack's link previews and app cards",
     summary: "Messages that Slack gave a link preview, and messages posted by apps such as deploy notices, now show as cards in Hub Chat, with the app's own name and logo.",
-    body: "Hub Chat draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo.\n\n- **Hooks:** the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`); a block type is one entry in each. Anything not understood falls back to an \"Open in Slack\" link.\n- **An app's message is drawn from its blocks; a person's message from its text.**\n- **Every picture goes through the picture proxy.**\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message.\n\nAdding a block type or unfurl kind: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
+    body: "Hub Chat draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo.\n\n- **Hooks:** the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`); a block type is one entry in each. Anything not understood falls back to an \"Open in Slack\" link.\n- **An app's message is drawn from its blocks; a person's message from its text.**\n- **Every picture goes through the picture proxy.**\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message.\n\nAdding a block type or unfurl kind: `docs/product/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
   },
   {
     slug: "combobox-keyboard-hook",

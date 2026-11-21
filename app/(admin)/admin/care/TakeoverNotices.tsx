@@ -10,7 +10,7 @@ const BUTTON =
   "rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800";
 
 /**
- * "Taken over": the care plans an admin took from the signed-in staff member without their agreement (docs/HEDGIE_CARE.md,
+ * "Taken over": the care plans an admin took from the signed-in staff member without their agreement (docs/product/HEDGIE_CARE.md,
  * "Owners": the one exception to hand-overs needing both sides), next to "Waiting for you" on the Active and Earlier tabs. It
  * says who took which member's plan and when, and goes away when they dismiss it. Nothing is sent to them: the page is the
  * only way they hear of it for now (`docs/TODO.md`). Renders nothing when there is nothing to tell.

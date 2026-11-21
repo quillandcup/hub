@@ -8,7 +8,7 @@ import { faviconProblem } from "@/lib/landing/style";
 import { normalizeSiteTemplate, siteAssetIds, siteTemplateIssues, type SiteTemplate } from "@/lib/landing/site-template";
 
 /**
- * The Design view's server actions (docs/LANDING_PAGES.md, "Site template"). The site template is one document shared by every
+ * The Design view's server actions (docs/product/LANDING_PAGES.md, "Site template"). The site template is one document shared by every
  * website page, with a draft and a published copy like a page. `saveSiteDraft` is the autosave: it writes the draft only and is
  * not audited or counted. `publishSiteTemplate` is the one step that changes what visitors see on every published website page,
  * so it checks the document first and is audited as the admin. Every action checks for an admin itself.
@@ -55,7 +55,7 @@ async function publishImpl(auth: Extract<Awaited<ReturnType<typeof requireAdminA
     // What the editor is showing is what goes live: save it, then publish it, so nothing typed a moment ago is left out.
     await repos.landingSiteTemplate.saveDraft(site, auth.user.id);
     if (!(await repos.landingSiteTemplate.publish(auth.user.id))) return { error: "Couldn't publish the site design." };
-    // A signed-out visitor is served only assets marked public (docs/MEDIA_LIBRARY.md), so the logo is marked now.
+    // A signed-out visitor is served only assets marked public (docs/product/MEDIA_LIBRARY.md), so the logo is marked now.
     for (const id of siteAssetIds(site)) {
       const asset = await repos.media.byId(id);
       if (asset && !asset.deleted_at && !asset.is_public) await repos.media.edit(id, { is_public: true });

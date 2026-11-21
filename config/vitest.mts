@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-// This suite is split into two Vitest "projects" -- see docs/TEST_INFRASTRUCTURE_PLAN.md
+// This suite is split into two Vitest "projects" -- see docs/decisions/TEST_INFRASTRUCTURE_PLAN.md
 // and the "Re-introduce Test Parallelism" entry in docs/TODO.md for the fileParallelism
 // history:
 //

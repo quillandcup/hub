@@ -1,5 +1,5 @@
 /**
- * Copies member profile photos from Kajabi's CDN into our own storage (docs/MEDIA_LIBRARY.md, "Member photos").
+ * Copies member profile photos from Kajabi's CDN into our own storage (docs/product/MEDIA_LIBRARY.md, "Member photos").
  *
  * Usage:
  *   pnpm photos:adopt [--env <file>] [--apply]

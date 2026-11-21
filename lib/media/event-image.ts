@@ -13,8 +13,8 @@ export async function eventImageError(media: MediaRepository, imageId: unknown):
 }
 
 /**
- * A signed-out visitor is served only assets marked public (docs/MEDIA_LIBRARY.md), and the public Coming up list shows an event's
- * cover only when it is (docs/LANDING_PAGES.md). So when an admin saves an event that is announced publicly and has a cover, the cover
+ * A signed-out visitor is served only assets marked public (docs/product/MEDIA_LIBRARY.md), and the public Coming up list shows an event's
+ * cover only when it is (docs/product/LANDING_PAGES.md). So when an admin saves an event that is announced publicly and has a cover, the cover
  * is marked public, the way publishing a landing page marks its pictures. It is never turned back (the picture may be used elsewhere).
  * A failure here never fails the save: the list simply shows no picture until the image is marked public in the media library.
  */

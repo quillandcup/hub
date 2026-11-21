@@ -188,7 +188,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   }));
   await insertChunked(notifications, (rows) => db.from("in_app_notifications").insert(rows), "in_app_notifications");
 
-  // Attendance, member badges, notifications and matches still have uuid ids (phase 2 of docs/SHORT_IDS_PLAN.md): the database picks them.
+  // Attendance, member badges, notifications and matches still have uuid ids (phase 2 of docs/decisions/SHORT_IDS_PLAN.md): the database picks them.
   const matches: Insert<"mentorships">[] = pick("mentorships", dataset.mentorships).map(({ id: _id, ...match }) => match);
   await insertChunked(matches, (rows) => db.from("mentorships").insert(rows), "mentorships");
 

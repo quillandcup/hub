@@ -1,5 +1,5 @@
 /**
- * Step B of the Kajabi course migration (docs/COURSES.md): captures each lesson's HTML, thumbnail,
+ * Step B of the Kajabi course migration (docs/product/COURSES.md): captures each lesson's HTML, thumbnail,
  * video source and downloads from Kajabi's admin lesson editor into Bronze.
  *
  * None of that is in Kajabi's public API. The editor loads it as JSON, and that API only answers
@@ -11,12 +11,12 @@
  * With --hero it also looks for the course's hero banner (the image behind the course title). That is experimental and
  * finds nothing today: the admin product page doesn't carry it; the banner is on the member-facing course page.
  *
- * With --progress it captures every student's per-lesson completion instead (docs/COURSES.md, "Importing Kajabi
+ * With --progress it captures every student's per-lesson completion instead (docs/product/COURSES.md, "Importing Kajabi
  * per-lesson progress"): the Product Progress report page gives the roster, then each student's report is fetched
  * from inside the logged-in page. The roster feeds bronze.kajabi_product_progress, the lessons feed
  * bronze.kajabi_lesson_progress; /api/process/course-progress turns completed lessons into lesson_progress.
  *
- * With --comments it captures each lesson's comments and replies instead (docs/COURSES.md, "Lesson comments"): the
+ * With --comments it captures each lesson's comments and replies instead (docs/product/COURSES.md, "Lesson comments"): the
  * admin's posts list gives every lesson's member-page link, each page is opened and "Show More" pressed until it is
  * gone, and the comments go to bronze.kajabi_lesson_comments. It never types or submits anything.
  *
@@ -519,7 +519,7 @@ async function readCommentsPage(context: BrowserContext, lesson: PostLink): Prom
 }
 
 /**
- * Comments mode (docs/COURSES.md, "Lesson comments"). The course's admin product page requests the posts list
+ * Comments mode (docs/product/COURSES.md, "Lesson comments"). The course's admin product page requests the posts list
  * itself (`/api/admin/products/{id}/posts`); its response gives every lesson's "view comments" link. Each lesson is
  * then opened in a new page of the same browser and read. UNVERIFIED against the live site: the dry run is the first
  * real test. Prints counts only, never a name, a comment or an address.

@@ -15,7 +15,7 @@ ALTER TABLE public.writing_projects ADD COLUMN sort_position integer;
 COMMENT ON COLUMN public.writing_projects.sort_position IS 'The member''s own order of their projects (1 = first); NULL = never placed, which sorts before every placed project, newest first.';
 
 -- A reorder rewrites the position of every project in the list, so it is one audit entry for the member's
--- list ("reordered their 4 projects"), not one per project (docs/ACTIVITY_AND_AUDIT_LOG.md, "Record the
+-- list ("reordered their 4 projects"), not one per project (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "Record the
 -- intent, not the noise"). The row trigger stays for everything else a project does: it is split in
 -- three so the update one can say a change of position alone is not worth a row (OLD isn't there on insert).
 DROP TRIGGER audit_row_change ON public.writing_projects;

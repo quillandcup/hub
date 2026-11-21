@@ -2,7 +2,7 @@ import { isId } from "@/lib/ids";
 import { writtenLinks } from "@/lib/chat/written-links";
 
 /**
- * Links to the Hub itself, written in a chat message (docs/SLACK_BRIDGED_CHAT.md, "Hub links"). Which pages have a card, and what a link to one
+ * Links to the Hub itself, written in a chat message (docs/product/SLACK_BRIDGED_CHAT.md, "Hub links"). Which pages have a card, and what a link to one
  * looks like, is decided here and nowhere else: the loader uses it to find the links in a message, and the card route uses it to read the
  * address it is asked about, so the two cannot disagree. Pure: no database, no React.
  *

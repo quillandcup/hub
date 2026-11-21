@@ -94,7 +94,7 @@ export function describeSessionDevice(userAgent: string | null | undefined): str
  * "x.0.0.0" minor versions. So `os_version` is kept only for iOS, which reports its real version, and is null
  * everywhere else rather than a misleading frozen value. `device_type` from a user agent alone can't tell an
  * iPad that asks for desktop sites from a Mac; a signal from the browser itself (touch) would, and is a
- * later phase (docs/EVENT_LOG.md, "Device and viewport").
+ * later phase (docs/architecture/EVENT_LOG.md, "Device and viewport").
  */
 export interface DeviceInfo {
   /** "Chrome", "Safari", "Firefox", "Edge"... */

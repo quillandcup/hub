@@ -1,4 +1,4 @@
--- Lesson comments, phase 2 (docs/COURSES.md, "Lesson comments"): moderation. Members report a comment, a comment with too
+-- Lesson comments, phase 2 (docs/product/COURSES.md, "Lesson comments"): moderation. Members report a comment, a comment with too
 -- many links is held for review, and staff hide, delete, approve, dismiss reports and mark questions handled, each as one
 -- audit entry. Expand-only: new columns and a new table, and the row-level policies of phase 1 get one more condition each.
 -- Nothing the code live in production uses changes meaning (the new columns are all null for every existing comment).
@@ -253,4 +253,4 @@ REVOKE ALL ON FUNCTION public.moderate_lesson_comment(text, text) FROM PUBLIC, a
 GRANT EXECUTE ON FUNCTION public.moderate_lesson_comment(text, text) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.moderate_lesson_comment(text, text) IS
-  'Staff moderation of a lesson comment (hide, unhide, delete, approve, handle, dismiss): checks the caller is an admin (or the service role), changes the comment, settles its open reports and writes ONE audit entry (no comment text). See docs/COURSES.md, "Lesson comments".';
+  'Staff moderation of a lesson comment (hide, unhide, delete, approve, handle, dismiss): checks the caller is an admin (or the service role), changes the comment, settles its open reports and writes ONE audit entry (no comment text). See docs/product/COURSES.md, "Lesson comments".';

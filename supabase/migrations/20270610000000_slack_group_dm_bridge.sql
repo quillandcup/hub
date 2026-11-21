@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Slack group DMs the bot is not in, read with members' own tokens (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through
+-- Slack group DMs the bot is not in, read with members' own tokens (docs/product/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through
 -- members' own tokens"). Group DMs the bot is in are bridged by the bot, for everyone in them; one only a member's token
 -- can read must follow the 1:1 DM rule (20270603000000_slack_dm_visibility_gate.sql): it is in the chat of the members who
 -- have pulled their own DMs, and no one else.

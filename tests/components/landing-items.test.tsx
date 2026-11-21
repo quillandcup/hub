@@ -26,7 +26,7 @@ import { starterData } from "@/lib/landing/starters";
 afterEach(cleanup);
 
 /**
- * Blocks that hold a list of items as a slot of child blocks (docs/LANDING_PAGES.md, "Blocks with items"): the data shape, the
+ * Blocks that hold a list of items as a slot of child blocks (docs/product/LANDING_PAGES.md, "Blocks with items"): the data shape, the
  * public render, the publish check, the AI builder and the JSON import all follow the one table (`SLOT_ALLOW`).
  */
 

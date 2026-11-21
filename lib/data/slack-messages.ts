@@ -177,7 +177,7 @@ export interface SlackMessageRepository {
   /**
    * For each of these Slack conversations, when each person last wrote in it (a thread reply or a file share counts;
    * deleted messages and the notices Slack posts itself do not): who and when, never the text, files or payload (Hedgie
-   * Care's tracked DMs, docs/HEDGIE_CARE.md). Service role only: the database function refuses a signed-in user,
+   * Care's tracked DMs, docs/product/HEDGIE_CARE.md). Service role only: the database function refuses a signed-in user,
    * because these are people's private DMs. By channel then user. Chunked.
    */
   lastWritesIn(channelIds: string[]): Promise<SlackLastWrite[]>;

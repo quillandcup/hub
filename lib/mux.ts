@@ -4,7 +4,7 @@ import { OUTBOUND_USER_AGENT } from "@/lib/config";
 import type { CourseMuxApi } from "@/lib/courses/media";
 
 /**
- * Mux helper for course videos (docs/COURSES.md, "Video"). Assets use a signed playback policy,
+ * Mux helper for course videos (docs/product/COURSES.md, "Video"). Assets use a signed playback policy,
  * so nothing plays without a token minted here after the caller's access check.
  */
 

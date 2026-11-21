@@ -1,5 +1,5 @@
 /**
- * The `courses:content --progress` run, apart from the browser (docs/COURSES.md, "Importing Kajabi
+ * The `courses:content --progress` run, apart from the browser (docs/product/COURSES.md, "Importing Kajabi
  * per-lesson progress"): given the roster response and a way to fetch one student's report, it saves the roster
  * to `bronze.kajabi_product_progress` and each student's lessons to `bronze.kajabi_lesson_progress`.
  *

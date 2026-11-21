@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Hedgie Care in the Activity Log (docs/ACTIVITY_AND_AUDIT_LOG.md, "A feature launches with its events in the activity log").
+-- Hedgie Care in the Activity Log (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "A feature launches with its events in the activity log").
 -- Three things, none of them a schema change (no table or column is added, changed or dropped):
 --
 --   1. The audit rows of a care plan never carry what staff typed. The plan's note and next step were logged with their text in

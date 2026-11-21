@@ -6,7 +6,7 @@ import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
 
 /**
- * What a signed-out visitor may be shown of an event's cover (docs/LANDING_PAGES.md, "Coming up"): the picture only when its asset is
+ * What a signed-out visitor may be shown of an event's cover (docs/product/LANDING_PAGES.md, "Coming up"): the picture only when its asset is
  * already public, never a private, deleted or missing one, and never a reason to drop the event; plus the date and time a list row needs.
  */
 const NOW = Date.parse("2026-11-19T15:00:00Z");

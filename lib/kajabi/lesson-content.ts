@@ -1,5 +1,5 @@
 /**
- * Lesson content from Kajabi's admin lesson editor (docs/COURSES.md, step B): the lesson HTML, its
+ * Lesson content from Kajabi's admin lesson editor (docs/product/COURSES.md, step B): the lesson HTML, its
  * thumbnail, its video source and its downloads. None of it is in Kajabi's public API; the editor
  * loads it as JSON (`/api/admin/posts/{id}` and `/api/admin/posts/{id}/downloads`), which
  * scripts/kajabi-course-content.ts records from a logged-in admin session and hands to this module.

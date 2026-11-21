@@ -5,7 +5,7 @@ import { presetPadding } from "./layout";
 import { stampLandingVersion } from "./migrations";
 
 /**
- * Ready-made first drafts for "New page" (docs/LANDING_PAGES.md, "Starters"). A starter is the same Puck JSON the editor
+ * Ready-made first drafts for "New page" (docs/product/LANDING_PAGES.md, "Starters"). A starter is the same Puck JSON the editor
  * saves, written once (here) and copied into a new draft page: from then on the page is the admin's, edited like any
  * other. Nothing in a starter is published, and it holds no member data, picture or invented fact: figures and
  * statuses are typed by hand (live data comes later), what only a person knows is left empty or in [brackets], and a

@@ -1,7 +1,7 @@
 import { parse } from "parse5";
 
 /**
- * What a linked page says about itself, read from the head of its HTML for a preview card (docs/SLACK_BRIDGED_CHAT.md,
+ * What a linked page says about itself, read from the head of its HTML for a preview card (docs/product/SLACK_BRIDGED_CHAT.md,
  * "Link previews"). The page is somebody else's and may be hostile, huge or broken, so:
  *  - only the head is looked at (the text is cut at `</head>` or `<body` before parsing), by parse5, a spec-compliant parser that
  *    never runs anything and decodes entities once, instead of patterns over markup;

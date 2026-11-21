@@ -1,5 +1,5 @@
 /**
- * The style guide for the page builder (docs/LANDING_PAGES.md, "Settings"): a few design tokens chosen from short lists, never a
+ * The style guide for the page builder (docs/product/LANDING_PAGES.md, "Settings"): a few design tokens chosen from short lists, never a
  * free colour or font. The site template holds the site's tokens, which every website page uses; a landing page uses the site's
  * too, unless it has its own override for the group. `resolveStyle` is the one place that decides which value wins, used by the
  * editor's canvas and by the public renderer alike. Pure helpers, safe in the browser and on the server.

@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Hub chat notifications (docs/SLACK_BRIDGED_CHAT.md, "Notifications"). Per conversation a member chooses what tells them
+-- Hub chat notifications (docs/product/SLACK_BRIDGED_CHAT.md, "Notifications"). Per conversation a member chooses what tells them
 -- about it: chat_channel_members.muted already exists (nothing tells them); notify_level adds "all" (every message) and
 -- "mentions" (only when they are mentioned), and null means the default for the kind of conversation (a direct message:
 -- every message; a channel: mentions), as in Slack.

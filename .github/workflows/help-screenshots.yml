@@ -1,4 +1,4 @@
-# Captures the screenshots the member help articles show (help/, docs/DEMO_AND_HELP.md) and publishes them as a
+# Captures the screenshots the member help articles show (help/, docs/product/DEMO_AND_HELP.md) and publishes them as a
 # new set, on a schedule instead of on every merge: the capture takes several minutes and used to sit in front of
 # every deploy. Sets are named by the main commit they were captured at; a deploy shows the newest set captured at
 # an ancestor of its commit (scripts/help-images-version.ts), so help pictures lag main by up to a day.

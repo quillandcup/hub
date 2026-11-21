@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- A writer's public page (docs/WRITER_PROFILES.md): opt-in, at a handle the member chooses, shown to anyone and indexed by
+-- A writer's public page (docs/product/WRITER_PROFILES.md): opt-in, at a handle the member chooses, shown to anyone and indexed by
 -- search engines. This migration is the foundation only: who the page is for (handle, the name shown, photo, bio) and
 -- the switch. Nothing about a member's writing is public yet. Expand only: two new tables and one new column.
 --
@@ -28,7 +28,7 @@ CREATE TABLE public.writer_profiles (
   -- The switch. Nothing about the page is public until it is true.
   is_public boolean NOT NULL DEFAULT false,
   -- The name shown: NULL is the member's display name (never the legal name); otherwise one of their public pen names.
-  -- member_name_aliases still has uuid ids (Tier 2, docs/SHORT_IDS_PLAN.md phase 2): this column follows it when it converts.
+  -- member_name_aliases still has uuid ids (Tier 2, docs/decisions/SHORT_IDS_PLAN.md phase 2): this column follows it when it converts.
   public_name_alias_id uuid REFERENCES public.member_name_aliases(id) ON DELETE SET NULL,
   -- Their photo is shown only when this is true.
   show_photo boolean NOT NULL DEFAULT false,

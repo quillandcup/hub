@@ -1,4 +1,4 @@
--- Reacting from the Hub, phase 3 of docs/SLACK_BRIDGED_CHAT.md. The bot can't react under someone
+-- Reacting from the Hub, phase 3 of docs/product/SLACK_BRIDGED_CHAT.md. The bot can't react under someone
 -- else's name, so a Hub reaction stays in the Hub (synced_to_slack = false) until the member
 -- connects their own Slack. It is a chat_reactions row keyed by member (slack_user_id null), which
 -- the Slack projection never touches: it only upserts rows keyed by slack_user_id.

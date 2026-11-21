@@ -51,7 +51,7 @@ export class StripeClientWrapper {
 
     this.stripe = new Stripe(apiKey, {
       apiVersion: '2026-08-26.dahlia',
-      // Stripe adds this to its own User-Agent clause (docs/OUTBOUND_REQUESTS.md).
+      // Stripe adds this to its own User-Agent clause (docs/infrastructure/OUTBOUND_REQUESTS.md).
       appInfo: { name: OUTBOUND_PRODUCT.name, version: OUTBOUND_PRODUCT.version, url: APP_URL },
     });
   }

@@ -4,7 +4,7 @@ set lock_timeout = '5s';
 -- behaviour (everything it hosts is kept). A secondary account (for example a staff member's personal one, whose link is
 -- sometimes used for a session) is mostly not community business, so its meetings stay out of Silver until an admin keeps them.
 -- Bronze keeps everything; the exclusion is applied when Silver is processed, so a changed decision plus a reprocess is
--- fully reproducible. See docs/ZOOM_ACCOUNTS.md.
+-- fully reproducible. See docs/architecture/ZOOM_ACCOUNTS.md.
 --
 -- Expand only: the new Bronze column is nullable with the primary account as its default, so the code live during the
 -- deploy (which does not know the column) keeps writing primary rows.

@@ -1,4 +1,4 @@
--- pgTAP tests for changing when a Hedgie Care care period started (docs/HEDGIE_CARE.md, "Starting in the past, and changing
+-- pgTAP tests for changing when a Hedgie Care care period started (docs/product/HEDGIE_CARE.md, "Starting in the past, and changing
 -- a start"): no migration was needed, the update is the existing grant and policy, so this pins what that update does. A
 -- community manager may move a start, the audit log records the intent once as a delta of opened_at and period_ends_on (and
 -- nothing for the message bookkeeping that moves with it), and a move does not touch the one-open-per-member rule.

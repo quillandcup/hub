@@ -1,5 +1,5 @@
 /**
- * Landing page data (docs/LANDING_PAGES.md): Puck's JSON, `{ content: [...], root: { props } }`, kept in
+ * Landing page data (docs/product/LANDING_PAGES.md): Puck's JSON, `{ content: [...], root: { props } }`, kept in
  * `landing_pages.draft_data` / `published_data`. Pure helpers, safe in the browser and on the server.
  *
  * Conventions every block follows, so these helpers can work on any block without knowing it:

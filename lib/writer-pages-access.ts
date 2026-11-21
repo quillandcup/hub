@@ -2,7 +2,7 @@ import type { Repos } from "@/lib/data/repos";
 import { membersWithFeature } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
 
-/** The flag behind writers' public pages (docs/WRITER_PROFILES.md, "The feature flag"). */
+/** The flag behind writers' public pages (docs/product/WRITER_PROFILES.md, "The feature flag"). */
 export const WRITER_PAGES_FEATURE: FeatureKey = "writer_pages";
 
 /** Why a change is refused while the flag is not on for the member (the page's settings stay as they are). */

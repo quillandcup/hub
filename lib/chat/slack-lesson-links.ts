@@ -14,7 +14,7 @@ import { parseChatFiles } from "@/lib/chat/files";
 
 /**
  * A lesson address pasted into Slack becomes the shared-video card in Hub Chat, the same conversion a message sent from Hub Chat gets
- * (`sendChatMessageImpl`, docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). Slack messages reach the Hub as typed, so this
+ * (`sendChatMessageImpl`, docs/product/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). Slack messages reach the Hub as typed, so this
  * runs when one arrives (the webhook) and in the nightly import, which catches what the webhook missed. Service-role repositories.
  *
  * The author is whoever Slack's user maps to in the Hub, and the same rules apply as in the Hub: they must have `chat_videos`, and be

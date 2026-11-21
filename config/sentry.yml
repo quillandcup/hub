@@ -1,7 +1,7 @@
 # Source of truth for the Sentry organization settings below. CI pushes this file after a production
 # deploy that changed it or scripts/sentry-config.ts (ci.yml, push-sentry-config); `pnpm sentry:config:diff`
 # previews against the live organization (read-only). Change the file, not the Settings page: the next
-# push puts these values back. See docs/SENTRY_CONFIG.md.
+# push puts these values back. See docs/infrastructure/SENTRY_CONFIG.md.
 #
 # The push runs only when the push to main itself changed this file or the script. When a run is cancelled by a newer
 # merge, the next run sees no change and skips it, so a change can stay unapplied: after a deploy, `pnpm sentry:config:diff`
@@ -21,7 +21,7 @@ organization:
 # Issue alerts for the project (Sentry's workflows), emailed to the issue owners or, without an owner, the active
 # members. Only rules named "Hub: ..." are managed: delete one here and the next push deletes it from Sentry;
 # Sentry's own default alerts are left alone. All three watch CSP reports (they carry the tag logger=csp), for the
-# nonce-based Content-Security-Policy rollout (docs/CSP_ALERTS.md). Email only: this Sentry plan cannot
+# nonce-based Content-Security-Policy rollout (docs/infrastructure/CSP_ALERTS.md). Email only: this Sentry plan cannot
 # send to Slack; the owner wants one channel, so the daily health check also reports through Sentry (last rule).
 alerts:
   # A violation of a kind not seen before: a new blocked host or directive.

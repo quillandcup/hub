@@ -69,7 +69,7 @@ describe("what is listed", () => {
 });
 
 // The visible activity nests: the plan's list is a subset of the community manager's Activity tab, which is a subset of an admin's
-// (docs/ACTIVITY_AND_AUDIT_LOG.md, "The community manager's Activity tab"). Her feed is every member_activities row about the member
+// (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "The community manager's Activity tab"). Her feed is every member_activities row about the member
 // (get_activity_feed, supabase/tests/database/activity_nesting.test.sql proves that against the database); here, the plan list takes
 // only rows of that table, with every kind it shows, and the SQL fixture lists the same vocabulary the code does.
 describe("the plan list is a subset of the member's activity rows", () => {

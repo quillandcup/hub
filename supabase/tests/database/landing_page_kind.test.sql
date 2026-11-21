@@ -1,4 +1,4 @@
--- pgTAP tests for 20270824 (docs/LANDING_PAGES.md, "Templates"): a landing page has a kind, page or template, that never changes;
+-- pgTAP tests for 20270824 (docs/product/LANDING_PAGES.md, "Templates"): a landing page has a kind, page or template, that never changes;
 -- a template's changes are Activity Log entries of their own type without page content; and the versions are immutable: no one,
 -- not an admin and not the service role, can change or delete a version, and a publish adds exactly one row and leaves
 -- every earlier one byte for byte as it was. Runs in one transaction that is rolled back. Run with `pnpm test:pgtap`.

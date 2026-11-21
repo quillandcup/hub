@@ -9,7 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 export const maxDuration = 300;
 
 /**
- * The daily lesson comment notifications (lib/courses/comment-notifications.ts, docs/COURSES.md, "Lesson comments"): members get
+ * The daily lesson comment notifications (lib/courses/comment-notifications.ts, docs/product/COURSES.md, "Lesson comments"): members get
  * one note about new comments on the lessons they follow, and staff get one note while reported or held comments wait.
  * (Replies are sent as they happen, from the comment actions.)
  *

@@ -3,7 +3,7 @@ set lock_timeout = '5s';
 -- Unsent chat text, saved as the member types so leaving a conversation, closing the tab or an
 -- expired session doesn't lose it. One draft per member per place: a conversation's box, or one
 -- thread's reply box. Author-only under RLS, no admin branch (like member_notes); the app hides
--- drafts in sudo. Hub-only: Slack has no public API for drafts, see docs/SLACK_BRIDGED_CHAT.md.
+-- drafts in sudo. Hub-only: Slack has no public API for drafts, see docs/product/SLACK_BRIDGED_CHAT.md.
 
 CREATE TABLE public.chat_drafts (
   id             text PRIMARY KEY DEFAULT public.new_id('drft'),

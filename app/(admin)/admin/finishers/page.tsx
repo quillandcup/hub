@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Finishers" };
 const PAGE_SIZE = 50;
 
 /**
- * Staff view of the Finisher record (docs/FINISHERS.md): how many milestones are proposed, confirmed or declined, the
+ * Staff view of the Finisher record (docs/product/FINISHERS.md): how many milestones are proposed, confirmed or declined, the
  * backfill from published books, adding one by hand, and the list. Proposals stay hidden until the member confirms.
  * ?status= narrows the list, ?page= pages it.
  */

@@ -378,7 +378,7 @@ async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promis
 }
 
 /**
- * Link previews for a message the member wrote in the Hub (docs/SLACK_BRIDGED_CHAT.md, "Link previews"), run after the response so the
+ * Link previews for a message the member wrote in the Hub (docs/product/SLACK_BRIDGED_CHAT.md, "Link previews"), run after the response so the
  * send never waits for another site. Behind `chat_link_previews` for the sender; for anyone else nothing is fetched and the link stays
  * plain text. Looks only at addresses it has not looked at, so an edit that keeps a link does not fetch it again. Never throws.
  */
@@ -691,7 +691,7 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
  * The author removes a card (a link preview, or one of Slack's unfurls) from their own message, like the X on a preview in Slack. The Hub
  * records the removal and stops drawing the card; for a message written in the Hub it then also takes Slack's preview of that link off the
  * Slack copy, best effort (`removeSlackUnfurl`: a failure leaves the Hub removal standing and says `slack: "failed"` so the card can say so).
- * A message written in Slack is left to its author in Slack (docs/SLACK_BRIDGED_CHAT.md, "Link previews").
+ * A message written in Slack is left to its author in Slack (docs/product/SLACK_BRIDGED_CHAT.md, "Link previews").
  * The write is the author's own, as themselves: row-level security lets only the author of the message (a Slack author matched to a member
  * counts) write it, so another member's call is refused. The key names the card (`unfurlKey`); the database refuses anything but an address or a position.
  * An edit that fetches the preview again finds the mark by its address, so the card does not come back.

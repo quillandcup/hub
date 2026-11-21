@@ -11,7 +11,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * The token is a 12-hour credential kept in Vault (`slack_bot_token`): read from there, and refreshed with its
  * refresh token shortly before it expires, under a lease so that concurrent requests never refresh it twice
  * (lib/slack-token-refresh.ts). There is no environment variable to fall back on: the app has rotating tokens
- * on for good and the old long-lived token stopped working at the first refresh. docs/SECRET_ROTATION.md,
+ * on for good and the old long-lived token stopped working at the first refresh. docs/runbooks/SECRET_ROTATION.md,
  * "The bot's rotating token", covers recovery.
  *
  * Every use of the bot calls `getSlackBotToken()` for each operation (or batch); never cache the string.

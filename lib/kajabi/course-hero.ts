@@ -1,5 +1,5 @@
 /**
- * A course's hero image (docs/COURSES.md, step D, images): the banner behind the course title. It is not the
+ * A course's hero image (docs/product/COURSES.md, step D, images): the banner behind the course title. It is not the
  * thumbnail and neither Kajabi's public API nor the admin product page carries it (the banner is a background
  * image on the member-facing course page; see docs/TODO.md, "Course Hero Image"), so nothing calls this by
  * default. `scripts/kajabi-course-content.ts --hero` is an experimental caller that searches the JSON the admin

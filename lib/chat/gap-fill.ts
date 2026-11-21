@@ -12,7 +12,7 @@ import { hideHubPreviewsRemovedInSlack, type IncomingSlackMessage } from "@/lib/
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
- * Gap-fill (docs/SLACK_BRIDGED_CHAT.md, "Gap-fill"): when the chat is missing something Slack has,
+ * Gap-fill (docs/product/SLACK_BRIDGED_CHAT.md, "Gap-fill"): when the chat is missing something Slack has,
  * fetch it from Slack on the spot and store it exactly as the import would (Bronze, then the chat
  * projection) instead of waiting for the nightly import. Three scopes:
  *

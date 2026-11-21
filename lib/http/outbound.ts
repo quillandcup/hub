@@ -1,7 +1,7 @@
 import { OUTBOUND_USER_AGENT, userAgentWith } from "../config";
 
 /**
- * Every request to a server that is not ours says who we are (docs/OUTBOUND_REQUESTS.md). Raw `fetch` calls to an
+ * Every request to a server that is not ours says who we are (docs/infrastructure/OUTBOUND_REQUESTS.md). Raw `fetch` calls to an
  * external host go through `outboundFetch`, or take their headers from `outboundHeaders`;
  * `tests/lib/outbound-user-agent.test.ts` fails on a new external `fetch(` that does neither. Relative import:
  * lib/cron-heartbeats.ts, which the Checkly CLI bundles, uses it.

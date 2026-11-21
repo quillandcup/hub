@@ -10,7 +10,7 @@ import type { ThreadComment, ThreadEntry } from "@/lib/data/course-comments";
 import Tooltip from "@/components/Tooltip";
 
 /**
- * The comments under a lesson (docs/COURSES.md, "Lesson comments"): a composer, the questions newest first and each one's
+ * The comments under a lesson (docs/product/COURSES.md, "Lesson comments"): a composer, the questions newest first and each one's
  * replies oldest first. Comments are plain text rendered as text; only http(s) addresses become links. The page passes what the
  * server read; every change goes through the server actions and then refreshes the page.
  */

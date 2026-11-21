@@ -20,4 +20,4 @@ paths:
 
 ### Stacking Order: Named Layers, Never Numbers
 
-**RULE**: Use a named z-index layer from `theme.extend.zIndex` in `config/tailwind.ts` (`z-raised`, `z-float`, `z-sticky`, `z-dropdown`, `z-shell`, `z-overlay`...), never `z-30` or `z-[55]`: `tests/lib/z-layers.test.ts` fails on a numeric `z-*`. A positioned element with a z-index makes a stacking context, so a popover inside the header ranks as the header; that is why `z-shell` is above `z-sticky` and `z-dropdown`. Which layer is for what, and the portal and `isolate` rules: `docs/Z_LAYERS.md`.
+**RULE**: Use a named z-index layer from `theme.extend.zIndex` in `config/tailwind.ts` (`z-raised`, `z-float`, `z-sticky`, `z-dropdown`, `z-shell`, `z-overlay`...), never `z-30` or `z-[55]`: `tests/lib/z-layers.test.ts` fails on a numeric `z-*`. A positioned element with a z-index makes a stacking context, so a popover inside the header ranks as the header; that is why `z-shell` is above `z-sticky` and `z-dropdown`. Which layer is for what, and the portal and `isolate` rules: `docs/architecture/Z_LAYERS.md`.

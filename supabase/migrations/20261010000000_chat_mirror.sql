@@ -1,4 +1,4 @@
--- Chat mirror, phase 2 of docs/SLACK_BRIDGED_CHAT.md: Slack conversations projected from
+-- Chat mirror, phase 2 of docs/product/SLACK_BRIDGED_CHAT.md: Slack conversations projected from
 -- Bronze into Local-layer chat_* tables, readable by members under the content/metadata
 -- rules in "Access control". Read-only: only the service role writes.
 --

@@ -5,7 +5,7 @@ import { presetPadding } from "@/lib/landing/layout";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
 
 /**
- * Turns the content of a Kajabi page export (`config/settings_data.json`, docs/LANDING_PAGES.md, "Importing from
+ * Turns the content of a Kajabi page export (`config/settings_data.json`, docs/product/LANDING_PAGES.md, "Importing from
  * Kajabi") into a Puck page of our blocks. Deterministic and pure: no network, no database, no model. The export is
  * structured (sections, each with typed blocks and their settings), so the mapping is a table, and what has no
  * counterpart is reported rather than guessed. Pictures are not fetched here: a picture prop holds a placeholder

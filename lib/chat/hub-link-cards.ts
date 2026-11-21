@@ -3,7 +3,7 @@ import { isDuplicateOfHubPreview, normalizeLinkForMatch } from "@/lib/chat/unfur
 import type { HubLinkUnfurl, Unfurl } from "@/lib/chat/unfurls";
 
 /**
- * Where a message's links to the Hub become cards (docs/SLACK_BRIDGED_CHAT.md, "Hub links"). Pure, so the loader and its tests share it.
+ * Where a message's links to the Hub become cards (docs/product/SLACK_BRIDGED_CHAT.md, "Hub links"). Pure, so the loader and its tests share it.
  * Nothing here knows what a link points at: that is read per viewer when the card draws (lib/chat/hub-link-card.ts).
  */
 

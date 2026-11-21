@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Email events from Resend (docs/EMAIL_TIMELINE.md): sent, delivered, opened, clicked, bounced, complained,
+-- Email events from Resend (docs/architecture/EMAIL_TIMELINE.md): sent, delivered, opened, clicked, bounced, complained,
 -- failed. Bronze, append-only, one row per event, written by the Resend webhook and by the nightly pull
 -- (/api/reconcile/email). The member timeline (member_activities, source 'resend') is derived from it.
 --

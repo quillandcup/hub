@@ -1,7 +1,7 @@
 import { VISIBILITIES, type Visibility } from "@/lib/writing-visibility";
 
 /**
- * Who can see each item on a member's profile (docs/WRITER_PROFILES.md, "Who sees what"). The same three levels as a
+ * Who can see each item on a member's profile (docs/product/WRITER_PROFILES.md, "Who sees what"). The same three levels as a
  * writing project (`lib/writing-visibility.ts`): private (only the member), community (signed-in members, what every item
  * was before this existed) and public (anyone on the internet, on the member's writer page).
  *

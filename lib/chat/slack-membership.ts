@@ -6,7 +6,7 @@ import { isDeadTokenError } from "@/lib/slack-connect";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
- * Adding and removing people in a Slack conversation, for the Hub's members page (docs/SLACK_BRIDGED_CHAT.md,
+ * Adding and removing people in a Slack conversation, for the Hub's members page (docs/product/SLACK_BRIDGED_CHAT.md,
  * "Membership"). The bot does it all: Slack has no way to add someone as someone else, and a member
  * leaving is the bot removing them (Slack shows "removed by Billie Bot"). Because the bot bypasses Slack's own
  * per-user permission checks, who may do what is decided in the Hub before anything gets here

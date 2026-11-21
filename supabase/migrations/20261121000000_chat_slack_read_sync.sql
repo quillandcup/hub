@@ -1,4 +1,4 @@
--- Shared read state between the Hub and Slack (docs/SLACK_BRIDGED_CHAT.md, "Read state shared with
+-- Shared read state between the Hub and Slack (docs/product/SLACK_BRIDGED_CHAT.md, "Read state shared with
 -- Slack"). Slack only lets a member's own token read or set their read marker, so this is for
 -- members who connected Slack. Hub -> Slack is conversations.mark when the Hub marks a
 -- conversation read; Slack -> Hub reads each conversation's last_read on demand (Slack has no push

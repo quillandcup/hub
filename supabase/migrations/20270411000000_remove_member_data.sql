@@ -19,7 +19,7 @@
 --
 -- It returns what it did (counts per catalog row, the auth user id and the storage paths to delete). It refuses a
 -- member that was already removed. A scrub is irreversible and untraceable: a request for true deletion must be
--- decided first (docs/EVENT_LOG.md, "What a scrub does").
+-- decided first (docs/architecture/EVENT_LOG.md, "What a scrub does").
 --
 -- NOT covered, on purpose, and listed in docs/TODO.md: copies in the Bronze imports (Kajabi, Stripe, Zoom, Slack) are
 -- keyed by email or external id, not by a member id. Until those are handled, the person has to be removed at the

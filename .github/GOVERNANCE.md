@@ -4,23 +4,23 @@ Hedgie Hub is owned and run by Quill & Cup LLC. This page says who decides what,
 
 ## Roles
 
-- **Owners** (two people): own the repository and the production accounts (GitHub, Vercel, Supabase and the provider accounts listed in `docs/SECRET_ROTATION.md`), set the roadmap and make the final call on scope, security and licensing.
+- **Owners** (two people): own the repository and the production accounts (GitHub, Vercel, Supabase and the provider accounts listed in `docs/runbooks/SECRET_ROTATION.md`), set the roadmap and make the final call on scope, security and licensing.
 - **Maintainer**: has write access, reviews and ships changes, answers issues and security reports. Today one owner does the day-to-day maintaining.
 - **Contributor**: anyone who opens an issue. Outside code contributions are not accepted for now (`CONTRIBUTING.md`).
 
 ## How changes are made
 
-All changes land through a pull request. Required checks (unit and database tests, build, coverage on new lines, migration ordering, CodeQL) must pass and every review thread must be resolved; the `main` ruleset in `config/github.yml` enforces it, administrators included. Approvals are not required, because the maintainer team is one person; automated review, tests and the scanners listed in `docs/THREAT_MODEL.md` stand in. Auto-merge is only enabled for pull requests by Dependabot and by the repository's owner, members and collaborators.
+All changes land through a pull request. Required checks (unit and database tests, build, coverage on new lines, migration ordering, CodeQL) must pass and every review thread must be resolved; the `main` ruleset in `config/github.yml` enforces it, administrators included. Approvals are not required, because the maintainer team is one person; automated review, tests and the scanners listed in `docs/trust/THREAT_MODEL.md` stand in. Auto-merge is only enabled for pull requests by Dependabot and by the repository's owner, members and collaborators.
 
 Two-factor authentication is required for the GitHub organization, Vercel and Supabase.
 
 ## Roadmap
 
-The plan and the list of known gaps are in `docs/TODO.md`; what members have received is in the changelog (`docs/CHANGELOG_PROCESS.md`).
+The plan and the list of known gaps are in `docs/TODO.md`; what members have received is in the changelog (`docs/runbooks/CHANGELOG_PROCESS.md`).
 
 ## Continuity
 
-Everything needed to run and recover the project is in the repository: setup (`docs/SETUP.md`), deployment (`docs/DEPLOYMENT.md`), credentials and how to rotate them (`docs/SECRET_ROTATION.md`), and the data model (`docs/MEDALLION_ARCHITECTURE.md`). Secrets are kept in the hosting providers and environment files, never in the repository. Two owners hold administrator access on each primary production account (GitHub, Vercel and Supabase), so either can run and recover the project if the other is unavailable.
+Everything needed to run and recover the project is in the repository: setup (`docs/runbooks/SETUP.md`), deployment (`docs/infrastructure/DEPLOYMENT.md`), credentials and how to rotate them (`docs/runbooks/SECRET_ROTATION.md`), and the data model (`docs/architecture/MEDALLION_ARCHITECTURE.md`). Secrets are kept in the hosting providers and environment files, never in the repository. Two owners hold administrator access on each primary production account (GitHub, Vercel and Supabase), so either can run and recover the project if the other is unavailable.
 
 ## Security reports
 

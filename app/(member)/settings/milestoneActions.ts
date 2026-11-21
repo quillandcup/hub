@@ -10,7 +10,7 @@ import { parseMilestoneAnswer, type MilestoneAnswerInput } from "@/lib/finishers
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 
 /**
- * A member answers a milestone staff or a course proposed (docs/FINISHERS.md): "yes, this is me" with an optional date,
+ * A member answers a milestone staff or a course proposed (docs/product/FINISHERS.md): "yes, this is me" with an optional date,
  * stories and one tick per use (all off unless ticked), or "not me / not yet". Only the member answers for themselves:
  * an admin viewing as them (sudo) can look, and the database refuses the write too.
  */

@@ -85,7 +85,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "NEXT_PUBLIC_SUPABASE_URL",
     group: "Supabase",
     description:
-      "Supabase project URL. Public by design. Also a GitHub variable: the main pipeline's publish job uploads the help screenshots to this project (see docs/DEMO_AND_HELP.md).",
+      "Supabase project URL. Public by design. Also a GitHub variable: the main pipeline's publish job uploads the help screenshots to this project (see docs/product/DEMO_AND_HELP.md).",
     type: "config",
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
@@ -143,7 +143,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
 
-  // A second Zoom account (credentials_prefix ZOOM_SECONDARY in `zoom_accounts`; see docs/ZOOM_ACCOUNTS.md). Optional: with
+  // A second Zoom account (credentials_prefix ZOOM_SECONDARY in `zoom_accounts`; see docs/architecture/ZOOM_ACCOUNTS.md). Optional: with
   // any of these unset the account is skipped (logged), and the primary account's import and webhooks are unaffected.
   {
     name: "ZOOM_SECONDARY_ACCOUNT_ID",
@@ -223,7 +223,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "GOOGLE_CALENDAR_WEBHOOK_TOKEN",
     group: "Google Calendar",
     description:
-      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32`. The nightly /api/reconcile/calendar passes it as the `token` when it opens or renews the watch channel (docs/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means opening a new channel with the new token (mark the live calendar_watch_channels row stopped).",
+      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32`. The nightly /api/reconcile/calendar passes it as the `token` when it opens or renews the watch channel (docs/infrastructure/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means opening a new channel with the new token (mark the live calendar_watch_channels row stopped).",
     type: "secret",
     destinations: vercelAllEnvs,
   },
@@ -470,7 +470,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "MUX_CHECK_SIGNING_KEY_ID",
     group: "Analytics & Monitoring",
     description:
-      "ID of a Mux URL signing key in the separate Mux environment that holds the nightly check's test asset (docs/MUX_CONFIG.md). Passed to Checkly at `checkly deploy`; GitHub only, not Vercel.",
+      "ID of a Mux URL signing key in the separate Mux environment that holds the nightly check's test asset (docs/infrastructure/MUX_CONFIG.md). Passed to Checkly at `checkly deploy`; GitHub only, not Vercel.",
     type: "config",
     destinations: [{ kind: "github" }],
   },
@@ -560,7 +560,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   // SLACK_CONFIG_REFRESH_TOKEN (GitHub secret, also read by the push-slack-manifest job) is
   // deliberately NOT declared here. Slack replaces it every time it's used, so CI rewrites
   // the secret on each run and a copy in .env.prod would be stale after the first one --
-  // syncing it would break the job. Seed it by hand; see docs/SLACK_MANIFEST.md.
+  // syncing it would break the job. Seed it by hand; see docs/infrastructure/SLACK_MANIFEST.md.
   {
     name: "GH_TOKEN_SLACK_MANIFEST",
     group: "GitHub Actions CI",

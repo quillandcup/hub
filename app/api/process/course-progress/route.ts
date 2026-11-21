@@ -7,7 +7,7 @@ import { createRepos } from "@/lib/data/repos";
 export const maxDuration = 300;
 
 /**
- * Bronze Kajabi per-lesson progress -> Silver `lesson_progress` (docs/COURSES.md, "Importing Kajabi per-lesson
+ * Bronze Kajabi per-lesson progress -> Silver `lesson_progress` (docs/product/COURSES.md, "Importing Kajabi per-lesson
  * progress"). Body: `{ "course": "self-editing-academy", "dryRun": true }`; `course` is the Silver slug (omit it
  * for every Kajabi course); `dryRun` counts without writing.
  *

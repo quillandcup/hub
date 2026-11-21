@@ -1,4 +1,4 @@
--- Reshape the prickle check-in questions (rationale: docs/CHECKINS.md; option keys:
+-- Reshape the prickle check-in questions (rationale: docs/product/CHECKINS.md; option keys:
 -- lib/prickle-checkins.ts).
 --   before: mood on two labeled 1-5 scales (pleasant_before, energy_before), optionally the feeling
 --           named on the Feeling Wheel (emotion_before), and the intention (need, unchanged).

@@ -1,7 +1,7 @@
 import sanitizeHtml from "sanitize-html";
 
 /**
- * Lesson text from Kajabi's editor, reduced to an allowlist before it's stored (docs/COURSES.md:
+ * Lesson text from Kajabi's editor, reduced to an allowlist before it's stored (docs/product/COURSES.md:
  * headings, lists, links, emphasis, images). It is never rendered raw. Styles, classes, ids,
  * scripts, iframes and event handlers are all dropped; links open in a new tab without
  * leaking the opener; only http(s) images and http(s)/mailto links survive.

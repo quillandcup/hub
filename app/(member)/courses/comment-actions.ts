@@ -13,7 +13,7 @@ import { isId } from "@/lib/ids";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
- * Lesson comments: post, reply, edit and delete your own, and report someone else's (docs/COURSES.md, "Lesson comments"). Each is a directly callable
+ * Lesson comments: post, reply, edit and delete your own, and report someone else's (docs/product/COURSES.md, "Lesson comments"). Each is a directly callable
  * endpoint, so each checks for itself: a signed-in member with courses on, a lesson they may open (open, course not a draft,
  * current access or staff acting as themselves), and not sudo, which is read-only. They write with the service role scoped to the
  * verified effective member, like the other course actions; row-level security is the second layer. The text is never

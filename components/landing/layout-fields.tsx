@@ -18,7 +18,7 @@ import {
   type Side,
 } from "@/lib/landing/layout";
 
-/** Custom Puck fields for spacing and width (docs/LANDING_PAGES.md, "Spacing and width"). Editor only: the public page never loads this file. */
+/** Custom Puck fields for spacing and width (docs/product/LANDING_PAGES.md, "Spacing and width"). Editor only: the public page never loads this file. */
 
 const LABEL = "mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-200";
 

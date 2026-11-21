@@ -1,5 +1,5 @@
 /**
- * The messages of a member's care plans (docs/HEDGIE_CARE.md, "Plan messages"): the full text of the DM(s) a staff member tracks with
+ * The messages of a member's care plans (docs/product/HEDGIE_CARE.md, "Plan messages"): the full text of the DM(s) a staff member tracks with
  * that member, sent inside the windows of the member's care plans, shown in Hedgie Care to admins and community managers.
  *
  * What makes this safe to read with the service role (Slack content is service role only):

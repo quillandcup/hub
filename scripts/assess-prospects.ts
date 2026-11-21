@@ -5,7 +5,7 @@
  *
  * It runs the Claude Code CLI in headless mode (`claude -p`), so it uses the Claude subscription you
  * are logged in with on this machine, not an API key. That is meant for your own runs; see
- * docs/PROSPECTING.md before moving it to a server, where it would need an API key instead.
+ * docs/product/PROSPECTING.md before moving it to a server, where it would need an API key instead.
  *
  * Usage:
  *   npx tsx scripts/assess-prospects.ts [env-file] [--limit=20] [--criteria=<file>] [--apply]

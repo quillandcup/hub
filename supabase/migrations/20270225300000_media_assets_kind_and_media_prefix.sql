@@ -1,4 +1,4 @@
--- The media library is one catalog of everything people pick (docs/MEDIA_LIBRARY.md, "One catalog"), so its
+-- The media library is one catalog of everything people pick (docs/product/MEDIA_LIBRARY.md, "One catalog"), so its
 -- ids use the general prefix `media_` instead of `img_`, and each row says what kind of thing it is.
 -- Only images exist so far; a video (whose bytes live in Mux, described by `videos`) or a file arrives with
 -- the migration that relaxes the image-only NOT NULLs for its kind. No row references an asset yet, so the

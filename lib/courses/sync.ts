@@ -4,7 +4,7 @@ import { processCourses, type ProcessCoursesResult } from "@/lib/courses/process
 import { slugifyTitle } from "@/lib/courses/visibility";
 
 /**
- * The course half of the standard Kajabi sync (docs/COURSES.md, "Ongoing sync after launch"):
+ * The course half of the standard Kajabi sync (docs/product/COURSES.md, "Ongoing sync after launch"):
  * import every course's structure into Bronze (step A), then refresh the courses already
  * published in the Hub (step C), which also rebuilds `course_access` from the purchases the
  * member import just stored. Run it after the member import so access reflects fresh purchases.

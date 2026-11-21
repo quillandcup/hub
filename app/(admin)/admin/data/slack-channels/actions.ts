@@ -10,7 +10,7 @@ const PAGE_PATH = "/admin/data/slack-channels";
 /**
  * Stop staff reading a channel's messages. Written with the admin's own client
  * so the audit log records who did it; a trigger on the table clears the text
- * already copied into member activities (docs/SLACK_BRIDGED_CHAT.md).
+ * already copied into member activities (docs/product/SLACK_BRIDGED_CHAT.md).
  */
 export async function restrictSlackChannel(channelId: string) {
   const auth = await requireAdminAction();

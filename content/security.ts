@@ -77,7 +77,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           how: "The app reaches the database only through the provider's HTTPS API and secure websockets. The provider's switch that rejects non-SSL connections to the database is on (read again from the provider's API with the CLI on 2026-11-18: database enforcement true) and is declared in supabase/config.toml, so CI's config push keeps it on. Direct Postgres connections (migrations in CI, the CLI, tooling) therefore must use SSL. Network access to the database is not restricted by address: the provider's setting allows every IPv4 and IPv6 address (read 2026-11-18). That is accepted, because the app reaches the database from serverless functions that have no fixed address list; a direct connection is protected by the database password and SSL.",
           evidence: [
             "supabase/config.toml (db.ssl_enforcement)",
-            "docs/SUPABASE_SECURITY_CHECKLIST.md (SSL enforcement, network restrictions)",
+            "docs/checklists/SUPABASE_SECURITY_CHECKLIST.md (SSL enforcement, network restrictions)",
             "live check, 2026-11-18: the provider's SSL-enforcement and network-restriction settings for the production database",
           ],
           checked: "2026-11-18",
@@ -96,7 +96,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           how: "Database: the provider states that database data and backups are encrypted with AES-256, with keys generated per project and protected by FIPS 140-2 compliant hardware security modules, and destroyed if the project is deleted (its data residency and transfers FAQ, version dated 2026-10-06, read on 2026-11-17). Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. The database provider's security page also says \"All customer data is encrypted at rest with AES-256 and in transit via TLS\" and that a project's Postgres database, Auth service and Storage objects are hosted in its region; neither that page nor the Storage documentation names Storage objects in an encryption sentence, so we read the general statement as covering uploaded files (a decision, 2026-11-18). Hosting: every variable our configuration declares as a secret that is set in production is stored as a Secret, which the provider documents as write-only after saving (checked 2026-11-18 from the hosting CLI's read-only listing of variable types, against config/env-vars.ts; none is stored as readable Config). These are the providers' statements, not something we tested.",
           evidence: [
             "config/env-vars.ts",
-            "docs/ENV_MANAGEMENT.md",
+            "docs/infrastructure/ENV_MANAGEMENT.md",
             "provider documentation, read 2026-11-17: the database provider's data residency and transfers FAQ (at rest section) and the hosting provider's security documentation",
             "provider documentation, read 2026-11-18: the database provider's security page and Storage documentation, and the hosting provider's documentation on Secret and Config environment variables",
             "live check, 2026-11-18: the hosting provider's read-only listing of production variable types, compared with config/env-vars.ts",
@@ -114,11 +114,11 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "A member's chat connection, and any other token the Hub must hand to someone else, is kept in an encrypted vault inside the database. Through the database, only the Hub's server can read it back.",
         staff: {
-          how: "Supabase Vault (extension supabase_vault 0.3.1, read from production on 2026-11-17). Per the provider's documentation: authenticated encryption with associated data, one root key per Supabase project (64 hex characters, so 256 bits) held outside the database and shared by every secret in that project, each secret with its own random nonce; secrets stay encrypted in backups and replication streams. Vault is self-contained and does not depend on the pgsodium extension that is being deprecated, and uses the same per-project root key. Production, the development project that previews use (docs/ENV_MANAGEMENT.md) and each local stack are separate projects with separate keys, so a secret from one cannot be decrypted with another's key. Production check: the anon and authenticated roles can read neither the encrypted table nor the decrypted view; only the service role can. Our own table keeps only a pointer to each secret.",
+          how: "Supabase Vault (extension supabase_vault 0.3.1, read from production on 2026-11-17). Per the provider's documentation: authenticated encryption with associated data, one root key per Supabase project (64 hex characters, so 256 bits) held outside the database and shared by every secret in that project, each secret with its own random nonce; secrets stay encrypted in backups and replication streams. Vault is self-contained and does not depend on the pgsodium extension that is being deprecated, and uses the same per-project root key. Production, the development project that previews use (docs/infrastructure/ENV_MANAGEMENT.md) and each local stack are separate projects with separate keys, so a secret from one cannot be decrypted with another's key. Production check: the anon and authenticated roles can read neither the encrypted table nor the decrypted view; only the service role can. Our own table keeps only a pointer to each secret.",
           evidence: [
             "supabase/migrations/20261021000000_member_slack_connections.sql",
             "lib/slack-connect.ts",
-            "docs/ENV_MANAGEMENT.md",
+            "docs/infrastructure/ENV_MANAGEMENT.md",
             "docs/TODO.md (Secrets at Rest)",
             "live check, 2026-11-17: the Vault extension version and which roles may read it (counts and privileges only, never values)",
           ],
@@ -147,18 +147,18 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           how: "Self-signup is off and email confirmation is on. Access tokens last 3600 seconds; refresh tokens rotate on every use with a 10-second reuse window, after which an old one is refused. These are declared in supabase/config.toml and pushed by CI, and production inherits them. The sign-in cookies are Secure in every deployed build, SameSite=Lax, set for the exact host only (no Domain, so subdomains never receive them) and readable by the page's own scripts, because the browser client reads the session for chat and uploads (docs/TODO.md, \"Make the sign-in cookies HttpOnly\"). The proxy re-checks the session on every request and clears the cookies of a revoked one; server code then verifies the token against the project's keys. An admin can revoke a member's sessions. Sign-in, invitation and recovery links, and the typed code in the same email, stay valid for 3600 seconds (one hour, lowered from 86400 on 2026-11-18), declared in supabase/config.toml and pushed to production by CI. A spent or expired link has a way back: the emailed link opens /auth/confirm, which only a real browser spends, and the login page sends a new link or code (or a fresh invitation to someone invited who never accepted).",
           evidence: [
             "supabase/config.toml",
-            "docs/SUPABASE_SECURITY_CHECKLIST.md (OTP expiry)",
+            "docs/checklists/SUPABASE_SECURITY_CHECKLIST.md (OTP expiry)",
             "lib/supabase/middleware.ts",
             "lib/supabase/cookie-options.ts",
             "lib/auth.ts",
             "app/api/admin/users/[id]/revoke-sessions/route.ts",
             "lib/staff-mfa.ts",
-            "docs/STAFF_MFA.md",
+            "docs/trust/STAFF_MFA.md",
           ],
           checked: "2026-11-18",
           open: [
             "The sign-in cookies are not HttpOnly, so a script injected into a page could read the session. Making them HttpOnly means the server hands the browser a short-lived token instead (docs/TODO.md, \"Make the sign-in cookies HttpOnly\").",
-            "Two-step sign-in is built and any member can turn it on in Settings, and staff who have it are held to it for the admin pages. It is not yet required of every staff account: that starts on a date the owner sets in config/app.ts (staffMfaRequiredFrom, docs/STAFF_MFA.md).",
+            "Two-step sign-in is built and any member can turn it on in Settings, and staff who have it are held to it for the admin pages. It is not yet required of every staff account: that starts on a date the owner sets in config/app.ts (staffMfaRequiredFrom, docs/trust/STAFF_MFA.md).",
           ],
         },
       },
@@ -178,15 +178,15 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
             "supabase/tests/database/security_guards.test.sql",
             "supabase/tests/database/anon_has_no_table_privileges.test.sql",
             "supabase/migrations/20270818000000_revoke_anon_table_privileges.sql",
-            "docs/RLS_SECURITY.md (Table privileges, Security definer functions)",
+            "docs/trust/RLS_SECURITY.md (Table privileges, Security definer functions)",
             "live check, 2026-11-17 and 2026-11-18: counts of tables without row-level security, of table grants for the signed-out role and of callable SECURITY DEFINER functions in production (counts only)",
           ],
           checked: "2026-11-18",
           open: [
-            "docs/RLS_SECURITY.md is out of date: it still says every signed-in user has full access. It should be rewritten from the policies. Nothing else relies on it.",
+            "docs/trust/RLS_SECURITY.md is out of date: it still says every signed-in user has full access. It should be rewritten from the policies. Nothing else relies on it.",
             "The definer-function test proves that a caller check exists in each function, not that it is right or complete. A reviewer still reads every new SECURITY DEFINER function in the pull request that adds it.",
             "A mentor's match count and first and last match dates can be read by any signed-in member (deliberate: badges need it and members cannot read the matches table). Confirm it matches what members were told.",
-            "Chat uses Realtime row changes, and row-level security does not filter delete events: when a chat row is hard deleted, its id (only the id) is sent to every subscriber of that table. Low impact: messages and reactions are soft deleted, so only a hard delete by a maintenance job sends one. Details in docs/SUPABASE_SECURITY_CHECKLIST.md; the fix (server-sent Broadcast with its own authorization) is tracked in docs/TODO.md, Realtime cost and limits.",
+            "Chat uses Realtime row changes, and row-level security does not filter delete events: when a chat row is hard deleted, its id (only the id) is sent to every subscriber of that table. Low impact: messages and reactions are soft deleted, so only a hard delete by a maintenance job sends one. Details in docs/checklists/SUPABASE_SECURITY_CHECKLIST.md; the fix (server-sent Broadcast with its own authorization) is tracked in docs/TODO.md, Realtime cost and limits.",
           ],
         },
       },
@@ -198,7 +198,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           "The keys that let the Hub's server reach its services are kept out of the code and encrypted at rest, and there is a written procedure for replacing them after any exposure.",
         staff: {
           how: "Every variable is declared once with whether it is a secret and where it is synced; values live in git-ignored env files and are synced to the hosting provider's encrypted store, to GitHub's secrets or to the Vault. GitHub secret scanning and push protection are both on for the repository (read from GitHub's API on 2026-11-18; the extra generic-pattern and validity checks are off), so a key committed by mistake is flagged and a push that contains a known kind of one is blocked. Single-use sign-in tokens are stored as hashes. On API routes the server's database key and the scheduled-job secret are accepted only as an exact \"Bearer <secret>\" header, compared in constant time and never as a substring. Members' sessions are short-lived (see \"Signing in and sessions\"), but the server's database key (the service role) and the CI database password are long-lived: they do not expire or rotate on their own and change only when someone follows the rotation runbook.",
-          evidence: ["config/env-vars.ts", "lib/supabase/api-auth.ts", "tests/lib/api-auth-secrets.test.ts", "docs/SECRET_ROTATION.md", "docs/ENV_MANAGEMENT.md", "docs/TODO.md (Secrets at Rest)", "live check, 2026-11-18: the repository's security settings from GitHub's API"],
+          evidence: ["config/env-vars.ts", "lib/supabase/api-auth.ts", "tests/lib/api-auth-secrets.test.ts", "docs/runbooks/SECRET_ROTATION.md", "docs/infrastructure/ENV_MANAGEMENT.md", "docs/TODO.md (Secrets at Rest)", "live check, 2026-11-18: the repository's security settings from GitHub's API"],
           checked: "2026-11-18",
           open: [
             "The service-role key and the CI database password rotate only by hand: no schedule and no automatic rotation. Decide an interval (the runbook has the steps) and whether to move to keys the provider can rotate without downtime.",
@@ -222,13 +222,13 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         staff: {
           how: "Point-in-time recovery is on (read from the provider's API on 2026-11-17: WAL archiving enabled, with a rolling seven days of recoverable history; the database is in the United States). Provider documentation: a daily snapshot plus write-ahead log files uploaded about every two minutes, so a worst-case recovery point of two minutes. While it is on the provider takes no separate daily backups.",
           evidence: [
-            "docs/DEPLOYMENT.md",
-            "docs/SHORT_IDS_PLAN.md (take a recovery point before a risky migration)",
+            "docs/infrastructure/DEPLOYMENT.md",
+            "docs/decisions/SHORT_IDS_PLAN.md (take a recovery point before a risky migration)",
             "live check, 2026-11-17: the provider's backup and point-in-time-recovery status for the production database",
           ],
           checked: "2026-11-17",
           open: [
-            "Restore is a one-line pointer in docs/DEPLOYMENT.md. No rehearsed restore or recovery-time estimate is recorded; write the steps and rehearse one onto a scratch project.",
+            "Restore is a one-line pointer in docs/infrastructure/DEPLOYMENT.md. No rehearsed restore or recovery-time estimate is recorded; write the steps and rehearse one onto a scratch project.",
             "Whether uploaded files (storage buckets) are covered by the same backups has not been confirmed.",
           ],
         },
@@ -260,7 +260,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "A few actions that could be abused, such as comments, signing in through chat and the sign-up form on a landing page, are rate limited.",
         staff: {
           how: "Fixed-window counters in the database (rate_limit_hit), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens. Sign-in emails are limited by the provider: one per address per minute and 150 an hour for the whole project in production (supabase/config.toml, pushed by CI). No CAPTCHA is configured, which is acceptable while sign-ups are off; the hourly cap is shared, so a flood of sign-in requests could delay everyone's email for up to an hour.",
-          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "supabase/config.toml", "docs/THREAT_MODEL.md", "tests/lib/api-route-auth.test.ts"],
+          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "supabase/config.toml", "docs/trust/THREAT_MODEL.md", "tests/lib/api-route-auth.test.ts"],
           checked: "2026-11-18",
           open: [
             "Not every public or member-callable route has a limit. Each route's exposure has not been reviewed; start from the list of routes that are public in lib/supabase/middleware.ts.",
@@ -281,7 +281,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
             "app/api/chat/unfurl-image/route.ts",
             "tests/api/chat-unfurl-image.test.ts",
             "tests/lib/outbound-user-agent.test.ts",
-            "docs/OUTBOUND_REQUESTS.md",
+            "docs/infrastructure/OUTBOUND_REQUESTS.md",
           ],
           checked: "2026-11-17",
           open: [],
@@ -373,7 +373,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "We watch for errors and for scheduled jobs that don't run, and the team is alerted. Error recordings mask what is typed on screen.",
         staff: {
           how: "Error and performance monitoring with masked recordings and server-side scrubbing (configured in the repo), heartbeat monitors on scheduled jobs, uptime and end-to-end checks, and operations alerts posted to a staff channel.",
-          evidence: ["docs/SENTRY_CONFIG.md", "config/sentry.yml", "lib/cron-heartbeats.ts", "config/checkly/checkly.config.ts", "docs/SLACK_OPERATIONS_ALERTS.md"],
+          evidence: ["docs/infrastructure/SENTRY_CONFIG.md", "config/sentry.yml", "lib/cron-heartbeats.ts", "config/checkly/checkly.config.ts", "docs/infrastructure/SLACK_OPERATIONS_ALERTS.md"],
           checked: "2026-11-17",
           open: [],
         },
@@ -386,7 +386,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           "Changes to many of the things stored in the Hub are recorded in a change history, including what staff do while viewing the Hub as a member.",
         staff: {
           how: "A database trigger on each audited table writes the audit entries, whichever path made the change; the Activity Log shows them to admins, with a view for changes to who can read messages. Break-glass reads of private chat are done by hand and must be recorded as the Privacy page promises (no in-app tool yet).",
-          evidence: ["docs/ACTIVITY_AND_AUDIT_LOG.md", "app/(admin)/admin/activity", "supabase/tests/database/audit_log.test.sql"],
+          evidence: ["docs/architecture/ACTIVITY_AND_AUDIT_LOG.md", "app/(admin)/admin/activity", "supabase/tests/database/audit_log.test.sql"],
           checked: "2026-11-17",
           open: [
             "Only the tables that were chosen are audited, not every table. A new table is audited only if its feature adds the trigger.",

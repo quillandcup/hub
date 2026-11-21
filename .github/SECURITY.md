@@ -19,4 +19,4 @@ Only the current production deployment (the `main` branch) is supported. There a
 
 ## More
 
-How the application is protected, and what is known and tracked, is in [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md).
+How the application is protected, and what is known and tracked, is in [`docs/trust/THREAT_MODEL.md`](../docs/trust/THREAT_MODEL.md).

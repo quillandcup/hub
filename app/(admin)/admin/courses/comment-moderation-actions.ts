@@ -11,7 +11,7 @@ import { isId } from "@/lib/ids";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
- * Staff moderation of lesson comments (docs/COURSES.md, "Lesson comments"): hide, unhide, delete, approve a held comment,
+ * Staff moderation of lesson comments (docs/product/COURSES.md, "Lesson comments"): hide, unhide, delete, approve a held comment,
  * dismiss its reports, mark a question handled. Each is a directly callable endpoint, so each checks the caller is an admin
  * first. They run as the signed-in admin (their own client, not the service role): the database function
  * `moderate_lesson_comment` checks the role again, changes the comment, settles its reports and writes ONE audit entry in

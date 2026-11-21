@@ -10,7 +10,7 @@ import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 
 /**
  * The member overview videos, recorded from the demo community (fictional people, seeded by tests/demo/seed.ts) and
- * narrated by the lines in script.ts (what is on screen for each beat: docs/OVERVIEW_VIDEO_SCRIPT.md):
+ * narrated by the lines in script.ts (what is on screen for each beat: docs/decisions/OVERVIEW_VIDEO_SCRIPT.md):
  *
  *   overview-short  about 30 seconds: the promise and the loop, one beat per feature
  *   overview-long   about 2.5 minutes: the whole member experience, feature by feature

@@ -1,7 +1,7 @@
 import { ORG_TIMEZONE } from "@/lib/config";
 
 /**
- * The Finisher record (docs/FINISHERS.md): the milestones a member can claim, the three uses they may consent to, and the
+ * The Finisher record (docs/product/FINISHERS.md): the milestones a member can claim, the three uses they may consent to, and the
  * rules for reading a member's answer. Plain module (no server imports) so client components can use the wording.
  *
  * Two milestones are stored (`member_milestones`); the third, published, is derived from `member_books` and never stored.
@@ -17,12 +17,12 @@ export const MILESTONE_SOURCES = ["member", "project_stage", "course", "staff"] 
 export type MilestoneSource = (typeof MILESTONE_SOURCES)[number];
 
 /**
- * The stamp for milestone 2. Its name is still undecided (FINAL DRAFT, POLISHED, THE LAST WORD: docs/WRITER_TITLES.md,
+ * The stamp for milestone 2. Its name is still undecided (FINAL DRAFT, POLISHED, THE LAST WORD: docs/product/WRITER_TITLES.md,
  * "Still open"), so it is this one string; the stored value stays `publish_ready`.
  */
 export const PUBLISH_READY_STAMP = "FINAL DRAFT";
 
-/** The stamp each milestone shows, and the title it earns (docs/WRITER_TITLES.md). */
+/** The stamp each milestone shows, and the title it earns (docs/product/WRITER_TITLES.md). */
 export const MILESTONE_LABELS: Record<MilestoneKind, string> = {
   the_end: "THE END",
   publish_ready: PUBLISH_READY_STAMP,

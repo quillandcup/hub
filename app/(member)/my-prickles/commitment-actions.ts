@@ -208,7 +208,7 @@ async function createCommitmentImpl(
     return { error: "Failed to save commitment" };
   }
 
-  // Append-only activity signal (docs/ACTIVITY_AND_AUDIT_LOG.md): best-effort, never fails the
+  // Append-only activity signal (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md): best-effort, never fails the
   // commitment that was already saved. Under sudo it's an admin acting on the member's behalf.
   const sessions = slots.length;
   await createRepos(supabase)

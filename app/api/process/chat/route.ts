@@ -26,7 +26,7 @@ type ChannelCounts = { channels?: number; members?: number };
 
 /**
  * Process Bronze Slack data into the chat mirror (chat_channels, chat_channel_members,
- * chat_messages, chat_message_contents, chat_reactions). See docs/SLACK_BRIDGED_CHAT.md.
+ * chat_messages, chat_message_contents, chat_reactions). See docs/product/SLACK_BRIDGED_CHAT.md.
  *
  * 1. Matches Slack users to members in memory (same matching as /api/process/slack)
  * 2. Projects channels and membership (cheap, whole workspace) in one call

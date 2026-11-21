@@ -6,7 +6,7 @@
  * other members. Clearing every answer soft-deletes the row (deleted_at), so every read filters
  * `deleted_at IS NULL`. The keys below are what's stored; labels can be reworded freely, but
  * adding, removing or renaming a key needs a migration (the table's CHECKs list the same keys --
- * tests/lib/prickle-checkins.test.ts fails if they drift). Why these questions: docs/CHECKINS.md.
+ * tests/lib/prickle-checkins.test.ts fails if they drift). Why these questions: docs/product/CHECKINS.md.
  */
 
 /**
@@ -28,7 +28,7 @@ export interface ScalePoint {
  * bad you feel (pleasantness, or valence) and how much energy you have (arousal). The same
  * questions before and after a prickle, so the difference is the session's effect on mood.
  * Pleasantness is asked in everyday words, "very bad" to "very good", the anchors of the Feeling
- * Scale (Hardy & Rejeski, 1989), a single-item valence measure; see docs/CHECKINS.md.
+ * Scale (Hardy & Rejeski, 1989), a single-item valence measure; see docs/product/CHECKINS.md.
  */
 export const PLEASANTNESS: readonly ScalePoint[] = [
   { value: 1, label: "Very bad" },
@@ -74,7 +74,7 @@ export const SCALE_MAX = 5;
  * and Increasing Spontaneity and Intimacy," Transactional Analysis Journal 12(4), 274-276,
  * doi:10.1177/036215378201200411. Words checked against the wheel printed in the article (p. 276);
  * "Sexy" is replaced by "Vibrant", as some reproductions do. Chosen over
- * research-derived taxonomies for being familiar, balanced and even (docs/CHECKINS.md has the
+ * research-derived taxonomies for being familiar, balanced and even (docs/product/CHECKINS.md has the
  * comparison, sources, and the decision to attribute rather than seek permission).
  *
  * It's offered whole, never hand-picked, so every answer rolls up to exactly one core and no

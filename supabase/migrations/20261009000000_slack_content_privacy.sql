@@ -1,4 +1,4 @@
--- Slack content privacy (docs/SLACK_BRIDGED_CHAT.md, "Access control").
+-- Slack content privacy (docs/product/SLACK_BRIDGED_CHAT.md, "Access control").
 --
 -- The boundary is content vs metadata. What people wrote (message text, files,
 -- raw payloads) is no longer readable by admins straight from Bronze; who posted

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The editor's design tools (docs/LANDING_PAGES.md, "Settings"): guides (an outline around every block) and a 12-column grid over
+ * The editor's design tools (docs/product/LANDING_PAGES.md, "Settings"): guides (an outline around every block) and a 12-column grid over
  * the canvas. They are for the person editing and never reach a visitor: the overlay is drawn only in the editor's canvas, and the
  * choice is kept per browser (local storage), not on the page. One store, so the Settings panel (in the editor's shell) and the
  * overlay (inside the canvas's frame) agree without the page's data knowing about it.

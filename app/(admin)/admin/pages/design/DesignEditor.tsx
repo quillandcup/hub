@@ -173,7 +173,7 @@ function ItemFields({ item, onChange }: { item: HeaderItem; onChange: (next: Hea
 }
 
 /**
- * The site-wide Design view: the header and footer every website page shares (docs/LANDING_PAGES.md, "Site template").
+ * The site-wide Design view: the header and footer every website page shares (docs/product/LANDING_PAGES.md, "Site template").
  * Edits autosave to a draft; nothing changes for a visitor until "Publish site design", which puts the draft on every
  * published website page at once. The preview below the form is the draft, laid out at the width of this panel.
  */

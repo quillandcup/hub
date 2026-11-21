@@ -8,10 +8,10 @@ import { kindLabel } from "./live-kinds";
 import { publicTitle } from "./live-schedule";
 
 /**
- * The events behind the Coming up block (docs/LANDING_PAGES.md, "Live data").
+ * The events behind the Coming up block (docs/product/LANDING_PAGES.md, "Live data").
  *
  * Which events may appear: shown in Events (not hidden) and **announced publicly** (`community_events.announced_publicly`, the
- * audience chain in docs/CALENDAR_EVENTS.md; the flag means "may be listed in a Coming up list", not that it is secret), starting
+ * audience chain in docs/product/CALENDAR_EVENTS.md; the flag means "may be listed in a Coming up list", not that it is secret), starting
  * after now, soonest first.
  *
  * What may appear: the cleaned title (no host or speaker added to it, like the public schedule), a plain kind, the days (and the time of day when the event has one), and, for an event that
@@ -85,7 +85,7 @@ type ComingUpRepos = Pick<Repos, "aliases" | "billing" | "events" | "media" | "m
 
 /**
  * The cover of each event whose cover a signed-out visitor may be served: the asset is a live image marked `is_public`
- * (docs/LANDING_PAGES.md, "Pictures and public assets"; an admin's save of a publicly announced event marks it, `publishEventCover`).
+ * (docs/product/LANDING_PAGES.md, "Pictures and public assets"; an admin's save of a publicly announced event marks it, `publishEventCover`).
  * Anything else, or a read that fails, is simply no picture: the tile falls back to its neutral look and the page never breaks for
  * an image. Only the asset id leaves, which the block turns into the same `/api/media/<id>/<preset>` address every landing picture uses.
  */

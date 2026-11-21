@@ -2,7 +2,7 @@ import type { Database } from "@/lib/data/database.types";
 
 /**
  * Which Zoom meetings the Hub keeps, and where each Zoom account's credentials live.
- * Rules and the reasons for them: docs/ZOOM_ACCOUNTS.md.
+ * Rules and the reasons for them: docs/architecture/ZOOM_ACCOUNTS.md.
  */
 
 /** Whether an account's meetings are kept unless ignored (`keep`) or left out unless kept (`exclude`). */

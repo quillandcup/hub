@@ -15,7 +15,7 @@ const FETCH_TIMEOUT_MS = 15_000;
 /**
  * Copies a TrackBear project cover (public at trackbear.app/uploads/covers/<file>) into the media library as the
  * member's own image, at its original size: the Bookshelf size and the Amazon cover are made from it when asked for
- * (docs/MEDIA_LIBRARY.md). The same file imported again is the same library image. TrackBear also accepts SVG,
+ * (docs/product/MEDIA_LIBRARY.md). The same file imported again is the same library image. TrackBear also accepts SVG,
  * which the library refuses, so that cover is reported for the member to upload by hand. `storage` needs the
  * service role.
  */

@@ -13,7 +13,7 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_INVALID_LISTED = 50;
 
 /**
- * Kajabi "Product Progress" report CSV -> bronze.kajabi_product_progress (docs/COURSES.md).
+ * Kajabi "Product Progress" report CSV -> bronze.kajabi_product_progress (docs/product/COURSES.md).
  *
  * Multipart form: `courseId` (a Kajabi course already in Bronze) and `file` (the CSV). The report
  * does not say which product it is for, so the admin picks. Any invalid row rejects the whole file

@@ -20,7 +20,7 @@ import { createHash } from "node:crypto";
  *
  * `helpImagesVersion()` is what the publish step names a set: the commit in CI, "local" outside it (so `next dev`
  * and the demo stack need nothing set). `HELP_IMAGES_VERSION` in the environment overrides it; the deploy job
- * sets it to the picked set. See docs/DEMO_AND_HELP.md.
+ * sets it to the picked set. See docs/product/DEMO_AND_HELP.md.
  */
 export const HELP_IMAGE_INPUTS = [
   "app",

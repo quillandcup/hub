@@ -93,7 +93,7 @@ export default {
       },
       // Stacking layers, lowest to highest. Name the layer, never a number: `z-dropdown`, not `z-30`.
       // `tests/lib/z-layers.test.ts` fails on a numeric `z-*`. A component with its own z-indexes inside
-      // should be `isolate` so they stay inside it. `docs/Z_LAYERS.md` says what goes where.
+      // should be `isolate` so they stay inside it. `docs/architecture/Z_LAYERS.md` says what goes where.
       zIndex: {
         raised: "10", // lifts one thing over its siblings inside a component (click area, resize handle)
         float: "20", // floats over content: the "new messages" pill, a panel over the chat

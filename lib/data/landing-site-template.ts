@@ -16,7 +16,7 @@ export interface LandingSiteTemplateState {
 }
 
 /**
- * The header and footer every website page shares (docs/LANDING_PAGES.md, "Site template"): one row for the site, with a draft
+ * The header and footer every website page shares (docs/product/LANDING_PAGES.md, "Site template"): one row for the site, with a draft
  * the Design view autosaves (not audited) and a published copy the public website pages render. Admin only under row-level
  * security. The one signed-out read, `published`, is for the public route and must run with the service role
  * (`getServiceRepos()`); it returns the published copy only, never the draft.

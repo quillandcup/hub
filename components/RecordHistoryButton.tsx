@@ -11,7 +11,7 @@ import Tooltip from "@/components/Tooltip";
 
 /**
  * A clock icon that opens a change history: who changed what, when, newest first (the audit log
- * filtered; see docs/ACTIVITY_AND_AUDIT_LOG.md). Admin-only: put it on admin pages, in the top-right
+ * filtered; see docs/architecture/ACTIVITY_AND_AUDIT_LOG.md). Admin-only: put it on admin pages, in the top-right
  * of the page header or toolbar so it is always in the same place. With `entityId` it is that one
  * record's history (a detail page); without, every record of `entityType` (a list page, e.g. all
  * segments). `entityType` is the audit vocabulary ("member", "event", "badge_type"...), or several

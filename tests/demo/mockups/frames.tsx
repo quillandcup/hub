@@ -17,7 +17,7 @@ import appConfig from "../../../config/app";
  * them (rendered by slack-blocks-to-jsx), the email as `renderNotificationEmail()` makes it, and the push as
  * `pushPayload()` builds it. Nothing about the content is retyped here; only the frames around it (a Slack
  * window, an email client, three kinds of device) are drawn. A frame is not pixel-identical to the real client:
- * it shows the content faithfully and the surroundings plausibly. See docs/DEMO_AND_HELP.md.
+ * it shows the content faithfully and the surroundings plausibly. See docs/product/DEMO_AND_HELP.md.
  *
  * Each function returns a full HTML page with one `[data-frame]` element, which the scene screenshots.
  */

@@ -4,7 +4,7 @@ import { normalizeLandingData, type LandingData } from "./data";
 import { LANDING_SCHEMA_VERSION, landingDataVersion } from "./migrations";
 
 /**
- * Export and import of a landing page's JSON (docs/LANDING_PAGES.md, "Export and import"). Pure: the editor builds the
+ * Export and import of a landing page's JSON (docs/product/LANDING_PAGES.md, "Export and import"). Pure: the editor builds the
  * export in the browser from what it already holds, and the import action runs the same parsing and pruning on the
  * server. A file is untrusted input: this module only reads and reshapes it; sanitizing, picture checks and the write
  * are the action's.

@@ -4,7 +4,7 @@ import path from "node:path";
 /**
  * Member help articles: markdown files in help/ (not docs/, which is for developers), one per topic. The file
  * name is the slug, so a link stays put when the title is reworded; the title is the first `# ` heading and the
- * summary the first paragraph after it. Read at build time by the /help pages. See docs/DEMO_AND_HELP.md.
+ * summary the first paragraph after it. Read at build time by the /help pages. See docs/product/DEMO_AND_HELP.md.
  *
  * Screenshots are written as `![alt](img:<scene>/<file>)`, and live in the private help-images bucket, served by
  * /help/images/<scene>/<file> after a sign-in check.

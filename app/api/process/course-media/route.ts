@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 300;
 
 /**
- * Course videos -> Mux (docs/COURSES.md, step D): see lib/courses/media.ts.
+ * Course videos -> Mux (docs/product/COURSES.md, step D): see lib/courses/media.ts.
  *
  * Body: `{ "course": "the-ready-writer", "action": "upload" | "upload_drafts" | "refresh", "mediaIds"?: [...] }`.
  * - `upload` sends the course's visible lessons' videos that aren't in Mux yet (each is billed), then

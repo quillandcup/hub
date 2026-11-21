@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Who sees a pulled Slack DM. A DM is read with one member's own token (the slack_dm_bridge feature, docs/SLACK_BRIDGED_CHAT.md), and
+-- Who sees a pulled Slack DM. A DM is read with one member's own token (the slack_dm_bridge feature, docs/product/SLACK_BRIDGED_CHAT.md), and
 -- both of its Hub members were put in it, so the other person saw it in their chat even when the bridge was not on for them.
 -- Now a Slack DM is in the chat of the members who have pulled their own DMs (member_slack_connections.dms_pulled_at, stamped by
 -- the pull and when a member opens a DM), and only them: the other person gets it when their own pull finds it. A Hub-only DM

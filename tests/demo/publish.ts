@@ -2,7 +2,7 @@
  * Uploads the captured screenshots the help articles use to the private help-images bucket, so the deployed
  * /help pages can show them (lib/help.ts, app/(member)/help/images). Desktop in light mode is the published set.
  * Each set lives in its own folder, named by the main commit it was captured at, and a build shows the newest set
- * captured at or before it (scripts/help-images-version.ts, docs/DEMO_AND_HELP.md).
+ * captured at or before it (scripts/help-images-version.ts, docs/product/DEMO_AND_HELP.md).
  *
  *   pnpm demo:publish                 to the demo stack (what `pnpm demo:app` serves), into the "local" set
  *   pnpm demo:publish --verify        no upload: check every screenshot an article shows was captured

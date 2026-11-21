@@ -1,4 +1,4 @@
--- Editing and deleting your own messages from the Hub, phase 3 of docs/SLACK_BRIDGED_CHAT.md.
+-- Editing and deleting your own messages from the Hub, phase 3 of docs/product/SLACK_BRIDGED_CHAT.md.
 --
 -- Only messages written in the Hub (origin 'app') and only by their author, like posting. The
 -- server changes the message in Slack first (as whoever posted it: the member's own token or the

@@ -1,5 +1,5 @@
 /**
- * Bronze save for the per-lesson progress captured by `courses:content --progress` (docs/COURSES.md,
+ * Bronze save for the per-lesson progress captured by `courses:content --progress` (docs/product/COURSES.md,
  * "Importing Kajabi per-lesson progress"): `bronze.kajabi_lesson_progress`, one snapshot per (course, student).
  *
  * Relative imports only: the script that calls this runs outside Next.

@@ -2,7 +2,7 @@ import { mediaSrc } from "@/lib/media/url";
 import { PRESETS, tooSmallFor } from "@/lib/media/presets";
 import { safeUrl } from "@/lib/url";
 
-// Book covers (docs/MEDIA_LIBRARY.md). A member uploads a cover at any size; the media library makes the
+// Book covers (docs/product/MEDIA_LIBRARY.md). A member uploads a cover at any size; the media library makes the
 // Bookshelf size and the Amazon ebook cover from it. Covers uploaded before that were cropped to exactly
 // 145x215 and live in the `book-covers` bucket; they keep their URL until `pnpm covers:adopt` moves them.
 

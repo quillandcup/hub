@@ -12,10 +12,10 @@ import { mediaSrc } from "@/lib/media/url";
 type Params = { params: Promise<{ slug: string }> };
 
 /**
- * A published landing page (docs/LANDING_PAGES.md), for anyone: no sign-in, no member data. The one read runs with the
+ * A published landing page (docs/product/LANDING_PAGES.md), for anyone: no sign-in, no member data. The one read runs with the
  * service role and returns only a page that is published and not deleted, so a draft, a deleted page and an address
  * that was never used are all the same 404. Nothing here sends anything to an analytics provider; the site's consent
- * banner and tracking rules apply as on every page (docs/ANALYTICS.md).
+ * banner and tracking rules apply as on every page (docs/product/ANALYTICS.md).
  */
 const load = cache(async (slug: string) => (isValidSlug(slug) ? getServiceRepos().landingPages.published(slug) : null));
 

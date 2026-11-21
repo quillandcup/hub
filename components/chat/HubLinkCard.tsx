@@ -12,7 +12,7 @@ import { hubLinkPath } from "@/lib/chat/hub-links";
 import type { HubLinkUnfurl } from "@/lib/chat/unfurls";
 
 /**
- * A link to a page of the Hub, drawn as a card (docs/SLACK_BRIDGED_CHAT.md, "Hub links"). What it shows is asked of the server for this reader
+ * A link to a page of the Hub, drawn as a card (docs/product/SLACK_BRIDGED_CHAT.md, "Hub links"). What it shows is asked of the server for this reader
  * (GET /api/chat/hub-links, which applies the page's own access rule), never carried in the message, so a reader who may not see the target gets a
  * plain "Link to the Hub". While it asks, the card holds its place; if the answer can't be had the card is simply not drawn (the link is still in
  * the message's text). The whole card opens the page (a stretched link), and the author of the message has the X that removes it.

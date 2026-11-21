@@ -10,7 +10,7 @@ import type { NotificationKindId } from "@/lib/notifications/registry";
 import { canOpenLessons, resolveCourseAccess } from "@/lib/courses/member";
 
 /**
- * Lesson comment notifications (docs/COURSES.md, "Lesson comments", "Notifications"). Every send goes through createNotifier,
+ * Lesson comment notifications (docs/product/COURSES.md, "Lesson comments", "Notifications"). Every send goes through createNotifier,
  * so each member's per-kind channels apply and the kinds show in Settings and Admin -> Test Notifications. A message says who
  * and where and links to the exact comment; it never holds a comment's text.
  *

@@ -8,7 +8,7 @@ import { prickleTitle } from "@/lib/domain/prickle";
 import { safeUrl } from "@/lib/url";
 
 /**
- * What the card for a link to the Hub shows one viewer (docs/SLACK_BRIDGED_CHAT.md, "Hub links"), decided here on the server with every read
+ * What the card for a link to the Hub shows one viewer (docs/product/SLACK_BRIDGED_CHAT.md, "Hub links"), decided here on the server with every read
  * made as the viewer, so row-level security answers for them. A target the viewer may not see, one that is not there and one that was
  * deleted all come back as the same `stub`, so a card says nothing about what a private conversation holds. Nothing here is a Tier 2 id, an
  * email or a token: the card carries names, a time, an excerpt and a title.

@@ -1,4 +1,4 @@
--- Posting from the Hub to bridged Slack conversations, phase 3 of docs/SLACK_BRIDGED_CHAT.md.
+-- Posting from the Hub to bridged Slack conversations, phase 3 of docs/product/SLACK_BRIDGED_CHAT.md.
 --
 -- The outbox: a member's message is written to chat_messages first (origin 'app',
 -- slack_sync_status 'pending', slack_ts null), then the server posts it to Slack as the bot with

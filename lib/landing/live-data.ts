@@ -4,7 +4,7 @@ import { comingUpCards, comingUpKey, comingUpOptions, type ComingUpOptions, type
 import { scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapshot } from "./live-schedule";
 
 /**
- * Live values for the blocks that can have them (docs/LANDING_PAGES.md, "Live data"). Blocks are presentational, so the
+ * Live values for the blocks that can have them (docs/product/LANDING_PAGES.md, "Live data"). Blocks are presentational, so the
  * server resolves what they need before the render and hands it to them in a render-only prop named `live`:
  *
  * - Outcome numbers: per item (`source` "live" and a `stat`), `live: { value, caption }`.

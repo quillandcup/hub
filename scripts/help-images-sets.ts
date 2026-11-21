@@ -3,7 +3,7 @@ import { appendFileSync } from "node:fs";
 import { SET_ID, contentId, pickSet } from "./help-images-version";
 
 /**
- * CI's questions about the published help screenshot sets (docs/DEMO_AND_HELP.md), answered from the bucket and git
+ * CI's questions about the published help screenshot sets (docs/product/DEMO_AND_HELP.md), answered from the bucket and git
  * history. Needs full history (`fetch-depth: 0`) and NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY of the
  * project the sets are published to.
  *

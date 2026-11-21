@@ -1,5 +1,5 @@
 /**
- * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"; .claude/rules/hand-overs.md, "Hand-overs need both sides"): what the signed-in staff
+ * Hand-overs need both sides (docs/product/HEDGIE_CARE.md, "Owners"; .claude/rules/hand-overs.md, "Hand-overs need both sides"): what the signed-in staff
  * user may do with a care plan's hand-over, for the page to show or hide a control. Pure. It mirrors what the database allows
  * (`propose_care_handover` and its siblings) and only decides what is offered: the database is the check.
  */

@@ -1,5 +1,5 @@
 // Commitments: a member's promise to attend one or more recurring prickle slots for N weeks
-// (e.g. "M/W/F 5am for 4 weeks"). See docs/COMMITMENTS.md and the prickle_commitments /
+// (e.g. "M/W/F 5am for 4 weeks"). See docs/product/COMMITMENTS.md and the prickle_commitments /
 // prickle_commitment_slots migrations. This module is pure and DB-free -- window/occurrence
 // math, slot matching, kept/missed progress, and input validation -- so it's easy to unit test
 // (tests/lib/commitments.test.ts). The server actions in

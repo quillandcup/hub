@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 /**
  * The landing pages take their light and dark colours from the semantic tokens (`bg-page`, `bg-card`, `text-ink`...),
  * defined once in app/globals.css. A `dark:` variant or a raw slate colour in a block would bring back a second place
- * to change them (docs/LANDING_PAGES.md, "Dark mode"). Brand colours that do not change with the theme (plum bands,
+ * to change them (docs/product/LANDING_PAGES.md, "Dark mode"). Brand colours that do not change with the theme (plum bands,
  * the plum button) stay as they are.
  */
 const PAGE_FILES = ["blocks.tsx", "config.tsx", "theme.ts", "homepage-blocks.tsx", "Countdown.tsx", "OptInForm.tsx"];

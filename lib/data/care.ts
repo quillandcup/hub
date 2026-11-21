@@ -82,7 +82,7 @@ export type HandoverResult = { ok: true; engagement: CareEngagementRow } | { ok:
 export type CareListOptions = { includeClosed?: boolean };
 
 /**
- * Hedgie Care's engagements (`care_engagements`, docs/HEDGIE_CARE.md): staff only, the caller's client decides (RLS lets
+ * Hedgie Care's engagements (`care_engagements`, docs/product/HEDGIE_CARE.md): staff only, the caller's client decides (RLS lets
  * admins and community managers read and write). Rows soft delete (`deleted_at`) and every method leaves deleted ones
  * out. The status is not stored: it follows from the dates and the last-message times in `lib/care.ts`. Methods throw
  * on a database error and answer a missing row with null or false, for the caller to word.
@@ -105,7 +105,7 @@ export interface CareRepository {
   logMessage(id: string, direction: MessageDirection, at: string): Promise<CareEngagementRow | null>;
   /**
    * Moves the last-message times of an open engagement FORWARD only: a time replaces the stored one only when it is later
-   * (or none is stored), so applying the same or an older time changes nothing (what Slack DMs derive, docs/HEDGIE_CARE.md).
+   * (or none is stored), so applying the same or an older time changes nothing (what Slack DMs derive, docs/product/HEDGIE_CARE.md).
    * Returns how many of the two times moved (0 when the engagement is closed or gone, or nothing was newer).
    */
   moveMessageTimesForward(id: string, times: { staffAt?: string; memberAt?: string }): Promise<number>;
@@ -130,7 +130,7 @@ export interface CareRepository {
    */
   logMessagesRead(memberId: string): Promise<boolean>;
   /**
-   * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a plan, open or closed, changes owner only when the receiver
+   * Hand-overs need both sides (docs/product/HEDGIE_CARE.md, "Owners"): a plan, open or closed, changes owner only when the receiver
    * accepts, and the database refuses any other change of `owned_by`. The steps answer for the signed-in caller: the owner (or
    * an admin on their behalf) proposes to a staff member who may own plans, who accepts or declines; the proposer, the owner
    * or an admin cancels; a plan with no owner is claimed. The plan keeps its owner while an offer is pending; one offer per plan.

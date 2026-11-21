@@ -1296,7 +1296,7 @@ describe("handing a care plan over: it takes two", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Slack DMs (docs/HEDGIE_CARE.md, "Slack DMs fill it in")
+// Slack DMs (docs/product/HEDGIE_CARE.md, "Slack DMs fill it in")
 // ---------------------------------------------------------------------------------------------------------------------
 
 const CM_MEMBER = "mbr_AAAAAAAAAAA8";

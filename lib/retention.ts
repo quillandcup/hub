@@ -2,7 +2,7 @@
  * How long personal data in the usage and access logs is kept: the one place the numbers live.
  * The privacy page (`app/(member)/privacy/page.tsx`) prints them, and the scheduled job that enforces
  * them imports the same constants, so what members are told and what the system does cannot drift.
- * The reasoning and the full schedule are in docs/EVENT_LOG.md ("Retention schedule" and "Data inventory").
+ * The reasoning and the full schedule are in docs/architecture/EVENT_LOG.md ("Retention schedule" and "Data inventory").
  *
  * Business records (what a member did in the Hub) have no automatic limit: they are kept until the
  * member asks, so there is deliberately no constant for them.

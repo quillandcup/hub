@@ -1,5 +1,5 @@
 -- Lesson comments captured from Kajabi's member lesson pages by `npm run courses:content -- --comments`
--- (docs/COURSES.md, "Lesson comments"). One row per comment or reply. Bronze: the capture replaces a lesson's
+-- (docs/product/COURSES.md, "Lesson comments"). One row per comment or reply. Bronze: the capture replaces a lesson's
 -- comments as a snapshot; comments no longer listed get deleted_at. Admins read, only the service role writes.
 -- Natural key, no generated id, never exposed by id.
 

@@ -5,7 +5,7 @@ import { chatCaller } from "@/lib/chat/caller";
 import { isId } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 
-/** What notifies the signed-in member about one conversation they are in (docs/SLACK_BRIDGED_CHAT.md, "Notifications"). */
+/** What notifies the signed-in member about one conversation they are in (docs/product/SLACK_BRIDGED_CHAT.md, "Notifications"). */
 const NOTIFY_SETTINGS = ["default", "all", "mentions", "nothing"] as const;
 export type NotifySettingChoice = (typeof NOTIFY_SETTINGS)[number];
 

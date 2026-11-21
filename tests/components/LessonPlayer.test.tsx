@@ -2,7 +2,7 @@
 /**
  * The lesson player's own logic: it hands Mux the three signed tokens, and remembers the viewer's
  * speed and captions choice. Video.js is replaced by stand-ins whose state the tests control; what
- * the real library does with a stream was checked by hand in the player spike (docs/COURSES.md).
+ * the real library does with a stream was checked by hand in the player spike (docs/product/COURSES.md).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";

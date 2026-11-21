@@ -11,7 +11,7 @@ const DEFAULT_DAYS = 3;
 const MAX_DAYS = 90;
 
 /**
- * Nightly reconciliation of Resend email events (docs/EMAIL_TIMELINE.md). The webhook (/api/webhooks/resend) is
+ * Nightly reconciliation of Resend email events (docs/architecture/EMAIL_TIMELINE.md). The webhook (/api/webhooks/resend) is
  * the fast path; this lists the emails sent in the last few days and records what it missed, then rebuilds
  * their member timeline rows. `?days=N` (up to 90) looks further back, for a backfill after the webhook was off.
  *

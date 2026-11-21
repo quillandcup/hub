@@ -14,7 +14,7 @@ ALTER TABLE public.writing_goals ADD COLUMN sort_position integer;
 COMMENT ON COLUMN public.writing_goals.sort_position IS 'The member''s own order of the goals in one project (1 = first); NULL = never placed, which sorts after every placed goal, by id.';
 
 -- A reorder rewrites the position of every goal in the list, so it is one audit entry for the list
--- ("reordered the 3 goals in a project"), not one per goal (docs/ACTIVITY_AND_AUDIT_LOG.md, "Record the
+-- ("reordered the 3 goals in a project"), not one per goal (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "Record the
 -- intent, not the noise"). The row trigger stays for everything else a goal does: it is split in three so the
 -- update one can say a change of position alone is not worth a row (OLD isn't there on insert).
 DROP TRIGGER audit_row_change ON public.writing_goals;
