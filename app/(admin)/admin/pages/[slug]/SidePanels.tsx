@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Drawer, createUsePuck, type ComponentData, type Config } from "@puckeditor/core";
 import AppIcon from "@/components/Icon";
+import { useFieldsInLeftPanel } from "./fields-host";
 
 const usePuck = createUsePuck();
 
@@ -31,8 +32,17 @@ export function filterGroups(groups: AddGroup[], query: string): AddGroup[] {
     .filter((g) => g.items.length > 0);
 }
 
-/** The Add list: blocks grouped by category, collapsed except the first, with a search box. Presentational, so it can be tested without Puck. */
-export function AddListView({ groups, renderItem }: { groups: AddGroup[]; renderItem: (item: { name: string; label: string }) => ReactNode }) {
+/** Keeps only the blocks named in `allowed`, and the groups that still have one: the same list, narrowed to what a place takes. */
+export function restrictGroups(groups: AddGroup[], allowed: readonly string[]): AddGroup[] {
+  return groups.map((g) => ({ ...g, items: g.items.filter((i) => allowed.includes(i.name)) })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * The Add list: blocks grouped by category, collapsed except the first, with a search box. Presentational, so it can be tested without Puck.
+ * `draggable` (the rail's Add tab) wraps each group in Puck's Drawer so items drag onto the canvas; without it (the drill-down's "Add section" and
+ * "Add block") items are plain rows the caller makes clickable.
+ */
+export function AddListView({ groups, renderItem, draggable = true }: { groups: AddGroup[]; renderItem: (item: { name: string; label: string }) => ReactNode; draggable?: boolean }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const searching = query.trim() !== "";
@@ -66,13 +76,20 @@ export function AddListView({ groups, renderItem }: { groups: AddGroup[]; render
               </span>
               <AppIcon name="chevron" className={`h-4 w-4 transition-transform ${expanded ? "" : "-rotate-90"}`} />
             </button>
-            {expanded && (
-              <Drawer droppableId={`add-${g.key}`}>
-                {g.items.map((item) => (
-                  <div key={item.name}>{renderItem(item)}</div>
-                ))}
-              </Drawer>
-            )}
+            {expanded &&
+              (draggable ? (
+                <Drawer droppableId={`add-${g.key}`}>
+                  {g.items.map((item) => (
+                    <div key={item.name}>{renderItem(item)}</div>
+                  ))}
+                </Drawer>
+              ) : (
+                <ul className="space-y-1.5">
+                  {g.items.map((item) => (
+                    <li key={item.name}>{renderItem(item)}</li>
+                  ))}
+                </ul>
+              ))}
           </section>
         );
       })}
@@ -132,12 +149,13 @@ export function BreadcrumbView({ crumbs, onSelect }: { crumbs: Crumb[]; onSelect
 }
 
 function SelectionPath() {
+  const inLeft = useFieldsInLeftPanel();
   const selected = usePuck((s) => s.selectedItem);
   const config = usePuck((s) => s.config);
   const getParentById = usePuck((s) => s.getParentById);
   const getSelectorForId = usePuck((s) => s.getSelectorForId);
   const dispatch = usePuck((s) => s.dispatch);
-  if (!selected) return null;
+  if (inLeft || !selected) return null;
   const labelOf = (item: ComponentData) => (config.components[item.type] as { label?: string } | undefined)?.label ?? item.type;
   const crumbs: Crumb[] = [{ id: selected.props.id, label: labelOf(selected) }];
   for (let parent = getParentById(selected.props.id), guard = 0; parent && guard < 20; parent = getParentById(parent.props.id), guard++) {
@@ -151,20 +169,23 @@ function SelectionPath() {
   );
 }
 
-/** Opens the settings panel when a block gets selected, so the left panel can stay the outline and the canvas keeps its width until something is edited. */
-export function OpenFieldsOnSelect() {
+/** The rail tab that holds the drill-down. Puck's own outline has this name, so ours replaces it. */
+export const OUTLINE_PLUGIN = "outline";
+
+/** A new selection (a click on the canvas) takes the left panel to the outline, where that block's level is. It never opens a hidden panel, so a canvas made wide stays wide. */
+export function ShowOutlineOnSelect() {
   const selectedId = usePuck((s) => s.selectedItem?.props.id ?? null);
-  const open = usePuck((s) => s.appState.ui.rightSideBarVisible);
+  const current = usePuck((s) => s.appState.ui.plugin?.current);
   const dispatch = usePuck((s) => s.dispatch);
   useEffect(() => {
-    if (selectedId && !open) dispatch({ type: "setUi", ui: { rightSideBarVisible: true } });
-    // Only a new selection opens it: closing the panel by hand must stick while the same block stays selected.
+    if (selectedId && current !== OUTLINE_PLUGIN) dispatch({ type: "setUi", ui: { plugin: { current: OUTLINE_PLUGIN } } });
+    // Only a new selection moves the tab: choosing Add or AI by hand must stick while the same block stays selected.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
   return null;
 }
 
-/** Puck overrides for the panels: the fields get the path above them, and a new selection opens them. */
+/** Puck overrides for the panels: fields pinned on the right get the path above them, and a new selection shows the outline. */
 export const panelOverrides = {
   fields: ({ children }: { children: ReactNode }) => (
     <>
@@ -174,7 +195,7 @@ export const panelOverrides = {
   ),
   puck: ({ children }: { children: ReactNode }) => (
     <>
-      <OpenFieldsOnSelect />
+      <ShowOutlineOnSelect />
       {children}
     </>
   ),

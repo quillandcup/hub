@@ -12,7 +12,8 @@ vi.mock("@puckeditor/core", () => ({
   createUsePuck: () => (select: (state: unknown) => unknown) => select({ dispatch: mocks.dispatch, ...mocks.store }),
 }));
 
-import { AddListView, BreadcrumbView, OpenFieldsOnSelect, addGroups, addPlugin, filterGroups, panelOverrides } from "@/app/(admin)/admin/pages/[slug]/SidePanels";
+import { AddListView, BreadcrumbView, OUTLINE_PLUGIN, ShowOutlineOnSelect, addGroups, addPlugin, filterGroups, panelOverrides, restrictGroups } from "@/app/(admin)/admin/pages/[slug]/SidePanels";
+import { FieldsInLeftPanel } from "@/app/(admin)/admin/pages/[slug]/fields-host";
 
 afterEach(() => {
   cleanup();
@@ -50,6 +51,20 @@ describe("addGroups and filterGroups", () => {
     expect(filterGroups(groups, "heading").map((g) => g.title)).toEqual(["Content"]);
     expect(filterGroups(groups, "links button").map((g) => g.title)).toEqual(["Links"]);
     expect(filterGroups(groups, "zzz")).toEqual([]);
+  });
+});
+
+describe("restrictGroups", () => {
+  it("keeps only the allowed blocks and drops groups left empty", () => {
+    const groups = addGroups(config);
+    expect(restrictGroups(groups, ["Faq", "Button"]).map((g) => [g.title, g.items.map((i) => i.name)])).toEqual([["Content", ["Faq"]], ["Links", ["Button"]]]);
+    expect(restrictGroups(groups, [])).toEqual([]);
+  });
+
+  it("the list without the drawer renders plain rows", () => {
+    render(<AddListView groups={restrictGroups(addGroups(config), ["Section"])} draggable={false} renderItem={(i) => <button type="button">{i.label}</button>} />);
+    expect(screen.queryByTestId("drawer")).toBeNull();
+    expect(screen.getByRole("button", { name: "Section" })).toBeInTheDocument();
   });
 });
 
@@ -156,21 +171,43 @@ describe("panel overrides", () => {
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { itemSelector: null } });
   });
 
-  it("opens the settings panel when something is selected and it is closed, not when it is open or nothing is selected", () => {
-    mocks.store = { selectedItem: item("h", "Heading"), appState: { ui: { rightSideBarVisible: false } } };
-    const { unmount } = render(<OpenFieldsOnSelect />);
-    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { rightSideBarVisible: true } });
+  it("inside the left panel the fields get no path of their own (the panel has its own Back)", () => {
+    mocks.store = { config: { components: {} }, selectedItem: item("s", "Section"), getParentById: () => undefined, getSelectorForId: vi.fn() };
+    render(
+      <FieldsInLeftPanel.Provider value={true}>
+        <div>{panelOverrides.fields({ children: <p>the fields</p> })}</div>
+      </FieldsInLeftPanel.Provider>,
+    );
+    expect(screen.getByText("the fields")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).toBeNull();
+  });
+
+  it("shows the outline when something is selected on another tab, but not when it already shows, nothing is selected, or only the tab was changed", () => {
+    mocks.store = { selectedItem: item("h", "Heading"), appState: { ui: { plugin: { current: "blocks" }, rightSideBarVisible: false } } };
+    const { unmount } = render(<ShowOutlineOnSelect />);
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { plugin: { current: OUTLINE_PLUGIN } } });
     unmount();
     mocks.dispatch.mockReset();
-    mocks.store = { selectedItem: item("h", "Heading"), appState: { ui: { rightSideBarVisible: true } } };
-    render(<OpenFieldsOnSelect />).unmount();
-    mocks.store = { selectedItem: null, appState: { ui: { rightSideBarVisible: false } } };
-    render(<OpenFieldsOnSelect />);
+    mocks.store = { selectedItem: item("h", "Heading"), appState: { ui: { plugin: { current: "outline" } } } };
+    render(<ShowOutlineOnSelect />).unmount();
+    mocks.store = { selectedItem: null, appState: { ui: { plugin: { current: "blocks" } } } };
+    render(<ShowOutlineOnSelect />);
     expect(mocks.dispatch).not.toHaveBeenCalled();
   });
 
-  it("the puck override renders the opener and the editor", () => {
-    mocks.store = { selectedItem: null, appState: { ui: { rightSideBarVisible: false } } };
+  it("a hand-chosen tab sticks while the same block stays selected", () => {
+    mocks.store = { selectedItem: item("h", "Heading"), appState: { ui: { plugin: { current: "outline" } } } };
+    const { rerender } = render(<ShowOutlineOnSelect />);
+    mocks.store = { selectedItem: item("h", "Heading"), appState: { ui: { plugin: { current: "ai" } } } };
+    rerender(<ShowOutlineOnSelect />);
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+    mocks.store = { selectedItem: item("k", "Heading"), appState: { ui: { plugin: { current: "ai" } } } };
+    rerender(<ShowOutlineOnSelect />);
+    expect(mocks.dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("the puck override renders the tab switcher and the editor", () => {
+    mocks.store = { selectedItem: null, appState: { ui: { plugin: { current: "outline" } } } };
     render(panelOverrides.puck({ children: <p>editor</p> }));
     expect(screen.getByText("editor")).toBeInTheDocument();
   });
