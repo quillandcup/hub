@@ -203,3 +203,29 @@ export function isMilestoneKind(value: unknown): value is MilestoneKind {
 export function milestoneLabel(kind: string): string {
   return isMilestoneKind(kind) ? MILESTONE_LABELS[kind] : "milestone";
 }
+
+/** How many works a member has reached each milestone for, as the Finisher and Author badges count them. */
+export type MilestoneBadgeCounts = Record<MilestoneKind, number>;
+
+/**
+ * The one rule for "while a member of the community": a milestone counts toward a badge when it has no date (the member did
+ * not say when) or its date is on or after the day the member first joined. A member with no join date has nothing to compare
+ * with, so a dated milestone counts too. The milestone itself still shows on the profile whatever its date; this only decides
+ * the Finisher and Author badges. Dates are plain days (YYYY-MM-DD), compared as text.
+ */
+export function reachedWhileMember(achievedOn: string | null, firstJoinedAt: string | null): boolean {
+  if (achievedOn === null || firstJoinedAt === null) return true;
+  return achievedOn >= firstJoinedAt.slice(0, 10);
+}
+
+/**
+ * The counts behind the Finisher and Author badges: one per milestone (the database allows one per work and kind), counting
+ * only those reached while a member. The caller passes only milestones that are confirmed and that the viewer may see.
+ */
+export function milestoneBadgeCounts(milestones: readonly { kind: string; achievedOn: string | null }[], firstJoinedAt: string | null): MilestoneBadgeCounts {
+  const counts: MilestoneBadgeCounts = { the_end: 0, publish_ready: 0 };
+  for (const m of milestones) {
+    if (isMilestoneKind(m.kind) && reachedWhileMember(m.achievedOn, firstJoinedAt)) counts[m.kind] += 1;
+  }
+  return counts;
+}

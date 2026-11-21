@@ -63,6 +63,25 @@ describe("badges list page", () => {
     expect(screen.getByText("1 awarded")).toBeInTheDocument();
     expect(screen.getByText("computed automatically")).toBeInTheDocument();
   });
+
+  it("shows Finisher and Author as automatic, levelled like Published Author", async () => {
+    const levels = (id: string, label: string) =>
+      [1, 3, 5, 10].map((threshold, i) => ({ id: `${id}-${i}`, badge_type_id: id, level: i + 1, name: i === 0 ? label : `${threshold}x ${label}`, threshold }));
+    dataset = new InMemoryDataset({
+      members: [ADA],
+      badgeTypes: [
+        type("finisher", { name: "Finisher", has_levels: true, is_automatic: true }),
+        type("author", { name: "Author", has_levels: true, is_automatic: true }),
+      ],
+      badgeLevels: [...levels("finisher", "Finisher"), ...levels("author", "Author")],
+    });
+    await renderServerPage(BadgesPage, {});
+
+    expect(screen.getByText("Finisher → 3x Finisher → 5x Finisher → 10x Finisher")).toBeInTheDocument();
+    expect(screen.getByText("Author → 3x Author → 5x Author → 10x Author")).toBeInTheDocument();
+    expect(screen.getAllByText("Automatic")).toHaveLength(2);
+    expect(screen.getAllByText("computed automatically")).toHaveLength(2);
+  });
 });
 
 describe("new badge page", () => {

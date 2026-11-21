@@ -414,5 +414,28 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(await repo.shownOnWeb(id(ada))).toEqual([]);
       expect((await repo.shownToMembers(id(ada))).map((m) => m.kind)).toEqual(["the_end"]);
     });
+
+    it("lists, for the badges of every member, only confirmed live milestones at community or public (kind and date, no ids)", async () => {
+      const repo = ctx.repo();
+      const shown = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01" }, { projectId: null, bookId: null, title: "A Shown Fake Work" }), NOW);
+      const globe = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId: null, bookId: null, title: "A Globe Fake Work" }), NOW);
+      const hidden = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "A Private Fake Work" }), NOW);
+      const taken = await repo.addOwn(ownAdd(id(bo), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "A Taken Back Fake Work" }), NOW);
+      await repo.addOwn(ownAdd(id(bo), ctx.staffUserId, "the_end", { achievedOn: "2026-06-02" }, { projectId: null, bookId: null, title: "Bo's Fake Work" }), NOW);
+      await repo.propose(proposal(bo, "publish_ready", { projectId: null, bookId: null, title: "A Proposed Fake Work" }));
+      await repo.setVisibility(globe.milestone.id, id(ada), "public", NOW);
+      await repo.setVisibility(hidden.milestone.id, id(ada), "private", NOW);
+      await repo.takeBack(taken.milestone.id, id(bo), NOW);
+      expect(shown.milestone.visibility).toBe("community");
+
+      const all = (await repo.allShownToMembers()).filter((m) => ctx.members.includes(m.memberId));
+      const summary = all.map((m) => [m.memberId === id(ada) ? "ada" : "bo", m.kind, m.achievedOn]).sort((a, b) => String(a).localeCompare(String(b)));
+      expect(summary).toEqual([
+        ["ada", "publish_ready", null],
+        ["ada", "the_end", "2026-05-01"],
+        ["bo", "the_end", "2026-06-02"],
+      ]);
+      expect(JSON.stringify(all)).not.toMatch(/mlst_/);
+    });
   });
 }
