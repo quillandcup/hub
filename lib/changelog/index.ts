@@ -13,20 +13,29 @@ export function changelogEntryPath(slug: string): string | null {
   return match ? `/changelog/${match[0]}` : null;
 }
 
-/** Every entry, whatever its audience (product, staff, engineering), newest first; entries of the same day keep the order they were written in (later in the file is newer). */
+/** The month key of the group that holds entries not released yet. */
+export const HELD_GROUP = "held";
+
+/** Whether an entry is held back: not released, so for the admin Changelog only. */
+export function isHeld(entry: ChangelogEntry): boolean {
+  return entry.held === true;
+}
+
+/** Every entry, whatever its audience (product, staff, engineering): held ones first, then newest first; entries of the same day keep the order they were written in (later in the file is newer). */
 export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
   return entries
     .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.index - a.index)
+    .sort((a, b) => Number(isHeld(b.entry)) - Number(isHeld(a.entry)) || (b.entry.date ?? "").localeCompare(a.entry.date ?? "") || b.index - a.index)
     .map(({ entry }) => entry);
 }
 
 /**
- * What members see (the pages, the digest, the announcements post): the product entries, newest first. An allowlist on purpose: staff and
- * engineering entries (and any audience added later) are for the admin Changelog and can never reach a member.
+ * What members see (the pages, the digest, the announcements post): the released product entries, newest first. An allowlist on
+ * purpose: staff and engineering entries (and any audience added later) are for the admin Changelog and can never reach a member,
+ * and neither can a held entry, which is not released yet.
  */
 export function listProductChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
-  return listChangelog(entries).filter((e) => e.audience === "product");
+  return listChangelog(entries).filter((e) => e.audience === "product" && !isHeld(e));
 }
 
 /** The `?show=` filter on the What's new page: one category, or null (everything) for no value or one that is not a category. */
@@ -70,25 +79,29 @@ export function findAnyChangelogEntry(slug: string, entries: readonly ChangelogE
   return entries.find((e) => e.slug === slug) ?? null;
 }
 
-/** Entries grouped by month, newest first, each group labelled "November 2026" (their order within it is kept). */
+/** Entries grouped by month, newest first, each group labelled "November 2026" (their order within it is kept). Held entries have no month: they form a first group labelled "Held". */
 export function groupByMonth(entries: readonly ChangelogEntry[]): { month: string; label: string; entries: ChangelogEntry[] }[] {
   const groups = new Map<string, ChangelogEntry[]>();
-  for (const e of entries) groups.set(e.date.slice(0, 7), [...(groups.get(e.date.slice(0, 7)) ?? []), e]);
+  for (const e of entries) {
+    const key = isHeld(e) || !e.date ? HELD_GROUP : e.date.slice(0, 7);
+    groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
   return [...groups].map(([month, list]) => {
+    if (month === HELD_GROUP) return { month, label: "Held (not released yet)", entries: list };
     const [y, m] = month.split("-").map(Number);
     const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, 1)));
     return { month, label, entries: list };
   });
 }
 
-/** A product entry by slug, or null: a staff or engineering entry has no member page, so its slug is a 404 like any unknown one. */
+/** A released product entry by slug, or null: a staff, engineering or held entry has no member page, so its slug is a 404 like any unknown one. */
 export function findChangelogEntry(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry | null {
-  return entries.find((e) => e.slug === slug && e.audience === "product") ?? null;
+  return entries.find((e) => e.slug === slug && e.audience === "product" && !isHeld(e)) ?? null;
 }
 
 /** Product entries that shipped after `since` (a YYYY-MM-DD day, exclusive); all of them when null. Newest first. */
 export function changelogSince(since: string | null, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
-  return listProductChangelog(entries).filter((e) => since === null || e.date > since);
+  return listProductChangelog(entries).filter((e) => since === null || (e.date ?? "") > since);
 }
 
 /** Whether an image path belongs to the entry's own folder in public/changelog/, with no way to climb out of it. */
@@ -105,7 +118,9 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     if (!SLUG.test(e.slug)) problems.push(`${where}: slug must be lowercase words and hyphens`);
     if (seen.has(e.slug)) problems.push(`${where}: duplicate slug`);
     seen.add(e.slug);
-    if (!DATE.test(e.date) || Number.isNaN(Date.parse(e.date))) problems.push(`${where}: date must be YYYY-MM-DD`);
+    if (e.held) {
+      if (e.date) problems.push(`${where}: a held entry has no date until it is released (the date is the day the feature went on for everyone)`);
+    } else if (!e.date || !DATE.test(e.date) || Number.isNaN(Date.parse(e.date))) problems.push(`${where}: date must be YYYY-MM-DD`);
     if (!(e.category in CHANGELOG_CATEGORIES)) problems.push(`${where}: unknown category`);
     if (!(e.audience in CHANGELOG_AUDIENCES)) problems.push(`${where}: unknown audience`);
     if (e.major && e.audience !== "product") problems.push(`${where}: only a product entry can be major`);

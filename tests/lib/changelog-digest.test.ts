@@ -73,6 +73,12 @@ describe("digestCandidates", () => {
 });
 
 describe("digestCandidates: who and what is never notified", () => {
+  it("leaves out a held entry, which is not released and has no date", () => {
+    const held = entry({ slug: "held", audience: "product", held: true, date: undefined });
+    expect(digestCandidates(NOW, [first, held]).map((e) => e.slug)).toEqual(["first"]);
+    expect(digestCandidates(NOW, [held])).toEqual([]);
+  });
+
   it("leaves out engineering entries, which are for staff only", () => {
     const eng = entry({ slug: "eng", date: "2026-11-09", audience: "engineering" });
     expect(digestCandidates(NOW, [first, eng]).map((e) => e.slug)).toEqual(["first"]);

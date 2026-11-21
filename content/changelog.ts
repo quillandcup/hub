@@ -35,8 +35,14 @@ export type ChangelogAudience = keyof typeof CHANGELOG_AUDIENCES;
 export interface ChangelogEntry {
   /** The permalink (`/changelog/<slug>`): lowercase words and hyphens. Never changed once published, so shared links keep working. */
   slug: string;
-  /** The day it shipped, YYYY-MM-DD (Eastern). */
-  date: string;
+  /** The day it shipped, YYYY-MM-DD (Eastern). Required, except on a held entry, which has no date until it is released. */
+  date?: string;
+  /**
+   * Held back: written and reviewed, but not released (a feature still behind a flag). A held entry appears only on the admin
+   * Changelog, labelled "Held", and never on a member page, in the digest or in the announcements post. To release it, delete
+   * `held` and set `date` to the day the feature went on for everyone (docs/runbooks/CHANGELOG_PROCESS.md, "Holding an entry").
+   */
+  held?: boolean;
   audience: ChangelogAudience;
   category: ChangelogCategory;
   /**
@@ -81,7 +87,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   },
   {
     slug: "milestones-on-your-profile",
-    date: "2026-11-21",
+    held: true,
     audience: "product",
     category: "new",
     title: "Show your writing milestones on your profile",

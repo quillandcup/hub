@@ -5,6 +5,7 @@ import { requireAdminPage } from "@/lib/admin-auth";
 import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/content/changelog";
 import { findAnyChangelogEntry, listChangelog } from "@/lib/changelog";
 import ChangelogMarkdown from "@/components/changelog/ChangelogMarkdown";
+import HeldLabel from "@/components/changelog/HeldLabel";
 
 export const dynamicParams = false;
 
@@ -32,7 +33,7 @@ export default async function AdminChangelogEntryPage({ params }: PageProps<"/ad
         ← Changelog
       </Link>
       <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
-        {CHANGELOG_AUDIENCES[entry.audience]} · {CHANGELOG_CATEGORIES[entry.category]} · <time dateTime={entry.date}>{entry.date}</time>
+        {CHANGELOG_AUDIENCES[entry.audience]} · {CHANGELOG_CATEGORIES[entry.category]} · {entry.held ? <HeldLabel /> : <time dateTime={entry.date}>{entry.date}</time>}
         {entry.major && (
           <span className="ml-2 rounded-full bg-plum-700 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-white">Major</span>
         )}

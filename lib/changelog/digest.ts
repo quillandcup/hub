@@ -53,7 +53,7 @@ export function digestCandidates(
 ): ChangelogEntry[] {
   const windowStart = new Date(Date.parse(orgDay(now)) - DIGEST_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
   const cutoff = windowStart > startsOn ? windowStart : startsOn;
-  return listProductChangelog(entries).filter((e) => e.date >= cutoff);
+  return listProductChangelog(entries).filter((e) => (e.date ?? "") >= cutoff);
 }
 
 const entryUrl = (e: ChangelogEntry) => `${APP_URL}${changelogEntryPath(e.slug)}`;
