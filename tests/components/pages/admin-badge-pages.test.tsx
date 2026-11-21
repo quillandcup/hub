@@ -64,23 +64,34 @@ describe("badges list page", () => {
     expect(screen.getByText("computed automatically")).toBeInTheDocument();
   });
 
-  it("shows Finisher and Author as automatic, levelled like Published Author", async () => {
+  it("shows Finisher, Author and Published Author as automatic counted badges, with the real-count text instead of steps", async () => {
     const levels = (id: string, label: string) =>
       [1, 3, 5, 10].map((threshold, i) => ({ id: `${id}-${i}`, badge_type_id: id, level: i + 1, name: i === 0 ? label : `${threshold}x ${label}`, threshold }));
     dataset = new InMemoryDataset({
       members: [ADA],
       badgeTypes: [
-        type("finisher", { name: "Finisher", has_levels: true, is_automatic: true }),
-        type("author", { name: "Author", has_levels: true, is_automatic: true }),
+        type("finisher", { name: "Finisher", has_levels: true, counted: true, is_automatic: true }),
+        type("author", { name: "Author", has_levels: true, counted: true, is_automatic: true }),
+        type("published_author", { name: "Published Author", has_levels: true, counted: true, is_automatic: true }),
+        type("hostess", { name: "Hostess", has_levels: true, is_automatic: true }),
       ],
-      badgeLevels: [...levels("finisher", "Finisher"), ...levels("author", "Author")],
+      badgeLevels: [...levels("finisher", "Finisher"), ...levels("author", "Author"), ...levels("published_author", "Published Author"), ...levels("hostess", "Hostess")],
     });
     await renderServerPage(BadgesPage, {});
 
-    expect(screen.getByText("Finisher → 3x Finisher → 5x Finisher → 10x Finisher")).toBeInTheDocument();
-    expect(screen.getByText("Author → 3x Author → 5x Author → 10x Author")).toBeInTheDocument();
-    expect(screen.getAllByText("Automatic")).toHaveLength(2);
-    expect(screen.getAllByText("computed automatically")).toHaveLength(2);
+    const text = screen.getAllByTestId("counted-badge-text").map((el) => el.textContent);
+    expect([...text].sort()).toEqual([
+      "Shows the real count: Author → 2x Author → 3x Author …",
+      "Shows the real count: Finisher → 2x Finisher → 3x Finisher …",
+      "Shows the real count: Published Author → 2x Published Author → 3x Published Author …",
+    ]);
+    expect(text).toHaveLength(3);
+    // The old step list is gone for them, and a leveled badge that is not counted keeps its levels.
+    expect(screen.queryByText(/→ 3x Finisher → 5x/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/→ 3x Published Author → 5x/)).not.toBeInTheDocument();
+    expect(screen.getByText("Hostess → 3x Hostess → 5x Hostess → 10x Hostess")).toBeInTheDocument();
+    expect(screen.getAllByText("Automatic")).toHaveLength(4);
+    expect(screen.getAllByText("computed automatically")).toHaveLength(4);
   });
 });
 

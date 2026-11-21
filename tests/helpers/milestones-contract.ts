@@ -12,7 +12,7 @@ export type MilestonesContractContext = {
   /** An auth user id to record as the staff member who proposes. */
   staffUserId: string;
   /** Gives a member one live (not deleted) published book, optionally linked to one of their projects, and returns its id. */
-  addBook: (memberId: string, projectId?: string) => Promise<string>;
+  addBook: (memberId: string, projectId?: string, publishedDate?: string) => Promise<string>;
   /** Soft-deletes every book of the member. */
   deleteBooks: (memberId: string) => Promise<void>;
   /** Gives a member one live writing project and returns its id. */
@@ -406,14 +406,14 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(JSON.stringify(toMembers)).not.toMatch(/Secret words|A Private Fake Work|A Proposed Fake Work|mlst_/);
 
       // The web: the globe, and Published from the book (derived, no stored level).
-      const onWeb = await repo.worksShownOnWeb(id(ada));
+      const onWeb = await repo.worksShownOnWeb(id(ada), null);
       expect(onWeb.map((m) => `${m.kind}:${m.workTitle}`).sort()).toEqual(["publish_ready:A Second Fake Work", "published:A Book"]);
       expect(await repo.shownToMembers(id(bo))).toEqual([]);
-      expect(await repo.worksShownOnWeb(id(bo))).toEqual([]);
+      expect(await repo.worksShownOnWeb(id(bo), null)).toEqual([]);
 
       // A taken-back milestone leaves both.
       await repo.takeBack(globe.milestone.id, id(ada), NOW);
-      expect((await repo.worksShownOnWeb(id(ada))).map((m) => m.kind)).toEqual(["published"]);
+      expect((await repo.worksShownOnWeb(id(ada), null)).map((m) => m.kind)).toEqual(["published"]);
       expect((await repo.shownToMembers(id(ada))).map((m) => m.kind)).toEqual(["the_end"]);
     });
 
@@ -492,7 +492,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01", storyAfter: "Done." }, { projectId, bookId: null, title: null }), NOW);
       await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "A Title Only Fake Work" }), NOW);
 
-      const steps = await repo.worksShownOnWeb(id(ada));
+      const steps = await repo.worksShownOnWeb(id(ada), null);
       const works = new Map<number, string[]>();
       for (const s of steps) works.set(s.workNo, [...(works.get(s.workNo) ?? []), s.kind]);
       // A project and its book are one work (three steps, in order); a title-only work has one step; a book alone is Published only.
@@ -504,11 +504,25 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(JSON.stringify(steps)).not.toMatch(/mlst_|wprj_|book_/);
     });
 
+    it("counts Published only for a book published while a member: before the first join day it is left out, on the join day or undated it stays", async () => {
+      const repo = ctx.repo();
+      const early = await ctx.addBook(id(ada), undefined, "2026-02-28");
+      await ctx.addBook(id(ada), undefined, "2026-03-01");
+      await ctx.addBook(id(ada), undefined, "2026-03-02");
+      const dates = async (joined: string | null) => (await repo.worksShownOnWeb(id(ada), joined)).filter((s) => s.kind === "published").map((s) => s.achievedOn).sort();
+      // Joined on 2026-03-01: the day before is out, the join day and later are in.
+      expect(await dates("2026-03-01T15:00:00Z")).toEqual(["2026-03-01", "2026-03-02"]);
+      // No join date: nothing to compare with, everything counts. Member view follows the same rule.
+      expect(await dates(null)).toEqual(["2026-02-28", "2026-03-01", "2026-03-02"]);
+      expect((await repo.worksShownToMembers(id(ada), "2026-03-01")).filter((s) => s.kind === "published")).toHaveLength(2);
+      expect(early).toBeTruthy();
+    });
+
     it("shows a milestone only at its own level, Published always, and nothing for a deleted book", async () => {
       const repo = ctx.repo();
       const bookId = await ctx.addBook(id(ada));
       const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId, title: null }), NOW);
-      const kinds = async () => ({ members: (await repo.worksShownToMembers(id(ada))).map((m) => m.kind), web: (await repo.worksShownOnWeb(id(ada))).map((m) => m.kind) });
+      const kinds = async () => ({ members: (await repo.worksShownToMembers(id(ada), null)).map((m) => m.kind), web: (await repo.worksShownOnWeb(id(ada), null)).map((m) => m.kind) });
       expect(await kinds()).toEqual({ members: ["the_end", "published"], web: ["the_end", "published"] });
       await repo.setVisibility(milestone.id, id(ada), "community", NOW);
       expect(await kinds()).toEqual({ members: ["the_end", "published"], web: ["published"] });

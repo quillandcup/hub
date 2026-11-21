@@ -237,10 +237,12 @@ export function milestoneLabel(kind: string): string {
 export type MilestoneBadgeCounts = Record<MilestoneKind, number>;
 
 /**
- * The one rule for "while a member of the community": a milestone counts toward a badge when it has no date (the member did
- * not say when) or its date is on or after the day the member first joined. A member with no join date has nothing to compare
- * with, so a dated milestone counts too. The milestone itself still shows on the profile whatever its date; this only decides
- * the Finisher and Author badges. Dates are plain days (YYYY-MM-DD), compared as text.
+ * The one rule for "while a member of the community", for milestones and for books: something counts when it has no date (the
+ * member did not say when), or its date is on or after the day the member first joined (the join day counts). A member with no
+ * join date has nothing to compare with, so everything counts. The reason: it separates what happened in the Hedgie house from what
+ * happened outside it. A milestone or a book still shows on the profile and the Bookshelf whatever its date; this decides what
+ * counts for the Finisher, Author and Published Author badges, the Published step in the strips and the summary line. Dates are
+ * plain days (YYYY-MM-DD), compared as text.
  */
 export function reachedWhileMember(achievedOn: string | null, firstJoinedAt: string | null): boolean {
   if (achievedOn === null || firstJoinedAt === null) return true;
@@ -257,4 +259,9 @@ export function milestoneBadgeCounts(milestones: readonly { kind: string; achiev
     if (isMilestoneKind(m.kind) && reachedWhileMember(m.achievedOn, firstJoinedAt)) counts[m.kind] += 1;
   }
   return counts;
+}
+
+/** How many of a member's books count as published while a member: the published days of their live books, through `reachedWhileMember`. */
+export function publishedBookCount(publishedDates: readonly (string | null)[], firstJoinedAt: string | null): number {
+  return publishedDates.filter((date) => reachedWhileMember(date, firstJoinedAt)).length;
 }

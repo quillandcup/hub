@@ -75,6 +75,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
               icon: badgeType.icon,
               category: badgeType.category as Category, // a check constraint limits the column to these
               hasLevels: badgeType.has_levels,
+              counted: badgeType.counted ?? false,
               levels: (levels ?? []).map((l) => ({
                 level: l.level,
                 name: l.name,

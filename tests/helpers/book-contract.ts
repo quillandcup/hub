@@ -180,9 +180,11 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       await ctx.repo().remove(gone);
       expect(await ctx.repo().countLive(m1.id)).toBe(2);
       expect(await ctx.repo().countLive(m2.id)).toBe(0);
-      const counts = await ctx.repo().liveCountsByMember();
-      expect(counts.get(m1.id)).toBe(2);
-      expect(counts.has(m2.id)).toBe(false);
+      const dates = await ctx.repo().liveDatesByMember();
+      expect(dates.get(m1.id)).toEqual(["2026-03-05", "2026-03-05"]);
+      expect(dates.has(m2.id)).toBe(false);
+      expect(await ctx.repo().liveDates(m1.id)).toEqual(["2026-03-05", "2026-03-05"]);
+      expect(await ctx.repo().liveDates(m2.id)).toEqual([]);
     });
 
     it("searches live books for every word in the title or description, any case, newest first", async () => {
@@ -259,7 +261,8 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const shelf = (await ctx.repo().shelf()).map((b) => b.id);
       expect(new Set(shelf).size).toBe(shelf.length);
       expect(ids.every((id) => shelf.includes(id))).toBe(true);
-      expect((await ctx.repo().liveCountsByMember()).get(m2.id)).toBe(1010);
+      expect((await ctx.repo().liveDatesByMember()).get(m2.id)).toHaveLength(1010);
+      expect(await ctx.repo().liveDates(m2.id)).toHaveLength(1010);
       expect(await ctx.repo().countLive(m2.id)).toBe(1010);
       expect(await ctx.repo().countLive(m1.id)).toBe(0);
     }, 60_000);

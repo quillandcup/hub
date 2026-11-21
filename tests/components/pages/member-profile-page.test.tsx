@@ -461,6 +461,15 @@ describe("member profile page: Milestones strip", () => {
     expect(supabase.queries.find((q) => q.table === "rpc:member_works_shown_to_members")?.calls).toContainEqual({ method: "args", args: [{ p_member_id: PROFILE_ID }] });
   });
 
+  it("leaves out the Published step of a book from before the member first joined (2023-01-10), keeping the join day and later", async () => {
+    const step = (published_on: string, work_no: number, title: string) => ({ work_no, kind: "published", work_title: title, achieved_on: published_on, story_before: null, story_after: null, visibility: "public" });
+    useFakeSupabase(tables({ "rpc:member_works_shown_to_members": { data: [step("2023-01-09", 1, "An Earlier Fake Book"), step("2023-01-10", 2, "A Join Day Fake Book")] } }));
+    await renderServerPage(MemberProfilePage, params);
+    const strip = screen.getByTestId("milestone-strip");
+    expect(within(strip).getByRole("heading", { name: "A Join Day Fake Book" })).toBeInTheDocument();
+    expect(within(strip).queryByText("An Earlier Fake Book")).not.toBeInTheDocument();
+  });
+
   it("shows nothing when the member has shown none (an empty strip is not drawn), the same for an admin", async () => {
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();

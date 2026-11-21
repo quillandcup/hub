@@ -95,6 +95,18 @@ describe("MilestonesPanel (per work)", () => {
     }
   });
 
+  it("lists a book from before the member joined as a work without Published, and says why", () => {
+    render(
+      <MilestonesPanel
+        milestones={[]}
+        books={[{ id: "book_1", title: "An Earlier Fake Book", projectId: null, publishedDate: "2026-02-28" }, { id: "book_2", title: "A Later Fake Book", projectId: null, publishedDate: "2026-03-01" }]}
+        firstJoinedAt="2026-03-01T15:00:00Z"
+      />,
+    );
+    expect(screen.getByTestId("milestone-summary")).toHaveTextContent("Published Author of 1 work");
+    expect(screen.getByText(/came out since you joined the community. Earlier books stay on your Bookshelf but are not counted here/)).toBeInTheDocument();
+  });
+
   it("sums up the titles from the whole set in plain words, Author only for publish-ready works", () => {
     render(
       <MilestonesPanel

@@ -72,12 +72,15 @@ export function ProfilePanel({
   milestones = [],
   projects = [],
   books = [],
+  firstJoinedAt = null,
   readOnly = false,
 }: {
   /** The member's milestones, works and books, for the one-time look at what the page shows after the profile is switched on. */
   milestones?: Milestone[];
   projects?: CardProject[];
   books?: CardBook[];
+  /** The day the member first joined: a book published before it is not their Published milestone. */
+  firstJoinedAt?: string | null;
   readOnly?: boolean;
 } = {}) {
   const [data, setData] = useState<ProfileSettings | null>(null);
@@ -400,7 +403,7 @@ export function ProfilePanel({
               <WriterProfileReview
                 name={shownName}
                 items={reviewItems}
-                works={buildWorks(projects, books, milestones)}
+                works={buildWorks(projects, books, milestones, firstJoinedAt)}
                 webAvailable={page.available}
                 previewPath={page.previewPath}
                 readOnly={readOnly}

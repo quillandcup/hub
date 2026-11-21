@@ -8,7 +8,7 @@ import type { Db } from "@/lib/data/db";
 import type { Row } from "@/lib/data/db";
 import type { Visibility } from "@/lib/writing-visibility";
 
-const finisherType: BadgeType = { id: "bdgt_finisher", key: "finisher", name: "Finisher", description: null, icon: "x", category: "community", has_levels: true, is_automatic: true, program_id: null };
+const finisherType: BadgeType = { id: "bdgt_finisher", key: "finisher", name: "Finisher", description: null, icon: "x", category: "community", has_levels: true, counted: true, is_automatic: true, program_id: null };
 const authorType: BadgeType = { ...finisherType, id: "bdgt_author", key: "author", name: "Author" };
 const levelsFor = (type: BadgeType, label: string): BadgeLevel[] =>
   [1, 3, 5, 10].map((threshold, i) => ({ id: `${type.id}_${i}`, badge_type_id: type.id, level: i + 1, name: i === 0 ? label : `${threshold}x ${label}`, threshold }));
@@ -80,8 +80,8 @@ describe("milestoneBadgeCounts", () => {
 });
 
 describe("Finisher and Author badges", () => {
-  it("levels the Finisher badge at 1, 3, 5 and 10 works, and Author apart from it", async () => {
-    const expected: [number, string | undefined][] = [[0, undefined], [1, "Finisher"], [2, "Finisher"], [3, "3x Finisher"], [4, "3x Finisher"], [5, "5x Finisher"], [9, "5x Finisher"], [10, "10x Finisher"], [14, "10x Finisher"]];
+  it("shows the real count of the Finisher badge (1, 2, 7 ... no steps), and Author apart from it", async () => {
+    const expected: [number, string | undefined][] = [[0, undefined], [1, "Finisher"], [2, "2x Finisher"], [3, "3x Finisher"], [4, "4x Finisher"], [7, "7x Finisher"], [10, "10x Finisher"], [14, "14x Finisher"]];
     for (const [count, name] of expected) {
       const repos = reposWith(many(count, { member_id: ADA.id, kind: "the_end" }));
       expect(await titles(repos, ADA.id, "self")).toEqual(name ? [name] : []);
@@ -90,11 +90,17 @@ describe("Finisher and Author badges", () => {
     expect(await titles(repos, ADA.id, "self")).toEqual(["3x Author", "Finisher"]);
   });
 
+  it("falls back to the levels for a type that is not counted", async () => {
+    const leveled = { ...finisherType, counted: false };
+    const repos = createInMemoryRepos(new InMemoryDataset({ members: [ADA], badgeTypes: [leveled], badgeLevels: levelsFor(leveled, "Finisher"), memberMilestones: many(4, { member_id: ADA.id }) }));
+    expect((await getMemberBadges(repos, ADA.id, 0, ADA.firstJoinedAt, "self")).map((b) => b.levelName)).toEqual(["3x Finisher"]);
+  });
+
   it("counts a private milestone for its member but not for anyone else", async () => {
     const rows = [milestone({ member_id: ADA.id, visibility: "private" }), milestone({ member_id: ADA.id, visibility: "community" }), milestone({ member_id: ADA.id, visibility: "public" })];
     const repos = reposWith(rows);
     expect(await titles(repos, ADA.id, "self")).toEqual(["3x Finisher"]);
-    expect(await titles(repos, ADA.id, "others")).toEqual(["Finisher"]);
+    expect(await titles(repos, ADA.id, "others")).toEqual(["2x Finisher"]);
     // Others is the default, so a caller that forgets to say who is looking never shows the private one.
     expect((await getMemberBadges(repos, ADA.id, 0, ADA.firstJoinedAt)).map((b) => b.occurrences)).toEqual([2]);
   });
@@ -138,7 +144,7 @@ describe("Finisher and Author badges", () => {
     const repos = reposWith(rows, members);
     const finishers = await getBadgeRecipients(repos, finisherType, levelsFor(finisherType, "Finisher"));
     expect(finishers).toHaveLength(1_500);
-    expect(finishers.find((r) => r.memberId === members[0].id)).toMatchObject({ levelName: "Finisher", occurrences: 2 });
+    expect(finishers.find((r) => r.memberId === members[0].id)).toMatchObject({ levelName: "2x Finisher", level: 2, occurrences: 2 });
     expect(finishers.filter((r) => r.occurrences === 1)).toHaveLength(1_497);
     expect(await getBadgeRecipients(repos, authorType, levelsFor(authorType, "Author"))).toEqual([]);
   });

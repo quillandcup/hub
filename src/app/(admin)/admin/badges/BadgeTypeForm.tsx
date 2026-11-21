@@ -55,6 +55,8 @@ interface BadgeTypeFormProps {
     icon: string;
     category: Category;
     hasLevels: boolean;
+    /** A counted badge shows the real count and has no levels to edit. */
+    counted?: boolean;
     levels: LevelInput[];
     eventId: string | null;
     programId: string | null;
@@ -297,7 +299,13 @@ export default function BadgeTypeForm({
           </div>
         )}
 
-        <div className="mb-6">
+        {initial?.counted && (
+          <p className="mb-6 text-sm text-slate-700 dark:text-slate-300" data-testid="counted-badge-note">
+            This badge shows the real count: the name for one, then 2x, 3x and so on for as many as the member has. There are no levels to set.
+          </p>
+        )}
+
+        <div className={initial?.counted ? "hidden" : "mb-6"}>
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
@@ -313,7 +321,7 @@ export default function BadgeTypeForm({
           </p>
         </div>
 
-        {hasLevels && (
+        {hasLevels && !initial?.counted && (
           <div className="mb-6 space-y-3">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block">
               Levels (lowest to highest)

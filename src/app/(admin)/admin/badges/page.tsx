@@ -85,7 +85,12 @@ export default async function BadgesPage() {
                               Automatic
                             </span>
                           )}
-                          {type.has_levels && typeLevels.length > 0 && (
+                          {type.counted && (
+                            <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="counted-badge-text">
+                              Shows the real count: {type.name} → 2x {type.name} → 3x {type.name} …
+                            </span>
+                          )}
+                          {!type.counted && type.has_levels && typeLevels.length > 0 && (
                             <span className="text-xs text-slate-500 dark:text-slate-400">
                               {typeLevels.map((l) => l.name).join(" → ")}
                             </span>
