@@ -1,6 +1,6 @@
 # Big Sister program
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Every new member is matched with an existing member (their **big sister**) for **30 days**: someone who shows them around, answers the questions that are easier to ask a person, and invites them to prickles. "New member" means anyone whose membership just began, however:
 

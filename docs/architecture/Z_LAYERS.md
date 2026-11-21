@@ -1,6 +1,6 @@
 # Stacking layers (z-index)
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Never write a number (`z-30`, `z-[55]`). Use a named layer from `config/tailwind.ts` (`theme.extend.zIndex`); `tests/lib/z-layers.test.ts` fails on a numeric `z-*`.
 

@@ -1,6 +1,6 @@
 # Deployment and Environment Setup Guide
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-10-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 This guide walks through setting up custom domains, environment separation, and proper configuration for the Hedgie Hub.
 

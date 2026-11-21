@@ -1,6 +1,6 @@
 # Webhook Setup Guide
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-18. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 This guide explains how to configure and test real-time webhook handlers for Bronze layer updates.
 

@@ -1,6 +1,6 @@
 # Attendance Tracking Rules & Thresholds
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-04. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 This document defines all the rules and time thresholds used in the attendance tracking system.
 

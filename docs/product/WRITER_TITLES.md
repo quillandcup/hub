@@ -1,6 +1,6 @@
 # Writer titles
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-19. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The words we use for members and their milestones, in the Hub, on public pages, in emails and in the changelog. Decided by the owner (2026-11-19 and 2026-11-20). Use these words; ask before adding another.
 

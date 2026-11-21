@@ -1,6 +1,6 @@
 # Sentry config as code
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 `config/sentry.yml` is the source of truth for two things in Sentry:
 

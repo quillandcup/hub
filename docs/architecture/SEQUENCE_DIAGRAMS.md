@@ -1,6 +1,6 @@
 # Integration Sequence Diagrams
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** never (known out of date, see docs/TODO.md "Refresh the aging architecture docs"). Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 How each external integration gets data into the Bronze layer and triggers Silver
 reprocessing. Two flavors per integration where applicable:

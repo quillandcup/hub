@@ -1,6 +1,6 @@
 # The Finisher record
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 What the Hub knows about a writer's milestones, kept apart from the project they came from. Words and the ladder (Writer, Finisher, Author, Published Author): `docs/product/WRITER_TITLES.md`. The plan around it, including the public Finishers page that is not built yet: `docs/TODO.md`, "Writer profiles: public author pages, Finishers, three-level visibility".
 

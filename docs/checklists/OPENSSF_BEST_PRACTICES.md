@@ -1,6 +1,6 @@
 # OpenSSF Best Practices: where we stand
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it. Review: quarterly.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
 The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels. **We are not applying for the badge**: the Passing level requires a FLOSS license and ours is proprietary (`LICENSE`). This page uses the checklist as a list of good practice and records how we score, so we know what is already done and what is worth doing anyway.
 

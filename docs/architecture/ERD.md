@@ -1,6 +1,6 @@
 # Entity-Relationship Diagram — Hedgie Hub
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** never (known out of date, see docs/TODO.md "Refresh the aging architecture docs"). Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Reconstructed from the full migration history (`supabase/migrations/`, 87 files) plus
 verification against current application code. See `MEDALLION_ARCHITECTURE.md` for how

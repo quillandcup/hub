@@ -1,6 +1,6 @@
 # Prospecting: finding ideal Hedgies on Instagram
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic MVP. The goal: a steady supply of writers who would love Quill & Cup, so that Ania's daily outreach starts from a ranked list instead of from scrolling.
 

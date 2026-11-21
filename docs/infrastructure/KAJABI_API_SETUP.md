@@ -1,6 +1,6 @@
 # Kajabi API Integration Setup
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-04-28. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 ## Check if You Have API Access
 

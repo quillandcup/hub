@@ -1,6 +1,6 @@
 # Member Merge
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-12. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Merging combines two member records into one, transferring all associated data to the primary (kept) member and permanently deleting the secondary (duplicate).
 

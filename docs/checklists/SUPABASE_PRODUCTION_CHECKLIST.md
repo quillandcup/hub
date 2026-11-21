@@ -1,6 +1,6 @@
 # Supabase production checklist: where we stand
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it. Review: quarterly.
+> **Status:** living. **Last reviewed:** 2026-11-18. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
 Evaluation of the production project against Supabase's [Production Checklist](https://supabase.com/docs/guides/deployment/going-into-prod), done 2026-11-17. The security half of that checklist lives on a separate page ([Production security checklist](https://supabase.com/docs/guides/security/production-checklist)), evaluated in `docs/checklists/SUPABASE_SECURITY_CHECKLIST.md`.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it. Review: yearly.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 What's new and fixed in the Hedgie Hub, for members. One source, three readers.
 

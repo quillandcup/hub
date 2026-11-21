@@ -1,6 +1,6 @@
 # Prickle Check-ins: What We Ask and Why
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-06. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 A check-in is a few taps before and after a prickle, answered on the site (the check-in /
 check-out modal, Log Progress, Find a Prickle) or in the Slack DMs. Code: `lib/prickle-checkins.ts`

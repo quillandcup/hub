@@ -1,6 +1,6 @@
 # Hedgie Care: tracking a community manager's reach-outs
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The community manager reaches out to members (an introduction, a check-in on their writing, a welcome back) and some of those turn into long conversations. She started with a spreadsheet, one row per message. **Hedgie Care** tracks it in the Hub instead: one record per **care plan** (one reach-out period with one member; the code, table and events still call it an engagement), a status that follows from the dates and who spoke last, and results measured against the member's own activity before, during and after.
 

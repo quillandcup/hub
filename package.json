@@ -15,6 +15,7 @@
     "lint:quality": "mkdir -p reports && (eslint -c config/eslint-quality.mjs --no-warn-ignored -f json -o reports/eslint-quality.json . || true)",
     "quality:report": "tsx scripts/quality-report.ts",
     "quality:gate": "tsx scripts/quality-gate.ts",
+    "docs:overdue": "tsx scripts/docs-overdue.ts",
     "types:gen": "npx --yes supabase@2.117.0 gen types typescript --local --schema public --schema bronze > lib/data/database.types.ts.tmp && mv lib/data/database.types.ts.tmp lib/data/database.types.ts",
     "types:check": "pnpm types:gen && git diff --exit-code -- lib/data/database.types.ts",
     "prospects:assess": "tsx scripts/assess-prospects.ts",

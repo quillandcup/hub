@@ -1,6 +1,6 @@
 # Slack notification operations alerts
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The Sentry Slack integration requires a Team plan, so the Hub app posts its own production
 alerts to [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) through Billie Bot.

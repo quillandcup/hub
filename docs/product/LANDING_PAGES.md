@@ -1,6 +1,6 @@
 # Landing pages (the page builder)
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block (sign-ups into Kajabi) and the import of Kajabi page exports are built too; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
 
