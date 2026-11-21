@@ -14,7 +14,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 
 - `app/(member)/`, `app/(admin)/admin/`, `app/api/` (process, import, reconcile, webhooks, internal), `app/actions/`
 - `lib/` (domain logic), `lib/data/` (repositories, the only place that queries tables), `components/`, `emails/`
-- `config/` (config-as-code files: GitHub, Sentry, Slack, Vercel and Mux YAML, Sentry init, squawk, a PostCSS plugin), `supabase/migrations/`, `supabase/tests/database/` (pgTAP), `tests/` (`lib`, `api`, `components`), `docs/`
+- `config/` (app.ts and env-vars.ts, the config-as-code YAML for GitHub, Sentry, Slack, Vercel and Mux, Sentry init, vitest, squawk, a PostCSS plugin), `supabase/migrations/`, `supabase/tests/database/` (pgTAP), `tests/` (`lib`, `api`, `components`), `docs/`
 - Data layers: Bronze (raw imports) → Local (app-owned) → Silver (reprocessable from Bronze + Local) → Gold (on demand)
 
 ## Universal rules
@@ -33,7 +33,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 
 ### No Hardcoded Config
 
-**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks: `app.config.ts` (read via `lib/config.ts`) when it is the same in every environment, an env var declared in `env-vars.config.ts` when it is a secret or not fit to publish (the repo is public). Adding one: `.claude/rules/new-env-var.md`. Tests assert against the imported config values, not repeated literals.
+**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks: `config/app.ts` (read via `lib/config.ts`) when it is the same in every environment, an env var declared in `config/env-vars.ts` when it is a secret or not fit to publish (the repo is public). Adding one: `.claude/rules/new-env-var.md`. Tests assert against the imported config values, not repeated literals.
 
 ## Path-scoped rules (`.claude/rules/`)
 

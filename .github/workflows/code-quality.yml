@@ -1,0 +1,101 @@
+name: Code quality
+
+# Two jobs. `Code quality gate` fails a pull request on NEW problems only (identical functions and
+# all-duplicated branches on added lines; a new unused file or dependency, see knip-baseline.json).
+# The report job below is REPORT ONLY. Shows unused code (knip), duplicated code (jscpd) and complexity and smells (ESLint
+# quality rules, eslint.quality.config.mjs) in the job summary. Nothing here is a required check
+# and no step fails on findings: the point is to see how big the backlog is before deciding what
+# to gate. On a pull request it also lists the findings on lines the PR added, which is the part
+# that could become a gate later (like the coverage gate on new code). Run locally with
+# `pnpm knip:report`, `pnpm dup:report`, `pnpm lint:quality` and `pnpm quality:report`.
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+concurrency:
+  group: code-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: Code quality report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history so `git diff <base>...HEAD` can find the merge base.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Unused code (knip)
+        run: pnpm knip:report
+        continue-on-error: true
+
+      - name: Duplicated code (jscpd)
+        run: pnpm dup:report
+        continue-on-error: true
+
+      - name: Complexity and smells (ESLint quality rules)
+        run: pnpm lint:quality
+        continue-on-error: true
+
+      - name: Write the summary
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            pnpm --silent quality:report --base "origin/$BASE" >> "$GITHUB_STEP_SUMMARY"
+          else
+            pnpm --silent quality:report >> "$GITHUB_STEP_SUMMARY"
+          fi
+        continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: code-quality-reports
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The one part that can fail. Only on pull requests (it looks at the lines the PR added), and
+  # not a required check yet: to require it, add `Code quality gate` to the required checks in
+  # config/github.yml and run `pnpm github:config:push` (the owner does that).
+  gate:
+    name: Code quality gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Fail on new duplicated code and unused files or dependencies
+        run: pnpm quality:gate --base "origin/$BASE"
+        env:
+          BASE: ${{ github.base_ref }}

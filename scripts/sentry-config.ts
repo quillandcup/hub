@@ -17,7 +17,7 @@
 
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import appConfig from "../app.config";
+import appConfig from "../config/app";
 import {
   orgSettingsBody,
   parseAlertRules,

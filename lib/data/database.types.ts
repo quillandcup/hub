@@ -4494,6 +4494,7 @@ export type Database = {
           topics: string[]
           updated_at: string
           updated_by: string | null
+          visibility: string
         }
         Insert: {
           created_at?: string
@@ -4501,6 +4502,7 @@ export type Database = {
           topics?: string[]
           updated_at?: string
           updated_by?: string | null
+          visibility?: string
         }
         Update: {
           created_at?: string
@@ -4508,6 +4510,7 @@ export type Database = {
           topics?: string[]
           updated_at?: string
           updated_by?: string | null
+          visibility?: string
         }
         Relationships: [
           {
@@ -5261,34 +5264,49 @@ export type Database = {
       member_profile_overrides: {
         Row: {
           bio: string | null
+          bio_visibility: string
           created_at: string
           facebook_url: string | null
+          facebook_visibility: string
           instagram_url: string | null
+          instagram_visibility: string
           member_id: string
           photo_path: string | null
+          photo_visibility: string
           twitter_url: string | null
+          twitter_visibility: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           bio?: string | null
+          bio_visibility?: string
           created_at?: string
           facebook_url?: string | null
+          facebook_visibility?: string
           instagram_url?: string | null
+          instagram_visibility?: string
           member_id: string
           photo_path?: string | null
+          photo_visibility?: string
           twitter_url?: string | null
+          twitter_visibility?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           bio?: string | null
+          bio_visibility?: string
           created_at?: string
           facebook_url?: string | null
+          facebook_visibility?: string
           instagram_url?: string | null
+          instagram_visibility?: string
           member_id?: string
           photo_path?: string | null
+          photo_visibility?: string
           twitter_url?: string | null
+          twitter_visibility?: string
           updated_at?: string
           updated_by?: string | null
         }
@@ -8668,6 +8686,10 @@ export type Database = {
           member_id: string
         }[]
       }
+      member_ask_me_about_shown: {
+        Args: { p_member_id: string }
+        Returns: string[]
+      }
       member_data_report: {
         Args: { p_member_id: string }
         Returns: {
@@ -8869,6 +8891,10 @@ export type Database = {
       }
       recompute_course_states: {
         Args: { p_course_id: string }
+        Returns: undefined
+      }
+      refresh_member_directory: {
+        Args: { p_member_id: string }
         Returns: undefined
       }
       remove_event_attendee: {

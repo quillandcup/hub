@@ -1,8 +1,8 @@
-// app.config.ts
+// config/app.ts
 //
 // Organization settings that are the same in every environment (local, preview, production).
 // Values that differ per environment, and all secrets, are env vars instead -- see
-// env-vars.config.ts. Nothing else in the code should hardcode these.
+// config/env-vars.ts. Nothing else in the code should hardcode these.
 //
 // Read by lib/config.ts (app code), next.config.ts, __checks__/config.ts (Checkly), and
 // scripts. SQL can't import this file: `pnpm env:sync:vault` copies the values pg_cron
@@ -170,11 +170,11 @@ export const appConfig = {
   },
 
   /**
-   * OpenSSF Scorecard (.github/workflows/scorecard.yml): the lowest published score (0 to 10) before the weekly
+   * OpenSSF Scorecard (.github/workflows/openssf-scorecard.yml): the lowest published score (0 to 10) before the weekly
    * run fails and posts to the alerts channel. Set a little under the score at the time, so ordinary noise does not
-   * alert, and raise it in a pull request when the score improves (a ratchet). Measured 2026-11-20: 4.8.
+   * alert, and raise it in a pull request when the score improves (a ratchet). Measured 2026-11-20: 4.8, then 7.5 after the first fixes (floor raised to 7).
    */
-  scorecard: { minScore: 4 },
+  scorecard: { minScore: 7 },
 
   /**
    * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own

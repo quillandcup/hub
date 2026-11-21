@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { appConfig } from "@/app.config";
+import { appConfig } from "@/config/app";
 import { STAFF_MFA_REQUIRED_FROM } from "@/lib/config";
 import { blocksStaff, hasVerifiedTotp, isStaffMfaEnforced, staffMfaState } from "@/lib/staff-mfa";
 import { readMfaStatus, staffMfaStateFor } from "@/lib/staff-mfa.server";
@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 const FROM = "2027-02-01T00:00:00-05:00";
 const TOTP = { factor_type: "totp", status: "verified" };
 
-describe("the requirement date (app.config.ts staffMfaRequiredFrom)", () => {
+describe("the requirement date (config/app.ts staffMfaRequiredFrom)", () => {
   it("is off in code until the owner sets a date", () => {
     expect(STAFF_MFA_REQUIRED_FROM).toBe(appConfig.staffMfaRequiredFrom);
     expect(appConfig.staffMfaRequiredFrom).toBeNull();

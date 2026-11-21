@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import appConfig from "../../app.config";
+import appConfig from "../../config/app";
 import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, reportOnlyCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
@@ -99,10 +99,21 @@ describe("scriptStyleCsp", () => {
   const policy = scriptStyleCsp({ nonce, sentryDsn: DSN });
 
   it("allows scripts and styles only from us or with the nonce", () => {
-    expect(policy).toContain(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`);
+    expect(policy).toContain(`script-src 'nonce-${nonce}' 'strict-dynamic'`);
     expect(policy).toContain(`style-src 'self' 'nonce-${nonce}'`);
     expect(policy).not.toMatch(/script-src[^;]*unsafe-inline/);
     expect(policy).not.toContain("unsafe-eval");
+  });
+
+  it("trusts scripts through the nonce alone: no 'self', host or scheme source in script-src", () => {
+    // 'strict-dynamic' makes browsers ignore those anyway (MDN), so they would only add noise to the policy.
+    const scriptSrc = policy.split("; ").find((d) => d.startsWith("script-src "))!;
+    expect(scriptSrc.split(" ").slice(1)).toEqual([`'nonce-${nonce}'`, "'strict-dynamic'"]);
+  });
+
+  it("only adds 'unsafe-eval' to script-src in development", () => {
+    const dev = scriptStyleCsp({ nonce, sentryDsn: DSN, dev: true }).split("; ").find((d) => d.startsWith("script-src "))!;
+    expect(dev).toBe(`script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`);
   });
 
   it("allows eval only in development", () => {

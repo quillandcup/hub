@@ -4,7 +4,7 @@ import type { PresetName } from "./presets";
 
 /**
  * Whether an image may be served to someone who isn't signed in because a book uses it as its cover. Only while
- * the Bookshelf is public (app.config.ts `bookshelfPublic`), only for the book cover's shelf size, and only for
+ * the Bookshelf is public (config/app.ts `bookshelfPublic`), only for the book cover's shelf size, and only for
  * an image a book shows: the Amazon version and a project's pre-publish cover stay behind sign-in. `media` needs
  * the service role, since the caller can't read the image themselves.
  */

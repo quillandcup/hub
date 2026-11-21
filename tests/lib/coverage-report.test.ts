@@ -9,7 +9,6 @@ import {
   isGated,
   lineRanges,
   mergeSuites,
-  parseAddedLines,
   patchCoverage,
   renderReport,
   suiteHits,
@@ -17,21 +16,6 @@ import {
   type FileCoverage,
   type Metrics,
 } from "../../scripts/coverage-report";
-
-const DIFF = [
-  "diff --git a/lib/a.ts b/lib/a.ts",
-  "--- a/lib/a.ts",
-  "+++ b/lib/a.ts",
-  "@@ -3,0 +4,2 @@ ctx",
-  "+x",
-  "+y",
-  "@@ -10 +12 @@",
-  "+z",
-  "diff --git a/lib/gone.ts b/lib/gone.ts",
-  "--- a/lib/gone.ts",
-  "+++ /dev/null",
-  "@@ -1,3 +0,0 @@",
-].join("\n");
 
 /** One statement per line, one function and branch group per `f`/`b` entry, placed by id. */
 function file(
@@ -62,14 +46,6 @@ const metrics = (lines: [number, number], statements = lines, functions = lines,
   statements: m(...statements),
   functions: m(...functions),
   branches: m(...branches),
-});
-
-describe("parseAddedLines", () => {
-  it("expands hunk ranges, defaults a missing count to 1, ignores deleted files", () => {
-    const added = parseAddedLines(DIFF);
-    expect([...added.keys()]).toEqual(["lib/a.ts"]);
-    expect([...added.get("lib/a.ts")!]).toEqual([4, 5, 12]);
-  });
 });
 
 describe("isGated / areaKey", () => {

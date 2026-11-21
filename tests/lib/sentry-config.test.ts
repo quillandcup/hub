@@ -13,7 +13,7 @@ import {
   workflowBody,
   type LiveWorkflow,
 } from "@/lib/sentry-config";
-import { ENV_VARS } from "@/env-vars.config";
+import { ENV_VARS } from "@/config/env-vars";
 
 const on = { dataScrubber: true, dataScrubberDefaults: true, scrubIPAddresses: true };
 

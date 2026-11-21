@@ -8,7 +8,7 @@
 
 // Relative, not "@/": also loaded outside Next (scripts/render-email-templates.ts via
 // supabase/emails/layout.tsx).
-import appConfig from "../app.config";
+import appConfig from "../config/app";
 
 /**
  * Environment type
@@ -42,8 +42,8 @@ export const deployment = {
 };
 
 /**
- * Organization settings shared by every environment, from app.config.ts at the repo root.
- * Per-environment values and secrets are env vars (env-vars.config.ts) instead.
+ * Organization settings shared by every environment, from config/app.ts.
+ * Per-environment values and secrets are env vars (config/env-vars.ts) instead.
  */
 
 /**
@@ -53,13 +53,13 @@ export const deployment = {
  */
 export const ORG_TIMEZONE = appConfig.orgTimezone;
 
-/** Minutes after writing a staff note during which its author can edit it (app.config.ts `adminNoteEditMinutes`). */
+/** Minutes after writing a staff note during which its author can edit it (config/app.ts `adminNoteEditMinutes`). */
 export const ADMIN_NOTE_EDIT_MINUTES: number = appConfig.adminNoteEditMinutes;
 
-/** When staff must use a second sign-in step; null = not required yet (app.config.ts `staffMfaRequiredFrom`, lib/staff-mfa.ts). */
+/** When staff must use a second sign-in step; null = not required yet (config/app.ts `staffMfaRequiredFrom`, lib/staff-mfa.ts). */
 export const STAFF_MFA_REQUIRED_FROM: string | null = appConfig.staffMfaRequiredFrom;
 
-/** Hedgie Care (lib/care.ts): the length of one engagement, in days (app.config.ts `careEngagementDays`). */
+/** Hedgie Care (lib/care.ts): the length of one engagement, in days (config/app.ts `careEngagementDays`). */
 export const CARE_ENGAGEMENT_DAYS: number = appConfig.careEngagementDays;
 
 /** Days after an engagement's period ends that it waits for her to renew or close it before it counts as lapsed (`careLapseGraceDays`). */
@@ -89,15 +89,15 @@ export function postalAddress(): string {
   return value;
 }
 
-/** The public site writers' pages link back to, no trailing slash (app.config.ts `siteUrl`). */
+/** The public site writers' pages link back to, no trailing slash (config/app.ts `siteUrl`). */
 export const SITE_URL = appConfig.siteUrl.replace(/\/+$/, "");
 
-/** Writers' public pages: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (app.config.ts `writerProfiles`). */
+/** Writers' public pages: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (config/app.ts `writerProfiles`). */
 export const WRITER_PROFILES = appConfig.writerProfiles;
 
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
 
-/** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */
+/** Whether book covers are served to visitors who aren't signed in (config/app.ts `bookshelfPublic`). */
 export const BOOKSHELF_PUBLIC: boolean = appConfig.bookshelfPublic;
 
 /** Slack workspace URL, no trailing slash, for links that open a channel. */
@@ -109,18 +109,18 @@ export const SLACK_INTRO_CHANNEL = appConfig.slack.introChannel;
 /** Channel for production operations alerts posted by Billie Bot. */
 export const SLACK_ALERTS_CHANNEL_ID = appConfig.slack.alertsChannelId;
 
-/** Channel the weekly changelog digest is posted to, or "" for none (app.config.ts `slack.changelogChannelId`). */
+/** Channel the weekly changelog digest is posted to, or "" for none (config/app.ts `slack.changelogChannelId`). */
 export const SLACK_CHANGELOG_CHANNEL_ID: string = appConfig.slack.changelogChannelId;
 
-/** Channel members' wins (new books, awards) are celebrated in (app.config.ts `slack.celebrationsChannelId`). */
+/** Channel members' wins (new books, awards) are celebrated in (config/app.ts `slack.celebrationsChannelId`). */
 export const SLACK_CELEBRATIONS_CHANNEL_ID: string = appConfig.slack.celebrationsChannelId;
 
-/** The channel one kind of celebration goes to: its override in app.config.ts `slack.celebrationChannelOverrides`, else the shared one. */
+/** The channel one kind of celebration goes to: its override in config/app.ts `slack.celebrationChannelOverrides`, else the shared one. */
 export function celebrationChannel(kind: string, overrides: Record<string, string> = appConfig.slack.celebrationChannelOverrides): string {
   return overrides[kind] || SLACK_CELEBRATIONS_CHANNEL_ID;
 }
 
-/** First day (YYYY-MM-DD) a changelog entry can be notified in the digest or the channel post (app.config.ts `changelogDigestStartsOn`). */
+/** First day (YYYY-MM-DD) a changelog entry can be notified in the digest or the channel post (config/app.ts `changelogDigestStartsOn`). */
 export const CHANGELOG_DIGEST_STARTS_ON: string = appConfig.changelogDigestStartsOn;
 
 /** First day (YYYY-MM-DD) prickle attendance is recorded from. */
@@ -138,10 +138,10 @@ export const ANTHROPIC = {
 
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 
-/** The course the Courses page offers to members who have none, and its waitlist page (app.config.ts `featuredCourse`). */
+/** The course the Courses page offers to members who have none, and its waitlist page (config/app.ts `featuredCourse`). */
 export const FEATURED_COURSE = appConfig.featuredCourse;
 
-/** Windows, thresholds and minimum browser versions of the daily CSP health check (app.config.ts `cspHealth`). */
+/** Windows, thresholds and minimum browser versions of the daily CSP health check (config/app.ts `cspHealth`). */
 export const CSP_HEALTH = appConfig.cspHealth;
 
 /** The `From` of notification emails: `Name <address>`. */
@@ -160,7 +160,7 @@ export const MFA_ISSUER: string = appConfig.mfaIssuer;
 /**
  * The User-Agent of every request this app makes to a server that is not ours (docs/OUTBOUND_REQUESTS.md).
  * RFC 9110 form: `product/version (comment)`. Wikimedia and others refuse requests with none, and ask for a
- * name and a way to reach us. Carries nothing about a member. The pieces come from app.config.ts and the
+ * name and a way to reach us. Carries nothing about a member. The pieces come from config/app.ts and the
  * deployed commit (`deployment.commitSha`, not package.json's version), `dev` when there is none.
  */
 const TOKEN_CHARS = /[^A-Za-z0-9!#$%&'*+.^_`|~-]/g;

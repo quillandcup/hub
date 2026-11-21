@@ -22,11 +22,11 @@ This project uses separate environments for local development, Vercel previews, 
 .env.preview    # Vercel Preview overrides (e.g. the dev Supabase project) - git-ignored
 .env.prod       # Vercel Production overrides + CI/ops credentials - git-ignored
 .env.example    # Template with no real values - committed to git
-app.config.ts   # Shared settings that are fine to publish (timezone, URLs, ...) - committed
+config/app.ts   # Shared settings that are fine to publish (timezone, URLs, ...) - committed
 ```
 
 A var set in `.env.preview`/`.env.prod` overrides `.env.shared` for that environment.
-`env-vars.config.ts` declares every var; `scripts/env-files.ts` does the layering.
+`config/env-vars.ts` declares every var; `scripts/env-files.ts` does the layering.
 
 ## Local Development Workflow
 

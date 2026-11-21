@@ -10,7 +10,7 @@ import { renderNotificationEmail } from "@/emails/notifications";
 import { unsubscribePageUrl } from "@/lib/email-unsubscribe";
 import { notificationKind, type NotificationKindId } from "@/lib/notifications/registry";
 import type { OutboundMessage } from "@/lib/channels/types";
-import appConfig from "../../app.config";
+import appConfig from "../../config/app";
 
 /**
  * What members receive, drawn from the app's own message code: the Slack blocks as `slackBlocks()` assembles

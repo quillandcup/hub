@@ -205,7 +205,7 @@ const fakeTables = (): FakeTables => ({
     return { data: wanted ? rows.filter((r) => r.id === wanted) : rows };
   },
   user_profiles: () => ({ data: { role: staffRole } }),
-  member_ask_me_about: { data: { topics: ["cozy mysteries", "morning routines"] } },
+  "rpc:member_ask_me_about_shown": { data: ["cozy mysteries", "morning routines"] },
   chat_messages: (q) => {
     if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_root_id")) return { data: replies };
     const wanted = eqArg(q, "id");

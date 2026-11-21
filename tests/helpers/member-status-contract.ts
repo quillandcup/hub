@@ -185,6 +185,38 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
       expect(Object.keys(ours[0]).sort()).toEqual(["first_joined_at", "member_id"]);
     });
 
+    describe("who can see each profile item", () => {
+      it("is community for every item until the member changes one", async () => {
+        const community = { bio: "community", photo: "community", instagram: "community", facebook: "community", x: "community" };
+        expect(await ctx.repo().profileVisibilitiesOf(ctx.members[ada].id)).toEqual(community);
+      });
+
+      it("sets one item at a time, keeps the others and everything else on the row, and is per member", async () => {
+        const repo = ctx.repo();
+        await repo.saveProfileOverride(ctx.members[ada].id, { bio: "Hello there" }, ctx.userId);
+
+        await repo.saveProfileVisibility(ctx.members[ada].id, "bio", "private", ctx.userId);
+        await repo.saveProfileVisibility(ctx.members[ada].id, "x", "public", ctx.userId);
+        await repo.saveProfileVisibility(ctx.members[bo].id, "photo", "public", ctx.userId);
+
+        expect(await repo.profileVisibilitiesOf(ctx.members[ada].id)).toEqual({ bio: "private", photo: "community", instagram: "community", facebook: "community", x: "public" });
+        expect(await repo.profileVisibilitiesOf(ctx.members[bo].id)).toEqual({ bio: "community", photo: "public", instagram: "community", facebook: "community", x: "community" });
+        expect(await repo.profileOverrideOf(ctx.members[ada].id)).toMatchObject({ bio: "Hello there" });
+
+        await repo.saveProfileVisibility(ctx.members[ada].id, "bio", "community", ctx.userId);
+        expect((await repo.profileVisibilitiesOf(ctx.members[ada].id)).bio).toBe("community");
+      });
+
+      it("leaves the text fields as they were (never set stays never set) when only a level is saved", async () => {
+        await ctx.repo().saveProfileVisibility(ctx.members[cy].id, "instagram", "private", ctx.userId);
+        expect(await ctx.repo().profileOverrideOf(ctx.members[cy].id)).toEqual({ bio: null, instagram_url: null, facebook_url: null, twitter_url: null, photo_path: null });
+      });
+
+      it("refuses a member that does not exist", async () => {
+        await expect(ctx.repo().saveProfileVisibility(ctx.missingMemberId, "bio", "private", ctx.userId)).rejects.toThrow();
+      });
+    });
+
     describe("profile overrides", () => {
       it("is null until the member saves something", async () => {
         expect(await ctx.repo().profileOverrideOf(ctx.members[ada].id)).toBeNull();

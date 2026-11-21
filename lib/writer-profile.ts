@@ -113,6 +113,16 @@ export function publishablePhotoUrl(url: string | null | undefined): string | nu
   }
 }
 
+/** A link for a public page: an https address, or null. A member's own text can hold anything, and only https goes on the open web. */
+export function publishableLink(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /** What the name shown can be: the display name, or one of the pen names the member allowed on their page. */
 export function publicName(member: { name: string; display_name?: string | null }, penName: string | null): string {
   const pen = penName?.trim();

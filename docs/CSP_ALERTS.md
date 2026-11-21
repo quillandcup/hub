@@ -13,7 +13,7 @@ The first three match CSP reports only (the tag `logger=csp`, which every report
 
 | Rule | Fires when | What to check |
 |---|---|---|
-| `Hub: CSP violation, new issue` | A violation of a kind not seen before (a new blocked host or directive). | Open the issue: the blocked host and directive are in the title. Is it ours (add the host to `app.config.ts` `csp.*Hosts`) or a browser extension (ignore, or filter)? |
+| `Hub: CSP violation, new issue` | A violation of a kind not seen before (a new blocked host or directive). | Open the issue: the blocked host and directive are in the title. Is it ours (add the host to `config/app.ts` `csp.*Hosts`) or a browser extension (ignore, or filter)? |
 | `Hub: CSP violation, came back after being resolved` | A resolved CSP issue gets a new event (a regression). | The fix did not hold: compare with the release it was resolved in. |
 | `Hub: CSP violation, more than 100 events in an hour` | One CSP issue gets more than 100 events within an hour (at most one email an hour per issue). | A policy change now blocks something every page loads, or a loop is reporting. Look at the newest events (URL, browser). |
 | `Hub: CSP health check failed` | The daily health check sent an event (tag `logger=csp-health`, not `csp`, so it never matches the three above). The first event of an issue emails at once; after that at most one email a day per issue (`frequencyMinutes: 1440`, the workflow's pause between two notifications for the same issue). | See "The daily health check" below: the issue's title says which check, its event has the counts and browsers. |
@@ -24,7 +24,7 @@ The first three match CSP reports only (the tag `logger=csp`, which every report
 
 ## The daily health check
 
-Over the last 24 hours (`app.config.ts` `cspHealth`; every threshold below lives there). It reads one SQL aggregate (`csp_rollout_activity`, one row per user and user agent, about a hundred rows) and never the request log row by row. When a check trips, the route calls `Sentry.captureMessage` (level error, tags `logger=csp-health` and `check=<stranded|lost-google-cookie|unsupported-browser>`, a fixed message and fingerprint per check, so a problem that lasts is one issue) and waits for `Sentry.flush` before it answers. The event's extra data has counts and browser family and major version only, never names, emails, ids or user agents. The check reads nothing from Sentry. User agents `node` and anything with `HeadlessChrome` (our test runs) are ignored.
+Over the last 24 hours (`config/app.ts` `cspHealth`; every threshold below lives there). It reads one SQL aggregate (`csp_rollout_activity`, one row per user and user agent, about a hundred rows) and never the request log row by row. When a check trips, the route calls `Sentry.captureMessage` (level error, tags `logger=csp-health` and `check=<stranded|lost-google-cookie|unsupported-browser>`, a fixed message and fingerprint per check, so a problem that lasts is one issue) and waits for `Sentry.flush` before it answers. The event's extra data has counts and browser family and major version only, never names, emails, ids or user agents. The check reads nothing from Sentry. User agents `node` and anything with `HeadlessChrome` (our test runs) are ignored.
 
 ### 1. Members load pages but never run our scripts
 

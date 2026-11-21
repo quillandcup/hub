@@ -28,6 +28,7 @@ vi.mock("@/app/(member)/settings/PreviewsPanel", () => ({ PreviewsPanel: () => <
 vi.mock("@/components/HostVibePanel", () => ({ default: () => <div>host vibe panel</div> }));
 vi.mock("@/app/(member)/settings/SessionsPanel", () => ({ SessionsPanel: () => <div>sessions</div> }));
 vi.mock("@/app/(member)/settings/ProfilePanel", () => ({ ProfilePanel: () => <div>profile panel</div> }));
+vi.mock("@/app/(member)/settings/WhosComingSetting", () => ({ WhosComingSetting: () => <div>whos coming setting</div> }));
 vi.mock("@/app/(member)/settings/IdentityPanel", () => ({ IdentityPanel: () => <div>identity panel</div> }));
 vi.mock("@/app/(member)/settings/ThemeSwitcher", () => ({ ThemeSwitcher: () => <div>theme</div> }));
 vi.mock("@/app/(member)/settings/AnimationsSwitcher", () => ({ AnimationsSwitcher: () => <div>animations</div> }));
@@ -84,6 +85,17 @@ describe("settings routes", () => {
 
     expect(selectedTab()).toBe("Account");
     expect(screen.queryByRole("tab", { name: "Previews" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Who's coming under Preferences, not under Profile", async () => {
+    await renderServerRoute(PreferencesRoute, undefined as never);
+    expect(selectedTab()).toBe("Preferences");
+    expect(screen.getByText("whos coming setting")).toBeInTheDocument();
+    cleanup();
+
+    await renderServerRoute(await import("@/app/(member)/settings/profile/page").then((m) => m.default), undefined as never);
+    expect(selectedTab()).toBe("Profile");
+    expect(screen.queryByText("whos coming setting")).not.toBeInTheDocument();
   });
 
   describe("blocked link previews, under Preferences", () => {

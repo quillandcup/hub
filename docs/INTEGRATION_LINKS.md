@@ -31,7 +31,7 @@ the step-by-step per-service runbook — this file has the dashboard links, that
 Every secret, where to create or rotate it, and how the new value reaches where it's used.
 Values live in `.env.shared` / `.env.prod` / `.env.preview` (gitignored); after changing one,
 run the sync in the last column, then redeploy (`gh workflow run ci.yml --ref main`) for
-Vercel values. `env-vars.config.ts` is the source of truth for which var goes where.
+Vercel values. `config/env-vars.ts` is the source of truth for which var goes where.
 
 | Secret | Create / rotate it at | Then |
 |---|---|---|
@@ -59,7 +59,7 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 | `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | IDs, not credentials: https://vercel.com/quillandcup/hub/settings | `pnpm env:sync:github` |
 | `SUDO_SECRET`, `CRON_SECRET` | Self-generated: `openssl rand -hex 32` | `pnpm env:sync` |
 | `CRON_INTERNAL_SECRET` | Self-generated: `openssl rand -hex 32` | `pnpm env:sync` and `pnpm env:sync:vault` |
-| `GOOGLE_CALENDAR_WEBHOOK_TOKEN` | Self-generated; set when registering the watch channel (`WEBHOOK_SETUP.md`) | Vercel dashboard only (not in `env-vars.config.ts` yet) |
+| `GOOGLE_CALENDAR_WEBHOOK_TOKEN` | Self-generated; set when registering the watch channel (`WEBHOOK_SETUP.md`) | Vercel dashboard only (not in `config/env-vars.ts` yet) |
 
 Per-service gotchas (what breaks mid-rotation, how to verify it took) are in
 `docs/SECRET_ROTATION.md`.
@@ -68,12 +68,12 @@ Per-service gotchas (what breaks mid-rotation, how to verify it took) are in
 
 Alert destinations are configured per system and environment:
 
-- **Email**: `ALERTS_EMAIL` -- check `.env.prod` / `.env.preview` (declared in `env-vars.config.ts`).
-- **Slack channel**: `#hub-alerts` is declared in `app.config.ts` for production app alerts.
+- **Email**: `ALERTS_EMAIL` -- check `.env.prod` / `.env.preview` (declared in `config/env-vars.ts`).
+- **Slack channel**: `#hub-alerts` is declared in `config/app.ts` for production app alerts.
 
 | System | Where it's configured | Status |
 |---|---|---|
-| Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `app.config.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
+| Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/SLACK_OPERATIONS_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
@@ -267,7 +267,7 @@ that should persist (dashboard edits get overwritten on the next `checkly deploy
 
 1. Add the job to `CRON_HEARTBEATS` in `lib/cron-heartbeats.ts` (route, scheduler, period, grace,
    env var name) and wrap the route's response in `withCronHeartbeat("<job>", ...)`. The monitor
-   (`__checks__/cron-heartbeats.check.ts`) and the env var declaration (`env-vars.config.ts`)
+   (`__checks__/cron-heartbeats.check.ts`) and the env var declaration (`config/env-vars.ts`)
    are generated from that list, so there's nothing to add there.
 2. Merge. `.github/workflows/checkly.yml` runs `checkly deploy`, which creates the monitor.
 3. In the Checks page above, open the new monitor and copy its ping URL. Checkly assigns it on the
@@ -295,7 +295,7 @@ worth checking the Billing page above once the trial period ends.
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SENTRY_AUTH_TOKEN`, `RESEND_API_KEY`,
 `GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
-Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`pnpm env:sync:github`) see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
+Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`pnpm env:sync:github`) see `config/env-vars.ts` at the repo root for the source-of-truth list of which vars go where.
 
 Two exceptions to the sync:
 

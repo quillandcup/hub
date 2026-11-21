@@ -2,7 +2,7 @@
 
 `config/mux.yml` is the source of truth for the Mux settings its API can manage: the webhook that tells the Hub a course video is ready, and the playback restriction (which sites may play a signed video). `scripts/mux-config.ts` compares it with the live Mux environment (`diff`, read-only) and applies it (`push`). Unlike the Slack, Supabase and Vercel configs, **CI never pushes this one**: the webhook's signing secret is shown once and has to land in `.env.prod`, so the operator runs it.
 
-The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `app.config.ts`). The logic that builds the desired state and compares it is `lib/mux-config.ts` (unit-tested); the script only does the HTTP calls.
+The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `config/app.ts`). The logic that builds the desired state and compares it is `lib/mux-config.ts` (unit-tested); the script only does the HTTP calls.
 
 ## What is and isn't managed
 
@@ -20,7 +20,7 @@ The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `a
 
 `signPlaybackTokens` (`lib/mux.ts`) adds the claim to the **video** token (the stream) when both hold:
 
-1. `MUX_PLAYBACK_RESTRICTION_ID` is set in that deployment (a non-secret env var, declared in `env-vars.config.ts`, synced to Vercel preview and production). The id is **per Mux environment**: production's, the "Hedgie Hub - Local Dev" environment's (used by preview and local) and the checks environment's all differ. Unset means nothing is enforced.
+1. `MUX_PLAYBACK_RESTRICTION_ID` is set in that deployment (a non-secret env var, declared in `config/env-vars.ts`, synced to Vercel preview and production). The id is **per Mux environment**: production's, the "Hedgie Hub - Local Dev" environment's (used by preview and local) and the checks environment's all differ. Unset means nothing is enforced.
 2. The `mux_playback_restriction` feature flag is on for the effective viewer (the sudo'd member in sudo). It is created off (`enabled_globally = false`) and is turned on from the feature flags admin UI: first as your own preview, then a segment, then everyone.
 
 Otherwise the tokens are exactly what they were before. Thumbnail and storyboard tokens never carry the claim: Mux supports it on every token type, but the stream is what we protect, and images are what a wrong domain list would break most confusingly. Only the member lesson page passes the id; the admin lesson builder's player stays unrestricted. The nightly Checkly stream check uses a separate Mux environment with no restriction and tokens from `__checks__/mux-token.ts`, so it is unaffected and needs no change now. If you ever want it to prove enforcement, that environment needs its own restriction and the check's token needs the same claim.
@@ -66,7 +66,7 @@ Before changing `config/mux.yml`, run the diff and check it shows only what you 
 
 ## Tokens
 
-The app's token (`MUX_TOKEN_ID` / `MUX_TOKEN_SECRET`) has only Mux Video and Mux Data, and is in Vercel. Managing webhooks needs a separate token with the **System** permission: Mux -> Settings -> API Access Tokens -> New, permission System, in the production environment. Keep it on the operator's machine in `.env.prod` as `MUX_SYSTEM_TOKEN_ID` / `MUX_SYSTEM_TOKEN_SECRET`. It is deliberately **not** in `env-vars.config.ts`, so `env:sync` never sends it to Vercel or GitHub. Revoke it when you are done if you prefer; the diff works without it.
+The app's token (`MUX_TOKEN_ID` / `MUX_TOKEN_SECRET`) has only Mux Video and Mux Data, and is in Vercel. Managing webhooks needs a separate token with the **System** permission: Mux -> Settings -> API Access Tokens -> New, permission System, in the production environment. Keep it on the operator's machine in `.env.prod` as `MUX_SYSTEM_TOKEN_ID` / `MUX_SYSTEM_TOKEN_SECRET`. It is deliberately **not** in `config/env-vars.ts`, so `env:sync` never sends it to Vercel or GitHub. Revoke it when you are done if you prefer; the diff works without it.
 
 ## Creating the production webhook, and its secret
 

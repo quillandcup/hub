@@ -1,6 +1,6 @@
 // Content-Security-Policy for every response. Imported by next.config.ts, so it uses relative imports only.
 //
-// Enforcing since 2026-11-17, after a week of Report-Only reports showed one missing picture host (now in app.config.ts).
+// Enforcing since 2026-11-17, after a week of Report-Only reports showed one missing picture host (now in config/app.ts).
 // Violations are still sent to Sentry, so a picture host we forgot shows up as a report.
 // Scripts and styles are covered by a second policy with a per-request nonce (scriptStyleCsp), sent by proxy.ts in
 // report-only mode first (docs/TODO.md, "CSP for scripts and styles").
@@ -13,11 +13,11 @@ export const NONCE_HEADER = "x-nonce";
 export interface CspInputs {
   /** The Supabase project URL (storage serves media, covers, emoji, help and changelog pictures). */
   supabaseUrl?: string;
-  /** Other origins pictures legitimately load from (app.config.ts `csp.imageHosts`). */
+  /** Other origins pictures legitimately load from (config/app.ts `csp.imageHosts`). */
   imageHosts: readonly string[];
   /** The Sentry DSN, whose ingest host also takes CSP reports. Without one, violations are not reported anywhere. */
   sentryDsn?: string;
-  /** Report-only for now: where requests may go (app.config.ts `csp.connectHosts`), what may be framed, where media loads from. */
+  /** Report-only for now: where requests may go (config/app.ts `csp.connectHosts`), what may be framed, where media loads from. */
   connectHosts?: readonly string[];
   frameHosts?: readonly string[];
   mediaHosts?: readonly string[];
@@ -87,9 +87,11 @@ export function generateNonce(): string {
 /**
  * The script and style half of the policy, for one request.
  *
- * - `script-src`: our own files and anything carrying the nonce. `'strict-dynamic'` lets a nonced script load others (the Google
- *   Analytics tag, Vercel's scripts), so no host list has to be kept; browsers that know it ignore `'self'` and the hosts.
- *   Development adds `'unsafe-eval'` (React's debugging needs it; production does not).
+ * - `script-src`: anything carrying the nonce, and what a nonced script loads (`'strict-dynamic'`: our own chunks, the Google
+ *   Analytics tag, Vercel's scripts), so no host list has to be kept. No `'self'`: a browser that knows `'strict-dynamic'`
+ *   ignores `'self'` and every host or scheme source (MDN), so it would do nothing for any browser our members use. A browser
+ *   too old for `'strict-dynamic'` reports our chunks as violations instead, which is how it would show up in Sentry
+ *   (docs/TODO.md, "CSP for scripts and styles"). Development adds `'unsafe-eval'` (React's debugging needs it; production does not).
  * - `style-src`: our own files and nonced `<style>` tags. Style attributes (`style="..."`, many components set one) cannot carry a
  *   nonce, so `style-src-attr` allows them; that is the weaker part, and it cannot run script.
  * - `worker-src`: session replay and Sentry start workers from `blob:` addresses.
@@ -99,7 +101,7 @@ export function generateNonce(): string {
  */
 function scriptStyleDirectives(nonce: string, dev: boolean): string[] {
   return [
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
     "worker-src 'self' blob:",

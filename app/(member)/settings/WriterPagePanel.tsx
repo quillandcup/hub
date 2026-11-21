@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { WRITER_PROFILES } from "@/lib/config";
-import { BIO_MAX_LENGTH, validateHandle } from "@/lib/writer-profile";
+import { validateHandle } from "@/lib/writer-profile";
 import {
   claimWriterHandle,
-  getWriterPageSettings,
   loadHandleStatus,
   saveWriterPageDetails,
   setWriterPageSwitch,
@@ -23,42 +22,35 @@ const LINK_CLASS = "underline text-plum-700 dark:text-plum-300";
 const CHECK_DELAY_MS = 400;
 
 /**
- * Settings > Profile > "Your page on the web": the member's public writer page (docs/WRITER_PROFILES.md). Off until they
- * switch it on. Turning it off and moving it to a new address ask first (`.claude/rules/confirmations.md`). The address
- * shown is whatever the server stored; availability is asked as they type and always checked again when they save.
+ * Settings > Profile > "Your writer page on the web": the switch, the address and the name of the member's public page
+ * (docs/WRITER_PROFILES.md). What the page shows (the bio, photo and social links) is chosen item by item above, with the
+ * lock, house and globe on each; this block only holds what is about the page itself. It asks for the address first and
+ * then the name, because the page cannot go on without both, and it stays off until they switch it on. Turning it off and
+ * moving it to a new address ask first (`.claude/rules/confirmations.md`). The settings are the parent's (they are also what
+ * decides whether a globe is shown); `onChanged` asks it to reload them after a change.
  */
-export function WriterPagePanel() {
-  const [data, setData] = useState<WriterPageSettings | null>(null);
+export function WriterPagePanel({ settings: data, onChanged }: { settings: WriterPageSettings; onChanged: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [handleInput, setHandleInput] = useState("");
-  const [aliasId, setAliasId] = useState<string | null>(null);
-  const [showPhoto, setShowPhoto] = useState(false);
-  const [bio, setBio] = useState("");
+  const [handleInput, setHandleInput] = useState(data.handle ?? data.suggestedHandle);
+  const [aliasId, setAliasId] = useState<string | null>(data.publicNameAliasId);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"off" | "address" | null>(null);
 
-  const load = useCallback(async () => {
-    const result = await getWriterPageSettings();
-    if ("error" in result) {
-      setError(result.error);
-      return;
-    }
-    setData(result);
-    setHandleInput(result.handle ?? result.suggestedHandle);
-    setAliasId(result.publicNameAliasId);
-    setShowPhoto(result.showPhoto);
-    setBio(result.bio);
-  }, []);
-
+  // A reload that changes what is saved (the address after a save, the name after a save) starts the inputs from it again.
+  const savedHandle = data.handle;
+  const savedAlias = data.publicNameAliasId;
   useEffect(() => {
-    load();
-  }, [load]);
+    if (savedHandle) setHandleInput(savedHandle);
+  }, [savedHandle]);
+  useEffect(() => {
+    setAliasId(savedAlias);
+  }, [savedAlias]);
 
   // The live check. What cannot be a handle is said at once, here; only an address that could be one is asked of the server, after
   // a pause. Nothing is asked for what is already theirs. A saved answer is for the address it was asked about.
   const typed = handleInput.trim();
-  const local = data && typed && typed.toLowerCase() !== data.handle ? validateHandle(typed) : null;
+  const local = typed && typed.toLowerCase() !== data.handle ? validateHandle(typed) : null;
   const askAbout = local?.ok ? local.handle : null;
   const [remote, setRemote] = useState<{ handle: string; status: HandleStatus } | null>(null);
   useEffect(() => {
@@ -82,14 +74,14 @@ export function WriterPagePanel() {
     const result = await claimWriterHandle(handleInput);
     setBusy(false);
     if ("error" in result) return result.error;
-    setMessage(result.changed ? "Address changed. The old one sends visitors to the new one." : "Address saved. Your page is still off: switch it on when you are ready.");
-    await load();
+    setMessage(result.changed ? "Address changed. The old one sends visitors to the new one." : "Address saved. Next, choose the name for your page.");
+    await onChanged();
     return null;
   }
 
   function handleSubmitHandle(e: FormEvent) {
     e.preventDefault();
-    if (data?.hasPage && data.handle !== handleInput.trim().toLowerCase()) return setConfirm("address");
+    if (data.hasPage && data.handle !== handleInput.trim().toLowerCase()) return setConfirm("address");
     void saveHandle().then((problem) => problem && setError(problem));
   }
 
@@ -101,42 +93,39 @@ export function WriterPagePanel() {
     setBusy(false);
     if ("error" in result) return result.error;
     setMessage(isPublic ? "Your page is on. Anyone can open it." : "Your page is off. It is no longer public.");
-    await load();
+    await onChanged();
     return null;
   }
 
-  async function saveDetails(e: FormEvent) {
+  async function saveName(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setMessage(null);
     setBusy(true);
-    const result = await saveWriterPageDetails({ publicNameAliasId: aliasId, showPhoto, bio });
+    const result = await saveWriterPageDetails({ publicNameAliasId: aliasId, bio: data.publicBio });
     setBusy(false);
     if ("error" in result) return setError(result.error);
-    setMessage("Saved.");
-    await load();
+    setMessage("Name saved.");
+    await onChanged();
   }
-
-  if (!data) {
-    return error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null;
-  }
-  // The `writer_pages` flag is off for them: no section at all (docs/WRITER_PROFILES.md, "The feature flag").
-  if (!data.available) return null;
 
   const addressChanged = data.handle !== handleInput.trim().toLowerCase();
   const canSaveAddress = !busy && handleInput.trim() !== "" && addressChanged && (handleStatus === null || handleStatus.status === "available");
-  const shownName = data.nameChoices.find((c) => c.aliasId === aliasId)?.label ?? data.nameChoices[0]?.label ?? "";
+  const shownName = data.nameChoices.find((c) => c.aliasId === aliasId)?.label ?? null;
+  const nameChanged = aliasId !== data.publicNameAliasId || !data.nameChosen;
+  const canSwitchOn = data.hasPage && data.nameChosen;
 
   return (
     <div className="max-w-md space-y-4">
       <div>
         <h2 id="profile-writer-page" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">
-          Your page on the web
+          Your writer page on the web
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Turn this on and you get a page of your own that anyone can open without signing in, and that search engines such as
-          Google can list. It shows the name you choose below, your photo if you tick it, and the bio you write. It shows nothing
-          else from the Hub: not your email, your writing or your prickles. It stays off until you switch it on.
+          Google can list. It always shows the name you choose below. Everything else on it is what you have opened to the
+          internet with the globe, in the profile above. It shows nothing else from the Hub: not your email, your writing or
+          your prickles. It stays off until you switch it on.
         </p>
       </div>
 
@@ -169,7 +158,12 @@ export function WriterPagePanel() {
         <p role="status" className="min-h-4 text-xs text-slate-600 dark:text-slate-400">
           {handleStatus?.status === "available" && <span className="text-green-700 dark:text-green-400">That address is free.</span>}
           {handleStatus && "message" in handleStatus && <span className="text-red-600 dark:text-red-400">{handleStatus.message}</span>}
-          {!handleStatus && !data.hasPage && "Lowercase letters, numbers and single hyphens, with no spaces."}
+          {!handleStatus && !data.hasPage && (
+            <>
+              {data.suggestedHandle ? "We made this one from your display name. " : ""}
+              Lowercase letters, numbers and single hyphens, with no spaces.
+            </>
+          )}
         </p>
         <button type="submit" data-track="settings-writer-page-address" disabled={!canSaveAddress} className={SAVE_CLASS}>
           {data.hasPage ? "Change address" : "Save address"}
@@ -177,117 +171,83 @@ export function WriterPagePanel() {
       </form>
 
       {data.hasPage && (
-        <>
-          <form onSubmit={saveDetails} className="space-y-4">
-            <div>
-              <label htmlFor="writer-page-name" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-                Name shown
-              </label>
-              <select
-                id="writer-page-name"
-                value={aliasId ?? ""}
-                onChange={(e) => setAliasId(e.target.value || null)}
-                data-track="settings-writer-page-name"
-                className={INPUT_CLASS}
-              >
-                {data.nameChoices.map((choice) => (
-                  <option key={choice.aliasId ?? "display"} value={choice.aliasId ?? ""}>
-                    {choice.label}
-                    {choice.aliasId === null ? " (your display name)" : " (pen name)"}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                Your page would be headed &ldquo;{shownName}&rdquo;. Take a moment to check it is the name you want on the open web.
-                {data.usingAccountName && (
-                  <>
-                    {" "}
-                    You have not chosen a display name, so this is the name on your account. You can set one under Identity.
-                  </>
-                )}{" "}
-                Pen names you have marked &ldquo;Show on my writer page&rdquo; under Identity appear here.
-              </p>
-            </div>
-
-            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input
-                type="checkbox"
-                checked={showPhoto}
-                disabled={!data.photoAvailable}
-                onChange={(e) => setShowPhoto(e.target.checked)}
-                data-track="settings-writer-page-photo"
-                className="mt-0.5 rounded"
-              />
-              <span>
-                Show my photo
-                <span className="block text-xs text-slate-600 dark:text-slate-400">
-                  {data.photoAvailable
-                    ? "The photo you have in the Hub. Anyone who opens your page can see it."
-                    : "There is no photo that can be shown on a public page yet. A Gravatar picture is never published, because its address carries a code made from your email."}
-                </span>
-              </span>
-            </label>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <label htmlFor="writer-page-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  Bio
-                </label>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {bio.trim().length}/{BIO_MAX_LENGTH}
-                </span>
-              </div>
-              <textarea
-                id="writer-page-bio"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                rows={5}
-                maxLength={BIO_MAX_LENGTH + 100}
-                placeholder="A little about you and your writing. Plain text."
-                className={INPUT_CLASS}
-              />
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">This bio is separate from the one on your member profile. Only what you write here goes on the page.</p>
-            </div>
-
-            <button type="submit" data-track="settings-writer-page-save" disabled={busy} className={SAVE_CLASS}>
-              Save page details
-            </button>
-          </form>
-
-          <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-2">
-            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={data.isPublic}
-                disabled={busy}
-                onChange={(e) => (e.target.checked ? void switchPage(true).then((p) => p && setError(p)) : setConfirm("off"))}
-                data-track="settings-writer-page-switch"
-                className="mt-0.5 rounded"
-              />
-              <span>
-                Show my page on the web
-                <span className="block text-xs text-slate-600 dark:text-slate-400">
-                  {data.isPublic ? "Your page is on: anyone can open it and search engines can list it." : "Your page is off: only you can see it, as a preview."}
-                </span>
-              </span>
-            </label>
-            <p className="text-sm">
-              <Link href={data.previewPath} target="_blank" data-track="settings-writer-page-preview" className={LINK_CLASS}>
-                View as a visitor
-              </Link>
-              <span className="text-xs text-slate-600 dark:text-slate-400"> (opens a preview that only you can see)</span>
-              {data.isPublic && data.pageUrl && (
-                <>
-                  {" · "}
-                  <a href={data.pageUrl} target="_blank" rel="noreferrer" data-track="settings-writer-page-open" className={LINK_CLASS}>
-                    Open your page
-                  </a>
-                </>
-              )}
-            </p>
-          </div>
-        </>
+        <form onSubmit={saveName} className="space-y-1">
+          <label htmlFor="writer-page-name" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+            Name shown
+          </label>
+          <select
+            id="writer-page-name"
+            value={aliasId ?? ""}
+            onChange={(e) => setAliasId(e.target.value || null)}
+            data-track="settings-writer-page-name"
+            className={INPUT_CLASS}
+          >
+            {!data.nameChosen && aliasId === null && (
+              <option value="" disabled>
+                Choose a name…
+              </option>
+            )}
+            {data.nameChoices.map((choice) => (
+              <option key={choice.aliasId ?? "display"} value={choice.aliasId ?? ""}>
+                {choice.label}
+                {choice.aliasId === null ? " (your display name)" : " (pen name)"}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            {data.nameChoices.length === 0
+              ? "You have not chosen a display name, and the page never uses the name on your account unless you pick it. Set a display name under Identity, or mark a pen name there as “Show on my writer page”, then come back."
+              : shownName
+                ? `Your page would be headed “${shownName}”. Take a moment to check it is the name you want on the open web.`
+                : "Choose the name that heads your page. It is the one thing the page always shows."}{" "}
+            Pen names you have marked &ldquo;Show on my writer page&rdquo; under Identity appear here.
+          </p>
+          <button type="submit" data-track="settings-writer-page-save-name" disabled={busy || !nameChanged || (aliasId === null && !data.nameChoices.some((c) => c.aliasId === null))} className={SAVE_CLASS}>
+            Save name
+          </button>
+        </form>
       )}
+
+      <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-2">
+        <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={data.isPublic}
+            disabled={busy}
+            onChange={(e) => (e.target.checked ? void switchPage(true).then((p) => p && setError(p)) : setConfirm("off"))}
+            data-track="settings-writer-page-switch"
+            className="mt-0.5 rounded"
+          />
+          <span>
+            Show my page on the web
+            <span className="block text-xs text-slate-600 dark:text-slate-400">
+              {data.isPublic
+                ? "Your page is on: anyone can open it and search engines can list it."
+                : canSwitchOn
+                  ? "Your page is off: only you can see it, as a preview."
+                  : data.hasPage
+                    ? "Choose the name for your page first. Until then it stays off."
+                    : "Choose your address first. Until then it stays off."}
+            </span>
+          </span>
+        </label>
+        {data.hasPage && (
+          <p className="text-sm">
+            <Link href={data.previewPath} target="_blank" data-track="settings-writer-page-preview" className={LINK_CLASS}>
+              View as a visitor
+            </Link>
+            <span className="text-xs text-slate-600 dark:text-slate-400"> (opens a preview that only you can see)</span>
+            {data.isPublic && data.pageUrl && (
+              <>
+                {" · "}
+                <a href={data.pageUrl} target="_blank" rel="noreferrer" data-track="settings-writer-page-open" className={LINK_CLASS}>
+                  Open your page
+                </a>
+              </>
+            )}
+          </p>
+        )}
+      </div>
 
       <ConfirmDialog
         open={confirm === "off"}

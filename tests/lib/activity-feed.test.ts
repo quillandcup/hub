@@ -712,6 +712,27 @@ describe("the page builder in the Activity Log", () => {
   });
 });
 
+describe("who can see a member's profile items in the Activity Log", () => {
+  const visibility = (data: ActivityFeedRow["data"], entity_type = "member_profile_visibility", event_type = "update") => row({ entity_type, event_type, data });
+
+  it("names the items whose level changed, never their text, and not the level words", () => {
+    expect(describeRow(visibility({ bio_visibility: { old: "community", new: "private" } }))).toBe("changed who can see their bio");
+    expect(describeRow(visibility({ photo_visibility: { old: "community", new: "public" }, twitter_visibility: { old: "community", new: "private" } }))).toBe("changed who can see their photo and X link");
+    expect(describeRow(visibility({ instagram_visibility: { old: "community", new: "private" }, facebook_visibility: { old: "community", new: "private" }, bio_visibility: { old: "community", new: "private" } }))).toBe(
+      "changed who can see their bio, Instagram link and Facebook link"
+    );
+  });
+
+  it("does not repeat a bio or link that was somehow in the row", () => {
+    const sentence = describeRow(visibility({ bio_visibility: { old: "community", new: "private" }, bio: { old: "secret old words", new: "secret new words" }, facebook_url: { old: "https://secret.example", new: "[redacted]" } }));
+    expect(sentence).not.toMatch(/secret/);
+  });
+
+  it("says it for the topics too", () => {
+    expect(describeRow(visibility({ visibility: { old: "community", new: "private" } }, "member_ask_me_about"))).toBe("changed who can see their “Ask me about” topics");
+  });
+});
+
 describe("a writer's public page in the Activity Log", () => {
   const writerPage = (event_type: string, data: ActivityFeedRow["data"]) => row({ entity_type: "writer_profile", event_type, data });
 

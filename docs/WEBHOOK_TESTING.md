@@ -103,7 +103,7 @@ pnpm add -D msw@latest
 ### Configuration Files
 
 - `tests/setup-msw.ts` - MSW server initialization
-- `vitest.config.mts` - Includes MSW setup
+- `config/vitest.mts` - Includes MSW setup
 - `tests/helpers/webhook-helpers.ts` - Fixture loading utilities
 
 ### Fixture Files

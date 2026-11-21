@@ -7,7 +7,7 @@ When a change fixes what a Sentry issue reports, resolve the issue **in the rele
 - Only the issues whose cause the change removed. If the cause isn't known, or the change only mitigates (a notice, a retry), leave the issue open, or resolve it and expect it to reopen, and tell the user which you did.
 - Never mute or ignore an issue to quiet it; that hides the evidence.
 
-**How** (the org is in Sentry's EU region: `appConfig.sentry` in `app.config.ts` has org `quillandcup`, project `hub`, API `https://de.sentry.io`)
+**How** (the org is in Sentry's EU region: `appConfig.sentry` in `config/app.ts` has org `quillandcup`, project `hub`, API `https://de.sentry.io`)
 - The release version is the full commit SHA of the squash commit (`git rev-parse <short-sha>`): the build uploads source maps under it. Check it exists first: `GET /api/0/organizations/quillandcup/releases/<sha>/`.
 - `sentry-cli` is fine for reading (`sentry-cli issues list -s unresolved`), once `~/.sentryclirc` has the EU URL in the same file as the token (`[defaults]` `url=https://de.sentry.io`, `org=quillandcup`, `project=hub`; a `--url` or `SENTRY_URL` from anywhere else makes it ignore the token). It can't do this step: `sentry-cli issues resolve` has `--next-release` but no "in release <sha>". `--next-release` means whichever release Sentry creates next, which is the wrong one if another deploy lands first or the fix has already shipped. So resolve through the API with an explicit release, using the token already in `~/.sentryclirc` without ever printing it: write the header to a file and pass that to curl.
 

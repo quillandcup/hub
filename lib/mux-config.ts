@@ -44,7 +44,7 @@ export function parseMuxConfig(raw: unknown, appHost: string): MuxConfig {
   if (typeof restriction.allowNoReferrer !== "boolean") {
     throw new Error("config/mux.yml: playbackRestriction.allowNoReferrer must be true or false");
   }
-  // {appHost} is the production host from app.config.ts, so no domain is written out twice.
+  // {appHost} is the production host from config/app.ts, so no domain is written out twice.
   const allowedDomains = [
     ...new Set((domains as string[]).map((d) => d.trim().replace("{appHost}", appHost))),
   ];

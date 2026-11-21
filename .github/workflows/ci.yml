@@ -4,7 +4,7 @@ name: CI
 # test-unit (fast, fully-mocked pure-logic/component tests, no infra) and test-db
 # (integration tests against a real local Supabase stack, not mocks -- see CLAUDE.md's
 # note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
-# vitest.config.mts for how tests are split between the two. On push to main, once
+# config/vitest.mts for how tests are split between the two. On push to main, once
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
 # to production, deploys, and then pushes config/slack-app-manifest.yml to the Slack app if
 # it changed.
@@ -208,7 +208,7 @@ jobs:
 
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
-      # assertions out. No Supabase, no app server, no Docker: see vitest.config.mts's
+      # assertions out. No Supabase, no app server, no Docker: see config/vitest.mts's
       # "unit" project for exactly which files land here and why.
       # Runs the unit suite once. On pull requests it runs with v8 coverage: the floors are on the unit and db
       # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts), which only
@@ -302,7 +302,7 @@ jobs:
       # on 2026-10-09 and blocked the migration push and deploy). continue-on-error because
       # runs without our secrets (Dependabot, forks) must still try anonymously.
       # DOCKERHUB_USERNAME is a GitHub variable, DOCKERHUB_TOKEN a secret; both come from
-      # env-vars.config.ts via `pnpm env:sync:github`.
+      # config/env-vars.ts via `pnpm env:sync:github`.
       - name: Log in to Docker Hub
         continue-on-error: true
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4

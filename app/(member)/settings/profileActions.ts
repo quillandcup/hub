@@ -21,6 +21,7 @@ import { CLEARED, applyProfileOverride, nextOverrideValue, type ProfileFields } 
 import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
 import { normalizeTopics } from "@/lib/ask-me-about";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import type { ProfileVisibilities } from "@/lib/profile-visibility";
 
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 /**
@@ -64,6 +65,8 @@ export interface ProfileSettings {
   details: ProfileDetails;
   /** "Ask me about ..." topics (member_ask_me_about; Hub-only, no Kajabi sync). */
   askMeAbout: string[];
+  /** Who can see each item: private, community or public (`lib/profile-visibility.ts`); community until the member changes one. */
+  visibilities: ProfileVisibilities;
   /** A saved change hasn't reached the profile yet (member processing still running). */
   syncPending: boolean;
   /** Listed in other members' "Who's coming" on upcoming prickles they committed to or added to their calendar (no member_roster_opt_outs row). */
@@ -183,9 +186,18 @@ async function loadOverride(ctx: Ctx) {
   }
 }
 
+/** The member's own topics and who can see them (the table, not what others may see: Settings is the owner's, or an admin's in sudo). */
 async function loadAskMeAbout(ctx: Ctx) {
   try {
-    return { data: await createRepos(ctx.supabase).memberProfile.askMeAbout(ctx.effectiveIdentity.memberId), error: null };
+    return { data: await createRepos(ctx.supabase).memberProfile.askMeAboutOf(ctx.effectiveIdentity.memberId), error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function loadVisibilities(ctx: Ctx) {
+  try {
+    return { data: await createRepos(ctx.supabase).memberStatus.profileVisibilitiesOf(ctx.effectiveIdentity.memberId), error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -213,18 +225,20 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     { data: override, error: overrideError },
     { data: askRow, error: askError },
     { data: optOut, error: optOutError },
+    { data: levels, error: levelsError },
   ] = await Promise.all([
     loadMember(ctx),
     loadOverride(ctx),
     loadAskMeAbout(ctx),
     loadRosterOptOut(ctx),
+    loadVisibilities(ctx),
   ]);
   if (error || !member) return { error: error?.message ?? "Couldn't load your profile" };
-  if (overrideError || askError || optOutError) {
+  if (overrideError || askError || optOutError || levelsError) {
     console.error(
       "[profile] Failed to load profile overrides for member",
       memberId,
-      overrideError ?? askError ?? optOutError
+      overrideError ?? askError ?? optOutError ?? levelsError
     );
     return { error: "Couldn't load your profile" };
   }
@@ -251,10 +265,23 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     kajabiLinked: member.kajabi_id != null,
     instagramUrl: effective.instagram_url,
     details: toDetails(effective),
-    askMeAbout: askRow ?? [],
+    askMeAbout: askRow?.topics ?? [],
+    visibilities: { ...(levels ?? { bio: "community", photo: "community", instagram: "community", facebook: "community", x: "community" }), ask_me_about: askRow?.visibility ?? "community" },
     syncPending,
     showInRoster: !optOut,
   };
+}
+
+/** Whether the member shows in other members' "Who's coming" lists (Settings > Preferences), without loading the rest of the profile. */
+export async function getRosterSetting(): Promise<{ showInRoster: boolean } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { data, error } = await loadRosterOptOut(ctx);
+  if (error) {
+    console.error("[profile] Failed to load the roster setting for member", ctx.effectiveIdentity.memberId, error);
+    return { error: "Couldn't load this setting" };
+  }
+  return { showInRoster: !data };
 }
 
 /**
@@ -403,7 +430,7 @@ async function updateAskMeAboutImpl(input: string[]): Promise<UpdateProfileResul
     console.error("[profile] Failed to load ask-me-about for member", effectiveIdentity.memberId, loadError);
     return { error: "Couldn't load your profile" };
   }
-  const current = existing ?? [];
+  const current = existing?.topics ?? [];
   if (current.length === parsed.topics.length && current.every((t: string, i: number) => t === parsed.topics[i])) {
     return { success: true, syncPending: false };
   }

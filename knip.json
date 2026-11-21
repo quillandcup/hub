@@ -1,0 +1,33 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "app/**/{page,layout,route,loading,error,global-error,not-found,default,template}.{ts,tsx}",
+    "app/{manifest,sitemap,robots,icon,apple-icon,opengraph-image,twitter-image}.{ts,tsx}",
+    "proxy.ts",
+    "instrumentation*.ts",
+    "next.config.ts",
+    "config/app.ts",
+    "config/env-vars.ts",
+    "checkly.config.ts",
+    "eslint.quality.config.mjs",
+    "__checks__/**/*.{check,setup}.ts",
+    "scripts/*.ts",
+    "demo/*.ts",
+    "demo/scenes/**/*.ts",
+    "demo/video/*.ts",
+    "emails/**/*.tsx",
+    "tests/**/*.{ts,tsx}"
+  ],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "emails/**/*.{ts,tsx}",
+    "scripts/**/*.ts",
+    "tests/**/*.{ts,tsx}",
+    "*.{ts,mts,mjs}"
+  ],
+  "ignore": ["lib/data/database.types.ts", "supabase/**", ".next/**", ".next-demo/**", "demo/.stack/**"],
+  "ignoreBinaries": ["supabase", "ffmpeg", "ffprobe", "say", "xattr"],
+  "ignoreExportsUsedInFile": true
+}

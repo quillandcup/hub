@@ -25,7 +25,7 @@ vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
 
 import { claimWriterHandle, getWriterPageSettings, loadHandleStatus, saveWriterPageDetails, setWriterPageSwitch } from "@/app/(member)/settings/writerPageActions";
 
-import { WRITER_PAGES_NOT_AVAILABLE } from "@/lib/writer-pages-access";
+import { WRITER_PAGES_NOT_AVAILABLE, WRITER_PAGE_NAME_NEEDED } from "@/lib/writer-pages-access";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AT = "2027-01-01T00:00:00Z";
@@ -50,7 +50,7 @@ describe("who may use it", () => {
   it("refuses everything to someone who is not signed in or has no member record, and writes nothing", async () => {
     for (const setup of [() => (state.user = null), () => ((state.user = { id: "u", email: "a@example.test" }), (state.identity = null))]) {
       setup();
-      const results = await Promise.all([getWriterPageSettings(), loadHandleStatus("ada-example"), claimWriterHandle("ada-example"), setWriterPageSwitch(true), saveWriterPageDetails({ publicNameAliasId: null, showPhoto: false, bio: "" })]);
+      const results = await Promise.all([getWriterPageSettings(), loadHandleStatus("ada-example"), claimWriterHandle("ada-example"), setWriterPageSwitch(true), saveWriterPageDetails({ publicNameAliasId: null, bio: "" })]);
       for (const result of results) expect(result).toHaveProperty("error");
     }
     expect(state.dataset.writerProfiles).toEqual([]);
@@ -81,14 +81,14 @@ describe("the writer_pages flag", () => {
 
     expect(await claimWriterHandle("ada-example")).toEqual(closed);
     expect(await setWriterPageSwitch(true)).toEqual(closed);
-    expect(await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: false, bio: "Hi" })).toEqual(closed);
+    expect(await saveWriterPageDetails({ publicNameAliasId: null, bio: "Hi" })).toEqual(closed);
     expect(state.dataset.writerProfiles).toEqual([]);
     expect(state.dataset.activities).toEqual([]);
   });
 
   it("never deletes or changes a page when it goes off, and a page that is on can still be switched off", async () => {
     await claimWriterHandle("ada-example");
-    await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: true, bio: "Kept as it was." });
+    await saveWriterPageDetails({ publicNameAliasId: null, bio: "Kept as it was." });
     await setWriterPageSwitch(true);
     const before = structuredClone(await state.repos.writerProfiles.ofMember(ADA));
 
@@ -96,7 +96,7 @@ describe("the writer_pages flag", () => {
 
     expect(await state.repos.writerProfiles.ofMember(ADA)).toEqual(before);
     expect(await setWriterPageSwitch(false)).toEqual({ success: true });
-    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ isPublic: false, bio: "Kept as it was.", showPhoto: true });
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ isPublic: false, bio: "Kept as it was." });
   });
 
   it("asks about the member whose page it is when an admin acts as them (sudo)", async () => {
@@ -114,8 +114,8 @@ describe("getWriterPageSettings", () => {
       hasPage: false,
       handle: null,
       isPublic: false,
-      showPhoto: false,
-      bio: "",
+      publicBio: "",
+      nameChosen: true,
       nameChoices: [{ aliasId: null, label: "Ada Example" }],
       photoAvailable: true,
       suggestedHandle: "ada-example",
@@ -146,7 +146,7 @@ describe("getWriterPageSettings", () => {
     state.identity = { memberId: GRACE, isSudo: false };
     state.dataset.members.find((m) => m.id === GRACE)!.photoUrl = "https://secure.gravatar.com/avatar/0123456789abcdef";
 
-    expect(await getWriterPageSettings()).toMatchObject({ usingAccountName: true, photoAvailable: false, nameChoices: [{ aliasId: null, label: "Grace Example" }] });
+    expect(await getWriterPageSettings()).toMatchObject({ usingAccountName: true, photoAvailable: false, nameChosen: false, nameChoices: [], suggestedHandle: "" });
   });
 
   it("shows the effective member's page, so sudo sees what the member sees", async () => {
@@ -256,6 +256,34 @@ describe("setWriterPageSwitch", () => {
   });
 });
 
+describe("switching the page on needs an address and a chosen name", () => {
+  it("refuses a page whose only name would be the one on the account, and says what to do", async () => {
+    state.identity = { memberId: GRACE, isSudo: false };
+    await claimWriterHandle("grace-example");
+
+    expect(await setWriterPageSwitch(true)).toEqual({ error: WRITER_PAGE_NAME_NEEDED });
+    expect((await state.repos.writerProfiles.ofMember(GRACE))?.isPublic).toBe(false);
+  });
+
+  it("accepts a display name, or a pen name chosen for the page", async () => {
+    await claimWriterHandle("ada-example");
+    expect(await setWriterPageSwitch(true)).toEqual({ success: true });
+
+    state.identity = { memberId: GRACE, isSudo: false };
+    await claimWriterHandle("grace-example");
+    state.dataset.nameAliases.push({ id: "nalias_AAAAAAAAAAA9", member_id: GRACE, alias: "G. E. Pen", source: "member", active: true, isPublic: true });
+    await saveWriterPageDetails({ publicNameAliasId: "nalias_AAAAAAAAAAA9", bio: "" });
+    expect(await getWriterPageSettings()).toMatchObject({ nameChosen: true, nameChoices: [{ aliasId: "nalias_AAAAAAAAAAA9", label: "G. E. Pen" }] });
+    expect(await setWriterPageSwitch(true)).toEqual({ success: true });
+  });
+
+  it("suggests an address from the display name, never from the name on the account", async () => {
+    expect(await getWriterPageSettings()).toMatchObject({ suggestedHandle: "ada-example" });
+    state.identity = { memberId: GRACE, isSudo: false };
+    expect(await getWriterPageSettings()).toMatchObject({ suggestedHandle: "" });
+  });
+});
+
 describe("saveWriterPageDetails", () => {
   beforeEach(async () => {
     await claimWriterHandle("ada-example");
@@ -264,31 +292,40 @@ describe("saveWriterPageDetails", () => {
   it("saves the bio as trimmed plain text, the photo switch and the name", async () => {
     state.dataset.nameAliases.push({ id: "nalias_AAAAAAAAAAA1", member_id: ADA, alias: "A. E. Pen", source: "member", active: true, isPublic: true });
 
-    const result = await saveWriterPageDetails({ publicNameAliasId: "nalias_AAAAAAAAAAA1", showPhoto: true, bio: "  I write cozy mysteries.  " });
+    const result = await saveWriterPageDetails({ publicNameAliasId: "nalias_AAAAAAAAAAA1", bio: "  I write cozy mysteries.  " });
 
     expect(result).toEqual({ success: true });
-    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ publicNameAliasId: "nalias_AAAAAAAAAAA1", showPhoto: true, bio: "I write cozy mysteries." });
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ publicNameAliasId: "nalias_AAAAAAAAAAA1", bio: "I write cozy mysteries." });
     expect(revalidated).toContain("/w/ada-example");
   });
 
   it("refuses a bio over the limit and changes nothing", async () => {
-    const result = await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: false, bio: "x".repeat(WRITER_PROFILES.bioMaxLength + 1) });
+    const result = await saveWriterPageDetails({ publicNameAliasId: null, bio: "x".repeat(WRITER_PROFILES.bioMaxLength + 1) });
 
     expect(result).toEqual({ error: expect.stringContaining(String(WRITER_PROFILES.bioMaxLength)) });
     expect((await state.repos.writerProfiles.ofMember(ADA))?.bio).toBeNull();
   });
 
-  it("refuses to show a photo that cannot be published, and a name that is not one of their public pen names", async () => {
-    state.dataset.members.find((m) => m.id === ADA)!.photoUrl = "https://secure.gravatar.com/avatar/0123456789abcdef";
+  it("refuses a name that is not one of their public pen names, and keeps the one they had", async () => {
     state.dataset.nameAliases.push({ id: "nalias_AAAAAAAAAAA2", member_id: ADA, alias: "Zoom Typo", source: "zoom", active: true, isPublic: false });
 
-    expect(await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: true, bio: "" })).toEqual({ error: expect.stringContaining("no photo") });
-    expect(await saveWriterPageDetails({ publicNameAliasId: "nalias_AAAAAAAAAAA2", showPhoto: false, bio: "" })).toEqual({ error: expect.stringContaining("pen names") });
-    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ showPhoto: false, publicNameAliasId: null });
+    expect(await saveWriterPageDetails({ publicNameAliasId: "nalias_AAAAAAAAAAA2", bio: "" })).toEqual({ error: expect.stringContaining("pen names") });
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ publicNameAliasId: null });
+  });
+
+  it("removes the separate public bio when saved empty, and never touches the member's own bio", async () => {
+    state.dataset.members.find((m) => m.id === ADA)!.bio = "My member bio.";
+    await saveWriterPageDetails({ publicNameAliasId: null, bio: "For the web." });
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ bio: "For the web." });
+
+    expect(await saveWriterPageDetails({ publicNameAliasId: null, bio: "   " })).toEqual({ success: true });
+
+    expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ bio: null });
+    expect(state.dataset.members.find((m) => m.id === ADA)!.bio).toBe("My member bio.");
   });
 
   it("needs an address first", async () => {
     state.dataset.writerProfiles = [];
-    expect(await saveWriterPageDetails({ publicNameAliasId: null, showPhoto: false, bio: "Hi" })).toEqual({ error: "Choose the address for your page first." });
+    expect(await saveWriterPageDetails({ publicNameAliasId: null, bio: "Hi" })).toEqual({ error: "Choose the address for your page first." });
   });
 });

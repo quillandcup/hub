@@ -42,8 +42,36 @@ export function defineMemberProfileContract(name: string, setup: () => MemberPro
         expect(await repo.askMeAbout(id(ada))).toEqual([]);
       });
 
+      it("is shared with members until the member makes it private, then others see none and the owner's own read still has it", async () => {
+        const repo = ctx.repo();
+        await repo.saveAskMeAbout(id(ada), ["Plotting", "Poetry"], ctx.userId);
+        expect(await repo.askMeAboutOf(id(ada))).toEqual({ topics: ["Plotting", "Poetry"], visibility: "community" });
+
+        await repo.saveAskMeAboutVisibility(id(ada), "private", ctx.userId);
+
+        expect(await repo.askMeAboutOf(id(ada))).toEqual({ topics: ["Plotting", "Poetry"], visibility: "private" });
+        expect(await repo.askMeAbout(id(ada), id(bo))).toEqual([]);
+
+        await repo.saveAskMeAboutVisibility(id(ada), "community", ctx.userId);
+        expect(await repo.askMeAbout(id(ada), id(bo))).toEqual(["Plotting", "Poetry"]);
+      });
+
+      it("keeps the level when the topics are saved again, and saves a level before any topic", async () => {
+        const repo = ctx.repo();
+        await repo.saveAskMeAboutVisibility(id(bo), "private", ctx.userId);
+        expect(await repo.askMeAboutOf(id(bo))).toEqual({ topics: [], visibility: "private" });
+
+        await repo.saveAskMeAbout(id(bo), ["Cats"], ctx.userId);
+        expect(await repo.askMeAboutOf(id(bo))).toEqual({ topics: ["Cats"], visibility: "private" });
+      });
+
+      it("has the community default for a member who never saved anything", async () => {
+        expect(await ctx.repo().askMeAboutOf(id(cy))).toEqual({ topics: [], visibility: "community" });
+      });
+
       it("refuses topics for a member that does not exist", async () => {
         await expect(ctx.repo().saveAskMeAbout(ctx.missingMemberId, ["x"], ctx.userId)).rejects.toThrow();
+        await expect(ctx.repo().saveAskMeAboutVisibility(ctx.missingMemberId, "private", ctx.userId)).rejects.toThrow();
       });
     });
 

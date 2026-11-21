@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { appConfig } from "../../app.config";
+import { appConfig } from "../../config/app";
 
 /**
  * The "your Prickles show up in Google Calendar" frames. The demo's feed isn't reachable from Google (it is

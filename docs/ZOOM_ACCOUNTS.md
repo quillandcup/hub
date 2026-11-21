@@ -23,7 +23,7 @@ The review page's action (`decideZoomMeetings`) writes the decision and then rep
 ## Imports and webhooks cover every account
 
 - **Import** (`/api/import/zoom`, called by the nightly `/api/reconcile/zoom`, the manual admin import and the webhook): imports every account in `zoom_accounts`, the primary first, tagging each row with its account. An account whose credentials are not all set is **skipped with a logged warning** and listed in the response (`accounts[].skipped`); a failing secondary account never fails the primary import. Only a missing primary credential fails, as before. A webhook asks for just its own account (`account` slug).
-- **Credentials** are secret env vars named from the account's prefix: `<prefix>_ACCOUNT_ID`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_USER_EMAIL`, `_WEBHOOK_SECRET_TOKEN`. The primary account's (`ZOOM_*`) are unchanged; the secondary account's are `ZOOM_SECONDARY_*`, declared in `env-vars.config.ts`.
+- **Credentials** are secret env vars named from the account's prefix: `<prefix>_ACCOUNT_ID`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_USER_EMAIL`, `_WEBHOOK_SECRET_TOKEN`. The primary account's (`ZOOM_*`) are unchanged; the secondary account's are `ZOOM_SECONDARY_*`, declared in `config/env-vars.ts`.
 - **Webhook** (`/api/webhooks/zoom`): each Zoom app has its own secret token, so the signature is checked against every configured account's secret; the first match names the account, which is recorded on the participant events and chat messages and used for the import it triggers. An unsigned request, or one signed with an unknown secret, is refused. If the accounts can't be read, only the primary secret is accepted.
 
 ## Review page

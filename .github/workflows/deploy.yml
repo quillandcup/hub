@@ -92,13 +92,13 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # The deployment record's URL (see `environment` above), read from app.config.ts like
+      # The deployment record's URL (see `environment` above), read from config/app.ts like
       # the rest of the app. Node 24 runs the .ts file directly; it has no imports.
       - name: Read the production URL
         if: steps.guard.outputs.proceed == 'true'
         id: app-url
         run: |
-          url=$(node --no-warnings --input-type=module -e "console.log((await import('./app.config.ts')).default.appUrl)")
+          url=$(node --no-warnings --input-type=module -e "console.log((await import('./config/app.ts')).default.appUrl)")
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
