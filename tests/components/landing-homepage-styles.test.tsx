@@ -13,7 +13,8 @@ vi.hoisted(() => {
 
 import { renderToString } from "react-dom/server";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { ComingUp, JourneyMap } from "@/components/landing/homepage-blocks";
+import { JourneyMap } from "@/components/landing/homepage-blocks";
+import { ComingUp } from "@/modules/events/page-blocks/blocks";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage } from "@/lib/landing/a11y";

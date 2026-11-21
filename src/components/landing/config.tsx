@@ -1,58 +1,9 @@
 import type { ComponentConfig, Config } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
-import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
-import {
-  Button,
-  ButtonRow,
-  CardGrid,
-  Columns,
-  CountdownBlock,
-  CtaBanner,
-  Divider,
-  Faq,
-  FaqItem,
-  GridCard,
-  Heading,
-  Hero,
-  Image,
-  LinkItem,
-  LinkList,
-  List,
-  ListItem,
-  OptInFormBlock,
-  RichText,
-  RowButton,
-  Section,
-  Spacer,
-  Split,
-  Stat,
-  Stats,
-  Step,
-  Steps,
-  Testimonial,
-  Testimonials,
-  Video,
-} from "./blocks";
-import {
-  AnnouncementStrip,
-  ComingUp,
-  FinishLineCard,
-  FinishLineCards,
-  FinisherCard,
-  FinisherCards,
-  JourneyMap,
-  OutcomeNumber,
-  OutcomeNumbers,
-  PlanPhase,
-  PlanPhases,
-  ScheduleRowItem,
-  SchedulePanel,
-  Timeline,
-  TimelineMoment,
-  WeekDay,
-  WeekStrip,
-} from "./homepage-blocks";
+import { installedPageBlocks, type InstalledBlockDefaults } from "@/modules";
+import { createPageBlockRegistry, type PageBlockDefinition, type PageBlockRegistry } from "./block-registry";
+import { CORE_DEFAULTS, coreBlocks } from "./core-blocks";
 import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-template";
 import { resolveStyle, styleClasses } from "@/lib/landing/style";
 import { DesignToolsOverlay } from "./design-tools";
@@ -60,10 +11,10 @@ import { SiteFooterView, SiteHeaderView } from "./site-frame";
 import { pageImage, spanClasses } from "./theme";
 
 /**
- * The block set and the page frame, with no editor-only parts: the public page renders `data` through this (on the
- * server), and the editor builds its own config from it by adding each block's fields (editor-config.tsx). A new
- * block is: a component in blocks.tsx, an entry here with its default props, and its fields in editor-config.tsx.
- * See docs/product/LANDING_PAGES.md, "Adding a block".
+ * The page frame and the config of the block set, with no editor-only parts: the public page renders `data` through this (on the
+ * server), and the editor builds its own config from it by adding each block's fields (editor-config.tsx). The blocks come from the
+ * registry (block-registry.ts): a new block is a component, an entry in `core-blocks.ts` (or in a module's contribution) and its fields.
+ * See docs/product/LANDING_PAGES.md, "Adding a block", and docs/architecture/PAGE_BLOCKS.md.
  */
 
 // Puck types each component's props from its config; our blocks are plain components, so they are registered loosely.
@@ -201,215 +152,16 @@ export function rootConfigFor(frame: FrameContext): Config["root"] {
   return { defaultProps: rootDefaults, render: (props: RootProps & { children?: ReactNode }) => PageFrame({ ...props, frame }) } as unknown as Config["root"];
 }
 
-/** A child block as it is stored in a parent's slot: `{ type, props }`. Puck gives it an id when the parent is added. */
-const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { ...props } });
-const FINISHER_DEFAULT = { alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" };
-const GRID_CARD_DEFAULT = { alt: "", icon: "", title: "A title", description: "A line about it.", price: "", buttonLabel: "", href: "" };
-const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
+/**
+ * Every block the builder offers, from the pages code's own (`core-blocks.ts`) and the installed modules' (`src/modules/index.ts`, the
+ * composition root). The editor's config and the public renderer are both built from it, and so are the tables the rest of the
+ * pages code reads (`BLOCK_DEFAULTS`, `SLOTS`, `SLOT_ALLOW`, ...).
+ */
+export const pageBlocks: PageBlockRegistry = createPageBlockRegistry([coreBlocks, ...installedPageBlocks]);
 
-export const BLOCK_DEFAULTS = {
-  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, fadeIn: false },
-  Columns: { count: "2", gap: "medium", verticalAlign: "top" },
-  RichText: { html: "<p>Write something here.</p>", align: "left" },
-  Heading: { text: "A heading", level: "h2", align: "center" },
-  Button: { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill", align: "center", full: false },
-  ButtonRow: { items: [kid("RowButton", { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill" }), kid("RowButton", { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" })], align: "left", gap: "medium" },
-  Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
-  Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
-  List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
-  Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
-  Faq: { items: [kid("FaqItem", { question: "A question?", answer: "The answer." }), kid("FaqItem", { question: "Another question?", answer: "Another answer." })] },
-  Countdown: { targetAt: "", heading: "Starts in", whenExpired: "message", expiredMessage: "It has started." },
-  CardGrid: { columns: "3", items: [kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT)] },
-  LinkList: { items: [kid("LinkItem", { label: "A link", href: "", look: "inherit", color: "plum" }), kid("LinkItem", { label: "Another link", href: "", look: "inherit", color: "plum" })] },
-  Divider: { look: "short" },
-  Spacer: { size: "medium" },
-  Video: { url: "", title: "" },
-  Hero: { headline: "A headline that says what you offer", level: "h1", subhead: "One or two lines that say who it is for and why it helps.", primary: { label: "Join us", href: "" }, secondary: { label: "", href: "" }, alt: "", decorative: false, imageMode: "background", overlay: "dark", background: "plum", align: "center", padding: "large" },
-  Steps: { heading: "How it works", items: [kid("Step", { title: "Sign up", text: "Tell us a little about you." }), kid("Step", { title: "Join in", text: "Come to your first session." }), kid("Step", { title: "Keep going", text: "Write a little each day." })] },
-  Stats: { items: [kid("Stat", { value: "1,000", label: "words written a day" }), kid("Stat", { value: "24/7", label: "company" }), kid("Stat", { value: "3", label: "sessions a week" })] },
-  CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
-  OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "inherit", color: "plum", shape: "pill" },
-  // Homepage blocks (src/components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/product/LANDING_PAGES.md, "Live data"). A block dropped on a page now starts live where its point is to be live (strip, schedule, coming up), with the typed values as the fallback; a block saved without `source` stays typed.
-  AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold", source: "live", whenNone: "hide" },
-  SchedulePanel: {
-    title: "Writing right now",
-    zoneLabel: "",
-    source: "live",
-    hoursAhead: 24,
-    maxRows: 5,
-    hostStyle: "none",
-    experiencedHostText: "An experienced host, sure to make you feel at home",
-    openLabel: "",
-    rowNote: "",
-    footer: "",
-    emptyText: "No sessions are coming up just yet. Check back soon.",
-    items: [
-      kid("ScheduleRow", { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "" }),
-      kid("ScheduleRow", { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" }),
-      kid("ScheduleRow", { time: "12:30 pm", title: "Lunch hour", status: "Camera optional", state: "open", host: "" }),
-    ],
-  },
-  OutcomeNumbers: {
-    padding: "medium",
-    showLiveNote: true,
-    items: [
-      kid("OutcomeNumber", { source: "manual", stat: "hours_30d", value: "50+", label: "books published by members", note: "" }),
-      kid("OutcomeNumber", { source: "manual", stat: "hours_30d", value: "100s", label: "of Finishers", note: "" }),
-    ],
-  },
-  FinisherCards: { items: [kid("FinisherCard", FINISHER_DEFAULT), kid("FinisherCard", FINISHER_DEFAULT), kid("FinisherCard", FINISHER_DEFAULT)], more: { label: "", href: "" } },
-  Timeline: {
-    heading: "",
-    intro: "",
-    items: [kid("TimelineMoment", { when: "8:00 am", title: "Morning pages", text: "What happens, in a line or two." }), kid("TimelineMoment", { when: "Noon", title: "Chat", text: "What happens next." })],
-    closing: "",
-  },
-  WeekStrip: {
-    subtitle: "",
-    items: [
-      kid("WeekDay", { label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" }),
-      kid("WeekDay", { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" }),
-      kid("WeekDay", { label: "Wed", emoji: "✍️", text: "Write and log progress", note: "" }),
-    ],
-  },
-  FinishLineCards: { items: [kid("FinishLineCard", FINISH_LINE_DEFAULT), kid("FinishLineCard", FINISH_LINE_DEFAULT)] },
-  PlanPhases: { heading: "What the first weeks look like", items: [kid("PlanPhase", { title: "Weeks 1 to 4", text: "What happens." }), kid("PlanPhase", { title: "Weeks 5 to 8", text: "What happens next." })] },
-  // The items of the blocks above: each its own block, with its own fields, dropped into its parent's `items` slot (SLOT_ALLOW).
-  Step: { title: "New step", text: "" },
-  Stat: { value: "0", label: "" },
-  FinisherCard: FINISHER_DEFAULT,
-  TimelineMoment: { when: "", title: "New moment", text: "" },
-  WeekDay: { label: "Day", emoji: "", text: "", note: "" },
-  FinishLineCard: FINISH_LINE_DEFAULT,
-  PlanPhase: { title: "New phase", text: "" },
-  RowButton: { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" },
-  ListItem: { text: "New item", icon: "✓" },
-  Testimonial: { quote: "", name: "", detail: "" },
-  FaqItem: { question: "A question?", answer: "" },
-  GridCard: { ...GRID_CARD_DEFAULT, title: "New card" },
-  LinkItem: { label: "A link", href: "", look: "inherit", color: "plum" },
-  ScheduleRow: { time: "", title: "New session", status: "", state: "open", host: "" },
-  OutcomeNumber: { source: "manual", stat: "hours_30d", value: "0", label: "", note: "" },
-  JourneyMap: {
-    stages: [
-      { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
-      { name: "Drafting", helps: "A program", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "A program", text: "", buttonLabel: "", href: "" }] },
-      { name: "Revising", helps: "A course", current: true, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "A course", text: "", buttonLabel: "", href: "" }] },
-    ],
-    compare: { label: "", href: "" },
-  },
-  ComingUp: {
-    heading: "Coming up",
-    style: "cards",
-    source: "live",
-    kinds: ["in_person_retreat", "virtual_retreat", "workshop"],
-    max: 4,
-    more: { label: "", href: "" },
-    waitlist: { label: "Join the waitlist", href: "" },
-    items: [{ kind: "Retreat", title: "Name", when: "Dates and place", availability: "Spots left", status: "", linkLabel: "", href: "" }],
-  },
-} as const;
-
-export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
-  Section: "Section",
-  Columns: "Columns",
-  RichText: "Text",
-  Heading: "Heading",
-  Button: "Button",
-  ButtonRow: "Buttons",
-  Image: "Image",
-  Split: "Image and text",
-  List: "List",
-  Testimonials: "Testimonials",
-  Faq: "FAQ",
-  Countdown: "Countdown",
-  CardGrid: "Card grid",
-  LinkList: "Link list",
-  Divider: "Divider",
-  Spacer: "Spacer",
-  Video: "Video",
-  OptInForm: "Sign-up form",
-  Hero: "Hero",
-  Steps: "Steps",
-  Stats: "Stats",
-  CtaBanner: "Call-to-action banner",
-  AnnouncementStrip: "Announcement strip",
-  SchedulePanel: "Schedule panel",
-  OutcomeNumbers: "Outcome numbers",
-  FinisherCards: "Finisher cards",
-  Timeline: "Timeline",
-  WeekStrip: "Week strip",
-  FinishLineCards: "Finish-line cards",
-  PlanPhases: "Plan phases",
-  JourneyMap: "Journey map",
-  ComingUp: "Coming up",
-  Step: "Step",
-  Stat: "Figure",
-  FinisherCard: "Finisher card",
-  TimelineMoment: "Timeline moment",
-  WeekDay: "Week day",
-  FinishLineCard: "Finish-line card",
-  PlanPhase: "Plan phase",
-  RowButton: "Row button",
-  ListItem: "List item",
-  Testimonial: "Testimonial",
-  FaqItem: "Question",
-  GridCard: "Card",
-  LinkItem: "Link",
-  ScheduleRow: "Session",
-  OutcomeNumber: "Outcome number",
-};
-
-const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
-  Section: Section as never,
-  Columns: Columns as never,
-  RichText: RichText as never,
-  Heading: Heading as never,
-  Button: Button as never,
-  ButtonRow: ButtonRow as never,
-  Image: Image as never,
-  Split: Split as never,
-  List: List as never,
-  Testimonials: Testimonials as never,
-  Faq: Faq as never,
-  Countdown: CountdownBlock as never,
-  CardGrid: CardGrid as never,
-  LinkList: LinkList as never,
-  Divider: Divider as never,
-  Spacer: Spacer as never,
-  Video: Video as never,
-  OptInForm: OptInFormBlock as never,
-  Hero: Hero as never,
-  Steps: Steps as never,
-  Stats: Stats as never,
-  CtaBanner: CtaBanner as never,
-  AnnouncementStrip: AnnouncementStrip as never,
-  SchedulePanel: SchedulePanel as never,
-  OutcomeNumbers: OutcomeNumbers as never,
-  FinisherCards: FinisherCards as never,
-  Timeline: Timeline as never,
-  WeekStrip: WeekStrip as never,
-  FinishLineCards: FinishLineCards as never,
-  PlanPhases: PlanPhases as never,
-  JourneyMap: JourneyMap as never,
-  ComingUp: ComingUp as never,
-  Step: Step as never,
-  Stat: Stat as never,
-  FinisherCard: FinisherCard as never,
-  TimelineMoment: TimelineMoment as never,
-  WeekDay: WeekDay as never,
-  FinishLineCard: FinishLineCard as never,
-  PlanPhase: PlanPhase as never,
-  RowButton: RowButton as never,
-  ListItem: ListItem as never,
-  Testimonial: Testimonial as never,
-  FaqItem: FaqItem as never,
-  GridCard: GridCard as never,
-  LinkItem: LinkItem as never,
-  ScheduleRow: ScheduleRowItem as never,
-  OutcomeNumber: OutcomeNumber as never,
-};
+/** The default props of every registered block, typed for the blocks the pages code and the installed modules know at build time. */
+export const BLOCK_DEFAULTS = pageBlocks.defaults as unknown as typeof CORE_DEFAULTS & InstalledBlockDefaults;
+export const BLOCK_LABELS = pageBlocks.labels as Record<keyof typeof BLOCK_DEFAULTS, string>;
 
 type BlockName = keyof typeof BLOCK_DEFAULTS;
 
@@ -417,35 +169,15 @@ type BlockName = keyof typeof BLOCK_DEFAULTS;
  * The blocks that hold a list of items as a slot of child blocks, with the type each slot takes. The items are blocks of
  * their own (a Finisher card, a week's day), so they drag on the canvas and are edited by clicking them (docs/product/LANDING_PAGES.md,
  * "Blocks with items"). The editor limits the slot to these types (`allow`) and keeps them out of Sections and Columns
- * (`disallow`); the JSON import drops anything else.
+ * (`disallow`); the JSON import drops anything else. Derived from the blocks' `slots` in the registry.
  */
-export const SLOT_ALLOW: Partial<Record<BlockName, Record<string, BlockName[]>>> = {
-  Steps: { items: ["Step"] },
-  Stats: { items: ["Stat"] },
-  FinisherCards: { items: ["FinisherCard"] },
-  Timeline: { items: ["TimelineMoment"] },
-  WeekStrip: { items: ["WeekDay"] },
-  FinishLineCards: { items: ["FinishLineCard"] },
-  PlanPhases: { items: ["PlanPhase"] },
-  ButtonRow: { items: ["RowButton"] },
-  List: { items: ["ListItem"] },
-  Testimonials: { items: ["Testimonial"] },
-  Faq: { items: ["FaqItem"] },
-  CardGrid: { items: ["GridCard"] },
-  LinkList: { items: ["LinkItem"] },
-  SchedulePanel: { items: ["ScheduleRow"] },
-  OutcomeNumbers: { items: ["OutcomeNumber"] },
-};
+export const SLOT_ALLOW = pageBlocks.slotAllow as Partial<Record<BlockName, Record<string, BlockName[]>>>;
 
 /** The item block types: they are in the palette under "Parts of a block" and only make sense inside their parent. */
-export const ITEM_BLOCKS: BlockName[] = [...new Set(Object.values(SLOT_ALLOW).flatMap((slots) => Object.values(slots ?? {}).flat()))];
+export const ITEM_BLOCKS = pageBlocks.itemBlocks as BlockName[];
 
-/** The blocks that hold other blocks, and the names of their slots. Everything that walks a page finds nested blocks by their shape, so a new container only needs an entry here and in the editor's fields. */
-export const SLOTS: Partial<Record<BlockName, string[]>> = {
-  Section: ["content"],
-  Columns: ["col1", "col2", "col3"],
-  ...Object.fromEntries(Object.entries(SLOT_ALLOW).map(([name, slots]) => [name, Object.keys(slots ?? {})])),
-};
+/** The blocks that hold other blocks, and the names of their slots. Everything that walks a page finds nested blocks by their shape, so a new container only needs `slots` in its definition and the editor's fields. */
+export const SLOTS = pageBlocks.slots as Partial<Record<BlockName, string[]>>;
 
 type BoxProps = { puck?: { dragRef?: ((el: Element | null) => void) | null; isEditing?: boolean }; span?: unknown; spanMobile?: unknown } & Record<string, unknown>;
 
@@ -455,12 +187,13 @@ type BoxProps = { puck?: { dragRef?: ((el: Element | null) => void) | null; isEd
  * `inline`, so Puck puts no wrapper of its own around them and takes its drag handle from this box (`puck.dragRef`).
  * Outside a Section there is no grid and the classes do nothing.
  */
-function boxed(name: keyof typeof BLOCK_DEFAULTS) {
-  const Block = RENDERERS[name] as unknown as ComponentType<Record<string, unknown>>;
+function boxed(definition: PageBlockDefinition) {
+  const Block = definition.render as unknown as ComponentType<Record<string, unknown>>;
+  const holdsSlots = Boolean(definition.slots);
   return function BlockBox({ puck, span, spanMobile, ...props }: BoxProps) {
     return (
       <div ref={puck?.dragRef ?? undefined} className={`min-w-0 ${spanClasses(span, spanMobile)}`}>
-        <Block {...props} {...(SLOTS[name] ? { editing: Boolean(puck?.isEditing) } : {})} />
+        <Block {...props} {...(holdsSlots ? { editing: Boolean(puck?.isEditing) } : {})} />
       </div>
     );
   };
@@ -471,45 +204,47 @@ function boxed(name: keyof typeof BLOCK_DEFAULTS) {
  * box: it is not on a Section's grid, its parent lays it out. It takes the drag handle itself (`dragRef`), and is told
  * whether the page is being edited, so an empty one stays visible there and draws nothing on the public page.
  */
-function itemBoxed(name: keyof typeof BLOCK_DEFAULTS) {
-  const Item = RENDERERS[name] as unknown as ComponentType<Record<string, unknown>>;
+function itemBoxed(definition: PageBlockDefinition) {
+  const Item = definition.render as unknown as ComponentType<Record<string, unknown>>;
   return function ItemBox({ puck, ...props }: BoxProps) {
     return <Item {...props} dragRef={puck?.dragRef ?? undefined} editing={Boolean(puck?.isEditing)} />;
   };
 }
 
-function components(): Config["components"] {
+/** The component config of every block in the registry. */
+function components(registry: PageBlockRegistry): Config["components"] {
   const out: Config["components"] = {};
-  for (const name of Object.keys(BLOCK_DEFAULTS) as (keyof typeof BLOCK_DEFAULTS)[]) {
-    out[name] = block({
-      label: BLOCK_LABELS[name],
+  for (const definition of registry.blocks) {
+    const slots = Object.keys(definition.slots ?? {});
+    out[definition.type] = block({
+      label: definition.label,
       // A slot starts empty unless the block's defaults give it items (a freshly added Steps block starts with three steps).
-      defaultProps: { ...Object.fromEntries((SLOTS[name] ?? []).map((slot) => [slot, []])), ...BLOCK_DEFAULTS[name] },
-      render: (ITEM_BLOCKS.includes(name) ? itemBoxed(name) : boxed(name)) as (props: unknown) => ReactNode,
+      defaultProps: { ...Object.fromEntries(slots.map((slot) => [slot, []])), ...definition.defaults },
+      render: (registry.itemBlocks.includes(definition.type) ? itemBoxed(definition) : boxed(definition)) as (props: unknown) => ReactNode,
       inline: true,
       // A slot must be declared for Puck's Render to turn a container's stored blocks into the component it renders (the editor config declares it too).
-      ...(SLOTS[name] ? { fields: Object.fromEntries(SLOTS[name].map((slot) => [slot, { type: "slot" }])) } : {}),
+      ...(slots.length > 0 ? { fields: Object.fromEntries(slots.map((slot) => [slot, { type: "slot" }])) } : {}),
     });
   }
   return out;
 }
 
+/**
+ * What the public page renders with: the blocks of `registry` and the page frame, no fields. Built from a registry so a composition
+ * without a module (the tests build one) is the same code path as the installed one.
+ */
+export function buildRenderConfig(registry: PageBlockRegistry): Config & { categories: NonNullable<Config["categories"]> } {
+  return {
+    components: components(registry),
+    root: rootConfig as unknown as Config["root"],
+    categories: Object.fromEntries(Object.entries(registry.categories).map(([key, group]) => [key, { title: group.title, components: group.components }])),
+  };
+}
+
 /** What the public page renders with: blocks and frame, no fields. */
-export const renderConfig = {
-  components: components(),
-  root: rootConfig as unknown as Config["root"],
-  categories: {
-    layout: { title: "Layout", components: ["Section", "Columns", "Split", "CardGrid", "Divider", "Spacer"] },
-    ready_made: { title: "Ready-made", components: ["Hero", "Steps", "Stats", "CtaBanner"] },
-    // The items of the blocks that hold a list of them; dragged into that block's list on the canvas (or added by duplicating one).
-    parts: { title: "Parts of a block", components: ITEM_BLOCKS },
-    homepage: { title: "Homepage", components: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"] },
-    content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },
-    links: { title: "Links", components: ["Button", "ButtonRow", "LinkList", "OptInForm"] },
-  },
-} satisfies Config;
+export const renderConfig = buildRenderConfig(pageBlocks);
 
 /** The render config for a page framed as `frame` says (a website page's shared header and footer, or a landing page's own). */
-export function renderConfigFor(frame: FrameContext): Config {
-  return { ...renderConfig, root: rootConfigFor(frame) };
+export function renderConfigFor(frame: FrameContext, config: Config = renderConfig): Config {
+  return { ...config, root: rootConfigFor(frame) };
 }

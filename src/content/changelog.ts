@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "page-block-registry",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "A page block registry: modules add blocks to the page builder",
+    summary: "Every block of the page builder is now one definition in a registry, and the events blocks (Announcement strip, Schedule panel, Coming up) come from an events module instead of the pages code.",
+    body: `The page builder no longer knows what events are. A block is a \`definePageBlock\` definition (stored type, label, palette group, defaults, component, slots, publish checks), and the editor's config, the public renderer, the publish check, the AI builder and the JSON import all read one registry built from those.
+
+- **Rule.** The pages code never imports a module (lint and a boundary test fail it). A module (\`src/modules/<name>\`) contributes three things on three sides: blocks (server and browser), editor fields (client only) and live data loaders (server only), and the composition root \`src/modules/index.ts\`, \`editor.ts\` and \`server.ts\` is the one place that lists the installed ones.
+- **Hooks.** \`definePageBlock\`, \`createPageBlockRegistry\` (rejects duplicate types), \`createEditorKit\`, \`PageDataLoader\`. Stored page JSON is unchanged; a stored block whose module is absent draws nothing for visitors and shows a note in the editor, keeping its props.
+- **Detail.** \`docs/architecture/PAGE_BLOCKS.md\`.`,
+  },
+  {
     slug: "project-stage-milestone-prompt",
     date: "2026-11-21",
     audience: "engineering",
