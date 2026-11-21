@@ -34,7 +34,8 @@ vi.mock("@/lib/features.server", () => ({
 vi.mock("@/app/(member)/projects/actions", () => ({
   getProfileWriting: vi.fn(async () => ({ projects: [], goals: [] })),
 }));
-vi.mock("@/lib/badges", () => ({
+vi.mock("@/lib/badges", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/badges")>()),
   getMemberBadges: vi.fn(async () => []),
   getAttendedPrickleCount: vi.fn(async () => 17),
 }));
@@ -226,6 +227,47 @@ describe("member profile page: Message button", () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await renderServerPage(MemberProfilePage, params);
     expect(button()).not.toBeInTheDocument();
+  });
+});
+
+describe("member profile page: Finisher and Author badges", () => {
+  const viewerPassed = async () => {
+    const { getMemberBadges } = await import("@/lib/badges");
+    const calls = vi.mocked(getMemberBadges).mock.calls;
+    return calls[calls.length - 1][4];
+  };
+
+  it("draws them as chips, next to Published Author, with the existing badge component", async () => {
+    const { getMemberBadges } = await import("@/lib/badges");
+    const badge = (key: string, name: string, levelName: string, level: number, occurrences: number) => ({
+      badgeType: { id: key, key, name, description: null, icon: "x", category: "community", has_levels: true, is_automatic: true, program_id: null },
+      levelName, level, occurrences, firstAwardedAt: null, lastAwardedAt: null, note: null,
+    });
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      badge("finisher", "Finisher", "5x Finisher", 3, 5),
+      badge("author", "Author", "3x Author", 2, 3),
+      badge("published_author", "Published Author", "2x Published Author", 2, 2),
+    ] as never);
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.getByText("5x Finisher")).toBeInTheDocument();
+    expect(screen.getByText("3x Author")).toBeInTheDocument();
+    expect(screen.getByText("2x Published Author")).toBeInTheDocument();
+  });
+
+  it("counts only what the member shows to members when someone else is looking", async () => {
+    await renderServerPage(MemberProfilePage, params);
+    expect(await viewerPassed()).toBe("others");
+  });
+
+  it("counts every confirmed milestone on your own profile, and not for an admin in sudo as someone else", async () => {
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: PROFILE_ID });
+    await renderServerPage(MemberProfilePage, params);
+    expect(await viewerPassed()).toBe("self");
+    document.body.innerHTML = "";
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await renderServerPage(MemberProfilePage, params);
+    expect(await viewerPassed()).toBe("others");
   });
 });
 

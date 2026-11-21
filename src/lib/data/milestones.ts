@@ -1,8 +1,9 @@
 import type { ConfirmedMilestoneAnswer, MilestoneAnswer, MilestoneKind, MilestoneSource, MilestoneStatus } from "@/lib/finishers";
 import { workKey, type WorkRef } from "@/lib/finishers-works";
-import type { Visibility } from "@/lib/writing-visibility";
+import { isShownToMembers, type Visibility } from "@/lib/writing-visibility";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId, must } from "./query";
 
 /** A Finisher milestone a member claims or staff proposed (`member_milestones`). Withdrawing one is a soft delete. */
@@ -41,6 +42,9 @@ export type ShownMilestone = {
   storyAfter: string | null;
   visibility: Visibility;
 };
+
+/** A shown milestone as the Finisher and Author badges read it: no id, no work, no stories. */
+export type BadgeMilestone = { memberId: string; kind: MilestoneKind; achievedOn: string | null };
 
 /** A milestone as the staff list shows it: the member's names, never the stories. */
 export type StaffMilestone = Pick<Milestone, "id" | "memberId" | "kind" | "status" | "source" | "achievedOn" | "createdAt"> & {
@@ -178,6 +182,12 @@ export interface MilestoneRepository {
   shownToMembers(memberId: string): Promise<ShownMilestone[]>;
   /** What a visitor of the web sees on this member's writer profile: only the milestones at the globe. Service role; the page checks that the profile is on. */
   shownOnWeb(memberId: string): Promise<ShownMilestone[]>;
+  /**
+   * Every member's confirmed, live milestones at community or public level, for the Finisher and Author badges of many members
+   * at once (kind and date only, paged past 1,000 rows). Never a private one, an admin's client included. It reads the table, so
+   * it needs a staff or service client; under a member's own client it returns only their own.
+   */
+  allShownToMembers(): Promise<BadgeMilestone[]>;
 }
 
 export class SupabaseMilestoneRepository implements MilestoneRepository {
@@ -383,6 +393,20 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 
   async shownOnWeb(memberId: string) {
     return (must(await this.db.rpc("milestones_shown_on_web", { p_member_id: memberId })) ?? []).map(toShown);
+  }
+
+  async allShownToMembers() {
+    const rows = await fetchAllRows<{ member_id: string; kind: string; achieved_on: string | null }>((from, to) =>
+      this.db
+        .from("member_milestones")
+        .select("member_id, kind, achieved_on")
+        .eq("status", "confirmed")
+        .is("deleted_at", null)
+        .in("visibility", ["community", "public"])
+        .order("id")
+        .range(from, to),
+    );
+    return rows.map((r) => ({ memberId: r.member_id, kind: r.kind as MilestoneKind, achievedOn: r.achieved_on }));
   }
 }
 
@@ -596,5 +620,12 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
 
   async shownOnWeb(memberId: string) {
     return this.shown(memberId, ["public"]);
+  }
+
+  async allShownToMembers() {
+    return this.live()
+      .filter((m) => m.status === "confirmed" && isShownToMembers(m.visibility as Visibility))
+      .sort(byKeyThenId<MilestoneRow>((m) => m.id, (m) => m.id))
+      .map((m) => ({ memberId: m.member_id, kind: m.kind as MilestoneKind, achievedOn: m.achieved_on }));
   }
 }

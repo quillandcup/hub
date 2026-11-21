@@ -119,7 +119,9 @@ export default async function MemberProfilePage({
     createRepos(supabase),
     id,
     totalPricklesAttended,
-    member.first_joined_at
+    member.first_joined_at,
+    // Your own profile counts every milestone you confirmed; anyone else's counts only the ones shown to members.
+    id === effectiveIdentity.memberId ? "self" : "others"
   )
   // The Big Sister badge links to /big-sisters, which only members with the preview can open.
   const ownFeatures = await getUserFeaturePreviews(user.id)
