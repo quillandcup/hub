@@ -1,5 +1,5 @@
 -- pgTAP tests for 20270912000000_member_milestones_visibility.sql (who sees a milestone, docs/product/FINISHERS.md):
---   * a milestone is private until confirmed (CHECK), and confirming one starts it at 'community' without moving a confirmed one;
+--   * a milestone is private until confirmed (CHECK), and confirming one starts it at 'public' (the globe) without moving a confirmed one;
 --   * the member sets the level of their own row, nobody else's, and the change is an audit row that never holds the story;
 --   * another member and an admin, through the member-facing reader, never get a private milestone or its story, a proposal,
 --     a taken-back one, or an id; the table itself is still unreadable to another member;
@@ -50,16 +50,16 @@ INSERT INTO public.member_milestones (id, member_id, kind, source, status, title
 INSERT INTO public.member_milestones (id, member_id, kind, source, status, confirmed_at, book_id, visibility) VALUES
   ('mlst_mvGoneBook1', 'mbr_mvQuinn00001', 'the_end', 'member', 'confirmed', now(), NULL, 'community');
 
--- Confirming a proposal starts it at community (the default), and changing a confirmed one never moves it.
+-- Confirming a proposal starts it at the globe (the default), and changing a confirmed one never moves it.
 SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvProposed1'), 'private', 'a proposal is private');
 UPDATE public.member_milestones SET status = 'confirmed', confirmed_at = now() WHERE id = 'mlst_mvProposed1';
-SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvProposed1'), 'community', 'confirming it starts it at community');
+SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvProposed1'), 'public', 'confirming it starts it at the globe');
 UPDATE public.member_milestones SET visibility = 'private' WHERE id = 'mlst_mvProposed1';
 UPDATE public.member_milestones SET story_before = 'Changed my mind.' WHERE id = 'mlst_mvProposed1';
 SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvProposed1'), 'private', 'changing a confirmed milestone keeps the level the member chose');
 UPDATE public.member_milestones SET status = 'declined', confirmed_at = NULL, visibility = 'private' WHERE id = 'mlst_mvProposed1';
 UPDATE public.member_milestones SET status = 'confirmed', confirmed_at = now() WHERE id = 'mlst_mvProposed1';
-SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvProposed1'), 'community', 'a declined one the member brings back starts at community again');
+SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvProposed1'), 'public', 'a declined one the member brings back starts at the globe again');
 UPDATE public.member_milestones SET deleted_at = now() WHERE id = 'mlst_mvProposed1';
 
 -- The member sets the level of their own milestone; another member cannot; both are checked as the signed-in user.

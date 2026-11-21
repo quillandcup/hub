@@ -7,8 +7,10 @@ import {
   MAX_STORY_LENGTH,
   MILESTONE_CELEBRATION,
   MILESTONE_CLAIMS,
+  MILESTONE_DEFAULT_VISIBILITY,
   MILESTONE_KINDS,
   MILESTONE_LABELS,
+  MILESTONE_LEVEL_LINES,
   MILESTONE_SELF_ADD,
   MILESTONE_SOURCE_NOTES,
   MILESTONE_TITLES,
@@ -39,7 +41,9 @@ const SECONDARY = "px-4 py-2 text-sm rounded-md border border-slate-300 dark:bor
 const NOTE = "mt-1 text-sm text-slate-600 dark:text-slate-400";
 
 export type FormResult = { success: true } | { error: string };
-export type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; shareStory: boolean };
+export type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; shareStory: boolean; visibility: Visibility };
+
+const ALL_LEVELS: readonly Visibility[] = ["private", "community", "public"];
 
 /** What the member's writer profile is, as far as the globe's note needs to know (as `WebPageState` for profile items). */
 export type MilestoneWebState = { available: boolean; on: boolean };
@@ -94,13 +98,15 @@ export function MilestoneForm({
   const [after, setAfter] = useState(initial?.storyAfter ?? "");
   // The share tick starts unticked (SHARE_STORY_DEFAULT); a milestone already confirmed shows what the member chose.
   const [share, setShare] = useState(initial?.status === "confirmed" ? initial.consentTestimonial : SHARE_STORY_DEFAULT);
+  // Who sees it starts at the default (the globe) for a milestone not confirmed yet, so the choice is visible and one click away; a confirmed one shows its own.
+  const [level, setLevel] = useState<Visibility>(initial?.status === "confirmed" ? initial.visibility : MILESTONE_DEFAULT_VISIBILITY);
   const written = before.trim() !== "" || after.trim() !== "";
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await run({ achievedOn: date || null, storyBefore: before, storyAfter: after, shareStory: share });
+      const result = await run({ achievedOn: date || null, storyBefore: before, storyAfter: after, shareStory: share, visibility: level });
       if ("error" in result) {
         setError(result.error);
         return;
@@ -130,6 +136,22 @@ export function MilestoneForm({
           And how does it feel now? (optional)
         </label>
         <textarea id={`${idPrefix}-after`} rows={3} maxLength={MAX_STORY_LENGTH} value={after} onChange={(e) => setAfter(e.target.value)} className={INPUT} />
+      </div>
+      <div data-testid="milestone-form-level">
+        <p className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Who can see this milestone and your story?</p>
+        <VisibilityControl
+          visibility={level}
+          onChange={setLevel}
+          disabled={pending}
+          noun="milestone"
+          levels={ALL_LEVELS}
+          describe={describeMilestoneLevel}
+          withText
+          className="text-sm text-slate-700 dark:text-slate-300"
+        />
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400" data-testid="milestone-form-level-line">
+          {MILESTONE_LEVEL_LINES[level]}
+        </p>
       </div>
       {written && <ShareStoryTick id={`${idPrefix}-share`} checked={share} onChange={setShare} disabled={pending} />}
       {error && (
@@ -253,6 +275,7 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
               storyBefore: i.storyBefore,
               storyAfter: i.storyAfter,
               shareStory: i.shareStory,
+              visibility: i.visibility,
             })}
           onDone={(saved) => finishForm(saved, false)}
           readOnly={readOnly}
@@ -333,7 +356,7 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
           idPrefix={`ms-${milestone.id}`}
           initial={milestone}
           submitLabel="Save"
-          run={(i) => answerMilestone({ id: milestone.id, answer: "confirm", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory })}
+          run={(i) => answerMilestone({ id: milestone.id, answer: "confirm", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })}
           onDone={(saved) => finishForm(saved, milestone.status === "confirmed")}
           readOnly={readOnly}
         />
@@ -429,7 +452,7 @@ function UnlistedWork({ readOnly }: { readOnly: boolean }) {
           </>
         }
         submitLabel="Add it"
-        run={(i) => addMilestone({ kind, title, achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory })}
+        run={(i) => addMilestone({ kind, title, achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })}
         onDone={(saved) => {
           setOpen(false);
           if (saved) setCelebrated(kind);
@@ -444,8 +467,7 @@ function UnlistedWork({ readOnly }: { readOnly: boolean }) {
  * Settings > Profile: "Your milestones", always there, per work (docs/product/FINISHERS.md). Each of the member's projects and
  * Bookshelf books has its own THE END and publish-ready rows, which they can add themselves, confirm (when staff suggested
  * it) or take back; a book also shows Published, which comes from the Bookshelf and is read-only. Works with a milestone, on
- * the Bookshelf or past the drafting stage come first; the rest wait under "Show all my projects". A confirmed step starts at "other members can
- * see it"; its lock, house or globe changes that (the globe only once writer profiles are open to the member).
+ * the Bookshelf or past the drafting stage come first; the rest wait under "Show all my projects". A confirmed step starts at the globe (members see it now, the web once the profile is on); its lock, house or globe changes that (the globe only once writer profiles are open to the member).
  */
 export function MilestonesPanel({
   milestones,
@@ -474,7 +496,7 @@ export function MilestonesPanel({
       </h2>
       <p className="mt-1 mb-2 text-sm text-slate-600 dark:text-slate-400">
         For each of your works, mark the steps you have reached: you wrote THE END, it is ready to publish, it is published. Only you can mark a step.
-        Once you confirm a step, other members can see it on your profile unless you change that. The lock, house or globe on a step sets who sees it. A step staff suggested stays private until you confirm it.
+        When you confirm a step, other members see it now and anyone on the internet sees it once your writer profile is on. Tap the icon on a step to change that: the globe is anyone on the internet, the house is other members, the lock is only you. A step staff suggested stays private until you confirm it.
         {waiting && " We think you may have reached one already. Tell us if that’s right."}
         {readOnly && " (You are viewing as this member, so you can look but not change anything.)"}
       </p>

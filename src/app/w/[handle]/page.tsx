@@ -41,6 +41,6 @@ export default async function WriterProfile({ params }: Params) {
   if (found.profile.handle !== handle) permanentRedirect(writerProfilePath(found.profile.handle));
   // The milestones at the globe: read now, after the checks in `load` (the page is on, the owner has the feature), and on every request
   // (the page is rendered on demand), so a withdrawn one is gone on the next read; the milestone actions also revalidate this path.
-  const milestones = await getServiceRepos().milestones.shownOnWeb(found.ownerId);
+  const milestones = await getServiceRepos().milestones.worksShownOnWeb(found.ownerId);
   return <WriterProfileView profile={found.profile} milestones={milestones} />;
 }

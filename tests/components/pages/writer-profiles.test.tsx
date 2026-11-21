@@ -12,6 +12,7 @@ import { APP_URL, SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { WRITER_PREVIEW_PATH } from "@/lib/writer-profile";
+import { MILESTONE_DEFAULT_VISIBILITY } from "@/lib/finishers";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -82,31 +83,80 @@ describe("/w/[handle]", () => {
       const shown = await confirm("the_end", "A Fake Novel", { storyAfter: "I finally did it.", achievedOn: "2026-05-01" });
       const members = await confirm("publish_ready", "A Community Fake Work", { storyAfter: "Community only words." });
       const hidden = await confirm("the_end", "A Private Fake Work", { storyAfter: "Private words." });
-      await level(shown.milestone.id, "public");
+      expect(shown.milestone.visibility).toBe(MILESTONE_DEFAULT_VISIBILITY);
+      await level(members.milestone.id, "community");
       await level(hidden.milestone.id, "private");
-      expect(members.milestone.visibility).toBe("community");
 
       const { container } = await renderServerPage(WriterProfile, params("ada-example"));
 
       const strip = screen.getByTestId("milestone-strip");
       expect(strip).toHaveTextContent("Finisher · Wrote THE END");
-      expect(strip).toHaveTextContent("A Fake Novel · May 1, 2026");
+      expect(strip).toHaveTextContent("A Fake Novel");
+      expect(strip).toHaveTextContent("May 1, 2026");
       expect(strip).toHaveTextContent("I finally did it.");
       for (const secret of ["Community only words.", "A Community Fake Work", "Private words.", "A Private Fake Work", "mlst_"]) expect(container.innerHTML).not.toContain(secret);
     });
 
     it("draws no strip when no milestone is at the globe", async () => {
       await makePage("ada-example");
-      await confirm("the_end", "A Fake Novel");
+      const { milestone } = await confirm("the_end", "A Fake Novel");
+      await level(milestone.id, "community");
+      await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
+    });
+
+    const book = (id: string, title: string, projectId: string | null = null, published = "2026-09-01") =>
+      state.dataset.memberBooks.push({ id, member_id: ADA, title, published_date: published, cover_asset_id: null, project_id: projectId });
+
+    it("lists each work with its milestones in order and Published from the Bookshelf, for one work and for several at different steps", async () => {
+      await makePage("ada-example");
+      const novel = await state.repos.writing.createProject(ADA, "A Fake Novel", "revising");
+      book("book_AAAAAAAAAAA1", "A Fake Novel Book", novel);
+      book("book_AAAAAAAAAAA2", "A Loose Fake Book");
+      const projectWork = { projectId: novel, bookId: null, title: null };
+      for (const kind of ["publish_ready", "the_end"] as const) {
+        await state.repos.milestones.addOwn(
+          { memberId: ADA, kind, work: projectWork, createdBy: "11111111-1111-4111-8111-111111111111", answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false } },
+          NOW,
+        );
+      }
+      await confirm("the_end", "A Fake Memoir");
+      await renderServerPage(WriterProfile, params("ada-example"));
+
+      const works = screen.getAllByTestId("milestone-work");
+      expect(works).toHaveLength(3);
+      const steps = (work: HTMLElement) => Array.from(work.querySelectorAll("li p:first-child")).map((p) => p.textContent);
+      const byTitle = (title: string) => works.find((w) => w.querySelector("h3")?.textContent === title)!;
+      // A project and its book are one work, all three steps in order; a book alone is only Published; a work with a title the member wrote has its one step.
+      expect(steps(byTitle("A Fake Novel Book"))).toEqual(["Finisher · Wrote THE END", "Author · Manuscript ready to publish", "Published Author · Published"]);
+      expect(steps(byTitle("A Loose Fake Book"))).toEqual(["Published Author · Published"]);
+      expect(steps(byTitle("A Fake Memoir"))).toEqual(["Finisher · Wrote THE END"]);
+    });
+
+    it("shows Published for a Bookshelf book with no milestone at all, at the globe, in the preview too", async () => {
+      await makePage("ada-example", { on: false });
+      book("book_AAAAAAAAAAA1", "A Fake Book");
+      signInAs({ id: "user-ada", email: "ada.private@example.test" } as never, { memberId: ADA, memberName: "Ada", memberEmail: "ada.private@example.test", isSudo: false });
+      await renderServerPage(WriterProfilePreview, {});
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("A Fake Book");
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("Published Author · Published");
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("September 1, 2026");
+    });
+
+    it("draws no Published for a deleted book", async () => {
+      await makePage("ada-example");
+      book("book_AAAAAAAAAAA1", "A Deleted Fake Book");
+      state.dataset.memberBooks[0].deleted_at = NOW.toISOString();
       await renderServerPage(WriterProfile, params("ada-example"));
       expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
     });
 
     it("is behind the writer profiles flag and the page being on: with either off it is the same 404, and the strip is never read", async () => {
       await makePage("ada-example");
+      book("book_AAAAAAAAAAA1", "A Fake Book");
       const { milestone } = await confirm("the_end", "A Fake Novel", { storyAfter: "I finally did it." });
       await level(milestone.id, "public");
-      const reads = vi.spyOn(state.repos.milestones, "shownOnWeb");
+      const reads = vi.spyOn(state.repos.milestones, "worksShownOnWeb");
 
       state.dataset.featureFlags[0].enabled_globally = false;
       await expect(WriterProfile(params("ada-example"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });

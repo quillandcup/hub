@@ -95,7 +95,7 @@ export default async function MemberProfilePage({
     createRepos(supabase).memberProfile.askMeAbout(id),
     showNotes ? createRepos(supabase).memberProfile.noteAbout(effectiveIdentity.memberId, id) : Promise.resolve(null),
     // Only milestones the member showed to other members (or the web): the same list for them, an admin and any member, never a private one.
-    createRepos(supabase).milestones.shownToMembers(id).catch(() => []),
+    createRepos(supabase).milestones.worksShownToMembers(id).catch(() => []),
   ])
   const books = booksData
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
@@ -246,7 +246,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all -- only milestones the member showed to other members (the lock hides them) */}
       {milestones.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <MilestoneStrip milestones={milestones} />
+          <MilestoneStrip steps={milestones} />
         </div>
       )}
 

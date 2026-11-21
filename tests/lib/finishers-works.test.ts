@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { MAX_WORK_TITLE_LENGTH, buildWorks, isFeaturedWork, isPastDrafting, parseWork, summarizeTitles, workKey } from "@/lib/finishers-works";
+import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, isFeaturedWork, isPastDrafting, parseWork, summarizeTitles, workKey } from "@/lib/finishers-works";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
-import type { Milestone } from "@/lib/data/milestones";
+import type { Milestone, ShownWorkStep } from "@/lib/data/milestones";
 
 const row = (overrides: Partial<Milestone> = {}): Milestone => ({
   id: "mlst_AAAAAAAAAAA1",
@@ -140,5 +140,60 @@ describe("summarizeTitles", () => {
   it("uses the plural for several works", () => {
     const works = buildWorks([], [], [row({ id: "a", title: "A" }), row({ id: "b", title: "B" })]);
     expect(summarizeTitles(works)).toBe("Finisher of 2 works");
+  });
+});
+
+describe("groupShownWorks (the strips)", () => {
+  const step = (overrides: Partial<ShownWorkStep> = {}): ShownWorkStep => ({
+    workNo: 1,
+    kind: "the_end",
+    workTitle: "A Fake Novel",
+    achievedOn: null,
+    storyBefore: null,
+    storyAfter: null,
+    visibility: "public",
+    ...overrides,
+  });
+
+  it("draws nothing for no rows", () => {
+    expect(groupShownWorks([])).toEqual([]);
+  });
+
+  it("puts one work's steps in the order of the journey whatever order they come in: 1, 2 and 3 milestones", () => {
+    const one = groupShownWorks([step()]);
+    expect(one).toHaveLength(1);
+    expect(one[0].steps.map((s) => s.kind)).toEqual(["the_end"]);
+    const two = groupShownWorks([step({ kind: "publish_ready" }), step()]);
+    expect(two[0].steps.map((s) => s.kind)).toEqual(["the_end", "publish_ready"]);
+    const three = groupShownWorks([step({ kind: "published" }), step({ kind: "publish_ready" }), step()]);
+    expect(three).toHaveLength(1);
+    expect(three[0].title).toBe("A Fake Novel");
+    expect(three[0].steps.map((s) => s.kind)).toEqual(["the_end", "publish_ready", "published"]);
+  });
+
+  it("keeps several works apart, in their numbered order, each at its own phase (an untitled project included)", () => {
+    const works = groupShownWorks([
+      step({ workNo: 3, kind: "published", workTitle: "A Loose Fake Book" }),
+      step({ workNo: 1 }),
+      step({ workNo: 1, kind: "publish_ready" }),
+      step({ workNo: 2, workTitle: null, kind: "publish_ready" }),
+    ]);
+    expect(works.map((w) => [w.title, w.steps.map((s) => s.kind)])).toEqual([
+      ["A Fake Novel", ["the_end", "publish_ready"]],
+      [null, ["publish_ready"]],
+      ["A Loose Fake Book", ["published"]],
+    ]);
+  });
+
+  it("shows a work's name even when only a later row knows it, and one Published for two books under one project (the earliest day)", () => {
+    const works = groupShownWorks([
+      step({ workTitle: null }),
+      step({ kind: "published", achievedOn: "2026-09-01" }),
+      step({ kind: "published", achievedOn: "2026-02-01", workTitle: "An Earlier Fake Book" }),
+      step({ kind: "published", achievedOn: null }),
+    ]);
+    expect(works[0].title).toBe("A Fake Novel");
+    expect(works[0].steps.filter((s) => s.kind === "published")).toHaveLength(1);
+    expect(works[0].steps.find((s) => s.kind === "published")?.achievedOn).toBe("2026-02-01");
   });
 });
