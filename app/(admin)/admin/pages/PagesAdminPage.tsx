@@ -2,6 +2,7 @@ import { requireAdminPage } from "@/lib/admin-auth";
 import { Tabs } from "@/components/Tabs";
 import { APP_URL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
+import { siteVersionSummaries } from "@/lib/landing/site-versions";
 import { createClient } from "@/lib/supabase/server";
 import NewPageButton from "./NewPageButton";
 import DesignEditor from "./design/DesignEditor";
@@ -20,7 +21,13 @@ export const PAGES_SECTION = "Pages";
 export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
   await requireAdminPage();
   const repos = createRepos(await createClient());
-  const [website, landing, templates, site] = await Promise.all([repos.landingPages.list("page", "website"), repos.landingPages.list("page", "landing"), repos.landingPages.list("template"), repos.landingSiteTemplate.state()]);
+  const [website, landing, templates, site, siteVersions] = await Promise.all([
+    repos.landingPages.list("page", "website"),
+    repos.landingPages.list("page", "landing"),
+    repos.landingPages.list("template"),
+    repos.landingSiteTemplate.state(),
+    siteVersionSummaries(repos),
+  ]);
 
   return (
     <div className="container mx-auto max-w-6xl px-6 py-8">
@@ -43,7 +50,15 @@ export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
           {
             id: "design",
             label: PAGES_TAB_LABELS.design,
-            content: <DesignEditor initial={site.draft} publishedAt={site.publishedAt} hasPublished={site.published !== null} unpublished={site.published === null || JSON.stringify(site.draft) !== JSON.stringify(site.published)} />,
+            content: (
+              <DesignEditor
+                initial={site.draft}
+                publishedAt={site.publishedAt}
+                hasPublished={site.published !== null}
+                unpublished={site.published === null || JSON.stringify(site.draft) !== JSON.stringify(site.published)}
+                versions={siteVersions}
+              />
+            ),
           },
         ]}
       />

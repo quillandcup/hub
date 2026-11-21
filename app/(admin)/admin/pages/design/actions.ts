@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
+import { siteVersionSummaries, type SiteVersionSummary } from "@/lib/landing/site-versions";
+import { isLandingSiteVersionId } from "@/lib/landing/slug";
 import { faviconProblem } from "@/lib/landing/style";
 import { normalizeSiteTemplate, siteAssetIds, siteTemplateIssues, type SiteTemplate } from "@/lib/landing/site-template";
 
@@ -15,7 +17,10 @@ import { normalizeSiteTemplate, siteAssetIds, siteTemplateIssues, type SiteTempl
  */
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts). The autosave is not counted.
-export type SiteResult = { error?: string; issues?: string[]; savedAt?: string; publishedAt?: string; site?: SiteTemplate };
+// `versions` is the refreshed History after a publish; `unpublished` says whether a restored or reset draft still differs from what is live.
+export type SiteResult = { error?: string; issues?: string[]; savedAt?: string; publishedAt?: string; site?: SiteTemplate; versions?: SiteVersionSummary[]; unpublished?: boolean };
+
+type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
 
 const MAX_BYTES = 100_000;
 const tooBig = (data: unknown) => JSON.stringify(data ?? null).length > MAX_BYTES;
@@ -39,7 +44,7 @@ export async function saveSiteDraft(data: unknown): Promise<SiteResult> {
   }
 }
 
-async function publishImpl(auth: Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>, data: unknown): Promise<SiteResult> {
+async function publishImpl(auth: Auth, data: unknown): Promise<SiteResult> {
   if (tooBig(data)) return { error: "The site design is too large to publish." };
   const site = normalizeSiteTemplate(data);
   const issues = [...siteTemplateIssues(site)];
@@ -61,7 +66,7 @@ async function publishImpl(auth: Extract<Awaited<ReturnType<typeof requireAdminA
       if (asset && !asset.deleted_at && !asset.is_public) await repos.media.edit(id, { is_public: true });
     }
     revalidatePath("/admin/pages", "layout");
-    return { publishedAt: new Date().toISOString() };
+    return { publishedAt: new Date().toISOString(), versions: await siteVersionSummaries(repos) };
   } catch (error) {
     return failed("publish", error, "Couldn't publish the site design.");
   }
@@ -74,7 +79,7 @@ export async function publishSiteTemplate(data: unknown): Promise<SiteResult> {
   return withAction("landing_site_published", () => publishImpl(auth, data), (r) => ({ ok: !r.error, detail: r.error ? "refused" : undefined }));
 }
 
-async function resetImpl(auth: Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>): Promise<SiteResult> {
+async function resetImpl(auth: Auth): Promise<SiteResult> {
   try {
     const repo = createRepos(auth.supabase).landingSiteTemplate;
     if (!(await repo.resetDraftToPublished(auth.user.id))) return { error: "There is no published site design to go back to." };
@@ -90,4 +95,24 @@ export async function resetSiteDraft(): Promise<SiteResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_site_draft_reset", () => resetImpl(auth), (r) => ({ ok: !r.error }));
+}
+
+async function restoreImpl(auth: Auth, versionId: string): Promise<SiteResult> {
+  if (!isLandingSiteVersionId(versionId)) return { error: "That version no longer exists." };
+  try {
+    const repo = createRepos(auth.supabase).landingSiteTemplate;
+    if (!(await repo.restoreVersion(versionId, auth.user.id))) return { error: "That version no longer exists." };
+    revalidatePath("/admin/pages", "layout");
+    const state = await repo.state();
+    return { site: state.draft, unpublished: state.published === null || JSON.stringify(state.draft) !== JSON.stringify(state.published) };
+  } catch (error) {
+    return failed("restore", error, "Couldn't bring that version back.");
+  }
+}
+
+/** Puts an earlier published version into the draft. Nothing goes live until the site design is published again. */
+export async function restoreSiteVersion(versionId: string): Promise<SiteResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("landing_site_version_restored", () => restoreImpl(auth, versionId), (r) => ({ ok: !r.error }));
 }

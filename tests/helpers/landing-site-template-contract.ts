@@ -43,6 +43,46 @@ export function defineLandingSiteTemplateContract(name: string, setup: () => Lan
       expect((await ctx.repo().published())?.footer.text).toBe("second");
     });
 
+    it("keeps a version at each publish, newest first, without the documents", async () => {
+      expect(await ctx.repo().versions()).toEqual([]);
+      await ctx.repo().saveDraft(site("first"), null);
+      await ctx.repo().publish(null);
+      await ctx.repo().saveDraft(site("second"), null);
+      expect(await ctx.repo().versions()).toHaveLength(1);
+      await ctx.repo().publish(null);
+      const versions = await ctx.repo().versions();
+      expect(versions).toHaveLength(2);
+      expect(versions[0].created_at >= versions[1].created_at).toBe(true);
+      expect(Object.keys(versions[0])).not.toContain("data");
+      expect(await ctx.repo().versions(1)).toHaveLength(1);
+    });
+
+    it("keeps no version for a draft that is only saved, or for a publish that had nothing to publish", async () => {
+      expect(await ctx.repo().publish(null)).toBe(false);
+      await ctx.repo().saveDraft(site("wip"), null);
+      expect(await ctx.repo().versions()).toEqual([]);
+    });
+
+    it("brings a version back into the draft only: the published copy and the versions stay as they were", async () => {
+      await ctx.repo().saveDraft(site("old"), null);
+      await ctx.repo().publish(null);
+      await ctx.repo().saveDraft(site("new"), null);
+      await ctx.repo().publish(null);
+      const versions = await ctx.repo().versions();
+      const old = versions[versions.length - 1];
+      expect(await ctx.repo().restoreVersion(old.id, null)).toBe(true);
+      const state = await ctx.repo().state();
+      expect(state.draft.footer.text).toBe("old");
+      expect(state.published?.footer.text).toBe("new");
+      expect(await ctx.repo().versions()).toEqual(versions);
+    });
+
+    it("can't bring back a version that doesn't exist, and leaves the draft alone", async () => {
+      await ctx.repo().saveDraft(site("wip"), null);
+      expect(await ctx.repo().restoreVersion("lpstv_Missing000001", null)).toBe(false);
+      expect((await ctx.repo().state()).draft.footer.text).toBe("wip");
+    });
+
     it("resets the draft to the published copy", async () => {
       await ctx.repo().saveDraft(site("live"), null);
       await ctx.repo().publish(null);
