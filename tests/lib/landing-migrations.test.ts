@@ -137,3 +137,60 @@ describe("the Journey map step (one offer under the stepper becomes a stage's of
     expect(out.schemaVersion).toBe(LANDING_MIGRATIONS.length);
   });
 });
+
+// Step 2: the items of seven blocks became child blocks (a slot), and a page saved before holds them as plain lists.
+describe("items as child blocks (step 2)", () => {
+  type N = { type: string; props: Record<string, unknown> };
+  const legacy: Record<string, { item: string; items: Record<string, unknown>[] }> = {
+    Steps: { item: "Step", items: [{ title: "One", text: "a" }, { title: "Two", text: "b" }] },
+    Stats: { item: "Stat", items: [{ value: "5", label: "books" }, { value: "7", label: "years" }] },
+    FinisherCards: { item: "FinisherCard", items: [{ alt: "", name: "Ada Example", kind: "Novel", dayOne: "An idea", theEnd: "82,000 words", linkLabel: "Read", href: "", imageAssetId: "media_AAAAAAAAAAA1" }] },
+    Timeline: { item: "TimelineMoment", items: [{ when: "8:00", title: "Morning", text: "Write." }, { when: "Noon", title: "Chat", text: "Talk." }] },
+    WeekStrip: { item: "WeekDay", items: [{ label: "Mon", emoji: "👋", text: "Join", note: "5 min" }, { label: "Tue", emoji: "✍️", text: "Write", note: "" }] },
+    FinishLineCards: { item: "FinishLineCard", items: [{ title: "A year", program: "Program A", text: "Steady.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See it", href: "/x" }] },
+    PlanPhases: { item: "PlanPhase", items: [{ title: "Weeks 1 to 4", text: "Build the habit." }] },
+  };
+  const page = (type: string, extra: Record<string, unknown> = {}) => ({ type, props: { id: `${type}-1`, ...extra, items: legacy[type].items } });
+  const kids = (n: N) => n.props.items as N[];
+
+  it.each(Object.keys(legacy))("%s: a plain list becomes child blocks of the right type, with the same props in the same order", (type) => {
+    const out = normalizeLandingData({ content: [page(type)], root: {} }) as unknown as { content: N[]; schemaVersion: number };
+    const items = kids(out.content[0]);
+    expect(items.map((i) => i.type)).toEqual(legacy[type].items.map(() => legacy[type].item));
+    items.forEach((i, idx) => expect(i.props).toEqual({ ...legacy[type].items[idx], id: `${legacy[type].item}-${type}-1-${idx + 1}` }));
+    expect(new Set(items.map((i) => i.props.id)).size).toBe(items.length);
+    expect(out.schemaVersion).toBe(LANDING_SCHEMA_VERSION);
+  });
+
+  it("keeps the block's other props, and reaches blocks nested in a Section and a Columns", () => {
+    const doc = { content: [{ type: "Section", props: { id: "s1", content: [page("Steps", { heading: "How" }), { type: "Columns", props: { id: "c1", count: "2", col1: [page("WeekStrip", { subtitle: "A week" })], col2: [] } }] } }], root: {} };
+    const out = normalizeLandingData(doc) as unknown as { content: N[] };
+    const section = out.content[0];
+    const steps = (section.props.content as N[])[0];
+    expect(steps.props.heading).toBe("How");
+    expect(kids(steps).map((k) => k.type)).toEqual(["Step", "Step"]);
+    const week = ((section.props.content as N[])[1].props.col1 as N[])[0];
+    expect(week.props.subtitle).toBe("A week");
+    expect(kids(week).map((k) => k.props.label)).toEqual(["Mon", "Tue"]);
+  });
+
+  it("is idempotent: running it again, or on a page already made of child blocks, changes nothing", () => {
+    const once = normalizeLandingData({ content: Object.keys(legacy).map((t) => page(t)), root: {} });
+    expect(normalizeLandingData(once)).toEqual(once);
+    expect(normalizeLandingData({ ...(once as object), schemaVersion: 1 })).toEqual(once);
+  });
+
+  it("leaves an empty list, a block with no items and a list that is already blocks as they are", () => {
+    const already = { type: "Steps", props: { id: "st", items: [{ type: "Step", props: { id: "x", title: "Done", text: "" } }] } };
+    const empty = { type: "Timeline", props: { id: "t", items: [] } };
+    const none = { type: "WeekStrip", props: { id: "w", subtitle: "x" } };
+    const out = normalizeLandingData({ content: [already, empty, none], root: {} }) as unknown as { content: N[] };
+    expect(out.content).toEqual([already, empty, none]);
+  });
+
+  it("does not touch Outcome numbers, whose items stay a plain list of figures", () => {
+    const figures = [{ value: "50+", label: "books", note: "", source: "manual" }];
+    const out = normalizeLandingData({ content: [{ type: "OutcomeNumbers", props: { id: "o", items: figures } }], root: {} }) as unknown as { content: N[] };
+    expect(out.content[0].props.items).toEqual(figures);
+  });
+});

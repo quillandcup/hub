@@ -46,12 +46,43 @@ function journeyMapOfferToStage(props: Props): Props {
   };
 }
 
+/**
+ * Step 2. These blocks used to hold their items as a plain list of props; they now hold them as a slot of child blocks
+ * (`{ type: <item type>, props: { id, ...the item's props } }`, docs/product/LANDING_PAGES.md, "Blocks with items"), and Puck throws
+ * on a list item that is not a block. The item's props keep their names, so the conversion only wraps each one and gives it an id
+ * made from its parent's (stable, so running the step again, or on a copy of the page, gives the same ids). A list that is
+ * already blocks, or empty, is left alone, which makes the step idempotent.
+ */
+const ITEM_BLOCK_OF: Record<string, string> = {
+  Steps: "Step",
+  Stats: "Stat",
+  FinisherCards: "FinisherCard",
+  Timeline: "TimelineMoment",
+  WeekStrip: "WeekDay",
+  FinishLineCards: "FinishLineCard",
+  PlanPhases: "PlanPhase",
+};
+
+function itemsToChildBlocks(itemType: string) {
+  return (props: Props): Props => {
+    const items = props.items;
+    if (!Array.isArray(items) || items.length === 0 || items.some(isNode) || !items.every(isObject)) return props;
+    const parent = typeof props.id === "string" && props.id ? props.id : itemType;
+    return { ...props, items: items.map((item, i) => ({ type: itemType, props: { ...item, id: `${itemType}-${parent}-${i + 1}` } })) };
+  };
+}
+
 /** Append a step to change a block's props; never edit or remove an earlier one. */
 export const LANDING_MIGRATIONS: LandingMigration[] = [
   {
     // Journey map: the one `offer` under the stepper becomes the offers of a stage (the one marked current, else the first).
     version: 1,
     blocks: { JourneyMap: journeyMapOfferToStage },
+  },
+  {
+    // The items of Steps, Stats, Finisher cards, Timeline, Week strip, Finish-line cards and Plan phases become child blocks (#1600).
+    version: 2,
+    blocks: Object.fromEntries(Object.entries(ITEM_BLOCK_OF).map(([parent, item]) => [parent, itemsToChildBlocks(item)])),
   },
 ];
 
