@@ -3,7 +3,7 @@
 // URL after a successful run; Checkly alerts when a ping doesn't arrive within period + grace,
 // which catches both failed runs and runs that never fired.
 //
-// __checks__/cron-heartbeats.check.ts builds one HeartbeatMonitor per entry here, so this file
+// config/checkly/__checks__/cron-heartbeats.check.ts builds one HeartbeatMonitor per entry here, so this file
 // must stay free of Next.js/app imports (the Checkly CLI bundles it).
 //
 // Checkly assigns each monitor's ping URL on first deploy. After adding a job, deploy the

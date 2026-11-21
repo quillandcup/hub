@@ -23,7 +23,7 @@ The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `c
 1. `MUX_PLAYBACK_RESTRICTION_ID` is set in that deployment (a non-secret env var, declared in `config/env-vars.ts`, synced to Vercel preview and production). The id is **per Mux environment**: production's, the "Hedgie Hub - Local Dev" environment's (used by preview and local) and the checks environment's all differ. Unset means nothing is enforced.
 2. The `mux_playback_restriction` feature flag is on for the effective viewer (the sudo'd member in sudo). It is created off (`enabled_globally = false`) and is turned on from the feature flags admin UI: first as your own preview, then a segment, then everyone.
 
-Otherwise the tokens are exactly what they were before. Thumbnail and storyboard tokens never carry the claim: Mux supports it on every token type, but the stream is what we protect, and images are what a wrong domain list would break most confusingly. Only the member lesson page passes the id; the admin lesson builder's player stays unrestricted. The nightly Checkly stream check uses a separate Mux environment with no restriction and tokens from `__checks__/mux-token.ts`, so it is unaffected and needs no change now. If you ever want it to prove enforcement, that environment needs its own restriction and the check's token needs the same claim.
+Otherwise the tokens are exactly what they were before. Thumbnail and storyboard tokens never carry the claim: Mux supports it on every token type, but the stream is what we protect, and images are what a wrong domain list would break most confusingly. Only the member lesson page passes the id; the admin lesson builder's player stays unrestricted. The nightly Checkly stream check uses a separate Mux environment with no restriction and tokens from `config/checkly/__checks__/mux-token.ts`, so it is unaffected and needs no change now. If you ever want it to prove enforcement, that environment needs its own restriction and the check's token needs the same claim.
 
 Tokens last 1 hour. A lesson tab open longer gets fresh ones from `POST /api/courses/playback-tokens` (applying the same flag and id rule above) when the player hits a network error; `course_video_error` and the staff alert record whether the failing token carried the restriction (`restricted`), which is how to tell a wrong domain list (403 from Mux on a restricted link) from an expired link.
 
@@ -97,10 +97,10 @@ It saves the secret to `MUX_WEBHOOK_SECRET` in `.env.local` (restart `pnpm dev`)
 
 ## The nightly end-to-end check
 
-`__checks__/mux-e2e.check.ts` (Checkly, once a day, deployed by `.github/workflows/checkly.yml`):
+`config/checkly/__checks__/mux-e2e.check.ts` (Checkly, once a day, deployed by `.github/workflows/checkly.yml`):
 
 - **Webhook rejects unsigned** (always on): `POST /api/webhooks/mux` with an empty body must answer 401. Proves the route is deployed, reachable and refusing unsigned calls. It sends nothing a member could own. It runs nightly and on every pull request that runs the checks (`.github/workflows/checkly.yml`), so the route sees an unsigned request now and then: it recognises Checkly's user agent (`Checkly/1.0 (...)`) and logs that refusal at info level, not as an error. Any other unsigned or badly signed request is still logged as an error (the user agent is only a hint for the log level; the answer is always the same 401).
-- **Signed playback returns a manifest** and **a signed asset without a token is refused (403)**: need a tiny test asset. They mint a token with `__checks__/mux-token.ts` (same claims as `signPlaybackTokens`) and fetch the HLS manifest.
+- **Signed playback returns a manifest** and **a signed asset without a token is refused (403)**: need a tiny test asset. They mint a token with `config/checkly/__checks__/mux-token.ts` (same claims as `signPlaybackTokens`) and fetch the HLS manifest.
 
 The stream checks use a standing test asset in a **separate Mux environment** ("checks"), with that environment's own signing key, so Checkly never holds production's keys and the check costs about a cent a month. They are not declared until all three values are set:
 

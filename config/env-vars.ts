@@ -464,7 +464,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
 
-  // The nightly Mux end-to-end check (__checks__/mux-e2e.check.ts) uses a tiny standing test asset
+  // The nightly Mux end-to-end check (config/checkly/__checks__/mux-e2e.check.ts) uses a tiny standing test asset
   // in a SEPARATE Mux environment, never production's keys. Unset = the stream checks aren't declared.
   {
     name: "MUX_CHECK_SIGNING_KEY_ID",

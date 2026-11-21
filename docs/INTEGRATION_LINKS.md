@@ -73,7 +73,7 @@ Alert destinations are configured per system and environment:
 
 | System | Where it's configured | Status |
 |---|---|---|
-| Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
+| Checkly (uptime, SSL, cron heartbeats) | Code: `config/checkly/__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/SLACK_OPERATIONS_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
@@ -186,7 +186,7 @@ by CI after a production deploy (see `docs/VERCEL_CONFIG.md`). Edit the file, no
 page above. Production only, with 0% on `/api/health` (Checkly's uptime monitor).
 
 ---|-------------|-------------|------|-----|
-| 1 | Production | `/api/health` | 0% | Checkly's uptime monitor (`__checks__/hub-uptime.check.ts`) hits it constantly; a 0% rule collects nothing |
+| 1 | Production | `/api/health` | 0% | Checkly's uptime monitor (`config/checkly/__checks__/hub-uptime.check.ts`) hits it constantly; a 0% rule collects nothing |
 | 2 | Production | (blank) | 100% | Everything else in production; lower it if span units get costly |
 
 No Preview or Development rule, so those are never traced (no rule = not sampled). Add any new
@@ -259,7 +259,7 @@ select).
 | Alert Channels | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/alerts/settings |
 | Billing / Plan | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/billing |
 
-Checks are defined as code in `__checks__/` and `checkly.config.ts`, deployed via
+Checks are defined as code in `config/checkly/__checks__/` and `config/checkly/checkly.config.ts`, deployed via
 `.github/workflows/checkly.yml` -- edit the code, not the dashboard, for anything
 that should persist (dashboard edits get overwritten on the next `checkly deploy`).
 
@@ -267,7 +267,7 @@ that should persist (dashboard edits get overwritten on the next `checkly deploy
 
 1. Add the job to `CRON_HEARTBEATS` in `lib/cron-heartbeats.ts` (route, scheduler, period, grace,
    env var name) and wrap the route's response in `withCronHeartbeat("<job>", ...)`. The monitor
-   (`__checks__/cron-heartbeats.check.ts`) and the env var declaration (`config/env-vars.ts`)
+   (`config/checkly/__checks__/cron-heartbeats.check.ts`) and the env var declaration (`config/env-vars.ts`)
    are generated from that list, so there's nothing to add there.
 2. Merge. `.github/workflows/checkly.yml` runs `checkly deploy`, which creates the monitor.
 3. In the Checks page above, open the new monitor and copy its ping URL. Checkly assigns it on the
