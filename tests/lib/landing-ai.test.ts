@@ -158,18 +158,18 @@ describe("completeWithClaude", () => {
 
 describe("cards", () => {
   it("offers cards with an icon and a description, and no sample price or button", () => {
-    const data = cleanGeneratedBlocks({ blocks: [{ type: "CardGrid", props: { columns: "3", items: [{ icon: "🤝", title: "Community", description: "Kind company.", imageAssetId: "med_x", price: "$5" }, { title: "Education", description: "Craft." }] } }] });
+    const data = cleanGeneratedBlocks({ blocks: [{ type: "CardGrid", props: { columns: "3", items: [{ type: "GridCard", props: { icon: "🤝", title: "Community", description: "Kind company.", imageAssetId: "med_x", price: "$5" } }, { title: "Education", description: "Craft." }] } }] });
     const [grid] = content(data);
-    const items = grid.props.items as Record<string, unknown>[];
-    expect(items).toHaveLength(2);
-    expect(items[0]).toMatchObject({ icon: "🤝", title: "Community", description: "Kind company." });
-    expect(items[1]).toMatchObject({ price: "", buttonLabel: "", href: "" });
+    const items = grid.props.items as Node[];
+    expect(items.map((i) => i.type)).toEqual(["GridCard", "GridCard"]);
+    expect(items[0].props).toMatchObject({ icon: "🤝", title: "Community", description: "Kind company." });
+    expect(items[1].props).toMatchObject({ price: "", buttonLabel: "", href: "" });
     expect(JSON.stringify(data)).not.toContain("med_x");
     expect(systemPrompt("add")).toContain("CardGrid");
   });
 
   it("keeps a card grid that has pictures exactly as it is, since the model never sees the pictures", () => {
-    const current = [{ type: "CardGrid", props: { id: "cg", columns: "3", items: [{ imageAssetId: "med_pic", alt: "A desk", title: "Old", price: "$1", buttonLabel: "", href: "" }] } }];
+    const current = [{ type: "CardGrid", props: { id: "cg", columns: "3", items: [{ type: "GridCard", props: { id: "c1", imageAssetId: "med_pic", alt: "A desk", title: "Old", price: "$1", buttonLabel: "", href: "" } }] } }];
     const data = cleanGeneratedBlocks({ blocks: [{ id: "cg", type: "CardGrid", props: { items: [{ title: "New" }] } }] }, current);
     expect(content(data)).toEqual([{ type: "CardGrid", props: current[0].props }]);
     expect(JSON.stringify(pageForModel(current))).toContain('"locked":true');
@@ -313,5 +313,25 @@ describe("revising a page", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await reviseLandingPage("x", current, async () => { throw new Error("529"); })).toMatchObject({ ok: false, error: expect.stringContaining("unchanged") });
     expect(await reviseLandingPage("x", current, async () => ({ blocks: [] }))).toMatchObject({ ok: false });
+  });
+});
+
+describe("lists of items", () => {
+  it("offers List, FAQ, Link list and Card grid with their items as child blocks, and reads the bare shorthand", () => {
+    const prompt = systemPrompt();
+    for (const [parent, item] of [["List", "ListItem"], ["Faq", "FaqItem"], ["LinkList", "LinkItem"], ["CardGrid", "GridCard"]]) {
+      expect(prompt.split("\n").find((l) => l.startsWith(`- ${parent}:`)), parent).toContain(`a list of ${item} blocks, each {"type": "${item}"`);
+    }
+    const data = cleanGeneratedBlocks({
+      blocks: [
+        { type: "List", props: { items: [{ text: "Write daily", icon: "✍️" }, { type: "ListItem", props: { text: "Keep going" } }, { type: "Step", props: { title: "wrong kind" } }] } },
+        { type: "Faq", props: { items: [{ question: "Is it free?", answer: "No." }] } },
+        { type: "LinkList", props: { items: [{ label: "Join", href: "https://example.com", look: "outline", color: "hotpink" }] } },
+      ],
+    });
+    const [list, faq, links] = content(data);
+    expect((list.props.items as Node[]).map((i) => [i.type, i.props.text])).toEqual([["ListItem", "Write daily"], ["ListItem", "Keep going"]]);
+    expect((faq.props.items as Node[])[0]).toMatchObject({ type: "FaqItem", props: { question: "Is it free?", answer: "No." } });
+    expect((links.props.items as Node[])[0].props).toMatchObject({ label: "Join", look: "outline", color: "plum" });
   });
 });

@@ -18,7 +18,7 @@ import { BAND_SPACE, pageImage, pick } from "./theme";
  * links keeps them in objects (`more`, `compare`, a stage's `link`).
  */
 
-const MAX = { comingUp: 4, outcomes: 4, stages: 6, stageOffers: 4 } as const;
+const MAX = { comingUp: 4, stages: 6, stageOffers: 4 } as const;
 
 const rowsOf = <T extends object>(items: T[] | undefined, key: keyof T, max: number) => (items ?? []).filter((i) => i && i[key]).slice(0, max);
 
@@ -102,11 +102,14 @@ export function AnnouncementStrip({ text: typed, buttonLabel, href, tone, source
 // ---- Schedule panel --------------------------------------------------------------------------------------------
 
 export type ScheduleRow = { time: string; title: string; status: string; state: "live" | "soon" | "open"; host: string };
-/** `source` "live" shows `live.rows` (the next public prickles, built per render on the server), or `emptyText` when there are none; the typed `rows` when there is no live data (never stored, see lib/landing/live-data.ts). */
+/**
+ * `source` "live" shows `live.rows` (the next public prickles, built per render on the server), or `emptyText` when there are none;
+ * the typed sessions (`items`, each a `ScheduleRow` block in the slot) when there is no live data (never stored, see lib/landing/live-data.ts).
+ */
 export type SchedulePanelProps = {
   title: string;
   zoneLabel: string;
-  rows: ScheduleRow[];
+  items: Slot;
   source?: "manual" | "live";
   /** Live options, read on the server: how far ahead to look (hours), the most rows, and the host line ("none", or "experience" for "An experienced host"). */
   hoursAhead?: number;
@@ -114,96 +117,117 @@ export type SchedulePanelProps = {
   hostStyle?: "none" | "experience";
   /** Live: the line under a row with an experienced host (applied on the server, see `scheduleOptions`); default "An experienced host, sure to make you feel at home". */
   experiencedHostText?: string;
-  /** The chip on a row that is neither running nor starting within the hour. Default none: a chip that is the same on most rows says nothing, so only "Live" and "In N min" show unless the owner asks for one. */
+  /** Live rows: the chip on a row that is neither running nor starting within the hour. Default none: a chip that is the same on most rows says nothing, so only "Live" and "In N min" show unless the owner asks for one. */
   openLabel?: string;
   /** One line under the whole list for what is true of every session (for example "Camera optional. Everyone is welcome."); default none. */
   footer?: string;
-  /** An optional line under every row that has no host line of its own (for example "Camera optional"); default none. Never a name or a count. */
+  /** Live rows: an optional line under every row that has no host line of its own (for example "Camera optional"); default none. Never a name or a count. A typed session carries its own line. */
   rowNote?: string;
   emptyText?: string;
   live?: { rows: ScheduleRow[]; zoneLabel: string };
+  editing?: boolean;
 };
 const DEFAULT_OPEN_LABEL = "";
 const STATE_CHIP = { live: "bg-emerald-700 text-white", soon: "bg-gold text-gold-ink", open: "bg-mist-100 text-mist-900" } as const;
 
-/** A panel of today's sessions, typed by hand: time, name, a status chip (live, soon, open) and an optional line about the host. A light panel in both themes, with its own text colours. */
-export function SchedulePanel({ title, zoneLabel: typedZone, rows, source, emptyText, openLabel, rowNote, footer, live }: SchedulePanelProps) {
+/**
+ * A panel of today's sessions: time, name, a status chip (live, soon, open) and an optional line about the host. Live, the rows are
+ * drawn from the server's data; typed, they are the `ScheduleRow` blocks in the `items` slot (which drag on the canvas). A light panel in both themes, with its own text colours.
+ */
+export function SchedulePanel({ title, zoneLabel: typedZone, items: Items, source, emptyText, openLabel, rowNote, footer, live, editing }: SchedulePanelProps) {
   const isLive = source === "live" && !!live;
-  const list = rowsOf(isLive ? live.rows : rows, "title", 6);
+  const liveRows = isLive ? rowsOf(live.rows, "title", ITEM_LIMITS.SchedulePanel) : [];
   const zoneLabel = typedZone || (isLive ? live.zoneLabel : "");
   // Only a row that is running or starting soon carries a chip by default; an "open" chip appears only when the owner types a label for it.
   const open = openLabel ?? DEFAULT_OPEN_LABEL;
-  if (list.length === 0 && !(isLive && emptyText)) return null;
+  if (isLive && liveRows.length === 0 && !emptyText) return null;
   return (
-    <section aria-label={title || "Schedule"} className="landing-light mx-auto max-w-xl overflow-hidden rounded-2xl bg-card text-left text-ink shadow-xl">
+    // Typed, the panel does not know how many sessions its slot holds: with none (and none being edited) it is not drawn.
+    <section aria-label={title || "Schedule"} className={`landing-light mx-auto max-w-xl overflow-hidden rounded-2xl bg-card text-left text-ink shadow-xl ${isLive || editing ? "" : "[&:not(:has(li))]:hidden"}`}>
       {(title || zoneLabel) && (
         <div className="flex items-center justify-between gap-3 bg-mist-200 px-4 py-3 text-mist-950">
           <p className="font-bold">{title}</p>
           {zoneLabel && <p className="text-sm">{zoneLabel}</p>}
         </div>
       )}
-      {list.length === 0 && <p className="px-4 py-4 text-ink">{emptyText}</p>}
-      <ul>
-        {list.map((row, i) => {
-          const chip = row.status || (row.state === "open" || !row.state ? open : "");
-          const note = row.host || rowNote || "";
-          return (
-            <li key={i} className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-t border-mist-200 px-4 py-3 first:border-t-0 ${row.state === "live" ? "bg-emerald-50" : ""}`}>
-              <span className="min-w-[5.5rem] whitespace-nowrap font-bold text-plum-800">{row.time}</span>
-              <span className="font-semibold text-ink">{row.title}</span>
-              {chip ? (
-                <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-0.5 text-sm font-bold ${STATE_CHIP[row.state] ?? STATE_CHIP.open}`}>
-                  {row.state === "live" && <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-white" />}
-                  {chip}
-                </span>
-              ) : (
-                <span aria-hidden="true" />
-              )}
-              {note && <p className="col-start-2 col-end-4 text-sm text-ink-muted">{note}</p>}
-            </li>
-          );
-        })}
-      </ul>
+      {isLive && liveRows.length === 0 && <p className="px-4 py-4 text-ink">{emptyText}</p>}
+      {isLive ? (
+        <ul>
+          {liveRows.map((row, i) => (
+            <ScheduleRowItem key={i} {...row} openLabel={open} rowNote={rowNote} />
+          ))}
+        </ul>
+      ) : (
+        <Items as="ul" collisionAxis="y" className={itemList(ITEM_LIMITS.SchedulePanel, editing)} />
+      )}
       {footer && <p className="border-t border-mist-200 px-4 py-3 text-sm text-ink-muted">{footer}</p>}
     </section>
+  );
+}
+
+export type ScheduleRowItemProps = ScheduleRow & { openLabel?: string; rowNote?: string } & ItemProps;
+
+/** One session of a Schedule panel. A typed one is a block of its own; a live one is drawn by the panel with the panel's chip and note settings. */
+export function ScheduleRowItem({ time, title, status, state, host, openLabel, rowNote, dragRef, editing }: ScheduleRowItemProps) {
+  if (!title && !editing) return null;
+  const chip = status || (state === "open" || !state ? (openLabel ?? DEFAULT_OPEN_LABEL) : "");
+  const note = host || rowNote || "";
+  return (
+    <li ref={dragRef} className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-t border-mist-200 px-4 py-3 first:border-t-0 ${state === "live" ? "bg-emerald-50" : ""}`}>
+      <span className="min-w-[5.5rem] whitespace-nowrap font-bold text-plum-800">{time}</span>
+      <span className="font-semibold text-ink">{title}</span>
+      {chip ? (
+        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-0.5 text-sm font-bold ${STATE_CHIP[state] ?? STATE_CHIP.open}`}>
+          {state === "live" && <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-white" />}
+          {chip}
+        </span>
+      ) : (
+        <span aria-hidden="true" />
+      )}
+      {note && <p className="col-start-2 col-end-4 text-sm text-ink-muted">{note}</p>}
+    </li>
   );
 }
 
 // ---- Outcome numbers -------------------------------------------------------------------------------------------
 
 /**
- * An item is typed by hand, or (`source` "live") bound to a figure from the live registry (`stat`, lib/landing/live-stats.ts):
- * the server puts the formatted figure in `live` for one render and the typed `value` stays as the fallback. With a live
- * figure and no typed label, the figure's own caption is the label.
+ * A figure is typed by hand, or (`source` "live") bound to a figure from the live registry (`stat`, lib/landing/live-stats.ts):
+ * the server puts the formatted figure in the item's `live` for one render and the typed `value` stays as the fallback. With a
+ * live figure and no typed label, the figure's own caption is the label. `live.note` is the block's "show a live note" switch,
+ * copied in by the server because an item cannot see its block.
  */
-export type OutcomeItem = { value: string; label: string; note: string; source?: "manual" | "live"; stat?: string; live?: { value: string; caption: string } };
-export type OutcomeNumbersProps = { items: OutcomeItem[]; padding?: "none" | "small" | "medium" | "large"; showLiveNote?: boolean };
-const OUTCOME_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
+export type OutcomeFigure = { value: string; label: string; note: string; source?: "manual" | "live"; stat?: string; live?: { value: string; caption: string; note?: boolean } };
+export type OutcomeNumbersProps = { items: Slot; padding?: "none" | "small" | "medium" | "large"; showLiveNote?: boolean; editing?: boolean };
 
-/** A full-width white band with a gold stripe on top: two to four big figures, typed by hand. Every colour is set here (plum numbers, dark ink labels), so nothing depends on the band it sits in. */
-export function OutcomeNumbers({ items, padding, showLiveNote }: OutcomeNumbersProps) {
-  const rows = (items ?? []).filter((i) => i && (i.value || i.live?.value)).slice(0, MAX.outcomes);
-  if (rows.length === 0) return null;
+/** A full-width white band with a gold stripe on top: two to four big figures (each an `OutcomeNumber` block in the `items` slot), typed by hand or live. Every colour is set here (plum numbers, dark ink labels), so nothing depends on the band it sits in. */
+export function OutcomeNumbers({ items: Items, padding, editing }: OutcomeNumbersProps) {
   return (
-    <section className={`landing-light border-t-8 border-gold bg-white text-ink ${pick(BAND_SPACE.figures, padding, "medium")}`}>
-      <dl className={`mx-auto grid max-w-5xl gap-8 px-4 text-center ${OUTCOME_COLUMNS[Math.max(rows.length, 2)]}`}>
-        {rows.map((row, i) => (
-          <div key={i} className="flex flex-col-reverse">
-            <dt className="mt-1 text-base font-semibold text-ink">
-              {row.live ? row.label || row.live.caption : row.label}
-              {row.note && <span className="ml-2 text-sm font-medium text-emerald-800">({row.note})</span>}
-              {row.live && showLiveNote !== false && (
-                <span className="ml-2 inline-flex items-center gap-1 text-sm font-medium text-emerald-800">
-                  <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-emerald-700" />
-                  live
-                </span>
-              )}
-            </dt>
-            <dd className="font-display text-5xl font-semibold leading-tight text-plum-900 @pair:text-6xl">{row.live ? row.live.value : row.value}</dd>
-          </div>
-        ))}
-      </dl>
+    <section className={`landing-light border-t-8 border-gold bg-white text-ink ${pick(BAND_SPACE.figures, padding, "medium")} ${editing ? "" : "[&:not(:has(dd))]:hidden"}`}>
+      <Items as="dl" collisionAxis="dynamic" className={`mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 text-center @pair:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] ${itemList(ITEM_LIMITS.OutcomeNumbers, editing)}`} />
     </section>
+  );
+}
+
+export type OutcomeNumberProps = OutcomeFigure & ItemProps;
+
+/** One figure of an Outcome numbers block. Nothing is drawn with neither a typed nor a live figure. */
+export function OutcomeNumber({ value, label, note, live, dragRef, editing }: OutcomeNumberProps) {
+  if (!(value || live?.value) && !editing) return null;
+  return (
+    <div ref={dragRef} className="flex flex-col-reverse">
+      <dt className="mt-1 text-base font-semibold text-ink">
+        {live ? label || live.caption : label}
+        {note && <span className="ml-2 text-sm font-medium text-emerald-800">({note})</span>}
+        {live && live.note !== false && (
+          <span className="ml-2 inline-flex items-center gap-1 text-sm font-medium text-emerald-800">
+            <span aria-hidden="true" className="landing-pulse inline-block h-2 w-2 rounded-full bg-emerald-700" />
+            live
+          </span>
+        )}
+      </dt>
+      <dd className="font-display text-5xl font-semibold leading-tight text-plum-900 @pair:text-6xl">{live ? live.value : value}</dd>
+    </div>
   );
 }
 

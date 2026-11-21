@@ -22,6 +22,7 @@ import { collectAssetIds, normalizeLandingData, mapAssetIds } from "@/lib/landin
 import { pruneToKnownBlocks } from "@/lib/landing/json-transfer";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { starterData } from "@/lib/landing/starters";
+import { itemsSlot } from "./landing-items-slot";
 
 afterEach(cleanup);
 
@@ -48,6 +49,7 @@ describe("the table of blocks that hold items", () => {
     // A new block starts with a few items of the right type, and the item has defaults and a name of its own.
     const starting = (BLOCK_DEFAULTS[parent] as unknown as { items: Node[] }).items;
     expect(starting.length).toBeGreaterThanOrEqual(2);
+    if (parent in ITEM_LIMITS) expect(starting.length).toBeLessThanOrEqual(ITEM_LIMITS[parent as keyof typeof ITEM_LIMITS]);
     expect(starting.every((k) => k.type === type)).toBe(true);
     expect(BLOCK_DEFAULTS[type]).toBeDefined();
     expect(BLOCK_LABELS[type]).toBeTruthy();
@@ -62,8 +64,10 @@ describe("the table of blocks that hold items", () => {
     expect(editorConfig.components[parent].fields?.items.type).toBe("slot");
   });
 
-  it("has a layout limit for every block with items, and puts the items in the palette under their own group", () => {
-    expect(Object.keys(ITEM_LIMITS).sort()).toEqual([...PARENTS].sort());
+  it("has a layout limit only for the blocks whose layout has one, and puts the items in the palette under their own group", () => {
+    // Steps, Stats... are laid out for a few; a List, FAQ, Testimonials, Card grid or Link list takes any number.
+    for (const parent of Object.keys(ITEM_LIMITS)) expect(PARENTS).toContain(parent);
+    for (const parent of ["List", "Testimonials", "Faq", "CardGrid", "LinkList"]) expect(ITEM_LIMITS).not.toHaveProperty(parent);
     expect(renderConfig.categories.parts.components).toEqual(ITEM_BLOCKS);
     for (const [group, { components }] of Object.entries(renderConfig.categories)) {
       if (group !== "parts") for (const type of ITEM_BLOCKS) expect(components as string[], group).not.toContain(type);
@@ -164,7 +168,8 @@ describe("the starters", () => {
     expect(pruneToKnownBlocks(normalizeLandingData(starterData("home")))).toMatchObject({ leftOut: [], droppedProps: 0 });
     // Every block with items has some in the starter, so none is blank.
     const text = JSON.stringify(content);
-    for (const parent of PARENTS.filter((p) => p !== "Steps" && p !== "Stats")) expect(text).toContain(`"type":"${itemType(parent)}"`);
+    // The homepage has no List, FAQ, Testimonials, Card grid, Link list, Steps or Stats; every other block with items is in it.
+    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Faq", "CardGrid", "LinkList"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
   });
 });
 
@@ -215,5 +220,129 @@ describe("the AI builder", () => {
     const kept = cleanGeneratedBlocks({ blocks: [{ id: "st", type: "Steps", props: { heading: "Changed" } }] }, current)!;
     expect(((kept.content[0] as Node).props.items as Node[]).map((i) => i.props.id)).toEqual(["s1", "s2"]);
     expect((kept.content[0] as Node).props.heading).toBe("Changed");
+  });
+});
+
+/**
+ * The second batch: Buttons, List, Testimonials, FAQ, Card grid, Link list, Schedule panel and Outcome numbers, whose items
+ * used to be array fields. The shared behaviour is in the tables above; these are the parts that differ per block.
+ */
+describe("the lists that used to be array fields", () => {
+  const text = (container: HTMLElement) => container.textContent ?? "";
+
+  it("draw their items in the order they are stored, through the public page", () => {
+    const cases: [string, Record<string, unknown>, Node[], string[]][] = [
+      ["List", { align: "left" }, ["One", "Two"].map((t) => kid("ListItem", { text: t })), ["One", "Two"]],
+      ["Testimonials", {}, ["Quote A", "Quote B"].map((q) => kid("Testimonial", { quote: q })), ["Quote A", "Quote B"]],
+      ["Faq", {}, ["Q one", "Q two"].map((q) => kid("FaqItem", { question: q })), ["Q one", "Q two"]],
+      ["CardGrid", { columns: "3" }, ["Card A", "Card B"].map((t) => kid("GridCard", { title: t })), ["Card A", "Card B"]],
+      ["LinkList", {}, ["Link A", "Link B"].map((l) => kid("LinkItem", { label: l, href: "/x" })), ["Link A", "Link B"]],
+      ["ButtonRow", { align: "left", gap: "medium" }, ["Go A", "Go B"].map((l) => kid("RowButton", { label: l, href: "/x" })), ["Go A", "Go B"]],
+      ["SchedulePanel", { title: "Today", source: "manual" }, ["Sess A", "Sess B"].map((t) => kid("ScheduleRow", { title: t })), ["Sess A", "Sess B"]],
+      ["OutcomeNumbers", {}, ["10", "20"].map((v) => kid("OutcomeNumber", { value: v })), ["10", "20"]],
+    ];
+    for (const [parent, props, items, expected] of cases) {
+      for (const reversed of [false, true]) {
+        const stored = reversed ? [...items].reverse() : items;
+        const wanted = reversed ? [...expected].reverse() : expected;
+        const { container, unmount } = render(<LandingRender data={page({ type: parent, props: { id: "p", ...props, items: stored } })} />);
+        const at = (word: string) => text(container).indexOf(word);
+        expect(at(wanted[0]), `${parent} ${wanted}`).toBeGreaterThan(-1);
+        expect(at(wanted[0]), `${parent} ${wanted}`).toBeLessThan(at(wanted[1]));
+        unmount();
+      }
+    }
+  });
+
+  it("hide an empty list on the public page, but not while editing", () => {
+    for (const parent of ["List", "Testimonials", "Faq", "CardGrid", "LinkList", "ButtonRow"] as const) {
+      const Parent = renderOf(parent);
+      const none = itemsSlot(renderOf(itemType(parent)) as ComponentType<object>, []);
+      const live = render(<Parent {...(BLOCK_DEFAULTS[parent] as object)} id="p" items={none} puck={{ isEditing: false }} />);
+      expect(live.container.innerHTML, parent).toContain("empty:hidden");
+      live.unmount();
+      const editing = render(<Parent {...(BLOCK_DEFAULTS[parent] as object)} id="p" items={none} puck={{ isEditing: true }} />);
+      expect(editing.container.innerHTML, parent).not.toContain("empty:hidden");
+      editing.unmount();
+    }
+  });
+
+  it("keep a Card grid's picture on the card, in the page's asset list, and clean its link", () => {
+    const data = page({ type: "CardGrid", props: { id: "g", columns: "2", items: [kid("GridCard", { title: "Book", imageAssetId: "media_AAAAAAAAAAA1", alt: "Cover", buttonLabel: "Buy", href: "javascript:x" })] } });
+    expect(collectAssetIds(data)).toEqual(["media_AAAAAAAAAAA1"]);
+    const card = ((sanitizeLandingData(data).content[2] as Node).props.items as Node[])[0].props;
+    expect(card.href).toBe("");
+    const swapped = mapAssetIds(normalizeLandingData(data), (id) => id.replace("AAAA", "BBBB"));
+    expect(collectAssetIds(swapped)).toEqual(["media_BBBBAAAAAAA1"]);
+  });
+});
+
+describe("the publish check for the second batch", () => {
+  const cases: [string, string, Record<string, unknown>][] = [
+    ["ButtonRow", "RowButton", { label: "Join", href: "/x" }],
+    ["List", "ListItem", { text: "A point" }],
+    ["Testimonials", "Testimonial", { quote: "Lovely" }],
+    ["Faq", "FaqItem", { question: "Why?" }],
+    ["CardGrid", "GridCard", { title: "A card" }],
+    ["LinkList", "LinkItem", { label: "Home", href: "/" }],
+    ["SchedulePanel", "ScheduleRow", { title: "Morning pages" }],
+    ["OutcomeNumbers", "OutcomeNumber", { value: "50+" }],
+  ];
+
+  it.each(cases)("%s: warns when it has no items, passes with one, and warns about an item outside it", (parent, item, props) => {
+    const empty = messages(page({ type: parent, props: { id: "p", source: "manual", items: [] } }));
+    expect(empty).toHaveLength(1);
+    expect(empty[0]).toMatch(/^warning .*: .* has no .*, so it shows nothing\. Drag one in from "Parts of a block"\.$/);
+    expect(messages(page({ type: parent, props: { id: "p", source: "manual", items: [kid(item, props)] } })).filter((m) => /has no .*, so it shows nothing/.test(m))).toEqual([]);
+    expect(messages(page(kid(item, props))).join()).toContain("is outside a");
+  });
+
+  it("warns about items past the limit for the blocks that have one, and never for the ones that do not", () => {
+    const four = Array.from({ length: 4 }, (_, i) => kid("RowButton", { label: `Go ${i}`, href: "/x" }));
+    expect(messages(page({ type: "ButtonRow", props: { id: "b", items: four } }))).toEqual(["warning Buttons: Buttons shows 3 buttons at most; the 1 after that are hidden."]);
+    const seven = Array.from({ length: 7 }, (_, i) => kid("ScheduleRow", { title: `S${i}` }));
+    expect(messages(page({ type: "SchedulePanel", props: { id: "s", source: "manual", items: seven } }))).toEqual(["warning Schedule panel: Schedule panel shows 6 sessions at most; the 1 after that are hidden."]);
+    const five = Array.from({ length: 5 }, (_, i) => kid("OutcomeNumber", { value: `${i}` }));
+    expect(messages(page({ type: "OutcomeNumbers", props: { id: "o", items: five } }))).toEqual(["warning Outcome numbers: Outcome numbers shows 4 figures at most; the 1 after that are hidden."]);
+    const many = Array.from({ length: 30 }, (_, i) => kid("ListItem", { text: `P${i}` }));
+    expect(messages(page({ type: "List", props: { id: "l", items: many } }))).toEqual([]);
+  });
+
+  it("does not warn about a live schedule panel with no typed sessions, and counts a live figure with no typed value", () => {
+    expect(messages(page({ type: "SchedulePanel", props: { id: "s", source: "live", items: [] } }))).toEqual([]);
+    expect(messages(page({ type: "OutcomeNumbers", props: { id: "o", items: [kid("OutcomeNumber", { source: "live", stat: "hours_30d", value: "" })] } }))).toEqual([]);
+    expect(messages(page({ type: "OutcomeNumbers", props: { id: "o", items: [kid("OutcomeNumber", { source: "manual", value: "" })] } }))).toHaveLength(1);
+  });
+
+  it("numbers a card by its place and checks its picture, button and link text; checks each Link list item", () => {
+    const cards = [kid("GridCard", { title: "Fine" }), kid("GridCard", { title: "Pic", imageAssetId: "media_AAAAAAAAAAA1", alt: "" }), kid("GridCard", { title: "Btn", buttonLabel: "Buy", href: "" }), kid("GridCard", { title: "Vague", buttonLabel: "here", href: "/x" })];
+    expect(messages(page({ type: "CardGrid", props: { id: "g", columns: "3", items: cards } }))).toEqual(["error Card grid: Card 2 has a picture with no description.", "error Card grid: Card 3's button has no link.", 'warning Card grid: Card 4\'s button says "here": say where it goes.']);
+    expect(messages(page({ type: "LinkList", props: { id: "l", items: [kid("LinkItem", { label: "Shop", href: "" }), kid("LinkItem", { label: "here", href: "/x" })] } }))).toEqual(['error Link list: The link "Shop" has no address.', 'warning Link list: A link that says "here" doesn\'t say where it goes.']);
+  });
+});
+
+describe("the starters and JSON import for the second batch", () => {
+  it("keep the items of these blocks, and drop another kind of block from their lists", () => {
+    const data = {
+      content: [
+        { type: "List", props: { id: "l", align: "left", items: [kid("ListItem", { text: "Keep" }), kid("Step", { title: "Wrong" }), { type: "Nope", props: {} }] } },
+        { type: "SchedulePanel", props: { id: "s", items: [kid("ScheduleRow", { title: "Morning" }), kid("OutcomeNumber", { value: "1" })] } },
+        { type: "CardGrid", props: { id: "g", columns: "2", items: [kid("GridCard", { title: "Card", imageAssetId: "media_AAAAAAAAAAA1" })] } },
+      ],
+      root: {},
+    };
+    const { data: pruned, leftOut } = pruneToKnownBlocks(normalizeLandingData(data));
+    const types = (i: number) => ((pruned.content[i] as Node).props.items as Node[]).map((n) => n.type);
+    expect(types(0)).toEqual(["ListItem"]);
+    expect(types(1)).toEqual(["ScheduleRow"]);
+    expect(types(2)).toEqual(["GridCard"]);
+    expect(((pruned.content[2] as Node).props.items as Node[])[0].props.imageAssetId).toBe("media_AAAAAAAAAAA1");
+    expect(leftOut).toEqual(expect.arrayContaining([{ type: "Step", count: 1 }, { type: "Nope", count: 1 }, { type: "OutcomeNumber", count: 1 }]));
+  });
+
+  it("have the homepage's Buttons, Schedule panel and Outcome numbers as blocks in their slots, with ids", () => {
+    const text = JSON.stringify(starterData("home").content);
+    for (const type of ["RowButton", "ScheduleRow", "OutcomeNumber"]) expect(text).toContain(`"type":"${type}"`);
+    expect(text).not.toContain('"rows":');
   });
 });

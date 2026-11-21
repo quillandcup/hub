@@ -12,7 +12,8 @@ vi.hoisted(() => {
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { Columns, Hero, Heading, Section } from "@/components/landing/blocks";
-import { OutcomeNumbers } from "@/components/landing/homepage-blocks";
+import { OutcomeNumber, OutcomeNumbers } from "@/components/landing/homepage-blocks";
+import { itemsSlot } from "./landing-items-slot";
 import { BLOCK_DEFAULTS, ITEM_BLOCKS, SLOTS, renderConfig } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import LandingRender from "@/components/landing/LandingRender";
@@ -183,7 +184,7 @@ describe("Space above and below", () => {
   });
 
   it("keeps Outcome numbers saved without the option exactly as it was (py-10), and offers the same four choices", () => {
-    const items = [{ value: "50+", label: "books", note: "" }, { value: "100s", label: "Finishers", note: "" }];
+    const items = itemsSlot(OutcomeNumber, [{ value: "50+", label: "books", note: "" }, { value: "100s", label: "Finishers", note: "" }]);
     const band = (padding?: string) => render(<OutcomeNumbers items={items} padding={padding as never} />).container.firstElementChild!.className;
     const saved = band();
     expect(saved).toContain("py-10");

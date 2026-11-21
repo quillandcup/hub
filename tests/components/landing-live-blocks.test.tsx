@@ -12,7 +12,8 @@ vi.hoisted(() => {
 });
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { AnnouncementStrip, ComingUp, OutcomeNumbers, SchedulePanel } from "@/components/landing/homepage-blocks";
+import { AnnouncementStrip, ComingUp, OutcomeNumber, OutcomeNumbers, ScheduleRowItem, SchedulePanel } from "@/components/landing/homepage-blocks";
+import { itemsSlot } from "./landing-items-slot";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import LandingRender from "@/components/landing/LandingRender";
@@ -60,7 +61,7 @@ describe("SchedulePanel, live", () => {
     { time: "10:00 am", title: "Open Mic", status: "3 writing now", state: "live" as const, host: "An experienced host" },
     { time: "10:30 am", title: "Free Writing Hour", status: "In 30 min", state: "soon" as const, host: "" },
   ];
-  const base = { title: "Writing right now", zoneLabel: "", rows: typedRows };
+  const base = { title: "Writing right now", zoneLabel: "", items: itemsSlot(ScheduleRowItem, typedRows) };
 
   it("lists the live rows in place of the typed ones, naming the zone it was given", () => {
     render(<SchedulePanel {...base} source="live" live={{ rows: liveRows, zoneLabel: "Times in ET" }} />);
@@ -108,15 +109,16 @@ describe("SchedulePanel, live", () => {
 });
 
 describe("OutcomeNumbers, live", () => {
+  // The server puts `live` in the props of each figure that has one (lib/landing/live-data.ts); `note` is the block's switch.
   const items = [
-    { source: "live" as const, stat: "hours_30d", value: "typed", label: "", note: "", live: { value: "890+", caption: "hours written together in prickles in the last 30 days" } },
-    { source: "live" as const, stat: "words_30d", value: "50,000+", label: "words in the Hub", note: "", live: { value: "54,000+", caption: "the caption" } },
+    { source: "live" as const, stat: "hours_30d", value: "typed", label: "", note: "", live: { value: "890+", caption: "hours written together in prickles in the last 30 days", note: true } },
+    { source: "live" as const, stat: "words_30d", value: "50,000+", label: "words in the Hub", note: "", live: { value: "54,000+", caption: "the caption", note: true } },
     { source: "live" as const, stat: "writers_7d", value: "40", label: "writers", note: "" }, // no live data: the typed figure
     { source: "manual" as const, value: "50+", label: "books published", note: "" },
   ];
 
   it("shows the live figure with the figure's own words, or the editor's label when there is one, and the typed one without live data", () => {
-    const { container } = render(<OutcomeNumbers items={items} />);
+    const { container } = render(<OutcomeNumbers items={itemsSlot(OutcomeNumber, items)} />);
     expect(screen.getByText("890+").tagName).toBe("DD");
     expect(screen.getByText(/hours written together in prickles in the last 30 days/)).toBeInTheDocument();
     expect(screen.getByText("54,000+")).toBeInTheDocument();
@@ -131,17 +133,17 @@ describe("OutcomeNumbers, live", () => {
   });
 
   it("marks only the live figures with a small live note, which the editor can turn off; its dot pulses only where motion is allowed", () => {
-    const { container, rerender } = render(<OutcomeNumbers items={items} />);
+    const { container, rerender } = render(<OutcomeNumbers items={itemsSlot(OutcomeNumber, items)} />);
     expect(screen.getAllByText("live")).toHaveLength(2);
     const dot = screen.getAllByText("live")[0].querySelector("[aria-hidden='true']")!;
     expect(dot.className).toContain("landing-pulse");
-    rerender(<OutcomeNumbers items={items} showLiveNote={false} />);
+    rerender(<OutcomeNumbers items={itemsSlot(OutcomeNumber, items.map((i) => (i.live ? { ...i, live: { ...i.live, note: false } } : i)))} />);
     expect(screen.queryByText("live")).toBeNull();
     expect(container.querySelectorAll("dd")).toHaveLength(4);
   });
 
   it("keeps a live item whose typed figure is empty", () => {
-    render(<OutcomeNumbers items={[{ source: "live", stat: "hours_30d", value: "", label: "", note: "", live: { value: "12", caption: "hours" } }, { source: "manual", value: "3", label: "x", note: "" }]} />);
+    render(<OutcomeNumbers items={itemsSlot(OutcomeNumber, [{ source: "live", stat: "hours_30d", value: "", label: "", note: "", live: { value: "12", caption: "hours" } }, { source: "manual", value: "3", label: "x", note: "" }])} />);
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 });
@@ -151,7 +153,7 @@ describe("a live page, end to end", () => {
   const data = {
     content: [
       { type: "AnnouncementStrip", props: { id: "a", ...BLOCK_DEFAULTS.AnnouncementStrip, source: "live", href: "/join" } },
-      { type: "OutcomeNumbers", props: { id: "b", items: [{ source: "live", stat: "hours_30d", value: "", label: "", note: "" }] } },
+      { type: "OutcomeNumbers", props: { id: "b", items: [{ type: "OutcomeNumber", props: { id: "b1", source: "live", stat: "hours_30d", value: "", label: "", note: "" } }] } },
     ],
     root: {},
   };
@@ -175,7 +177,7 @@ describe("a live page, end to end", () => {
 
   it("renders every live block from its defaults with no live data, as the typed block (the editor's canvas)", () => {
     for (const name of ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "ComingUp"] as const) {
-      const props = { id: "x", ...BLOCK_DEFAULTS[name], source: "live", ...(name === "OutcomeNumbers" ? { items: BLOCK_DEFAULTS.OutcomeNumbers.items.map((i) => ({ ...i, source: "live" })) } : {}) };
+      const props = { id: "x", ...BLOCK_DEFAULTS[name], source: "live", ...(name === "OutcomeNumbers" ? { items: BLOCK_DEFAULTS.OutcomeNumbers.items.map((i) => ({ ...i, props: { ...i.props, source: "live" } })) } : {}) };
       const { container, unmount } = render(<LandingRender data={{ content: [{ type: name, props }], root: {} }} />);
       expect(container.querySelector("main")!.innerHTML, name).not.toBe("");
       unmount();
@@ -195,7 +197,7 @@ describe("the editor's fields for live blocks", () => {
   const fields = (block: string) => editorConfig.components[block].fields as unknown as Record<string, Field>;
 
   it("lets each live block choose its source in plain words, and says where live shows", () => {
-    for (const [block, holder] of [["AnnouncementStrip", fields("AnnouncementStrip")], ["SchedulePanel", fields("SchedulePanel")], ["OutcomeNumbers item", fields("OutcomeNumbers").items.arrayFields!]] as const) {
+    for (const [block, holder] of [["AnnouncementStrip", fields("AnnouncementStrip")], ["SchedulePanel", fields("SchedulePanel")], ["OutcomeNumber", fields("OutcomeNumber")]] as const) {
       const source = holder.source;
       expect(source, block).toBeDefined();
       expect(source.options!.map((o) => o.label), block).toEqual(["Typed in by hand", "Live from the Hub"]);
@@ -204,10 +206,10 @@ describe("the editor's fields for live blocks", () => {
   });
 
   it("offers every registered figure in the figure picker, by its label, and labels every new field", () => {
-    const stat = fields("OutcomeNumbers").items.arrayFields!.stat;
+    const stat = fields("OutcomeNumber").stat;
     expect(stat.options!.map((o) => o.value)).toEqual(LIVE_STAT_KEYS);
     expect(stat.options!.map((o) => o.label)).toEqual(LIVE_STAT_KEYS.map((k) => LIVE_STATS[k].label));
-    for (const f of [...Object.values(fields("SchedulePanel")), ...Object.values(fields("AnnouncementStrip")), ...Object.values(fields("OutcomeNumbers").items.arrayFields!), fields("OutcomeNumbers").showLiveNote]) {
+    for (const f of [...Object.values(fields("SchedulePanel")), ...Object.values(fields("AnnouncementStrip")), ...Object.values(fields("OutcomeNumber")), fields("OutcomeNumbers").showLiveNote]) {
       if (f.type !== "array" && f.type !== "slot") expect(f.label, JSON.stringify(f)).toBeTruthy();
     }
     expect(fields("SchedulePanel").hostStyle.options!.map((o) => o.value)).toEqual(["none", "experience"]); // a first-name style is not offered
@@ -219,7 +221,7 @@ describe("the editor's fields for live blocks", () => {
     expect(BLOCK_DEFAULTS.SchedulePanel.hostStyle).toBe("none");
     expect(BLOCK_DEFAULTS.SchedulePanel).toMatchObject({ openLabel: "", rowNote: "", footer: "", experiencedHostText: "An experienced host, sure to make you feel at home" });
     for (const k of ["experiencedHostText", "openLabel", "rowNote", "footer"]) expect(fields("SchedulePanel")[k].label, k).toBeTruthy();
-    expect(BLOCK_DEFAULTS.OutcomeNumbers.items.every((i) => i.source === "manual")).toBe(true);
+    expect(BLOCK_DEFAULTS.OutcomeNumbers.items.every((i) => i.props.source === "manual")).toBe(true);
     expect(BLOCK_DEFAULTS.OutcomeNumbers.showLiveNote).toBe(true);
   });
 });
