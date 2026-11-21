@@ -20,8 +20,10 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
     members: [ADA, BO],
     missingMemberId: "mbr_ZZZZZZZZZZZZ",
     staffUserId: "11111111-1111-4111-8111-111111111111",
-    addBook: async (memberId) => {
-      data.memberBooks.push({ id: `book_${String(++n).padStart(12, "A")}`, member_id: memberId, title: "A Book", published_date: "2026-01-01", cover_asset_id: null });
+    addBook: async (memberId, projectId) => {
+      const id = `book_${String(++n).padStart(12, "A")}`;
+      data.memberBooks.push({ id, member_id: memberId, title: "A Book", published_date: "2026-01-01", cover_asset_id: null, project_id: projectId ?? null });
+      return id;
     },
     deleteBooks: async (memberId) => {
       for (const b of data.memberBooks) if (b.member_id === memberId) b.deleted_at = new Date().toISOString();
@@ -43,7 +45,7 @@ describe("InMemoryMilestoneRepository.addOwn", () => {
     const otherProject = await new InMemoryWritingRepository(data).createProject(BO, "A Fake Novel", "drafting");
     const repo = new InMemoryMilestoneRepository(data);
     const answer = { status: "confirmed" as const, achievedOn: null, storyBefore: null, storyAfter: null, consent_profile: false, consent_homepage: false, consent_testimonial: false };
-    await expect(repo.addOwn({ memberId: ADA, kind: "the_end", answer, projectId: otherProject, createdBy: "11111111-1111-4111-8111-111111111111" }, new Date())).rejects.toThrow();
+    await expect(repo.addOwn({ memberId: ADA, kind: "the_end", answer, work: { projectId: otherProject, bookId: null, title: null }, createdBy: "11111111-1111-4111-8111-111111111111" }, new Date())).rejects.toThrow();
     expect(await repo.ofMember(ADA)).toEqual([]);
   });
 });

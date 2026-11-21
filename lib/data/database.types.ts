@@ -5122,6 +5122,7 @@ export type Database = {
           status: string
           story_after: string | null
           story_before: string | null
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -5142,6 +5143,7 @@ export type Database = {
           status?: string
           story_after?: string | null
           story_before?: string | null
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -5162,6 +5164,7 @@ export type Database = {
           status?: string
           story_after?: string | null
           story_before?: string | null
+          title?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -8922,6 +8925,14 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      propose_milestones_for_books: {
+        Args: never
+        Returns: {
+          books: number
+          members: number
+          proposals: number
+        }[]
       }
       propose_milestones_from_books: { Args: never; Returns: number }
       publish_announced_event_covers: { Args: never; Returns: number }

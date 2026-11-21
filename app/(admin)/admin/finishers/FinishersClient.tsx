@@ -8,11 +8,14 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { MILESTONE_KINDS, MILESTONE_LABELS, MILESTONE_SOURCE_NOTES, type MilestoneKind, type MilestoneStatus } from "@/lib/finishers";
 import type { MilestoneCounts, StaffMilestone } from "@/lib/data/milestones";
-import { proposeMilestone, proposeMilestonesFromBooks, withdrawMilestone } from "./actions";
+import { loadWorksOfMember, proposeMilestone, proposeMilestonesFromBooks, withdrawMilestone } from "./actions";
 
 type PickerMember = { id: string; name: string; displayName: string | null; status: string; email: string };
 
 const STATUS_LABELS: Record<MilestoneStatus, string> = { proposed: "Proposed", confirmed: "Confirmed", declined: "Declined" };
+const FIELD = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800";
+const NOT_LISTED = "__title__";
+type MemberWork = { projectId: string | null; bookId: string | null; title: string };
 const BUTTON = "rounded-md bg-plum-600 px-4 py-2 text-sm text-white hover:bg-plum-700 disabled:opacity-50";
 
 export default function FinishersClient({
@@ -36,6 +39,21 @@ export default function FinishersClient({
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [kind, setKind] = useState<MilestoneKind>("the_end");
+  const [works, setWorks] = useState<MemberWork[]>([]);
+  const [workIndex, setWorkIndex] = useState<string>(NOT_LISTED);
+  const [title, setTitle] = useState("");
+
+  const pickMember = async (id: string | null) => {
+    setMemberId(id);
+    setWorks([]);
+    setWorkIndex(NOT_LISTED);
+    if (!id) return;
+    const result = await loadWorksOfMember(id);
+    if ("works" in result) {
+      setWorks(result.works);
+      if (result.works.length > 0) setWorkIndex("0");
+    }
+  };
 
   const run = (work: () => Promise<{ error: string } | { success: true; text: string }>) =>
     startTransition(async () => {
@@ -47,23 +65,29 @@ export default function FinishersClient({
   const backfill = async () => {
     const ok = await ask({
       title: "Propose milestones from published books?",
-      body: "Every member with a published book gets THE END and the second milestone as proposals. Nobody is told and nothing is shown to anyone until the member confirms. Members who already have one, or who said no, are skipped. Running it again adds nothing.",
+      body: "For each published book, THE END and the second milestone are proposed for that work. Nobody is told and nothing is shown to anyone until the member confirms. A work that already has one, or where the member said no, is skipped. Running it again adds nothing.",
       confirmLabel: "Propose milestones",
     });
     if (!ok) return;
     run(async () => {
       const result = await proposeMilestonesFromBooks();
-      return "error" in result ? result : { success: true, text: result.added === 0 ? "Nothing new to propose." : `Proposed ${result.added} milestones.` };
+      return "error" in result
+        ? result
+        : { success: true, text: result.proposals === 0 ? "Nothing new to propose." : `${result.proposals} proposals for ${result.members} members across ${result.books} books.` };
     });
   };
 
   const add = () => {
     if (!memberId) return;
     run(async () => {
-      const result = await proposeMilestone({ memberId, kind });
+      const picked = workIndex === NOT_LISTED ? null : works[Number(workIndex)];
+      const result = await proposeMilestone({ memberId, kind, projectId: picked?.projectId, bookId: picked?.bookId, title: picked ? null : title });
       if ("error" in result) return result;
-      if (result.added) setMemberId(null);
-      return { success: true, text: result.added ? "Added as a proposal." : "That member already has this milestone." };
+      if (result.added) {
+        setTitle("");
+        void pickMember(null);
+      }
+      return { success: true, text: result.added ? "Added as a proposal." : "That work already has this milestone." };
     });
   };
 
@@ -122,8 +146,8 @@ export default function FinishersClient({
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Start from published books</h2>
         <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-          A published book means the writer finished a draft and revised it. This proposes both milestones for every member with a book on the
-          Bookshelf.
+          A published book means the writer finished a draft and revised it. This proposes both milestones for each book on the
+          Bookshelf, one work at a time.
         </p>
         <button type="button" onClick={backfill} disabled={pending} className={BUTTON} data-track="finishers-backfill">
           Propose from published books
@@ -137,16 +161,33 @@ export default function FinishersClient({
             <MemberSearch
               members={members}
               selectedMemberId={memberId}
-              onSelect={(m) => setMemberId(m?.id ?? null)}
+              onSelect={(m) => void pickMember(m?.id ?? null)}
               placeholder="Search for a member..."
             />
           </div>
+          <label className="text-sm">
+            <span className="sr-only">Work</span>
+            <select value={workIndex} onChange={(e) => setWorkIndex(e.target.value)} disabled={!memberId} className={FIELD}>
+              {works.map((w, i) => (
+                <option key={`${w.projectId}-${w.bookId}`} value={String(i)}>
+                  {w.title}
+                </option>
+              ))}
+              <option value={NOT_LISTED}>A work that is not listed</option>
+            </select>
+          </label>
+          {workIndex === NOT_LISTED && (
+            <label className="text-sm">
+              <span className="sr-only">Title of the work</span>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="Title of the work" disabled={!memberId} className={FIELD} />
+            </label>
+          )}
           <label className="text-sm">
             <span className="sr-only">Milestone</span>
             <select
               value={kind}
               onChange={(e) => setKind(e.target.value as MilestoneKind)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+              className={FIELD}
             >
               {MILESTONE_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -177,6 +218,7 @@ export default function FinishersClient({
             <thead>
               <tr className="border-b border-slate-200 text-left dark:border-slate-700">
                 <th className="py-2 pr-4">Member</th>
+                <th className="py-2 pr-4">Work</th>
                 <th className="py-2 pr-4">Milestone</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Started by</th>
@@ -187,6 +229,7 @@ export default function FinishersClient({
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-4">{getMemberDisplayName({ name: row.name, display_name: row.displayName })}</td>
+                  <td className="py-2 pr-4">{row.workTitle ?? "(no work)"}</td>
                   <td className="py-2 pr-4">{MILESTONE_LABELS[row.kind]}</td>
                   <td className="py-2 pr-4">{STATUS_LABELS[row.status]}</td>
                   <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">{MILESTONE_SOURCE_NOTES[row.source].replace(/\.$/, "")}</td>

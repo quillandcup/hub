@@ -84,7 +84,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
     ? await Promise.all([
         milestoneRepos.milestones.ofMember(effectiveIdentity.memberId).catch(() => []),
         milestoneRepos.writing.activeProjects(effectiveIdentity.memberId).catch(() => []),
-        milestoneRepos.books.ofMember(effectiveIdentity.memberId).catch(() => []),
+        milestoneRepos.books.mine(effectiveIdentity.memberId).catch(() => []),
       ])
     : [[], [], []];
 
@@ -153,7 +153,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 content: (
                   <>
                     <ProfilePanel />
-                    <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title }))} readOnly={effectiveIdentity?.isSudo ?? false} />
+                    <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null }))} readOnly={effectiveIdentity?.isSudo ?? false} />
                   </>
                 ),
               },
