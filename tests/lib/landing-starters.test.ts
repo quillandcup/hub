@@ -155,12 +155,12 @@ describe("the homepage starter", () => {
 
   it("keeps the owner's first-week order: courage, write, goal, hello, streak", () => {
     const week = blocks(starterData("home").content as Node[]).find((b) => b.type === "WeekStrip")!;
-    expect((week.props.items as { label: string; text: string }[]).map((d) => `${d.label}: ${d.text}`)).toEqual([
-      "Mon: Drop into a prickle",
-      "Tue: Write & log progress",
-      "Wed: Set one small goal",
-      "Thu: Say hello in chat",
-      "Fri: Your first streak day",
+    expect((week.props.items as { type: string; props: { label: string; text: string } }[]).map((d) => `${d.type} ${d.props.label}: ${d.props.text}`)).toEqual([
+      "WeekDay Mon: Drop into a prickle",
+      "WeekDay Tue: Write & log progress",
+      "WeekDay Wed: Set one small goal",
+      "WeekDay Thu: Say hello in chat",
+      "WeekDay Fri: Your first streak day",
     ]);
   });
 

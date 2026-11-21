@@ -21,7 +21,9 @@ import {
   Section,
   Spacer,
   Split,
+  Stat,
   Stats,
+  Step,
   Steps,
   Testimonials,
   Video,
@@ -29,13 +31,18 @@ import {
 import {
   AnnouncementStrip,
   ComingUp,
+  FinishLineCard,
   FinishLineCards,
+  FinisherCard,
   FinisherCards,
   JourneyMap,
   OutcomeNumbers,
+  PlanPhase,
   PlanPhases,
   SchedulePanel,
   Timeline,
+  TimelineMoment,
+  WeekDay,
   WeekStrip,
 } from "./homepage-blocks";
 import { pageImage, spanClasses } from "./theme";
@@ -123,6 +130,11 @@ const rootConfig = {
   render: PageFrame,
 };
 
+/** A child block as it is stored in a parent's slot: `{ type, props }`. Puck gives it an id when the parent is added. */
+const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { ...props } });
+const FINISHER_DEFAULT = { alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" };
+const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
+
 export const BLOCK_DEFAULTS = {
   Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, fadeIn: false },
   Columns: { count: "2", gap: "medium", verticalAlign: "top" },
@@ -142,8 +154,8 @@ export const BLOCK_DEFAULTS = {
   Spacer: { size: "medium" },
   Video: { url: "", title: "" },
   Hero: { headline: "A headline that says what you offer", level: "h1", subhead: "One or two lines that say who it is for and why it helps.", primary: { label: "Join us", href: "" }, secondary: { label: "", href: "" }, alt: "", decorative: false, imageMode: "background", overlay: "dark", background: "plum", align: "center", padding: "large" },
-  Steps: { heading: "How it works", items: [{ title: "Sign up", text: "Tell us a little about you." }, { title: "Join in", text: "Come to your first session." }, { title: "Keep going", text: "Write a little each day." }] },
-  Stats: { items: [{ value: "1,000", label: "words written a day" }, { value: "24/7", label: "company" }, { value: "3", label: "sessions a week" }] },
+  Steps: { heading: "How it works", items: [kid("Step", { title: "Sign up", text: "Tell us a little about you." }), kid("Step", { title: "Join in", text: "Come to your first session." }), kid("Step", { title: "Keep going", text: "Write a little each day." })] },
+  Stats: { items: [kid("Stat", { value: "1,000", label: "words written a day" }), kid("Stat", { value: "24/7", label: "company" }), kid("Stat", { value: "3", label: "sessions a week" })] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
   OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
   // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/LANDING_PAGES.md, "Live data"). A block dropped on a page now starts live where its point is to be live (strip, schedule, coming up), with the typed values as the fallback; a block saved without `source` stays typed.
@@ -174,11 +186,31 @@ export const BLOCK_DEFAULTS = {
       { source: "manual", stat: "hours_30d", value: "100s", label: "of Finishers", note: "" },
     ],
   },
-  FinisherCards: { items: [{ alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" }], more: { label: "", href: "" } },
-  Timeline: { heading: "", intro: "", items: [{ when: "8:00 am", title: "Morning pages", text: "What happens, in a line or two." }], closing: "" },
-  WeekStrip: { subtitle: "", items: [{ label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" }, { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" }] },
-  FinishLineCards: { items: [{ title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" }] },
-  PlanPhases: { heading: "What the first weeks look like", items: [{ title: "Weeks 1 to 4", text: "What happens." }, { title: "Weeks 5 to 8", text: "What happens next." }] },
+  FinisherCards: { items: [kid("FinisherCard", FINISHER_DEFAULT), kid("FinisherCard", FINISHER_DEFAULT), kid("FinisherCard", FINISHER_DEFAULT)], more: { label: "", href: "" } },
+  Timeline: {
+    heading: "",
+    intro: "",
+    items: [kid("TimelineMoment", { when: "8:00 am", title: "Morning pages", text: "What happens, in a line or two." }), kid("TimelineMoment", { when: "Noon", title: "Chat", text: "What happens next." })],
+    closing: "",
+  },
+  WeekStrip: {
+    subtitle: "",
+    items: [
+      kid("WeekDay", { label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "5 min to join" }),
+      kid("WeekDay", { label: "Tue", emoji: "🎯", text: "Set one small goal", note: "2 min" }),
+      kid("WeekDay", { label: "Wed", emoji: "✍️", text: "Write and log progress", note: "" }),
+    ],
+  },
+  FinishLineCards: { items: [kid("FinishLineCard", FINISH_LINE_DEFAULT), kid("FinishLineCard", FINISH_LINE_DEFAULT)] },
+  PlanPhases: { heading: "What the first weeks look like", items: [kid("PlanPhase", { title: "Weeks 1 to 4", text: "What happens." }), kid("PlanPhase", { title: "Weeks 5 to 8", text: "What happens next." })] },
+  // The items of the blocks above: each its own block, with its own fields, dropped into its parent's `items` slot (SLOT_ALLOW).
+  Step: { title: "New step", text: "" },
+  Stat: { value: "0", label: "" },
+  FinisherCard: FINISHER_DEFAULT,
+  TimelineMoment: { when: "", title: "New moment", text: "" },
+  WeekDay: { label: "Day", emoji: "", text: "", note: "" },
+  FinishLineCard: FINISH_LINE_DEFAULT,
+  PlanPhase: { title: "New phase", text: "" },
   JourneyMap: {
     stages: [
       { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
@@ -232,6 +264,13 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   PlanPhases: "Plan phases",
   JourneyMap: "Journey map",
   ComingUp: "Coming up",
+  Step: "Step",
+  Stat: "Figure",
+  FinisherCard: "Finisher card",
+  TimelineMoment: "Timeline moment",
+  WeekDay: "Week day",
+  FinishLineCard: "Finish-line card",
+  PlanPhase: "Plan phase",
 };
 
 const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
@@ -267,10 +306,42 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   PlanPhases: PlanPhases as never,
   JourneyMap: JourneyMap as never,
   ComingUp: ComingUp as never,
+  Step: Step as never,
+  Stat: Stat as never,
+  FinisherCard: FinisherCard as never,
+  TimelineMoment: TimelineMoment as never,
+  WeekDay: WeekDay as never,
+  FinishLineCard: FinishLineCard as never,
+  PlanPhase: PlanPhase as never,
 };
 
+type BlockName = keyof typeof BLOCK_DEFAULTS;
+
+/**
+ * The blocks that hold a list of items as a slot of child blocks, with the type each slot takes. The items are blocks of
+ * their own (a Finisher card, a week's day), so they drag on the canvas and are edited by clicking them (docs/LANDING_PAGES.md,
+ * "Blocks with items"). The editor limits the slot to these types (`allow`) and keeps them out of Sections and Columns
+ * (`disallow`); the JSON import drops anything else.
+ */
+export const SLOT_ALLOW: Partial<Record<BlockName, Record<string, BlockName[]>>> = {
+  Steps: { items: ["Step"] },
+  Stats: { items: ["Stat"] },
+  FinisherCards: { items: ["FinisherCard"] },
+  Timeline: { items: ["TimelineMoment"] },
+  WeekStrip: { items: ["WeekDay"] },
+  FinishLineCards: { items: ["FinishLineCard"] },
+  PlanPhases: { items: ["PlanPhase"] },
+};
+
+/** The item block types: they are in the palette under "Parts of a block" and only make sense inside their parent. */
+export const ITEM_BLOCKS: BlockName[] = [...new Set(Object.values(SLOT_ALLOW).flatMap((slots) => Object.values(slots ?? {}).flat()))];
+
 /** The blocks that hold other blocks, and the names of their slots. Everything that walks a page finds nested blocks by their shape, so a new container only needs an entry here and in the editor's fields. */
-export const SLOTS: Partial<Record<keyof typeof BLOCK_DEFAULTS, string[]>> = { Section: ["content"], Columns: ["col1", "col2", "col3"] };
+export const SLOTS: Partial<Record<BlockName, string[]>> = {
+  Section: ["content"],
+  Columns: ["col1", "col2", "col3"],
+  ...Object.fromEntries(Object.entries(SLOT_ALLOW).map(([name, slots]) => [name, Object.keys(slots ?? {})])),
+};
 
 type BoxProps = { puck?: { dragRef?: ((el: Element | null) => void) | null; isEditing?: boolean }; span?: unknown; spanMobile?: unknown } & Record<string, unknown>;
 
@@ -285,9 +356,21 @@ function boxed(name: keyof typeof BLOCK_DEFAULTS) {
   return function BlockBox({ puck, span, spanMobile, ...props }: BoxProps) {
     return (
       <div ref={puck?.dragRef ?? undefined} className={`min-w-0 ${spanClasses(span, spanMobile)}`}>
-        <Block {...props} {...(name === "Section" ? { editing: Boolean(puck?.isEditing) } : {})} />
+        <Block {...props} {...(SLOTS[name] ? { editing: Boolean(puck?.isEditing) } : {})} />
       </div>
     );
+  };
+}
+
+/**
+ * An item block (a Finisher card, a week's day) is its own root element, a list item of its parent's slot, and has no width
+ * box: it is not on a Section's grid, its parent lays it out. It takes the drag handle itself (`dragRef`), and is told
+ * whether the page is being edited, so an empty one stays visible there and draws nothing on the public page.
+ */
+function itemBoxed(name: keyof typeof BLOCK_DEFAULTS) {
+  const Item = RENDERERS[name] as unknown as ComponentType<Record<string, unknown>>;
+  return function ItemBox({ puck, ...props }: BoxProps) {
+    return <Item {...props} dragRef={puck?.dragRef ?? undefined} editing={Boolean(puck?.isEditing)} />;
   };
 }
 
@@ -296,8 +379,9 @@ function components(): Config["components"] {
   for (const name of Object.keys(BLOCK_DEFAULTS) as (keyof typeof BLOCK_DEFAULTS)[]) {
     out[name] = block({
       label: BLOCK_LABELS[name],
-      defaultProps: { ...BLOCK_DEFAULTS[name], ...Object.fromEntries((SLOTS[name] ?? []).map((slot) => [slot, []])) },
-      render: boxed(name) as (props: unknown) => ReactNode,
+      // A slot starts empty unless the block's defaults give it items (a freshly added Steps block starts with three steps).
+      defaultProps: { ...Object.fromEntries((SLOTS[name] ?? []).map((slot) => [slot, []])), ...BLOCK_DEFAULTS[name] },
+      render: (ITEM_BLOCKS.includes(name) ? itemBoxed(name) : boxed(name)) as (props: unknown) => ReactNode,
       inline: true,
       // A slot must be declared for Puck's Render to turn a container's stored blocks into the component it renders (the editor config declares it too).
       ...(SLOTS[name] ? { fields: Object.fromEntries(SLOTS[name].map((slot) => [slot, { type: "slot" }])) } : {}),
@@ -313,6 +397,8 @@ export const renderConfig = {
   categories: {
     layout: { title: "Layout", components: ["Section", "Columns", "Split", "CardGrid", "Divider", "Spacer"] },
     ready_made: { title: "Ready-made", components: ["Hero", "Steps", "Stats", "CtaBanner"] },
+    // The items of the blocks that hold a list of them; dragged into that block's list on the canvas (or added by duplicating one).
+    parts: { title: "Parts of a block", components: ITEM_BLOCKS },
     homepage: { title: "Homepage", components: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"] },
     content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },
     links: { title: "Links", components: ["Button", "ButtonRow", "LinkList", "OptInForm"] },

@@ -3,7 +3,7 @@
 import type { Config, Field, Fields } from "@puckeditor/core";
 import { ImageField, KindsField, RichTextField, ZonedDateTimeField } from "./fields";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
-import { renderConfig } from "./config";
+import { ITEM_BLOCKS, renderConfig, SLOT_ALLOW } from "./config";
 import { PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
@@ -70,6 +70,11 @@ const SOURCE = select("Where the content comes from (live shows on the published
   { label: "Live from the Hub", value: "live" },
 ]);
 
+/** A slot that holds any block except the parts of other blocks (a lone Finisher card or step means nothing on its own). */
+const contentSlot = (): Field => ({ type: "slot", disallow: ITEM_BLOCKS });
+/** The list of items a block holds, each a block of its own: they drag on the canvas, and are edited by clicking one. */
+const itemsSlot = (block: keyof typeof SLOT_ALLOW, label: string): Field => ({ type: "slot", label, allow: SLOT_ALLOW[block]?.items });
+
 const LOOK = select("Style", opts("solid", "outline"));
 const COLOR = select("Colour", opts("plum", "light", "brown"));
 
@@ -90,15 +95,15 @@ const FIELDS: Record<string, Fields> = {
     paddingMobile: padding("Space inside on mobile", "mobile"),
     hideOnDesktop: toggle("Hide on desktop"),
     hideOnMobile: toggle("Hide on mobile"),
-    content: { type: "slot" },
+    content: contentSlot(),
   },
   Columns: {
     count: select("Columns", [{ label: "Two", value: "2" }, { label: "Three", value: "3" }]),
     gap: select("Space between the columns", opts("small", "medium", "large")),
     verticalAlign: select("Line up the columns", [{ label: "At the top", value: "top" }, { label: "In the middle", value: "center" }]),
-    col1: { type: "slot" },
-    col2: { type: "slot" },
-    col3: { type: "slot" },
+    col1: contentSlot(),
+    col2: contentSlot(),
+    col3: contentSlot(),
   },
   RichText: { html: richText("Text"), align: select("Alignment", opts("left", "center")) },
   Heading: { text: text("Heading"), level: select("Level", [{ label: "Page title (h1)", value: "h1" }, { label: "Section heading (h2)", value: "h2" }, { label: "Subheading (h3)", value: "h3" }]), align: select("Alignment", opts("left", "center", "right")) },
@@ -167,11 +172,13 @@ const FIELDS: Record<string, Fields> = {
   },
   Steps: {
     heading: text("Heading above the steps (optional)"),
-    items: { type: "array", label: "Steps (2 to 5)", max: 5, arrayFields: { title: text("Title"), text: area("Short text") }, defaultItemProps: { title: "New step", text: "" }, getItemSummary: (i) => i.title || "Step" },
+    items: itemsSlot("Steps", "Steps (2 to 5)"),
   },
   Stats: {
-    items: { type: "array", label: "Figures (2 to 4, typed in by hand)", max: 4, arrayFields: { value: text("Figure (for example 1,000 or 24/7)"), label: text("What it counts") }, defaultItemProps: { value: "0", label: "" }, getItemSummary: (i) => i.value || "Figure" },
+    items: itemsSlot("Stats", "Figures (2 to 4, typed in by hand)"),
   },
+  Step: { title: text("Title"), text: area("Short text") },
+  Stat: { value: text("Figure (for example 1,000 or 24/7)"), label: text("What it counts") },
   CtaBanner: {
     heading: text("Heading"),
     text: area("Line under the heading (optional)"),
@@ -234,57 +241,48 @@ const FIELDS: Record<string, Fields> = {
     },
   },
   FinisherCards: {
-    items: {
-      type: "array",
-      label: "Finishers (up to 6)",
-      max: 6,
-      arrayFields: {
-        imageAssetId: image("Photo"),
-        alt: text("Describe the photo (for screen readers)"),
-        name: text("Name"),
-        kind: text("Kind of book"),
-        dayOne: text("Day 1 line (where she started)"),
-        theEnd: text("THE END line (what she finished)"),
-        linkLabel: text("Link label (for example, Read her story)"),
-        href: text("Link (https://, or a path on this site)"),
-      },
-      defaultItemProps: { alt: "", name: "Name", kind: "", dayOne: "", theEnd: "", linkLabel: "", href: "" },
-      getItemSummary: (i) => i.name || "Finisher",
-    },
+    items: itemsSlot("FinisherCards", "Finishers (up to 6)"),
     more: { type: "object", label: "Link under the cards (optional)", objectFields: { label: text("Link label (for example, See every Finisher)"), href: text("Link (https://, or a path on this site)") } },
+  },
+  FinisherCard: {
+    imageAssetId: image("Photo"),
+    alt: text("Describe the photo (for screen readers)"),
+    name: text("Name"),
+    kind: text("Kind of book"),
+    dayOne: text("Day 1 line (where she started)"),
+    theEnd: text("THE END line (what she finished)"),
+    linkLabel: text("Link label (for example, Read her story)"),
+    href: text("Link (https://, or a path on this site)"),
   },
   Timeline: {
     heading: text("Heading above the timeline (optional)"),
     intro: area("Line under the heading (optional)"),
-    items: { type: "array", label: "Moments", arrayFields: { when: text("When (for example, 8:00 am)"), title: text("Title"), text: area("Short text") }, defaultItemProps: { when: "", title: "New moment", text: "" }, getItemSummary: (i) => i.title || "Moment" },
+    items: itemsSlot("Timeline", "Moments"),
     closing: text("Closing line (optional)"),
   },
+  TimelineMoment: { when: text("When (for example, 8:00 am)"), title: text("Title"), text: area("Short text") },
   WeekStrip: {
     subtitle: text("Line above the days (optional)"),
-    items: { type: "array", label: "Days (up to 7)", max: 7, arrayFields: { label: text("Day (for example, Mon)"), emoji: text("Emoji"), text: text("What happens"), note: text("Small note") }, defaultItemProps: { label: "Day", emoji: "", text: "", note: "" }, getItemSummary: (i) => i.label || "Day" },
+    items: itemsSlot("WeekStrip", "Days (up to 7)"),
   },
+  WeekDay: { label: text("Day (for example, Mon)"), emoji: text("Emoji"), text: text("What happens"), note: text("Small note") },
   FinishLineCards: {
-    items: {
-      type: "array",
-      label: "Finish lines (2 to 3)",
-      max: 3,
-      arrayFields: {
-        title: text("Title"),
-        program: text("Program name"),
-        text: area("One line about it"),
-        durationLabel: text("Length label (for example, 12 months)"),
-        durationPercent: { type: "number", label: "How full the length bar is (0 to 100)", min: 0, max: 100 },
-        buttonLabel: text("Button label"),
-        href: text("Button link (https://, or a path on this site)"),
-      },
-      defaultItemProps: { title: "New finish line", program: "", text: "", durationLabel: "", durationPercent: 100, buttonLabel: "", href: "" },
-      getItemSummary: (i) => i.title || "Finish line",
-    },
+    items: itemsSlot("FinishLineCards", "Finish lines (2 to 3)"),
+  },
+  FinishLineCard: {
+    title: text("Title"),
+    program: text("Program name"),
+    text: area("One line about it"),
+    durationLabel: text("Length label (for example, 12 months)"),
+    durationPercent: { type: "number", label: "How full the length bar is (0 to 100)", min: 0, max: 100 },
+    buttonLabel: text("Button label"),
+    href: text("Button link (https://, or a path on this site)"),
   },
   PlanPhases: {
     heading: text("Heading above the phases (optional)"),
-    items: { type: "array", label: "Phases (2 to 4, light to deeper)", max: 4, arrayFields: { title: text("Title (for example, Weeks 1 to 4)"), text: area("What happens") }, defaultItemProps: { title: "New phase", text: "" }, getItemSummary: (i) => i.title || "Phase" },
+    items: itemsSlot("PlanPhases", "Phases (2 to 4, light to deeper)"),
   },
+  PlanPhase: { title: text("Title (for example, Weeks 1 to 4)"), text: area("What happens") },
   JourneyMap: {
     stages: {
       type: "array",

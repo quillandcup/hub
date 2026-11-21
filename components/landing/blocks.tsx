@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { parseEmbed, safeHref } from "@/lib/landing/data";
+import { ITEM_LIMITS } from "./item-limits";
 import Countdown, { type CountdownProps } from "./Countdown";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
 import { sectionPadding } from "@/lib/landing/layout";
@@ -13,7 +14,31 @@ import { background, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SP
  * editor's phone preview as on a phone. Links go through `safeHref`; rich text arrives already cleaned.
  */
 
-type Slot = (props?: { className?: string; collisionAxis?: "dynamic" | "x" | "y" }) => ReactNode;
+/** A slot as a block receives it: Puck's component, drawn where the blocks inside go (`as` makes its box a list, so each item is a list item). */
+export type Slot = (props?: { className?: string; collisionAxis?: "dynamic" | "x" | "y"; as?: "ul" | "ol" | "dl" }) => ReactNode;
+
+/**
+ * What every item block (a Finisher card, a step, a day...) is given besides its own props: the editor's drag handle, which
+ * the item attaches to its own root element (the config marks items `inline`, so Puck puts no wrapper around them), and
+ * whether the page is being edited. On the public page `editing` is off, and an item with nothing in it draws nothing.
+ */
+export type ItemProps = { dragRef?: (el: Element | null) => void; editing?: boolean };
+
+const CAP_CLASS: Record<number, string> = {
+  3: "[&>:nth-child(n+4)]:hidden",
+  4: "[&>:nth-child(n+5)]:hidden",
+  5: "[&>:nth-child(n+6)]:hidden",
+  6: "[&>:nth-child(n+7)]:hidden",
+  7: "[&>:nth-child(n+8)]:hidden",
+  12: "[&>:nth-child(n+13)]:hidden",
+};
+
+/**
+ * The classes a block's list of items (its slot) gets on the public page: an empty list is not drawn, and items past the
+ * most the block's layout is made for are hidden (the publish check says so). In the editor neither applies, so an empty
+ * list stays a place to drop into and every item stays reachable.
+ */
+export const itemList = (max: number, editing?: boolean): string => (editing ? "" : `empty:hidden ${CAP_CLASS[max] ?? ""}`);
 const noImage = null;
 
 /**
@@ -493,49 +518,55 @@ export function Hero({ headline, level, subhead, primary, secondary, imageAssetI
   );
 }
 
-export type StepsProps = { heading: string; items: { title: string; text: string }[] };
-const STEP_COLUMNS = ["", "", "@pair:grid-cols-2", "@cards:grid-cols-3", "@cards:grid-cols-2 @columns:grid-cols-4", "@cards:grid-cols-3 @columns:grid-cols-5"] as const;
+export type StepsProps = { heading: string; items: Slot; editing?: boolean };
 
-/** Numbered steps: stacked on a narrow page, side by side once there is room. The text colour is inherited, so it follows the section it sits in. */
-export function Steps({ heading, items }: StepsProps) {
-  const rows = (items ?? []).filter((i) => i.title).slice(0, 5);
-  if (rows.length === 0) return null;
-  // Under the block's own heading the steps are one level down; without one they are the section headings themselves.
-  const StepTitle = heading ? "h3" : "h2";
+
+/**
+ * Numbered steps, each a `Step` block in the `items` slot: stacked on a narrow page, side by side once there is room (as many
+ * columns as fit, so any number of steps fills the row). The number is a CSS counter, so it follows the order the steps are in
+ * after a drag. The text colour is inherited, so it follows the section it sits in.
+ */
+export function Steps({ heading, items: Items, editing }: StepsProps) {
   return (
     <div className="py-4">
       {heading && <h2 className="mb-6 text-center font-display text-3xl font-semibold leading-tight @pair:text-4xl">{heading}</h2>}
-      <ol className={`grid gap-8 ${STEP_COLUMNS[rows.length]}`}>
-        {rows.map((step, i) => (
-          <li key={i} className="flex flex-col items-center gap-3 text-center">
-            <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-current text-xl font-semibold">
-              {i + 1}
-            </span>
-            <StepTitle className="font-display text-xl font-semibold">{step.title}</StepTitle>
-            {step.text && <p className="whitespace-pre-line">{step.text}</p>}
-          </li>
-        ))}
-      </ol>
+      <Items as="ol" collisionAxis="dynamic" className={`grid grid-cols-1 gap-8 [counter-reset:step] @cards:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] ${itemList(ITEM_LIMITS.Steps, editing)}`} />
     </div>
   );
 }
 
-export type StatsProps = { items: { value: string; label: string }[] };
-const STAT_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
+export type StepProps = { title: string; text: string } & ItemProps;
 
-/** A strip of typed figures (not live data) with a label under each. A description list, so a screen reader hears the label with its figure. */
-export function Stats({ items }: StatsProps) {
-  const rows = (items ?? []).filter((i) => i.value).slice(0, 4);
-  if (rows.length === 0) return null;
+/** One step of a Steps block: a numbered circle, a title (a heading under the block's own) and a line. */
+export function Step({ title, text, dragRef, editing }: StepProps) {
+  if (!title && !editing) return null;
   return (
-    <dl className={`grid gap-8 py-4 text-center ${STAT_COLUMNS[rows.length]}`}>
-      {rows.map((stat, i) => (
-        <div key={i} className="flex flex-col-reverse">
-          <dt className="mt-1 text-base">{stat.label}</dt>
-          <dd className="font-display text-4xl font-semibold leading-tight @pair:text-5xl">{stat.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <li ref={dragRef} className="flex min-w-0 flex-col items-center gap-3 text-center [counter-increment:step]">
+      <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-current text-xl font-semibold before:content-[counter(step)]" />
+      <h3 className="font-display text-xl font-semibold">{title}</h3>
+      {text && <p className="whitespace-pre-line">{text}</p>}
+    </li>
+  );
+}
+
+export type StatsProps = { items: Slot; editing?: boolean };
+
+
+/** A strip of typed figures (not live data), each a `Stat` block in the `items` slot. A description list, so a screen reader hears the label with its figure. */
+export function Stats({ items: Items, editing }: StatsProps) {
+  return <Items as="dl" collisionAxis="dynamic" className={`grid grid-cols-1 gap-8 py-4 text-center @pair:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] ${itemList(ITEM_LIMITS.Stats, editing)}`} />;
+}
+
+export type StatProps = { value: string; label: string } & ItemProps;
+
+/** One figure of a Stats block: the big figure with its label under it (the label comes first in the markup, and is shown below). */
+export function Stat({ value, label, dragRef, editing }: StatProps) {
+  if (!value && !editing) return null;
+  return (
+    <div ref={dragRef} className="flex flex-col-reverse">
+      <dt className="mt-1 text-base">{label}</dt>
+      <dd className="font-display text-4xl font-semibold leading-tight @pair:text-5xl">{value}</dd>
+    </div>
   );
 }
 

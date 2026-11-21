@@ -1,5 +1,5 @@
 import { BACKGROUNDS, PADDING, WIDTHS } from "@/components/landing/theme";
-import { BLOCK_DEFAULTS } from "@/components/landing/config";
+import { BLOCK_DEFAULTS, SLOT_ALLOW, SLOTS } from "@/components/landing/config";
 import { ANTHROPIC } from "@/lib/config";
 import { outboundFetch } from "@/lib/http/outbound";
 import { checkLandingPage, type A11yIssue } from "./a11y";
@@ -26,6 +26,9 @@ type Block = { type: string; props: Props };
 /** What the model may use. Excluded on purpose: Image and Split (need a picture), Testimonials (it would invent quotes), Countdown (a date), Video, OptInForm (a Kajabi form id). CardGrid is offered without pictures, prices or buttons. */
 export const AI_BLOCKS = ["Section", "Hero", "Heading", "RichText", "Button", "List", "Steps", "Stats", "Faq", "LinkList", "CtaBanner", "CardGrid", "Divider", "Spacer"] as const;
 type AiBlock = (typeof AI_BLOCKS)[number];
+/** The blocks the model writes inside one of those: the items of Steps and Stats. They are only ever offered in their parent's list, never on their own. */
+const AI_ITEMS = ["Step", "Stat"] as const;
+const WRITABLE: readonly string[] = [...AI_BLOCKS, ...AI_ITEMS];
 
 const LOOK = ["solid", "outline"];
 const ALIGN = ["left", "center"];
@@ -48,11 +51,14 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
 /** What the model is shown and may set for a block: the builder's defaults, except where those are sample content (a card's price and "Buy now"). */
 const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
 const SHAPES: Partial<Record<AiBlock, Props>> = {
+  // The items of these are child blocks (`SLOT_ALLOW`), described beside the props.
+  Steps: { heading: BLOCK_DEFAULTS.Steps.heading },
+  Stats: {},
   // Spacing as numbers (px) for desktop and mobile. The model is not offered hiding a section: that is the admin's call.
   Section: SECTION_SHAPE,
   CardGrid: { columns: "3", items: [{ icon: "", title: "", description: "", price: "", buttonLabel: "", href: "" }] },
 };
-const shapeOf = (type: AiBlock): Props => SHAPES[type] ?? (BLOCK_DEFAULTS[type] as unknown as Props);
+const shapeOf = (type: AiBlock | (typeof AI_ITEMS)[number]): Props => SHAPES[type as AiBlock] ?? (BLOCK_DEFAULTS[type] as unknown as Props);
 
 /** A card grid with a picture on any card stays as it is: the model never sees pictures, so it could not keep them. */
 const hasPictures = (block: Block): boolean => block.type === "CardGrid" && Array.isArray(block.props.items) && block.props.items.some((i) => isObject(i) && typeof i.imageAssetId === "string" && i.imageAssetId !== "");
@@ -104,19 +110,21 @@ function indexBlocks(content: unknown, into: Existing = new Map()): Existing {
   for (const raw of content) {
     if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props)) continue;
     if (typeof raw.props.id === "string") into.set(raw.props.id, { type: raw.type, props: raw.props });
-    indexBlocks(raw.props.content, into);
+    // Nested blocks sit in a slot of any name (a Section's `content`, a Steps block's `items`).
+    for (const value of Object.values(raw.props)) if (Array.isArray(value)) indexBlocks(value, into);
   }
   return into;
 }
 
-function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | null {
+/** `allow` is what the list this block is in takes: the page's blocks by default, or the item type of a Steps or Stats block (`inItems`). */
+function cleanBlock(raw: unknown, depth: number, existing?: Existing, allow: readonly string[] = AI_BLOCKS, inItems = false): Block | null {
   if (!isObject(raw) || typeof raw.type !== "string") return null;
   const given = isObject(raw.props) ? raw.props : {};
   const id = typeof raw.id === "string" ? raw.id : typeof given.id === "string" ? given.id : undefined;
   const before = id ? existing?.get(id) : undefined;
   // A block the model cannot write (a picture, a video, a form) stays exactly as it is, or is removed by leaving it out.
-  if (before && (!(AI_BLOCKS as readonly string[]).includes(before.type) || hasPictures(before))) return { type: before.type, props: before.props };
-  if (!(AI_BLOCKS as readonly string[]).includes(raw.type)) return null;
+  if (before && (!WRITABLE.includes(before.type) || hasPictures(before))) return { type: before.type, props: before.props };
+  if (!allow.includes(raw.type)) return null;
   const type = raw.type as AiBlock;
   const cleaned = cleanObject(type, shapeOf(type), given);
   let props: Props;
@@ -127,7 +135,7 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | n
   } else {
     props = { id: newId(type), ...cleaned };
   }
-  if (depth > 0) {
+  if (depth > 0 && !inItems) {
     // A block inside a Section may take part of its 12 columns (`span` on desktop, `spanMobile` on mobile); anything but 1 to 12 means the full width.
     for (const key of ["span", "spanMobile"]) {
       if (!(key in given)) continue;
@@ -141,6 +149,14 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | n
     // Models put the children in props.content as asked, or beside props; both are read.
     const kids = Array.isArray(given.content) ? given.content : Array.isArray(raw.content) ? raw.content : [];
     props.content = depth === 0 ? kids.map((c) => cleanBlock(c, depth + 1, existing)).filter((b): b is Block => b !== null) : [];
+  }
+  // The items of a Steps or Stats block: child blocks of the one type its list takes, written in `props.items` (or beside props, as with a Section's).
+  for (const [slot, types] of Object.entries(SLOT_ALLOW[type] ?? {})) {
+    if (before && before.type === type && !(slot in given) && !(slot in raw)) continue;
+    const kids = Array.isArray(given[slot]) ? given[slot] : Array.isArray(raw[slot]) ? raw[slot] : [];
+    // A bare `{ "title": ..., "text": ... }` is read as one item of the list's type, the shorthand models reach for.
+    const asBlock = (c: unknown) => (isObject(c) && typeof c.type !== "string" ? { type: types[0], props: c } : c);
+    props[slot] = kids.slice(0, MAX_ITEMS).map((c) => cleanBlock(asBlock(c), depth + 1, existing, types, true)).filter((b): b is Block => b !== null);
   }
   return { type, props };
 }
@@ -176,7 +192,9 @@ function describeBlocks(): string {
   return AI_BLOCKS.map((type) => {
     const props = { ...shapeOf(type) };
     const options = ENUMS[type] ? ` Options: ${Object.entries(ENUMS[type]).map(([k, v]) => `${k}=${v.join("|")}`).join("; ")}.` : "";
-    return `- ${type}: props ${JSON.stringify(props)}.${options}${type === "Section" ? " Also `content`: a list of blocks inside it (not Sections)." : ""}`;
+    const items = Object.values(SLOT_ALLOW[type] ?? {})[0]?.[0];
+    const itemNote = items ? ` Also \`items\`: a list of ${items} blocks, each {"type": "${items}", "props": ${JSON.stringify(shapeOf(items as (typeof AI_ITEMS)[number]))}}.` : "";
+    return `- ${type}: props ${JSON.stringify(props)}.${options}${type === "Section" ? " Also `content`: a list of blocks inside it (not Sections)." : ""}${itemNote}`;
   }).join("\n");
 }
 
@@ -194,7 +212,7 @@ export function systemPrompt(task: Task = "page"): string {
     "You build landing pages for Quill & Cup, a community for writers, in a block page builder. You answer only by calling the build_page tool.",
     "Write warm, plain, specific copy in the voice the request implies. Use only facts, prices, dates, names and links the request gives you; never invent figures, quotes, testimonials, deadlines or links. Where a fact is missing, write copy that does not need it, and leave a button's href empty so the admin fills it in.",
     TASK_RULES[task],
-    "A Section's blocks go in its props.content list. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
+    "A Section's blocks go in its props.content list. The steps of a Steps block and the figures of a Stats block go in its props.items list, each as a Step or Stat block. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
     "For cards side by side (pillars, offers, features), use a CardGrid: each card has an `icon` (one fitting emoji), a `title` and a short `description`; leave price, buttonLabel and href empty unless the request gives them.",
     "Spacing: a Section's paddingDesktop and paddingMobile are the space inside it in px (top, bottom, left, right; 0 to 320). The defaults suit most sections: change them only when asked, or for an airy opening or closing band. Width: the blocks inside a Section sit on a 12-column grid. Give a block `span` (1 to 12: its width on desktop) and, if it should differ on a phone, `spanMobile` (full width when left out) to put blocks side by side, for example two Buttons with span 6, or a Heading and some text with span 5 and 7. Leave both out for full width.",
     "Rich text (`html`) may use only p, h2, h3, ul, ol, li, strong, em, a and blockquote. There are no pictures: leave picture props out. Never mention AI.",
@@ -273,11 +291,12 @@ export function pageForModel(content: unknown): unknown[] {
   const view = (raw: unknown): unknown => {
     if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props)) return null;
     const id = raw.props.id;
-    if (!(AI_BLOCKS as readonly string[]).includes(raw.type) || hasPictures({ type: raw.type, props: raw.props })) return { id, type: raw.type, locked: true };
+    if (!WRITABLE.includes(raw.type) || hasPictures({ type: raw.type, props: raw.props })) return { id, type: raw.type, locked: true };
+    const slots = SLOTS[raw.type as keyof typeof SLOTS] ?? [];
     const props: Props = {};
     for (const [key, value] of Object.entries(raw.props)) {
       if (key === "id" || NEVER.test(key)) continue;
-      props[key] = key === "content" && Array.isArray(value) ? value.map(view).filter(Boolean) : value;
+      props[key] = slots.includes(key) && Array.isArray(value) ? value.map(view).filter(Boolean) : value;
     }
     return { id, type: raw.type, props };
   };
