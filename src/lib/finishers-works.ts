@@ -1,6 +1,6 @@
 import { MILESTONE_TITLES, PUBLISHED_TITLE, type MilestoneKind } from "@/lib/finishers";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
-import type { Milestone } from "@/lib/data/milestones";
+import type { Milestone, ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
 
 /**
  * Works (docs/product/FINISHERS.md). A milestone belongs to one work: a writing project and/or a Bookshelf book (a book that has
@@ -102,6 +102,30 @@ export function buildWorks(projects: CardProject[], books: CardBook[], milestone
     work.milestones[m.kind] ??= m;
   }
   return works;
+}
+
+/** A work as a strip shows it: its name when the viewer may know it, and its steps in order (THE END, publish-ready, Published). */
+export type ShownWork = { title: string | null; steps: ShownWorkStep[] };
+
+const STEP_ORDER: readonly ShownStepKind[] = ["the_end", "publish_ready", "published"];
+
+/**
+ * Groups the rows of `member_works_shown_*` into works for a strip: works in their numbered order, each with one step per kind in the
+ * order of the writer's journey (a work cannot have the same step twice: of two books under one project, the earliest date shows).
+ */
+export function groupShownWorks(steps: readonly ShownWorkStep[]): ShownWork[] {
+  const byNo = new Map<number, ShownWork>();
+  for (const step of steps) {
+    const work = byNo.get(step.workNo) ?? { title: step.workTitle, steps: [] };
+    byNo.set(step.workNo, work);
+    if (!work.title && step.workTitle) work.title = step.workTitle;
+    const have = work.steps.findIndex((s) => s.kind === step.kind);
+    if (have === -1) work.steps.push(step);
+    else if (step.achievedOn !== null && (work.steps[have].achievedOn === null || step.achievedOn < work.steps[have].achievedOn!)) work.steps[have] = step;
+  }
+  return [...byNo.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, work]) => ({ ...work, steps: [...work.steps].sort((a, b) => STEP_ORDER.indexOf(a.kind) - STEP_ORDER.indexOf(b.kind)) }));
 }
 
 /** Whether the card shows this work up front: it has a milestone, is on the Bookshelf, or is past the drafting stage. */

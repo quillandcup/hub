@@ -30,7 +30,7 @@ export default async function WriterProfilePreview() {
   const [profile, settings, milestones] = await Promise.all([
     serviceRepos.writerProfiles.previewOfMember(identity.memberId),
     createRepos(await createClient()).writerProfiles.ofMember(identity.memberId),
-    serviceRepos.milestones.shownOnWeb(identity.memberId),
+    serviceRepos.milestones.worksShownOnWeb(identity.memberId),
   ]);
 
   if (!profile || !settings) {

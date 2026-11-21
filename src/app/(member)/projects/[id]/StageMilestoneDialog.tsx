@@ -62,7 +62,7 @@ function StepRow({
           initial={null}
           submitLabel="Save it"
           run={(i) =>
-            answerStageMilestone({ projectId, kind, answer: "yes", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory })
+            answerStageMilestone({ projectId, kind, answer: "yes", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })
           }
           onDone={(saved) => onStep(saved ? "yes" : "asking")}
           readOnly={false}

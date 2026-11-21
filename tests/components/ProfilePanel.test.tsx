@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProfilePanel } from '@/app/(member)/settings/ProfilePanel'
 import * as profileActions from '@/app/(member)/settings/profileActions'
@@ -8,8 +8,22 @@ import * as pageActions from '@/app/(member)/settings/writerProfileActions'
 import * as visibilityActions from '@/app/(member)/settings/profileVisibilityActions'
 import { SUPPORT_EMAIL } from '@/lib/config'
 import { defaultProfileVisibilities } from '@/lib/profile-visibility'
+import * as milestoneActions from '@/app/(member)/settings/milestoneActions'
+import type { Milestone } from '@/lib/data/milestones'
 
-vi.mock('@/app/(member)/settings/WriterProfilePanel', () => ({ WriterProfilePanel: () => <div>writer profile block</div> }))
+vi.mock('@/app/(member)/settings/WriterProfilePanel', () => ({
+  WriterProfilePanel: ({ onTurnedOn, onTurnedOff }: { onTurnedOn?: () => void; onTurnedOff?: () => void }) => (
+    <div>
+      writer profile block
+      <button type="button" onClick={onTurnedOn}>mock turn on</button>
+      <button type="button" onClick={onTurnedOff}>mock turn off</button>
+    </div>
+  ),
+}))
+
+const refresh = vi.fn()
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }))
+vi.mock('@/app/(member)/settings/milestoneActions', () => ({ setMilestoneVisibility: vi.fn() }))
 
 vi.mock('@/app/(member)/settings/writerProfileActions', () => ({
   getMyWriterProfile: vi.fn(),
@@ -466,5 +480,102 @@ describe('ProfilePanel the photo row', () => {
 
     expect(await screen.findByText(/couldn't find a Gravatar picture/)).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Who can see this photo: Only me' })).toBeInTheDocument()
+  })
+})
+
+describe('ProfilePanel: who sees what, once the writer profile is switched on', () => {
+  const NOVEL = { id: 'wpr_NOVEL', title: 'A Fake Novel', phase: 'revising' }
+  const milestone = (overrides: Partial<Milestone> = {}): Milestone => ({
+    id: 'mlst_AAAAAAAAAAA1',
+    memberId: 'member-1',
+    kind: 'the_end',
+    projectId: NOVEL.id,
+    bookId: null,
+    title: null,
+    status: 'confirmed',
+    source: 'member',
+    achievedOn: null,
+    storyBefore: null,
+    storyAfter: null,
+    visibility: 'public',
+    consentTestimonial: false,
+    confirmedAt: '2026-11-20T12:00:00Z',
+    createdAt: '2026-11-20T12:00:00Z',
+    ...overrides,
+  })
+  const settings = { ...baseSettings, photo: { ...baseSettings.photo, url: 'https://photos.example.com/ada.png' }, visibilities: { ...baseSettings.visibilities, bio: 'public' as const } }
+
+  beforeEach(() => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(settings)
+  })
+
+  it('shows nothing extra until the profile is switched on, then lists the name, what is filled in, the milestones and the books, each with its control', async () => {
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, isPublic: true })
+    render(
+      <ProfilePanel
+        milestones={[milestone(), milestone({ id: 'mlst_AAAAAAAAAAA2', kind: 'publish_ready', visibility: 'community' }), milestone({ id: 'mlst_AAAAAAAAAAA3', status: 'proposed', projectId: null, title: 'A Proposed Fake Work' })]}
+        projects={[NOVEL]}
+        books={[{ id: 'book_1', title: 'A Fake Novel Book', projectId: NOVEL.id }]}
+      />,
+    )
+    await screen.findByText('writer profile block')
+    expect(screen.queryByTestId('writer-profile-review')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'mock turn on' }))
+    const review = await screen.findByTestId('writer-profile-review')
+    expect(review).toHaveTextContent('Your writer profile is on. Here is who sees what.')
+    expect(review).toHaveTextContent('Name: Ada Example')
+    // Only what has something in it: the photo, the bio, Instagram and Facebook are set; X is empty.
+    for (const key of ['photo', 'bio', 'instagram', 'facebook']) expect(within(review).getByTestId('review-item-' + key)).toBeInTheDocument()
+    expect(within(review).queryByTestId('review-item-x')).not.toBeInTheDocument()
+    // Confirmed milestones with their level (a proposal is not listed), and Published from the book with no control of its own.
+    expect(within(review).getByTestId('review-milestone-mlst_AAAAAAAAAAA1')).toHaveTextContent('Finisher: Wrote THE END (A Fake Novel)')
+    expect(within(review).getByTestId('review-milestone-mlst_AAAAAAAAAAA2')).toHaveTextContent('Author: Manuscript ready to publish')
+    expect(within(review).queryByTestId('review-milestone-mlst_AAAAAAAAAAA3')).not.toBeInTheDocument()
+    expect(within(review).getByTestId('review-published')).toHaveTextContent('Published Author: Published (A Fake Novel)')
+    expect(within(review).getByRole('link', { name: 'View as a visitor' })).toHaveAttribute('href', '/writer-profile/preview')
+  })
+
+  it('changes an item or a milestone from the summary with the same controls, and closes with Looks good or when the profile goes off', async () => {
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, isPublic: true })
+    vi.mocked(visibilityActions.setProfileVisibility).mockResolvedValue({ success: true })
+    vi.mocked(milestoneActions.setMilestoneVisibility).mockResolvedValue({ success: true })
+    render(<ProfilePanel milestones={[milestone()]} projects={[NOVEL]} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'mock turn on' }))
+    const review = await screen.findByTestId('writer-profile-review')
+
+    // The bio is at the globe in this fixture: a click in the summary moves it to the lock, saved at once like the one above.
+    await userEvent.click(within(within(review).getByTestId('review-item-bio')).getByRole('button', { name: /Who can see this bio/ }))
+    expect(visibilityActions.setProfileVisibility).toHaveBeenLastCalledWith('bio', 'private')
+
+    await userEvent.click(within(within(review).getByTestId('review-milestone-mlst_AAAAAAAAAAA1')).getByRole('button', { name: /Who can see this milestone: Everyone/ }))
+    expect(milestoneActions.setMilestoneVisibility).toHaveBeenCalledWith('mlst_AAAAAAAAAAA1', 'private')
+
+    await userEvent.click(within(review).getByRole('button', { name: 'Looks good' }))
+    expect(screen.queryByTestId('writer-profile-review')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'mock turn on' }))
+    expect(await screen.findByTestId('writer-profile-review')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'mock turn off' }))
+    expect(screen.queryByTestId('writer-profile-review')).not.toBeInTheDocument()
+  })
+
+  it('says plainly when only the name is on the page, and shows a refused change as the reason', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue({ ...baseSettings, instagramUrl: null, details: { bio: null, facebookUrl: null, twitterUrl: null } })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, isPublic: true })
+    render(<ProfilePanel />)
+    await userEvent.click(await screen.findByRole('button', { name: 'mock turn on' }))
+    expect(await screen.findByTestId('writer-profile-review')).toHaveTextContent('Only your name is on the page so far.')
+  })
+
+  it('shows why a milestone level could not be saved, and puts the icon back', async () => {
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, isPublic: true })
+    vi.mocked(milestoneActions.setMilestoneVisibility).mockResolvedValue({ error: 'We could not save that.' })
+    render(<ProfilePanel milestones={[milestone()]} projects={[NOVEL]} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'mock turn on' }))
+    const review = await screen.findByTestId('writer-profile-review')
+    await userEvent.click(within(review).getByRole('button', { name: /Who can see this milestone: Everyone/ }))
+    expect(await within(review).findByRole('alert')).toHaveTextContent('We could not save that.')
+    expect(within(review).getByRole('button', { name: /Who can see this milestone: Everyone/ })).toBeInTheDocument()
   })
 })

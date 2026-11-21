@@ -96,7 +96,7 @@ SELECT throws_ok(
 -- The member can change their mind later, and take it back.
 UPDATE public.member_milestones SET status = 'confirmed', confirmed_at = now() WHERE id = 'mlst_psNotYet0001';
 RESET ROLE;
-SELECT is((SELECT status || '/' || visibility FROM public.member_milestones WHERE id = 'mlst_psNotYet0001'), 'confirmed/community', 'a "not yet" can be answered later ("Actually, it is me") and then starts at "other members can see it"');
+SELECT is((SELECT status || '/' || visibility FROM public.member_milestones WHERE id = 'mlst_psNotYet0001'), 'confirmed/public', 'a "not yet" can be answered later ("Actually, it is me") and then starts at the globe');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f7a2", "email": "ps-jo@example.test", "role": "authenticated"}', true);

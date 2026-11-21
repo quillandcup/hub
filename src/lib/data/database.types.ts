@@ -8840,6 +8840,42 @@ export type Database = {
           total: number
         }[]
       }
+      member_works_shown: {
+        Args: { p_levels: string[]; p_member_id: string }
+        Returns: {
+          achieved_on: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_shown_on_web: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_shown_to_members: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
       mentorship_counts: {
         Args: never
         Returns: {

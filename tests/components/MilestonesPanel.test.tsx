@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MilestonesPanel } from "@/app/(member)/settings/MilestonesPanel";
 import * as actions from "@/app/(member)/settings/milestoneActions";
-import { MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, MILESTONE_TITLES, PUBLISHED_TITLE, SHARE_STORY_LABEL, SHARE_STORY_NOTE } from "@/lib/finishers";
+import { MILESTONE_DEFAULT_VISIBILITY, MILESTONE_LEVEL_LINES, MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, MILESTONE_TITLES, PUBLISHED_TITLE, SHARE_STORY_LABEL, SHARE_STORY_NOTE } from "@/lib/finishers";
 import type { Milestone } from "@/lib/data/milestones";
 
 const refresh = vi.fn();
@@ -137,8 +137,37 @@ describe("MilestonesPanel (per work)", () => {
       storyBefore: "",
       storyAfter: "Done.",
       shareStory: true,
+      visibility: "public",
     });
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("shows who will see a milestone beside the story fields, starting at the globe, and sends the level the member picks", async () => {
+    vi.mocked(actions.addMilestone).mockResolvedValue({ success: true, added: true });
+    const user = userEvent.setup();
+    render(<MilestonesPanel milestones={[]} projects={[NOVEL]} />);
+    await user.click(within(work("A Fake Novel")).getByRole("button", { name: MILESTONE_SELF_ADD.the_end.button }));
+    const field = screen.getByTestId("milestone-form-level");
+    // The default is a visible, one-click choice, with a plain line about who will see it.
+    expect(MILESTONE_DEFAULT_VISIBILITY).toBe("public");
+    expect(within(field).getByRole("button", { name: "Who can see this milestone: Everyone" })).toBeInTheDocument();
+    expect(screen.getByTestId("milestone-form-level-line")).toHaveTextContent("Anyone on the internet, once your writer profile is on; members see it now.");
+    // One click moves on to the lock, then the house; the line follows.
+    await user.click(within(field).getByRole("button", { name: /Who can see this milestone/ }));
+    expect(screen.getByTestId("milestone-form-level-line")).toHaveTextContent(MILESTONE_LEVEL_LINES.private);
+    await user.click(within(field).getByRole("button", { name: /Who can see this milestone/ }));
+    expect(screen.getByTestId("milestone-form-level-line")).toHaveTextContent(MILESTONE_LEVEL_LINES.community);
+    await user.click(screen.getByRole("button", { name: "Add it" }));
+    await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledTimes(1));
+    expect(actions.addMilestone).toHaveBeenCalledWith(expect.objectContaining({ kind: "the_end", visibility: "community" }));
+  });
+
+  it("starts the form of a milestone already confirmed at its own level, not the default", async () => {
+    const user = userEvent.setup();
+    render(<MilestonesPanel milestones={[milestone({ status: "confirmed", source: "member", confirmedAt: "x", visibility: "private" })]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(within(screen.getByTestId("milestone-form-level")).getByRole("button", { name: "Who can see this milestone: Only me" })).toBeInTheDocument();
+    expect(screen.getByTestId("milestone-form-level-line")).toHaveTextContent(MILESTONE_LEVEL_LINES.private);
   });
 
   it("adds publish-ready for a work with nothing filled in, and shows why a failure failed", async () => {
@@ -236,6 +265,7 @@ describe("MilestonesPanel (per work)", () => {
       storyBefore: "Stuck in chapter two.",
       storyAfter: "",
       shareStory: false,
+      visibility: "public",
     });
   });
 
