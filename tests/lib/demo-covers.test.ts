@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { COVER_HEIGHT, COVER_WIDTH, coverPng, coverSvg, wrapTitle } from "@/demo/covers";
+import { COVER_HEIGHT, COVER_WIDTH, coverPng, coverSvg, wrapTitle } from "@/tests/demo/covers";
 
 describe("demo covers", () => {
   it("wraps a title on spaces", () => {

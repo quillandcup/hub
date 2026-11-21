@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { missingImages, publishPlan, referencedImages, setsToPrune } from "@/demo/publish";
+import { missingImages, publishPlan, referencedImages, setsToPrune } from "@/tests/demo/publish";
 
 describe("publishPlan", () => {
   let out: string;

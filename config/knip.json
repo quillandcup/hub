@@ -12,9 +12,9 @@
     "config/eslint-quality.mjs",
     "config/checkly/__checks__/**/*.{check,setup}.ts",
     "scripts/*.ts",
-    "demo/*.ts",
-    "demo/scenes/**/*.ts",
-    "demo/video/*.ts",
+    "tests/demo/*.ts",
+    "tests/demo/scenes/**/*.ts",
+    "tests/demo/video/*.ts",
     "emails/**/*.tsx",
     "tests/**/*.{ts,tsx}"
   ],
@@ -27,7 +27,7 @@
     "tests/**/*.{ts,tsx}",
     "*.{ts,mts,mjs}"
   ],
-  "ignore": ["lib/data/database.types.ts", "supabase/**", ".next/**", ".next-demo/**", "demo/.stack/**"],
+  "ignore": ["lib/data/database.types.ts", "supabase/**", ".next/**", ".next-demo/**", "tests/demo/.stack/**"],
   "ignoreBinaries": ["supabase", "ffmpeg", "ffprobe", "say", "xattr"],
   "ignoreExportsUsedInFile": true
 }

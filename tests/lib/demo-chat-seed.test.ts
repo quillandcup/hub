@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_CHANNELS, who } from "@/demo/chat-seed";
+import { DEMO_CHANNELS, who } from "@/tests/demo/chat-seed";
 import { COMMUNITY } from "@/lib/data/profiles/community";
 
 describe("the demo chat's cast", () => {

@@ -10,7 +10,7 @@
 # if it ran after the publish, otherwise the next run does. Skipped entirely when nothing the screens depend on
 # changed since the newest set (HELP_IMAGE_INPUTS in scripts/help-images-version.ts); `force` runs it anyway.
 #
-# A failing scene, a new page problem (demo/baseline.json) or an article that shows a screenshot no scene
+# A failing scene, a new page problem (tests/demo/baseline.json) or an article that shows a screenshot no scene
 # captured fails this workflow, and GitHub emails the failure. Nothing blocks a merge on it any more, so watch for
 # it; production keeps showing the previous set meanwhile.
 name: Help screenshots
@@ -177,7 +177,7 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_URL=$LOCAL_SUPABASE_URL"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY"
             echo "SUPABASE_SERVICE_ROLE_KEY=$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
-          } > demo/.env.demo
+          } > tests/demo/.env.demo
 
       - name: Cache the Playwright browser
         if: steps.run.outputs.capture == 'true'
@@ -216,8 +216,8 @@ jobs:
         with:
           name: demo-screenshots
           path: |
-            demo/out
-            !demo/out/.playwright
+            tests/demo/out
+            !tests/demo/out/.playwright
           retention-days: 14
 
       # Additive: it never overwrites a file. Sets older than 30 days are deleted, except the newest of them,

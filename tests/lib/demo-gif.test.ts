@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { animatedGif, bouncingDisc, DISC_PALETTE } from "@/demo/gif";
+import { animatedGif, bouncingDisc, DISC_PALETTE } from "@/tests/demo/gif";
 
 describe("the demo's animated GIF", () => {
   const gif = animatedGif(16, DISC_PALETTE, bouncingDisc(16), 300);

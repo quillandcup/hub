@@ -31,8 +31,8 @@ const touch = (...parts: string[]) => {
 
 describe("paths", () => {
   it("names the scene, the capture folder and the public folder from the slug", () => {
-    expect(sceneFile("a-thing")).toBe("demo/scenes/changelog/a-thing.spec.ts");
-    expect(captureDir("a-thing")).toBe(`demo/out/a-thing/${CAPTURE_PROJECT}`);
+    expect(sceneFile("a-thing")).toBe("tests/demo/scenes/changelog/a-thing.spec.ts");
+    expect(captureDir("a-thing")).toBe(`tests/demo/out/a-thing/${CAPTURE_PROJECT}`);
     expect(publicDir("a-thing", "/r")).toBe("/r/public/changelog/a-thing");
   });
 });
@@ -101,7 +101,7 @@ describe("captureEntry", () => {
 
   it("runs the scene on the capture project for that entry's file, filtered to the changelog tag", () => {
     expect(playwrightArgs("a-thing")).toEqual([
-      "exec", "playwright", "test", "--config", "demo/playwright.config.ts", "--project", CAPTURE_PROJECT, "--grep", "@changelog", "demo/scenes/changelog/a-thing.spec.ts",
+      "exec", "playwright", "test", "--config", "tests/demo/playwright.config.ts", "--project", CAPTURE_PROJECT, "--grep", "@changelog", "tests/demo/scenes/changelog/a-thing.spec.ts",
     ]);
   });
 
@@ -118,7 +118,7 @@ describe("captureEntry", () => {
     touch("public", "changelog", "a-thing", "old.png");
     touch("public", "changelog", "a-thing", "older.webp");
     touch("public", "changelog", "a-thing", "notes.txt");
-    touch("demo", "out", "a-thing", CAPTURE_PROJECT, "stale.png"); // from an earlier run: cleared before this one
+    touch("tests", "demo", "out", "a-thing", CAPTURE_PROJECT, "stale.png"); // from an earlier run: cleared before this one
     const result = await captureEntry("a-thing", sceneThatTakes("01-first.png", "02-second.png", "01-first.findings.json"), { entries: [e], root, convert: fakeConvert });
     expect(result).toEqual({ ok: true, copied: ["01-first.webp", "02-second.webp"], target: publicDir("a-thing", root) });
     expect(readdirSync(publicDir("a-thing", root)).sort()).toEqual(["01-first.webp", "02-second.webp", "notes.txt"]);

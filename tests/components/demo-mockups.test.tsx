@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailPage, pushPage, slackMobilePage, slackPage } from "@/demo/mockups/frames";
+import { emailPage, pushPage, slackMobilePage, slackPage } from "@/tests/demo/mockups/frames";
 import type { OutboundMessage } from "@/lib/channels/types";
 import { notificationKind } from "@/lib/notifications/registry";
 

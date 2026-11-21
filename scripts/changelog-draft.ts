@@ -15,7 +15,7 @@ import { FEATURE_PREVIEWS } from "@/lib/features";
 /**
  * `pnpm changelog:draft [--since YYYY-MM-DD] [--live-flags a,b] [--run]`: collects the pull requests merged since that day
  * (default: 2 days ago) and the production deployments from GitHub, and writes the titles-only grouping prompt to
- * demo/out/changelog-draft/. With `--run` it calls the Claude Code CLI (not a dependency of the app) twice: a small model
+ * tests/demo/out/changelog-draft/. With `--run` it calls the Claude Code CLI (not a dependency of the app) twice: a small model
  * groups the pull requests into stories, then a larger one drafts only the member-visible stories into drafts.md. A pull
  * request that names a feature flag not in `LIVE_FLAGS` (lib/changelog/live-flags.ts, or `--live-flags`) is held back until
  * the flag is on for everyone. The job never reads the production database.
@@ -54,7 +54,7 @@ function main() {
   const deployTimes = JSON.parse(gh(["api", "repos/{owner}/{repo}/deployments?environment=production&per_page=100", "--jq", "[.[].created_at]"])) as string[];
   const input = buildDraftInput(since, prs, CHANGELOG_ENTRIES, { flagKeys: FEATURE_PREVIEWS.map((f) => f.key), liveFlags, deployTimes });
 
-  const dir = path.join("demo", "out", "changelog-draft");
+  const dir = path.join("tests", "demo", "out", "changelog-draft");
   mkdirSync(dir, { recursive: true });
   const groupPrompt = buildGroupPrompt(input);
   writeFileSync(path.join(dir, "group-prompt.md"), groupPrompt);

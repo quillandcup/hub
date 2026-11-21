@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_TOPIC_PREFIX, attendanceRows, hash01, hostOf, type Attendee, type PrickleSlot } from "@/demo/attendance";
-import { FILLER_MEMBERS, PERSONAS } from "@/demo/personas";
+import { DEMO_TOPIC_PREFIX, attendanceRows, hash01, hostOf, type Attendee, type PrickleSlot } from "@/tests/demo/attendance";
+import { FILLER_MEMBERS, PERSONAS } from "@/tests/demo/personas";
 
 const at = (iso: string) => new Date(iso);
 const slot = (key: string, summary: string, start: string, minutes = 60): PrickleSlot => ({

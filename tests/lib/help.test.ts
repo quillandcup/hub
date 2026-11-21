@@ -94,7 +94,7 @@ describe("the real articles hold together", () => {
 
   /** The screenshot file names a scene writes, in order: its Nth `shot(page, testInfo, "name"[, options])` call saves `NN-name.png`. */
   function sceneShots(scene: string): string[] | null {
-    const file = path.join("demo", "scenes", `${scene}.spec.ts`);
+    const file = path.join("tests", "demo", "scenes", `${scene}.spec.ts`);
     if (!existsSync(file)) return null;
     const names = [...readFileSync(file, "utf8").matchAll(/shot\(page, testInfo, "([a-z0-9-]+)"(?:,[^)]*)?\)/g)].map((m) => m[1]);
     return names.map((name, i) => `${String(i + 1).padStart(2, "0")}-${name}.png`);
@@ -115,7 +115,7 @@ describe("the real articles hold together", () => {
     for (const a of articles) {
       for (const m of a.body.matchAll(/\(img:([a-z0-9-]+)\/([^)]+)\)/g)) {
         const shots = sceneShots(m[1]);
-        expect(shots, `${a.slug} uses scene ${m[1]}, which has no demo/scenes/${m[1]}.spec.ts`).not.toBeNull();
+        expect(shots, `${a.slug} uses scene ${m[1]}, which has no tests/demo/scenes/${m[1]}.spec.ts`).not.toBeNull();
         expect(shots, `${a.slug} uses ${m[1]}/${m[2]}`).toContain(m[2]);
       }
     }

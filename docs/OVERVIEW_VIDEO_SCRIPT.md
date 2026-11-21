@@ -1,6 +1,6 @@
 # Overview video: storyboard and script
 
-Two narrated overview videos of Hedgie Hub for members, recorded from the demo community (`docs/DEMO_AND_HELP.md`, "Overview videos"). This is what is on screen and what the voice says; the words themselves live in `demo/video/script.ts` and are the captions too. Edit a line there and re-record (`pnpm demo:seed`, then `pnpm demo:video`); this file is the storyboard around them, so keep the two in step.
+Two narrated overview videos of Hedgie Hub for members, recorded from the demo community (`docs/DEMO_AND_HELP.md`, "Overview videos"). This is what is on screen and what the voice says; the words themselves live in `tests/demo/video/script.ts` and are the captions too. Edit a line there and re-record (`pnpm demo:seed`, then `pnpm demo:video`); this file is the storyboard around them, so keep the two in step.
 
 ## Who it is for, and what it has to do
 
@@ -58,10 +58,10 @@ Two narrated overview videos of Hedgie Hub for members, recorded from the demo c
 
 A recorded reading replaces the synthetic voice line by line, and the video paces itself to it (each beat waits for whichever is longer, the voice or the clicks), so a slower or faster reader just makes a slightly longer or shorter video.
 
-1. **Make the sheet**: `pnpm demo:video` (writes the times to `demo/out/video/overview-long.timing.json` and `overview-short.timing.json`), then `pnpm demo:reading:sheet` writes `demo/out/video/reading-script.pdf` (and `.html`). It has how to record, how to say the names, and every line with its number (`L01` to `L20` for the long cut, `S01` to `S07` for the short one), when it comes in, how long it takes, and what is on screen.
+1. **Make the sheet**: `pnpm demo:video` (writes the times to `tests/demo/out/video/overview-long.timing.json` and `overview-short.timing.json`), then `pnpm demo:reading:sheet` writes `tests/demo/out/video/reading-script.pdf` (and `.html`). It has how to record, how to say the names, and every line with its number (`L01` to `L20` for the long cut, `S01` to `S07` for the short one), when it comes in, how long it takes, and what is on screen.
 2. **She records** each cut straight through, in order, with about two seconds between lines (one recording per cut; a phone voice memo is fine).
-3. **Cut it into takes**: `pnpm demo:reading:split long path/to/long.m4a` (and `short`). The pauses between lines are where it cuts; if the number of pieces isn't the number of lines it writes nothing and lists the pieces found, and `--gap=` (the shortest pause that counts, seconds) and `--noise=` (dB) tune it. Takes land in `demo/out/video/reading/` as `L01.wav` and so on (gitignored: a person's voice is not committed).
+3. **Cut it into takes**: `pnpm demo:reading:split long path/to/long.m4a` (and `short`). The pauses between lines are where it cuts; if the number of pieces isn't the number of lines it writes nothing and lists the pieces found, and `--gap=` (the shortest pause that counts, seconds) and `--noise=` (dB) tune it. Takes land in `tests/demo/out/video/reading/` as `L01.wav` and so on (gitignored: a person's voice is not committed).
 4. **Fix a line** by dropping a re-read of it into that folder as `L07.m4a` (any common audio format, named for the line's id); it replaces the split take.
 5. **Record the videos**: `pnpm demo:seed`, then `pnpm demo:video`. Lines without a reading use the synthetic voice and the run says which. `DEMO_HUMAN=0` ignores the readings.
 
-Editing a line in `demo/video/script.ts` changes its reading too: the sheet shows the new words, and the recorded take for that id no longer matches what is said, so it needs re-reading.
+Editing a line in `tests/demo/video/script.ts` changes its reading too: the sheet shows the new words, and the recorded take for that id no longer matches what is said, so it needs re-reading.

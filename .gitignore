@@ -68,5 +68,5 @@ next-env.d.ts
 /supabase/local-data/backups/
 
 # Demo stack and captures (see docs/DEMO_AND_HELP.md)
-demo/.stack/
-demo/out/
+tests/demo/.stack/
+tests/demo/out/

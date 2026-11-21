@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LIVE_MEETING_UUID, liveCalendarEvent, liveRoomRows, weeksBefore, withLapsedStreak } from "@/demo/live-seed";
-import type { ZoomAttendeeRow } from "@/demo/attendance";
+import { LIVE_MEETING_UUID, liveCalendarEvent, liveRoomRows, weeksBefore, withLapsedStreak } from "@/tests/demo/live-seed";
+import type { ZoomAttendeeRow } from "@/tests/demo/attendance";
 
 // Friday 2026-11-06, 12:00 Eastern.
 const NOW = new Date("2026-11-06T17:00:00Z");

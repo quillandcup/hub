@@ -18,8 +18,8 @@
     "lib/data/database.types.ts",
     "tests/fixtures/**",
     "tests/fixtures/subscription-snapshots/**",
-    "demo/.stack/**",
-    "demo/out/**",
+    "tests/demo/.stack/**",
+    "tests/demo/out/**",
     "**/*.d.ts",
     "**/*.generated.*"
   ],

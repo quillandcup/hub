@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_EVENTS, FORMATTED_DESCRIPTION, eventCalendarRows, eventImagePng, withFormattedDescription } from "@/demo/rest-seed";
+import { DEMO_EVENTS, FORMATTED_DESCRIPTION, eventCalendarRows, eventImagePng, withFormattedDescription } from "@/tests/demo/rest-seed";
 import { hasEventTag } from "@/lib/calendar-events";
 import { plainTextDescription } from "@/lib/prickle-types";
-import { orgDate } from "@/demo/seed";
-import { botIdentity, linkPreviewPage, slackHomePage } from "@/demo/mockups/rest-frames";
+import { orgDate } from "@/tests/demo/seed";
+import { botIdentity, linkPreviewPage, slackHomePage } from "@/tests/demo/mockups/rest-frames";
 
 const now = new Date("2026-11-06T15:00:00Z");
 

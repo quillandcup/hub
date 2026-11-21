@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { boxFindingToFinding, consoleKey, knownKeys, stableTarget, withoutIds } from "@/demo/checks";
-import { buildBaseline } from "@/demo/baseline";
+import { boxFindingToFinding, consoleKey, knownKeys, stableTarget, withoutIds } from "@/tests/demo/checks";
+import { buildBaseline } from "@/tests/demo/baseline";
 
 describe("stableTarget", () => {
   it("drops row positions so a longer list today has the same identity as yesterday's", () => {

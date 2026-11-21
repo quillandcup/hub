@@ -145,7 +145,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "working",
         detail:
           "Automated checks for WCAG 2.0 and 2.1 levels A and AA, including colour contrast, run on every page we capture, at phone, tablet and desktop sizes in light and dark. Pages built in the landing page editor are checked for headings, image descriptions and link names before they can be published. Automated checks find only part of the problems. A walkthrough by keyboard alone and with a screen reader has not been done yet, and the checks cover only some screens so far.",
-        evidence: ["demo/checks.ts", "lib/landing/a11y.ts", "docs/DEMO_AND_HELP.md", "docs/TODO.md (accessibility entries)"],
+        evidence: ["tests/demo/checks.ts", "lib/landing/a11y.ts", "docs/DEMO_AND_HELP.md", "docs/TODO.md (accessibility entries)"],
         checked: "2026-11-17",
         open: ["A keyboard-only walkthrough and a screen reader pass (VoiceOver on iPhone and Mac) have not been done.", "The automated checks see only the screens the demo scenes visit (about a dozen); admin pages, chat, courses and events are fixed by the sweep but unverified.", "The course video player's controls are not checked (no demo video is ready)."],
       },
