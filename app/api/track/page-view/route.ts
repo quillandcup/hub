@@ -7,6 +7,7 @@ import { userAgentForStorage } from "@/lib/device-label";
 import { deviceForStorage } from "@/lib/device";
 import { requestLocation } from "@/lib/request-location";
 import { GA_COOKIE_NAME, gaClientIdFromCookie } from "@/lib/analytics-identity";
+import { parseGaTagState } from "@/lib/analytics/ga-tag-state";
 import { getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from "@/lib/sudo-cookie";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
@@ -47,6 +48,8 @@ export async function POST(request: NextRequest) {
       device: deviceForStorage(request.headers.get("user-agent")),
       ...requestLocation(request.headers),
       ga_client_id: gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value),
+      // The body is untrusted: only our three values are stored, anything else (or an older client's none) is NULL.
+      ga_tag_state: parseGaTagState(body?.ga_tag),
     });
   } catch (error) {
     console.error("Failed to record page view:", (error as Error).message);

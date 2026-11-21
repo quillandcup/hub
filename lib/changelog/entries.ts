@@ -56,6 +56,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "page-view-ga-tag-signal",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "Page views say whether the Google tag was running",
+    summary: "Each page view the browser reports now carries one value: the Google Analytics tag was running, did not load, or was not expected to run.",
+    body: "About one member in seven never gets the `_ga` cookie, and an empty `ga_client_id` could not tell a blocked tag from a running tag without a cookie. The page-view beacon now sends `ga_tag`, stored as `access_events.ga_tag_state`: `tag_running` (gtag.js registered the property), `not_loaded` (analytics allowed, tag never ran) or `not_applicable` (no GA id, or analytics denied by the consent default, the banner or the opt-out switch, where a missing cookie means nothing). It reads the page's own state (`window.google_tag_manager` and the consent commands already in the data layer): no request, no new third-party call, no device data. gtag.js loads after the page is interactive, so a view that finds no tag waits, bounded, before saying `not_loaded`, and a view being left is sent with what is known. The route stores only those three values. The rule to follow: a diagnostic the page already has beats a new probe. Hook: `watchGaTag` in `lib/analytics/ga-tag-state.ts`. How to read it: `docs/TODO.md`, \"Google Analytics cookie gap\".",
+  },
+  {
     slug: "finisher-record",
     date: "2026-11-20",
     audience: "engineering",

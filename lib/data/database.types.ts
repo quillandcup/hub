@@ -1649,6 +1649,7 @@ export type Database = {
           created_at: string
           device: Json | null
           ga_client_id: string | null
+          ga_tag_state: string | null
           id: number
           ip_address: unknown
           is_page: boolean
@@ -1665,6 +1666,7 @@ export type Database = {
           created_at?: string
           device?: Json | null
           ga_client_id?: string | null
+          ga_tag_state?: string | null
           id?: never
           ip_address?: unknown
           is_page: boolean
@@ -1681,6 +1683,7 @@ export type Database = {
           created_at?: string
           device?: Json | null
           ga_client_id?: string | null
+          ga_tag_state?: string | null
           id?: never
           ip_address?: unknown
           is_page?: boolean

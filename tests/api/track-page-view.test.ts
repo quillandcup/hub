@@ -79,6 +79,7 @@ describe('POST /api/track/page-view', () => {
       region: null,
       city: null,
       ga_client_id: null,
+      ga_tag_state: null,
     })
   })
 
@@ -114,6 +115,27 @@ describe('POST /api/track/page-view', () => {
     const { insert } = setup()
     await POST(makeRequest({ path: '/dashboard' }, '_ga=GA1.1.1234567890.1700000000'))
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ ga_client_id: '1234567890.1700000000' }))
+  })
+
+  it.each(['tag_running', 'not_loaded', 'not_applicable'])('stores the Google tag state %s from the body', async (ga_tag) => {
+    const { insert } = setup()
+    expect((await POST(makeRequest({ path: '/dashboard', ga_tag }))).status).toBe(204)
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ ga_tag_state: ga_tag }))
+  })
+
+  it.each([['an unknown value', 'blocked'], ['a number', 5], ['an object', { x: 1 }], ['null', null]])(
+    'ignores %s for the Google tag state and still records the view',
+    async (_label, ga_tag) => {
+      const { insert } = setup()
+      expect((await POST(makeRequest({ path: '/dashboard', ga_tag }))).status).toBe(204)
+      expect(insert).toHaveBeenCalledWith(expect.objectContaining({ path: '/dashboard', ga_tag_state: null }))
+    },
+  )
+
+  it('records no tag state for a client that sends none', async () => {
+    const { insert } = setup()
+    await POST(makeRequest({ path: '/dashboard' }))
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ ga_tag_state: null }))
   })
 
   it('records no user agent when the browser sends none', async () => {
