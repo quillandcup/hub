@@ -9,7 +9,7 @@
     "config/app.ts",
     "config/env-vars.ts",
     "checkly.config.ts",
-    "eslint.quality.config.mjs",
+    "config/eslint-quality.mjs",
     "__checks__/**/*.{check,setup}.ts",
     "scripts/*.ts",
     "demo/*.ts",

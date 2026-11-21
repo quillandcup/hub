@@ -73,7 +73,7 @@ function RememberCaptions() {
   return null
 }
 
-// The skin's public theming properties (the only ones the docs promise to keep). Plum is the Hub's plum-600 from tailwind.config.ts.
+// The skin's public theming properties (the only ones the docs promise to keep). Plum is the Hub's plum-600 from config/tailwind.ts.
 const SKIN_THEME = {
   aspectRatio: "16 / 9",
   "--media-accent-color": "#a64d79",

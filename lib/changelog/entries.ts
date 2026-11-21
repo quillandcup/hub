@@ -56,6 +56,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "page-view-ga-tag-signal",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "Page views say whether the Google tag was running",
+    summary: "Each page view the browser reports now carries one value: the Google Analytics tag was running, did not load, or was not expected to run.",
+    body: "About one member in seven never gets the `_ga` cookie, and an empty `ga_client_id` could not tell a blocked tag from a running tag without a cookie. The page-view beacon now sends `ga_tag`, stored as `access_events.ga_tag_state`: `tag_running` (gtag.js registered the property), `not_loaded` (analytics allowed, tag never ran) or `not_applicable` (no GA id, or analytics denied by the consent default, the banner or the opt-out switch, where a missing cookie means nothing). It reads the page's own state (`window.google_tag_manager` and the consent commands already in the data layer): no request, no new third-party call, no device data. gtag.js loads after the page is interactive, so a view that finds no tag waits, bounded, before saying `not_loaded`, and a view being left is sent with what is known. The route stores only those three values. The rule to follow: a diagnostic the page already has beats a new probe. Hook: `watchGaTag` in `lib/analytics/ga-tag-state.ts`. How to read it: `docs/TODO.md`, \"Google Analytics cookie gap\".",
+  },
+  {
     slug: "finisher-record",
     date: "2026-11-20",
     audience: "engineering",
@@ -396,7 +405,7 @@ Where something isn't finished, the line says so.
 
 - **Use it like this.** \`<Kbd keys={["mod", "K"]} />\` renders one cap per key. Names such as \`mod\`, \`shift\`, \`enter\`, \`esc\`, \`up\` and \`down\` are mapped; a single letter is upper-cased. \`mod\` is the Command key on Apple platforms and Ctrl elsewhere, read on the client with \`useSyncExternalStore\`, so the server render and hydration agree and the right key appears right after.
 - **Decorative only.** It is \`aria-hidden\`. The control that owns a shortcut declares it with \`aria-keyshortcuts\`, which keeps the visible hint out of the button's accessible name.
-- **Only where there is a keyboard.** It is hidden below \`sm\` and on devices without hover and a fine pointer, through the \`fine-pointer\` Tailwind variant in \`tailwind.config.ts\`. Use that variant for any other keyboard-only affordance.
+- **Only where there is a keyboard.** It is hidden below \`sm\` and on devices without hover and a fine pointer, through the \`fine-pointer\` Tailwind variant in \`config/tailwind.ts\`. Use that variant for any other keyboard-only affordance.
 - **Add a hint only for a shortcut that works.** Today: search (open, move, choose, close), the modal close button, sending a chat message, and the admin calendar's week links.`,
   },
   {
@@ -2646,7 +2655,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "The repo moved to pnpm, new PRs auto-merge on green, docs-only changes skip tests and deploy, and layouts use named container queries.",
     body: [
-      "Named container sizes live in tailwind.config.ts. A production tag marks what is deployed. Migration order is checked in pre-commit and CI.",
+      "Named container sizes live in config/tailwind.ts. A production tag marks what is deployed. Migration order is checked in pre-commit and CI.",
     ].join("\n\n"),
   },
   {

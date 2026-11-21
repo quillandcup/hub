@@ -1,4 +1,4 @@
-// Report-only code-quality rules, kept apart from eslint.config.mjs so `pnpm lint` is unchanged
+// Report-only code-quality rules, kept apart from config/eslint.mjs so `pnpm lint` is unchanged
 // (the main config gates CI; these are all warnings and nothing reads them as a gate yet).
 // Run with `pnpm lint:quality`; scripts/quality-new-code.ts narrows the result to added lines.
 import nextTypescript from "eslint-config-next/typescript";

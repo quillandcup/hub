@@ -104,7 +104,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
           {
             cells: [
               "Where you connect from",
-              "The IP address your connection comes from, the city, region and country it appears to be in, the page you opened and your browser.",
+              "The IP address your connection comes from, the city, region and country it appears to be in, the page you opened, your browser, and whether Google Analytics was running in it.",
               "To know where our community writes from, and which device and place you came from.",
             ],
           },

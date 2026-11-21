@@ -87,6 +87,13 @@ describe("next.config headers", () => {
   });
 });
 
+describe("next.config X-Powered-By", () => {
+  it("does not announce the framework on every response", async () => {
+    const config = (await import("../../next.config")).default as { poweredByHeader?: boolean };
+    expect(config.poweredByHeader).toBe(false);
+  });
+});
+
 describe("next.config redirects", () => {
   it("sends the old Identity tab of the member page to Account", async () => {
     const config = (await import("../../next.config")).default as { redirects?: () => Promise<{ source: string; destination: string; permanent: boolean }[]> };

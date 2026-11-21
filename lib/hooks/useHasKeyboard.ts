@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 /**
  * A mouse or trackpad and a screen at least Tailwind's `sm` (640px) wide: the same test as the `fine-pointer:sm:`
- * variant that shows `Kbd` key caps (`tailwind.config.ts`), so wherever caps are hidden the shortcut panel is too.
+ * variant that shows `Kbd` key caps (`config/tailwind.ts`), so wherever caps are hidden the shortcut panel is too.
  */
 export const KEYBOARD_MEDIA_QUERY = "(hover: hover) and (pointer: fine) and (min-width: 640px)";
 

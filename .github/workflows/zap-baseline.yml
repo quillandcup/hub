@@ -43,6 +43,8 @@ jobs:
           # -I: warnings do not fail the run, only FAIL-level alerts do. The first run had 10 warnings and 0 failures,
           # and most are informational (a report-only CSP, cache headers), so alerting on them would be noise.
           cmd_options: "-I"
+          # What the scan skips or accepts, with the reason for each: config/zap-baseline.tsv.
+          rules_file_name: config/zap-baseline.tsv
           artifact_name: zap-baseline-report
 
       # fail_action is on and -I ignores warnings, so a FAIL-level alert turns the step red; tell the alerts channel (same webhook and pattern as audit.yml).

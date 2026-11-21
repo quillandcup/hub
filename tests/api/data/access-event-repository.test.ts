@@ -44,4 +44,12 @@ describe("AccessEventRepository.placesBySession (database)", () => {
     const places = await repos.accessEvents.placesBySession(me, [s1, s2, s3]);
     expect([...places.entries()]).toEqual([[s1, { city: "Heredia", country: "CR" }]]);
   });
+
+  it("stores the Google tag state, leaves it NULL when absent, and the database refuses any other value", async () => {
+    await repos.accessEvents.record({ user_id: me, path: "/tag", is_page: true, ga_tag_state: "tag_running" });
+    await repos.accessEvents.record({ user_id: me, path: "/tag-none", is_page: true });
+    const { data } = await admin.from("access_events").select("path, ga_tag_state").eq("user_id", me).in("path", ["/tag", "/tag-none"]);
+    expect(Object.fromEntries((data ?? []).map((r) => [r.path, r.ga_tag_state]))).toEqual({ "/tag": "tag_running", "/tag-none": null });
+    await expect(repos.accessEvents.record({ user_id: me, path: "/tag-bad", is_page: true, ga_tag_state: "blocked" })).rejects.toThrow();
+  });
 });
