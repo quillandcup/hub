@@ -20,7 +20,6 @@ function community(count: number, extra: { off?: number } = {}) {
     is_public: i >= (extra.off ?? 0),
     public_name_alias_id: null,
     use_account_name: false,
-    show_photo: false,
     public_bio: null,
     published_at: AT,
     created_at: AT,

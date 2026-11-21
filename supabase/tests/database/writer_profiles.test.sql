@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(44);
+SELECT plan(46);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -177,6 +177,12 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$SELECT public.set_writer_handle('mbr_wprofAlice01', 'sneaky', 90, now())$$,
   '42501', NULL, 'a member cannot call the handle function'
+);
+-- The photo is chosen by its level in member_profile_overrides now: the old switch column is gone, and the narrow update grant still covers the rest.
+SELECT hasnt_column('public', 'writer_profiles', 'show_photo', 'the old photo switch column was dropped');
+SELECT lives_ok(
+  $$UPDATE public.writer_profiles SET public_bio = 'Hello.' WHERE member_id = 'mbr_wprofAlice01'$$,
+  'a member can still change the settings the grant covers'
 );
 -- The name shown: their own public pen name, never a matching-only name or someone else's.
 SELECT lives_ok(
