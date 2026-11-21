@@ -95,7 +95,7 @@ export function buildDraftInput(since: string, prs: MergedPr[], entries: readonl
     kept.push({ ...pr, kind, liveOn: deployed ? easternDay(deployed) : null });
   }
   const existing = entries
-    .filter((e) => e.date >= since)
+    .filter((e): e is ChangelogEntry & { date: string } => !!e.date && e.date >= since)
     .map(({ slug, date, audience, title }) => ({ slug, date, audience, title }))
     .sort((a, b) => b.date.localeCompare(a.date));
   return { since, prs: kept, held, existing };

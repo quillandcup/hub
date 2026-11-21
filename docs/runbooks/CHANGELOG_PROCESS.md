@@ -33,6 +33,12 @@ Every entry has an `audience`:
 - **One story per feature, written when members can use it.** Many pull requests and commits make one thing members get; write one entry for it, dated the day it became available, with the benefit first and what is in it as a short list. Do not write an entry per pull request (chat was fourteen entries and read like a developer diary). Keep the lower-level detail in an `engineering` entry. Later improvements to something members already have are their own entries.
 - **Milestones are not entries.** A demo, a launch day or a "special reveal" has no version to bump, so it does not go in the changelog; write entries for what members can do.
 
+## Holding an entry
+
+An entry for a feature that is not released yet (still behind a flag, or waiting on another change) is written ahead and **held**: `held: true` and no `date`. A held entry appears only on the admin Changelog, first, in a group labelled "Held (not released yet)" and tagged "Held, not released". It is not on the What's new pages (the list, its link, search), not in the weekly digest and not in the announcements post, and `/changelog/<slug>` is a 404 (all of it follows from `listProductChangelog` and `findChangelogEntry`; tests in `tests/lib/changelog.test.ts` and the page tests guard it). The validator refuses a date on a held entry and a missing date on any other. Screenshots and the member reader review can be done while it is held.
+
+To **release** it: when the feature is on for everyone (read the day from the audit log, see "Writing an entry"), delete `held: true`, set `date` to that Eastern day, and re-read the text against what is deployed. The next digest run then sends it, if the date is on or after `changelogDigestStartsOn` and within the last 30 days.
+
 ## Screenshots
 
 An entry's screenshots are **frozen at ship time**: taken once from the demo community, committed, and left alone (the help screenshots, by contrast, are regenerated per build). They live in `public/changelog/<slug>/`, so Slack and email can fetch them, and are referenced as `/changelog/<slug>/<file>.webp` in `body` (and in `image` for the one shown on the list, in the digest and in the Slack post). The repo and that folder are public: sample data only, never a real member's name, photo or message. Images must live in the entry's own folder, and every one an entry shows must exist (`tests/lib/changelog.test.ts`).

@@ -31,9 +31,25 @@ describe("admin changelog list", () => {
 
   it("groups by month, newest first", async () => {
     await renderServerPage(AdminChangelogPage, listProps());
-    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent).filter((h) => h !== "Held (not released yet)");
     expect(headings[0]).toMatch(/^[A-Z][a-z]+ 20\d\d$/);
     expect(new Set(headings).size).toBe(headings.length);
+  });
+
+  it("shows a held entry first, in its own group, labelled Held and with no date", async () => {
+    const held = CHANGELOG_ENTRIES.filter((e) => e.held);
+    expect(held.length).toBeGreaterThan(0);
+    await renderServerPage(AdminChangelogPage, listProps());
+    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("Held (not released yet)");
+    const row = screen.getByRole("link", { name: new RegExp(held[0].title) });
+    expect(row).toHaveTextContent("Held, not released");
+    expect(row.querySelector("time")).toBeNull();
+  });
+
+  it("opens a held entry with the Held label", async () => {
+    const held = CHANGELOG_ENTRIES.find((e) => e.held)!;
+    await renderServerPage(AdminChangelogEntryPage, entryProps(held.slug));
+    expect(screen.getByText("Held, not released")).toBeInTheDocument();
   });
 
   it("filters to engineering entries, marks the filter on, and keeps the search words in the links", async () => {
