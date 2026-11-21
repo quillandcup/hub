@@ -78,7 +78,7 @@ describe("listing and loading articles", () => {
     expect(listHelpArticles(path.join(dir, "nope"))).toEqual([]);
   });
 
-  it("reads the real content/help/ folder, where every article has a title and a summary", () => {
+  it("reads the real app/(member)/help/articles/ folder, where every article has a title and a summary", () => {
     const articles = listHelpArticles();
     expect(articles.length).toBeGreaterThan(0);
     for (const a of articles) {

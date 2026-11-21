@@ -22,7 +22,7 @@ const DOC_PATTERNS = [
 ];
 
 // Read at build time by the /help pages (lib/help.ts), so a change to one ships like code, not like docs.
-const READ_BY_THE_APP = /^content\/help\//;
+const READ_BY_THE_APP = /^app\/\(member\)\/help\/articles\//;
 
 export function isDocsOnly(files: string[]): boolean {
   return (
