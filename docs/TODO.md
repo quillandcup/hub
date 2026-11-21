@@ -259,6 +259,13 @@ Every block today is typed in by hand, so a page goes stale. Four blocks would r
 - **Course catalog.** Cards for the courses on offer (title, picture, summary, a button), for sales pages. Start at `src/components/courses` and `src/lib/courses`. Needs a decision first: which courses are public and how a page chooses them (a picker of courses, not "all").
 - **Testimonials from a shared library.** The Testimonials block takes quotes typed on each page (the audit found nine pages with them), so the same quote is retyped and edited in several places. A library of quotes (text, attribution, optional picture, a consent record that the person agreed to publication), managed once and picked per page, with a way to show a chosen few or the latest. A table with a repository and audit entries, admin only. It overlaps with "saved sections" above: decide whether a quote library or a reusable Section covers both.
 
+### Page block registry: next steps _(Needs Scheduling)_
+The page block registry (`docs/architecture/PAGE_BLOCKS.md`) is the first contribution point: the events module adds the Announcement strip, Schedule panel and Coming up. What it leaves, and where to start:
+- **Outcome numbers and its live figures** (`src/lib/landing/live-stats.ts`, `live-stats-loader.ts`) stay in the pages code, although they read the Hub's own attendance, writing and book data. They import no events code, so the boundary holds, but a second product would not want them in "pages". Worth moving to a module of their own (a "community" one) when a second app needs the page builder; the loader contract already allows it (`PageDataLoader`).
+- **Other module contribution points** are not designed: a module's routes, admin navigation, member pages, database tables and notifications. The events module still lives mostly in `src/lib` and `src/app`. One ADR should generalize from this slice before a second one is built (`docs/decisions/README.md`).
+- **The block names in the a11y check and the AI builder** (`src/lib/landing/a11y.ts` switch, `src/lib/landing/ai.ts` `AI_ITEMS`, `starters.ts`) still list the pages code's own block types by name. The registry gives them item rules and publish checks for blocks it knows (modules' included), but a module's block is not offered to the AI builder with its own description. Start at `PageBlockDefinition` (add an optional `ai` field) when a module block should be offered.
+- **The homepage starter** (`src/lib/landing/starters.ts`) uses the event blocks by their stored names. With the events module absent it still opens (stand-ins) but is empty of those blocks; a starter could declare the module it needs.
+
 ## Data Import
 
 ### Zoom accounts: registering an account and matching by host email

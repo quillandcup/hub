@@ -23,6 +23,7 @@
     "src/components/**/*.{ts,tsx}",
     "src/lib/**/*.{ts,tsx}",
     "src/content/**/*.{ts,tsx}",
+    "src/modules/**/*.{ts,tsx}",
     "src/emails/**/*.{ts,tsx}",
     "scripts/**/*.ts",
     "tests/**/*.{ts,tsx}",

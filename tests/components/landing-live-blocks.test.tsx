@@ -12,13 +12,14 @@ vi.hoisted(() => {
 });
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { AnnouncementStrip, ComingUp, OutcomeNumber, OutcomeNumbers, ScheduleRowItem, SchedulePanel } from "@/components/landing/homepage-blocks";
+import { OutcomeNumber, OutcomeNumbers } from "@/components/landing/homepage-blocks";
+import { AnnouncementStrip, ComingUp, ScheduleRowItem, SchedulePanel } from "@/modules/events/page-blocks/blocks";
 import { itemsSlot } from "./landing-items-slot";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import LandingRender from "@/components/landing/LandingRender";
 import { checkLandingPage } from "@/lib/landing/a11y";
-import { resolveLiveBlocks } from "@/lib/landing/live-data";
+import { resolveLiveBlocks } from "@/tests/helpers/live-loaders";
 import { LIVE_STAT_KEYS, LIVE_STATS } from "@/lib/landing/live-stats";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 

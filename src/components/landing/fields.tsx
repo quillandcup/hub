@@ -6,7 +6,6 @@ import { Bold, Italic, Link as LinkIcon, Link2Off, List, ListOrdered, Quote, typ
 import { linkAddress } from "@/components/chat/FormatToolbar";
 import MediaPicker from "@/components/media/MediaPicker";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { COMING_UP_KIND_OPTIONS } from "@/lib/landing/live-kinds";
 import { utcToZonedLocal, zonedLocalToUtc } from "@/lib/landing/countdown";
 import Tooltip from "@/components/Tooltip";
 
@@ -109,20 +108,6 @@ export function ZonedDateTimeField({ value, onChange, label }: { value: string; 
         className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
       />
       <p className="mt-1 text-xs text-slate-600">Time in {ORG_TIMEZONE.replace(/_/g, " ")}, whatever time zone the visitor is in.</p>
-    </div>
-  );
-}
-
-/** Tick boxes for the kinds of event a live Coming up block lists. The value is the ticked kinds; none ticked means every kind. */
-export function KindsField({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      {COMING_UP_KIND_OPTIONS.map((kind) => (
-        <label key={kind.value} className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={value.includes(kind.value)} onChange={(e) => onChange(e.target.checked ? [...value, kind.value] : value.filter((v) => v !== kind.value))} />
-          {kind.label}
-        </label>
-      ))}
     </div>
   );
 }

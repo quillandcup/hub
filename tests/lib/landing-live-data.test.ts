@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { needsLiveData, resolveLiveBlocks, type LiveLoaders } from "@/lib/landing/live-data";
-import type { ComingUpSnapshot } from "@/lib/landing/live-events";
-import { DEFAULT_EXPERIENCED_HOST_TEXT, type ScheduleSnapshot } from "@/lib/landing/live-schedule";
+import { needsLiveData, resolveLiveBlocks, type LiveLoaders } from "@/tests/helpers/live-loaders";
+import type { ComingUpSnapshot } from "@/modules/events/page-blocks/live-events";
+import { DEFAULT_EXPERIENCED_HOST_TEXT, type ScheduleSnapshot } from "@/modules/events/page-blocks/live-schedule";
 
 const NOW = new Date("2026-11-19T15:00:00Z");
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString();

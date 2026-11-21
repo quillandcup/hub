@@ -55,6 +55,7 @@ describe("isGated / areaKey", () => {
     expect(isGated("src/content/x.ts")).toBe(true);
     expect(isGated("src/components/Y.tsx")).toBe(true);
     expect(isGated("src/emails/notifications/a.tsx")).toBe(true);
+    expect(isGated("src/modules/events/page-blocks/live-events.ts")).toBe(true);
     expect(isGated("src/proxy.ts")).toBe(true);
     expect(isGated("src/app/api/process/route.ts")).toBe(true);
     expect(isGated("src/lib/x.test.ts")).toBe(false);
@@ -75,6 +76,7 @@ describe("isGated / areaKey", () => {
     expect(areaKey("src/components/landing/config.tsx")).toBe("components");
     expect(areaKey("src/content/changelog.ts")).toBe("content");
     expect(areaKey("src/emails/notifications/a.tsx")).toBe("emails");
+    expect(areaKey("src/modules/events/page-blocks/live-events.ts")).toBe("modules");
     expect(areaKey("src/app/api/process/route.ts")).toBe("app/api");
     expect(areaKey("src/instrumentation.ts")).toBe("(root files)");
     expect(Object.keys(AREA_FLOORS).sort()).toEqual(["app/api", "components", "lib"]);

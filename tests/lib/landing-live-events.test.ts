@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { availabilityText, comingUpCards, comingUpKey, comingUpOptions, formatEventWhen, loadComingUp, SIGN_UP_LABEL, type ComingUpOptions } from "@/lib/landing/live-events";
-import { COMING_UP_KIND_LABELS, COMING_UP_KIND_OPTIONS, kindLabel } from "@/lib/landing/live-kinds";
+import { availabilityText, comingUpCards, comingUpKey, comingUpOptions, formatEventWhen, loadComingUp, SIGN_UP_LABEL, type ComingUpOptions } from "@/modules/events/page-blocks/live-events";
+import { COMING_UP_KIND_LABELS, COMING_UP_KIND_OPTIONS, kindLabel } from "@/modules/events/page-blocks/live-kinds";
 import { EVENT_TYPES } from "@/lib/events-filter";
 import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
 import { useFakeClock } from "@/tests/helpers/fake-clock";

@@ -58,6 +58,7 @@ export default defineConfig({
         'src/app/**/*.{ts,tsx}',
         'src/lib/**/*.{ts,tsx}',
         'src/content/**/*.{ts,tsx}',
+        'src/modules/**/*.{ts,tsx}',
         'src/components/**/*.{ts,tsx}',
         'src/emails/**/*.{ts,tsx}',
         'scripts/**/*.ts',

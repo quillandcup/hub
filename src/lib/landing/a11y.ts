@@ -1,8 +1,7 @@
-import { ITEM_LIMITS } from "@/components/landing/item-limits";
+import { pageBlocks } from "@/components/landing/config";
 import { buttonStyleProblems } from "./button-contrast";
 import { normalizeLandingData, parseEmbed, safeHref } from "./data";
 import { featuredOfferIndex } from "./journey";
-import { COMING_UP_LIST_HEADING } from "./live-kinds";
 import { normalizeStyleOverride, pageOverrides, resolveStyle } from "./style";
 
 /**
@@ -40,31 +39,14 @@ function walk(content: unknown[], visit: (node: Node, place: Place) => void, par
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 /**
- * The blocks that hold a list of items as child blocks (src/components/landing/config.tsx, `SLOT_ALLOW`): what the block is
- * called, what one item is called, the item type and the prop the public page needs before it shows one. An empty list, or
- * more items than the layout is made for, is worth a warning: the block would show nothing, or hide the extra ones.
+ * The blocks that hold a list of items as child blocks: what the block is called, what one item is called, the item type and the
+ * prop the public page needs before it shows one. They come from the block registry (each definition's `itemRule` and `itemLimit`,
+ * src/components/landing/block-registry.ts), so a module's block is checked like the pages code's own. An empty list, or more items than the
+ * layout is made for, is worth a warning: the block would show nothing, or hide the extra ones.
  */
-const ITEM_BLOCKS: Record<string, { block: string; noun: string; plural: string; item: string; key: string; limit?: number; liveOk?: boolean; shown?: (props: Record<string, unknown>) => boolean }> = {
-  Steps: { block: "Steps", noun: "step", plural: "steps", item: "Step", key: "title", limit: ITEM_LIMITS.Steps },
-  Stats: { block: "Stats", noun: "figure", plural: "figures", item: "Stat", key: "value", limit: ITEM_LIMITS.Stats },
-  FinisherCards: { block: "Finisher cards", noun: "Finisher", plural: "Finishers", item: "FinisherCard", key: "name", limit: ITEM_LIMITS.FinisherCards },
-  Timeline: { block: "Timeline", noun: "moment", plural: "moments", item: "TimelineMoment", key: "title", limit: ITEM_LIMITS.Timeline },
-  WeekStrip: { block: "Week strip", noun: "day", plural: "days", item: "WeekDay", key: "label", limit: ITEM_LIMITS.WeekStrip },
-  FinishLineCards: { block: "Finish-line cards", noun: "finish line", plural: "finish lines", item: "FinishLineCard", key: "title", limit: ITEM_LIMITS.FinishLineCards },
-  PlanPhases: { block: "Plan phases", noun: "phase", plural: "phases", item: "PlanPhase", key: "title", limit: ITEM_LIMITS.PlanPhases },
-  ButtonRow: { block: "Buttons", noun: "button", plural: "buttons", item: "RowButton", key: "label", limit: ITEM_LIMITS.ButtonRow },
-  List: { block: "List", noun: "item", plural: "items", item: "ListItem", key: "text" },
-  Testimonials: { block: "Testimonials", noun: "testimonial", plural: "testimonials", item: "Testimonial", key: "quote" },
-  Faq: { block: "FAQ", noun: "question", plural: "questions", item: "FaqItem", key: "question" },
-  CardGrid: { block: "Card grid", noun: "card", plural: "cards", item: "GridCard", key: "title" },
-  LinkList: { block: "Link list", noun: "link", plural: "links", item: "LinkItem", key: "label" },
-  // A live panel falls back to its typed sessions only when the live read fails, so having none is not worth a warning there.
-  SchedulePanel: { block: "Schedule panel", noun: "session", plural: "sessions", item: "ScheduleRow", key: "title", limit: ITEM_LIMITS.SchedulePanel, liveOk: true },
-  // A figure that is live shows with no typed value.
-  OutcomeNumbers: { block: "Outcome numbers", noun: "figure", plural: "figures", item: "OutcomeNumber", key: "value", limit: ITEM_LIMITS.OutcomeNumbers, shown: (i) => Boolean(str(i.value)) || (i.source === "live" && Boolean(str(i.stat))) },
-};
+const ITEM_BLOCKS = pageBlocks.itemRules;
 /** The parent of each item type, to say what an item standing alone needs. */
-const ITEM_PARENT = Object.fromEntries(Object.entries(ITEM_BLOCKS).map(([parent, rule]) => [rule.item, parent]));
+const ITEM_PARENT = pageBlocks.itemParents;
 
 /**
  * `siteStyle` is the site's style tokens (a website page follows them). A page with its own style (`styleOverride`) is also checked
@@ -103,6 +85,8 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
     }
     // "Finisher 2" by its place in its block's list; one standing on its own has no place to number it by.
     const finisher = place.parent === "FinisherCards" ? `Finisher ${place.index + 1}` : "A Finisher";
+    // What a block adds to the generic checks, from its registry definition (a module's blocks come this way).
+    pageBlocks.get(type)?.publishCheck?.(p, { str, rows, heading: (level, text) => headings.push({ level, text }), checkButton });
     switch (type) {
       case "Image":
       case "Split":
@@ -141,9 +125,6 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
         if (GENERIC_LINK_TEXT.test(str(p.buttonLabel))) issues.push({ severity: "warning", block: "Card grid", message: `${card}'s button says "${str(p.buttonLabel)}": say where it goes.` });
         break;
       }
-      case "AnnouncementStrip":
-        checkButton("Announcement strip", p.buttonLabel, p.href);
-        break;
       case "FinisherCard":
         if (str(p.imageAssetId) && !str(p.alt)) issues.push({ severity: "error", block: "Finisher cards", message: `${finisher} has a photo with no description.` });
         if (str(p.name)) headings.push({ level: 3, text: str(p.name) });
@@ -192,16 +173,6 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
         }
         const compare = (p.compare ?? {}) as Record<string, unknown>;
         checkButton("Journey map", compare.label, compare.href, "The compare link");
-        break;
-      }
-      case "ComingUp": {
-        // The same heading the block draws: a list never given one says "Upcoming sessions" (src/components/landing/homepage-blocks.tsx).
-        const heading = p.heading === undefined && p.style === "list" ? COMING_UP_LIST_HEADING : str(p.heading);
-        if (heading) headings.push({ level: 3, text: heading });
-        for (const [i, card] of rows(p.items).entries()) {
-          if (str(card.title)) headings.push({ level: heading ? 4 : 3, text: str(card.title) });
-          checkButton("Coming up", card.linkLabel, card.href, `Card ${i + 1}'s link`);
-        }
         break;
       }
       case "Heading":

@@ -1,9 +1,12 @@
 "use client";
 
 import type { Config, Field, Fields } from "@puckeditor/core";
-import { ImageField, KindsField, RichTextField, ZonedDateTimeField } from "./fields";
+import { installedPageBlockEditors } from "@/modules/editor";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
-import { ITEM_BLOCKS, renderConfig, rootConfigFor, SLOT_ALLOW, type FrameContext } from "./config";
+import type { PageBlockRegistry } from "./block-registry";
+import { withStandIns } from "./block-placeholder";
+import { buildRenderConfig, pageBlocks, renderConfig, rootConfigFor, type FrameContext } from "./config";
+import { createEditorKit, type EditorKit, type PageBlockEditorContribution } from "./editor-kit";
 import { PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
@@ -12,41 +15,8 @@ import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
  * blocks, because they pull in the editor (TipTap, the media picker), which the public page must not ship.
  */
 
-const text = (label: string): Field => ({ type: "text", label });
-const area = (label: string): Field => ({ type: "textarea", label });
-const select = (label: string, options: { label: string; value: string }[]): Field => ({ type: "select", label, options });
-const toggle = (label: string): Field => ({
-  type: "radio",
-  label,
-  options: [
-    { label: "Yes", value: true },
-    { label: "No", value: false },
-  ],
-});
-const opts = (...values: string[]) => values.map((v) => ({ label: v[0].toUpperCase() + v.slice(1), value: v }));
-
-const image = (label: string): Field => ({
-  type: "custom",
-  label,
-  render: ({ value, onChange }) => <ImageField value={value as string | undefined} onChange={onChange} />,
-});
-const richText = (label: string): Field => ({
-  type: "custom",
-  label,
-  render: ({ value, onChange }) => <RichTextField label={label} value={(value as string) ?? ""} onChange={onChange} />,
-});
-const dateTime = (label: string): Field => ({
-  type: "custom",
-  label,
-  render: ({ value, onChange }) => <ZonedDateTimeField label={label} value={(value as string) ?? ""} onChange={onChange} />,
-});
-
-/** Tick boxes for the kinds of event a live Coming up block lists; the value is the list of ticked kinds. */
-const kindsField = (label: string): Field => ({
-  type: "custom",
-  label,
-  render: ({ value, onChange }) => <KindsField value={Array.isArray(value) ? (value as string[]) : []} onChange={onChange} />,
-});
+// The field helpers are the editor kit's (editor-kit.tsx), shared with the fields modules contribute; the ones below are the pages code's own.
+const { text, area, select, toggle, opts, image, richText, dateTime, link } = createEditorKit(pageBlocks);
 
 const padding = (label: string, size: "desktop" | "mobile"): Field => ({
   type: "custom",
@@ -62,24 +32,12 @@ const span = (label: string): Field => ({
 /** What a block gets when it sits in a Section: its width on the Section's 12-column grid, for each size (src/lib/landing/layout.ts). */
 const SPAN_FIELDS: Fields = { span: span("Width on desktop"), spanMobile: span("Width on mobile") };
 
-const link = (label: string): Field => ({ type: "object", label, objectFields: { label: text("Button label"), href: text("Link (https://, or a path on this site)") } });
-
-/** Where a Homepage block's content comes from. A live block shows the Hub's figures on the published page and the preview; the editor's canvas shows what is typed here, which is also what the page shows if the figures can't be read. */
-const SOURCE = select("Where the content comes from (live shows on the published page; here you see what you typed)", [
-  { label: "Typed in by hand", value: "manual" },
-  { label: "Live from the Hub", value: "live" },
-]);
-
-/** A slot that holds any block except the parts of other blocks (a lone Finisher card or step means nothing on its own). */
-const contentSlot = (): Field => ({ type: "slot", disallow: ITEM_BLOCKS });
-/** The list of items a block holds, each a block of its own: they drag on the canvas, and are edited by clicking one. */
-const itemsSlot = (block: keyof typeof SLOT_ALLOW, label: string): Field => ({ type: "slot", label, allow: SLOT_ALLOW[block]?.items });
-
 /** "Same as the site" takes the site style guide's button style (Design, or a page's own style); solid and outline are this button's own choice. */
 const LOOK = select("Style", [{ label: "Same as the site", value: "inherit" }, { label: "Solid", value: "solid" }, { label: "Outline", value: "outline" }]);
 const COLOR = select("Colour", opts("plum", "light", "brown"));
 
-const FIELDS: Record<string, Fields> = {
+/** The fields of the blocks the pages code owns, by type (a module's are in its own editor contribution). */
+const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Record<string, Fields> => ({
   Section: {
     background: select("Background colour", BACKGROUND_OPTIONS),
     backgroundImageAssetId: image("Background picture"),
@@ -179,35 +137,6 @@ const FIELDS: Record<string, Fields> = {
     background: select("Background colour", BACKGROUND_OPTIONS.filter((o) => o.value !== "none")),
     align: select("Text alignment", opts("left", "center")),
   },
-  AnnouncementStrip: {
-    text: text("Line of news"),
-    buttonLabel: text("Button label"),
-    href: text("Button link (https://, or a path on this site)"),
-    tone: select("Colour", [{ label: "Gold", value: "gold" }, { label: "Plum", value: "plum" }, { label: "Charcoal", value: "charcoal" }]),
-    source: SOURCE,
-    whenNone: select("When live and no prickle is coming up within a day", [{ label: "Show nothing", value: "hide" }, { label: "Show the line typed above", value: "typed" }]),
-  },
-  SchedulePanel: {
-    title: text("Panel title"),
-    zoneLabel: text("Time zone note (for example, the zone the times are in; live names the zone for you)"),
-    source: SOURCE,
-    hoursAhead: { type: "number", label: "Live: how many hours ahead to show (1 to 144)", min: 1, max: 144 },
-    maxRows: { type: "number", label: "Live: most sessions to show (1 to 6)", min: 1, max: 6 },
-    hostStyle: select("Live: line about the host", [{ label: "None", value: "none" }, { label: "An experienced host (100 or more prickles hosted)", value: "experience" }]),
-    experiencedHostText: text("Live: words under a session with an experienced host (no names are ever shown)"),
-    openLabel: text("Live: label on a session that is not on now or starting within the hour (leave empty for none: a label that is the same on every row says nothing)"),
-    rowNote: text("Live: line under every session that has no host line (use sparingly: the same words on every row say little; for what is true of all of them, use the line under the list)"),
-    footer: text("One line under the whole list (for example, Camera optional. Everyone is welcome.)"),
-    emptyText: text("Live: line to show when nothing is coming up"),
-    items: itemsSlot("SchedulePanel", "Sessions when typed by hand (up to 6)"),
-  },
-  ScheduleRow: {
-    time: text("Time"),
-    title: text("Session name"),
-    status: text("Status text (for example, Live, In 42 min)"),
-    state: select("Status look", [{ label: "Live now", value: "live" }, { label: "Starting soon", value: "soon" }, { label: "Open", value: "open" }]),
-    host: text("Line about the host (optional)"),
-  },
   OutcomeNumbers: {
     padding: select("Space above and below", PADDING_OPTIONS),
     showLiveNote: toggle("Show a small \"live\" note beside live figures"),
@@ -296,39 +225,6 @@ const FIELDS: Record<string, Fields> = {
     },
     compare: { type: "object", label: "Compare link (optional)", objectFields: { label: text("Link label (for example, Compare all programs)"), href: text("Link (https://, or a path on this site)") } },
   },
-  ComingUp: {
-    heading: text("Heading above the events (optional; a list says Upcoming sessions until you type one)"),
-    style: select("How to show them", [
-      { label: "Cards", value: "cards" },
-      { label: "Feature tiles with the event's picture (for retreats and workshops)", value: "feature" },
-      { label: "A plain list with dates (for sessions)", value: "list" },
-    ]),
-    source: SOURCE,
-    kinds: kindsField("Live: which kinds of event to show (none ticked: every kind)"),
-    max: { type: "number", label: "Live: most events to show (1 to 4)", min: 1, max: 4 },
-    more: link("Link under the events (optional, for example, See all events)"),
-    waitlist: { type: "object", label: "Feature tiles: link shown on a sold-out event (only when it has a link)", objectFields: { label: text("Link label (empty: Join the waitlist)"), href: text("Link (https://, or a path on this site)") } },
-    items: {
-      type: "array",
-      label: "Events when typed by hand (up to 4)",
-      max: 4,
-      arrayFields: {
-        kind: text("Kind (for example, Retreat)"),
-        title: text("Title"),
-        when: text("Dates and place"),
-        date: text("List: first day, as year-month-day (for example, 2027-03-13), for the date tile"),
-        time: text("List: time under the title (for example, 8 – 9 pm ET; empty shows the dates and place)"),
-        imageAssetId: image("Feature tiles: picture"),
-        soldOut: toggle("Sold out (a feature tile then shows the waitlist link)"),
-        availability: text("Availability (for example, 6 spots left)"),
-        status: select("Status pill (optional)", [{ label: "None", value: "" }, { label: "Open", value: "open" }, { label: "Waitlist", value: "waitlist" }, { label: "Coming soon", value: "soon" }, { label: "Dates announced", value: "dates" }]),
-        linkLabel: text("Link label (optional)"),
-        href: text("Link (https://, or a path on this site)"),
-      },
-      defaultItemProps: { kind: "", title: "New card", when: "", date: "", time: "", imageAssetId: "", soldOut: false, availability: "", status: "", linkLabel: "", href: "" },
-      getItemSummary: (i) => i.title || "Card",
-    },
-  },
   OptInForm: {
     kajabiFormId: text("Kajabi form (its id: Kajabi, Marketing, Forms; the sign-up goes into that form)"),
     instagramField: select("Ask for an Instagram handle, and keep it in", [
@@ -345,7 +241,7 @@ const FIELDS: Record<string, Fields> = {
     color: COLOR,
     shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]),
   },
-};
+});
 
 const ROOT_FIELDS: Fields = {
   showHeader: toggle("Show a header"),
@@ -358,28 +254,54 @@ const ROOT_FIELDS: Fields = {
   footerLinks: { type: "array", label: "Footer links", arrayFields: { label: text("Label"), href: text("Link") }, defaultItemProps: { label: "Link", href: "" }, getItemSummary: (i) => i.label || "Link" },
 };
 
+/** The pages code's own fields, then each installed module's, by block type. A field set for a type the registry lacks is a mistake and throws. */
+function collectFields(registry: PageBlockRegistry, contributions: readonly PageBlockEditorContribution[]): Record<string, Fields> {
+  const kit = createEditorKit(registry);
+  const out: Record<string, Fields> = {};
+  for (const contribution of [{ id: "pages", fields: coreFields }, ...contributions]) {
+    for (const [type, fields] of Object.entries(contribution.fields(kit))) {
+      if (!registry.has(type)) throw new Error(`The "${contribution.id}" editor fields are for the block "${type}", which no contribution registers.`);
+      if (Object.hasOwn(out, type)) throw new Error(`The block "${type}" has editor fields from two contributions ("${contribution.id}" is the second).`);
+      out[type] = fields;
+    }
+  }
+  return out;
+}
+
+/**
+ * The editor's config for a registry: its render config with the fields that edit each block. A block with no fields is a mistake the
+ * config tests catch. Built from a registry so a composition without a module (the tests build one) is the same code path as the installed one.
+ */
+export function buildEditorConfig(registry: PageBlockRegistry, contributions: readonly PageBlockEditorContribution[] = installedPageBlockEditors): Config {
+  const base = registry === pageBlocks ? renderConfig : buildRenderConfig(registry);
+  const fields = collectFields(registry, contributions);
+  return {
+    ...base,
+    components: Object.fromEntries(
+      Object.entries(base.components).map(([name, c]) => [
+        name,
+        {
+          ...c,
+          fields: fields[name],
+          // The width fields appear only for a block that is inside a Section; elsewhere there is no grid to take columns from.
+          resolveFields: (_data: unknown, { fields, parent }: { fields: Fields; parent: { type: string } | null }) => (parent?.type === "Section" ? { ...fields, ...SPAN_FIELDS } : fields),
+        },
+      ]),
+    ),
+    root: { ...base.root, fields: ROOT_FIELDS },
+  };
+}
+
 /** The config the editor opens with. */
-export const editorConfig: Config = {
-  ...renderConfig,
-  components: Object.fromEntries(
-    Object.entries(renderConfig.components).map(([name, c]) => [
-      name,
-      {
-        ...c,
-        fields: FIELDS[name],
-        // The width fields appear only for a block that is inside a Section; elsewhere there is no grid to take columns from.
-        resolveFields: (_data: unknown, { fields, parent }: { fields: Fields; parent: { type: string } | null }) => (parent?.type === "Section" ? { ...fields, ...SPAN_FIELDS } : fields),
-      },
-    ]),
-  ),
-  root: { ...renderConfig.root, fields: ROOT_FIELDS },
-};
+export const editorConfig: Config = buildEditorConfig(pageBlocks);
 
 /**
  * The editor's config for a page, framed as the page is (the site's style under it, and for a website page the site's header and
  * footer). A landing page edits its own header and footer in the root fields; a website page shows the site's as fixed regions
  * (edited in Design, not here), so it has no header or footer fields of its own. Style and favicon are in the Settings panel.
+ * A block of the page that no contribution registers (its module is not installed) gets a stand-in that keeps it as stored
+ * (block-placeholder.tsx), so opening and saving such a page loses nothing.
  */
-export function editorConfigFor(frame: FrameContext): Config {
-  return { ...editorConfig, root: { ...rootConfigFor(frame), fields: frame.pageType === "website" ? {} : ROOT_FIELDS } };
+export function editorConfigFor(frame: FrameContext, data?: unknown, config: Config = editorConfig, registry: PageBlockRegistry = pageBlocks): Config {
+  return withStandIns({ ...config, root: { ...rootConfigFor(frame), fields: frame.pageType === "website" ? {} : ROOT_FIELDS } }, data, registry, true);
 }

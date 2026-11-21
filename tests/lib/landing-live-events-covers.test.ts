@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { loadComingUp, type ComingUpOptions } from "@/lib/landing/live-events";
+import { loadComingUp, type ComingUpOptions } from "@/modules/events/page-blocks/live-events";
 import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
 
