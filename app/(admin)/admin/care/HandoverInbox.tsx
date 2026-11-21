@@ -12,7 +12,7 @@ const PRIMARY = "rounded-lg bg-plum-600 px-3 py-1.5 text-sm font-medium text-whi
 
 /**
  * "Waiting for you": the care plans offered to the signed-in staff member, at the top of the Active and Earlier tabs. A care
- * plan changes hands only when the receiver accepts (docs/HEDGIE_CARE.md, "Owners"), so this is where they say yes or no; until
+ * plan changes hands only when the receiver accepts (docs/product/HEDGIE_CARE.md, "Owners"), so this is where they say yes or no; until
  * then the plan stays with its owner. Nothing is sent to them: the page is the only way they hear of it for now (`docs/TODO.md`).
  * Renders nothing when nothing is waiting.
  */

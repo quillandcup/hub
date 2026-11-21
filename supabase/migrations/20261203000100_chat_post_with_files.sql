@@ -1,4 +1,4 @@
--- Sending files from the Hub (docs/SLACK_BRIDGED_CHAT.md, "Files"). A message may now carry files:
+-- Sending files from the Hub (docs/product/SLACK_BRIDGED_CHAT.md, "Files"). A message may now carry files:
 --
 --   chat_post_message(channel, body, thread_root, files)  the 3-argument version still exists and
 --     calls this one. `files` is a JSON array of 1 to 10 { id, name, mimetype, size, staged } where

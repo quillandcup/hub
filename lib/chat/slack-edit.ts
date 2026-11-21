@@ -11,7 +11,7 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**
  * Changing or removing a message in Slack, for editing and deleting your own messages
- * (docs/SLACK_BRIDGED_CHAT.md). Slack only lets whoever posted a message change it, so this uses the
+ * (docs/product/SLACK_BRIDGED_CHAT.md). Slack only lets whoever posted a message change it, so this uses the
  * same identity the post used: the member's own token, whether the message was written in the Hub or in
  * Slack itself (a message the bot posted for a member before chat required a connection can't be changed).
  * Service role. The Hub's own copy is changed afterwards (chat_edit_message / chat_delete_message), so it

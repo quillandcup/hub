@@ -1,4 +1,4 @@
--- pgTAP tests for 20270836000000_member_milestones.sql (the Finisher record, docs/FINISHERS.md):
+-- pgTAP tests for 20270836000000_member_milestones.sql (the Finisher record, docs/product/FINISHERS.md):
 --   * the table's own rules: confirmed means a confirmation time, a consent needs a confirmed row, one live row per member
 --     and kind, a withdrawn row frees the slot;
 --   * who can read and change what: a member only their own, nothing for anyone signed out, an admin can propose and

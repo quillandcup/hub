@@ -8,7 +8,7 @@ import { createRepos } from "@/lib/data/repos";
 export const maxDuration = 300;
 
 /**
- * Kajabi courses -> Bronze (docs/COURSES.md, step A): see lib/courses/import.ts. The standard
+ * Kajabi courses -> Bronze (docs/product/COURSES.md, step A): see lib/courses/import.ts. The standard
  * Kajabi sync (/api/import/kajabi) runs this too; this route is for importing on its own.
  *
  * Body: `{ "courseIds": ["..."] }` limits the run to those courses; omit it for every course.

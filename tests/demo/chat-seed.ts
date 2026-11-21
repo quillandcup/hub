@@ -12,7 +12,7 @@ import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
  * The demo community's chat: four channels with a few days of friendly, fictional conversation, threads and
  * reactions, and a few messages the demo member hasn't read yet (so the sidebar shows unread counts). Written
  * straight into the chat tables (Local layer) as bridged channels with made-up Slack ids; production mirrors Slack
- * into the same tables (docs/SLACK_BRIDGED_CHAT.md). Chat is open to every member, and the demo member has a (token-less) Slack connection, so the composer works: a post is saved as the
+ * into the same tables (docs/product/SLACK_BRIDGED_CHAT.md). Chat is open to every member, and the demo member has a (token-less) Slack connection, so the composer works: a post is saved as the
  * member and, with no Slack to send it to, stays pending until the recording marks it sent (slack-stand-in.ts).
  */
 

@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- "Replace with starter" on an existing page (docs/LANDING_PAGES.md, "Starters"): the draft is replaced by a starter's
+-- "Replace with starter" on an existing page (docs/product/LANDING_PAGES.md, "Starters"): the draft is replaced by a starter's
 -- document, and the old draft is first kept in the page's history like the one kept before an import, but under its own
 -- kind so History says what happened ("Your draft before starting over"). `starter_applied_at` is set on each
 -- replacement, which makes it one audit entry without the content (the draft itself is not audited, like autosave).

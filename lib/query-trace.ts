@@ -12,7 +12,7 @@ export const SLOW_SECTION_MS = 2000;
  * Runs one named part of a page or route and records how long it took. A slow one is logged
  * (Vercel logs and Sentry logs, with the duration); a failing one is tagged `section` on the
  * request's Sentry scope, so the error `onRequestError` reports already says which part failed,
- * and is rethrown as is after an alert to #hub-alerts (`section_failed`, docs/SLACK_OPERATIONS_ALERTS.md). Pass ids (member id), never names or emails, in `details`.
+ * and is rethrown as is after an alert to #hub-alerts (`section_failed`, docs/infrastructure/SLACK_OPERATIONS_ALERTS.md). Pass ids (member id), never names or emails, in `details`.
  */
 export async function traced<T>(section: string, run: () => Promise<T>, details: Record<string, string> = {}): Promise<T> {
   const started = clock.now();

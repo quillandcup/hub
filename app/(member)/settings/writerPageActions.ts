@@ -24,7 +24,7 @@ import { withAction } from "@/lib/analytics/server";
 import { WRITER_PAGES_NOT_AVAILABLE, WRITER_PAGE_NAME_NEEDED, memberHasWriterPages } from "@/lib/writer-pages-access";
 
 /**
- * Settings > Profile > "Your page on the web" (docs/WRITER_PROFILES.md): the member's own public writer page. Everything
+ * Settings > Profile > "Your page on the web" (docs/product/WRITER_PROFILES.md): the member's own public writer page. Everything
  * here is about the effective identity, so sudo shows and changes the member's page. The settings and the switch run on the
  * member's own client (row-level security, audited as them); the handle runs with the service role because it looks across
  * members (taken, held for someone) and the reserved words are ours to check first.

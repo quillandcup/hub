@@ -5,7 +5,7 @@ import { isSlackConnectConfigured, setConnectStateCookie } from "@/lib/slack-con
 
 /**
  * Start installing Billie Bot (its token, not a member's) through Slack's OAuth flow: admins only. The recovery
- * path for a lost bot refresh token, see docs/SECRET_ROTATION.md. Slack sends the admin back to the member-connect
+ * path for a lost bot refresh token, see docs/runbooks/SECRET_ROTATION.md. Slack sends the admin back to the member-connect
  * callback, which recognises this flow by its state and finishes it (lib/slack-bot-install.ts).
  */
 export async function GET(request: NextRequest) {

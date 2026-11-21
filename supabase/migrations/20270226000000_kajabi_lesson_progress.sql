@@ -1,5 +1,5 @@
 -- Per-lesson progress captured from the Kajabi admin by `npm run courses:content -- --progress`
--- (docs/COURSES.md, "Importing Kajabi per-lesson progress"). One row per (course, student email,
+-- (docs/product/COURSES.md, "Importing Kajabi per-lesson progress"). One row per (course, student email,
 -- Kajabi lesson). Bronze: the capture replaces a student's rows as a snapshot; lessons no longer listed get
 -- deleted_at. Admins read, only the service role writes. Natural key, no generated id, never exposed by id.
 

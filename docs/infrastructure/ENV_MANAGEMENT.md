@@ -1,0 +1,284 @@
+# Environment Management Guide
+
+> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+
+This project uses separate environments for local development, Vercel previews, and production.
+
+## Environment Architecture
+
+```
+┌─────────────────┬──────────────────┬─────────────────────────┐
+│ Environment     │ .env File        │ Supabase Instance       │
+├─────────────────┼──────────────────┼─────────────────────────┤
+│ Local Dev       │ .env.local       │ Local (127.0.0.1:54321) │
+│ Vercel Preview  │ .env.preview     │ Remote Dev              │
+│ Vercel Prod     │ .env.prod        │ Remote Prod             │
+└─────────────────┴──────────────────┴─────────────────────────┘
+```
+
+## File Structure
+
+```
+.env.local      # Local dev (local Supabase from supabase start) - git-ignored
+.env.shared     # Same in every Vercel environment (one Zoom/Kajabi/Google/Slack account) - git-ignored
+.env.preview    # Vercel Preview overrides (e.g. the dev Supabase project) - git-ignored
+.env.prod       # Vercel Production overrides + CI/ops credentials - git-ignored
+.env.example    # Template with no real values - committed to git
+config/app.ts   # Shared settings that are fine to publish (timezone, URLs, ...) - committed
+```
+
+A var set in `.env.preview`/`.env.prod` overrides `.env.shared` for that environment.
+`config/env-vars.ts` declares every var; `scripts/env-files.ts` does the layering.
+
+## Local Development Workflow
+
+### 1. Start Local Supabase
+
+```bash
+supabase start
+```
+
+This gives you a completely isolated local database at `http://127.0.0.1:54321`.
+
+### 2. Ensure .env.local Points to Local Instance
+
+Your `.env.local` should have:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc... (from supabase start output)
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc... (from supabase start output)
+```
+
+### 3. Run Your Dev Server
+
+```bash
+pnpm dev
+```
+
+Your app connects to **local** Supabase (completely isolated from dev/prod).
+
+## Syncing Remote Environments to Vercel
+
+After editing `.env.shared`, `.env.preview` or `.env.prod`:
+
+```bash
+pnpm env:sync
+```
+
+This updates Vercel's environment variables:
+- `.env.shared` + `.env.preview` → Vercel **Preview**
+- `.env.shared` + `.env.prod` → Vercel **Production**
+
+Vercel's **Development** environment isn't used (local dev runs on `.env.local`), so it isn't synced.
+
+To sync only some variables or environments:
+
+```bash
+pnpm env:sync --only=NAME1,NAME2 --target=production
+```
+
+`--only` and `--target` also take a space instead of `=`. Anything the script doesn't understand, including a name that isn't synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (heartbeat variables, for instance, are generated from `lib/cron-heartbeats.ts`), so `git pull` first.
+
+## When to Use Which Environment
+
+### Local Development (Most of the time)
+
+```bash
+# Start local Supabase
+supabase start
+
+# Start Next.js
+pnpm dev
+```
+
+✅ **Use this for**:
+- Feature development
+- Testing database migrations
+- Debugging
+- Day-to-day coding
+
+🎯 **Why**: Completely isolated, fast, no risk to shared data
+
+### Remote Dev Supabase (Rarely)
+
+Only if you need to test with shared dev data:
+
+```bash
+# Temporarily point to remote dev: copy the dev Supabase values from .env.preview
+# into .env.local
+
+# Start Next.js
+pnpm dev
+
+# IMPORTANT: Switch back when done!
+git checkout .env.local  # or re-run supabase start
+```
+
+⚠️ **Use this ONLY for**:
+- Testing data migrations with real-ish data
+- Debugging issues that don't reproduce locally
+- Coordinating with team on shared dev data
+
+### Remote Prod Supabase (Never locally!)
+
+❌ **Don't do this**: Never point your local dev to production!
+
+## Verifying Your Setup
+
+### Check Local Environment
+
+```bash
+# Should show local Supabase URL
+grep NEXT_PUBLIC_SUPABASE_URL .env.local
+# Expected: http://127.0.0.1:54321
+```
+
+### Check Vercel Environment
+
+```bash
+vercel env ls
+```
+
+You should see:
+- **Preview**: Dev Supabase URL (from .env.preview)
+- **Production**: Prod Supabase URL (from .env.prod)
+
+## Common Tasks
+
+### First Time Setup
+
+```bash
+# 1. Start local Supabase
+supabase start
+
+# 2. .env.local should auto-populate with local credentials
+# 3. Add remote credentials: shared ones to .env.shared, per-environment ones to
+#    .env.preview / .env.prod
+# 4. Sync remote envs to Vercel
+pnpm env:sync
+
+# 5. Start coding!
+pnpm dev
+```
+
+### Daily Development
+
+```bash
+# Ensure local Supabase is running
+supabase start
+
+# Start dev server
+pnpm dev
+```
+
+### After Changing Remote Environment Variables
+
+```bash
+# 1. Edit .env.shared, .env.preview or .env.prod
+# 2. Sync to Vercel
+pnpm env:sync
+
+# 3. Redeploy (or wait for next git push)
+```
+
+### Resetting Local Database
+
+```bash
+# Reset local DB to initial state
+supabase db reset
+
+# Or restart fresh
+supabase stop
+supabase start
+```
+
+## Schema Management
+
+### Local → Remote Dev
+
+```bash
+# 1. Develop and test migrations locally
+supabase migration new your_migration_name
+
+# 2. Apply locally
+supabase db reset
+
+# 3. Push to remote dev
+supabase db push --db-url "your-dev-supabase-connection-string"
+
+# 4. Or link to remote project
+supabase link --project-ref your-dev-project-ref
+supabase db push
+```
+
+### Remote Dev → Production
+
+```bash
+# After testing in dev, push to prod
+supabase db push --db-url "your-prod-supabase-connection-string"
+
+# Or via linked project
+supabase link --project-ref your-prod-project-ref
+supabase db push
+```
+
+## Troubleshooting
+
+### "supabase start" fails
+
+```bash
+# Check if Docker is running
+docker ps
+
+# Reset Supabase
+supabase stop
+supabase start
+```
+
+### "I'm seeing remote data locally"
+
+```bash
+# Check your .env.local
+grep NEXT_PUBLIC_SUPABASE_URL .env.local
+
+# Should show: http://127.0.0.1:54321
+# If it shows remote URL, you've overwritten it!
+
+# Fix: Re-run supabase start and copy credentials
+supabase start
+```
+
+### "Vercel preview using wrong Supabase"
+
+```bash
+# Re-sync environment variables
+pnpm env:sync
+
+# Trigger new deployment
+git push
+```
+
+## Security Notes
+
+✅ **Safe to commit**:
+- `.env.example` (template with fake values)
+- Migration files in `supabase/migrations/`
+
+❌ **Never commit**:
+- `.env.local` (local credentials)
+- `.env.shared`, `.env.preview`, `.env.prod` (remote credentials)
+
+## Environment Best Practices
+
+1. **Default to local**: Always use local Supabase for development
+2. **Sync sparingly**: Only update Vercel envs when credentials change
+3. **Test migrations locally first**: Never run untested migrations on remote
+4. **Keep .env.local local**: Don't overwrite it with remote credentials
+5. **Use git branches**: Each PR gets its own Vercel preview deployment
+
+## See Also
+
+- [Supabase Local Development](https://supabase.com/docs/guides/cli/local-development)
+- [Vercel Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables)
+- [DEPLOYMENT_SETUP.md](./DEPLOYMENT_SETUP.md) - Full Vercel setup guide

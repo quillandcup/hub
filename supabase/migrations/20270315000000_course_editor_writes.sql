@@ -1,5 +1,5 @@
 -- Course editor, part 1: admins create and edit Hub-owned courses (`source = 'hub'`) with their own
--- client, so each change is written as them in the audit log (docs/ACTIVITY_AND_AUDIT_LOG.md: a
+-- client, so each change is written as them in the audit log (docs/architecture/ACTIVITY_AND_AUDIT_LOG.md: a
 -- service-role write would show as 'system').
 --
 -- Only Hub-owned rows: a course imported from Kajabi (`source = 'kajabi'`) is rebuilt from Kajabi on

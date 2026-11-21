@@ -17,6 +17,7 @@ describe("isDocsOnly", () => {
     expect(isDocsOnly(["content/help/join-a-prickle.md"])).toBe(false);
     expect(isDocsOnly(["docs/TODO.md", "content/help/join-a-prickle.md"])).toBe(false);
     expect(isDocsOnly(["docs/help/notes.md"])).toBe(true);
+    expect(isDocsOnly(["docs/runbooks/SETUP.md", "docs/decisions/PRD.md", "docs/README.md"])).toBe(true);
   });
 
   it("does not treat look-alike paths as docs", () => {

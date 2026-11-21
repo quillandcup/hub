@@ -12,7 +12,7 @@ const REBUILD_WINDOW_DAYS = 7;
 
 /**
  * Process the chat mirror into member_interactions (Silver): who talked with whom, built from the
- * chat tables for the member network graph. See docs/SLACK_BRIDGED_CHAT.md, "Silver: member_interactions".
+ * chat tables for the member network graph. See docs/product/SLACK_BRIDGED_CHAT.md, "Silver: member_interactions".
  *
  * DELETE + INSERT by date range, one week per atomic call, so it is fully reprocessable from the chat
  * tables and a failed week changes nothing. Holds who, where and when, never what was said. Reads

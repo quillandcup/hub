@@ -8,7 +8,7 @@ type ActivityRepos = Pick<Repos, "activities" | "courseProgress">;
 /**
  * Lesson viewing as activity-log rows (`member_activities`, source `courses`), so it shows in the
  * Activity Log and feeds engagement scoring and churn recency like every other signal. A best-effort
- * insert alongside the primary write (the watch route, mark-complete), as docs/ACTIVITY_AND_AUDIT_LOG.md
+ * insert alongside the primary write (the watch route, mark-complete), as docs/architecture/ACTIVITY_AND_AUDIT_LOG.md
  * describes: the source of truth stays `video_watch_segments` / `lesson_progress`, and a failure here is
  * logged, never surfaced. At most one row per member, lesson and day for watching, and one per member
  * and lesson for completing, enforced by a unique index; a repeat insert is ignored.

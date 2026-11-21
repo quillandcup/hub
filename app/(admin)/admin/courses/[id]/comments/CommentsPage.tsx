@@ -11,7 +11,7 @@ import UnansweredTable from "./UnansweredTable";
 import { COMMENT_TAB_LABELS, COMMENTS_TITLE, type CommentTabId } from "./tabs";
 
 /**
- * A course's lesson comments for staff (docs/COURSES.md, "Lesson comments", admin view), as tabs by path: the questions nobody on
+ * A course's lesson comments for staff (docs/product/COURSES.md, "Lesson comments", admin view), as tabs by path: the questions nobody on
  * staff has answered at /admin/courses/<id>/comments, and the moderation queue (open reports and comments held for review) at
  * .../comments/moderation. The page that renders this has already checked the caller is an admin.
  */

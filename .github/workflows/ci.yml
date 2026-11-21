@@ -22,7 +22,7 @@ name: CI
 # was never migrated in. This job makes that step automatic instead of
 # memory-dependent.
 #
-# Ordering (see docs/CI_MIGRATION_ORDERING.md for the full Option A/B writeup):
+# Ordering (see docs/decisions/CI_MIGRATION_ORDERING.md for the full Option A/B writeup):
 # Vercel's git-triggered auto-deploy for `main` is disabled in vercel.json
 # (git.deploymentEnabled.main: false). Production deploys now only happen via
 # the deploy job below, which builds and deploys the commit that just passed
@@ -614,7 +614,7 @@ jobs:
   # config/slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
   # description, scopes, slash commands, event subscriptions and request URLs. The push
   # REPLACES the live configuration, so anything changed in the Slack dashboard but not in
-  # the manifest is reset here -- change the manifest instead. See docs/SLACK_MANIFEST.md.
+  # the manifest is reset here -- change the manifest instead. See docs/infrastructure/SLACK_MANIFEST.md.
   #
   # Runs after deploy on purpose: the manifest points at app routes (the /hub command, the
   # events and interactivity request URLs), so those must be live first.
@@ -677,7 +677,7 @@ jobs:
         if: steps.manifest.outputs.changed == 'true'
         run: |
           if [ -z "$SLACK_CONFIG_REFRESH_TOKEN" ] || [ -z "$GH_TOKEN" ] || [ -z "$SLACK_APP_ID" ]; then
-            echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."
+            echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/infrastructure/SLACK_MANIFEST.md."
             exit 1
           fi
           pnpm exec tsx scripts/slack-manifest.ts push
@@ -697,7 +697,7 @@ jobs:
 
   # config/vercel.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
-  # those rules, so change the file, not the dashboard. See docs/VERCEL_CONFIG.md.
+  # those rules, so change the file, not the dashboard. See docs/infrastructure/VERCEL_CONFIG.md.
   #
   # Only runs when the push to main changed the file or the script; a manual run
   # (workflow_dispatch) or a push whose previous commit can't be fetched always applies it.
@@ -745,7 +745,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   # config/sentry.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
-  # file, not the Settings page. See docs/SENTRY_CONFIG.md.
+  # file, not the Settings page. See docs/infrastructure/SENTRY_CONFIG.md.
   #
   # Only runs when the push to main changed the file or the script; a push whose previous commit can't be
   # fetched always applies it. Needs the SENTRY_CONFIG_TOKEN secret (pnpm env:sync:github).

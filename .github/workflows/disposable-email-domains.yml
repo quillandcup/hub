@@ -8,7 +8,7 @@ name: Refresh temp-mail domain list
 #
 # Opens the PR with GH_TOKEN_AUTO_MERGE (the personal token auto-merge.yml uses), not the built-in GITHUB_TOKEN:
 # a PR opened by GITHUB_TOKEN does not trigger the pull_request workflows, so its required checks would never run
-# and it could not merge. Rotate it per docs/SECRET_ROTATION.md. At most one refresh PR is open at a time.
+# and it could not merge. Rotate it per docs/runbooks/SECRET_ROTATION.md. At most one refresh PR is open at a time.
 on:
   schedule:
     - cron: "43 7 * * 1"

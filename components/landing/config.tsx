@@ -55,7 +55,7 @@ import { pageImage, spanClasses } from "./theme";
  * The block set and the page frame, with no editor-only parts: the public page renders `data` through this (on the
  * server), and the editor builds its own config from it by adding each block's fields (editor-config.tsx). A new
  * block is: a component in blocks.tsx, an entry here with its default props, and its fields in editor-config.tsx.
- * See docs/LANDING_PAGES.md, "Adding a block".
+ * See docs/product/LANDING_PAGES.md, "Adding a block".
  */
 
 // Puck types each component's props from its config; our blocks are plain components, so they are registered loosely.
@@ -70,7 +70,7 @@ export type RootProps = {
   showFooter?: boolean;
   footerText?: string;
   footerLinks?: { label: string; href: string }[];
-  /** This page's own style tokens (docs/LANDING_PAGES.md, "Settings"); absent means the page follows the site's. */
+  /** This page's own style tokens (docs/product/LANDING_PAGES.md, "Settings"); absent means the page follows the site's. */
   styleOverride?: unknown;
   /** This page's own favicon (a media asset id; an empty string means none); absent means the page follows the site's. Read by the page's head, not drawn. */
   faviconOverrideAssetId?: string;
@@ -80,7 +80,7 @@ const LINK_ROW = "px-2 py-1 text-sm underline-offset-4 hover:underline";
 
 /**
  * How a page is framed. A landing page draws its own header and footer from its root fields. A website page draws the site
- * template's instead (docs/LANDING_PAGES.md, "Site template"): `site` is the published copy on the public page and the draft
+ * template's instead (docs/product/LANDING_PAGES.md, "Site template"): `site` is the published copy on the public page and the draft
  * in the editor, where `editing` shows each region with a note that it is shared and a link to where it is edited.
  */
 export type FrameContext = { pageType: "website" | "landing"; site: SiteTemplate | null; editing?: boolean };
@@ -221,7 +221,7 @@ export const BLOCK_DEFAULTS = {
   Stats: { items: [kid("Stat", { value: "1,000", label: "words written a day" }), kid("Stat", { value: "24/7", label: "company" }), kid("Stat", { value: "3", label: "sessions a week" })] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
   OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
-  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/LANDING_PAGES.md, "Live data"). A block dropped on a page now starts live where its point is to be live (strip, schedule, coming up), with the typed values as the fallback; a block saved without `source` stays typed.
+  // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/product/LANDING_PAGES.md, "Live data"). A block dropped on a page now starts live where its point is to be live (strip, schedule, coming up), with the typed values as the fallback; a block saved without `source` stays typed.
   AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold", source: "live", whenNone: "hide" },
   SchedulePanel: {
     title: "Writing right now",
@@ -382,7 +382,7 @@ type BlockName = keyof typeof BLOCK_DEFAULTS;
 
 /**
  * The blocks that hold a list of items as a slot of child blocks, with the type each slot takes. The items are blocks of
- * their own (a Finisher card, a week's day), so they drag on the canvas and are edited by clicking them (docs/LANDING_PAGES.md,
+ * their own (a Finisher card, a week's day), so they drag on the canvas and are edited by clicking them (docs/product/LANDING_PAGES.md,
  * "Blocks with items"). The editor limits the slot to these types (`allow`) and keeps them out of Sections and Columns
  * (`disallow`); the JSON import drops anything else.
  */

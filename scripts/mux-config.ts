@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 // Diffs or pushes config/mux.yml against the live Mux environment, so the webhook and the
 // playback restriction are reviewed in git instead of clicked in the dashboard. Run by hand
-// (never from CI); `pnpm mux:config:diff` is read-only. See docs/MUX_CONFIG.md.
+// (never from CI); `pnpm mux:config:diff` is read-only. See docs/infrastructure/MUX_CONFIG.md.
 //
 //   tsx scripts/mux-config.ts diff            what a push would change (read-only)
 //   tsx scripts/mux-config.ts push            apply it
@@ -85,7 +85,7 @@ const note = (line: string) => console.log(line);
 
 async function webhooks() {
   const tunnel = process.env.TUNNEL_DOMAIN;
-  if (dev && !tunnel) fail("--dev needs TUNNEL_DOMAIN in .env.local (docs/WEBHOOK_SETUP.md)");
+  if (dev && !tunnel) fail("--dev needs TUNNEL_DOMAIN in .env.local (docs/infrastructure/WEBHOOK_SETUP.md)");
   const address = dev ? devWebhookAddress(tunnel!, config.webhookPath) : webhookAddress(appConfig.appUrl, config.webhookPath);
   if (!systemAuth) {
     note("webhooks: not checked (set MUX_SYSTEM_TOKEN_ID/SECRET, a token with the System permission)");
@@ -98,7 +98,7 @@ async function webhooks() {
   }
   // Never move a developer's tunnel webhook to the production address: it is someone's local setup, and its secret is not production's.
   if (adopt && !dev && live.length === 1 && !live.some((w) => sameAddress(w.address, address)) && looksLikeTunnel(live[0].address)) {
-    fail("--adopt refused: the only webhook here is a developer tunnel, not production's. The System token is probably from another Mux environment than MUX_TOKEN_ID (docs/MUX_CONFIG.md).");
+    fail("--adopt refused: the only webhook here is a developer tunnel, not production's. The System token is probably from another Mux environment than MUX_TOKEN_ID (docs/infrastructure/MUX_CONFIG.md).");
   }
   const action = planWebhook(address, live, { adoptSingle: dev || adopt });
   const unmanaged = unmanagedWebhooks(address, live).filter((w) => !(action.kind === "update-address" && w.id === action.id));
@@ -115,7 +115,7 @@ async function webhooks() {
     for (const w of unmanaged) note(`  ${describeAddress(w.address)} (${w.enabled ? "enabled" : "disabled"})`);
     if (action.kind === "create" && others === 1 && !dev) {
       if (looksLikeTunnel(unmanaged[0].address)) {
-        note("  That is a developer tunnel, not production's webhook: do not adopt it and do not push. Production's webhook is probably in another Mux environment than this System token's: create the token in the environment that holds MUX_TOKEN_ID (see docs/MUX_CONFIG.md).");
+        note("  That is a developer tunnel, not production's webhook: do not adopt it and do not push. Production's webhook is probably in another Mux environment than this System token's: create the token in the environment that holds MUX_TOKEN_ID (see docs/infrastructure/MUX_CONFIG.md).");
       } else {
         note("  If that is this app's webhook at another address, do not push (a second webhook would double every delivery): run `diff --adopt` to see it moved to the address above, keeping its signing secret.");
       }

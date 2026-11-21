@@ -5,7 +5,7 @@ import { loadLiveRoom } from "@/lib/live-room";
 import { easternDay } from "./live-stats";
 
 /**
- * The public schedule behind the Schedule panel and the Announcement strip (docs/LANDING_PAGES.md, "Live data").
+ * The public schedule behind the Schedule panel and the Announcement strip (docs/product/LANDING_PAGES.md, "Live data").
  *
  * Which prickles may appear: every upcoming one, the same set the members' Upcoming list ranks (`activeBetween`: running or
  * starting in the window, the Event type's schedules left out by the repository), whatever its type; the one rule here is

@@ -45,7 +45,7 @@ function Preview({ summary }: { summary: JsonImportSummary }) {
 }
 
 /**
- * Export and import of the page's JSON, in the History dialog (docs/LANDING_PAGES.md, "Export and import"). Export is built here
+ * Export and import of the page's JSON, in the History dialog (docs/product/LANDING_PAGES.md, "Export and import"). Export is built here
  * from what the editor holds; import asks the server for a dry run first (`onPreview`), shows what would happen, and only after
  * a danger confirm replaces the draft (`onApply` returns an error message, or null when it worked and the page is reloading).
  */

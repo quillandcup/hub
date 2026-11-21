@@ -25,7 +25,7 @@ export interface MemberNameAlias {
   source: string;
   active: boolean;
   createdAt: string;
-  /** The member allows this name on their public writer page as a pen name (docs/WRITER_PROFILES.md). Only a name they added themselves can be. */
+  /** The member allows this name on their public writer page as a pen name (docs/product/WRITER_PROFILES.md). Only a name they added themselves can be. */
   isPublic: boolean;
 }
 

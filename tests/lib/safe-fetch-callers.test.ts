@@ -3,8 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Guard for the SSRF row of docs/THREAT_MODEL.md (A10): any server-side request to an address a member, a message or an
- * import chose must go through `lib/net/safe-fetch.ts` (docs/OUTBOUND_REQUESTS.md). This lists every server file in
+ * Guard for the SSRF row of docs/trust/THREAT_MODEL.md (A10): any server-side request to an address a member, a message or an
+ * import chose must go through `lib/net/safe-fetch.ts` (docs/infrastructure/OUTBOUND_REQUESTS.md). This lists every server file in
  * `app/` and `lib/` that makes an HTTP request of its own and makes each one say why it is safe: either the address is
  * fixed (a provider's host, our own project, an operator's environment variable), or the file goes through safe-fetch.
  * A new caller fails here until it is classified; a caller that goes away leaves a stale entry that also fails.

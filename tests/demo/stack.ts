@@ -8,7 +8,7 @@
  *   pnpm demo:stack down   stop it (data is kept in its Docker volumes)
  *   pnpm demo:stack reset  stop it and delete its data, so the next `up` starts from migrations
  *
- * The config is generated from supabase/config.toml so it can't drift from it. See docs/DEMO_AND_HELP.md.
+ * The config is generated from supabase/config.toml so it can't drift from it. See docs/product/DEMO_AND_HELP.md.
  */
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 // Another worktree's stack is another project id and another set of ports: `supabase stop` goes by project id, so two
 // worktrees on the default would stop each other's containers. DEMO_STACK_ID=<name> DEMO_PORT_SHIFT=<n> (default
-// 2000, so the app is on 3100 + (n - 2000)) gives this one its own; see docs/DEMO_AND_HELP.md.
+// 2000, so the app is on 3100 + (n - 2000)) gives this one its own; see docs/product/DEMO_AND_HELP.md.
 export const DEMO_PROJECT_ID = process.env.DEMO_STACK_ID ?? "hub-demo";
 const PORT_SHIFT = Number(process.env.DEMO_PORT_SHIFT ?? 2000);
 export const DEMO_APP_PORT = 3100 + (PORT_SHIFT - 2000);

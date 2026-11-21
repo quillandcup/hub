@@ -22,7 +22,7 @@ export type TrackedDm = {
 export type TrackResult = { created: boolean; dm: TrackedDm };
 
 /**
- * The DMs Hedgie Care reads (`care_tracked_dms`, docs/HEDGIE_CARE.md, "Slack DMs fill it in"): a DM is tracked because its
+ * The DMs Hedgie Care reads (`care_tracked_dms`, docs/product/HEDGIE_CARE.md, "Slack DMs fill it in"): a DM is tracked because its
  * staff member holds a care plan with the member, so there is no choice to record and nothing untracks one. It is still a staff
  * member's private working list: with a signed-in client row-level security lets each staff user read and change only their own
  * rows (an admin does not see another's); `allLive` and `forChannel` are for the projection and need the service role to see

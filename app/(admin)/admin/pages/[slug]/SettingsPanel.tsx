@@ -40,7 +40,7 @@ function DesignLink({ children }: { children: ReactNode }) {
 }
 
 /**
- * The editor's Settings panel (docs/LANDING_PAGES.md, "Settings"). Presentational, so it is tested without Puck.
+ * The editor's Settings panel (docs/product/LANDING_PAGES.md, "Settings"). Presentational, so it is tested without Puck.
  *
  * - A **website page** takes its favicon and style from the site, edited once in Design: the panel only says what they are, with a link.
  * - A **landing page** follows the site by default ("Use site settings"). Turning that off for a group gives the page its own

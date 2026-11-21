@@ -1,5 +1,5 @@
 /**
- * Hedgie Care: the community manager's reach-outs to members (docs/HEDGIE_CARE.md). Plain module (no server
+ * Hedgie Care: the community manager's reach-outs to members (docs/product/HEDGIE_CARE.md). Plain module (no server
  * imports), so the page and its client components share the status rule and the measured windows (the value sets are in
  * lib/care-values.ts). An **engagement** is one reach-out period with one member; its status is derived here from its
  * dates and who spoke last, never stored.

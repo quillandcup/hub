@@ -26,7 +26,7 @@ const unavailable = () => NextResponse.json({ error: "Not available" }, { status
 
 /**
  * A picture under a Slack message (link preview, app card, app logo, author of a quoted message), fetched for the viewer
- * so the host that serves it never learns who looked (docs/SLACK_BRIDGED_CHAT.md, "Pictures"). The request names a message and
+ * so the host that serves it never learns who looked (docs/product/SLACK_BRIDGED_CHAT.md, "Pictures"). The request names a message and
  * a picture key, never an address: the message is read as the viewer (row-level security decides whether they can read it at
  * all), its pictures are listed in the order the renderer used (lib/chat/unfurl-images.ts), and the one with that key is fetched
  * by `fetchImage` (behind the stored-copy cache of lib/chat/unfurl-image-cache.ts, read only after those checks), which refuses anything but a public https address and anything but a raster image. What goes back is the

@@ -1,4 +1,4 @@
--- Gap-fill, phase 3 of docs/SLACK_BRIDGED_CHAT.md: when the chat is missing something Slack has (a
+-- Gap-fill, phase 3 of docs/product/SLACK_BRIDGED_CHAT.md: when the chat is missing something Slack has (a
 -- reaction or edit on a message we never stored, a reply whose thread root is missing, new messages
 -- the webhook never delivered), fetch it from Slack on the spot instead of waiting for the nightly
 -- import. Every fill is recorded here, so a fill that recovers a lot shows the webhook was down

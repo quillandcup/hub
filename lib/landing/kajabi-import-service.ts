@@ -11,7 +11,7 @@ import { storeImage } from "@/lib/media/library";
 import { safeGet } from "@/lib/net/safe-fetch";
 
 /**
- * "Import from Kajabi" (docs/LANDING_PAGES.md): an uploaded Kajabi page export becomes a draft page. The mapping is
+ * "Import from Kajabi" (docs/product/LANDING_PAGES.md): an uploaded Kajabi page export becomes a draft page. The mapping is
  * `mapKajabiPage` (deterministic, no model); this is the rest: read the archive safely, fetch the pictures into the
  * media library (private until a page that shows them is published), and save. The page is found again by its import
  * key, so a repeat import replaces that page's draft and nothing else: never its published copy, versions, title or

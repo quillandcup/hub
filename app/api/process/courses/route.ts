@@ -9,7 +9,7 @@ import { createRepos } from "@/lib/data/repos";
 export const maxDuration = 300;
 
 /**
- * Bronze (Kajabi) -> Silver courses, modules, lessons and `course_access` (docs/COURSES.md, step C).
+ * Bronze (Kajabi) -> Silver courses, modules, lessons and `course_access` (docs/product/COURSES.md, step C).
  *
  * Body: `{ "course": "the-ready-writer", "publish": true, "accessDuration": "1 year", "launchOn": "2026-11-02" }`. `course` is the Silver
  * slug (a new course gets the slug of its Kajabi title); omit it to refresh every Kajabi course

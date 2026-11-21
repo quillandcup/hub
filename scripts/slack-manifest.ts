@@ -87,7 +87,7 @@ async function rotateConfigToken(): Promise<string> {
   if (saved.status !== 0) {
     fail(
       `Rotated the Slack config token but could not save the new refresh token to the ${REFRESH_TOKEN_SECRET} secret. ` +
-        "The stored one is now spent: generate a new token pair in Slack and re-seed the secret (docs/SLACK_MANIFEST.md).",
+        "The stored one is now spent: generate a new token pair in Slack and re-seed the secret (docs/infrastructure/SLACK_MANIFEST.md).",
     );
   }
   return rotated.token as string;

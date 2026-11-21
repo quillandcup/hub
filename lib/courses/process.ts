@@ -8,7 +8,7 @@ import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
 export type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "programs">;
 
 /**
- * Bronze (Kajabi) + Local -> Silver courses (docs/COURSES.md, step C).
+ * Bronze (Kajabi) + Local -> Silver courses (docs/product/COURSES.md, step C).
  *
  * Silver rows are upserted on their source key and orphans are deleted, like `prickles`, so
  * course, module and lesson ids (and `/courses/<slug>/lessons/<id>` URLs) stay stable across
@@ -213,7 +213,7 @@ export async function processCourses(
     const lessons = await repos.kajabiCourses.liveLessons(kajabiId);
 
     // Every module and lesson is stored with its effective state. A Kajabi draft (or anything under
-    // one) is `hidden`: kept so staff can preview it, never shown to members (docs/COURSES.md).
+    // one) is `hidden`: kept so staff can preview it, never shown to members (docs/product/COURSES.md).
     const tree = planFullTree(
       modules.map((m) => ({ kajabiId: m.kajabi_id, parentKajabiId: m.parent_kajabi_id, publishingOption: m.publishing_option })),
       lessons.map((l) => ({ kajabiId: l.kajabi_id, moduleKajabiId: l.module_kajabi_id, publishingOption: l.publishing_option }))

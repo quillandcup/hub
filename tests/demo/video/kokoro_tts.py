@@ -3,7 +3,7 @@
     python kokoro_tts.py <models-dir> <voice> <speed> <out.wav>   (the text arrives on stdin)
 
 Used by voiceover.ts. The model and voices are the kokoro-onnx release files (kokoro-v1.0.onnx, or the smaller
-kokoro-v1.0.int8.onnx, and voices-v1.0.bin) in <models-dir>; setup is in docs/DEMO_AND_HELP.md, "Overview videos". Nothing leaves the machine.
+kokoro-v1.0.int8.onnx, and voices-v1.0.bin) in <models-dir>; setup is in docs/product/DEMO_AND_HELP.md, "Overview videos". Nothing leaves the machine.
 """
 import os
 import sys

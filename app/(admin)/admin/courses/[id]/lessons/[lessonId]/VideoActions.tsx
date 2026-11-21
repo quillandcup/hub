@@ -65,7 +65,7 @@ export default function VideoActions({
     };
   }, [open]);
 
-  /** The lesson's address, with the player's position when it has moved. Pasted into a Hub Chat message it becomes the video card (docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). */
+  /** The lesson's address, with the player's position when it has moved. Pasted into a Hub Chat message it becomes the video card (docs/product/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). */
   async function copyLink() {
     if (!lessonUrl) return;
     try {

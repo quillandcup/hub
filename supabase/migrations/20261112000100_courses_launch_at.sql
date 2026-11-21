@@ -1,6 +1,6 @@
 -- Pre-order courses: access starts at the course's launch, not at purchase, for anyone who bought
 -- earlier (their year runs from launch). Null = no launch date, access starts at purchase.
--- Set when a course is published or from the admin Courses page (docs/COURSES.md).
+-- Set when a course is published or from the admin Courses page (docs/product/COURSES.md).
 ALTER TABLE public.courses ADD COLUMN launch_at TIMESTAMPTZ;
 
 COMMENT ON COLUMN public.courses.launch_at IS

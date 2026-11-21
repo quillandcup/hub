@@ -532,7 +532,7 @@ export async function buildMessageViews(
   timer?.note("roots", threadRoots.length);
   timer?.note("unmatched", unmatched.length);
 
-  // Quoted Slack messages are looked up in the Hub as the viewer, only to link the original when they can open it (docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages").
+  // Quoted Slack messages are looked up in the Hub as the viewer, only to link the original when they can open it (docs/product/SLACK_BRIDGED_CHAT.md, "Shared Slack messages").
   const shareRefs = rows.flatMap((r) =>
     (unfurlsByRow.get(r.id)?.unfurls ?? []).flatMap((u) => {
       const s = u.kind === "share" ? parseSharedMessage(u.attachment) : null;

@@ -7,7 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 export const maxDuration = 60;
 
 /**
- * Resend webhook: an email was sent, delivered, opened, clicked, bounced... (docs/EMAIL_TIMELINE.md).
+ * Resend webhook: an email was sent, delivered, opened, clicked, bounced... (docs/architecture/EMAIL_TIMELINE.md).
  *
  * Verifies the Svix signature on the raw body, stores the event in Bronze (`bronze.resend_events`, idempotent on
  * the delivery's `svix-id`) and rebuilds that one email's member timeline rows. A webhook alone is never the

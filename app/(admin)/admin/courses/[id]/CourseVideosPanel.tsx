@@ -20,7 +20,7 @@ function statusText(v: PlannedVideo): string {
 const minutes = (seconds: number | null) => (seconds ? Math.round(seconds / 60) : 0);
 
 /**
- * A course's videos and the Mux step (docs/COURSES.md, step D). Uploading is billed per minute, so it
+ * A course's videos and the Mux step (docs/product/COURSES.md, step D). Uploading is billed per minute, so it
  * asks first and says how much it is about to upload. Videos of lessons members can see are one list
  * and button; videos only Kajabi drafts use are a separate list with their own button, so a draft is
  * never uploaded (and billed) by pressing the normal one. Drafts are picked one by one (nothing is

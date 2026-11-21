@@ -1,7 +1,7 @@
 -- Commitments: a member's promise to attend one recurring prickle slot for N weeks
 -- (e.g. "Mondays 7am Progress Prickle for the next 4 weeks"). Hosting's sibling: where
 -- prickle_schedules is "I'll run this slot", a commitment is "I'll show up to this slot".
--- See docs/COMMITMENTS.md.
+-- See docs/product/COMMITMENTS.md.
 --
 -- LOCAL layer: members own this data (normal CRUD, never reprocessed). Like
 -- prickle_schedules, it's informational -- it doesn't create prickles or calendar events,
@@ -54,7 +54,7 @@ CREATE UNIQUE INDEX uq_prickle_commitments_active_slot
 COMMENT ON TABLE prickle_commitments IS
   'LOCAL: a member''s commitment to attend one recurring prickle slot (type + weekday + local
    time + timezone) for N weeks. Informational only; progress is computed on read from
-   prickles + prickle_attendance (lib/commitments.ts). See docs/COMMITMENTS.md.';
+   prickles + prickle_attendance (lib/commitments.ts). See docs/product/COMMITMENTS.md.';
 
 ALTER TABLE prickle_commitments ENABLE ROW LEVEL SECURITY;
 

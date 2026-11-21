@@ -2,7 +2,7 @@
  * What happened at the points where signing in can fail, as one structured log line each, so a
  * launch (or any week) can be read from the logs: `vercel logs --query "signin:"` (see
  * .claude/rules/read-only-clis.md). Signed-out visitors aren't in the usage-event stream on purpose
- * (docs/ANALYTICS.md), so this is the record of failures before sign-in.
+ * (docs/product/ANALYTICS.md), so this is the record of failures before sign-in.
  *
  * Never an email, name, code, token or member id: only the outcome and Supabase's error code.
  */

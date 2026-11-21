@@ -13,7 +13,7 @@ import { publishablePhotoUrl, writerPagePath } from "@/lib/writer-profile";
 
 /**
  * Settings > Profile: who can see one item (the bio, the photo, a social link, the "Ask me about" topics), saved the moment
- * the member clicks the lock, house or globe (docs/WRITER_PROFILES.md, "Who sees what"). For the effective identity, so sudo
+ * the member clicks the lock, house or globe (docs/product/WRITER_PROFILES.md, "Who sees what"). For the effective identity, so sudo
  * changes the member's own levels. The change is an audit entry as the member (a trigger on the table; never the text of the
  * item), and "no change" writes nothing.
  *

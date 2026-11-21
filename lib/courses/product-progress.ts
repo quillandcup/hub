@@ -5,7 +5,7 @@ import { saveProductProgress } from "./product-progress-store";
 import type { ProgressRow } from "./product-progress-csv";
 
 /**
- * Kajabi "Product Progress" report -> bronze.kajabi_product_progress (docs/COURSES.md). Bronze only:
+ * Kajabi "Product Progress" report -> bronze.kajabi_product_progress (docs/product/COURSES.md). Bronze only:
  * nothing here writes lesson_progress, because a percentage cannot say which lessons were done.
  * Needs a service-role client (admins can read the table, not write it).
  */

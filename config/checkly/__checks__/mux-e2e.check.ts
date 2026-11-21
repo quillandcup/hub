@@ -2,7 +2,7 @@ import { ApiCheck, AssertionBuilder, Frequency } from 'checkly/constructs'
 import { ownerEmailAlert, slackAlert } from './alert-channels'
 import { appHost, appUrl, muxCheck } from './config'
 
-// Nightly Mux end-to-end check (docs/MUX_CONFIG.md). It costs nothing and touches no member data:
+// Nightly Mux end-to-end check (docs/infrastructure/MUX_CONFIG.md). It costs nothing and touches no member data:
 // the stream checks use one tiny standing test asset in a SEPARATE Mux environment ("checks"),
 // with that environment's own signing key; the webhook check sends nothing but an empty body.
 
@@ -23,7 +23,7 @@ new ApiCheck('mux-webhook-rejects-unsigned', {
   },
 })
 
-// Only declared once the checks environment's values exist (see docs/MUX_CONFIG.md), so deploying
+// Only declared once the checks environment's values exist (see docs/infrastructure/MUX_CONFIG.md), so deploying
 // before they are set is harmless.
 if (muxCheck) {
   const streamUrl = `https://stream.mux.com/${muxCheck.playbackId}.m3u8`

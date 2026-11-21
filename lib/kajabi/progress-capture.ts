@@ -1,6 +1,6 @@
 /**
  * Pure parsers for the two JSON responses scripts/kajabi-course-content.ts records in `--progress` mode
- * (docs/COURSES.md, "Importing Kajabi per-lesson progress"):
+ * (docs/product/COURSES.md, "Importing Kajabi per-lesson progress"):
  *
  *  - the Product Progress roster, `GET /api/client/reports/product_progress/{productId}`: one entry per student;
  *  - one student's report, `.../{productId}/members/{memberId}`: every module and week with its lessons.

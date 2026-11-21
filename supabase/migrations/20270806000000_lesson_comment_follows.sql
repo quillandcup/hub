@@ -1,4 +1,4 @@
--- Lesson comments, phase 3 (docs/COURSES.md, "Lesson comments"): notifications. Two new tables, nothing existing changes.
+-- Lesson comments, phase 3 (docs/product/COURSES.md, "Lesson comments"): notifications. Two new tables, nothing existing changes.
 --   lesson_comment_follows: who follows a lesson's thread (posting or replying follows it; rows hold explicit and automatic
 --     choices, and unfollowing is following = false), for the daily digest of new activity and for instructor replies.
 --   lesson_comment_reads: when a member last looked at a lesson's thread, for "N new" counts.

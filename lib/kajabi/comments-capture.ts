@@ -1,5 +1,5 @@
 /**
- * Reading lesson comments off Kajabi's member lesson pages (docs/COURSES.md, "Lesson comments"): the part of
+ * Reading lesson comments off Kajabi's member lesson pages (docs/product/COURSES.md, "Lesson comments"): the part of
  * `courses:content --comments` that needs no browser or database. `extractCommentsInPage` runs inside the page
  * and returns plain data; `parseComments` turns that into Bronze rows; `parsePostsList` reads the lesson links
  * from the admin's posts list.

@@ -1,4 +1,4 @@
--- Silver: member_interactions (docs/SLACK_BRIDGED_CHAT.md, "Silver: member_interactions"). Who talked
+-- Silver: member_interactions (docs/product/SLACK_BRIDGED_CHAT.md, "Silver: member_interactions"). Who talked
 -- with whom, built from the chat mirror (chat_messages, chat_reactions, chat_channel_members) for the
 -- member network graph, next to prickle co-attendance. It holds the relationship (who, toward whom,
 -- where, when, whether in the open or in private), never what was said.

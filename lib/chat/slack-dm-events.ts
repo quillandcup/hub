@@ -5,7 +5,7 @@ import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isSlackDmChannelId } from "@/lib/slack-messages";
 
 /**
- * Live delivery of Slack DMs (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members' own tokens"). The app
+ * Live delivery of Slack DMs (docs/product/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members' own tokens"). The app
  * subscribes to `message.im` on behalf of users (`user_events`), so Slack sends one event for every DM message
  * of every member who authorized it, whatever the `slack_dm_bridge` feature says. This decides what the
  * webhook does with such an event, so the feature stays the only switch: a DM is kept only when a member it

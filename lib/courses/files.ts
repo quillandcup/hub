@@ -9,7 +9,7 @@ import { COURSE_FILES_BUCKET, formatBytes } from "@/lib/courses/file-format";
 export { COURSE_FILES_BUCKET, formatBytes };
 
 /**
- * Lesson downloads -> the Hub (docs/COURSES.md, step D, files). The Kajabi content step records each
+ * Lesson downloads -> the Hub (docs/product/COURSES.md, step D, files). The Kajabi content step records each
  * lesson's downloads on Bronze with a presigned link that expires; this copies them into the private
  * `course-files` bucket and records a `course_lesson_files` row, which the lesson page lists and serves
  * through a short-lived signed link after an access check.

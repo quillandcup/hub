@@ -24,7 +24,7 @@ export const appConfig = {
 
   /**
    * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
-   * docs/OUTBOUND_REQUESTS.md). An HTTP token: letters, digits and `-._` only, no spaces, so it is not `appName`.
+   * docs/infrastructure/OUTBOUND_REQUESTS.md). An HTTP token: letters, digits and `-._` only, no spaces, so it is not `appName`.
    */
   userAgentProduct: "HedgieHub",
 
@@ -51,7 +51,7 @@ export const appConfig = {
 
   /**
    * When staff (admins and community managers) must sign in with a second step (a TOTP code from an authenticator app,
-   * lib/staff-mfa.ts, docs/STAFF_MFA.md). `null` = not required yet: staff without it see a banner that points them to
+   * lib/staff-mfa.ts, docs/trust/STAFF_MFA.md). `null` = not required yet: staff without it see a banner that points them to
    * Settings, and staff who have set it up are still asked for the code. To require it for everyone, set an ISO 8601
    * instant with an offset, for example "2027-02-01T00:00:00-05:00"; from then on staff without it are sent to the
    * set-up screen instead of the admin area. Set it a week or two ahead, after every admin has enrolled. A value that
@@ -60,7 +60,7 @@ export const appConfig = {
   staffMfaRequiredFrom: null as string | null,
 
   /**
-   * Hedgie Care (the community manager's reach-outs, lib/care.ts, docs/HEDGIE_CARE.md). These are starting points
+   * Hedgie Care (the community manager's reach-outs, lib/care.ts, docs/product/HEDGIE_CARE.md). These are starting points
    * for her to confirm, not settled numbers; change them here, never in code.
    *
    * `careEngagementDays`: how long one engagement (one reach-out period) lasts. The period ends on the org-timezone
@@ -149,7 +149,7 @@ export const appConfig = {
 
   /**
    * The daily check that the nonce-based Content-Security-Policy is not breaking browsers
-   * (app/api/internal/csp-health, lib/csp-health.ts, docs/CSP_ALERTS.md). Measured 2026-11-20 on production over 30
+   * (app/api/internal/csp-health, lib/csp-health.ts, docs/infrastructure/CSP_ALERTS.md). Measured 2026-11-20 on production over 30
    * days: no member loaded pages without running our scripts (0 of 91 active), about 13 of 91 never get the Google
    * cookie in any browser (steady), and every browser was far above the minimums below.
    * - `windowHours`, `historyDays`: the window checked, and how far back a member's own `_ga` history reaches.
@@ -198,7 +198,7 @@ export const appConfig = {
   siteUrl: "https://www.quillandcup.com",
 
   /**
-   * Writers' public pages (lib/writer-profile.ts, docs/WRITER_PROFILES.md), at `/w/<handle>`.
+   * Writers' public pages (lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
    * `handleMinLength`, `handleMaxLength`: the length of a handle (letters, digits and single hyphens).
    * `handleReservationDays`: how long a handle a member gave up stays theirs alone; until then nobody else can take it, and
    * its old address redirects to the new one until someone takes it afterwards.
@@ -240,7 +240,7 @@ export const appConfig = {
 
   /**
    * The Claude API, used only by "Build with AI" on the landing page builder (lib/landing/ai.ts): the admin's own
-   * description of a page goes in, a draft comes out. Nothing a member wrote is ever sent (docs/LANDING_PAGES.md).
+   * description of a page goes in, a draft comes out. Nothing a member wrote is ever sent (docs/product/LANDING_PAGES.md).
    */
   anthropic: { apiUrl: "https://api.anthropic.com", apiVersion: "2023-06-01", landingPageModel: "claude-sonnet-5-5" },
 

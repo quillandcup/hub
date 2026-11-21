@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Website pages and landing pages (docs/LANDING_PAGES.md, "Website and landing pages"): a website page is one of the interconnected
+-- Website pages and landing pages (docs/product/LANDING_PAGES.md, "Website and landing pages"): a website page is one of the interconnected
 -- pages of the site (Home, ...) that share a header, footer and style; a landing page is standalone and styled on its own.
 -- `kind` already means page or template, so this is `page_type`. Expand only: the default makes every existing row a landing page
 -- (none is a website page yet), and public routing reads nothing from it.

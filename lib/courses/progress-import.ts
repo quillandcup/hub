@@ -4,7 +4,7 @@ import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 type ProgressImportRepos = Pick<Repos, "aliases" | "courseProgress" | "courses" | "kajabiCourses" | "members">;
 
 /**
- * Bronze (bronze.kajabi_lesson_progress) -> Silver lesson_progress (docs/COURSES.md, "Importing Kajabi per-lesson
+ * Bronze (bronze.kajabi_lesson_progress) -> Silver lesson_progress (docs/product/COURSES.md, "Importing Kajabi per-lesson
  * progress"). Hub progress is member-written and Local, so this is NOT a rebuild: it only ever inserts a
  * completed row where the member has none, marked `imported_from = 'kajabi'`. It never changes or removes a
  * row that exists, whatever it says, so it can never lower Hub progress, and running it twice inserts nothing

@@ -1,7 +1,7 @@
 import type { KajabiCourseResource, KajabiCourseResponse } from "@/lib/kajabi/client";
 
 /**
- * Kajabi course structure -> Bronze rows (docs/COURSES.md, step A).
+ * Kajabi course structure -> Bronze rows (docs/product/COURSES.md, step A).
  *
  * Pure: no I/O. The OpenAPI spec doesn't document how included modules and lessons point at
  * their parents, so parents are resolved from either side (a lesson's `module`/`category`

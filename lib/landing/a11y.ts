@@ -4,7 +4,7 @@ import { featuredOfferIndex } from "./journey";
 import { COMING_UP_LIST_HEADING } from "./live-kinds";
 
 /**
- * Checks a page before it is published (docs/LANDING_PAGES.md, "Accessibility checks"). A problem a visitor can't work
+ * Checks a page before it is published (docs/product/LANDING_PAGES.md, "Accessibility checks"). A problem a visitor can't work
  * around (a picture with no description, a button that goes nowhere, a missing page title) is an `error` and stops the
  * publish; the rest are `warning`s the editor shows and lets through. Text and background colours come from a fixed
  * palette where each background carries a readable text colour (components/landing/theme.ts), so contrast can't fail

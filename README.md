@@ -52,8 +52,8 @@ pnpm dev
 
 ## Documentation
 
-- [Product Requirements Document (PRD)](docs/PRD.md)
-- [Setup Guide](docs/SETUP.md)
+- [Product Requirements Document (PRD)](docs/decisions/PRD.md)
+- [Setup Guide](docs/runbooks/SETUP.md)
 - [Database Architecture (Medallion Pattern)](supabase/ARCHITECTURE.md)
 
 ## Overview
@@ -89,7 +89,7 @@ See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documen
 
 ## Contributing and security
 
-How to report a bug, what we accept and how decisions are made: [CONTRIBUTING](.github/CONTRIBUTING.md), [GOVERNANCE](.github/GOVERNANCE.md), [CODE_OF_CONDUCT](.github/CODE_OF_CONDUCT.md). To report a vulnerability privately, see [SECURITY](.github/SECURITY.md). How we measure up against the OpenSSF best-practices checklist: [docs/OPENSSF_BEST_PRACTICES.md](docs/OPENSSF_BEST_PRACTICES.md).
+How to report a bug, what we accept and how decisions are made: [CONTRIBUTING](.github/CONTRIBUTING.md), [GOVERNANCE](.github/GOVERNANCE.md), [CODE_OF_CONDUCT](.github/CODE_OF_CONDUCT.md). To report a vulnerability privately, see [SECURITY](.github/SECURITY.md). How we measure up against the OpenSSF best-practices checklist: [docs/checklists/OPENSSF_BEST_PRACTICES.md](docs/checklists/OPENSSF_BEST_PRACTICES.md).
 
 ## License
 

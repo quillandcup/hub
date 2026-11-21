@@ -130,11 +130,11 @@ Example for Calendar:
 
 ## Testing
 
-See `/docs/WEBHOOK_TESTING.md` for manual testing commands.
+See `/docs/infrastructure/WEBHOOK_TESTING.md` for manual testing commands.
 
 ## Setup
 
-See `/docs/WEBHOOK_SETUP.md` for production setup guide.
+See `/docs/infrastructure/WEBHOOK_SETUP.md` for production setup guide.
 
 ## Next Steps
 

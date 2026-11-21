@@ -89,7 +89,7 @@ function answerColumns(answer: MilestoneAnswer, nowIso: string) {
 }
 
 /**
- * The Finisher record (`member_milestones`, docs/FINISHERS.md). Under a member's own client the rows are theirs alone;
+ * The Finisher record (`member_milestones`, docs/product/FINISHERS.md). Under a member's own client the rows are theirs alone;
  * under an admin's they are all rows, but an admin can only add proposals and edit or withdraw ones that are still
  * proposals. Only live rows (`deleted_at` null) are read or changed. Every method throws on a database error.
  */

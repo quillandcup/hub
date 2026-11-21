@@ -13,7 +13,7 @@ import { appConfig } from "../../../config/app";
  *
  * Both are 1400x845 browser screenshots. What would identify the account is left out or replaced: the sidebar and
  * header are cropped away, and the popover's calendar owner and the localhost link are covered with demo text.
- * Without the files the long video simply skips this segment. How to make them: docs/DEMO_AND_HELP.md, "Overview videos".
+ * Without the files the long video simply skips this segment. How to make them: docs/product/DEMO_AND_HELP.md, "Overview videos".
  */
 const DIR = path.join("tests", "demo", "out", "video", "google-calendar");
 const SURFACE = "#f1f4f9";

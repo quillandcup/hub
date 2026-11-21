@@ -1,7 +1,7 @@
 import { resolveMatchDate } from "@/lib/kajabi-cohort-matching";
 
 /**
- * Who can open which course (docs/COURSES.md, `course_access`). Pure.
+ * Who can open which course (docs/product/COURSES.md, `course_access`). Pure.
  *
  * Derived from active Kajabi purchases of a course's offers (a refunded or cancelled purchase,
  * `deactivated_at` set, grants nothing) plus staff-written grants. `starts_at` is the purchase

@@ -13,7 +13,7 @@ import { join, relative } from "node:path";
  *
  * Static text only: it proves a recognised credential step is in the file (comments ignored), not
  * that every code path reaches it. The route's own test covers the refusal (tests/api/).
- * See docs/THREAT_MODEL.md, A01.
+ * See docs/trust/THREAT_MODEL.md, A01.
  */
 
 const API_DIR = join(process.cwd(), "app/api");

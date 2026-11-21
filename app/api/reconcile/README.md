@@ -28,7 +28,7 @@ Reconciles calendar events from Google Calendar.
 
 ### `/api/reconcile/media` (3:30am daily)
 
-Housekeeping for the media library's bucket (`docs/MEDIA_LIBRARY.md`), not an import.
+Housekeeping for the media library's bucket (`docs/product/MEDIA_LIBRARY.md`), not an import.
 
 **What it does:**
 - Removes objects left in `uploads/` for over a day (a signed upload that was never confirmed)
@@ -190,10 +190,10 @@ Required environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase public API key
 
-See `docs/DEPLOYMENT_SETUP.md` for setup instructions.
+See `docs/infrastructure/DEPLOYMENT_SETUP.md` for setup instructions.
 
 ## Related Documentation
 
 - [Architecture Foundation](../../../docs/architecture-foundation.md) - Overall data pipeline design
-- [Deployment Setup](../../../docs/DEPLOYMENT_SETUP.md) - Environment configuration
+- [Deployment Setup](../../../docs/infrastructure/DEPLOYMENT_SETUP.md) - Environment configuration
 - [Processing Routes](../process/README.md) - Silver layer processing logic

@@ -1,5 +1,5 @@
 /**
- * Who's where in a course (docs/COURSES.md, "Admin course stats"): one row per member with access,
+ * Who's where in a course (docs/product/COURSES.md, "Admin course stats"): one row per member with access,
  * their progress through the open lessons and where they last were. Pure; the reads are in
  * `roster-data.ts`.
  */

@@ -11,7 +11,7 @@ import { PENDING_FILE_PREFIX, type ChatFile } from "@/lib/chat/files";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
- * The file half of the outbox (docs/SLACK_BRIDGED_CHAT.md, "Files"): a message with files goes to
+ * The file half of the outbox (docs/product/SLACK_BRIDGED_CHAT.md, "Files"): a message with files goes to
  * Slack through the file upload API, not chat.postMessage. Slack makes the message from the upload
  * (the text is the upload's comment), and that message can't carry our metadata, so we find its ts
  * through the file (files.info) and match Slack's own event by file id (chat_adopt_posted_file_message).

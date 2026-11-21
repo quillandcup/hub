@@ -8,7 +8,7 @@ import { background, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SP
 
 /**
  * The page builder's blocks as plain components: the same ones render in the editor's canvas and on the public page
- * (docs/LANDING_PAGES.md). No hooks and no browser APIs here (the countdown is its own client component), so the
+ * (docs/product/LANDING_PAGES.md). No hooks and no browser APIs here (the countdown is its own client component), so the
  * public route renders them on the server. Layout inside the page uses container queries (`@container` is on the page
  * wrapper, see PageFrame) with the named sizes from config/tailwind.ts, so a block reflows with the room it has, in the
  * editor's phone preview as on a phone. Links go through `safeHref`; rich text arrives already cleaned.

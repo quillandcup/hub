@@ -74,7 +74,7 @@ describe("production operations alerts", () => {
     await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem: "expired", detail: "<script>  bad &  \n thing " + "x".repeat(400) });
     const text = postMessage.mock.calls[0][0].text as string;
     expect(text).toContain("has expired and could not be refreshed");
-    expect(text).toContain("docs/SECRET_ROTATION.md");
+    expect(text).toContain("docs/runbooks/SECRET_ROTATION.md");
     expect(text).toContain("&lt;script&gt; bad &amp; thing");
     expect(text.length).toBeLessThan(700);
   });

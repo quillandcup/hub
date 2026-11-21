@@ -1,5 +1,5 @@
 /**
- * What Slack DMs say about "who spoke last" in a Hedgie Care care plan (docs/HEDGIE_CARE.md, "Slack DMs fill it in").
+ * What Slack DMs say about "who spoke last" in a Hedgie Care care plan (docs/product/HEDGIE_CARE.md, "Slack DMs fill it in").
  * Pure: no database, no Slack. The reads and writes are in lib/care-dm.ts. Only times appear here, never message text.
  */
 import { ORG_TIMEZONE } from "@/lib/config";

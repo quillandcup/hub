@@ -8,7 +8,7 @@ import { chunk } from "@/lib/supabase/paginate";
 import { webhookSecretRequired } from "@/lib/webhook-auth";
 
 /**
- * Email events from Resend, onto the member timeline (docs/EMAIL_TIMELINE.md).
+ * Email events from Resend, onto the member timeline (docs/architecture/EMAIL_TIMELINE.md).
  *
  * Bronze (`bronze.resend_events`) keeps every event as Resend reported it, from the webhook and from the
  * nightly pull. Silver is `member_activities` rows with `source = "resend"`, rebuilt from Bronze one email at a

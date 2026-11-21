@@ -14,7 +14,7 @@ import { ensureSlackFileCopied, slackFilesFromMessages } from "@/lib/slack-captu
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
 
 /**
- * Slack 1:1 DMs, read with the member's own token (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members'
+ * Slack 1:1 DMs, read with the member's own token (docs/product/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members'
  * own tokens"). The bot can't be in a DM, so this is the only way they reach the Hub: list the member's DMs,
  * store them in Bronze exactly like channel messages, and project them into chat as direct messages (kind
  * 'dm', private, restricted: staff only through break-glass access). Idempotent: Bronze is keyed on

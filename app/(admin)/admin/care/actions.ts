@@ -43,7 +43,7 @@ import { orgYmd } from "@/lib/org-week";
 import { staffCan } from "@/lib/staff-access";
 
 /**
- * Server actions for the Hedgie Care page (docs/HEDGIE_CARE.md). Staff, not admin-only: the community manager writes
+ * Server actions for the Hedgie Care page (docs/product/HEDGIE_CARE.md). Staff, not admin-only: the community manager writes
  * here, so each action starts with requireStaffAction() and then asks for the `care.write` feature (lib/staff-access.ts).
  * They run as the signed-in user, so row-level security is the second check.
  */
@@ -604,7 +604,7 @@ export async function getEngagementResults(id: string): Promise<{ error: string 
 }
 
 /**
- * The messages of a member's care plans, a page at a time (docs/HEDGIE_CARE.md, "Plan messages"): the full text of the DM(s) tracked for
+ * The messages of a member's care plans, a page at a time (docs/product/HEDGIE_CARE.md, "Plan messages"): the full text of the DM(s) tracked for
  * the member's plans, sent inside the plans' windows, read with the service role. Staff only (`care.write`: admins and community
  * managers, never an assistant). The read is put on record in the audit log with the reader's own client BEFORE anything is read, and
  * nothing is shown if it cannot be. Which conversations and messages is decided in `lib/care-messages.ts` from the database, never from

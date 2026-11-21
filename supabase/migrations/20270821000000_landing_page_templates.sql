@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Saved templates for the page builder (docs/LANDING_PAGES.md, "Templates"): an admin saves a page's draft as a template,
+-- Saved templates for the page builder (docs/product/LANDING_PAGES.md, "Templates"): an admin saves a page's draft as a template,
 -- starts new pages or restarts a page from it, and can overwrite it with a better version. Every save is kept as a version
 -- so an earlier one can be reviewed and brought back. Expand only: a new pair of tables, nothing else reads them yet.
 --

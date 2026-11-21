@@ -1,7 +1,7 @@
 # Source of truth for the Vercel project settings that live outside vercel.json. Applied by
 # scripts/vercel-config.ts (CI's push-vercel-config job after every production deploy that
 # changes this file or the script; `pnpm vercel:config:diff` is the read-only preview).
-# See docs/VERCEL_CONFIG.md.
+# See docs/infrastructure/VERCEL_CONFIG.md.
 
 # Skew Protection (https://vercel.com/docs/skew-protection): how long, counted from a deployment's creation,
 # a tab opened on it keeps being served by it after newer deployments go live. Past it, the tab's requests

@@ -1,6 +1,6 @@
 // Pure logic behind `pnpm sentry:config:diff` / `:push` (scripts/sentry-config.ts): turn the committed
 // config/sentry.yml into the desired organization settings, and compare them with what Sentry reports. No
-// network and no secrets here, so it is unit-tested (tests/lib/sentry-config.test.ts). See docs/SENTRY_CONFIG.md.
+// network and no secrets here, so it is unit-tested (tests/lib/sentry-config.test.ts). See docs/infrastructure/SENTRY_CONFIG.md.
 
 /** The organization settings the file manages, under their names in Sentry's API. */
 export const ORG_SETTING_KEYS = ["dataScrubber", "dataScrubberDefaults", "scrubIPAddresses"] as const;

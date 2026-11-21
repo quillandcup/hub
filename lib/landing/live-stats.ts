@@ -5,7 +5,7 @@ import type { WordsLogged, WritingRepository } from "@/lib/data/writing";
 import { zonedLocalToUtc } from "./countdown";
 
 /**
- * The live figures a landing page can show (docs/LANDING_PAGES.md, "Live data"). One registry entry per figure: the key a
+ * The live figures a landing page can show (docs/product/LANDING_PAGES.md, "Live data"). One registry entry per figure: the key a
  * block stores, the label the editor's list shows, the caption it gets when the editor leaves the label empty, which
  * data it needs and how it turns that into a number. Adding a figure is one entry here (and a test).
  *

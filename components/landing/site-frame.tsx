@@ -5,7 +5,7 @@ import { buttonClasses } from "./blocks";
 import { pageImage } from "./theme";
 
 /**
- * The shared header and footer of the website pages (docs/LANDING_PAGES.md, "Site template"), drawn from the site template.
+ * The shared header and footer of the website pages (docs/product/LANDING_PAGES.md, "Site template"), drawn from the site template.
  * Server-safe: no state and no script (the folding menu is a native `details`), so the public page stays static markup.
  * Everything responds to the room the page has (the `split` container size, set by `PageFrame`'s `@container`), never to the
  * viewport, so the editor's phone preview shows what a phone shows.

@@ -13,7 +13,7 @@ const STATE_TEXT: Record<PlannedFile["state"], string> = {
 };
 
 /**
- * A course's lesson downloads and the button that copies them into the Hub (docs/COURSES.md, step D,
+ * A course's lesson downloads and the button that copies them into the Hub (docs/product/COURSES.md, step D,
  * files). Draft lessons' files are listed and copied with the rest (they cost nothing and staff preview
  * those lessons); they are marked, and only staff can open them.
  */

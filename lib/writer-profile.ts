@@ -2,7 +2,7 @@ import { APP_URL, WRITER_PROFILES } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
- * A writer's public page (docs/WRITER_PROFILES.md): the rules that are not a database query. The handle's shape, the words
+ * A writer's public page (docs/product/WRITER_PROFILES.md): the rules that are not a database query. The handle's shape, the words
  * nobody can choose, the name shown, the photo that may be shown and the one function that decides whether a page is served.
  */
 

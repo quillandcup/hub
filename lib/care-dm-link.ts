@@ -1,9 +1,9 @@
 /**
- * "Open the DM": the link from a Hedgie Care row to the Slack DM it follows (docs/HEDGIE_CARE.md). The choice of where it
+ * "Open the DM": the link from a Hedgie Care row to the Slack DM it follows (docs/product/HEDGIE_CARE.md). The choice of where it
  * leads is this one small function, so it can change when Hub Chat becomes the place for DMs.
  *
  * Today: **Hub Chat** when the Hub has the conversation and the viewer is in it (a Slack 1:1 DM is in a member's chat once
- * they have pulled their own DMs, `docs/SLACK_BRIDGED_CHAT.md`), else **Slack**. Never any message text, only ids: the Hub's
+ * they have pulled their own DMs, `docs/product/SLACK_BRIDGED_CHAT.md`), else **Slack**. Never any message text, only ids: the Hub's
  * `/chat/<conversation id>` (a Tier 1 id, fine in a URL) or Slack's `app_redirect` with the DM's conversation id.
  */
 import type { ChatRepository } from "@/lib/data/chat";

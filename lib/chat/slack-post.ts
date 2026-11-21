@@ -16,7 +16,7 @@ import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
 import { sharedVideoSlackLine } from "@/lib/chat/video-link";
 
 /**
- * The outbox's second step (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a message a member wrote
+ * The outbox's second step (docs/product/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a message a member wrote
  * in the Hub is already in chat_messages as 'pending' (chat_post_message); this posts it to Slack
  * as the member (if they connected Slack) or as the bot under their name and photo, and stores the
  * ts Slack returns. Service role.

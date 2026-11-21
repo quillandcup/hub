@@ -9,7 +9,7 @@ import JourneyTabs from "./JourneyTabs";
 import { BAND_SPACE, pageImage, pick } from "./theme";
 
 /**
- * The homepage's blocks (docs/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks (the Journey map's client part is `JourneyTabs.tsx`).
+ * The homepage's blocks (docs/product/LANDING_PAGES.md, "Homepage blocks"). Static and presentational like the rest: no hooks (the Journey map's client part is `JourneyTabs.tsx`).
  * Typed by hand in the editor; the announcement strip, schedule panel and outcome numbers can be live ("Live data"):
  * they have a `source`, and the server hands them what they show in a render-only `live` prop (they never fetch). Layout is container queries with the named sizes, mobile first. Colours are theme tokens and fixed
  * brand colours only, and wherever a block sets its own background it also sets its own text colour, never inherits it.

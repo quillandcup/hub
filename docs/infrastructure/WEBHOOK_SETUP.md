@@ -1,0 +1,361 @@
+# Webhook Setup Guide
+
+> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+
+This guide explains how to configure and test real-time webhook handlers for Bronze layer updates.
+
+## Overview
+
+Hedgie Hub supports real-time webhooks from external systems:
+
+- **Google Calendar** - Push notifications when calendar events change
+- **Zoom** - Events when meetings start/end or participants join/leave
+- **Slack** - Events when messages are posted or reactions are added
+- **Resend** - Events when an email is sent, delivered, opened, clicked, bounced... (the member timeline; `docs/architecture/EMAIL_TIMELINE.md`)
+
+Each webhook handler:
+1. Verifies the webhook source (signature or channel token; see Security below)
+2. UPSERTS to Bronze layer (idempotent)
+3. Triggers downstream Silver processing asynchronously
+4. Returns 200 OK immediately (webhooks expect fast response)
+
+## Security - Environment Variables
+
+**IMPORTANT:** Webhook signature secrets are **production secrets** and must be stored in Vercel environment variables, **never committed to the repository**.
+
+### Required Vercel Environment Variables
+
+Set these in Vercel dashboard → Settings → Environment Variables → Production:
+
+- `ZOOM_WEBHOOK_SECRET_TOKEN` - From Zoom app webhook settings
+- `SLACK_SIGNING_SECRET` - From Slack app basic information page
+- `GOOGLE_CALENDAR_WEBHOOK_TOKEN` - Generate with `openssl rand -hex 32`
+- `RESEND_WEBHOOK_SECRET` - The `whsec_...` signing secret Resend shows for the webhook (see Resend Webhooks below)
+
+**DO NOT** add these to `.env.local` or commit them to git. They are production-only secrets.
+
+## Webhook Endpoints
+
+All webhooks are deployed at:
+
+```
+https://your-domain.vercel.app/api/webhooks/{service}
+```
+
+Example endpoints:
+- Production: `https://hub.quillandcup.com/api/webhooks/calendar`
+- Preview: `https://admin-git-main-yourorg.vercel.app/api/webhooks/zoom`
+- Development: `http://localhost:3000/api/webhooks/slack`
+
+## Google Calendar Webhooks
+
+### Setup
+
+Nothing to do by hand. The nightly `/api/reconcile/calendar` cron (production only) opens the push channel with the service account, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token and `<APP_URL>/api/webhooks/calendar` as the address, and renews it when under 3 days remain (`lib/google-calendar/watch.ts`). The channel is requested for 7 days; the real expiry Google returns is kept in `calendar_watch_channels` (service role only), which is how the old channel is stopped when it is replaced (Google has no call that lists channels). The new channel is opened before the old one is stopped, so no edit falls in a gap.
+
+- The service account needs access to the calendar (the same as the import).
+- If opening the channel fails, the reconcile still syncs but returns 500 and skips its Checkly heartbeat, so it alerts. The nightly sync stays the guaranteed path.
+- To check it: `select channel_id, expires_at, stopped_at from calendar_watch_channels order by created_at desc` (prod, read-only), and the `Calendar webhook received` lines in the Vercel logs.
+- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` needs a new channel, and until one is open Google's pushes are refused (the nightly sync still runs). After the new value is deployed, force the replacement by setting the live row's `expires_at` to now (`update calendar_watch_channels set expires_at = now() where stopped_at is null`, a production write for the owner), then open `/api/reconcile/calendar` as an admin: it opens the new channel first and stops the old one at Google. Don't set `stopped_at` by hand: a row marked stopped is never stopped at Google, and the old channel keeps delivering (refused) until it expires. Or wait until the channel is under 3 days from expiry. The new channel's first `sync` push in the Vercel logs (`hasChannelToken: true`, no 401) shows the token matches. Done once on 2026-11-18.
+
+### Testing
+
+Test the endpoint verification:
+
+```bash
+curl https://hub.quillandcup.com/api/webhooks/calendar
+```
+
+Expected response:
+```json
+{
+  "message": "Calendar webhook endpoint ready",
+  "verified": true
+}
+```
+
+### Webhook Events
+
+Google Calendar sends notifications for:
+- Event created/updated
+- Event deleted
+- Initial sync when watch is established
+
+See: [Google Calendar Push Notifications](https://developers.google.com/calendar/api/guides/push)
+
+## Zoom Webhooks
+
+### Setup
+
+1. **Create a Zoom App** at [Zoom Marketplace](https://marketplace.zoom.us/develop/create)
+2. **Enable Event Subscriptions** in app settings
+3. **Add webhook URL**: `https://hub.quillandcup.com/api/webhooks/zoom`
+4. **Subscribe to events**:
+   - Meeting Started
+   - Meeting Ended
+   - Participant Joined Meeting
+   - Participant Left Meeting
+
+5. **Set webhook secret** in environment variables:
+   ```bash
+   ZOOM_WEBHOOK_SECRET_TOKEN=your_secret_token
+   ```
+
+### Testing
+
+Test the endpoint verification:
+
+```bash
+curl https://hub.quillandcup.com/api/webhooks/zoom
+```
+
+Expected response:
+```json
+{
+  "message": "Zoom webhook endpoint ready",
+  "verified": true
+}
+```
+
+### Webhook Events
+
+Zoom sends notifications for:
+- `meeting.started` - Meeting begins
+- `meeting.ended` - Meeting ends (triggers attendance import)
+- `meeting.participant_joined` - Participant joins
+- `meeting.participant_left` - Participant leaves (triggers attendance import)
+
+See: [Zoom Webhook Events](https://developers.zoom.us/docs/api/rest/webhook-reference/)
+
+## Slack Webhooks
+
+### Setup
+
+1. **Create a Slack App** at [Slack API](https://api.slack.com/apps)
+2. **Enable Event Subscriptions** in app settings
+3. **Set Request URL**: `https://hub.quillandcup.com/api/webhooks/slack`
+4. **Subscribe to bot events**:
+   - `message.channels` - Messages in public channels
+   - `message.groups` - Messages in private channels
+   - `reaction_added` - Emoji reactions added
+   - `reaction_removed` - Emoji reactions removed
+
+5. **Set signing secret** in environment variables:
+   ```bash
+   SLACK_SIGNING_SECRET=your_signing_secret
+   ```
+
+### Testing
+
+Test the endpoint verification:
+
+```bash
+curl https://hub.quillandcup.com/api/webhooks/slack
+```
+
+Expected response:
+```json
+{
+  "message": "Slack webhook endpoint ready",
+  "verified": true
+}
+```
+
+### Webhook Events
+
+Slack sends notifications for:
+- `message` - New message posted
+- `reaction_added` - Emoji reaction added to message
+- `reaction_removed` - Emoji reaction removed from message
+
+See: [Slack Events API](https://api.slack.com/apis/connections/events-api)
+
+## Resend Webhooks
+
+Resend reports what happened to each email (sent, delivered, opened, clicked, bounced, marked as spam, failed) to `/api/webhooks/resend`. The route verifies the signature, stores the event in `bronze.resend_events` and rebuilds that email's rows on the member's timeline. The nightly `/api/reconcile/email` pull is the safety net. Design: `docs/architecture/EMAIL_TIMELINE.md`.
+
+### Setup
+
+1. **The API key needs Full access.** Resend has only two permissions: Full access and Sending access. The nightly pull and the backfill list emails, which a Sending-access key cannot do. In Resend -> API keys, open the key `RESEND_API_KEY` holds and change its permission: the key's value stays the same, so nothing needs re-syncing. (The same key is Supabase Auth's SMTP password and lives in Vercel and GitHub, so a full-access key there can also delete domains and keys; see `docs/TODO.md`, "Email timeline: what is left", for a separate key.)
+2. **Add the webhook.** Resend -> Webhooks -> Add Webhook.
+   - URL: `<APP_URL>/api/webhooks/resend` (production: `https://hub.quillandcup.com/api/webhooks/resend`). It must be public HTTPS, so a webhook only ever points at one deployment: production.
+   - Events: `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, `email.opened`, `email.clicked`. Other events are acknowledged and ignored. `email.received` (replies) is not used yet. Subscribing to everything is harmless: the route answers 200 and stores nothing for the rest (`suppression.*`, `topic.*`, `email.scheduled`; `email.suppressed` is kept and shown as not delivered). Topics are Resend's subscription categories for broadcasts (contacts opt in or out of a topic on Resend's unsubscribe page); the Hub doesn't use Resend contacts or broadcasts, since members' preferences live in `notification_preferences`.
+3. **Copy the signing secret** (`whsec_...`, on the webhook's page in Resend) into the env files as `RESEND_WEBHOOK_SECRET`: `.env.shared` if every environment uses the same one, otherwise `.env.prod` (`docs/infrastructure/ENV_MANAGEMENT.md`). Then `pnpm env:sync --only=RESEND_WEBHOOK_SECRET`. It is a production secret: never in git or a PR.
+   **Vercel applies environment variables to new deployments only.** The running production deployment doesn't see the secret until production is redeployed (Vercel -> Deployments -> the latest production deployment -> Redeploy, or any merge that deploys; a docs-only merge deploys nothing). Until then the route answers 401 to every webhook, and Resend retries them.
+4. **Click tracking is useful, open tracking isn't.** Both are per-domain switches (Resend -> Domains -> the domain -> Tracking; click tracking rewrites links through a tracking subdomain with its own CNAME). Resend's own docs call open tracking "not a statistically accurate way" of detecting engagement: Apple Mail and some corporate scanners open mail before the recipient does, other clients block the pixel, and plain-text-only mail has none. A pixel can also hurt deliverability of transactional mail. The timeline shows an open as one row with a count and gives it no weight, so leave **open tracking off** and keep click tracking. Without click tracking the timeline shows sends, deliveries and bounces only.
+   **Check sign-in emails when click tracking is on.** Resend's guide on Supabase Auth emails recommends turning link tracking off because it can corrupt verification links, and Supabase's sign-in emails are sent from the same domain. After enabling it, request a sign-in email and use its link (`docs/TODO.md`, "Email timeline: what is left").
+5. **Backfill** what Resend already holds: open `/api/reconcile/email?days=90` while signed in as an admin (or call it with the cron secret). It recovers the send and final state of each email in that window (up to 90 days), not opens and clicks, which Resend's list doesn't keep.
+
+### Testing
+
+- Send yourself a real email from production: Admin -> Test Notifications (`/admin/notifications`), email channel. It goes to your own address with your member tag, so it lands on your own **Activity Log** within seconds, and again as it is opened or clicked (if tracking is on). Outside production, email goes to `EMAIL_DEV_ADDRESS` with no member tag on purpose, so it never reaches a timeline.
+- In Resend, the webhook's page lists each delivery and the status code the route answered.
+- Read-only check of what arrived (production, with `supabase db query --linked`; see `.claude/rules/verify-against-prod.md`): `select event_type, occurred_at from bronze.resend_events order by occurred_at desc limit 10`. Don't paste addresses or subjects anywhere public.
+
+### Webhook Events
+
+| Resend event | Stored as | On the timeline |
+|---|---|---|
+| `email.sent` | `bronze.resend_events` | `email_sent` ("Email sent: subject") |
+| `email.delivered` | same | folded into the sent row (`data.delivered_at`) |
+| `email.opened` | same | `email_opened`, one row per email with a count |
+| `email.clicked` | same, link without its query string | `email_clicked`, one row per click |
+| `email.bounced`, `email.complained` | same | `email_bounced`, `email_complained` |
+| `email.failed`, `email.delivery_delayed` | same | `email_failed` |
+
+### Troubleshooting
+
+- **401 from the route**: the secret doesn't match (not synced, or rotated in Resend and not here), the request is more than 5 minutes old, or a deployed build has no `RESEND_WEBHOOK_SECRET` at all (which rejects everything on purpose).
+- **200 with `stored: false`**: the event type isn't one we keep.
+- **Events in Bronze but nothing on the timeline**: the recipient matched no member (their address isn't a member's, and the email had no member tag). The events are kept and projected on the next run after the member exists.
+- **500**: a database error; Resend retries, and the retry is a no-op for what was already stored.
+- **The nightly import fails**: see the Vercel logs for `/api/reconcile/email`. A 401 or 403 from Resend's list endpoint means `RESEND_API_KEY` is still Sending access. It has no Checkly heartbeat for now (`lib/cron-heartbeats.ts`, `unmonitored`).
+
+## Local Testing with a tunnel
+
+Vendors send webhooks from their own servers, so `localhost:3000` means nothing to them. `pnpm tunnel` opens a public https address that forwards to your dev server, one command for every vendor (Mux, Zoom, Google Calendar, Slack):
+
+```bash
+# Terminal 1: Start dev server
+pnpm dev
+
+# Terminal 2: Start the tunnel (optionally: pnpm tunnel 3107 for another port)
+pnpm tunnel
+```
+
+Paste the `https://...` address it prints, plus the route, into the vendor's webhook settings, for example `https://<address>/api/webhooks/calendar`.
+
+- **One-time setup, per developer:**
+  1. `brew install ngrok`
+  2. `ngrok config add-authtoken <your token>` (from your own ngrok dashboard; never commit it)
+  3. Optional, for an address that doesn't change: use the free dev domain ngrok assigned to your account (dashboard → Domains; a random-words name like `three-random-words.ngrok-free.dev` that you can't rename on the free plan) and set `TUNNEL_DOMAIN=<that-domain>` in `.env.local`, as a bare hostname with no `https://`.
+- **Why a stable address matters:** without `TUNNEL_DOMAIN`, ngrok gives a new random address every run, so you'd re-enter it in the vendor each time. With it, each vendor is set up once.
+- **Domains are per developer.** A domain belongs to one ngrok account and only one tunnel can use it at a time, so developers can't share one. A vendor webhook has a single URL too, so each developer sets up their own (for Mux, ideally in their own Mux environment).
+- **Vendors that need no tunnel:** Stripe's CLI (`stripe listen`) connects outward and forwards events to localhost, so it doesn't need a public address.
+- **Mux:** polling covers local development, so a tunnel is optional there. If you point a Mux webhook at `localhost`, Mux can't reach it and shows failed deliveries.
+
+## Security
+
+### Signature Verification
+
+Every webhook route verifies its caller itself, whether or not a tunnel or proxy sits in front:
+
+- **Google Calendar:** `X-Goog-Channel-Token` must equal `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (constant-time compare). The reconcile cron sets it when it opens the channel, so a channel opened with an older token is rejected once the variable changes: see Setup above.
+- **Slack:** HMAC-SHA256 over `v0:{timestamp}:{body}` with `SLACK_SIGNING_SECRET`, within a 5-minute window.
+- **Zoom:** HMAC-SHA256 in `X-Zm-Signature` with `ZOOM_WEBHOOK_SECRET_TOKEN`.
+
+**A missing secret rejects the request on deployed builds** (production and preview), instead of switching verification off (`webhookSecretRequired()` in `lib/webhook-auth.ts`). Local `next dev` and tests skip verification when a secret is unset, so webhooks can be tried without configuring each vendor.
+
+Zoom's check, for reference:
+
+```typescript
+const message = `v0:${timestamp}:${body}`;
+const hashForVerify = createHmac('sha256', secretToken)
+  .update(message)
+  .digest('hex');
+const expectedSignature = `v0=${hashForVerify}`;
+```
+
+**Slack**: Verify HMAC-SHA256 signature in `X-Slack-Signature` header:
+```typescript
+const sigBasestring = `v0:${timestamp}:${body}`;
+const mySignature = 'v0=' + createHmac('sha256', signingSecret)
+  .update(sigBasestring)
+  .digest('hex');
+```
+
+### Environment Variables
+
+Set webhook secrets in Vercel dashboard (Settings → Environment Variables):
+
+```
+GOOGLE_CALENDAR_WEBHOOK_TOKEN=...
+ZOOM_WEBHOOK_SECRET_TOKEN=...
+SLACK_SIGNING_SECRET=...
+SUPABASE_SERVICE_ROLE_KEY=...  # Required for internal processing
+```
+
+## Monitoring
+
+### Logs
+
+View webhook logs in Vercel dashboard:
+1. Go to Deployments → Select deployment
+2. Click "View Function Logs"
+3. Filter by `/api/webhooks/*`
+
+### Debugging
+
+Each webhook handler logs:
+- Webhook event type
+- Signature presence (for verification debugging)
+- Processing status
+- Error messages (if any)
+
+Example log output:
+```
+Slack webhook received: {
+  type: 'event_callback',
+  event: 'message',
+  signature: 'present',
+  timestamp: '1678901234'
+}
+Slack message upserted: 1678901234.567890
+Slack processing triggered successfully
+```
+
+## Troubleshooting
+
+### Webhook not receiving events
+
+1. **Check endpoint is accessible** (GET request should return 200 OK)
+2. **Verify webhook URL** in external service settings
+3. **Check Vercel logs** for incoming requests
+4. **Test with ngrok** to rule out deployment issues
+
+### Signature verification fails
+
+1. **Check environment variables** are set correctly
+2. **Verify secret token** matches external service settings
+3. **Check the signature/token env vars** are set (a deployed build rejects webhooks without them)
+
+### Processing not triggered
+
+1. **Check service role key** is set in environment variables
+2. **Verify processing route** exists and is accessible
+3. **Check Vercel logs** for internal fetch errors
+
+### Webhook timeouts
+
+1. **Ensure response is immediate** (200 OK within seconds)
+2. **Don't await processing** - use fire-and-forget pattern
+3. **Check maxDuration** is set to 60 seconds (not too high)
+
+## Data Flow
+
+```
+External System → Webhook Handler → Bronze UPSERT → Silver Processing
+                     ↓ (immediate)
+                  200 OK Response
+```
+
+### Example: Calendar Event Update
+
+1. User updates calendar event in Google Calendar
+2. Google sends webhook to `/api/webhooks/calendar`
+3. Handler returns 200 OK immediately and runs `syncCalendarChanges` (`lib/google-calendar/incremental-sync.ts`) in `after()`
+4. The sync claims the calendar (`calendar_sync_state`); a notification that arrives while one is running just notes "run once more", so a burst of edits is one sync plus one rerun
+5. It asks Google only for events changed since the last sync (`events.list` with `updatedMin` and `showDeleted`, inside the 90-days-back / 90-forward window the nightly reconcile keeps), not the whole window; and, separately, for events *cancelled* since then with no date window at all, because a deletion can be of any event (a past prickle taken off the calendar), and the windowed listing never returns those
+6. Changed events are UPSERTed to `bronze.calendar_events` by Google id (Hub ids and links stay); cancelled ones, and ones that became all-day, are deleted
+7. Calendar and attendance are reprocessed for just the dates those events touch (old and new, a day of padding), not the whole window
+8. The watermark (`calendar_sync_state.synced_through`) moves to when the sync began; a failure leaves it, so the next notification retries the same span
+
+With no watermark yet, or one older than two days, the sync falls back to the full import (`triggerCalendarSync`, 90/90), which then sets it. The nightly reconcile does a full sync and sets the watermark too; it stays the guaranteed path and the only one that notices an event moved out of the watched window. It also sweeps deletions outside the window (`sweepCancelledEvents`, the last 8 days by default): to clean up older ones, open `/api/reconcile/calendar?cancelledSinceDays=30` as an admin.
+
+## Next Steps
+
+- [ ] Implement signature verification for all webhooks
+- [ ] Add webhook event logging to database for debugging
+- [ ] Set up monitoring/alerting for webhook failures
+- [ ] Document webhook retry behavior and handling
+- [ ] Add integration tests for webhook handlers

@@ -13,7 +13,7 @@ import type { InMemoryDataset } from "./in-memory";
 /** A stored activity row, as the database has it. */
 export type ActivityRow = Row<"member_activities">;
 
-/** What a feature records about a member (one row in the activity log, docs/ACTIVITY_AND_AUDIT_LOG.md). */
+/** What a feature records about a member (one row in the activity log, docs/architecture/ACTIVITY_AND_AUDIT_LOG.md). */
 export interface NewActivity {
   memberId: string;
   type: string;

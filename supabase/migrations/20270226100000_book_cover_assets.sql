@@ -1,4 +1,4 @@
--- Book covers come from the media library (docs/MEDIA_LIBRARY.md): a member uploads any size, the Hub makes the
+-- Book covers come from the media library (docs/product/MEDIA_LIBRARY.md): a member uploads any size, the Hub makes the
 -- shelf size and the Amazon ebook cover from it. A cover is still stored as the URL every page already shows
 -- (cover_url, now the library's /api/media/<id>/book_cover_shelf for a new cover; older covers keep theirs), and
 -- cover_asset_id records which asset that is, for ownership, usage and the Amazon download.

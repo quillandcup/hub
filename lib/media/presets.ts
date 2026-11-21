@@ -1,5 +1,5 @@
 /**
- * The sizes the Hub shows an image at (docs/MEDIA_LIBRARY.md). A page asks for an asset and a preset
+ * The sizes the Hub shows an image at (docs/product/MEDIA_LIBRARY.md). A page asks for an asset and a preset
  * name, never a path; the sized copy is made from the original the first time it is asked for.
  *
  * How a picture of a different shape fits a preset is `FitMode`: `crop` fills the frame and cuts the

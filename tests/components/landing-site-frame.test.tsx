@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** The site template drawn as a header and footer, and the frame that puts it around a website page (docs/LANDING_PAGES.md, "Site template"). */
+/** The site template drawn as a header and footer, and the frame that puts it around a website page (docs/product/LANDING_PAGES.md, "Site template"). */
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { PageFrame, DESIGN_HREF } from "@/components/landing/config";

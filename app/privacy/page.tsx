@@ -40,15 +40,15 @@ export const PRIVACY_EFFECTIVE = "2026-11-18";
  *   reacted and when, `last_read_at`) but never a deleted message's content (`chat_message_contents` policy
  *   requires `deleted_at IS NULL`); files follow the content policy. The break-glass section is the
  *   commitment for the rare case, not a screen: there is no in-app tool yet, so anything done under it is done
- *   by hand and has to follow what that section promises (docs/SLACK_BRIDGED_CHAT.md).
- * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/SLACK_BRIDGED_CHAT.md), on for every member since 2026-11-13 (production flag): their
+ *   by hand and has to follow what that section promises (docs/product/SLACK_BRIDGED_CHAT.md).
+ * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/product/SLACK_BRIDGED_CHAT.md), on for every member since 2026-11-13 (production flag): their
  *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `lib/chat/slack-dms.ts`,
  *   `lib/chat/slack-dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
  *   the chat as a private, restricted `dm` conversation: the Hub members in it who have pulled their own DMs (each is
  *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
  *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
  *   change with that code, in particular if the feature is ever switched off for some members again.
- * - Hedgie Care plan messages (decided 2026-11-12, docs/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
+ * - Hedgie Care plan messages (decided 2026-11-12, docs/product/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
  *   community managers (never an assistant: `requireStaffAction()`, `care.write`) see, inside Hedgie Care, the full text of the
  *   one-on-one Slack DM(s) tracked with a member (`care_tracked_dms`; tracking comes automatically with a care plan and nothing
  *   untracks it), sent in the window of each of that member's care plans (the plan's start to its close, or now while open), across all
@@ -65,7 +65,7 @@ export const PRIVACY_EFFECTIVE = "2026-11-18";
  * - Deletes: deleted things are kept until the member asks, as soft deletes or in the audit log.
  *
  * **Retention promises that need a job before they can be broken.** The page promises the numbers in
- * `lib/retention.ts`, and the nightly job in docs/EVENT_LOG.md phase 0 enforces them (deployed 2026-10-31; no row was old
+ * `lib/retention.ts`, and the nightly job in docs/architecture/EVENT_LOG.md phase 0 enforces them (deployed 2026-10-31; no row was old
  * enough to break them before it ran). Checked against production on 2026-10-30: the oldest raw user agent
  * in `access_events` is from 2026-10-18 (the column is newer than the table), the oldest raw IP from 2026-10-21, and
  * the oldest user agent in a usage event from 2026-10-20, so the first value passes 90 days on 2027-01-16; usage events

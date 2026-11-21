@@ -1,6 +1,6 @@
 ## changelog-writing
 
-A change members can see ships with a changelog entry, in the same PR (`content/changelog.ts`, process in `docs/CHANGELOG_PROCESS.md`). The member What's new pages, the admin Changelog, the weekly digest and the announcements post all read that one file.
+A change members can see ships with a changelog entry, in the same PR (`content/changelog.ts`, process in `docs/runbooks/CHANGELOG_PROCESS.md`). The member What's new pages, the admin Changelog, the weekly digest and the announcements post all read that one file.
 
 **What gets an entry**
 - **One story per feature, written when members can use it.** Many PRs make one thing members get: write one entry for it, dated the day it became available, benefit first, with what is in it as a short list. Not an entry per PR. Later improvements to something members already have are their own entries.

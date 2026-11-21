@@ -8,7 +8,7 @@ import { clock } from "@/lib/clock";
 import { withRefreshLease } from "@/lib/slack-token-refresh";
 
 /**
- * Slack connect (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a member connects their own Slack
+ * Slack connect (docs/product/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a member connects their own Slack
  * account so the Hub can act as them (post natively, react) instead of through the bot. The
  * OAuth flow is app/api/oauth/slack/{start,callback}; the tokens live in Supabase Vault, behind
  * the slack_connection_* functions (service role only).

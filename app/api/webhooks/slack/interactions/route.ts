@@ -24,7 +24,7 @@ export const maxDuration = 60;
  * Events API sends -- can't share a parser, so this is its own endpoint per the roadmap spec's
  * own note. Requires
  * settings.interactivity.request_url = this route in config/slack-app-manifest.yml (CI pushes the
- * manifest to the live Slack app after each production deploy; see docs/SLACK_MANIFEST.md).
+ * manifest to the live Slack app after each production deploy; see docs/infrastructure/SLACK_MANIFEST.md).
  */
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();

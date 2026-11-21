@@ -1,4 +1,4 @@
--- Courses in the Hub (see docs/COURSES.md): Bronze mirror of Kajabi's courses, the Silver
+-- Courses in the Hub (see docs/product/COURSES.md): Bronze mirror of Kajabi's courses, the Silver
 -- curriculum members see, and the Local tables the Hub owns (videos, access grants, progress,
 -- watch segments). Schema only: the import, processing and media steps come after.
 --
@@ -92,7 +92,7 @@ BEGIN
     EXECUTE format('GRANT SELECT ON bronze.%I TO authenticated', t);
     EXECUTE format('GRANT ALL ON bronze.%I TO service_role', t);
     EXECUTE format('CREATE POLICY "Admins can read %s" ON bronze.%I FOR SELECT TO authenticated USING ((SELECT public.is_admin()))', t, t);
-    EXECUTE format('COMMENT ON TABLE bronze.%I IS %L', t, 'BRONZE: raw Kajabi course data (docs/COURSES.md).');
+    EXECUTE format('COMMENT ON TABLE bronze.%I IS %L', t, 'BRONZE: raw Kajabi course data (docs/product/COURSES.md).');
   END LOOP;
 END $$;
 

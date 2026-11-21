@@ -47,10 +47,10 @@ export type StaffFeature = (typeof STAFF_FEATURES)[number];
 
 /** What a community manager may see or do beyond reading the page. Add a feature here to grant it. */
 export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [
-  // Hedgie Care, her reach-outs to members: she is the first staff role that writes (docs/HEDGIE_CARE.md).
+  // Hedgie Care, her reach-outs to members: she is the first staff role that writes (docs/product/HEDGIE_CARE.md).
   "care.write",
   // The member page's Activity tab, limited to the member's own activity: no audit entries, page visits or staff notes
-  // (get_activity_feed enforces it for her; docs/ACTIVITY_AND_AUDIT_LOG.md, "The community manager's Activity tab").
+  // (get_activity_feed enforces it for her; docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "The community manager's Activity tab").
   "member.activity_tab_limited",
 ];
 

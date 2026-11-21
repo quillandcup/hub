@@ -5,7 +5,7 @@ import { projectEmails, STORED_EVENT_TYPES, type StoredEventType } from "@/lib/e
 import { chunk } from "@/lib/supabase/paginate";
 
 /**
- * The pull half of the Resend import (docs/EMAIL_TIMELINE.md): the webhook is a latency optimization, never the
+ * The pull half of the Resend import (docs/architecture/EMAIL_TIMELINE.md): the webhook is a latency optimization, never the
  * only path, so every night this lists the emails sent recently and records what the webhook may have missed
  * while it was down or misconfigured.
  *

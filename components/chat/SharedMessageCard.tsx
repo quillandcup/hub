@@ -13,7 +13,7 @@ const linkClass = "text-plum-600 underline dark:text-plum-400";
 
 /**
  * A Slack message quoted inside another message, as one box that is a link to the original (stretched link: the "View in Chat" / "Open in Slack" anchor's ::after covers it; text and the X sit above it). It shows Slack's embedded copy to everyone who can read the sharing
- * message (the sharer chose to share it; see docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages"). `source` only adds
+ * message (the sharer chose to share it; see docs/product/SLACK_BRIDGED_CHAT.md, "Shared Slack messages"). `source` only adds
  * a link to the original in the Hub when the viewer can open it, and a note when it was deleted there.
  */
 export default function SharedMessageCard({

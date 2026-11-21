@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 // Per-route page speed in production, read-only: how long the functions take (server) and what real visitors
 // measured (Speed Insights: FCP, LCP, TTFB), from `vercel metrics`. Run it for a window before a change ships and
-// again after, and with --record to keep the numbers in docs/PAGE_SPEED.md, so a baseline builds up over time.
+// again after, and with --record to keep the numbers in docs/decisions/PAGE_SPEED.md, so a baseline builds up over time.
 //
 //   pnpm page-speed                                           last 24 hours, 1h buckets
 //   pnpm page-speed --from 2026-11-03T03:50:00Z --granularity 5m --label "layout Suspense (#909)"
@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { formatRecord, formatTable, parsePageSpeedArgs, summaryByRoute, type PageSpeedArgs, type RouteRow } from "./page-speed-args";
 
-const DOC = "docs/PAGE_SPEED.md";
+const DOC = "docs/decisions/PAGE_SPEED.md";
 const VERCEL = "node_modules/.bin/vercel";
 
 function requireEnv(name: string): string {

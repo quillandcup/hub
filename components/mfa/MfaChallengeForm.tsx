@@ -9,7 +9,7 @@ import { MFA_CODE_LENGTH, cleanMfaCode } from "@/lib/mfa-code";
 /**
  * The second step of signing in: type the code from the authenticator app. Passing it makes the session aal2 (the browser
  * client stores the new token), then a full navigation to `next` so the server sees it.
- * `helpEmail` is who to write to when the phone is lost (config, docs/STAFF_MFA.md has what they do).
+ * `helpEmail` is who to write to when the phone is lost (config, docs/trust/STAFF_MFA.md has what they do).
  */
 export default function MfaChallengeForm({ next, helpEmail }: { next: string; helpEmail: string }) {
   const [code, setCode] = useState("");

@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Hedgie Care (docs/HEDGIE_CARE.md): the community manager's reach-outs, reshaped. The first build tracked one open-ended
+-- Hedgie Care (docs/product/HEDGIE_CARE.md): the community manager's reach-outs, reshaped. The first build tracked one open-ended
 -- "conversation" per member and channel (20270624000000_conversations.sql). This replaces it with explicit
 -- **engagements**: one row is one reach-out period, with a period end date, a renewal that links to the one before it, and
 -- how it ended in her own words. The old table was never announced and is empty in production, so nothing is carried over.

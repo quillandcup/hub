@@ -18,7 +18,7 @@ import { loadTemplateDraft } from "@/lib/landing/template-data";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
 /**
- * The page builder's server actions (docs/LANDING_PAGES.md). Every one checks for an admin itself. `saveLandingDraft` is the
+ * The page builder's server actions (docs/product/LANDING_PAGES.md). Every one checks for an admin itself. `saveLandingDraft` is the
  * autosave: it writes the draft only and is not audited or counted; publishing is a separate, explicit step that checks the page
  * first, keeps a version and makes the pictures it uses servable to visitors who aren't signed in.
  */
@@ -70,7 +70,7 @@ export async function createLandingPage(input: { title: string; slug?: string; s
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", async () => {
-    // Website or landing (docs/LANDING_PAGES.md): a landing page unless said otherwise. A starter belongs to one type and decides it.
+    // Website or landing (docs/product/LANDING_PAGES.md): a landing page unless said otherwise. A starter belongs to one type and decides it.
     if (input?.pageType !== undefined && !isLandingPageType(input.pageType)) return { error: "Choose a website page or a landing page." };
     const pageType: LandingPageType = input?.pageType ?? "landing";
     if (input?.template) {
@@ -227,7 +227,7 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown, note?: str
     if (!(await repos.landingPages.saveDraft(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
     const page = await repos.landingPages.publish(pageId, note);
     if (!page) return { error: NOT_FOUND };
-    // A signed-out visitor is served only assets marked public (docs/MEDIA_LIBRARY.md), so the ones this page uses are marked now.
+    // A signed-out visitor is served only assets marked public (docs/product/MEDIA_LIBRARY.md), so the ones this page uses are marked now.
     // A template's pictures stay private: they become public only when a page made from it is published.
     const assetIds = isTemplate ? [] : [...new Set([...collectAssetIds(clean), ...(page.social_image_asset_id ? [page.social_image_asset_id] : [])])];
     for (const id of assetIds) {

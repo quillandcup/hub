@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 300;
 
 /**
- * Lesson downloads -> the Hub (docs/COURSES.md, step D, files): see lib/courses/files.ts.
+ * Lesson downloads -> the Hub (docs/product/COURSES.md, step D, files): see lib/courses/files.ts.
  *
  * Body: `{ "course": "the-ready-writer" }`. Copies the files of the course's visible lessons that
  * aren't in the Hub yet, and the course's images, into the private `course-files` bucket, and removes the ones Kajabi no longer

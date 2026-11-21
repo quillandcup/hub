@@ -1,7 +1,7 @@
 import { normalizeLandingData, type LandingData } from "./data";
 
 /**
- * Where an opt-in form's sign-ups go (docs/LANDING_PAGES.md, "Opt-in forms"). During the move off Kajabi the only
+ * Where an opt-in form's sign-ups go (docs/product/LANDING_PAGES.md, "Opt-in forms"). During the move off Kajabi the only
  * implementation is Kajabi's (lib/landing/opt-in-kajabi.ts) and the Hub stores nothing; a Hub one plugs in here later.
  */
 export type OptInFields = {

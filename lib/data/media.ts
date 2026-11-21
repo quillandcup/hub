@@ -47,7 +47,7 @@ const MAX_LIMIT = 200;
 const clampLimit = (limit?: number) => Math.min(MAX_LIMIT, Math.max(1, limit ?? DEFAULT_LIMIT));
 
 /**
- * The media library (docs/MEDIA_LIBRARY.md): uploaded images and what is known about them. Reads leave out
+ * The media library (docs/product/MEDIA_LIBRARY.md): uploaded images and what is known about them. Reads leave out
  * deleted assets (staff can still read them through `byId`, as RLS allows) and throw on a database error.
  * Which assets a caller can see at all is RLS: pass a user client for the caller's view, the service role
  * for the server's.

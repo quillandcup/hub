@@ -158,7 +158,7 @@ export const APP_URL = appConfig.appUrl.replace(/\/+$/, "");
 export const MFA_ISSUER: string = appConfig.mfaIssuer;
 
 /**
- * The User-Agent of every request this app makes to a server that is not ours (docs/OUTBOUND_REQUESTS.md).
+ * The User-Agent of every request this app makes to a server that is not ours (docs/infrastructure/OUTBOUND_REQUESTS.md).
  * RFC 9110 form: `product/version (comment)`. Wikimedia and others refuse requests with none, and ask for a
  * name and a way to reach us. Carries nothing about a member. The pieces come from config/app.ts and the
  * deployed commit (`deployment.commitSha`, not package.json's version), `dev` when there is none.
@@ -272,7 +272,7 @@ export function validateEnvironment() {
     throw new Error(
       `Missing required environment variables: ${missing.join(', ')}\n` +
       `Please check your .env.local file or Vercel environment settings.\n` +
-      `See docs/DEPLOYMENT_SETUP.md for setup instructions.`
+      `See docs/infrastructure/DEPLOYMENT_SETUP.md for setup instructions.`
     );
   }
 }

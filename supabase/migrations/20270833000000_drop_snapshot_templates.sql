@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Contract step of the template redesign (docs/LANDING_PAGES.md, "Templates"): templates are pages of kind `template`
+-- Contract step of the template redesign (docs/product/LANDING_PAGES.md, "Templates"): templates are pages of kind `template`
 -- (20270824), so the two snapshot-template tables from 20270821 are replaced. Nothing in the code reads or writes them any more
 -- (removed in this change and earlier: the repository, the actions and the screens moved to pages), and production held 0 rows in
 -- both when this was written. Their triggers and indexes go with them.

@@ -1,7 +1,7 @@
 import { PARTICIPATION_TYPES } from "@/lib/care-participation";
 
 /**
- * "Activity during this plan" on a Hedgie Care plan card (docs/HEDGIE_CARE.md): what one member did while a care plan was
+ * "Activity during this plan" on a Hedgie Care plan card (docs/product/HEDGIE_CARE.md): what one member did while a care plan was
  * running, read from their activity log (`member_activities`) and nothing else. One pure module, so the repository, the action,
  * the card and the tests share the vocabulary and the window.
  *

@@ -3,7 +3,7 @@
 -- nudge before. Commitments already say "I'll be at this slot", with the calendar and kept/missed
 -- tracking behind them, so the two overlapped with separate UX. A prickles-measure goal now counts
 -- every writing prickle attended, and nudges follow the member's calendar. Linking a goal to a
--- commitment instead is planned in docs/COMMITMENTS.md. No production goal had an anchor set.
+-- commitment instead is planned in docs/product/COMMITMENTS.md. No production goal had an anchor set.
 
 -- get_profile_writing returned the anchor columns; redefine it without them before dropping them.
 CREATE OR REPLACE FUNCTION public.get_profile_writing(p_member_id UUID)

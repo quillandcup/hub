@@ -15,7 +15,7 @@
 -- add one line to `reviewed_exceptions` below: the signature as printed here, a one-line reason, and who
 -- reviewed it in which PR. Prefer adding a check instead. The test also fails when an exception goes stale
 -- (the function is gone, no longer executable by a caller, or now has a recognized check), so the list stays
--- honest. See docs/RLS_SECURITY.md, "Security definer functions".
+-- honest. See docs/trust/RLS_SECURITY.md, "Security definer functions".
 --
 -- Deliberate reads of other members' data that DO pass the recognized-check test, so need no exception, but
 -- were reviewed on 2026-11-18: get_profile_writing (returns only items the member marked show_on_profile, for

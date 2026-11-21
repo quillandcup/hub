@@ -1,6 +1,6 @@
 /**
  * The narration for the two overview videos, one line per beat (what is on screen for each is in
- * docs/OVERVIEW_VIDEO_SCRIPT.md). The recording speaks these lines (voiceover.ts) and paces what happens on screen
+ * docs/decisions/OVERVIEW_VIDEO_SCRIPT.md). The recording speaks these lines (voiceover.ts) and paces what happens on screen
  * to them, so editing a line here and re-recording is the whole change. The same words are the captions.
  *
  * Written for two people at once: someone new, asking "what is this, and why would I join?", and a member who

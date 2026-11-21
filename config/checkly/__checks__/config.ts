@@ -15,7 +15,7 @@ if (!alertsEmail) throw new Error('ALERTS_EMAIL is not set -- see config/env-var
 export const alertEmail: string = alertsEmail
 
 /**
- * The Mux end-to-end check's test asset, in a separate Mux environment (docs/MUX_CONFIG.md).
+ * The Mux end-to-end check's test asset, in a separate Mux environment (docs/infrastructure/MUX_CONFIG.md).
  * Null until all three values are set, so the check is simply not declared before then.
  */
 const muxKeyId = process.env.MUX_CHECK_SIGNING_KEY_ID

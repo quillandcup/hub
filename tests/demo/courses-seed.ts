@@ -7,9 +7,9 @@ import { storeImage } from "@/lib/media/library";
 
 /**
  * The demo community's courses: three invented ones, so the Courses scene can look at every state a page has
- * (docs/DEMO_AND_HELP.md, "Page checks"). Written straight into the Silver course tables as Hub-owned rows
+ * (docs/product/DEMO_AND_HELP.md, "Page checks"). Written straight into the Silver course tables as Hub-owned rows
  * (`source = 'hub'`, source keys starting with "demo-"), which the Kajabi reprocess never touches; production builds
- * the same tables from Kajabi (docs/COURSES.md). Courses are open to every member.
+ * the same tables from Kajabi (docs/product/COURSES.md). Courses are open to every member.
  *
  *  - "Finish Your First Draft": the demo member's current course. Open lessons (one completed, one half watched),
  *    a lesson with a download, videos that are still being prepared and one that couldn't be, a week of lessons

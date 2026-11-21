@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Templates are pages of a special kind (docs/LANDING_PAGES.md, "Templates"): the same table, draft and published copy, versions and
+-- Templates are pages of a special kind (docs/product/LANDING_PAGES.md, "Templates"): the same table, draft and published copy, versions and
 -- History as a page, but never on the public site. `kind` says which; every reader of published pages filters on 'page'.
 -- Expand only: the default makes every existing row a page, and nothing reads a template until the code that makes one ships.
 ALTER TABLE public.landing_pages ADD COLUMN kind text NOT NULL DEFAULT 'page' CHECK (kind IN ('page', 'template'));

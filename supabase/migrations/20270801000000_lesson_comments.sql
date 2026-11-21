@@ -1,4 +1,4 @@
--- Lesson comments, phase 1 (docs/COURSES.md, "Lesson comments"): members with current access to a course ask
+-- Lesson comments, phase 1 (docs/product/COURSES.md, "Lesson comments"): members with current access to a course ask
 -- questions on its lessons, and staff answer where they are asked. A new table only, so nothing the code live in
 -- production uses changes (expand-only).
 --

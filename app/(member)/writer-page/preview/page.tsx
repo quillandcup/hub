@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Preview of your page", robots: { index: false, follow: false } };
 
 /**
- * "View as a visitor" (docs/WRITER_PROFILES.md): the member's own page as the public would see it, whether or not it is switched
+ * "View as a visitor" (docs/product/WRITER_PROFILES.md): the member's own page as the public would see it, whether or not it is switched
  * on, built by the same repository read the public route uses so what they see is what visitors get. For the effective
  * identity, so sudo previews the member's page. Member-only (the layout signs people in) and noindex.
  */

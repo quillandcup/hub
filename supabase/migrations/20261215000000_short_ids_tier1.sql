@@ -1,5 +1,5 @@
 -- Short ids, phase 1: the 17 Tier 1 tables get `<prefix>_<12 chars>` text ids (new_id,
--- 20261122000000) and every column that references them follows. See docs/SHORT_IDS_PLAN.md.
+-- 20261122000000) and every column that references them follows. See docs/decisions/SHORT_IDS_PLAN.md.
 --
 -- Shape: build an old-uuid -> new-id map, drop what blocks a type change (foreign keys on the
 -- converted columns, all policies in public, bronze and storage), retype the columns to text and rewrite

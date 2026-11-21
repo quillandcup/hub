@@ -7,7 +7,7 @@ import { DISPOSABLE_EMAIL_MESSAGE, isDisposableEmail } from "@/lib/disposable-em
 import { clientIpFrom, hitRateLimits } from "@/lib/rate-limit";
 
 /**
- * The relay for a landing page's opt-in form (docs/LANDING_PAGES.md, "Opt-in forms"). The page's block names a form
+ * The relay for a landing page's opt-in form (docs/product/LANDING_PAGES.md, "Opt-in forms"). The page's block names a form
  * and the request carries only the page address and the visitor's fields; the server looks the form up in the
  * published page, so this cannot be used to post to a form the page does not show. Nothing is stored here, and
  * neither the name nor the email reaches a log, an analytics event or Sentry. Public: no sign-in.

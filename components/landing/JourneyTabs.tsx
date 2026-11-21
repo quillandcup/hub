@@ -10,7 +10,7 @@ const subscribe = () => () => {};
 const PANEL = "border-2 border-l-8 border-accent bg-card p-5 text-ink @split:p-6";
 
 /**
- * The Journey map's stepper and the panel under it (docs/LANDING_PAGES.md, "Homepage blocks"). The server renders every
+ * The Journey map's stepper and the panel under it (docs/product/LANDING_PAGES.md, "Homepage blocks"). The server renders every
  * stage's panel, so crawlers and visitors without JavaScript read all of them: before the browser has hydrated (and
  * forever without JavaScript) the stepper is the plain list it always was, the `initial` stage marked, and each panel
  * shows under its stage's name. Once hydrated it becomes a tab list (real buttons, `tablist` / `tab` / `tabpanel`, roving

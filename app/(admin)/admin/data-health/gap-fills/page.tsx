@@ -36,7 +36,7 @@ interface GapFillRow {
 }
 
 /**
- * Every time the chat fetched something from Slack because it was missing (docs/SLACK_BRIDGED_CHAT.md,
+ * Every time the chat fetched something from Slack because it was missing (docs/product/SLACK_BRIDGED_CHAT.md,
  * "Gap-fill"). A fill that recovers a lot means the webhook was down or dropping events, which
  * Checkly can't see; a run of errors usually means the bot isn't in the conversation.
  */

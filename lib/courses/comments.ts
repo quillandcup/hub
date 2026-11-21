@@ -4,7 +4,7 @@ import type { CoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import type { Repos } from "@/lib/data/repos";
 
-/** Rules for lesson comments (docs/COURSES.md, "Lesson comments"). The server actions and the thread's composer share them. */
+/** Rules for lesson comments (docs/product/COURSES.md, "Lesson comments"). The server actions and the thread's composer share them. */
 
 export const COMMENT_MAX_LENGTH = 4000;
 /** A comment can be edited this long after it is posted. */

@@ -7,7 +7,7 @@ import { sitemapIds, writerSitemapEntries } from "@/lib/writer-sitemap";
 export const dynamic = "force-dynamic";
 
 /**
- * One sitemap per `sitemapPageSize` public pages, at /w/sitemap/<n>.xml (docs/WRITER_PROFILES.md). Next also calls this while
+ * One sitemap per `sitemapPageSize` public pages, at /w/sitemap/<n>.xml (docs/product/WRITER_PROFILES.md). Next also calls this while
  * building, where the database may not be reachable: the first sitemap exists whatever the count, so an unreadable count
  * gives that one (as robots.txt does) and never fails the build.
  */

@@ -1,5 +1,5 @@
 -- Course images (a course's cover, module posters, lesson thumbnails), copied from Kajabi into the Hub so
--- they survive leaving Kajabi (docs/COURSES.md, step D, images). Private bucket, deliberately no
+-- they survive leaving Kajabi (docs/product/COURSES.md, step D, images). Private bucket, deliberately no
 -- storage.objects policies: members never read it directly; /api/courses/image/<kind>/<id> checks the
 -- caller and streams the object.
 INSERT INTO storage.buckets (id, name, public, file_size_limit)

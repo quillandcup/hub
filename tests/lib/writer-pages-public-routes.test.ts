@@ -1,7 +1,7 @@
 /**
  * Who may open what without signing in. A writer's page (/w/<handle>), its sitemaps and robots.txt are public, like /p/<slug>:
  * the route itself decides what to show. The preview of a page that is off, and settings, are not: a signed-out visitor is sent
- * to sign in. (lib/supabase/middleware.ts, docs/WRITER_PROFILES.md)
+ * to sign in. (lib/supabase/middleware.ts, docs/product/WRITER_PROFILES.md)
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";

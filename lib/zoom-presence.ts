@@ -111,7 +111,7 @@ export function pairIntervals(
 
 /**
  * The attendance rule for a short stay next to a long one (app/api/process/attendance/route.ts,
- * docs/ATTENDANCE_RULES.md): a stay of less than this in a prickle does not count when the stay
+ * docs/product/ATTENDANCE_RULES.md): a stay of less than this in a prickle does not count when the stay
  * in the neighbouring prickle was at least this long. It is the tail of the previous prickle or
  * the early arrival for the next, not attendance. A short stay with no longer neighbour counts.
  */

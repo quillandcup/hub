@@ -6,11 +6,11 @@ import { asJson } from "./json";
 import { must } from "./query";
 
 export type LandingPage = Row<"landing_pages">;
-/** A page is public once published; a template is a page kept to start others from and is never public (docs/LANDING_PAGES.md, "Templates"). */
+/** A page is public once published; a template is a page kept to start others from and is never public (docs/product/LANDING_PAGES.md, "Templates"). */
 export type LandingPageKind = "page" | "template";
 /**
  * Website pages are the interconnected pages of the site (Home, ...) that share one header, footer and style; landing pages are
- * standalone and styled on their own (docs/LANDING_PAGES.md, "Website and landing pages"). Chosen when the page is made, never
+ * standalone and styled on their own (docs/product/LANDING_PAGES.md, "Website and landing pages"). Chosen when the page is made, never
  * changed afterwards, and not related to `kind`.
  */
 export type LandingPageType = "website" | "landing";
@@ -60,7 +60,7 @@ const SUMMARY_COLUMNS =
 const VERSION_COLUMNS = "id, page_id, title, kind, note, published_by, created_at";
 
 /**
- * Landing pages from the page builder (docs/LANDING_PAGES.md): a draft the editor autosaves, a published copy the
+ * Landing pages from the page builder (docs/product/LANDING_PAGES.md): a draft the editor autosaves, a published copy the
  * public route renders, and a version kept at each publish. Admin only under row-level security, so use the signed-in
  * admin's repositories for the editor. The one signed-out read, `published`, is for the public route and must run with
  * the service role (`getServiceRepos()`): it returns only a page that is published and not deleted.
@@ -80,7 +80,7 @@ export interface LandingPageRepository {
   bySlug(slug: string): Promise<LandingPage | null>;
   /** What the public page renders: the published PAGE with this address, or null for a draft, a deleted page, a template or no page. */
   published(slug: string): Promise<PublishedLandingPage | null>;
-  /** The live page made by an import with this key (docs/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
+  /** The live page made by an import with this key (docs/product/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
   byImportKey(importKey: string): Promise<LandingPage | null>;
   /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. Throws `LandingPageSlugTakenError`. */
   create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage>;

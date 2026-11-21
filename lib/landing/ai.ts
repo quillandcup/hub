@@ -9,7 +9,7 @@ import { PROMPT_MAX } from "./ai-limits";
 import { sanitizeLandingData } from "./sanitize";
 
 /**
- * "Build with AI" (docs/LANDING_PAGES.md): an admin describes a page and gets a draft. The model's answer is never
+ * "Build with AI" (docs/product/LANDING_PAGES.md): an admin describes a page and gets a draft. The model's answer is never
  * trusted: it is reduced to the blocks and props the builder has, every value is checked against the block's own
  * defaults and option lists, and the result goes through `sanitizeLandingData` like anything an admin types. It is saved
  * as a draft, never published, so an admin always reads it first.

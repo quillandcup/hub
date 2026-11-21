@@ -20,7 +20,7 @@ import type { Page } from "playwright/test";
  * same reason (`tallViewportHeight`): Playwright's own fullPage only knows the window.
  *
  * A finding has a stable `key` (what and where, no pixel values) so the known ones can be listed in
- * tests/demo/baseline.json and only NEW ones fail a run. See docs/DEMO_AND_HELP.md.
+ * tests/demo/baseline.json and only NEW ones fail a run. See docs/product/DEMO_AND_HELP.md.
  */
 export const EDGE_MARGIN = 8;
 

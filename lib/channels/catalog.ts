@@ -7,7 +7,7 @@
  * - Notifications (lib/notifications/): the app reaching out, governed by the member's
  *   per-kind settings. Some ask for an answer (prickle check-ins), but the app starts them.
  * - Messaging (planned; docs/TODO.md -> Notifications): two-way conversations, e.g. in-app chat
- *   bridged to Slack (docs/SLACK_BRIDGED_CHAT.md).
+ *   bridged to Slack (docs/product/SLACK_BRIDGED_CHAT.md).
  * Neither layer talks to a provider directly; a new channel added here serves both.
  */
 export const CHANNELS = [

@@ -1,5 +1,5 @@
 -- Course images (a course's cover and banner, a module's poster, a lesson's thumbnail) move into the media library
--- (docs/MEDIA_LIBRARY.md). Each gets an asset id beside its old copy in the course-images bucket (`*_path`); the
+-- (docs/product/MEDIA_LIBRARY.md). Each gets an asset id beside its old copy in the course-images bucket (`*_path`); the
 -- copy step (lib/courses/images.ts) fills it, moving an existing copy over without asking Kajabi again, and pages
 -- use the asset when there is one. `*_source` (the Kajabi URL, minus its query string, the image came from) stays:
 -- it is how the step knows an image hasn't changed. The old `*_path` columns and the bucket go in a later

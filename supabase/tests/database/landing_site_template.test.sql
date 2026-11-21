@@ -1,4 +1,4 @@
--- pgTAP tests for 20270862 (docs/LANDING_PAGES.md, "Site template"): the one-row table holding the header and footer that website
+-- pgTAP tests for 20270862 (docs/product/LANDING_PAGES.md, "Site template"): the one-row table holding the header and footer that website
 -- pages share. Admin only (no anon, no member), a single row, autosaving the draft writes no audit entry, publishing writes one
 -- without either document. Runs in one transaction that is rolled back. Run with `pnpm test:pgtap`.
 BEGIN;

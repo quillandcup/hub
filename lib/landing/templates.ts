@@ -1,5 +1,5 @@
 /**
- * Page-builder templates (docs/LANDING_PAGES.md, "Templates"): a template is a landing page of kind `template`, so this is only
+ * Page-builder templates (docs/product/LANDING_PAGES.md, "Templates"): a template is a landing page of kind `template`, so this is only
  * what is specific to naming one. Pure: no database, no React.
  */
 

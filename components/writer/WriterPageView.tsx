@@ -5,7 +5,7 @@ import { SITE_URL } from "@/lib/config";
 import { jsonLdScript, writerPageJsonLd } from "@/lib/writer-page-seo";
 
 /**
- * A writer's public page (docs/WRITER_PROFILES.md): the name, and the photo, bio and social links they opened to the internet. Made only
+ * A writer's public page (docs/product/WRITER_PROFILES.md): the name, and the photo, bio and social links they opened to the internet. Made only
  * from `PublicWriterProfile`, which holds nothing else, so no other field can end up here. The bio is plain text (React
  * escapes it; line breaks are kept by the style). `banner` is the member-only preview's note above the page.
  */

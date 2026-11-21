@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Landing pages built in the Hub's page builder (docs/LANDING_PAGES.md). A page is Puck JSON ({content, root}).
+-- Landing pages built in the Hub's page builder (docs/product/LANDING_PAGES.md). A page is Puck JSON ({content, root}).
 -- The draft is what the editor autosaves; publishing copies it to `published_data`, which is all the public
 -- page ever renders, so an edit never goes live by accident.
 --

@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Pages imported from a Kajabi page export (docs/LANDING_PAGES.md, "Importing from Kajabi"). `import_key` is the
+-- Pages imported from a Kajabi page export (docs/product/LANDING_PAGES.md, "Importing from Kajabi"). `import_key` is the
 -- page's identity inside the export (it has no page id or title, so it is made from ids the export does carry),
 -- so importing the same page again finds it and replaces only its draft. `imported_at` is set on every import,
 -- which makes each one a single audit entry (the draft itself is not audited, like autosave). Null for a page built

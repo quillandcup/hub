@@ -257,7 +257,7 @@ export interface ChatRepository {
   /**
    * Whether this Slack DM is tracked in a Hedgie Care plan of its member, open or past: a live tracked DM for its Slack
    * conversation, whose member has a care plan (tracking exists only because a plan does, so a hand-over leaves the earlier owner's DM in it). The team can read the
-   * messages sent in a plan (docs/HEDGIE_CARE.md), and Hub Chat says so at the top of the conversation. False for a channel, a
+   * messages sent in a plan (docs/product/HEDGIE_CARE.md), and Hub Chat says so at the top of the conversation. False for a channel, a
    * group message, and a conversation the caller cannot see.
    */
   dmInCarePlan(channelId: string): Promise<boolean>;

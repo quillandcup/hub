@@ -1,4 +1,4 @@
--- The media library (docs/MEDIA_LIBRARY.md): one row per uploaded image, the original kept untouched in
+-- The media library (docs/product/MEDIA_LIBRARY.md): one row per uploaded image, the original kept untouched in
 -- the private `media` bucket. Pages ask for an asset plus a named preset (lib/media/presets.ts); the sized
 -- copies ("renditions") are made from the original on first request and cached under `renditions/`.
 -- Foreign keys from the places that show an image (events, book covers, course images) arrive with the

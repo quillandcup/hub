@@ -45,7 +45,7 @@ export function webNote(item: ProfileItem, visibility: Visibility, page: WebPage
 }
 
 /**
- * The lock, house or globe on one item of the profile (docs/WRITER_PROFILES.md, "Who sees what"), with the note that says
+ * The lock, house or globe on one item of the profile (docs/product/WRITER_PROFILES.md, "Who sees what"), with the note that says
  * what the globe does right now. One click cycles the levels the item can have; the caller saves the level. The globe is
  * offered only on items the writer page shows, and only where pages on the web are open to the member.
  */

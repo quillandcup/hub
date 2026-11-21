@@ -1,6 +1,6 @@
 -- Kajabi's "Product Progress" report (the admin's per-product Export CSV), imported by an admin at
 -- /admin/data/import. One row per (Kajabi course, student email): how much of the whole product the
--- student has completed, not per lesson. See docs/COURSES.md, "Importing Kajabi per-lesson progress".
+-- student has completed, not per lesson. See docs/product/COURSES.md, "Importing Kajabi per-lesson progress".
 --
 -- No name column on purpose: the report has one, but matching is by email only and the admin who
 -- uploads a file already has it, so an unmatched row is shown back to them by email from the upload

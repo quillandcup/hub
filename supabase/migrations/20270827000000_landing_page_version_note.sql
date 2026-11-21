@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- Who made a version and why (docs/LANDING_PAGES.md, "Versions"): `published_by` already says who; `note` says what changed. It is typed
+-- Who made a version and why (docs/product/LANDING_PAGES.md, "Versions"): `published_by` already says who; `note` says what changed. It is typed
 -- by the admin at publish ("What changed?"), or written by the app for a version it keeps before replacing a draft (naming what
 -- replaced it: a starter or template name, "JSON import", "Kajabi import"). The note lives on the version only: it is never in the
 -- Activity Log or the audit rows (the intent is logged, the note stays with the record). Expand only.

@@ -21,7 +21,7 @@ export interface SendEmailParams {
   headers?: Record<string, string>;
   /**
    * Resend tags, echoed on every webhook event for the email, which is how the timeline knows what an event was
-   * about (docs/EMAIL_TIMELINE.md): `kind` (the notification kind) and `member` (the member id). Resend allows
+   * about (docs/architecture/EMAIL_TIMELINE.md): `kind` (the notification kind) and `member` (the member id). Resend allows
    * only letters, digits, `_` and `-` in a name or value; anything else is replaced with `_`.
    */
   tags?: Record<string, string>;

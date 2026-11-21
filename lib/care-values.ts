@@ -1,5 +1,5 @@
 /**
- * Hedgie Care's value sets (docs/HEDGIE_CARE.md): the reasons and endings a care plan can have, their labels and
+ * Hedgie Care's value sets (docs/product/HEDGIE_CARE.md): the reasons and endings a care plan can have, their labels and
  * the guards for them. No imports, so the repository, the tracking plan and the page can all take them without pulling in
  * the config or the date helpers. The same lists are the `CHECK` constraints of `care_engagements` (the migration): change
  * them in both places.

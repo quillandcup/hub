@@ -1,5 +1,5 @@
 -- Commitments can cover several recurring slots ("M/W/F 5am for 4 weeks"), so a commitment's
--- slot moves into a child table. See docs/COMMITMENTS.md.
+-- slot moves into a child table. See docs/product/COMMITMENTS.md.
 --
 --   prickle_commitments        member + window (start_date, weeks, end_date) + status
 --   prickle_commitment_slots   1..n slots per commitment: type + day_of_week +
@@ -43,7 +43,7 @@ CREATE INDEX idx_prickle_commitment_slots_slot
 COMMENT ON TABLE prickle_commitment_slots IS
   'LOCAL: the recurring slots (type + weekday + local time + timezone) one prickle_commitments row
    covers. A member can''t hold the same slot in two active commitments with overlapping windows
-   (enforce_prickle_commitment_slot_overlap). See docs/COMMITMENTS.md.';
+   (enforce_prickle_commitment_slot_overlap). See docs/product/COMMITMENTS.md.';
 
 ------------------------------------------------------------------------------------------------
 -- 2. Migrate existing single-slot rows, then drop the inline slot columns
@@ -64,7 +64,7 @@ ALTER TABLE prickle_commitments
 COMMENT ON TABLE prickle_commitments IS
   'LOCAL: a member''s commitment to attend one or more recurring prickle slots
    (prickle_commitment_slots) for N weeks. Informational only; progress is computed on read from
-   prickles + prickle_attendance (lib/commitments.ts). See docs/COMMITMENTS.md.';
+   prickles + prickle_attendance (lib/commitments.ts). See docs/product/COMMITMENTS.md.';
 
 ------------------------------------------------------------------------------------------------
 -- 3. Overlap rule (replaces uq_prickle_commitments_active_slot)

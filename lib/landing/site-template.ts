@@ -2,7 +2,7 @@ import { safeHref } from "./data";
 import { normalizeStyle, STYLE_DEFAULTS, type StyleTokens } from "./style";
 
 /**
- * The site template (docs/LANDING_PAGES.md, "Site template"): the header and footer every website page shares. Pure helpers,
+ * The site template (docs/product/LANDING_PAGES.md, "Site template"): the header and footer every website page shares. Pure helpers,
  * safe in the browser and on the server. The stored JSON is untrusted (a row written by hand, an older shape), so every reader
  * goes through `normalizeSiteTemplate`, which keeps only known keys, clamps every choice to its list, caps every string and
  * cleans every link. Pictures are media library ids (`logoAssetId`), collected on publish like a page's.

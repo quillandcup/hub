@@ -10,7 +10,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 export const maxDuration = 300;
 
 /**
- * The weekly "What's new" digest (lib/changelog/digest.ts, docs/CHANGELOG_PROCESS.md): members get the changelog entries
+ * The weekly "What's new" digest (lib/changelog/digest.ts, docs/runbooks/CHANGELOG_PROCESS.md): members get the changelog entries
  * they haven't been sent on the channels they chose, and the new entries are posted to the announcements channel.
  *
  * Scheduled weekly (Tuesday 14:00 UTC) via Vercel Cron (GET); an admin can run it by opening the URL. Idempotent: each entry

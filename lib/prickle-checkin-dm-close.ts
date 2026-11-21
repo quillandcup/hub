@@ -17,7 +17,7 @@ import { closedDmBlocks } from "@/lib/prickle-checkin-dms";
  * palette's "mark as done") closes its Slack DM the way a Submit in Slack does: the message collapses to
  * the closed note, and for a member who connected Slack with the direct message scopes it is also
  * marked read as them, so Slack's unread badge goes. Slack's own Submit / Skip already collapse the
- * message, so they don't come here. docs/SLACK_BRIDGED_CHAT.md, "Read state shared with Slack".
+ * message, so they don't come here. docs/product/SLACK_BRIDGED_CHAT.md, "Read state shared with Slack".
  *
  * Only a DM sent since the message's timestamp was kept (its log row has one) can be found; older ones
  * are left alone (prickle-checkin-dm-cleanup.ts closed those by reading history). Service role.

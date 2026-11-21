@@ -25,7 +25,7 @@ export interface NameAliasRow {
   source: string;
   active: boolean;
   createdAt: string | null;
-  /** Allowed on the member's public writer page as a pen name (docs/WRITER_PROFILES.md). */
+  /** Allowed on the member's public writer page as a pen name (docs/product/WRITER_PROFILES.md). */
   isPublic: boolean;
 }
 
@@ -264,7 +264,7 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
 }
 
 /**
- * Allows one of the member's own names on their public writer page as a pen name (docs/WRITER_PROFILES.md), or stops
+ * Allows one of the member's own names on their public writer page as a pen name (docs/product/WRITER_PROFILES.md), or stops
  * allowing it. Only a name they added themselves can be shown: a name matched from Zoom or Slack never is. Turning it off
  * also takes it off the page if the page was using it.
  */

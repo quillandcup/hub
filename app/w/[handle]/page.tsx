@@ -11,7 +11,7 @@ import { isHandleShaped, normalizeHandle, writerPagePath } from "@/lib/writer-pr
 type Params = { params: Promise<{ handle: string }> };
 
 /**
- * A writer's public page, for anyone: no sign-in (docs/WRITER_PROFILES.md). The one read runs with the service role and
+ * A writer's public page, for anyone: no sign-in (docs/product/WRITER_PROFILES.md). The one read runs with the service role and
  * returns only what the page's own switches allow, so a page that is off, deleted or never existed is the same 404: nothing
  * says a hidden page exists. A handle the member gave up redirects to the one they use now. An address that cannot be a
  * handle at all is not looked up. A page whose owner does not have the `writer_pages` flag is not served either: the same 404,

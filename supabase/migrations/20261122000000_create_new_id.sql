@@ -1,5 +1,5 @@
 -- new_id(prefix): short prefixed random ids such as mbr_7Kx2mQ9dFh3N, the column default that
--- replaces gen_random_uuid() as tables move off uuid ids (docs/SHORT_IDS_PLAN.md).
+-- replaces gen_random_uuid() as tables move off uuid ids (docs/decisions/SHORT_IDS_PLAN.md).
 --
 -- 12 base58 characters (about 70 bits). Entropy comes from gen_random_uuid(), which is built
 -- in (no pgcrypto, no search_path to a schema that differs between local and hosted). Bytes 6
@@ -37,4 +37,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.new_id(text) IS
-  'Random short id "<prefix>_<12 base58 chars>", the default for text primary keys. See docs/SHORT_IDS_PLAN.md.';
+  'Random short id "<prefix>_<12 base58 chars>", the default for text primary keys. See docs/decisions/SHORT_IDS_PLAN.md.';

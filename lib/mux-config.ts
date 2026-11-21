@@ -1,6 +1,6 @@
 // Pure logic behind `pnpm mux:config:diff` / `:push` (scripts/mux-config.ts): turn the committed
 // config/mux.yml into the desired state, and compare it with what Mux reports. No network and no
-// secrets here, so it is unit-tested (tests/lib/mux-config.test.ts). See docs/MUX_CONFIG.md.
+// secrets here, so it is unit-tested (tests/lib/mux-config.test.ts). See docs/infrastructure/MUX_CONFIG.md.
 
 export const MAX_ALLOWED_DOMAINS = 10;
 

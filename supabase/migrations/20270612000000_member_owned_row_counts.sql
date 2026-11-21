@@ -1,6 +1,6 @@
 set lock_timeout = '5s';
 
--- What a member owns, for the merge dialog (docs/MEMBER_MERGE.md): the number of rows in every public table with a
+-- What a member owns, for the merge dialog (docs/product/MEMBER_MERGE.md): the number of rows in every public table with a
 -- foreign key to members, per table and column. A merge deletes the duplicate and nearly every such table cascades,
 -- so an admin sees here what would go. The tables are found in pg_constraint, so a new table is counted without a
 -- change here. Only single-column foreign keys to members.id are followed; member_directory is a view (not a table

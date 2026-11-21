@@ -1,4 +1,4 @@
-// The daily health check for the nonce-based Content-Security-Policy (app/api/internal/csp-health, docs/CSP_ALERTS.md).
+// The daily health check for the nonce-based Content-Security-Policy (app/api/internal/csp-health, docs/infrastructure/CSP_ALERTS.md).
 // A strict policy can fail quietly: a browser that ignores nonces never runs our scripts, and one that ignores
 // 'strict-dynamic' blocks the Google tag the page injects. Three checks over the access log say so within a day.
 // Everything here is pure: the route loads the activity rows and sends the result to Sentry, so the checks are

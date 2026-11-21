@@ -9,7 +9,7 @@ import { MFA_ISSUER } from "@/lib/config";
 import { MFA_CODE_LENGTH, cleanMfaCode } from "@/lib/mfa-code";
 
 /**
- * Two-step sign-in: the account's authenticator app (a TOTP factor), set up and removed here (docs/STAFF_MFA.md). It is in
+ * Two-step sign-in: the account's authenticator app (a TOTP factor), set up and removed here (docs/trust/STAFF_MFA.md). It is in
  * Settings for every member and is the page staff are sent to when it is required (/mfa). Supabase Auth's MFA calls need the
  * signed-in browser session, so they are made from the browser client; setting it up leaves the session at the second level
  * (aal2) and the browser client stores the new token itself.

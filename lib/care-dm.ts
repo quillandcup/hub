@@ -1,5 +1,5 @@
 /**
- * Hedgie Care and Slack DMs (docs/HEDGIE_CARE.md, "Slack DMs fill it in"): which 1:1 DM a staff member has with a member who
+ * Hedgie Care and Slack DMs (docs/product/HEDGIE_CARE.md, "Slack DMs fill it in"): which 1:1 DM a staff member has with a member who
  * is theirs to care for, which of those are tracked (every one whose staff member holds a care plan with the member: there is
  * no choice to make), and what the tracked ones say about who spoke last in an engagement.
  *
@@ -162,7 +162,7 @@ async function trackOwnersDms(deps: ProjectionDeps, scope: ProjectionScope, trac
 /**
  * Sets `last_staff_message_at` / `last_member_message_at` on OPEN care plans from the DM their owner has with the member.
  *
- * The rule (docs/HEDGIE_CARE.md): a care plan belongs to the member, not to a channel, so for an open plan owned by the staff
+ * The rule (docs/product/HEDGIE_CARE.md): a care plan belongs to the member, not to a channel, so for an open plan owned by the staff
  * user who tracks the DM with that member (`owned_by`; a plan with no owner reads no one's DM), the staff side is the latest message the staff
  * user's Slack account wrote in that DM and the member side the latest the member's wrote; thread replies and file shares count,
  * deleted messages and Slack's join and leave notices do not, anyone else in the conversation is ignored. Only a message on or

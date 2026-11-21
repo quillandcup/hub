@@ -7,7 +7,7 @@ import { outboundFetch } from "@/lib/http/outbound";
 type MediaPlanRepos = Pick<Repos, "courses" | "kajabiCourses">;
 
 /**
- * Course videos -> Mux (docs/COURSES.md, step D). Takes the video source the Kajabi content step
+ * Course videos -> Mux (docs/product/COURSES.md, step D). Takes the video source the Kajabi content step
  * recorded on each Bronze lesson (Kajabi's media id and a presigned download link that expires),
  * has Mux fetch it straight from that link, and records the result as a Local `videos` row.
  * Step C then links each lesson to its video.
@@ -29,7 +29,7 @@ export interface CourseMuxApi {
   getAsset(assetId: string): Promise<MuxAssetStatus>;
 }
 
-/** Lessons use Mux's `plus` tier: slides with small text are what `basic` softens (docs/COURSES.md). */
+/** Lessons use Mux's `plus` tier: slides with small text are what `basic` softens (docs/product/COURSES.md). */
 export const COURSE_VIDEO_QUALITY: MuxVideoQuality = "plus";
 
 /** A link needs at least this long left to be worth handing to Mux. */

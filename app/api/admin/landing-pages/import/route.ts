@@ -8,7 +8,7 @@ import { ZIP_LIMITS } from "@/lib/landing/kajabi-zip";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
- * "Import from Kajabi" (docs/LANDING_PAGES.md): an admin uploads a Kajabi page export (zip) and gets a draft page.
+ * "Import from Kajabi" (docs/product/LANDING_PAGES.md): an admin uploads a Kajabi page export (zip) and gets a draft page.
  * Multipart form data: `file` (the zip, at most ZIP_LIMITS.archiveBytes), `title` (the export has none), and `confirm`
  * ("true") to replace a draft that holds changes the import would lose. A route and not a server action because the
  * upload outgrows an action's default body limit; the admin check is the same one actions use. The archive is read in

@@ -12,7 +12,7 @@ import LandingEditor from "./LandingEditor";
 
 export const metadata: Metadata = { title: "Edit page · Pages" };
 
-/** The editor. Addressed by the page's slug, not its id: an admin URL counts as exposed, and page ids never are (docs/SHORT_IDS_PLAN.md, Tier 2). */
+/** The editor. Addressed by the page's slug, not its id: an admin URL counts as exposed, and page ids never are (docs/decisions/SHORT_IDS_PLAN.md, Tier 2). */
 export default async function EditLandingPage({ params }: { params: Promise<{ slug: string }> }) {
   await requireAdminPage();
   const { slug } = await params;

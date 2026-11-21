@@ -4,7 +4,7 @@ import type { InMemoryDataset } from "./in-memory";
 import { inChunks, must } from "./query";
 
 /**
- * The preview cards of the links in Hub-written chat messages (`chat_link_previews`; docs/SLACK_BRIDGED_CHAT.md, "Link previews").
+ * The preview cards of the links in Hub-written chat messages (`chat_link_previews`; docs/product/SLACK_BRIDGED_CHAT.md, "Link previews").
  * Reads run as the caller, so row-level security shows a preview only where the message's text is readable (a restricted
  * conversation or a deleted message show nothing). The cards an author removed from a message (`chat_hidden_unfurls`) are on this repository too. Writes need the service role: the server fetches
  * the page after the message is sent, never the reader. Throws on a database error.

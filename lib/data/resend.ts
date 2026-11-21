@@ -17,7 +17,7 @@ const EVENT_COLUMNS = "id, event_id, event_type, email_id, occurred_at, recipien
 
 /**
  * The email events Resend reports (sent, delivered, opened, clicked, bounced, ...), append-only
- * (`bronze.resend_events`; docs/EMAIL_TIMELINE.md). Service role only: the table holds recipients' addresses
+ * (`bronze.resend_events`; docs/architecture/EMAIL_TIMELINE.md). Service role only: the table holds recipients' addresses
  * and subjects and grants nothing to signed-in users. Methods throw `new Error(<database message>)` on a
  * database error.
  */

@@ -14,7 +14,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const FLUSH_TIMEOUT_MS = 5000;
 
 /**
- * The daily Content-Security-Policy health check (lib/csp-health.ts, docs/CSP_ALERTS.md): over the last 24 hours, are
+ * The daily Content-Security-Policy health check (lib/csp-health.ts, docs/infrastructure/CSP_ALERTS.md): over the last 24 hours, are
  * there members who load pages but never run our scripts, members who lost the Google cookie they used to have, or
  * browsers too old for nonces plus 'strict-dynamic'? Quiet when all is well; otherwise one Sentry event per failing
  * check (level error, tag csp_health_check=<check>, a fixed fingerprint so a lasting condition stays one issue), with counts

@@ -16,7 +16,7 @@ const LIMIT = { windowSeconds: 10 * 60, maxHits: 600 };
 const NO_STORE = { "Cache-Control": "private, no-store" };
 
 /**
- * What the card for a link to the Hub shows the signed-in viewer (`?url=<the address as written>`; docs/SLACK_BRIDGED_CHAT.md, "Hub links").
+ * What the card for a link to the Hub shows the signed-in viewer (`?url=<the address as written>`; docs/product/SLACK_BRIDGED_CHAT.md, "Hub links").
  * Every read is made as the viewer, so row-level security applies the rule of the page the link goes to: a quoted message is read only by
  * someone who can read it, and what they may not see is the same `stub` as a message that is not there. Behind the viewer's own
  * `chat_link_cards` flag (404 without it, as if there were no such route). An address that is not one of the Hub's card links is a 404 too.

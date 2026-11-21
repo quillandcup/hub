@@ -1,4 +1,4 @@
--- Screenshots for the member help articles (help/*.md), captured by the demo scenes (docs/DEMO_AND_HELP.md).
+-- Screenshots for the member help articles (help/*.md), captured by the demo scenes (docs/product/DEMO_AND_HELP.md).
 -- Private, and deliberately no storage.objects policies: members never read this bucket directly.
 -- /help/images/<scene>/<file> checks the visitor is signed in, then streams the file with the service role.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

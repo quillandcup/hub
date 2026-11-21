@@ -16,7 +16,7 @@ import {
 type MemberCourseRepos = Pick<Repos, "courseProgress" | "courses">;
 
 /**
- * What the member course pages read (docs/COURSES.md, "Member experience").
+ * What the member course pages read (docs/product/COURSES.md, "Member experience").
  *
  * These take a service-role client on purpose: row-level security answers "does the *signed-in
  * user* have access", but sudo means the page acts for another member, and a member whose access

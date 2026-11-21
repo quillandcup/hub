@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * What crawlers may fetch. The Hub's own pages need a sign-in, so there is nothing for them to read; the pages that are
- * public (landing pages, writers' pages) are open, and the writers' sitemaps are listed (docs/WRITER_PROFILES.md).
+ * public (landing pages, writers' pages) are open, and the writers' sitemaps are listed (docs/product/WRITER_PROFILES.md).
  * If the count cannot be read, the first sitemap is still listed: it exists whatever the count.
  */
 export default async function robots(): Promise<MetadataRoute.Robots> {

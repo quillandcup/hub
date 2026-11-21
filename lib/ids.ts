@@ -1,5 +1,5 @@
 // Ids look like `mbr_7Kx2mQ9dFh3N`: a table prefix, an underscore and 12 base58 characters, made by
-// the database (`new_id`, docs/SHORT_IDS_PLAN.md). Use this to check an id that arrives from a URL,
+// the database (`new_id`, docs/decisions/SHORT_IDS_PLAN.md). Use this to check an id that arrives from a URL,
 // query string or form before it reaches a query. Auth user ids stay uuids and are not checked here.
 
 /** The prefixes of the Tier 1 tables (ids a person can see). */

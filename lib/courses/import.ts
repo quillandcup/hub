@@ -5,7 +5,7 @@ import { asJson } from "@/lib/data/json";
 import type { Repos } from "@/lib/data/repos";
 
 /**
- * Kajabi courses -> Bronze (docs/COURSES.md, step A of the migration).
+ * Kajabi courses -> Bronze (docs/product/COURSES.md, step A of the migration).
  *
  * Structure only: courses, modules, lessons and the offers that grant each course, from Kajabi's
  * public API. Lesson text, downloads and video sources come from the content script (step B)

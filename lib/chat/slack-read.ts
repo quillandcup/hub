@@ -6,7 +6,7 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { resolveChatNotifications } from "@/lib/chat/notifications";
 
 /**
- * Read state shared with Slack (docs/SLACK_BRIDGED_CHAT.md, "Read state shared with Slack"). Only a
+ * Read state shared with Slack (docs/product/SLACK_BRIDGED_CHAT.md, "Read state shared with Slack"). Only a
  * member's own Slack token can read or set their read marker, so this is for members who connected
  * Slack; everyone else keeps a Hub-only marker. Service role.
  */

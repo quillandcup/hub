@@ -1,5 +1,5 @@
 /**
- * Spacing and width for the page builder (docs/LANDING_PAGES.md, "Spacing and width"). Pure helpers, safe in the
+ * Spacing and width for the page builder (docs/product/LANDING_PAGES.md, "Spacing and width"). Pure helpers, safe in the
  * browser and on the server: they turn whatever is stored (missing, half-typed, out of range) into numbers the blocks
  * can use, so a bad value can never reach a style.
  *

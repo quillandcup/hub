@@ -61,4 +61,4 @@ Ask it for: her overall impression in her voice; a verdict per item (Love / Fine
 
 ## See also
 
-`.claude/rules/changelog-writing.md` (how entries are written) and `docs/CHANGELOG_PROCESS.md`.
+`.claude/rules/changelog-writing.md` (how entries are written) and `docs/runbooks/CHANGELOG_PROCESS.md`.
