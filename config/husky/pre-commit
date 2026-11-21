@@ -1,5 +1,8 @@
+#!/usr/bin/env sh
 # Pre-commit hook: refresh markdown tables of contents, then run the production build
 # This catches TypeScript errors before committing
+# Git runs this file itself (core.hooksPath is config/husky, set by `pnpm install`), from the worktree root.
+export PATH="node_modules/.bin:$PATH"
 
 # Staged .md files that carry doctoc's START/END markers get their table of contents regenerated
 # (pnpm docs:toc); files without the markers are left alone. To add one to a doc, put the two

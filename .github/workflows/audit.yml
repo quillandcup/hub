@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version-file: ".nvmrc"
+          node-version-file: "package.json"
 
       # Step-level continue-on-error on pull requests only: the job (and its check) stays green there, because a job-level one still shows
       # a red check on the PR. The findings are in this step's log, which shows a failed step.

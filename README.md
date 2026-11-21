@@ -20,7 +20,7 @@ Member engagement platform for Quill & Cup — giving members visibility into th
 ### Start Local Development
 
 ```bash
-# 1. Install dependencies (also installs git hooks via husky)
+# 1. Install dependencies (also points git at the hooks in config/husky)
 pnpm install
 
 # 2. Start Docker Desktop (open the app)
@@ -33,7 +33,7 @@ pnpm dev
 ```
 
 **Git Hooks Installed:**
-- `pre-commit` - Runs `pnpm build` to catch TypeScript errors before committing (managed by [husky](https://typicode.github.io/husky/), see `.husky/pre-commit`)
+- `pre-commit` - Runs `pnpm build` to catch TypeScript errors before committing (the hooks are plain scripts in `config/husky/`; `pnpm install` points git at them with `core.hooksPath`, which is shared by every worktree of the clone)
 - Skip temporarily with: `git commit --no-verify`
 
 ### Test Auth Flow

@@ -58,7 +58,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version-file: ".nvmrc"
+          node-version-file: "package.json"
 
       # The published score can lag the run by a little: wait for the one for this commit, and use whatever is
       # newest if it never shows. A missing score fails the job, so a broken or unpublished run is noticed.
