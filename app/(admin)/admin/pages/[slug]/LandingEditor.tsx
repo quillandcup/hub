@@ -15,12 +15,13 @@ import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfigFor } from "@/components/landing/editor-config";
-import type { SiteTemplate } from "@/lib/landing/site-template";
+import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-template";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
 import { addPlugin, panelOverrides } from "./SidePanels";
+import { settingsPlugin } from "./SettingsPanel";
 import { useMirrorHostTheme } from "./useMirrorHostTheme";
 import { MODEL_SIZES, MODELS_BY_CLASS, deviceClassForSize, isLandscape, modelForSize, modelSize, type DeviceClass, type DeviceModel } from "./devices";
 import { FoldContext, FoldFrame } from "./FoldMarker";
@@ -289,6 +290,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
   const [page, setPage] = useState(initial);
   // The kind of page never changes, so the config is made once: a new config object would make Puck remount the canvas.
   const config = useMemo(() => editorConfigFor({ pageType: initial.pageType === "website" ? "website" : "landing", site, editing: true }), [initial.pageType, site]);
+  const plugins = useMemo(() => [addPlugin, aiPlugin, settingsPlugin(initial.pageType === "website" ? "website" : "landing", site ?? EMPTY_SITE_TEMPLATE)], [initial.pageType, site]);
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
   const [hasUnpublished, setHasUnpublished] = useState(false);
@@ -461,7 +463,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
           data={data as unknown as Data}
           onChange={onChange}
           overrides={overrides}
-          plugins={[addPlugin, aiPlugin]}
+          plugins={plugins}
           viewports={[{ ...DESKTOP, label: "Desktop" }, ...MODEL_SIZES.map((s) => ({ ...s, label: `${s.width}x${s.height}` }))]}
           ui={{ plugin: { current: "outline" }, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
         />

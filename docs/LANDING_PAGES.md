@@ -35,6 +35,18 @@ One header and footer for the whole site, shared by every website page, edited o
 - **Not built:** a signed-in user menu. It needs a per-visitor render, and public pages are cached and anonymous by design, so the Sign in block does not know whether someone is signed in (`docs/TODO.md`).
 
 
+## Settings
+
+The editor's left rail has a **Settings** tab beside Add and AI (`app/(admin)/admin/pages/[slug]/SettingsPanel.tsx`; in the rail like the others, so the canvas keeps its width).
+
+- **Style guide** (`lib/landing/style.ts`): page background (white, cream, blush, mist, or the theme), primary colour (plum, warm brown, teal, charcoal), button size and corners, body font (the app's sans, a modern sans, the brand serif, a classic serif), weight and line height. Every token is a name from a short list, never a free colour or font, and is drawn as a class (`lp-primary-teal`, `lp-bg-cream`, ...) defined once in `app/globals.css`; the defaults add no class, so a page without a style is unchanged. A page background brings `landing-light` with it, because the cream and the rest are fixed light colours and dark mode would otherwise put light text on them. The primary colour sets the accent tokens and the solid primary buttons; button size and corners act on every button the builder draws (`lp-btn`).
+- **Favicon**: a square picture from the media library, 32 to 512 pixels on a side, PNG (ICO, SVG and WebP also pass). The picker refuses a wrong shape with the reason; publishing checks the whole picture again (type and size). Public pages put it in the page's `icons` (`generateMetadata`); with none, the app's own icon stays.
+- **Where they come from.** The site's style and favicon live in the site template (edited in Design, published with it). A **website page** has none of its own: its panel only says what it inherits, with a link to Design. A **landing page** follows the site by default ("Use site settings", on) for each of the two groups; turning it off stores the page's own as optional root props (`styleOverride`, `faviconOverrideAssetId`; absent means follow the site, an own empty favicon means none), turning it on removes them. Its own header and footer root fields stay, and take their look from the style.
+- **One helper decides.** `resolveStyle(siteStyle, override)` and `resolveFaviconAssetId` (`lib/landing/style.ts`) are used by the page frame for the editor canvas and the public page alike: defaults, then the site's tokens, then the page's own tokens where it has them. A token the page doesn't set follows the site, so changing the site later changes every page that doesn't override it. The public page uses the site's *published* style; the editor and the preview use the draft.
+- **Design tools** (guides: an outline around every block; grid: twelve columns) are drawn over the canvas only, kept per browser in local storage, never in the page's data and never on the public page (`components/landing/design-tools.tsx`).
+- **Keyboard shortcuts** opens the app's `?` panel (`useShortcutsPanel`, recorded as `via: editor_settings`).
+- **Not here: custom code.** It runs third-party scripts and needs the consent decision first (`docs/TODO.md`, "popups, A/B tests, custom code and tracking pixels"). Not built either: a button style (solid or outline) for the whole site; each button keeps its own look.
+
 ## The editor
 
 `/admin/pages/<slug>` (`app/(admin)/admin/pages/[slug]/LandingEditor.tsx`) puts Puck in our shell: our header replaces Puck's (back, title, **Saved / Unsaved changes / Saving…**, device buttons, undo and redo from Puck's history, Details, History, Preview, Publish), and the Puck panels follow the theme through CSS variables in `app/globals.css`.

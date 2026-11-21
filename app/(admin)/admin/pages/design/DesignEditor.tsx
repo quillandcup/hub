@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import LifecycleButton from "@/components/LifecycleButton";
 import MediaPicker from "@/components/media/MediaPicker";
 import Tooltip from "@/components/Tooltip";
+import { FaviconField, StyleFields } from "@/components/landing/style-fields";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
 import {
   HEADER_ALIGNMENTS,
@@ -20,6 +21,7 @@ import {
   type SiteSocialLink,
   type SiteTemplate,
 } from "@/lib/landing/site-template";
+import { styleClasses } from "@/lib/landing/style";
 import { publishSiteTemplate, resetSiteDraft, saveSiteDraft } from "./actions";
 
 const INPUT = "mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
@@ -235,7 +237,7 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
       setDirty(false);
       setPublishedAt(result.publishedAt ?? null);
       setSave("saved");
-      setMessage("Published. Every published website page now shows this header and footer.");
+      setMessage("Published. Every published website page now shows this header, footer and style.");
     });
   }
 
@@ -257,8 +259,8 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-4 shadow dark:bg-slate-900">
         <p className="max-w-2xl text-sm text-slate-700 dark:text-slate-300">
-          The header and footer below are <strong>shared by every website page</strong>. Changes save to a draft as you type. Visitors see them only after you publish, and publishing changes every published website page at once.
-          {publishedAt ? ` Last published ${new Date(publishedAt).toLocaleString()}.` : " Not published yet: website pages have no header or footer on the public site."}
+          The style, favicon, header and footer below are <strong>shared by every website page</strong>. Changes save to a draft as you type. Visitors see them only after you publish, and publishing changes every published website page at once.
+          {publishedAt ? ` Last published ${new Date(publishedAt).toLocaleString()}.` : " Not published yet: website pages have no header, footer or site style on the public site."}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <span role="status" className="text-sm text-slate-600 dark:text-slate-400">
@@ -282,6 +284,21 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
           )}
         </div>
       )}
+
+      <section aria-labelledby="design-style" className="space-y-4 rounded-lg bg-white p-4 shadow dark:bg-slate-900">
+        <h2 id="design-style" className="text-lg font-semibold">
+          Style guide
+        </h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">Used by every website page, and by every landing page that doesn&apos;t have its own style.</p>
+        <StyleFields value={site.style} onChange={(key, next) => setSite((s) => ({ ...s, style: { ...s.style, [key]: next } }))} />
+      </section>
+
+      <section aria-labelledby="design-favicon" className="space-y-4 rounded-lg bg-white p-4 shadow dark:bg-slate-900">
+        <h2 id="design-favicon" className="text-lg font-semibold">
+          Favicon
+        </h2>
+        <FaviconField value={site.favicon.assetId} onChange={(assetId) => setSite((s) => ({ ...s, favicon: { assetId } }))} />
+      </section>
 
       <section aria-labelledby="design-header" className="space-y-4 rounded-lg bg-white p-4 shadow dark:bg-slate-900">
         <h2 id="design-header" className="text-lg font-semibold">
@@ -372,7 +389,7 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
         <h2 id="design-preview" className="text-lg font-semibold">
           Preview of the draft
         </h2>
-        <div className="@container overflow-hidden rounded-lg border border-slate-200 bg-page text-ink dark:border-slate-700">
+        <div className={`@container overflow-hidden rounded-lg border border-slate-200 bg-page text-ink dark:border-slate-700 ${styleClasses(site.style)}`}>
           {SiteHeaderView({ header: site.header }) ?? <p className="px-4 py-3 text-sm text-ink-muted">No header: it is off or has nothing to show.</p>}
           <div className="px-4 py-10 text-center text-sm text-ink-muted">The page&apos;s own content goes here.</div>
           {SiteFooterView({ footer: site.footer }) ?? <p className="px-4 py-3 text-sm text-ink-muted">No footer: it is off or has nothing to show.</p>}

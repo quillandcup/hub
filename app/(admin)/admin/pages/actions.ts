@@ -12,6 +12,7 @@ import { MAX_LANDING_BYTES, countBlocks, parseLandingImport, pruneToKnownBlocks,
 import { stampLandingVersion } from "@/lib/landing/migrations";
 import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
+import { faviconProblem, pageOverrides } from "@/lib/landing/style";
 import { LANDING_STARTERS, isStarterKey, starterData } from "@/lib/landing/starters";
 import { loadTemplateDraft } from "@/lib/landing/template-data";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
@@ -215,6 +216,13 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown, note?: str
     const issues: A11yIssue[] = isTemplate ? found.map((i) => ({ ...i, severity: "warning" as const })) : found;
     const errors = issues.filter((i) => i.severity === "error");
     if (errors.length > 0) return { error: "Fix these before publishing.", issues };
+    // A page's own favicon is checked as a whole picture (type and size) before it goes live, like the site's.
+    const ownFavicon = isTemplate ? "" : (pageOverrides(clean).favicon ?? "");
+    if (ownFavicon) {
+      const asset = await repos.media.byId(ownFavicon);
+      const problem = asset && !asset.deleted_at ? faviconProblem(asset) : "That picture is no longer in the library.";
+      if (problem) return { error: `This page's favicon can't be used. ${problem}` };
+    }
     // The draft the editor is showing is what goes live: save it, then publish it, so nothing typed a moment ago is left out.
     if (!(await repos.landingPages.saveDraft(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
     const page = await repos.landingPages.publish(pageId, note);

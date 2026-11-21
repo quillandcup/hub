@@ -156,6 +156,39 @@ describe("saveLandingDraft (autosave)", () => {
   });
 });
 
+describe("publishLandingPage, the page's own favicon", () => {
+  async function square(width: number, height: number, mime = "image/png") {
+    return state.repos.media.add({ storage_path: `originals/shared/${crypto.randomUUID()}.png`, mime_type: mime, width, height, bytes: 1000, sha256: crypto.randomUUID(), title: "Icon", is_public: false });
+  }
+  const withFavicon = (id: string) => ({ content: [title], root: { props: { faviconOverrideAssetId: id } } });
+
+  it("goes live with a square picture, which is made public", async () => {
+    const icon = await square(64, 64);
+    const { slug } = await createLandingPage({ title: "Page" });
+    const id = (await state.repos.landingPages.bySlug(slug!))!.id;
+    expect((await publishLandingPage(id, withFavicon(icon.id))).error).toBeUndefined();
+    expect((await state.repos.media.byId(icon.id))?.is_public).toBe(true);
+  });
+
+  it("is refused, with the reason, when the picture is the wrong shape or type or is gone, and nothing is published", async () => {
+    const { slug } = await createLandingPage({ title: "Page" });
+    const id = (await state.repos.landingPages.bySlug(slug!))!.id;
+    const wide = await square(64, 32);
+    expect((await publishLandingPage(id, withFavicon(wide.id))).error).toContain("has to be square");
+    const photo = await square(64, 64, "image/jpeg");
+    expect((await publishLandingPage(id, withFavicon(photo.id))).error).toContain("PNG");
+    expect((await publishLandingPage(id, withFavicon("mda_Missing00001"))).error).toContain("no longer in the library");
+    expect((await state.repos.landingPages.byId(id))?.published_data).toBeNull();
+  });
+
+  it("is not needed when the page follows the site, or says no favicon", async () => {
+    const { slug } = await createLandingPage({ title: "Page" });
+    const id = (await state.repos.landingPages.bySlug(slug!))!.id;
+    expect((await publishLandingPage(id, doc())).error).toBeUndefined();
+    expect((await publishLandingPage(id, withFavicon(""))).error).toBeUndefined();
+  });
+});
+
 describe("publishLandingPage", () => {
   async function pageWith(_unused: null) {
     const { slug } = await createLandingPage({ title: "Page" });

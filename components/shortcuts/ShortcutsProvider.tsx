@@ -14,7 +14,7 @@ import type { ShortcutGroupId, ShortcutNeed, ShortcutRegistration } from "@/lib/
  * Only on a device with a keyboard (`useHasKeyboard`): elsewhere `?` is not listened to and `available` is false.
  */
 
-export type ShortcutsOpenedVia = "key" | "help_menu";
+export type ShortcutsOpenedVia = "key" | "help_menu" | "editor_settings";
 
 interface ShortcutsContextValue {
   available: boolean;

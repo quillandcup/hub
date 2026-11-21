@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
+import { faviconProblem } from "@/lib/landing/style";
 import { normalizeSiteTemplate, siteAssetIds, siteTemplateIssues, type SiteTemplate } from "@/lib/landing/site-template";
 
 /**
@@ -41,9 +42,15 @@ export async function saveSiteDraft(data: unknown): Promise<SiteResult> {
 async function publishImpl(auth: Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>, data: unknown): Promise<SiteResult> {
   if (tooBig(data)) return { error: "The site design is too large to publish." };
   const site = normalizeSiteTemplate(data);
-  const issues = siteTemplateIssues(site);
-  if (issues.length > 0) return { error: "Fix these before publishing.", issues };
+  const issues = [...siteTemplateIssues(site)];
   const repos = createRepos(auth.supabase);
+  // The favicon is checked as a whole picture here (its type as well as its size); the picker only knew the size.
+  if (site.favicon.assetId) {
+    const asset = await repos.media.byId(site.favicon.assetId);
+    const problem = asset && !asset.deleted_at ? faviconProblem(asset) : "The favicon picture is no longer in the library.";
+    if (problem) issues.push(problem);
+  }
+  if (issues.length > 0) return { error: "Fix these before publishing.", issues };
   try {
     // What the editor is showing is what goes live: save it, then publish it, so nothing typed a moment ago is left out.
     await repos.landingSiteTemplate.saveDraft(site, auth.user.id);

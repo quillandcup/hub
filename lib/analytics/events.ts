@@ -69,7 +69,7 @@ export const EVENTS = {
   /** The header search palette opened: by its button, by Cmd/Ctrl+K, or by pressing "/". */
   search_opened: { via: oneOf("button", "shortcut_k", "shortcut_slash") },
   /** The keyboard shortcuts panel opened: by the "?" key or from the Help menu. */
-  shortcuts_panel_opened: { via: oneOf("key", "help_menu") },
+  shortcuts_panel_opened: { via: oneOf("key", "help_menu", "editor_settings") },
   /**
    * A search ran and its results were shown (the palette reports once typing settles or the member
    * acts, not per keystroke). `kind` is the `in:` scope or "all", `operators` the operator names

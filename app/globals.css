@@ -187,6 +187,37 @@ html[data-animations="off"] *::after {
   scroll-behavior: auto !important;
 }
 
+/* The page builder's style guide (lib/landing/style.ts, docs/LANDING_PAGES.md, "Settings"): a page's frame carries the classes of its chosen
+   tokens, and the defaults carry none. The page colours are fixed light colours, so the frame is also `landing-light` (dark mode doesn't
+   turn the text light on them). The primary colour sets the accent tokens, in a light and a dark mode value like the base ones. */
+.lp-bg-white.landing-light { --lp-page: 255 255 255; }
+.lp-bg-cream.landing-light { --lp-page: 244 236 232; }
+.lp-bg-blush.landing-light { --lp-page: 234 218 218; }
+.lp-bg-mist.landing-light { --lp-page: 199 223 223; }
+.lp-primary-brown { --lp-accent: 142 88 61; --lp-accent-ink: 142 88 61; }
+.lp-primary-teal { --lp-accent: 67 114 115; --lp-accent-ink: 56 93 94; }
+.lp-primary-charcoal { --lp-accent: 77 77 77; --lp-accent-ink: 77 77 77; }
+.dark .lp-primary-brown { --lp-accent: 193 157 133; --lp-accent-ink: 193 157 133; }
+.dark .lp-primary-teal { --lp-accent: 116 168 169; --lp-accent-ink: 163 200 200; }
+.dark .lp-primary-charcoal { --lp-accent: 203 213 225; --lp-accent-ink: 203 213 225; }
+.dark .lp-primary-brown.landing-light { --lp-accent: 142 88 61; --lp-accent-ink: 142 88 61; }
+.dark .lp-primary-teal.landing-light { --lp-accent: 67 114 115; --lp-accent-ink: 56 93 94; }
+.dark .lp-primary-charcoal.landing-light { --lp-accent: 77 77 77; --lp-accent-ink: 77 77 77; }
+/* Solid buttons in the primary colour follow it; a button in another colour (light, brown) is that colour on purpose. */
+.lp-primary-brown .lp-btn-primary, .lp-primary-teal .lp-btn-primary, .lp-primary-charcoal .lp-btn-primary { background-color: rgb(var(--lp-accent)); }
+.lp-primary-brown .lp-btn-primary:hover, .lp-primary-teal .lp-btn-primary:hover, .lp-primary-charcoal .lp-btn-primary:hover { filter: brightness(0.9); }
+.dark .lp-primary-charcoal:not(.landing-light) .lp-btn-primary { color: rgb(15 23 42); }
+/* Button size and corners apply to every button the builder draws (`lp-btn`); the defaults add nothing, so a button keeps its own shape. */
+.lp-btn-size-small .lp-btn { padding: 0.5rem 1rem; font-size: 0.875rem; }
+.lp-btn-size-large .lp-btn { padding: 1rem 2rem; font-size: 1.125rem; }
+.lp-btn-radius-rounded .lp-btn { border-radius: 0.5rem; }
+.lp-btn-radius-square .lp-btn { border-radius: 0; }
+.lp-font-modern { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.lp-font-serif { font-family: var(--font-display), Georgia, serif; }
+.lp-font-classic { font-family: Georgia, "Times New Roman", serif; }
+.lp-weight-medium { font-weight: 500; }
+.lp-leading-tight { line-height: 1.35; }
+.lp-leading-relaxed { line-height: 1.75; }
 /* Landing page sections with "Fade in" on (components/landing): only for visitors who haven't asked for less motion. */
 @media (prefers-reduced-motion: no-preference) {
   .landing-fade-in {

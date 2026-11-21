@@ -46,6 +46,8 @@ import {
   WeekStrip,
 } from "./homepage-blocks";
 import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-template";
+import { resolveStyle, styleClasses } from "@/lib/landing/style";
+import { DesignToolsOverlay } from "./design-tools";
 import { SiteFooterView, SiteHeaderView } from "./site-frame";
 import { pageImage, spanClasses } from "./theme";
 
@@ -68,6 +70,10 @@ export type RootProps = {
   showFooter?: boolean;
   footerText?: string;
   footerLinks?: { label: string; href: string }[];
+  /** This page's own style tokens (docs/LANDING_PAGES.md, "Settings"); absent means the page follows the site's. */
+  styleOverride?: unknown;
+  /** This page's own favicon (a media asset id; an empty string means none); absent means the page follows the site's. Read by the page's head, not drawn. */
+  faviconOverrideAssetId?: string;
 };
 
 const LINK_ROW = "px-2 py-1 text-sm underline-offset-4 hover:underline";
@@ -100,12 +106,15 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
   const logo = pageImage(root.logoAssetId, "event_card");
   const nav = (root.navLinks ?? []).filter((l) => l.label && safeHref(l.href));
   const footerLinks = (root.footerLinks ?? []).filter((l) => l.label && safeHref(l.href));
+  // The page's look: the site's style tokens, then this page's own where it has them (lib/landing/style.ts). The same for the editor's canvas and a visitor.
+  const frameClasses = `@container relative min-h-screen bg-page text-ink ${styleClasses(resolveStyle(frame?.site?.style, root.styleOverride))}`;
+  const tools = frame?.editing ? <DesignToolsOverlay /> : null;
   if (frame?.pageType === "website") {
     const site = frame.site ?? EMPTY_SITE_TEMPLATE;
     const header = SiteHeaderView({ header: site.header });
     const footer = SiteFooterView({ footer: site.footer });
     return (
-      <div className="@container min-h-screen bg-page text-ink">
+      <div data-lp-frame className={frameClasses}>
         {frame.editing ? (
           <SiteRegion name="header" empty={header === null}>
             {header}
@@ -121,13 +130,14 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
         ) : (
           footer
         )}
+        {tools}
       </div>
     );
   }
   return (
     // The page colour (`page`: the brand canvas, or slate in dark mode), light or dark with the theme (the app's dark mode, or the visitor's system setting); never `bg-background`, which is the app's grey.
     // Light bands (`landing-light`) stay light in dark mode.
-    <div className="@container min-h-screen bg-page text-ink">
+    <div data-lp-frame className={frameClasses}>
       {root.showHeader && (logo || nav.length > 0) && (
         <header className="bg-card">
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 py-4 @pair:flex-row @pair:justify-between">
@@ -170,6 +180,7 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
           {root.footerText && <p>{root.footerText}</p>}
         </footer>
       )}
+      {tools}
     </div>
   );
 }

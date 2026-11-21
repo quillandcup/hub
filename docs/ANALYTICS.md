@@ -51,7 +51,7 @@ Pages that report as they render use `trackWhenEnabled` (`lib/analytics/client.t
 
 ## Keyboard shortcuts panel
 
-`shortcuts_panel_opened` fires when the shortcuts panel (`components/shortcuts/`, opened with `?`) opens, with `via` `key` or `help_menu`: how many people on a keyboard find the panel, and how. Nothing is recorded about the keys pressed or the panel's search text. The Help menu item is also the named control `help-menu-shortcuts`.
+`shortcuts_panel_opened` fires when the shortcuts panel (`components/shortcuts/`, opened with `?`) opens, with `via` `key`, `help_menu` or `editor_settings` (the page editor's Settings panel): how many people on a keyboard find the panel, and how. Nothing is recorded about the keys pressed or the panel's search text. The Help menu item is also the named control `help-menu-shortcuts`.
 
 ## Managing events (admin)
 
