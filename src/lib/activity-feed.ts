@@ -567,6 +567,10 @@ function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChang
     const kind = typeof fields.kind?.new === "string" ? milestoneLabel(fields.kind.new) : "a writing";
     // A member adds their own already confirmed (source member); staff and courses only propose.
     if (fields.source?.new === "member") return `added the “${kind}” milestone`;
+    // Answering the question asked when a project moved forward (docs/product/FINISHERS.md): "yes" is confirmed, "not yet" is declined.
+    if (fields.source?.new === "project_stage") {
+      return fields.status?.new === "declined" ? `said “not yet” to the “${kind}” milestone when a project moved forward` : `added the “${kind}” milestone when a project moved forward`;
+    }
     return `proposed the “${kind}” milestone for ${row.member_name ?? "a member"}`;
   }
   if (row.event_type !== "update") return null;

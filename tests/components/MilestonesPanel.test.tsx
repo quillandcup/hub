@@ -196,6 +196,18 @@ describe("MilestonesPanel (per work)", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
+  it("lets the member take back one they confirmed from the project prompt, and shows a 'not yet' from it as a no that can be undone", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<MilestonesPanel milestones={[milestone({ status: "confirmed", source: "project_stage", confirmedAt: "2026-11-21" })]} projects={[NOVEL]} />);
+    expect(screen.getByRole("button", { name: "Take it back" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Not me / not yet" })).not.toBeInTheDocument();
+    unmount();
+    render(<MilestonesPanel milestones={[milestone({ status: "declined", source: "project_stage" })]} projects={[NOVEL]} />);
+    expect(screen.getByText(/You said no, or not yet/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Actually, it is me" }));
+    expect(screen.getByLabelText(/before you got here/)).toBeInTheDocument();
+  });
+
   it("shows why a take-back failed", async () => {
     vi.mocked(actions.takeBackMilestone).mockResolvedValue({ error: "We couldn't find that milestone." });
     const user = userEvent.setup();

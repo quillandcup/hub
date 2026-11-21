@@ -117,7 +117,15 @@ export type MilestoneSelfAdd = {
   work: WorkRef;
   /** The signed-in user (an auth user id). */
   createdBy: string;
+  /** Where it came from: the member adding it on the card (the default), or answering the prompt when a project moved forward. */
+  source?: "member" | "project_stage";
 };
+
+/** What the member says to "not yet" when a project moved forward and we asked (docs/product/FINISHERS.md, "The project-stage prompt"). */
+export type MilestoneNotYet = { memberId: string; kind: MilestoneKind; projectId: string; createdBy: string };
+
+/** The sources of a milestone the member made themselves, so they may take it back. */
+const MEMBER_MADE_SOURCES: readonly string[] = ["member", "project_stage"];
 
 /**
  * The columns an answer writes. A decline clears the consent and the level, because both only exist on a confirmed row. A
@@ -167,7 +175,18 @@ export interface MilestoneRepository {
    * "exists", so the card can show it instead of an error. A member can have the same kind for many works.
    */
   addOwn(add: MilestoneSelfAdd, now: Date): Promise<{ result: "added" | "exists"; milestone: Milestone }>;
-  /** The member takes back a milestone they added themselves (a soft delete). False when they have no such live one. */
+  /**
+   * "Not yet" to the prompt when a project moved forward: a declined row for that project, source `project_stage`, which is how
+   * the Hub remembers it asked (it does not ask again, and the staff backfill never proposes that kind for the work). "exists"
+   * when the work already has a live milestone of that kind in any status; nothing is written then.
+   */
+  recordNotYet(notYet: MilestoneNotYet, now: Date): Promise<"recorded" | "exists">;
+  /**
+   * The kinds the member already has a row for on this project, in any status and taken-back ones too: the prompt asks once per
+   * project and kind, and a member who took one back has already answered.
+   */
+  askedKinds(memberId: string, projectId: string): Promise<MilestoneKind[]>;
+  /** The member takes back a milestone they made themselves, on the card or from the prompt (a soft delete). False when they have no such live one. */
   takeBack(id: string, memberId: string, now: Date): Promise<boolean>;
   /** The member answers (or changes their answer). False when the member has no such live milestone. */
   answer(id: string, memberId: string, answer: MilestoneAnswer, now: Date): Promise<boolean>;
@@ -309,7 +328,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
         project_id: add.work.projectId,
         book_id: add.work.bookId,
         title: add.work.title,
-        source: "member",
+        source: add.source ?? "member",
         created_by: add.createdBy,
         achieved_on: add.answer.achievedOn,
         story_before: add.answer.storyBefore,
@@ -338,12 +357,38 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       .update({ deleted_at: now.toISOString(), updated_at: now.toISOString() })
       .eq("id", id)
       .eq("member_id", memberId)
-      .eq("source", "member")
+      .in("source", [...MEMBER_MADE_SOURCES])
       .is("deleted_at", null)
       .select("id")
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data !== null;
+  }
+
+  async recordNotYet(n: MilestoneNotYet, now: Date) {
+    const existing = await this.liveOfWork(n.memberId, n.kind, { projectId: n.projectId, bookId: null, title: null });
+    if (existing) return "exists";
+    const { error } = await this.db.from("member_milestones").insert({
+      member_id: n.memberId,
+      kind: n.kind,
+      project_id: n.projectId,
+      source: "project_stage",
+      status: "declined",
+      created_by: n.createdBy,
+      updated_at: now.toISOString(),
+    });
+    if (error) {
+      // Two taps at once: the other one won.
+      if (error.code === "23505") return "exists";
+      throw new Error(error.message);
+    }
+    return "recorded";
+  }
+
+  async askedKinds(memberId: string, projectId: string) {
+    const { data, error } = await this.db.from("member_milestones").select("kind").eq("member_id", memberId).eq("project_id", projectId);
+    if (error) throw new Error(error.message);
+    return [...new Set((data ?? []).map((r) => r.kind as MilestoneKind))];
   }
 
   async answer(id: string, memberId: string, answer: MilestoneAnswer, now: Date) {
@@ -547,7 +592,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       achieved_on: add.answer.achievedOn,
       story_before: add.answer.storyBefore,
       story_after: add.answer.storyAfter,
-      source: "member",
+      source: add.source ?? "member",
       status: "confirmed",
       consent_profile: false,
       consent_homepage: false,
@@ -564,10 +609,47 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
   }
 
   async takeBack(id: string, memberId: string, now: Date) {
-    const row = this.live().find((m) => m.id === id && m.member_id === memberId && m.source === "member");
+    const row = this.live().find((m) => m.id === id && m.member_id === memberId && MEMBER_MADE_SOURCES.includes(m.source));
     if (!row) return false;
     row.deleted_at = now.toISOString();
     return true;
+  }
+
+  async recordNotYet(n: MilestoneNotYet, now: Date) {
+    if (!this.data.members.some((m) => m.id === n.memberId)) throw new Error("violates foreign key constraint on member_id");
+    // What the insert policy checks: the project is the member's own and live.
+    if (!this.data.writingProjects.some((p) => p.id === n.projectId && p.member_id === n.memberId && !p.deleted_at)) {
+      throw new Error("new row violates row-level security policy for table member_milestones");
+    }
+    if (this.liveOfWork(n.memberId, n.kind, { projectId: n.projectId, bookId: null, title: null })) return "exists";
+    const iso = now.toISOString();
+    this.data.memberMilestones.push({
+      id: `mlst_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      member_id: n.memberId,
+      kind: n.kind,
+      project_id: n.projectId,
+      book_id: null,
+      title: null,
+      achieved_on: null,
+      story_before: null,
+      story_after: null,
+      source: "project_stage",
+      status: "declined",
+      consent_profile: false,
+      consent_homepage: false,
+      consent_testimonial: false,
+      visibility: "private",
+      created_by: n.createdBy,
+      confirmed_at: null,
+      created_at: iso,
+      updated_at: iso,
+      deleted_at: null,
+    });
+    return "recorded" as const;
+  }
+
+  async askedKinds(memberId: string, projectId: string) {
+    return [...new Set(this.data.memberMilestones.filter((m) => m.member_id === memberId && m.project_id === projectId).map((m) => m.kind as MilestoneKind))];
   }
 
   async answer(id: string, memberId: string, answer: MilestoneAnswer, now: Date) {

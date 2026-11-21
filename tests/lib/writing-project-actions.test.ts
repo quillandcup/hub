@@ -74,7 +74,7 @@ describe("hibernating projects", () => {
   });
 
   it("moves a project to the hibernating list when its status changes, and back", async () => {
-    expect(await updateProjectPhase("wprj_1", "complete")).toEqual({ success: true });
+    expect(await updateProjectPhase("wprj_1", "complete")).toMatchObject({ success: true });
     expect((await getMyProjects()).map((p) => p.title)).toContain("Novel");
 
     expect(await updateProjectPhase("wprj_1", "hibernating")).toEqual({ success: true });

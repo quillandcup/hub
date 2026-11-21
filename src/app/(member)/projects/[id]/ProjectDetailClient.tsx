@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
@@ -45,11 +45,16 @@ import {
   type GoalRow,
 } from "../actions";
 import Tooltip from "@/components/Tooltip";
+import type { StageMilestonePrompt } from "@/lib/milestone-prompts";
 
 interface ProjectDetailClientProps {
   project: WritingProjectRow;
   entries: EntryRow[];
   archivedGoals: GoalRow[];
+  /** Called with what to ask the member after a status change that means a milestone (the dialog lives above this page, which is keyed on the phase). */
+  onStageMilestonePrompt?: (prompt: StageMilestonePrompt) => void;
+  /** Goes up each time the milestone dialog asks to open the Publish flow. */
+  publishRequests?: number;
 }
 
 type EntrySortColumn = "date" | "amount" | "note";
@@ -65,7 +70,7 @@ function entrySortValue(entry: EntryRow, column: EntrySortColumn): SortValue {
   }
 }
 
-export default function ProjectDetailClient({ project, entries, archivedGoals }: ProjectDetailClientProps) {
+export default function ProjectDetailClient({ project, entries, archivedGoals, onStageMilestonePrompt, publishRequests = 0 }: ProjectDetailClientProps) {
   const router = useRouter();
   const [showLogProgress, setShowLogProgress] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EntryRow | null>(null);
@@ -77,6 +82,13 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [phase, setPhase] = useState(project.phase);
   const [phasePending, setPhasePending] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
+  // The milestone dialog asks for the Publish flow by raising the count; this page may start again (it is keyed on the phase), so only a change after it mounted opens it.
+  const seenPublishRequests = useRef(publishRequests);
+  useEffect(() => {
+    if (publishRequests === seenPublishRequests.current) return;
+    seenPublishRequests.current = publishRequests;
+    setShowPublish(true);
+  }, [publishRequests]);
   const [showEditBook, setShowEditBook] = useState(false);
   const [showEditDetails, setShowEditDetails] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
@@ -140,6 +152,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       return;
     }
     setPhase(next);
+    // The status has saved; a milestone question follows, never in the way of it.
+    if (result.milestonePrompt) onStageMilestonePrompt?.(result.milestonePrompt);
   }
 
   async function handleRemoveBook() {

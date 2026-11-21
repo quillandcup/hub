@@ -101,6 +101,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/api/media/from-event-photo/route"), "src/app/api/media/from-event-photo/route.ts", [["POST", "media_asset_copied_from_event"]]],
   [() => import("@/app/(admin)/admin/hygiene/zoom-meetings/actions"), "src/app/(admin)/admin/hygiene/zoom-meetings/actions.ts", [["decideZoomMeetings", "zoom_meetings_decided"]]],
   [() => import("@/app/(member)/settings/milestoneActions"), "src/app/(member)/settings/milestoneActions.ts", [["answerMilestone", "milestone_answered"], ["addMilestone", "milestone_added"], ["takeBackMilestone", "milestone_taken_back"]]],
+  [() => import("@/app/(member)/projects/stageMilestoneActions"), "src/app/(member)/projects/stageMilestoneActions.ts", [["answerStageMilestone", "milestone_stage_answered"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "src/app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];
 

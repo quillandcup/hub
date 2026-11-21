@@ -62,6 +62,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "project-stage-milestone-prompt",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "The project-stage prompt: asking about a milestone when a project moves forward",
+    summary: "Moving a project to a stage that means a milestone asks the member, once, whether to record it, with the milestone card's own form.",
+    body: "When a member moves a project forward, the status saves first and then a dialog asks about the milestone that stage may mean (THE END on leaving Drafting, publish-ready on reaching Publishing, both for a jump, an offer of the Publish flow on Complete). The rules to follow: it never blocks or fails the status change, it asks once per project and kind, it never asks in sudo, and nothing a member did is cancelled when a project goes back or to Hibernating. \"Not yet\" is remembered as a declined milestone row for that project (source project_stage), so the one-row-per-work rules, the backfill and the card's \"Actually, it is me\" already cover it; \"Yes\" reuses the card's answer form and confirms the row as the member's own action. Hooks: `milestonesToAsk` (`src/lib/milestone-prompts.ts`, the table of every stage pair), `MilestoneRepository.askedKinds` and `recordNotYet`, and `StageMilestoneDialog`, which sits above the project page's keyed view so a status save does not close it. Detail: `docs/product/FINISHERS.md`, \"The project-stage prompt\".",
+  },
+  {
     slug: "upload-your-own-photo",
     date: "2026-11-21",
     audience: "product",

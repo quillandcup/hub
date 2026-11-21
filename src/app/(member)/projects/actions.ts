@@ -48,6 +48,7 @@ import {
 
 import { withAction } from "@/lib/analytics/server";
 import { getServiceRepos } from "@/lib/data/server";
+import { milestonesToAsk, type StageMilestonePrompt } from "@/lib/milestone-prompts";
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
 
@@ -694,19 +695,51 @@ async function deleteProjectImpl(projectId: string): Promise<{ success: true } |
 async function updateProjectPhaseImpl(
   projectId: string,
   phase: (typeof MANUALLY_SETTABLE_PHASES)[number]
-): Promise<{ success: true } | { error: string }> {
+): Promise<{ success: true; milestonePrompt?: StageMilestonePrompt } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
   if (!MANUALLY_SETTABLE_PHASES.includes(phase)) return { error: "Invalid phase" };
 
+  // The stage it was in, for the milestone prompt below. Read before the save; never a reason to refuse the change.
+  const before = effectiveIdentity.isSudo ? null : await createRepos(supabase).writing.projectSummary(effectiveIdentity.memberId, projectId).catch(() => null);
+
   const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase });
   if (failure) return failure;
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
-  return { success: true };
+
+  const milestonePrompt = before ? await stageMilestonePrompt(supabase, effectiveIdentity.memberId, before, phase) : null;
+  return milestonePrompt ? { success: true, milestonePrompt } : { success: true };
+}
+
+/**
+ * What to ask the member after the status saved (docs/product/FINISHERS.md, "The project-stage prompt"): the milestones this move
+ * could mean that the project has no row for yet, in any status (a member who answered, or took one back, is never asked
+ * twice), and whether to offer the Publish flow. Never blocks or fails the status change: any trouble reading means no prompt.
+ */
+async function stageMilestonePrompt(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  project: { id: string; title: string; phase: string },
+  to: string
+): Promise<StageMilestonePrompt | null> {
+  try {
+    const repos = createRepos(supabase);
+    // The dropdown is only offered to a project with no book; a project that has one is never asked for the Bookshelf.
+    const hasBook = (await repos.books.mine(memberId)).some((b) => b.project_id === project.id);
+    const move = milestonesToAsk(project.phase, to, hasBook);
+    if (move.kinds.length === 0 && !move.offerPublish) return null;
+    const asked = move.kinds.length > 0 ? await repos.milestones.askedKinds(memberId, project.id) : [];
+    const kinds = move.kinds.filter((kind) => !asked.includes(kind));
+    if (kinds.length === 0 && !move.offerPublish) return null;
+    return { projectId: project.id, projectTitle: project.title, kinds, offerPublish: move.offerPublish };
+  } catch (error) {
+    console.error("stageMilestonePrompt failed", errorMessage(error, "unknown"));
+    return null;
+  }
 }
 
 export interface LogProgressInput {

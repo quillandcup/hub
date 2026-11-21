@@ -124,6 +124,7 @@ export const OUTCOME_ACTIONS = [
   "milestone_answered",
   "milestone_added",
   "milestone_taken_back",
+  "milestone_stage_answered",
   "milestone_visibility_set",
   "milestone_share_set",
   "profile_visibility_set",
