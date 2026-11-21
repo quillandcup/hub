@@ -114,6 +114,14 @@ export const CRON_HEARTBEATS = {
     unmonitored: "Checkly plan limit of 10 uptime monitors reached",
     ...daily,
   },
+  "csp-health": {
+    name: "Cron: CSP health check (daily 15:00 UTC)",
+    path: "/api/internal/csp-health",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_CSP_HEALTH",
+    unmonitored: "Checkly plan limit of 10 uptime monitors reached",
+    ...daily,
+  },
   "reconcile-retention": {
     name: "Cron: raw network details retention (daily 04:00 UTC)",
     path: "/api/reconcile/retention",

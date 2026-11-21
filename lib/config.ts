@@ -141,6 +141,9 @@ export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 /** The course the Courses page offers to members who have none, and its waitlist page (config/app.ts `featuredCourse`). */
 export const FEATURED_COURSE = appConfig.featuredCourse;
 
+/** Windows, thresholds and minimum browser versions of the daily CSP health check (config/app.ts `cspHealth`). */
+export const CSP_HEALTH = appConfig.cspHealth;
+
 /** The `From` of notification emails: `Name <address>`. */
 export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAddress}>`;
 

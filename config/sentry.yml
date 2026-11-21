@@ -12,3 +12,36 @@ organization:
   dataScrubberDefaults: true
   # Sentry has no use for member IP addresses; the Hub keeps its own coarse location.
   scrubIPAddresses: true
+
+# Issue alerts for the project (Sentry's workflows), emailed to the issue owners or, without an owner, the active
+# members. Only rules named "Hub: ..." are managed: delete one here and the next push deletes it from Sentry;
+# Sentry's own default alerts are left alone. All three watch CSP reports (they carry the tag logger=csp), for the
+# nonce-based Content-Security-Policy rollout (docs/CSP_ALERTS.md). Email only: this Sentry plan cannot
+# send to Slack; the owner wants one channel, so the daily health check also reports through Sentry (last rule).
+alerts:
+  # A violation of a kind not seen before: a new blocked host or directive.
+  - name: "Hub: CSP violation, new issue"
+    when: new_issue
+    tag: { key: logger, value: csp }
+    frequencyMinutes: 0
+  # A violation that was marked resolved is back: a fix that did not hold.
+  - name: "Hub: CSP violation, came back after being resolved"
+    when: regression
+    tag: { key: logger, value: csp }
+    frequencyMinutes: 0
+  # One violation flooding in. Real volumes (14 days to 2026-11-20): the noisiest issue had 847 events in two
+  # days and a bad deploy produces 30 events at once, so a 100 an hour floor stays quiet on those and still
+  # catches a policy that starts blocking something every page loads. Once an hour per issue at most.
+  - name: "Hub: CSP violation, more than 100 events in an hour"
+    when: every_event
+    tag: { key: logger, value: csp }
+    moreThan: { count: 100, interval: 1h }
+    frequencyMinutes: 60
+  # The daily health check (app/api/internal/csp-health) sends one Sentry event per failing check, tagged
+  # csp_health_check=<check> (a plain custom tag, so it is indexed whatever the SDK does with Sentry's own logger
+  # field; the three rules above filter on logger=csp and never match these). Every event of an issue is evaluated,
+  # the first emails at once, and frequencyMinutes 1440 keeps a problem that lasts days to one email a day per issue.
+  - name: "Hub: CSP health check failed"
+    when: every_event
+    tag: { key: csp_health_check }
+    frequencyMinutes: 1440

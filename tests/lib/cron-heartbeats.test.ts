@@ -50,13 +50,14 @@ describe("CRON_HEARTBEATS coverage", () => {
 
   it("leaves a job out of the Checkly monitors only with a reason, and only the ones marked", () => {
     const unmonitored = Object.entries<CronHeartbeat>(CRON_HEARTBEATS).filter(([, h]) => h.unmonitored !== undefined);
-    expect(unmonitored.map(([job]) => job)).toEqual(["reconcile-email", "reconcile-stripe-billing", "changelog-digest", "lesson-comment-notifications"]);
+    expect(unmonitored.map(([job]) => job)).toEqual(["reconcile-email", "reconcile-stripe-billing", "changelog-digest", "lesson-comment-notifications", "csp-health"]);
     for (const [job, h] of unmonitored) expect(h.unmonitored, job).toMatch(/\S/);
     const monitored = MONITORED_HEARTBEATS.map(([job]) => job);
     expect(monitored).not.toContain("reconcile-email");
     expect(monitored).not.toContain("reconcile-stripe-billing");
     expect(monitored).not.toContain("changelog-digest");
     expect(monitored).not.toContain("lesson-comment-notifications");
+    expect(monitored).not.toContain("csp-health");
     expect(monitored).toHaveLength(Object.keys(CRON_HEARTBEATS).length - unmonitored.length);
     expect(monitored).toContain("reconcile-calendar");
   });
