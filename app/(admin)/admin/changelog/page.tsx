@@ -4,6 +4,7 @@ import { requireAdminPage } from "@/lib/admin-auth";
 import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/content/changelog";
 import { filterByAudience, filterByCategory, groupByMonth, listChangelog, parseAudienceFilter, parseCategoryFilter, searchChangelog } from "@/lib/changelog";
 import ChangelogFilters from "@/components/changelog/ChangelogFilters";
+import HeldLabel from "@/components/changelog/HeldLabel";
 
 export const metadata: Metadata = { title: "Changelog" };
 
@@ -51,7 +52,7 @@ export default async function AdminChangelogPage({ searchParams }: PageProps<"/a
                 <li key={e.slug}>
                   <Link href={`/admin/changelog/${e.slug}`} className="block px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <span className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                      {CHANGELOG_AUDIENCES[e.audience]} · {CHANGELOG_CATEGORIES[e.category]} · <time dateTime={e.date}>{e.date}</time>
+                      {CHANGELOG_AUDIENCES[e.audience]} · {CHANGELOG_CATEGORIES[e.category]} · {e.held ? <HeldLabel /> : <time dateTime={e.date}>{e.date}</time>}
                       {e.major && majorBadge}
                     </span>
                     <span className="mt-1 block font-semibold text-slate-900 dark:text-slate-100">{e.title}</span>

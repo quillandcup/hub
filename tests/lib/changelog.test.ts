@@ -104,6 +104,30 @@ describe("the entries as published", () => {
   });
 });
 
+describe("held entries", () => {
+  const product = entry({ slug: "product-one", date: "2026-11-02" });
+  const held = entry({ slug: "held-one", date: undefined, held: true, title: "Not yet" });
+
+  it("never reaches a member: not the list, not the feed, not a page", () => {
+    expect(listProductChangelog([product, held]).map((e) => e.slug)).toEqual(["product-one"]);
+    expect(changelogSince(null, [product, held]).map((e) => e.slug)).toEqual(["product-one"]);
+    expect(findChangelogEntry("held-one", [product, held])).toBeNull();
+  });
+
+  it("stays on the admin Changelog: first, in its own Held group, and by slug", () => {
+    expect(listChangelog([product, held]).map((e) => e.slug)).toEqual(["held-one", "product-one"]);
+    expect(findAnyChangelogEntry("held-one", [product, held])?.title).toBe("Not yet");
+    const groups = groupByMonth(listChangelog([product, held]));
+    expect(groups.map((g) => [g.month, g.label])).toEqual([["held", "Held (not released yet)"], ["2026-11", "November 2026"]]);
+  });
+
+  it("is valid without a date, and a date on a held entry or a missing one on a released entry is a problem", () => {
+    expect(validateChangelog([held])).toEqual([]);
+    expect(validateChangelog([entry({ held: true, date: "2026-11-21" })]).join()).toMatch(/no date until it is released/);
+    expect(validateChangelog([entry({ date: undefined })]).join()).toMatch(/date must be YYYY-MM-DD/);
+  });
+});
+
 describe("audiences", () => {
   const product = entry({ slug: "product-one", date: "2026-11-02" });
   const eng = entry({ slug: "eng-one", date: "2026-11-03", audience: "engineering", title: "Repository pattern", summary: "Queries moved behind repositories.", body: "Every table has one interface and two implementations." });

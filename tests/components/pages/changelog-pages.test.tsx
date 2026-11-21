@@ -30,7 +30,7 @@ describe("changelog pages", () => {
     // A link per product entry (by its address, since titles can repeat words); engineering entries have no page, so no link.
     const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
     for (const e of CHANGELOG_ENTRIES) {
-      expect(hrefs.includes(`/changelog/${e.slug}`), e.slug).toBe(e.audience === "product");
+      expect(hrefs.includes(`/changelog/${e.slug}`), e.slug).toBe(e.audience === "product" && !e.held);
     }
   });
 
@@ -113,6 +113,17 @@ describe("changelog pages", () => {
     expect(listProductChangelog().map((e) => e.slug)).not.toContain(staff[0].slug);
     expect(generateStaticParams().map((p) => p.slug)).not.toContain(staff[0].slug);
     await expect(ChangelogEntryPage({ params: Promise.resolve({ slug: staff[0].slug }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
+  });
+
+  it("never shows a held entry: no link, no search hit, and its slug is a 404", async () => {
+    signInAs(USER, null);
+    const held = CHANGELOG_ENTRIES.filter((e) => e.held);
+    expect(held.length).toBeGreaterThan(0);
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ q: held[0].title.split(" ").slice(0, 3).join(" ") }) });
+    const hrefs = screen.queryAllByRole("link").map((a) => a.getAttribute("href"));
+    for (const e of held) expect(hrefs).not.toContain(`/changelog/${e.slug}`);
+    expect(generateStaticParams().map((p) => p.slug)).not.toContain(held[0].slug);
+    await expect(ChangelogEntryPage({ params: Promise.resolve({ slug: held[0].slug }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
   });
 
   it("gives an engineering entry no page", async () => {
