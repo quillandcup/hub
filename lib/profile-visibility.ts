@@ -3,9 +3,9 @@ import { VISIBILITIES, type Visibility } from "@/lib/writing-visibility";
 /**
  * Who can see each item on a member's profile (docs/product/WRITER_PROFILES.md, "Who sees what"). The same three levels as a
  * writing project (`lib/writing-visibility.ts`): private (only the member), community (signed-in members, what every item
- * was before this existed) and public (anyone on the internet, on the member's writer page).
+ * was before this existed) and public (anyone on the internet, on the member's writer profile).
  *
- * The globe is offered only on what the writer page shows today (`WEB_ITEMS`), so it never promises what does not exist.
+ * The globe is offered only on what the writer profile shows today (`WEB_ITEMS`), so it never promises what does not exist.
  */
 export const WEB_ITEMS = ["bio", "photo", "instagram", "facebook", "x"] as const;
 export type WebItem = (typeof WEB_ITEMS)[number];
@@ -42,7 +42,7 @@ export const VISIBILITY_COLUMN = {
 
 /**
  * The levels one click cycles through for an item. The globe is for web items, and only where the member can have a writer
- * page (the `writer_pages` flag): otherwise it would promise something that does not exist. A level the member already has
+ * page (the `writer_profiles` flag): otherwise it would promise something that does not exist. A level the member already has
  * stays reachable by the control (it shows it), so nothing is hidden from them.
  */
 export function levelsFor(item: ProfileItem, options: { webPageAvailable: boolean }): readonly Visibility[] {
@@ -55,7 +55,7 @@ export function isLevelAllowed(item: ProfileItem, level: unknown): level is Visi
 }
 
 /**
- * Whether the writer page shows an item: the page is on, the flag is on for its owner and the item's level is the globe. The
+ * Whether the writer profile shows an item: the page is on, the flag is on for its owner and the item's level is the globe. The
  * one rule the page and the settings share (the page itself is built by the repository from the same facts).
  */
 export function shownOnTheWeb(level: Visibility, page: { on: boolean; flagOn: boolean }): boolean {

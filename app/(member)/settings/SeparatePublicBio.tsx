@@ -3,7 +3,7 @@
 import { useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { BIO_MAX_LENGTH } from "@/lib/writer-profile";
-import { saveWriterPageDetails } from "./writerPageActions";
+import { saveWriterProfileDetails } from "./writerProfileActions";
 
 const INPUT_CLASS = "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
 const SAVE_CLASS = "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
@@ -11,9 +11,9 @@ const LINK_BUTTON = "text-xs underline text-plum-700 dark:text-plum-300 hover:te
 
 /**
  * Under the bio: "Add a different public bio" opens a second box, written for the web page only (`writer_profiles.public_bio`,
- * the same length limit as the bio on the page has always had). While it has text, the writer page uses it instead of the member
+ * the same length limit as the bio on the page has always had). While it has text, the writer profile uses it instead of the member
  * bio, and the member bio can be shared with members or kept private. "Remove the separate public bio" asks first when it holds
- * text, since removing it deletes that text. Only for a member the `writer_pages` flag is on for (the caller decides).
+ * text, since removing it deletes that text. Only for a member the `writer_profiles` flag is on for (the caller decides).
  */
 export default function SeparatePublicBio({
   saved,
@@ -36,14 +36,14 @@ export default function SeparatePublicBio({
   async function save() {
     setError(null);
     setBusy(true);
-    const result = await saveWriterPageDetails({ publicNameAliasId, bio: text });
+    const result = await saveWriterProfileDetails({ publicNameAliasId, bio: text });
     setBusy(false);
     if ("error" in result) return setError(result.error);
     await onChanged(text.trim() === "" ? "Separate public bio removed." : "Public bio saved.");
   }
 
   async function remove(): Promise<string | undefined> {
-    const result = await saveWriterPageDetails({ publicNameAliasId, bio: "" });
+    const result = await saveWriterProfileDetails({ publicNameAliasId, bio: "" });
     if ("error" in result) return result.error;
     setText("");
     setOpen(false);
@@ -80,7 +80,7 @@ export default function SeparatePublicBio({
         className={INPUT_CLASS}
       />
       <p className="text-xs text-slate-600 dark:text-slate-400">
-        Your writer page shows this bio instead of the one above. The bio above then stays with other members, or only with you.
+        Your writer profile shows this bio instead of the one above. The bio above then stays with other members, or only with you.
       </p>
       {error && (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">
@@ -106,7 +106,7 @@ export default function SeparatePublicBio({
         open={confirmRemove}
         onClose={() => setConfirmRemove(false)}
         title="Remove the separate public bio?"
-        body="The text you wrote for your page is deleted and can't be brought back. Your writer page then uses your bio above, if you have opened it to the internet, and otherwise shows no bio."
+        body="The text you wrote for your page is deleted and can't be brought back. Your writer profile then uses your bio above, if you have opened it to the internet, and otherwise shows no bio."
         confirmLabel="Remove public bio"
         tone="danger"
         onConfirm={remove}

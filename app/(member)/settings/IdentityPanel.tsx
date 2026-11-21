@@ -210,7 +210,7 @@ export function IdentityPanel() {
     setAddingNameAlias(false);
   }
 
-  /** Switches one of the member's own names on or off for their public writer page. */
+  /** Switches one of the member's own names on or off for their public writer profile. */
   async function handleNamePublicChange(aliasId: string, isPublic: boolean) {
     setError(null);
     setMessage(null);
@@ -219,7 +219,7 @@ export function IdentityPanel() {
     if ("error" in result) {
       setError(result.error);
     } else {
-      setMessage(isPublic ? "Saved. You can now choose this name on your writer page, under Settings, Profile." : "Saved. This name is not available for your writer page.");
+      setMessage(isPublic ? "Saved. You can now choose this name on your writer profile, under Settings, Profile." : "Saved. This name is not available for your writer profile.");
       await load();
     }
     setBusyNameAliasId(null);
@@ -399,7 +399,7 @@ export function IdentityPanel() {
           name or a nickname, add that name here (exactly as Zoom shows it) so your attendance still counts. These
           only match your attendance; they don&apos;t change the name shown in the community. Once added, you can
           choose one as your Display Name above. A name you added yourself can also be shown on your public writer
-          page (Settings, Profile) as a pen name: tick &ldquo;Show on my writer page&rdquo; and it becomes a choice
+          page (Settings, Profile) as a pen name: tick &ldquo;Show on my writer profile&rdquo; and it becomes a choice
           there. Nothing is shown unless you tick it.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
@@ -423,10 +423,10 @@ export function IdentityPanel() {
                       disabled={busyNameAliasId === alias.id}
                       data-track="settings-identity-name-public"
                       onChange={(e) => handleNamePublicChange(alias.id, e.target.checked)}
-                      aria-label={`Show ${alias.alias} on my writer page`}
+                      aria-label={`Show ${alias.alias} on my writer profile`}
                       className="rounded"
                     />
-                    Show on my writer page
+                    Show on my writer profile
                   </label>
                 )
               }

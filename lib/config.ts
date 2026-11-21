@@ -89,10 +89,10 @@ export function postalAddress(): string {
   return value;
 }
 
-/** The public site writers' pages link back to, no trailing slash (config/app.ts `siteUrl`). */
+/** The public site writer profiles link back to, no trailing slash (config/app.ts `siteUrl`). */
 export const SITE_URL = appConfig.siteUrl.replace(/\/+$/, "");
 
-/** Writers' public pages: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (config/app.ts `writerProfiles`). */
+/** Writer profiles: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (config/app.ts `writerProfiles`). */
 export const WRITER_PROFILES = appConfig.writerProfiles;
 
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;

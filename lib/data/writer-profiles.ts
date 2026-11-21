@@ -1,4 +1,5 @@
 import { isProfilePubliclyServable, publicName, publishableLink, publishablePhotoUrl, type SetHandleOutcome } from "@/lib/writer-profile";
+import { fetchRowWindow } from "@/lib/supabase/paginate";
 import type { Db, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { must } from "./query";
@@ -9,6 +10,8 @@ export interface WriterProfileSettings {
   isPublic: boolean;
   /** One of their pen names (`member_name_aliases` id) shown instead of the display name; null shows the display name. */
   publicNameAliasId: string | null;
+  /** The member picked the name on their account as the name shown (never with a pen name; false is the display name). */
+  useAccountName: boolean;
   /** The separate bio written for the page, or null when the page uses the member's own bio (if its level is the globe). */
   bio: string | null;
   publishedAt: string | null;
@@ -46,6 +49,8 @@ export type HandleAvailability = "available" | "yours" | "taken" | "reserved";
 export interface WriterProfileChanges {
   isPublic?: boolean;
   publicNameAliasId?: string | null;
+  /** Choosing the account name clears the pen name, and choosing a pen name (or giving `false`) clears the account name. */
+  useAccountName?: boolean;
   bio?: string | null;
 }
 
@@ -58,7 +63,7 @@ export class PublicNameNotAllowedError extends Error {
 }
 
 /**
- * Writers' public pages (docs/product/WRITER_PROFILES.md). A member reads and changes their own page through their own
+ * Writer profiles (docs/product/WRITER_PROFILES.md). A member reads and changes their own page through their own
  * (row-level security) repositories; the handle is written only by `setHandle`, and everything a visitor reads
  * (`publicByHandle`, `publicHandles`) must run with the service role (`getServiceRepos()`), because visitors have no
  * grants on the tables: the repository returns only what is meant to be public.
@@ -87,13 +92,20 @@ export interface WriterProfileRepository {
   publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string; memberId: string }[]>;
 }
 
-const SETTINGS_COLUMNS = "handle, is_public, public_name_alias_id, public_bio, published_at";
+const SETTINGS_COLUMNS = "handle, is_public, public_name_alias_id, use_account_name, public_bio, published_at";
 
-type SettingsRow = Pick<Row<"writer_profiles">, "handle" | "is_public" | "public_name_alias_id" | "public_bio" | "published_at">;
+type SettingsRow = Pick<Row<"writer_profiles">, "handle" | "is_public" | "public_name_alias_id" | "use_account_name" | "public_bio" | "published_at">;
 
 function toSettings(row: SettingsRow | null | undefined): WriterProfileSettings | null {
   return row
-    ? { handle: row.handle, isPublic: row.is_public, publicNameAliasId: row.public_name_alias_id, bio: row.public_bio, publishedAt: row.published_at }
+    ? {
+        handle: row.handle,
+        isPublic: row.is_public,
+        publicNameAliasId: row.public_name_alias_id,
+        useAccountName: row.use_account_name,
+        bio: row.public_bio,
+        publishedAt: row.published_at,
+      }
     : null;
 }
 
@@ -114,6 +126,7 @@ type PublicRow = {
   deleted_at: string | null;
   member_id: string;
   public_name_alias_id: string | null;
+  use_account_name: boolean;
   member: {
     name: string;
     display_name: string | null;
@@ -130,7 +143,7 @@ type PublicRow = {
 };
 
 const PUBLIC_COLUMNS =
-  "handle, public_bio, published_at, updated_at, deleted_at, member_id, public_name_alias_id, member:members!writer_profiles_member_id_fkey(name, display_name, photo_url, status, bio, instagram_url, facebook_url, twitter_url, levels:member_profile_overrides(bio_visibility, photo_visibility, instagram_visibility, facebook_visibility, twitter_visibility)), alias:member_name_aliases!writer_profiles_public_name_alias_id_fkey(alias, is_public, active, source, member_id)";
+  "handle, public_bio, published_at, updated_at, deleted_at, member_id, public_name_alias_id, use_account_name, member:members!writer_profiles_member_id_fkey(name, display_name, photo_url, status, bio, instagram_url, facebook_url, twitter_url, levels:member_profile_overrides(bio_visibility, photo_visibility, instagram_visibility, facebook_visibility, twitter_visibility)), alias:member_name_aliases!writer_profiles_public_name_alias_id_fkey(alias, is_public, active, source, member_id)";
 
 /**
  * The one place a page's fields become public. A pen name is shown only when it is the member's own, still switched on
@@ -149,7 +162,7 @@ function toPublic(row: PublicRow): PublicWriterProfile | null {
   const separateBio = row.public_bio?.trim() ? row.public_bio : null;
   return {
     handle: row.handle,
-    name: publicName(row.member, penName),
+    name: publicName(row.member, penName, row.use_account_name),
     photoUrl: isPublic(levels?.photo_visibility) ? publishablePhotoUrl(row.member.photo_url) : null,
     bio: separateBio ?? (isPublic(levels?.bio_visibility) && row.member.bio?.trim() ? row.member.bio : null),
     links: {
@@ -177,6 +190,10 @@ export class SupabaseWriterProfileRepository implements WriterProfileRepository 
     const patch: Update<"writer_profiles"> = {};
     if (changes.isPublic !== undefined) patch.is_public = changes.isPublic;
     if (changes.publicNameAliasId !== undefined) patch.public_name_alias_id = changes.publicNameAliasId;
+    if (changes.useAccountName !== undefined) patch.use_account_name = changes.useAccountName;
+    // One choice at a time (the table's check): the pen name wins over a stale account-name flag, and the account name clears the pen name.
+    if (changes.publicNameAliasId) patch.use_account_name = false;
+    else if (changes.useAccountName) patch.public_name_alias_id = null;
     if (changes.bio !== undefined) patch.public_bio = changes.bio;
     if (Object.keys(patch).length === 0) return this.ofMember(memberId);
     const { data, error } = await this.db.from("writer_profiles").update(patch).eq("member_id", memberId).is("deleted_at", null).select(SETTINGS_COLUMNS).maybeSingle();
@@ -241,19 +258,19 @@ export class SupabaseWriterProfileRepository implements WriterProfileRepository 
   }
 
   async publicHandles(page: number, pageSize: number): Promise<{ handle: string; updatedAt: string; memberId: string }[]> {
-    const from = page * pageSize;
-    const rows = must(
-      await this.db
+    // A file can hold more rows than one request returns (1000), so the window is read in batches of the unique `id`.
+    const rows = await fetchRowWindow(page * pageSize, pageSize, (from, to) =>
+      this.db
         .from("writer_profiles")
         .select("handle, updated_at, deleted_at, member_id, member:members!writer_profiles_member_id_fkey(status)")
         .eq("is_public", true)
         .is("deleted_at", null)
         .order("id")
-        .range(from, from + pageSize - 1)
+        .range(from, to)
         // The embedded member is one object, which the generated types read as a list: typed by hand.
         .overrideTypes<{ handle: string; updated_at: string; deleted_at: string | null; member_id: string; member: { status: string } | null }[], { merge: false }>()
     );
-    return (rows ?? [])
+    return rows
       .filter((r) => r.member && isProfilePubliclyServable({ deletedAt: r.deleted_at, memberStatus: r.member.status }))
       .map((r) => ({ handle: r.handle, updatedAt: r.updated_at, memberId: r.member_id }));
   }
@@ -290,6 +307,9 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
     }
     if (changes.isPublic !== undefined) row.is_public = changes.isPublic;
     if (changes.publicNameAliasId !== undefined) row.public_name_alias_id = changes.publicNameAliasId;
+    if (changes.useAccountName !== undefined) row.use_account_name = changes.useAccountName;
+    if (changes.publicNameAliasId) row.use_account_name = false;
+    else if (changes.useAccountName) row.public_name_alias_id = null;
     if (changes.bio !== undefined) row.public_bio = changes.bio;
     const now = new Date().toISOString();
     if (row.is_public && !row.published_at) row.published_at = now;
@@ -321,6 +341,7 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
         handle,
         is_public: false,
         public_name_alias_id: null,
+        use_account_name: false,
         show_photo: false,
         public_bio: null,
         published_at: null,
@@ -354,6 +375,7 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
       deleted_at: row.deleted_at,
       member_id: row.member_id,
       public_name_alias_id: row.public_name_alias_id,
+      use_account_name: row.use_account_name,
       member: member
         ? {
             name: member.name,

@@ -15,10 +15,10 @@ import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "
 import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics } from "@/lib/ask-me-about";
 import TagInput from "@/components/TagInput";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import { WriterPagePanel } from "./WriterPagePanel";
+import { WriterProfilePanel } from "./WriterProfilePanel";
 import ProfileItemVisibility from "./ProfileItemVisibility";
 import SeparatePublicBio from "./SeparatePublicBio";
-import { getWriterPageSettings, type WriterPageSettings } from "./writerPageActions";
+import { getMyWriterProfile, type MyWriterProfile } from "./writerProfileActions";
 import { setProfileVisibility } from "./profileVisibilityActions";
 import type { ProfileItem } from "@/lib/profile-visibility";
 import type { Visibility } from "@/lib/writing-visibility";
@@ -62,7 +62,7 @@ function ItemHeader({ children, control }: { children: React.ReactNode; control:
  * Settings > Profile: everything on the member profile a member can change, saved together without leaving the Hub, and
  * who can see each item (the lock, house or globe beside it, saved at once). Instagram goes to Kajabi's "Instagram Handle"
  * field; bio / Facebook / X are Hub-owned overrides. Below it, when pages on the web are open to the member, the block
- * about their writer page (`WriterPagePanel`). "Who's coming" lives in Preferences (`WhosComingSetting`).
+ * about their writer profile (`WriterProfilePanel`). "Who's coming" lives in Preferences (`WhosComingSetting`).
  */
 export function ProfilePanel() {
   const [data, setData] = useState<ProfileSettings | null>(null);
@@ -75,12 +75,12 @@ export function ProfilePanel() {
   const [xInput, setXInput] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [page, setPage] = useState<WriterPageSettings | null>(null);
+  const [page, setPage] = useState<MyWriterProfile | null>(null);
   const [savingItem, setSavingItem] = useState<ProfileItem | null>(null);
 
-  // The writer page's settings: they decide whether a globe is offered and what its note says. A failed read leaves the page block out.
+  // The writer profile's settings: they decide whether a globe is offered and what its note says. A failed read leaves the page block out.
   const loadPage = useCallback(async () => {
-    const result = await getWriterPageSettings();
+    const result = await getMyWriterProfile();
     setPage("error" in result ? null : result);
   }, []);
 
@@ -211,7 +211,7 @@ export function ProfilePanel() {
             member profile
           </Link>
           . The icon beside each item says who can see it: the lock is only you, the house is other members
-          {web.available ? ", and the globe is anyone on the internet, on your writer page below" : ""}. Click it to change it.
+          {web.available ? ", and the globe is anyone on the internet, on your writer profile below" : ""}. Click it to change it.
         </p>
       </div>
 
@@ -356,7 +356,7 @@ export function ProfilePanel() {
 
       {page?.available && (
         <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-          <WriterPagePanel settings={page} onChanged={loadPage} />
+          <WriterProfilePanel settings={page} onChanged={loadPage} />
         </div>
       )}
     </div>

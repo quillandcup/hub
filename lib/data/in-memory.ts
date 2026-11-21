@@ -308,7 +308,7 @@ export class InMemoryDataset implements PeopleTables {
   landingPageVersions: Row<"landing_page_versions">[];
   /** The one row of the site template shared by website pages (LandingSiteTemplateRepository). */
   landingSiteTemplates: Row<"landing_site_template">[];
-  /** Writers' public pages and the handles they gave up (WriterProfileRepository). */
+  /** Writer profiles and the handles they gave up (WriterProfileRepository). */
   writerProfiles: Row<"writer_profiles">[];
   writerProfileHandles: Row<"writer_profile_handles">[];
   /** The Finisher record (MilestoneRepository). */

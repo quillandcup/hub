@@ -194,11 +194,11 @@ export const appConfig = {
    */
   kajabiSiteUrl: "https://www.quillandcup.com",
 
-  /** The public site members arrive from, no trailing slash: where the footer of a writer's public page links to. */
+  /** The public site members arrive from, no trailing slash: where the footer of a writer profile links to. */
   siteUrl: "https://www.quillandcup.com",
 
   /**
-   * Writers' public pages (lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
+   * Writer profiles (lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
    * `handleMinLength`, `handleMaxLength`: the length of a handle (letters, digits and single hyphens).
    * `handleReservationDays`: how long a handle a member gave up stays theirs alone; until then nobody else can take it, and
    * its old address redirects to the new one until someone takes it afterwards.

@@ -162,7 +162,7 @@ describe("addNameAlias", () => {
 describe("setNameAliasPublic", () => {
   const add = (id: string, alias: string, source: string, memberId = "member-1") => data.nameAliases.push({ id, member_id: memberId, alias, source, active: true });
 
-  it("lets a member show a name they added themselves on their writer page, and take it off again", async () => {
+  it("lets a member show a name they added themselves on their writer profile, and take it off again", async () => {
     vi.mocked(createClient).mockResolvedValue(makeClient());
     add("nal_own", "A. E. Pen", "member");
 

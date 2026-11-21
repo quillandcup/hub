@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * A writer's public page (/w/<handle>), its preview, the sitemap and robots.txt (docs/product/WRITER_PROFILES.md). The repository is
+ * A writer profile (/w/<handle>), its preview, the sitemap and robots.txt (docs/product/WRITER_PROFILES.md). The repository is
  * the in-memory twin; markup, metadata, redirects and the 404 are real. What matters here: a page that is off and a handle
  * nobody has are the same 404, a given-up handle redirects, the preview is member-only and never indexed, and nothing
  * but the chosen fields reaches the markup.
@@ -23,14 +23,14 @@ const state = { dataset: undefined as never as InMemoryDataset, repos: undefined
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
-import WriterPage, { generateMetadata } from "@/app/w/[handle]/page";
-import WriterPagePreview, { metadata as previewMetadata } from "@/app/(member)/writer-page/preview/page";
+import WriterProfile, { generateMetadata } from "@/app/w/[handle]/page";
+import WriterProfilePreview, { metadata as previewMetadata } from "@/app/(member)/writer-profile/preview/page";
 import sitemap, { generateSitemaps } from "@/app/w/sitemap";
 import robots from "@/app/robots";
 
 const params = (handle: string) => ({ params: Promise.resolve({ handle }) });
 const NOW = new Date("2027-03-01T12:00:00Z");
-const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_pages", enabled_globally, created_at: NOW.toISOString(), updated_at: NOW.toISOString() });
+const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_profiles", enabled_globally, created_at: NOW.toISOString(), updated_at: NOW.toISOString() });
 const GRACE = "mbr_AAAAAAAAAAA2";
 
 async function makePage(handle: string, options: { on?: boolean; bio?: string; photo?: boolean } = {}) {
@@ -53,7 +53,7 @@ describe("/w/[handle]", () => {
   it("shows a public page to a signed-out visitor: the name, the bio and a link back to the community, nothing else", async () => {
     await makePage("ada-example", { bio: "I write cozy mysteries.\nSecond line." });
 
-    const { container } = await renderServerPage(WriterPage, params("ada-example"));
+    const { container } = await renderServerPage(WriterProfile, params("ada-example"));
 
     expect(screen.getByRole("heading", { level: 1, name: "Ada Example" })).toBeInTheDocument();
     expect(screen.getByText(/I write cozy mysteries\./)).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("/w/[handle]", () => {
 
   it("shows the photo only when the member chose to", async () => {
     await makePage("ada-example", { photo: true });
-    await renderServerPage(WriterPage, params("ada-example"));
+    await renderServerPage(WriterProfile, params("ada-example"));
     expect(screen.getByRole("img", { name: "Ada Example" })).toHaveAttribute("src", "https://photos.example.com/ada.png");
   });
 
@@ -74,13 +74,13 @@ describe("/w/[handle]", () => {
     Object.assign(ada, { bio: "My bio.", instagramUrl: "https://instagram.com/ada", facebookUrl: "https://facebook.com/ada", twitterUrl: "http://x.com/ada" });
     await makePage("ada-example");
 
-    const closed = await renderServerPage(WriterPage, params("ada-example"));
+    const closed = await renderServerPage(WriterProfile, params("ada-example"));
     expect(screen.queryByText("My bio.")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Instagram" })).not.toBeInTheDocument();
     closed.unmount();
 
     for (const item of ["bio", "instagram", "x"] as const) await state.repos.memberStatus.saveProfileVisibility(ADA, item, "public", null);
-    await renderServerPage(WriterPage, params("ada-example"));
+    await renderServerPage(WriterProfile, params("ada-example"));
     expect(screen.getByText("My bio.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Instagram" })).toHaveAttribute("href", "https://instagram.com/ada");
     expect(screen.queryByRole("link", { name: "Facebook" })).not.toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("/w/[handle]", () => {
     await makePage("ada-example");
     await state.repos.memberStatus.saveProfileVisibility(ADA, "instagram", "public", null);
 
-    const { container } = await renderServerPage(WriterPage, params("ada-example"));
+    const { container } = await renderServerPage(WriterProfile, params("ada-example"));
 
     expect(JSON.parse(container.querySelector('script[type="application/ld+json"]')!.textContent!).sameAs).toEqual(["https://instagram.com/ada"]);
   });
@@ -100,7 +100,7 @@ describe("/w/[handle]", () => {
   it("renders a bio as text, never as markup", async () => {
     await makePage("ada-example", { bio: "<b>bold</b> <script>alert(1)</script>" });
 
-    const { container } = await renderServerPage(WriterPage, params("ada-example"));
+    const { container } = await renderServerPage(WriterProfile, params("ada-example"));
 
     expect(container.querySelector("article b")).toBeNull();
     expect(screen.getByText(/<b>bold<\/b>/)).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("/w/[handle]", () => {
     await makePage("hidden-page", { on: false });
 
     for (const handle of ["hidden-page", "never-made", "Not Valid", "../etc", "a--b"]) {
-      await expect(WriterPage(params(handle))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+      await expect(WriterProfile(params(handle))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
     }
     const [hidden, missing] = await Promise.all([generateMetadata(params("hidden-page")), generateMetadata(params("never-made"))]);
     expect(hidden).toEqual(missing);
@@ -121,14 +121,14 @@ describe("/w/[handle]", () => {
     await makePage("ada-old");
     await state.repos.writerProfiles.setHandle(ADA, "ada-new", { reserveDays: 90, now: NOW });
 
-    await expectPermanentRedirect(WriterPage, params("ada-old"), "/w/ada-new");
+    await expectPermanentRedirect(WriterProfile, params("ada-old"), "/w/ada-new");
     await state.repos.writerProfiles.update(ADA, { isPublic: false });
-    await expect(WriterPage(params("ada-old"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    await expect(WriterProfile(params("ada-old"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
   });
 
   it("sends capital letters to the one lowercase address", async () => {
     await makePage("ada-example");
-    await expectPermanentRedirect(WriterPage, params("Ada-Example"), "/w/ada-example");
+    await expectPermanentRedirect(WriterProfile, params("Ada-Example"), "/w/ada-example");
   });
 
   it("is indexed, with a canonical address, a social card and structured data for a person", async () => {
@@ -143,7 +143,7 @@ describe("/w/[handle]", () => {
     expect(metadata.openGraph).toMatchObject({ title: "Ada Example", url: `${APP_URL}/w/ada-example`, type: "profile", images: [{ url: "https://photos.example.com/ada.png" }] });
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image", title: "Ada Example" });
 
-    const { container } = await renderServerPage(WriterPage, params("ada-example"));
+    const { container } = await renderServerPage(WriterProfile, params("ada-example"));
     const json = JSON.parse(container.querySelector('script[type="application/ld+json"]')!.textContent!);
     expect(json).toEqual({
       "@context": "https://schema.org",
@@ -158,7 +158,7 @@ describe("/w/[handle]", () => {
   it("cannot be broken out of the structured data by what the bio says", async () => {
     await makePage("ada-example", { bio: "</script><script>alert(1)</script>" });
 
-    const { container } = await renderServerPage(WriterPage, params("ada-example"));
+    const { container } = await renderServerPage(WriterProfile, params("ada-example"));
 
     expect(container.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
     expect(container.querySelector('script[type="application/ld+json"]')!.innerHTML).not.toContain("</script>");
@@ -166,7 +166,7 @@ describe("/w/[handle]", () => {
   });
 });
 
-describe("the writer_pages flag", () => {
+describe("the writer_profiles flag", () => {
   const MEMBER_USER = { id: "user-ada", email: "ada.private@example.test" };
   const IDENTITY = { memberId: ADA, memberName: "Ada Legalname", memberEmail: "ada.private@example.test", isSudo: false };
   const flagOff = () => {
@@ -178,7 +178,7 @@ describe("the writer_pages flag", () => {
     await makePage("ada-example", { bio: "Hidden by the flag." });
     flagOff();
 
-    await expect(WriterPage(params("ada-example"))).rejects.toMatchObject(notFoundError);
+    await expect(WriterProfile(params("ada-example"))).rejects.toMatchObject(notFoundError);
     const [flagged, missing] = await Promise.all([generateMetadata(params("ada-example")), generateMetadata(params("never-made"))]);
     expect(flagged).toEqual(missing);
     expect(flagged.robots).toEqual({ index: false });
@@ -187,11 +187,11 @@ describe("the writer_pages flag", () => {
   it("serves it again when the flag comes back, with nothing changed", async () => {
     await makePage("ada-example", { bio: "Still here." });
     flagOff();
-    await expect(WriterPage(params("ada-example"))).rejects.toMatchObject(notFoundError);
+    await expect(WriterProfile(params("ada-example"))).rejects.toMatchObject(notFoundError);
 
     state.dataset.featureFlags = [];
-    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_pages", enabled_at: NOW.toISOString() }];
-    await renderServerPage(WriterPage, params("ada-example"));
+    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_profiles", enabled_at: NOW.toISOString() }];
+    await renderServerPage(WriterProfile, params("ada-example"));
     expect(screen.getByText("Still here.")).toBeInTheDocument();
   });
 
@@ -200,7 +200,7 @@ describe("the writer_pages flag", () => {
     await state.repos.writerProfiles.setHandle(ADA, "ada-new", { reserveDays: 90, now: NOW });
     flagOff();
 
-    await expect(WriterPage(params("ada-old"))).rejects.toMatchObject(notFoundError);
+    await expect(WriterProfile(params("ada-old"))).rejects.toMatchObject(notFoundError);
   });
 
   it("gives the owner's preview the same 404 while the flag is off, and keeps the page's data", async () => {
@@ -208,7 +208,7 @@ describe("the writer_pages flag", () => {
     await makePage("ada-example", { on: false, bio: "Draft." });
     flagOff();
 
-    await expect(WriterPagePreview()).rejects.toMatchObject(notFoundError);
+    await expect(WriterProfilePreview()).rejects.toMatchObject(notFoundError);
     expect(await state.repos.writerProfiles.ofMember(ADA)).toMatchObject({ handle: "ada-example", bio: "Draft." });
   });
 
@@ -218,7 +218,7 @@ describe("the writer_pages flag", () => {
     await state.repos.writerProfiles.setHandle(GRACE, "grace-example", { reserveDays: 90, now: NOW });
     await state.repos.writerProfiles.update(GRACE, { isPublic: true });
     state.dataset.featureFlags = [flagRow(false)];
-    state.dataset.userFeaturePreviews = [{ user_id: "user-grace", feature_key: "writer_pages", enabled_at: NOW.toISOString() }];
+    state.dataset.userFeaturePreviews = [{ user_id: "user-grace", feature_key: "writer_profiles", enabled_at: NOW.toISOString() }];
 
     expect(await sitemap({ id: Promise.resolve("0") })).toEqual([{ url: `${APP_URL}/w/grace-example`, lastModified: expect.any(String) }]);
 
@@ -251,14 +251,14 @@ describe("the preview", () => {
 
   it("is never indexed and its path is under the signed-in member routes", () => {
     expect(previewMetadata.robots).toEqual({ index: false, follow: false });
-    expect(WRITER_PREVIEW_PATH).toBe("/writer-page/preview");
+    expect(WRITER_PREVIEW_PATH).toBe("/writer-profile/preview");
   });
 
   it("shows the member their page when it is off, with a note that only they can see it", async () => {
     signInAs(MEMBER_USER, IDENTITY);
     await makePage("ada-example", { on: false, bio: "Not public yet." });
 
-    await renderServerPage(WriterPagePreview, {});
+    await renderServerPage(WriterProfilePreview, {});
 
     expect(screen.getByRole("heading", { level: 1, name: "Ada Example" })).toBeInTheDocument();
     expect(screen.getByText("Not public yet.")).toBeInTheDocument();
@@ -269,23 +269,23 @@ describe("the preview", () => {
     signInAs(MEMBER_USER, IDENTITY);
     await makePage("ada-example");
 
-    await renderServerPage(WriterPagePreview, {});
+    await renderServerPage(WriterProfilePreview, {});
 
     expect(screen.getByRole("status")).toHaveTextContent("Your page is on: anyone can open it.");
   });
 
   it("sends someone who is not signed in to sign in, and shows a member with no address how to set one up", async () => {
-    await expectRedirect(WriterPagePreview, {}, "/login");
+    await expectRedirect(WriterProfilePreview, {}, "/login");
 
     signInAs(MEMBER_USER, IDENTITY);
-    await renderServerPage(WriterPagePreview, {});
+    await renderServerPage(WriterProfilePreview, {});
     expect(screen.getByText("You have not chosen an address for your page yet.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Set it up in Settings" })).toHaveAttribute("href", "/settings/profile");
   });
 
   it("sends an admin with no member record to the admin area", async () => {
     signInAs(MEMBER_USER, null);
-    await expectRedirect(WriterPagePreview, {}, "/admin");
+    await expectRedirect(WriterProfilePreview, {}, "/admin");
     expect(getCurrentUser).toHaveBeenCalled();
   });
 });

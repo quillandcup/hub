@@ -740,25 +740,25 @@ describe("who can see a member's profile items in the Activity Log", () => {
   });
 });
 
-describe("a writer's public page in the Activity Log", () => {
-  const writerPage = (event_type: string, data: ActivityFeedRow["data"]) => row({ entity_type: "writer_profile", event_type, data });
+describe("a writer profile in the Activity Log", () => {
+  const writerProfile = (event_type: string, data: ActivityFeedRow["data"]) => row({ entity_type: "writer_profile", event_type, data });
 
   it("says the switch, the name, the photo and the bio in plain words, and never the bio itself", () => {
-    expect(describeRow(writerPage("update", { is_public: { old: false, new: true }, published_at: { old: null, new: "2027-03-01" } }))).toBe("turned on their public writer page");
-    expect(describeRow(writerPage("update", { is_public: { old: true, new: false } }))).toBe("turned off their public writer page");
-    expect(describeRow(writerPage("update", { public_name_alias_id: { old: null, new: "nalias_AAAAAAAAAAA1" } }))).toBe("changed the name shown on their public writer page");
-    expect(describeRow(writerPage("update", { show_photo: { old: false, new: true } }))).toBe("changed whether their photo is shown on their public writer page");
-    expect(describeRow(writerPage("update", { public_bio: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed the bio on their public writer page");
-    expect(describeRow(writerPage("update", { show_photo: { old: false, new: true }, public_bio: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed whether their photo is shown and the bio on their public writer page");
+    expect(describeRow(writerProfile("update", { is_public: { old: false, new: true }, published_at: { old: null, new: "2027-03-01" } }))).toBe("turned on their public writer profile");
+    expect(describeRow(writerProfile("update", { is_public: { old: true, new: false } }))).toBe("turned off their public writer profile");
+    expect(describeRow(writerProfile("update", { public_name_alias_id: { old: null, new: "nalias_AAAAAAAAAAA1" } }))).toBe("changed the name shown on their public writer profile");
+    expect(describeRow(writerProfile("update", { show_photo: { old: false, new: true } }))).toBe("changed whether their photo is shown on their public writer profile");
+    expect(describeRow(writerProfile("update", { public_bio: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed the bio on their public writer profile");
+    expect(describeRow(writerProfile("update", { show_photo: { old: false, new: true }, public_bio: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed whether their photo is shown and the bio on their public writer profile");
   });
 
   it("does not repeat a bio that was somehow in the row", () => {
-    const sentence = describeRow(writerPage("update", { public_bio: { old: "secret old words", new: "secret new words" } }));
+    const sentence = describeRow(writerProfile("update", { public_bio: { old: "secret old words", new: "secret new words" } }));
     expect(sentence).not.toMatch(/secret/);
   });
 
   it("falls back to a plain sentence for any other change", () => {
-    expect(describeRow(writerPage("update", { handle: { old: "a", new: "b" } }))).toMatch(/public writer page/);
+    expect(describeRow(writerProfile("update", { handle: { old: "a", new: "b" } }))).toMatch(/public writer profile/);
   });
 });
 

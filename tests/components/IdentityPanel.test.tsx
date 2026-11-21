@@ -152,7 +152,7 @@ describe('IdentityPanel', () => {
     expect(screen.queryByRole('button', { name: /deactivate|reactivate/i })).not.toBeInTheDocument()
   })
 
-  it('lets a member show a name they added themselves on their writer page, and offers it for no other name', async () => {
+  it('lets a member show a name they added themselves on their writer profile, and offers it for no other name', async () => {
     vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
       ...baseSettings,
       nameAliases: [
@@ -165,11 +165,11 @@ describe('IdentityPanel', () => {
     render(<IdentityPanel />)
     await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
 
-    expect(screen.getAllByRole('checkbox', { name: /on my writer page/ })).toHaveLength(1)
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Show Ada Pen on my writer page' }))
+    expect(screen.getAllByRole('checkbox', { name: /on my writer profile/ })).toHaveLength(1)
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show Ada Pen on my writer profile' }))
 
     expect(identityActions.setNameAliasPublic).toHaveBeenCalledWith('n1', true)
-    expect(await screen.findByText(/You can now choose this name on your writer page/)).toBeInTheDocument()
+    expect(await screen.findByText(/You can now choose this name on your writer profile/)).toBeInTheDocument()
   })
 
   it('says so, and changes nothing on screen, when a name cannot be shown', async () => {
@@ -181,7 +181,7 @@ describe('IdentityPanel', () => {
     render(<IdentityPanel />)
     await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
 
-    const box = screen.getByRole('checkbox', { name: 'Show Ada Pen on my writer page' })
+    const box = screen.getByRole('checkbox', { name: 'Show Ada Pen on my writer profile' })
     expect(box).toBeChecked()
     await userEvent.click(box)
 

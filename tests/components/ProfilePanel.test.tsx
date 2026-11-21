@@ -4,16 +4,16 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProfilePanel } from '@/app/(member)/settings/ProfilePanel'
 import * as profileActions from '@/app/(member)/settings/profileActions'
-import * as pageActions from '@/app/(member)/settings/writerPageActions'
+import * as pageActions from '@/app/(member)/settings/writerProfileActions'
 import * as visibilityActions from '@/app/(member)/settings/profileVisibilityActions'
 import { SUPPORT_EMAIL } from '@/lib/config'
 import { defaultProfileVisibilities } from '@/lib/profile-visibility'
 
-vi.mock('@/app/(member)/settings/WriterPagePanel', () => ({ WriterPagePanel: () => <div>writer page block</div> }))
+vi.mock('@/app/(member)/settings/WriterProfilePanel', () => ({ WriterProfilePanel: () => <div>writer profile block</div> }))
 
-vi.mock('@/app/(member)/settings/writerPageActions', () => ({
-  getWriterPageSettings: vi.fn(),
-  saveWriterPageDetails: vi.fn(),
+vi.mock('@/app/(member)/settings/writerProfileActions', () => ({
+  getMyWriterProfile: vi.fn(),
+  saveWriterProfileDetails: vi.fn(),
 }))
 
 vi.mock('@/app/(member)/settings/profileVisibilityActions', () => ({ setProfileVisibility: vi.fn() }))
@@ -36,7 +36,7 @@ const baseSettings: profileActions.ProfileSettings = {
   showInRoster: true,
 }
 
-const pageSettings: pageActions.WriterPageSettings = {
+const pageSettings: pageActions.MyWriterProfile = {
   available: true,
   hasPage: true,
   handle: 'ada-example',
@@ -44,18 +44,18 @@ const pageSettings: pageActions.WriterPageSettings = {
   publicNameAliasId: null,
   publicBio: '',
   nameChosen: true,
-  nameChoices: [{ aliasId: null, label: 'Ada Example' }],
+  nameChoices: [{ kind: 'display', aliasId: null, label: 'Ada Example' }],
+  useAccountName: false,
   photoAvailable: true,
   suggestedHandle: 'ada-example',
   addressPrefix: 'hub.example.test/w/',
-  usingAccountName: false,
   pageUrl: 'https://hub.example.test/w/ada-example',
-  previewPath: '/writer-page/preview',
+  previewPath: '/writer-profile/preview',
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, available: false })
+  vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, available: false })
 })
 
 describe('ProfilePanel', () => {
@@ -249,16 +249,16 @@ describe('ProfilePanel one section', () => {
     expect(screen.queryByRole('checkbox', { name: /Who's coming/ })).not.toBeInTheDocument()
   })
 
-  it('shows the writer page block only when pages on the web are open to the member', async () => {
+  it('shows the writer profile block only when pages on the web are open to the member', async () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     const { unmount } = render(<ProfilePanel />)
     await screen.findByLabelText('Bio')
-    expect(screen.queryByText('writer page block')).not.toBeInTheDocument()
+    expect(screen.queryByText('writer profile block')).not.toBeInTheDocument()
     unmount()
 
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue(pageSettings)
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
     render(<ProfilePanel />)
-    expect(await screen.findByText('writer page block')).toBeInTheDocument()
+    expect(await screen.findByText('writer profile block')).toBeInTheDocument()
   })
 })
 
@@ -310,11 +310,11 @@ describe('ProfilePanel who can see each item', () => {
   })
 
   it('offers the globe on the bio, photo and social links, but never on "Ask me about"', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue(pageSettings)
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     vi.mocked(visibilityActions.setProfileVisibility).mockResolvedValue({ success: true })
     render(<ProfilePanel />)
-    await screen.findByText('writer page block')
+    await screen.findByText('writer profile block')
 
     await userEvent.click(await control('bio', 'Other members'))
     expect(visibilityActions.setProfileVisibility).toHaveBeenLastCalledWith('bio', 'public')
@@ -326,28 +326,28 @@ describe('ProfilePanel who can see each item', () => {
   })
 
   it('says plainly that a globe item waits for the page, and never silently', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue(pageSettings)
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue({ ...baseSettings, visibilities: { ...baseSettings.visibilities, facebook: 'public' } })
     render(<ProfilePanel />)
 
-    expect(await screen.findByTestId('note-facebook')).toHaveTextContent('Shown on the web once your writer page is on.')
+    expect(await screen.findByTestId('note-facebook')).toHaveTextContent('Other members already see this. It goes on the web once your writer profile is on.')
   })
 
   it('shows no note for a globe item when the page is on, and a different one when pages on the web are closed', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, isPublic: true })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, isPublic: true })
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue({ ...baseSettings, visibilities: { ...baseSettings.visibilities, facebook: 'public' } })
     const { unmount } = render(<ProfilePanel />)
-    await screen.findByText('writer page block')
+    await screen.findByText('writer profile block')
     expect(screen.queryByTestId('note-facebook')).not.toBeInTheDocument()
     unmount()
 
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, available: false })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, available: false })
     render(<ProfilePanel />)
-    expect(await screen.findByTestId('note-facebook')).toHaveTextContent('pages on the web are not open to you yet')
+    expect(await screen.findByTestId('note-facebook')).toHaveTextContent('writer profiles are not open to you yet')
   })
 
   it('says a Gravatar picture is never published when the photo is set to the globe but cannot be', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, photoAvailable: false })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, photoAvailable: false })
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue({ ...baseSettings, visibilities: { ...baseSettings.visibilities, photo: 'public' } })
     render(<ProfilePanel />)
 
@@ -367,20 +367,20 @@ describe('ProfilePanel a different public bio', () => {
   })
 
   it('opens a second box on the link, and saves it for the page with the name left as it was', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, publicNameAliasId: 'nalias_1' })
-    vi.mocked(pageActions.saveWriterPageDetails).mockResolvedValue({ success: true })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, publicNameAliasId: 'nalias_1' })
+    vi.mocked(pageActions.saveWriterProfileDetails).mockResolvedValue({ success: true })
     render(<ProfilePanel />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Add a different public bio' }))
     await userEvent.type(screen.getByLabelText('Public bio'), 'Written for the web.')
     await userEvent.click(screen.getByRole('button', { name: 'Save public bio' }))
 
-    expect(pageActions.saveWriterPageDetails).toHaveBeenCalledWith({ publicNameAliasId: 'nalias_1', bio: 'Written for the web.' })
+    expect(pageActions.saveWriterProfileDetails).toHaveBeenCalledWith({ publicNameAliasId: 'nalias_1', bio: 'Written for the web.' })
     expect(await screen.findByText('Public bio saved.')).toBeInTheDocument()
   })
 
   it('shows the box already open when there is one, with no globe left on the member bio', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, publicBio: 'Already written.' })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, publicBio: 'Already written.' })
     vi.mocked(visibilityActions.setProfileVisibility).mockResolvedValue({ success: true })
     render(<ProfilePanel />)
 
@@ -392,22 +392,22 @@ describe('ProfilePanel a different public bio', () => {
   })
 
   it('asks before removing text, and removes it only when confirmed', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue({ ...pageSettings, publicBio: 'Already written.' })
-    vi.mocked(pageActions.saveWriterPageDetails).mockResolvedValue({ success: true })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, publicBio: 'Already written.' })
+    vi.mocked(pageActions.saveWriterProfileDetails).mockResolvedValue({ success: true })
     render(<ProfilePanel />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Remove the separate public bio' }))
-    expect(pageActions.saveWriterPageDetails).not.toHaveBeenCalled()
+    expect(pageActions.saveWriterProfileDetails).not.toHaveBeenCalled()
     expect(await screen.findByText('Remove the separate public bio?')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove public bio' }))
 
-    await waitFor(() => expect(pageActions.saveWriterPageDetails).toHaveBeenCalledWith({ publicNameAliasId: null, bio: '' }))
+    await waitFor(() => expect(pageActions.saveWriterProfileDetails).toHaveBeenCalledWith({ publicNameAliasId: null, bio: '' }))
     expect(await screen.findByText('Separate public bio removed.')).toBeInTheDocument()
   })
 
   it('closes an unsaved box without asking, since nothing is lost', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue(pageSettings)
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
     render(<ProfilePanel />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Add a different public bio' }))
@@ -415,12 +415,12 @@ describe('ProfilePanel a different public bio', () => {
 
     expect(screen.queryByText('Remove the separate public bio?')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add a different public bio' })).toBeInTheDocument()
-    expect(pageActions.saveWriterPageDetails).not.toHaveBeenCalled()
+    expect(pageActions.saveWriterProfileDetails).not.toHaveBeenCalled()
   })
 
   it('shows the server\'s reason when saving fails and keeps the text', async () => {
-    vi.mocked(pageActions.getWriterPageSettings).mockResolvedValue(pageSettings)
-    vi.mocked(pageActions.saveWriterPageDetails).mockResolvedValue({ error: 'Your bio can be at most 1000 characters.' })
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
+    vi.mocked(pageActions.saveWriterProfileDetails).mockResolvedValue({ error: 'Your bio can be at most 1000 characters.' })
     render(<ProfilePanel />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Add a different public bio' }))
