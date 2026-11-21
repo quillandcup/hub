@@ -1,7 +1,8 @@
 "use client";
 
 import MediaPicker from "@/components/media/MediaPicker";
-import { BUTTON_RADII, BUTTON_SIZES, FAVICON_MAX_PX, FAVICON_MIN_PX, FONT_FAMILIES, FONT_WEIGHTS, LINE_HEIGHTS, PAGE_BACKGROUNDS, PRIMARY_COLORS, faviconProblem, type StyleKey, type StyleTokens } from "@/lib/landing/style";
+import { buttonClasses } from "@/components/landing/blocks";
+import { BUTTON_RADII, BUTTON_SIZES, BUTTON_STYLES, BUTTON_TEXTS, FAVICON_MAX_PX, FAVICON_MIN_PX, FONT_FAMILIES, FONT_WEIGHTS, LINE_HEIGHTS, PAGE_BACKGROUNDS, PRIMARY_COLORS, faviconProblem, styleClasses, type StyleKey, type StyleTokens } from "@/lib/landing/style";
 
 const SELECT = "mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 
@@ -9,6 +10,8 @@ const FIELDS: { key: StyleKey; label: string; options: readonly { value: string;
   { key: "pageBackground", label: "Page background", options: PAGE_BACKGROUNDS },
   { key: "primary", label: "Primary colour (buttons, accents and links)", options: PRIMARY_COLORS },
   { key: "buttonSize", label: "Button size", options: BUTTON_SIZES },
+  { key: "buttonStyle", label: "Button style", options: BUTTON_STYLES },
+  { key: "buttonText", label: "Button text colour (solid buttons)", options: BUTTON_TEXTS },
   { key: "buttonRadius", label: "Button corners", options: BUTTON_RADII },
   { key: "fontFamily", label: "Body font", options: FONT_FAMILIES },
   { key: "fontWeight", label: "Body weight", options: FONT_WEIGHTS },
@@ -21,19 +24,32 @@ const FIELDS: { key: StyleKey; label: string; options: readonly { value: string;
  */
 export function StyleFields({ value, onChange, disabled = false }: { value: StyleTokens; onChange: (key: StyleKey, next: string) => void; disabled?: boolean }) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
-      {FIELDS.map((f) => (
-        <label key={f.key} className="block text-sm font-medium">
-          {f.label}
-          <select value={value[f.key]} disabled={disabled} onChange={(e) => onChange(f.key, e.target.value)} className={SELECT}>
-            {f.options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      ))}
+    <div className="space-y-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
+        {FIELDS.map((f) => (
+          <label key={f.key} className="block text-sm font-medium">
+            {f.label}
+            <select value={value[f.key]} disabled={disabled} onChange={(e) => onChange(f.key, e.target.value)} className={SELECT}>
+              {f.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <ButtonPreview value={value} />
+    </div>
+  );
+}
+
+/** A sample button drawn the way every button that follows the site is, so the size, corners, style and text colour can be judged before they are saved. */
+function ButtonPreview({ value }: { value: StyleTokens }) {
+  return (
+    <div data-testid="button-preview" className={`@container rounded-lg border border-slate-200 bg-page p-4 text-ink dark:border-slate-700 ${styleClasses(value)}`}>
+      <p className="mb-2 text-xs opacity-80">A button that follows the site looks like this:</p>
+      <span className={buttonClasses("inherit", "plum", "pill", false)}>Sample button</span>
     </div>
   );
 }

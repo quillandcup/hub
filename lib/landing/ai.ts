@@ -30,7 +30,7 @@ type AiBlock = (typeof AI_BLOCKS)[number];
 const AI_ITEMS = ["Step", "Stat"] as const;
 const WRITABLE: readonly string[] = [...AI_BLOCKS, ...AI_ITEMS];
 
-const LOOK = ["solid", "outline"];
+const LOOK = ["inherit", "solid", "outline"];
 const ALIGN = ["left", "center"];
 
 /** The values a select prop takes, per block; a prop not listed is free text. */

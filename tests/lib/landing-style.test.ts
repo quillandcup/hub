@@ -55,6 +55,15 @@ describe("resolveStyle: which value a page is drawn with", () => {
     expect(resolveStyle(changed, { primary: "brown" })).toEqual({ ...changed, primary: "brown" });
   });
 
+  it("resolves the button style and text colour like any token: the site's, the page's own, and the site's again when the override goes", () => {
+    const outlined = { ...STYLE_DEFAULTS, buttonStyle: "outline", buttonText: "dark" } as const;
+    expect(resolveStyle(outlined)).toMatchObject({ buttonStyle: "outline", buttonText: "dark" });
+    expect(resolveStyle(outlined, { buttonStyle: "solid" })).toMatchObject({ buttonStyle: "solid", buttonText: "dark" });
+    expect(resolveStyle(outlined, {})).toMatchObject({ buttonStyle: "outline" });
+    expect(resolveStyle({ ...outlined, buttonStyle: "solid" }, undefined).buttonStyle).toBe("solid");
+    expect(normalizeStyle({ buttonStyle: "dashed", buttonText: "#fff" })).toEqual(STYLE_DEFAULTS);
+  });
+
   it("draws the same from the site's stored JSON as from a normalized style", () => {
     expect(resolveStyle(JSON.parse(JSON.stringify(site)), { primary: "brown" })).toEqual(resolveStyle(site, { primary: "brown" }));
   });
@@ -66,8 +75,8 @@ describe("styleClasses", () => {
   });
 
   it("names each chosen token, and a page background brings the light scope with it", () => {
-    const classes = styleClasses({ pageBackground: "cream", primary: "brown", buttonSize: "large", buttonRadius: "square", fontFamily: "serif", fontWeight: "medium", lineHeight: "relaxed" }).split(" ");
-    expect(classes).toEqual(["landing-light", "lp-bg-cream", "lp-primary-brown", "lp-btn-size-large", "lp-btn-radius-square", "lp-font-serif", "lp-weight-medium", "lp-leading-relaxed"]);
+    const classes = styleClasses({ pageBackground: "cream", primary: "brown", buttonSize: "large", buttonRadius: "square", buttonStyle: "outline", buttonText: "dark", fontFamily: "serif", fontWeight: "medium", lineHeight: "relaxed" }).split(" ");
+    expect(classes).toEqual(["landing-light", "lp-bg-cream", "lp-primary-brown", "lp-btn-size-large", "lp-btn-radius-square", "lp-btn-style-outline", "lp-btn-text-dark", "lp-font-serif", "lp-weight-medium", "lp-leading-relaxed"]);
   });
 });
 

@@ -206,7 +206,21 @@ html[data-animations="off"] *::after {
 /* Solid buttons in the primary colour follow it; a button in another colour (light, brown) is that colour on purpose. */
 .lp-primary-brown .lp-btn-primary, .lp-primary-teal .lp-btn-primary, .lp-primary-charcoal .lp-btn-primary { background-color: rgb(var(--lp-accent)); }
 .lp-primary-brown .lp-btn-primary:hover, .lp-primary-teal .lp-btn-primary:hover, .lp-primary-charcoal .lp-btn-primary:hover { filter: brightness(0.9); }
-.dark .lp-primary-charcoal:not(.landing-light) .lp-btn-primary { color: rgb(15 23 42); }
+/* The text on a solid button in the primary colour is `--lp-on-accent` (white, or dark ink on the pale fills of dark mode), which the
+   style guide's button text colour sets too (`lp-btn-text-light`, `lp-btn-text-dark`). `lib/landing/button-contrast.ts` holds the same colours for the publish check. */
+.lp-btn-primary.lp-btn { color: rgb(var(--lp-on-accent, 255 255 255)); }
+.dark :is(.lp-primary-brown, .lp-primary-teal, .lp-primary-charcoal):not(.landing-light):not(.lp-btn-text-light):not(.lp-btn-text-dark) { --lp-on-accent: 15 23 42; }
+.lp-btn-text-light { --lp-on-accent: 255 255 255; }
+.lp-btn-text-dark { --lp-on-accent: 15 23 42; }
+/* The site's button style: a button that takes it (`lp-btn-inherit`) is solid by default and an outline when the site says so,
+   in the same colour its outline would be (`lp-btn-c-*`). A button that chose solid or outline itself has no `lp-btn-inherit`. The
+   outline is drawn inside the button (an outline, so the focus ring, a shadow, still shows), so it is the size of a solid one. */
+.lp-btn-style-outline .lp-btn-inherit.lp-btn { background-color: transparent; outline: 2px solid currentColor; outline-offset: -2px; filter: none; }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-plum { color: rgb(var(--lp-accent-ink)); }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-light { color: rgb(244 236 232); }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-brown { color: rgb(var(--lp-warm)); }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn:hover { background-color: rgb(var(--lp-accent) / 0.1); filter: none; }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-light:hover { background-color: rgb(255 255 255 / 0.1); }
 /* Button size and corners apply to every button the builder draws (`lp-btn`); the defaults add nothing, so a button keeps its own shape. */
 .lp-btn-size-small .lp-btn { padding: 0.5rem 1rem; font-size: 0.875rem; }
 .lp-btn-size-large .lp-btn { padding: 1rem 2rem; font-size: 1.125rem; }

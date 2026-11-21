@@ -24,7 +24,7 @@ const section = (props: Record<string, unknown>, content: unknown[]) => ({
 });
 const heading = (text: string, level: "h1" | "h2" | "h3" = "h2", align: "left" | "center" = "center") => ({ type: "Heading", props: { id: id("Heading"), text, level, align } });
 const text = (html: string, align: "left" | "center" = "center") => ({ type: "RichText", props: { id: id("RichText"), html, align } });
-const button = (label: string, props: Record<string, unknown>) => ({ type: "Button", props: { id: id("Button"), label, href: "", look: "solid", color: "plum", shape: "pill", align: "left", full: false, ...props } });
+const button = (label: string, props: Record<string, unknown>) => ({ type: "Button", props: { id: id("Button"), label, href: "", look: "inherit", color: "plum", shape: "pill", align: "left", full: false, ...props } });
 const columns = (props: Record<string, unknown>, cols: unknown[][]) => ({ type: "Columns", props: { id: id("Columns"), count: "2", gap: "medium", verticalAlign: "top", col1: cols[0] ?? [], col2: cols[1] ?? [], col3: cols[2] ?? [], ...props } });
 const block = (type: string, props: Record<string, unknown>) => ({ type, props: { id: id(type), ...props } });
 /** The items of a block that holds a list of them (a Finisher card, a week's day): child blocks, each with an id, for the parent's `items` slot. */
@@ -70,7 +70,7 @@ function homeContent(): unknown[] {
           text("<p>We help writers get there, and we celebrate every Finisher who does. Someone is always writing beside you, and someone notices when you're missing.</p>", "left"),
           block("ButtonRow", {
             items: [
-              { label: "Start your first prickle", href: "", look: "solid", color: "light", shape: "pill" },
+              { label: "Start your first prickle", href: "", look: "inherit", color: "light", shape: "pill" },
               { label: "Drop in now", href: "", look: "outline", color: "light", shape: "pill" },
             ],
             align: "left",
@@ -247,7 +247,7 @@ function homeContent(): unknown[] {
       heading("Your name could be on the wall."),
       text("<p>Hedgies at every stage cheer each other across the line.</p>"),
       // The Kajabi form is the owner's to choose in the editor (Kajabi, Marketing, Forms); empty here on purpose, so the publish check asks for it.
-      block("OptInForm", { kajabiFormId: "", instagramField: "none", buttonLabel: "Get my first prickle", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "light", shape: "pill" }),
+      block("OptInForm", { kajabiFormId: "", instagramField: "none", buttonLabel: "Get my first prickle", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "inherit", color: "light", shape: "pill" }),
     ]),
   ];
 }

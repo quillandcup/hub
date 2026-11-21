@@ -158,18 +158,27 @@ export function Heading({ text, level, align }: HeadingProps) {
 
 // ---- Button --------------------------------------------------------------------------------------------------
 
-export type ButtonProps = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect"; align: "left" | "center" | "right"; full: boolean };
+export type ButtonProps = { label: string; href: string; look: ButtonLook; color: "plum" | "light" | "brown"; shape: "pill" | "rect"; align: "left" | "center" | "right"; full: boolean };
 const BUTTON_COLORS = {
   solid: { plum: "bg-plum-600 text-white hover:bg-plum-700", light: "bg-cream text-plum-900 hover:bg-white", brown: "bg-brown text-white hover:bg-brown-deep" },
   outline: { plum: "border-2 border-current text-accent-ink hover:bg-accent/10", light: "border-2 border-current text-cream hover:bg-white/10", brown: "border-2 border-current text-warm hover:bg-accent/10" },
 } as const;
 const JUSTIFY = { left: "text-left", center: "text-center", right: "text-right" } as const;
 
+/** A button's look: its own solid or outline, or "inherit" (the default) to take the site's button style (`lp-btn-style-*`, lib/landing/style.ts). */
+export type ButtonLook = "inherit" | "solid" | "outline";
+
+/**
+ * The classes of every button the builder draws. `lp-btn` is what the style guide's button size and corners act on, `lp-btn-primary`
+ * marks a solid button in the primary colour (its fill and text colour), and `lp-btn-inherit` a button that takes the site's button
+ * style: it is drawn solid, and the site's "outline" turns it into an outline (app/globals.css). A button that says "solid" or
+ * "outline" keeps that look whatever the site says; anything else (an old or missing value) follows the site.
+ */
 export function buttonClasses(look: unknown, color: unknown, shape: unknown, full: boolean) {
-  const l = look === "outline" ? "outline" : "solid";
+  const l: ButtonLook = look === "outline" || look === "solid" ? look : "inherit";
   const c = color === "light" || color === "brown" ? color : "plum";
-  // `lp-btn` (and `lp-btn-primary` on a solid button in the primary colour) are what the style guide's button size, corners and primary colour act on (app/globals.css).
-  return `lp-btn ${l === "solid" && c === "plum" ? "lp-btn-primary" : ""} inline-block ${full ? "w-full text-center" : ""} ${shape === "rect" ? "rounded-md" : "rounded-full"} px-6 py-3 text-base font-semibold no-underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${BUTTON_COLORS[l][c]}`;
+  const filled = l !== "outline";
+  return `lp-btn lp-btn-c-${c} ${l === "inherit" ? "lp-btn-inherit" : ""} ${filled && c === "plum" ? "lp-btn-primary" : ""} inline-block ${full ? "w-full text-center" : ""} ${shape === "rect" ? "rounded-md" : "rounded-full"} px-6 py-3 text-base font-semibold no-underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${BUTTON_COLORS[filled ? "solid" : "outline"][c]}`;
 }
 
 export function Button({ label, href, look, color, shape, align, full }: ButtonProps) {
@@ -193,7 +202,7 @@ export function Button({ label, href, look, color, shape, align, full }: ButtonP
 
 // ---- ButtonRow -----------------------------------------------------------------------------------------------
 
-export type ButtonRowItem = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
+export type ButtonRowItem = { label: string; href: string; look: ButtonLook; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
 export type ButtonRowProps = { items: ButtonRowItem[]; align: "left" | "center"; gap: "small" | "medium" };
 const ROW_GAP = { small: "gap-2", medium: "gap-3" } as const;
 const ROW_MAX = 3;
@@ -364,7 +373,7 @@ export function CardGrid({ columns, items }: CardGridProps) {
               {card.description && <p className="text-sm">{card.description}</p>}
               {card.price && <p className="font-semibold text-accent-ink">{card.price}</p>}
               {card.buttonLabel && href && (
-                <a href={href} className="mt-auto rounded-full bg-plum-600 px-4 py-2 text-center text-sm font-semibold text-white no-underline hover:bg-plum-700">
+                <a href={href} className={`${buttonClasses("inherit", "plum", "pill", false)} mt-auto !px-4 !py-2 !text-sm text-center`}>
                   {card.buttonLabel}
                 </a>
               )}
@@ -378,7 +387,7 @@ export function CardGrid({ columns, items }: CardGridProps) {
 
 // ---- Link list -----------------------------------------------------------------------------------------------
 
-export type LinkListProps = { items: { label: string; href: string }[]; look: "solid" | "outline"; color: "plum" | "light" | "brown" };
+export type LinkListProps = { items: { label: string; href: string }[]; look: ButtonLook; color: "plum" | "light" | "brown" };
 export function LinkList({ items, look, color }: LinkListProps) {
   const rows = (items ?? []).filter((i) => i.label && safeHref(i.href));
   if (rows.length === 0) return null;
@@ -433,7 +442,7 @@ export function Video({ url, title }: VideoProps) {
 
 // ---- Opt-in form ---------------------------------------------------------------------------------------------
 
-export type OptInBlockProps = Omit<OptInFormProps, "buttonClass"> & { look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
+export type OptInBlockProps = Omit<OptInFormProps, "buttonClass"> & { look: ButtonLook; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
 
 /** A sign-up form (name, email, optional Instagram handle) that goes to Kajabi through our relay; see OptInForm. A form with no Kajabi form chosen shows nothing to visitors. */
 export function OptInFormBlock({ look, color, shape, ...props }: OptInBlockProps) {
@@ -448,7 +457,7 @@ export function OptInFormBlock({ look, color, shape, ...props }: OptInBlockProps
 export type LinkProp = { label: string; href: string };
 
 /** One of the buttons in a hero or banner: a link when the address is safe, shown disabled otherwise, nothing without a label. */
-function ActionLink({ label, href, look, dark }: Partial<LinkProp> & { look: "solid" | "outline"; dark: boolean }) {
+function ActionLink({ label, href, look, dark }: Partial<LinkProp> & { look: ButtonLook; dark: boolean }) {
   if (!label) return null;
   const target = safeHref(href);
   const classes = buttonClasses(look, dark ? "light" : "plum", "pill", false);
@@ -505,7 +514,7 @@ export function Hero({ headline, level, subhead, primary, secondary, imageAssetI
           {subhead && <p className="mt-4 whitespace-pre-line text-lg @pair:text-xl">{subhead}</p>}
           {(primary?.label || secondary?.label) && (
             <div className={`mt-8 flex flex-wrap gap-3 ${centered ? "justify-center" : ""}`}>
-              <ActionLink {...primary} look="solid" dark={dark} />
+              <ActionLink {...primary} look="inherit" dark={dark} />
               <ActionLink {...secondary} look="outline" dark={dark} />
             </div>
           )}
@@ -583,7 +592,7 @@ export function CtaBanner({ heading, text, label, href, background: bg, align }:
       {text && <p className="mt-3 whitespace-pre-line text-lg">{text}</p>}
       {label && (
         <div className="mt-6">
-          <ActionLink label={label} href={href} look="solid" dark={theme.dark} />
+          <ActionLink label={label} href={href} look="inherit" dark={theme.dark} />
         </div>
       )}
     </section>
