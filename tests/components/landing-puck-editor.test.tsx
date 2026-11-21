@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from "vitest";
 
 vi.hoisted(() => {
   const g = globalThis as Record<string, unknown>;
@@ -20,7 +20,26 @@ import { editorConfig } from "@/components/landing/editor-config";
 import { ITEM_BLOCKS, SLOT_ALLOW } from "@/components/landing/config";
 import { normalizeLandingData } from "@/lib/landing/data";
 
-afterEach(cleanup);
+// Puck starts a 500 ms timer when the editor mounts (it shows its loader after that). A test that ends sooner leaves it pending, and it
+// fires after the file's jsdom is gone ("window is not defined", an unhandled error that fails the run), so the timers it starts are
+// cleared when the editor is unmounted. Nothing here depends on them.
+const loaderTimers = new Set<unknown>();
+const realSetTimeout = globalThis.setTimeout;
+beforeAll(() => {
+  globalThis.setTimeout = ((handler: TimerHandler, ms?: number, ...args: unknown[]) => {
+    const timer = realSetTimeout(handler as () => void, ms, ...args);
+    if (ms === 500) loaderTimers.add(timer);
+    return timer;
+  }) as typeof setTimeout;
+});
+afterAll(() => {
+  globalThis.setTimeout = realSetTimeout;
+});
+afterEach(() => {
+  cleanup();
+  for (const timer of loaderTimers) clearTimeout(timer as never);
+  loaderTimers.clear();
+});
 
 /**
  * The real Puck editor (in jsdom, without its iframe) with the editor config: what a drag on the canvas does to the
