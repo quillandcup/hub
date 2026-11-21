@@ -22,6 +22,7 @@ const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
   slug: "spring",
   title: "Spring sprint",
   kind: "page",
+  page_type: "landing",
   status: "draft",
   seo_title: null,
   seo_description: null,
@@ -125,6 +126,33 @@ describe("the pages list", () => {
   });
 });
 
+describe("the new page form, kind of page", () => {
+  it("asks which kind, offers the homepage starter only for a website page, and sends the kind", async () => {
+    render(<NewPageForm aiAvailable={false} defaultType="landing" />);
+    expect(screen.getByRole("radio", { name: /Landing page/ })).toBeChecked();
+    expect(screen.queryByRole("option", { name: "Homepage" })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Website page/ }));
+    expect(screen.getByRole("option", { name: "Homepage" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Landing page/ }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Opt in" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Create page" }));
+    });
+    expect(mocks.create).toHaveBeenLastCalledWith({ title: "Opt in", slug: "opt-in", starter: undefined, pageType: "landing" });
+  });
+
+  it("offers only the templates of the chosen kind, and drops a starter that no longer fits", () => {
+    render(<NewPageForm aiAvailable={false} defaultType="website" templates={[{ id: "t1", name: "Site kit", pageType: "website" }, { id: "t2", name: "Funnel kit", pageType: "landing" }]} />);
+    expect(screen.getByRole("option", { name: "Site kit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Funnel kit" })).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "home" } });
+    fireEvent.click(screen.getByRole("radio", { name: /Landing page/ }));
+    expect(screen.getByLabelText(/Start from/)).toHaveValue("");
+    expect(screen.getByRole("option", { name: "Funnel kit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Site kit" })).toBeNull();
+  });
+});
+
 describe("the new page form", () => {
   it("fills the address in from the title until it is typed over, then opens the editor", async () => {
     render(<NewPageForm aiAvailable={false} />);
@@ -139,7 +167,7 @@ describe("the new page form", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create page" }));
     });
-    expect(mocks.create).toHaveBeenCalledWith({ title: "My Page, again", slug: "custom" });
+    expect(mocks.create).toHaveBeenCalledWith({ title: "My Page, again", slug: "custom", starter: undefined, pageType: "website" });
     expect(mocks.push).toHaveBeenCalledWith("/admin/pages/my-page");
   });
 
@@ -166,7 +194,7 @@ describe("the new page form, starters", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create page" }));
     });
-    expect(mocks.create).toHaveBeenCalledWith({ title: "Quill & Cup", slug: "home", starter: "home" });
+    expect(mocks.create).toHaveBeenCalledWith({ title: "Quill & Cup", slug: "home", starter: "home", pageType: "website" });
     expect(mocks.createAi).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith("/admin/pages/home");
   });
@@ -188,7 +216,7 @@ describe("the new page form, Build with AI", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Draft the page" }));
     });
-    expect(mocks.createAi).toHaveBeenCalledWith({ title: "Spring", slug: "spring", prompt: "A spring sprint for new writers" });
+    expect(mocks.createAi).toHaveBeenCalledWith({ title: "Spring", slug: "spring", prompt: "A spring sprint for new writers", pageType: "website" });
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith("/admin/pages/spring");
   });

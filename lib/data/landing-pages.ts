@@ -8,6 +8,14 @@ import { must } from "./query";
 export type LandingPage = Row<"landing_pages">;
 /** A page is public once published; a template is a page kept to start others from and is never public (docs/LANDING_PAGES.md, "Templates"). */
 export type LandingPageKind = "page" | "template";
+/**
+ * Website pages are the interconnected pages of the site (Home, ...) that share one header, footer and style; landing pages are
+ * standalone and styled on their own (docs/LANDING_PAGES.md, "Website and landing pages"). Chosen when the page is made, never
+ * changed afterwards, and not related to `kind`.
+ */
+export type LandingPageType = "website" | "landing";
+export const LANDING_PAGE_TYPES: readonly LandingPageType[] = ["website", "landing"];
+export const isLandingPageType = (value: unknown): value is LandingPageType => value === "website" || value === "landing";
 /** A page without its two JSON documents: what a list shows. */
 export type LandingPageSummary = Omit<LandingPage, "draft_data" | "published_data">;
 export type LandingPageVersion = Omit<Row<"landing_page_versions">, "data">;
@@ -47,7 +55,7 @@ const importStamp = (importKey: string) => {
   return { import_key: importKey, imported_at: now, updated_at: now };
 };
 const SUMMARY_COLUMNS =
-  "id, slug, title, kind, status, seo_title, seo_description, social_image_asset_id, first_published_at, published_at, restored_from_version_id, restored_at, import_key, imported_at, starter_applied_at, created_by, updated_by, created_at, updated_at, deleted_at";
+  "id, slug, title, kind, page_type, status, seo_title, seo_description, social_image_asset_id, first_published_at, published_at, restored_from_version_id, restored_at, import_key, imported_at, starter_applied_at, created_by, updated_by, created_at, updated_at, deleted_at";
 const VERSION_COLUMNS = "id, page_id, title, kind, note, published_by, created_at";
 
 /**
@@ -60,11 +68,11 @@ const VERSION_COLUMNS = "id, page_id, title, kind, note, published_by, created_a
  */
 export interface LandingPageRepository {
   /** Live pages of a kind (pages unless asked otherwise; "all" for both), most recently changed first. */
-  list(kind?: LandingPageKind | "all"): Promise<LandingPageSummary[]>;
+  list(kind?: LandingPageKind | "all", pageType?: LandingPageType): Promise<LandingPageSummary[]>;
   /** The live page or template with this id, with its draft and published documents, or null. */
   byId(id: string): Promise<LandingPage | null>;
   /** Templates that can be used now: published and not deleted, by title. A template never published, or taken down, is not offered. */
-  usableTemplates(): Promise<UsableTemplate[]>;
+  usableTemplates(pageType?: LandingPageType): Promise<UsableTemplate[]>;
   /** A usable template's PUBLISHED document (never its draft), or null when it is gone, not a template, or not published. */
   usableTemplateData(id: string): Promise<{ title: string; data: LandingData } | null>;
   /** The live page or template with this address, with its draft and published documents, or null. For the editor; never for visitors. */
@@ -74,7 +82,7 @@ export interface LandingPageRepository {
   /** The live page made by an import with this key (docs/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
   byImportKey(importKey: string): Promise<LandingPage | null>;
   /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. Throws `LandingPageSlugTakenError`. */
-  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind }): Promise<LandingPage>;
+  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage>;
   /** Keeps the page's draft as it is now in its history, as a "before import" version (restorable like any version). Null when the page is gone. */
   keepDraftBeforeImport(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
   /** An import again: replaces the draft document and stamps `imported_at` (one audit entry). Never touches the published copy, title, address or versions. Null when the page is gone. */
@@ -108,6 +116,7 @@ export interface UsableTemplate {
   id: string;
   title: string;
   publishedAt: string | null;
+  pageType: LandingPageType;
 }
 
 const toUsable = (page: LandingPage): { title: string; data: LandingData } | null =>
@@ -130,18 +139,20 @@ const toPublished = (page: LandingPage): PublishedLandingPage | null =>
 export class SupabaseLandingPageRepository implements LandingPageRepository {
   constructor(private readonly db: Db) {}
 
-  async list(kind: LandingPageKind | "all" = "page"): Promise<LandingPageSummary[]> {
+  async list(kind: LandingPageKind | "all" = "page", pageType?: LandingPageType): Promise<LandingPageSummary[]> {
     const query = this.db.from("landing_pages").select(SUMMARY_COLUMNS).is("deleted_at", null);
-    return must(await (kind === "all" ? query : query.eq("kind", kind)).order("updated_at", { ascending: false }).order("id")) ?? [];
+    const ofKind = kind === "all" ? query : query.eq("kind", kind);
+    return must(await (pageType ? ofKind.eq("page_type", pageType) : ofKind).order("updated_at", { ascending: false }).order("id")) ?? [];
   }
 
   async byId(id: string): Promise<LandingPage | null> {
     return must(await this.db.from("landing_pages").select("*").eq("id", id).is("deleted_at", null).maybeSingle());
   }
 
-  async usableTemplates(): Promise<UsableTemplate[]> {
-    const rows = must(await this.db.from("landing_pages").select("id, title, published_at").eq("kind", "template").eq("status", "published").is("deleted_at", null).order("title").order("id")) ?? [];
-    return rows.map((r) => ({ id: r.id, title: r.title, publishedAt: r.published_at }));
+  async usableTemplates(pageType?: LandingPageType): Promise<UsableTemplate[]> {
+    const query = this.db.from("landing_pages").select("id, title, published_at, page_type").eq("kind", "template").eq("status", "published").is("deleted_at", null);
+    const rows = must(await (pageType ? query.eq("page_type", pageType) : query).order("title").order("id")) ?? [];
+    return rows.map((r) => ({ id: r.id, title: r.title, publishedAt: r.published_at, pageType: r.page_type === "website" ? "website" : "landing" }));
   }
 
   async usableTemplateData(id: string): Promise<{ title: string; data: LandingData } | null> {
@@ -162,12 +173,13 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     return must(await this.db.from("landing_pages").select("*").eq("import_key", importKey).is("deleted_at", null).maybeSingle());
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind }): Promise<LandingPage> {
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage> {
     const { data, error } = await this.db
       .from("landing_pages")
       .insert({
         title: input.title,
         kind: input.kind ?? "page",
+        page_type: input.pageType ?? "landing",
         slug: input.slug,
         draft_data: asJson(input.data ?? EMPTY_LANDING_DATA),
         ...(input.importKey ? importStamp(input.importKey) : {}),
@@ -307,9 +319,9 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return { ...rest };
   }
 
-  async list(kind: LandingPageKind | "all" = "page"): Promise<LandingPageSummary[]> {
+  async list(kind: LandingPageKind | "all" = "page", pageType?: LandingPageType): Promise<LandingPageSummary[]> {
     return this.live()
-      .filter((p) => kind === "all" || p.kind === kind)
+      .filter((p) => (kind === "all" || p.kind === kind) && (!pageType || p.page_type === pageType))
       .sort((a, b) => (a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : a.id < b.id ? -1 : 1))
       .map((p) => this.summary(p));
   }
@@ -324,11 +336,11 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return found ? structuredClone(found) : null;
   }
 
-  async usableTemplates(): Promise<UsableTemplate[]> {
+  async usableTemplates(pageType?: LandingPageType): Promise<UsableTemplate[]> {
     return this.live()
-      .filter((p) => p.kind === "template" && p.status === "published")
+      .filter((p) => p.kind === "template" && p.status === "published" && (!pageType || p.page_type === pageType))
       .sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : a.id < b.id ? -1 : 1))
-      .map((p) => ({ id: p.id, title: p.title, publishedAt: p.published_at }));
+      .map((p) => ({ id: p.id, title: p.title, publishedAt: p.published_at, pageType: p.page_type === "website" ? "website" : "landing" }));
   }
 
   async usableTemplateData(id: string): Promise<{ title: string; data: LandingData } | null> {
@@ -382,7 +394,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return structuredClone(page);
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind }): Promise<LandingPage> {
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage> {
     if (this.live().some((p) => p.slug === input.slug || (input.importKey && p.import_key === input.importKey))) throw new LandingPageSlugTakenError(input.slug);
     const now = new Date().toISOString();
     const page: LandingPage = {
@@ -390,6 +402,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
       slug: input.slug,
       title: input.title,
       kind: input.kind ?? "page",
+      page_type: input.pageType ?? "landing",
       status: "draft",
       draft_data: asJson(structuredClone(input.data ?? EMPTY_LANDING_DATA)),
       published_data: null,

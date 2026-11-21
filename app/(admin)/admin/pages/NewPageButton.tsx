@@ -6,12 +6,12 @@ import ActionMenu from "@/components/ActionMenu";
 import ImportKajabiDialog from "./ImportKajabiDialog";
 
 /** "New page" with a chevron beside it: the menu holds the other ways to start a page (today, importing a Kajabi page export). */
-export default function NewPageButton() {
+export default function NewPageButton({ defaultType = "website" }: { defaultType?: "website" | "landing" }) {
   const [importing, setImporting] = useState(false);
   return (
     <>
       <div className="flex">
-        <Link href="/admin/pages/new" className="rounded-l bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700">
+        <Link href={`/admin/pages/new?type=${defaultType}`} className="rounded-l bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700">
           New page
         </Link>
         <ActionMenu

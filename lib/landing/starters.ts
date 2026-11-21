@@ -1,4 +1,5 @@
 import { FEATURED_COURSE, ORG_TIMEZONE } from "@/lib/config";
+import type { LandingPageType } from "@/lib/data/landing-pages";
 import type { LandingData } from "./data";
 import { presetPadding } from "./layout";
 import { stampLandingVersion } from "./migrations";
@@ -252,8 +253,8 @@ function homeContent(): unknown[] {
 
 export type StarterKey = "home";
 
-export const LANDING_STARTERS: Record<StarterKey, { label: string; title: string; slug: string; description: string }> = {
-  home: { label: "Homepage", title: "Quill & Cup", slug: "home", description: "The public front door: this week's prickles, Finishers, a day in the house, the first week and the next step." },
+export const LANDING_STARTERS: Record<StarterKey, { label: string; title: string; slug: string; description: string; pageType: LandingPageType }> = {
+  home: { pageType: "website", label: "Homepage", title: "Quill & Cup", slug: "home", description: "The public front door: this week's prickles, Finishers, a day in the house, the first week and the next step." },
 };
 
 export const STARTER_KEYS = Object.keys(LANDING_STARTERS) as StarterKey[];

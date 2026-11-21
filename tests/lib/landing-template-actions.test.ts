@@ -70,6 +70,16 @@ describe("saveLandingTemplate: a new template", () => {
     expect(await state.repos.landingPages.usableTemplates()).toEqual([]);
   });
 
+  it("takes the kind of the page it was saved from, so it is offered for that kind of page only", async () => {
+    await createLandingPage({ title: "About", slug: "about", pageType: "website" });
+    const about = (await state.repos.landingPages.bySlug("about"))!;
+    await state.repos.landingPages.saveDraft(about.id, doc("Site words") as never, null);
+    await saveLandingTemplate(doc("Site words"), { name: "Site kit", fromPageId: about.id, publish: true });
+    expect((await templateBySlug("site-kit")).page_type).toBe("website");
+    expect((await state.repos.landingPages.usableTemplates("website")).map((t) => t.title)).toEqual(["Site kit"]);
+    expect(await state.repos.landingPages.usableTemplates("landing")).toEqual([]);
+  });
+
   it("can publish it in the same step: one version, a published copy, no picture made public", async () => {
     const picture = await asset();
     const source = await page("spring", "Spring words");

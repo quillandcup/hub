@@ -50,6 +50,8 @@ export type EditorPage = {
   publicPath: string;
   /** A template is a page kept to start others from: never public, and its publish checks are warnings only. */
   kind?: "page" | "template";
+  /** Website page (shares the site header, footer and style) or landing page (standalone). Fixed when the page is made. */
+  pageType?: "website" | "landing";
 };
 /** One version in History: who made it (a display name, never a user id), what it is, and the note (what changed, or what replaced the draft it kept). */
 export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null };
@@ -588,6 +590,13 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
           Title
           <input value={title} onChange={(e) => setTitle(e.target.value)} required className={input} />
         </label>
+        <p className="text-sm">
+          <span className="font-medium">Kind of page: </span>
+          {page.pageType === "website" ? "Website page" : "Landing page"}
+          <span className="block text-xs text-slate-600 dark:text-slate-400">
+            {page.pageType === "website" ? "Shares the site's header, footer and style with the other website pages." : "Stands alone and is styled on its own."} Chosen when the page was made.
+          </span>
+        </p>
         <label className="block text-sm font-medium">
           {page.kind === "template" ? "Address in the editor (/admin/pages/…)" : "Address (/p/…)"}
           <input value={slug} onChange={(e) => setSlug(e.target.value)} pattern="[a-z0-9]+(-[a-z0-9]+)*" title="Lowercase letters, numbers and dashes" className={input} />

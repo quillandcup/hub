@@ -15,18 +15,18 @@ const state = { repos: createInMemoryRepos(new InMemoryDataset()) };
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
 vi.mock("@/app/(admin)/admin/pages/PagesTable", () => ({
-  default: ({ pages, publicBase, kind }: { pages: { title: string }[]; publicBase: string; kind?: string }) => (
-    <div data-testid="table" data-base={publicBase} data-kind={kind ?? "page"}>
+  default: ({ pages, publicBase, kind, pageType }: { pages: { title: string }[]; publicBase: string; kind?: string; pageType?: string }) => (
+    <div data-testid="table" data-base={publicBase} data-kind={kind ?? "page"} data-type={pageType ?? ""}>
       {pages.map((p) => p.title).join(",")}
     </div>
   ),
 }));
 vi.mock("@/app/(admin)/admin/pages/new/NewPageForm", () => ({
-  default: ({ templates = [] }: { templates?: { id: string; name: string }[] }) => <form aria-label="New page form" data-templates={templates.map((t) => t.name).join(",")} />,
+  default: ({ templates = [], defaultType }: { templates?: { id: string; name: string }[]; defaultType?: string }) => <form aria-label="New page form" data-default={defaultType} data-templates={templates.map((t) => t.name).join(",")} />,
 }));
 vi.mock("@/app/(admin)/admin/pages/[slug]/LandingEditor", () => ({
-  default: ({ page, data, versions, starters = [], templates = [] }: { page: { slug: string; seoTitle: string; publishedJson: string | null; kind?: string; publicPath: string }; data: unknown; versions: unknown[]; starters?: { label: string; group?: string }[]; templates?: { name: string; published: boolean }[] }) => (
-    <div data-testid="editor" data-slug={page.slug} data-seo={page.seoTitle} data-published={String(page.publishedJson !== null)} data-versions={versions.length} data-kind={page.kind} data-path={page.publicPath} data-starters={starters.map((s) => `${s.group ?? "built"}:${s.label}`).join(",")} data-templates={templates.map((t) => `${t.name}:${t.published}`).join(",")}>
+  default: ({ page, data, versions, starters = [], templates = [] }: { page: { slug: string; seoTitle: string; publishedJson: string | null; kind?: string; pageType?: string; publicPath: string }; data: unknown; versions: unknown[]; starters?: { label: string; group?: string }[]; templates?: { name: string; published: boolean }[] }) => (
+    <div data-testid="editor" data-slug={page.slug} data-seo={page.seoTitle} data-published={String(page.publishedJson !== null)} data-versions={versions.length} data-kind={page.kind} data-type={page.pageType} data-path={page.publicPath} data-starters={starters.map((s) => `${s.group ?? "built"}:${s.label}`).join(",")} data-templates={templates.map((t) => `${t.name}:${t.published}`).join(",")}>
       {JSON.stringify(data)}
     </div>
   ),
@@ -46,14 +46,33 @@ beforeEach(() => {
 });
 
 describe("/admin/pages", () => {
-  it("checks for an admin, then lists the pages with a link to make one", async () => {
+  it("checks for an admin, then lists the website pages on the first tab with a link to make one, and counts each tab", async () => {
+    await state.repos.landingPages.create({ title: "Home", slug: "home", createdBy: null, pageType: "website" });
     await state.repos.landingPages.create({ title: "Spring sprint", slug: "spring", createdBy: null });
+    await state.repos.landingPages.create({ title: "Fall sprint", slug: "fall", createdBy: null });
     await renderServerPage(AdminPagesPage, {});
     expect(requireAdminPage).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Pages" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new");
-    expect(screen.getByTestId("table")).toHaveTextContent("Spring sprint");
+    expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new?type=website");
+    expect(screen.getByRole("tab", { name: "Website (1)", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Landing (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Templates (0)" })).toBeInTheDocument();
+    expect(screen.getByTestId("table")).toHaveTextContent("Home");
+    expect(screen.getByTestId("table")).not.toHaveTextContent("Spring sprint");
+    expect(screen.getByTestId("table")).toHaveAttribute("data-type", "website");
     expect(screen.getByTestId("table")).toHaveAttribute("data-base", APP_URL);
+  });
+
+  it("lists only the landing pages on the Landing tab, and New page there starts a landing page", async () => {
+    const { default: LandingTab } = await import("@/app/(admin)/admin/pages/landing/page");
+    await state.repos.landingPages.create({ title: "Home", slug: "home", createdBy: null, pageType: "website" });
+    await state.repos.landingPages.create({ title: "Spring sprint", slug: "spring", createdBy: null });
+    await renderServerPage(LandingTab, {});
+    expect(requireAdminPage).toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: /^Landing/, selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new?type=landing");
+    expect(screen.getByTestId("table")).toHaveTextContent("Spring sprint");
+    expect(screen.getByTestId("table")).not.toHaveTextContent("Home");
   });
 });
 
@@ -64,14 +83,14 @@ describe("/admin/pages/templates", () => {
     await state.repos.landingPages.create({ title: "Launch kit", slug: "launch-kit", createdBy: null, kind: "template" });
     await renderServerPage(TemplatesTab, {});
     expect(requireAdminPage).toHaveBeenCalled();
-    expect(screen.getByRole("tab", { name: "Templates", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^Templates/, selected: true })).toBeInTheDocument();
     expect(screen.getByTestId("table")).toHaveAttribute("data-kind", "template");
     expect(screen.getByTestId("table")).toHaveTextContent("Launch kit");
     expect(screen.getByTestId("table")).not.toHaveTextContent("A page");
   });
 
   it("keeps templates out of the Pages tab", async () => {
-    await state.repos.landingPages.create({ title: "A page", slug: "a-page", createdBy: null });
+    await state.repos.landingPages.create({ title: "A page", slug: "a-page", createdBy: null, pageType: "website" });
     await state.repos.landingPages.create({ title: "Launch kit", slug: "launch-kit", createdBy: null, kind: "template" });
     await renderServerPage(AdminPagesPage, {});
     expect(screen.getByTestId("table")).toHaveTextContent("A page");
@@ -84,9 +103,15 @@ describe("/admin/pages/new", () => {
     const kit = await state.repos.landingPages.create({ title: "Launch kit", slug: "launch-kit", createdBy: null, kind: "template" });
     await state.repos.landingPages.publish(kit.id);
     await state.repos.landingPages.create({ title: "Draft kit", slug: "draft-kit", createdBy: null, kind: "template" });
-    await renderServerPage(NewLandingPage, {});
+    await renderServerPage(NewLandingPage, { searchParams: Promise.resolve({}) });
     expect(requireAdminPage).toHaveBeenCalled();
     expect(screen.getByRole("form", { name: "New page form" })).toHaveAttribute("data-templates", "Launch kit");
+    expect(screen.getByRole("form", { name: "New page form" })).toHaveAttribute("data-default", "website");
+  });
+
+  it("opens on the kind named in the address", async () => {
+    await renderServerPage(NewLandingPage, { searchParams: Promise.resolve({ type: "landing" }) });
+    expect(screen.getByRole("form", { name: "New page form" })).toHaveAttribute("data-default", "landing");
   });
 });
 
@@ -110,15 +135,27 @@ describe("/admin/pages/[slug]", () => {
     await renderServerPage(EditLandingPage, params("spring"));
     const editor = screen.getByTestId("editor");
     expect(editor).toHaveAttribute("data-kind", "page");
-    expect(editor.getAttribute("data-starters")).toBe("built:Homepage,template:Launch kit");
+    expect(editor).toHaveAttribute("data-type", "landing");
+    expect(editor.getAttribute("data-starters")).toBe("template:Launch kit");
     expect(editor.getAttribute("data-templates")?.split(",").sort()).toEqual(["Draft kit:false", "Launch kit:true"]);
     cleanup();
     await renderServerPage(EditLandingPage, params("launch-kit"));
     const asTemplate = screen.getByTestId("editor");
     expect(asTemplate).toHaveAttribute("data-kind", "template");
     expect(asTemplate).toHaveAttribute("data-path", "");
-    expect(asTemplate.getAttribute("data-starters")).toBe("built:Homepage");
+    expect(asTemplate.getAttribute("data-starters")).toBe("");
     expect(asTemplate.getAttribute("data-templates")).toBe("");
+  });
+
+  it("offers the Homepage starter, and only website templates, on a website page", async () => {
+    const site = await state.repos.landingPages.create({ title: "Site kit", slug: "site-kit", createdBy: null, kind: "template", pageType: "website" });
+    await state.repos.landingPages.publish(site.id);
+    const funnel = await state.repos.landingPages.create({ title: "Funnel kit", slug: "funnel-kit", createdBy: null, kind: "template" });
+    await state.repos.landingPages.publish(funnel.id);
+    await state.repos.landingPages.create({ title: "About", slug: "about", createdBy: null, pageType: "website" });
+    await renderServerPage(EditLandingPage, params("about"));
+    expect(screen.getByTestId("editor")).toHaveAttribute("data-type", "website");
+    expect(screen.getByTestId("editor").getAttribute("data-starters")).toBe("built:Homepage,template:Site kit");
   });
 
   it("answers 404 for an unknown page and an invalid address, whoever asks", async () => {

@@ -83,9 +83,33 @@ describe("createLandingPage", () => {
   });
 });
 
+describe("createLandingPage, kind of page", () => {
+  it("makes a landing page by default and a website page when asked", async () => {
+    await createLandingPage({ title: "Funnel" });
+    await createLandingPage({ title: "About", pageType: "website" });
+    expect(state.dataset.landingPages.map((p) => [p.slug, p.page_type])).toEqual([["funnel", "landing"], ["about", "website"]]);
+  });
+
+  it("refuses an unknown kind, and a starter for the other kind, and writes nothing", async () => {
+    expect(await createLandingPage({ title: "X", pageType: "blog" })).toEqual({ error: "Choose a website page or a landing page." });
+    expect(await createLandingPage({ title: "Home", starter: "home", pageType: "landing" })).toEqual({ error: "That starting point is for the other kind of page." });
+    expect(state.dataset.landingPages).toHaveLength(0);
+    expect(await createLandingPage({ title: "Home", slug: "home", starter: "home", pageType: "website" })).toEqual({ slug: "home" });
+  });
+
+  it("keeps the kind on a copy, and reserves the tab addresses", async () => {
+    await createLandingPage({ title: "About", pageType: "website" });
+    const id = state.dataset.landingPages[0].id;
+    await duplicateLandingPage(id);
+    expect(state.dataset.landingPages.map((p) => p.page_type)).toEqual(["website", "website"]);
+    expect((await createLandingPage({ title: "Landing", slug: "landing" })).error).toContain("lowercase");
+    expect((await createLandingPage({ title: "Website", slug: "website" })).error).toContain("lowercase");
+  });
+});
+
 describe("createLandingPage from a starter", () => {
   it("makes an unpublished draft holding the starter's blocks", async () => {
-    expect(await createLandingPage({ title: "Quill & Cup", slug: "home", starter: "home" })).toEqual({ slug: "home" });
+    expect(await createLandingPage({ title: "Quill & Cup", slug: "home", starter: "home", pageType: "website" })).toEqual({ slug: "home" });
     const page = (await state.repos.landingPages.bySlug("home"))!;
     expect(page.status).toBe("draft");
     expect(page.published_data).toBeNull();

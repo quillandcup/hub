@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
-import { LandingPageSlugTakenError } from "@/lib/data/landing-pages";
+import { LandingPageSlugTakenError, isLandingPageType, type LandingPageType } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import { collectAssetIds, mapAssetIds, normalizeLandingData, type LandingData } from "@/lib/landing/data";
@@ -45,13 +45,13 @@ function failed(action: string, error: unknown, shown: string): { error: string 
 
 // ---- create ----------------------------------------------------------------------------------------------
 
-async function createImpl(auth: Auth, input: { title: string; slug?: string; data?: LandingData }): Promise<PageResult> {
+async function createImpl(auth: Auth, input: { title: string; slug?: string; data?: LandingData; pageType?: LandingPageType }): Promise<PageResult> {
   const title = (input.title ?? "").trim();
   if (!title) return { error: "Give the page a title." };
   const slug = (input.slug ?? "").trim() || slugify(title);
   if (!isValidSlug(slug)) return { error: "The address can use lowercase letters, numbers and dashes." };
   try {
-    const page = await createRepos(auth.supabase).landingPages.create({ title, slug, data: input.data, createdBy: auth.user.id });
+    const page = await createRepos(auth.supabase).landingPages.create({ title, slug, data: input.data, createdBy: auth.user.id, pageType: input.pageType });
     refresh();
     return { slug: page.slug };
   } catch (error) {
@@ -65,26 +65,32 @@ async function createImpl(auth: Auth, input: { title: string; slug?: string; dat
  * Makes a draft page, empty, from a starter (lib/landing/starters.ts) or from a saved template (`template`, its id; cleaned again
  * as it is used); its address is the title's words unless one is given.
  */
-export async function createLandingPage(input: { title: string; slug?: string; starter?: string; template?: string }): Promise<PageResult> {
+export async function createLandingPage(input: { title: string; slug?: string; starter?: string; template?: string; pageType?: string }): Promise<PageResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", async () => {
+    // Website or landing (docs/LANDING_PAGES.md): a landing page unless said otherwise. A starter belongs to one type and decides it.
+    if (input?.pageType !== undefined && !isLandingPageType(input.pageType)) return { error: "Choose a website page or a landing page." };
+    const pageType: LandingPageType = input?.pageType ?? "landing";
     if (input?.template) {
       try {
-        const draft = await loadTemplateDraft(createRepos(auth.supabase).landingPages, input.template);
+        const repo = createRepos(auth.supabase).landingPages;
+        const draft = await loadTemplateDraft(repo, input.template);
         if (!draft.ok) return { error: draft.error };
-        return createImpl(auth, { title: input.title, slug: input.slug, data: draft.data });
+        const source = await repo.byId(input.template);
+        return createImpl(auth, { title: input.title, slug: input.slug, data: draft.data, pageType: source && isLandingPageType(source.page_type) ? source.page_type : pageType });
       } catch (error) {
         return failed("create from template", error, "Couldn't create the page.");
       }
     }
     if (input?.starter && !isStarterKey(input.starter)) return { error: "That starting point doesn't exist." };
     const data = input?.starter && isStarterKey(input.starter) ? sanitizeLandingData(starterData(input.starter)) : undefined;
-    return createImpl(auth, { title: input?.title, slug: input?.slug, data });
+    if (input?.starter && isStarterKey(input.starter) && LANDING_STARTERS[input.starter].pageType !== pageType) return { error: "That starting point is for the other kind of page." };
+    return createImpl(auth, { title: input?.title, slug: input?.slug, data, pageType });
   });
 }
 
-async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string; prompt: string }): Promise<PageResult> {
+async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string; prompt: string; pageType?: string }): Promise<PageResult> {
   if (!aiConfigured()) return { error: "Build with AI isn't set up yet." };
   if (!input.title?.trim()) return { error: "Give the page a title." };
   const slug = (input.slug ?? "").trim() || slugify(input.title);
@@ -92,11 +98,11 @@ async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string
   // Generate first: when the assistant fails, no empty page is left behind.
   const built = await generateLandingPage(input.prompt);
   if (!built.ok) return { error: built.error };
-  return createImpl(auth, { title: input.title, slug, data: sanitizeLandingData(stampLandingVersion(built.data)) });
+  return createImpl(auth, { title: input.title, slug, data: sanitizeLandingData(stampLandingVersion(built.data)), pageType: isLandingPageType(input.pageType) ? input.pageType : "landing" });
 }
 
 /** Makes a draft page from the admin's description (lib/landing/ai.ts). Never published: the admin reads it in the editor first. */
-export async function createLandingPageWithAi(input: { title: string; slug?: string; prompt: string }): Promise<PageResult> {
+export async function createLandingPageWithAi(input: { title: string; slug?: string; prompt: string; pageType?: string }): Promise<PageResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_ai_built", () => buildWithAiImpl(auth, input), (r) => ({ ok: !r.error }));
@@ -411,7 +417,7 @@ async function duplicateImpl(auth: Auth, pageId: string): Promise<PageResult> {
     for (let n = 1; n <= 20; n++) {
       const slug = `${source.slug}-copy${n === 1 ? "" : `-${n}`}`.slice(0, 80).replace(/-+$/, "");
       try {
-        const copy = await repo.create({ title: `${source.title} (copy)`, slug, data: sanitizeLandingData(full.draft_data), createdBy: auth.user.id, kind: source.kind === "template" ? "template" : "page" });
+        const copy = await repo.create({ title: `${source.title} (copy)`, slug, data: sanitizeLandingData(full.draft_data), createdBy: auth.user.id, kind: source.kind === "template" ? "template" : "page", pageType: isLandingPageType(source.page_type) ? source.page_type : "landing" });
         refresh();
         return { slug: copy.slug };
       } catch (error) {

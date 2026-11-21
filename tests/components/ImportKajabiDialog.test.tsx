@@ -48,7 +48,7 @@ afterEach(() => {
 describe("New page with Import from Kajabi", () => {
   it("keeps New page as a link, with the import in a menu beside it", async () => {
     render(<NewPageButton />);
-    expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new");
+    expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new?type=website");
     expect(screen.queryByRole("dialog")).toBeNull();
     await userEvent.setup().click(screen.getByRole("button", { name: "More ways to start a page" }));
     expect(screen.getByRole("menuitem", { name: /Import from Kajabi/ })).toBeInTheDocument();
