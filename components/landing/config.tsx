@@ -45,6 +45,8 @@ import {
   WeekDay,
   WeekStrip,
 } from "./homepage-blocks";
+import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-template";
+import { SiteFooterView, SiteHeaderView } from "./site-frame";
 import { pageImage, spanClasses } from "./theme";
 
 /**
@@ -70,11 +72,58 @@ export type RootProps = {
 
 const LINK_ROW = "px-2 py-1 text-sm underline-offset-4 hover:underline";
 
+/**
+ * How a page is framed. A landing page draws its own header and footer from its root fields. A website page draws the site
+ * template's instead (docs/LANDING_PAGES.md, "Site template"): `site` is the published copy on the public page and the draft
+ * in the editor, where `editing` shows each region with a note that it is shared and a link to where it is edited.
+ */
+export type FrameContext = { pageType: "website" | "landing"; site: SiteTemplate | null; editing?: boolean };
+export const DESIGN_HREF = "/admin/pages/design";
+
+/** A fixed region of the editor's canvas that belongs to the whole site: not draggable, not selectable, with where to change it. */
+function SiteRegion({ name, empty, children }: { name: "header" | "footer"; empty: boolean; children: ReactNode }) {
+  return (
+    <div data-site-region={name} className="border-y border-dashed border-accent">
+      <div className="pointer-events-none">{empty ? <p className="px-4 py-3 text-center text-sm text-ink-muted">The site {name} is off or empty.</p> : children}</div>
+      <p className="bg-tile px-4 py-1 text-center text-xs text-ink-muted">
+        Shared by every website page.{" "}
+        <a href={DESIGN_HREF} target="_blank" rel="noopener" className="font-medium text-accent-ink underline">
+          Edit the {name} in Design
+        </a>
+      </p>
+    </div>
+  );
+}
+
 /** The frame around every page: an optional header (logo and links), the blocks, an optional footer. Where `@container` lives, so blocks respond to the room they have. */
-export function PageFrame({ children, ...root }: RootProps & { children?: ReactNode }) {
+export function PageFrame({ children, frame, ...root }: RootProps & { children?: ReactNode; frame?: FrameContext }) {
   const logo = pageImage(root.logoAssetId, "event_card");
   const nav = (root.navLinks ?? []).filter((l) => l.label && safeHref(l.href));
   const footerLinks = (root.footerLinks ?? []).filter((l) => l.label && safeHref(l.href));
+  if (frame?.pageType === "website") {
+    const site = frame.site ?? EMPTY_SITE_TEMPLATE;
+    const header = SiteHeaderView({ header: site.header });
+    const footer = SiteFooterView({ footer: site.footer });
+    return (
+      <div className="@container min-h-screen bg-page text-ink">
+        {frame.editing ? (
+          <SiteRegion name="header" empty={header === null}>
+            {header}
+          </SiteRegion>
+        ) : (
+          header
+        )}
+        <main>{children}</main>
+        {frame.editing ? (
+          <SiteRegion name="footer" empty={footer === null}>
+            {footer}
+          </SiteRegion>
+        ) : (
+          footer
+        )}
+      </div>
+    );
+  }
   return (
     // The page colour (`page`: the brand canvas, or slate in dark mode), light or dark with the theme (the app's dark mode, or the visitor's system setting); never `bg-background`, which is the app's grey.
     // Light bands (`landing-light`) stay light in dark mode.
@@ -125,10 +174,13 @@ export function PageFrame({ children, ...root }: RootProps & { children?: ReactN
   );
 }
 
-const rootConfig = {
-  defaultProps: { showHeader: false, showFooter: false, navLinks: [], footerLinks: [], footerText: "" },
-  render: PageFrame,
-};
+const rootDefaults = { showHeader: false, showFooter: false, navLinks: [], footerLinks: [], footerText: "" };
+const rootConfig = { defaultProps: rootDefaults, render: PageFrame };
+
+/** The page's root, framed for its kind of page. Make it once per render (or memoize it): a new component each time remounts the page. */
+export function rootConfigFor(frame: FrameContext): Config["root"] {
+  return { defaultProps: rootDefaults, render: (props: RootProps & { children?: ReactNode }) => PageFrame({ ...props, frame }) } as unknown as Config["root"];
+}
 
 /** A child block as it is stored in a parent's slot: `{ type, props }`. Puck gives it an id when the parent is added. */
 const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { ...props } });
@@ -404,3 +456,8 @@ export const renderConfig = {
     links: { title: "Links", components: ["Button", "ButtonRow", "LinkList", "OptInForm"] },
   },
 } satisfies Config;
+
+/** The render config for a page framed as `frame` says (a website page's shared header and footer, or a landing page's own). */
+export function renderConfigFor(frame: FrameContext): Config {
+  return { ...renderConfig, root: rootConfigFor(frame) };
+}

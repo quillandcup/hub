@@ -14,6 +14,7 @@ const root = path.resolve(__dirname, "../..");
 /** `file::action` -> why it is not tracked. Keep the reason true: the check below also fails for an entry that no longer applies. */
 const NOT_TRACKED: Record<string, string> = {
   // Admin tools: staff, not members; changes to audited tables are in the audit log.
+  "app/(admin)/admin/pages/design/actions.ts::saveSiteDraft": "autosave while typing: one outcome per keystroke burst would only be noise; publishing and resetting are recorded",
   "app/(admin)/admin/pages/actions.ts::saveLandingDraft": "autosave while typing: one outcome per keystroke burst would only be noise; publishing and the other steps are recorded",
   "app/(admin)/admin/data-health/missing-hosts/actions.ts::setRequiresHost": "admin-only data fix",
   "app/(admin)/admin/data-health/missing-hosts/actions.ts::setDefaultHosts": "admin-only data fix",

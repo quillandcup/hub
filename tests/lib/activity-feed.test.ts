@@ -706,6 +706,12 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(kit("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");
   });
 
+  it("says publishing the site design in plain words, and says nothing of its content", () => {
+    const site = (data: ActivityFeedRow["data"]) => row({ entity_type: "landing_site_template", event_type: "update", description: "", data });
+    expect(describeRow(site({ published_at: { old: null, new: "2026-10-05" }, published_data: { old: "[redacted]", new: "[redacted]" } }))).toBe("published the site design (the header and footer shared by every website page)");
+    expect(describeRow(site({ draft_data: { old: "secret header", new: "secret footer" } }))).not.toMatch(/secret/);
+  });
+
   it("never repeats a typed search text, description, note or page content, even if the row carried them", () => {
     const sentence = describeRow(row({ entity_type: "landing_page_template", event_type: "update", description: "Launch Kit", data: { seo_title: { old: "secret words", new: "more secret words" }, note: { old: null, new: "secret note" }, draft_data: { old: "secret page", new: "secret page" } } }));
     expect(sentence).not.toMatch(/secret/);

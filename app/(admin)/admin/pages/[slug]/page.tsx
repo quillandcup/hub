@@ -42,6 +42,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
         kind: page.kind === "template" ? "template" : "page",
         pageType,
       }}
+      site={pageType === "website" ? (await repos.landingSiteTemplate.state()).draft : null}
       data={normalizeLandingData(page.draft_data)}
       versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
       starters={[

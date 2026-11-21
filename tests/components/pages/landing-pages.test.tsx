@@ -5,7 +5,7 @@
  * and the 404 are real.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { renderServerPage, resetServerPageMocks, signInAs, ADMIN_USER } from "@/tests/helpers/server-page";
 import { APP_URL } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
@@ -48,6 +48,48 @@ beforeEach(() => {
   resetServerPageMocks();
   state.repos = createInMemoryRepos(new InMemoryDataset());
   signInAs(null);
+});
+
+describe("/p/[slug], a website page", () => {
+  const site = (footer: string) => ({ header: { show: true, align: "spread" as const, mobileMenu: "fold" as const, items: [{ id: "c", type: "cta" as const, show: "both" as const, label: "Join us", href: "/join", look: "solid" as const }] }, footer: { show: true, text: footer, links: [], social: [] } });
+
+  async function websitePage(slug: string) {
+    const page = await state.repos.landingPages.create({ title: `Title of ${slug}`, slug, data: doc("Hello"), createdBy: null, pageType: "website" });
+    await state.repos.landingPages.publish(page.id);
+  }
+
+  it("is framed by the PUBLISHED site header and footer, never the draft", async () => {
+    await websitePage("about");
+    await state.repos.landingSiteTemplate.saveDraft(site("Published footer"), null);
+    await state.repos.landingSiteTemplate.publish(null);
+    await state.repos.landingSiteTemplate.saveDraft(site("Draft footer"), null);
+    await renderServerPage(PublicLandingPage, params("about"));
+    expect(screen.getByRole("link", { name: "Join us" })).toBeInTheDocument();
+    expect(screen.getByText("Published footer")).toBeInTheDocument();
+    expect(screen.queryByText("Draft footer")).toBeNull();
+  });
+
+  it("has no header or footer before the site design is published, and a landing page never gets the site's", async () => {
+    await websitePage("about");
+    await state.repos.landingSiteTemplate.saveDraft(site("Draft footer"), null);
+    await renderServerPage(PublicLandingPage, params("about"));
+    expect(screen.queryByText("Draft footer")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Join us" })).toBeNull();
+    cleanup();
+    await state.repos.landingSiteTemplate.publish(null);
+    await makePage("funnel", "Funnel words");
+    await renderServerPage(PublicLandingPage, params("funnel"));
+    expect(screen.queryByText("Draft footer")).toBeNull();
+  });
+
+  it("is previewed with the site's DRAFT, for an admin", async () => {
+    await websitePage("about");
+    await state.repos.landingSiteTemplate.saveDraft(site("Published footer"), null);
+    await state.repos.landingSiteTemplate.publish(null);
+    await state.repos.landingSiteTemplate.saveDraft(site("Draft footer"), null);
+    await renderServerPage(PreviewLandingPage, params("about"));
+    expect(screen.getByText("Draft footer")).toBeInTheDocument();
+  });
 });
 
 describe("/p/[slug]", () => {

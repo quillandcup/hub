@@ -223,6 +223,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Landing pages (templates are pages of kind template) from the page builder (LandingPageRepository): every query is in the repository.
   landing_pages: [],
   landing_page_versions: [],
+  // The site template shared by website pages (LandingSiteTemplateRepository): every query is in the repository.
+  landing_site_template: [],
   // Writers' public pages and their handle history (WriterProfileRepository): every query is in the repository.
   writer_profiles: [],
   writer_profile_handles: [],

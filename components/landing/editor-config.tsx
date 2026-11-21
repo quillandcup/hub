@@ -3,7 +3,7 @@
 import type { Config, Field, Fields } from "@puckeditor/core";
 import { ImageField, KindsField, RichTextField, ZonedDateTimeField } from "./fields";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
-import { ITEM_BLOCKS, renderConfig, SLOT_ALLOW } from "./config";
+import { ITEM_BLOCKS, renderConfig, rootConfigFor, SLOT_ALLOW, type FrameContext } from "./config";
 import { PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
@@ -394,3 +394,11 @@ export const editorConfig: Config = {
   ),
   root: { ...renderConfig.root, fields: ROOT_FIELDS },
 };
+
+/**
+ * The editor's config for a page. A landing page edits its own header and footer in the root fields; a website page shows the
+ * site's header and footer as fixed regions (edited in Design, not here), so it has no header or footer fields of its own.
+ */
+export function editorConfigFor(frame: FrameContext): Config {
+  return frame.pageType === "website" ? { ...editorConfig, root: { ...rootConfigFor(frame), fields: {} } } : editorConfig;
+}

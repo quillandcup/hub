@@ -58,6 +58,7 @@ import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type Slac
 import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
 import { InMemoryAuthUserRepository, SupabaseAuthUserRepository, type AuthUserRepository } from "./auth-users";
 import { InMemoryLandingPageRepository, SupabaseLandingPageRepository, type LandingPageRepository } from "./landing-pages";
+import { InMemoryLandingSiteTemplateRepository, SupabaseLandingSiteTemplateRepository, type LandingSiteTemplateRepository } from "./landing-site-template";
 import { InMemoryMilestoneRepository, SupabaseMilestoneRepository, type MilestoneRepository } from "./milestones";
 import { InMemoryWriterProfileRepository, SupabaseWriterProfileRepository, type WriterProfileRepository } from "./writer-profiles";
 import { InMemoryRateLimitRepository, SupabaseRateLimitRepository, type RateLimitRepository } from "./rate-limit";
@@ -126,6 +127,7 @@ export interface Repos {
   analyticsEvents: AnalyticsEventRepository;
   rateLimit: RateLimitRepository;
   landingPages: LandingPageRepository;
+  landingSiteTemplate: LandingSiteTemplateRepository;
   writerProfiles: WriterProfileRepository;
   milestones: MilestoneRepository;
   /** Supabase Auth accounts. Service role only: the admin API refuses a user client. */
@@ -193,6 +195,7 @@ export function createRepos(db: Db): Repos {
     analyticsEvents: new SupabaseAnalyticsEventRepository(db),
     rateLimit: new SupabaseRateLimitRepository(db),
     landingPages: new SupabaseLandingPageRepository(db),
+    landingSiteTemplate: new SupabaseLandingSiteTemplateRepository(db),
     writerProfiles: new SupabaseWriterProfileRepository(db),
     milestones: new SupabaseMilestoneRepository(db),
     authUsers: new SupabaseAuthUserRepository(db),
@@ -263,6 +266,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     analyticsEvents: new InMemoryAnalyticsEventRepository(dataset),
     rateLimit: new InMemoryRateLimitRepository(dataset),
     landingPages: new InMemoryLandingPageRepository(dataset),
+    landingSiteTemplate: new InMemoryLandingSiteTemplateRepository(dataset),
     writerProfiles: new InMemoryWriterProfileRepository(dataset),
     milestones: new InMemoryMilestoneRepository(dataset),
     authUsers: new InMemoryAuthUserRepository(dataset),

@@ -23,6 +23,7 @@ export type LandingPageVersion = Omit<Row<"landing_page_versions">, "data">;
 /** What a signed-out visitor is given: the published document and the fields the page's head needs. */
 export interface PublishedLandingPage {
   slug: string;
+  pageType: LandingPageType;
   title: string;
   seoTitle: string | null;
   seoDescription: string | null;
@@ -127,6 +128,7 @@ const toPublished = (page: LandingPage): PublishedLandingPage | null =>
   page.kind === "page" && page.status === "published" && !page.deleted_at && page.published_data
     ? {
         slug: page.slug,
+        pageType: page.page_type === "website" ? "website" : "landing",
         title: page.title,
         seoTitle: page.seo_title,
         seoDescription: page.seo_description,
@@ -304,7 +306,7 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 /** An id shaped like the database's `new_id(prefix)`: the prefix and 12 base58 characters. */
-const newId = (prefix: string) => `${prefix}_${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => BASE58[b % BASE58.length]).join("")}`;
+export const newId = (prefix: string) => `${prefix}_${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => BASE58[b % BASE58.length]).join("")}`;
 
 export class InMemoryLandingPageRepository implements LandingPageRepository {
   constructor(private readonly data: InMemoryDataset) {}

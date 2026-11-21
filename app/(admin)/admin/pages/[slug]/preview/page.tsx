@@ -15,8 +15,11 @@ export default async function PreviewLandingPage({ params }: { params: Promise<{
   await requireAdminPage();
   const { slug } = await params;
   if (!isValidSlug(slug)) notFound();
-  const page = await createRepos(await createClient()).landingPages.bySlug(slug);
+  const repos = createRepos(await createClient());
+  const page = await repos.landingPages.bySlug(slug);
   if (!page) notFound();
+  const isWebsite = page.page_type === "website";
+  const site = isWebsite ? (await repos.landingSiteTemplate.state()).draft : null;
   return (
     <>
       <div role="note" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
@@ -25,7 +28,7 @@ export default async function PreviewLandingPage({ params }: { params: Promise<{
           Back to the editor
         </Link>
       </div>
-      <LandingRender data={await withLiveData(page.draft_data)} />
+      <LandingRender data={await withLiveData(page.draft_data)} frame={{ pageType: isWebsite ? "website" : "landing", site }} />
     </>
   );
 }

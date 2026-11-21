@@ -4,22 +4,23 @@ import { APP_URL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import NewPageButton from "./NewPageButton";
+import DesignEditor from "./design/DesignEditor";
 import PagesTable from "./PagesTable";
 
 /**
  * Admin > Pages: one sheet with a tab for the website pages (shared header, footer and style), one for the landing pages
- * (standalone), and one for the templates to start them from. The tabs are paths (`/admin/pages`, `/admin/pages/landing`,
- * `/admin/pages/templates`).
+ * (standalone), one for the templates to start them from, and Design: the header and footer the website pages share. The tabs
+ * are paths (`/admin/pages`, `/admin/pages/landing`, `/admin/pages/templates`, `/admin/pages/design`).
  */
-export const PAGES_TAB_IDS = ["website", "landing", "templates"] as const;
+export const PAGES_TAB_IDS = ["website", "landing", "templates", "design"] as const;
 export type PagesTab = (typeof PAGES_TAB_IDS)[number];
-export const PAGES_TAB_LABELS: Record<PagesTab, string> = { website: "Website", landing: "Landing", templates: "Templates" };
+export const PAGES_TAB_LABELS: Record<PagesTab, string> = { website: "Website", landing: "Landing", templates: "Templates", design: "Design" };
 export const PAGES_SECTION = "Pages";
 
 export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
   await requireAdminPage();
   const repos = createRepos(await createClient());
-  const [website, landing, templates] = await Promise.all([repos.landingPages.list("page", "website"), repos.landingPages.list("page", "landing"), repos.landingPages.list("template")]);
+  const [website, landing, templates, site] = await Promise.all([repos.landingPages.list("page", "website"), repos.landingPages.list("page", "landing"), repos.landingPages.list("template"), repos.landingSiteTemplate.state()]);
 
   return (
     <div className="container mx-auto max-w-6xl px-6 py-8">
@@ -39,6 +40,11 @@ export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
           { id: "website", label: `${PAGES_TAB_LABELS.website} (${website.length})`, title: PAGES_TAB_LABELS.website, content: <PagesTable pages={website} publicBase={APP_URL} pageType="website" /> },
           { id: "landing", label: `${PAGES_TAB_LABELS.landing} (${landing.length})`, title: PAGES_TAB_LABELS.landing, content: <PagesTable pages={landing} publicBase={APP_URL} pageType="landing" /> },
           { id: "templates", label: `${PAGES_TAB_LABELS.templates} (${templates.length})`, title: PAGES_TAB_LABELS.templates, content: <PagesTable pages={templates} publicBase={APP_URL} kind="template" /> },
+          {
+            id: "design",
+            label: PAGES_TAB_LABELS.design,
+            content: <DesignEditor initial={site.draft} publishedAt={site.publishedAt} hasPublished={site.published !== null} unpublished={site.published === null || JSON.stringify(site.draft) !== JSON.stringify(site.published)} />,
+          },
         ]}
       />
     </div>

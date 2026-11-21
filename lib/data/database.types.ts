@@ -4029,6 +4029,42 @@ export type Database = {
           },
         ]
       }
+      landing_site_template: {
+        Row: {
+          created_at: string
+          draft_data: Json
+          id: string
+          published_at: string | null
+          published_by: string | null
+          published_data: Json | null
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          draft_data?: Json
+          id?: string
+          published_at?: string | null
+          published_by?: string | null
+          published_data?: Json | null
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          draft_data?: Json
+          id?: string
+          published_at?: string | null
+          published_by?: string | null
+          published_data?: Json | null
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       lesson_comment_follows: {
         Row: {
           created_at: string
