@@ -115,16 +115,6 @@ describe("production operations alerts", () => {
     expect(text).toContain("capture: channel members: boom");
   });
 
-  it("posts each CSP health problem as a bullet and points at the operator docs", async () => {
-    const { repos, hit } = allowing();
-    await sendOperationsAlert(repos, { type: "csp_health", problems: ["2 of 30 active members never ran our scripts. Browsers: Safari 14 (2).", "A browser below the minimum is in use: Chrome 51 (1)."] });
-    expect(hit).toHaveBeenCalledWith("operations_alert:csp_health", 600, 1);
-    const text = postMessage.mock.calls[0][0].text;
-    expect(text).toContain("• 2 of 30 active members never ran our scripts");
-    expect(text).toContain("• A browser below the minimum");
-    expect(text).toContain("docs/CSP_ALERTS.md");
-  });
-
   it("names the section and calls a statement timeout one, with no member content", async () => {
     const { repos, hit } = allowing();
     await sendOperationsAlert(repos, { type: "section_failed", section: "member page: activity feed", code: "57014", ms: 8012 });

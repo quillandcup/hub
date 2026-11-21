@@ -3,7 +3,7 @@
 `config/sentry.yml` is the source of truth for two things in Sentry:
 
 - **Organization data-scrubbing settings** (Settings → Security & Privacy): server-side data scrubbing, the default scrubbers, and not storing IP addresses. They are organization-wide, so every project inherits them and shows its own switches as locked.
-- **Issue alert rules** for the `hub` project (`alerts:`), today the three CSP alerts described in `docs/CSP_ALERTS.md`. The organization is on Sentry's workflow engine, so a rule is a workflow connected to the project's issue stream detector, with a trigger (new issue, regression, every event), filters (the `logger=csp` tag, a frequency threshold) and an email action. Sentry's own default alerts are not touched: only workflows named `Hub: ...` are managed, matched by name, so a push is idempotent, and a rule removed from the file is deleted from Sentry.
+- **Issue alert rules** for the `hub` project (`alerts:`), today the four CSP alerts described in `docs/CSP_ALERTS.md` (three on CSP reports, one on the daily health check's own events). The organization is on Sentry's workflow engine, so a rule is a workflow connected to the project's issue stream detector, with a trigger (new issue, regression, every event), filters (the `logger=csp` tag, a frequency threshold) and an email action. Sentry's own default alerts are not touched: only workflows named `Hub: ...` are managed, matched by name, so a push is idempotent, and a rule removed from the file is deleted from Sentry.
 
 On a push to main that changes the file or `scripts/sentry-config.ts`, after the production deploy, CI's `push-sentry-config` job runs `scripts/sentry-config.ts push`. It prints the difference from the live organization, writes only what differs (the settings that differ; the rules to create, update or delete), then reads everything back to confirm. Change the file, not the Settings or Alerts pages: the next push puts the values back.
 
@@ -21,9 +21,9 @@ Read-only. It needs `SENTRY_CONFIG_TOKEN` in `.env.prod` or `.env.shared`. It li
 
 ## Adding a rule
 
-Add an entry under `alerts:` with a name starting `Hub: `, a `when` (`new_issue`, `regression` or `every_event`), the `logger` tag it is limited to, and `frequencyMinutes` (the pause between two emails for the same issue). `when: every_event` needs `moreThan: { count, interval }` (more than `count` events within `interval`, such as `1h`). The shapes are checked by `parseAlertRules` (`lib/sentry-config.ts`).
+Add an entry under `alerts:` with a name starting `Hub: `, a `when` (`new_issue`, `regression` or `every_event`), the `logger` tag it is limited to, and `frequencyMinutes` (the pause between two emails for the same issue). `when: every_event` needs either `moreThan: { count, interval }` (more than `count` events within `interval`, such as `1h`) or a `frequencyMinutes` above 0: without a threshold the rule emails on an issue's first event, and then at most once per `frequencyMinutes` (the health check rule uses 1440, one email a day per issue). Sentry's workflow `frequency` is that per-issue pause. The shapes are checked by `parseAlertRules` (`lib/sentry-config.ts`).
 
-**Sentry alerts email only on this plan** (to the issue owners, or the active members of the project's teams when an issue has no owner). Sentry cannot send to Slack here; Slack routing for CSP problems comes from the daily health check (`docs/CSP_ALERTS.md`) through `lib/operations-alerts.ts`.
+**Sentry alerts email only on this plan** (to the issue owners, or the active members of the project's teams when an issue has no owner). Sentry cannot send to Slack here, and the owner wants one channel: the daily health check (`docs/CSP_ALERTS.md`) emits Sentry events too, not Slack posts. Nothing here reads from Sentry.
 
 ## Not covered
 

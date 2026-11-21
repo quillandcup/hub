@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { CSP_HEALTH_LOGGER } from "@/lib/csp-health";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import {
@@ -70,10 +71,18 @@ const burst = { name: "Hub: CSP, burst", when: "every_event", logger: "csp", mor
 describe("config/sentry.yml alerts", () => {
   const rules = parseAlertRules(parseYaml(readFileSync("config/sentry.yml", "utf8")));
 
-  it("has the three CSP alerts, each limited to CSP reports", () => {
-    expect(rules.map((r) => r.when).sort()).toEqual(["every_event", "new_issue", "regression"]);
-    expect(rules.every((r) => r.logger === "csp")).toBe(true);
-    expect(rules.find((r) => r.when === "every_event")?.moreThan).toEqual({ count: 100, interval: "1h" });
+  it("has the three CSP report alerts, each limited to logger csp", () => {
+    const reports = rules.filter((r) => r.logger === "csp");
+    expect(reports.map((r) => r.when).sort()).toEqual(["every_event", "new_issue", "regression"]);
+    expect(reports.find((r) => r.when === "every_event")?.moreThan).toEqual({ count: 100, interval: "1h" });
+  });
+
+  it("emails about the health check's events (logger csp-health) at most once a day per issue", () => {
+    const health = rules.filter((r) => r.logger === CSP_HEALTH_LOGGER);
+    expect(health).toHaveLength(1);
+    expect(health[0]).toMatchObject({ when: "every_event", frequencyMinutes: 1440 });
+    expect(health[0].moreThan).toBeUndefined();
+    expect(rules).toHaveLength(4);
   });
 });
 
@@ -97,7 +106,7 @@ describe("parseAlertRules", () => {
     [{ alerts: [{ ...rule, moreThan: { count: 5, interval: "1h" } }] }, /needs when: every_event/],
     [{ alerts: [{ ...burst, moreThan: { count: 0, interval: "1h" } }] }, /count of 1 or more/],
     [{ alerts: [{ ...burst, moreThan: { count: 5, interval: "2h" } }] }, /interval of/],
-    [{ alerts: [{ ...burst, moreThan: undefined }] }, /needs moreThan/],
+    [{ alerts: [{ ...burst, moreThan: undefined, frequencyMinutes: 0 }] }, /needs moreThan or a frequencyMinutes/],
     [{ alerts: [rule, rule] }, /listed twice/],
   ])("rejects %j", (raw, message) => {
     expect(() => parseAlertRules(raw)).toThrow(message);
@@ -119,6 +128,16 @@ describe("workflowBody", () => {
         },
       ],
     });
+  });
+
+  it("filters a health-check rule on its own logger and throttles it with the frequency, with no count filter", () => {
+    const body = workflowBody(parseAlertRules({ alerts: [{ name: "Hub: x", when: "every_event", logger: "csp-health", frequencyMinutes: 1440 }] })[0], "77") as {
+      config: { frequency: number };
+      actionFilters: { conditions: { type: string; comparison: { value?: string } }[] }[];
+    };
+    expect(body.config.frequency).toBe(1440);
+    expect(body.actionFilters[0].conditions).toHaveLength(1);
+    expect(body.actionFilters[0].conditions[0].comparison.value).toBe("csp-health");
   });
 
   it("adds the frequency filter and the every-event trigger for a burst rule", () => {

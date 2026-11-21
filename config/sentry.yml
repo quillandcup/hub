@@ -17,7 +17,7 @@ organization:
 # members. Only rules named "Hub: ..." are managed: delete one here and the next push deletes it from Sentry;
 # Sentry's own default alerts are left alone. All three watch CSP reports (they carry the tag logger=csp), for the
 # nonce-based Content-Security-Policy rollout (docs/CSP_ALERTS.md). Email only: this Sentry plan cannot
-# send to Slack; the daily health check posts to #hub-alerts instead.
+# send to Slack; the owner wants one channel, so the daily health check also reports through Sentry (last rule).
 alerts:
   # A violation of a kind not seen before: a new blocked host or directive.
   - name: "Hub: CSP violation, new issue"
@@ -37,3 +37,10 @@ alerts:
     logger: csp
     moreThan: { count: 100, interval: 1h }
     frequencyMinutes: 60
+  # The daily health check (app/api/internal/csp-health) sends one Sentry event per failing check, tagged
+  # logger=csp-health (not csp, so the three rules above never match them). Every event of an issue is evaluated, the
+  # first emails at once, and frequencyMinutes 1440 keeps a problem that lasts days to one email a day per issue.
+  - name: "Hub: CSP health check failed"
+    when: every_event
+    logger: csp-health
+    frequencyMinutes: 1440

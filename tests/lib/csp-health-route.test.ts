@@ -15,8 +15,54 @@ vi.mock("@/lib/cron-heartbeats", () => ({
     return res;
   },
 }));
-const sendOperationsAlert = vi.fn(async () => {});
-vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: (...args: unknown[]) => (sendOperationsAlert as (...a: unknown[]) => unknown)(...args) }));
+// Sentry is faked: each captureMessage is recorded with what its scope held, and flush is observed.
+interface Captured {
+  message: string;
+  level: string | undefined;
+  tags: Record<string, string>;
+  fingerprint: string[];
+  extra: Record<string, unknown>;
+  logger: string | undefined;
+}
+const { captured, flush, order } = vi.hoisted(() => ({ captured: [] as Captured[], flush: vi.fn(async (_ms?: number) => true), order: [] as string[] }));
+vi.mock("@sentry/nextjs", () => {
+  interface Scope {
+    level?: string;
+    tags: Record<string, string>;
+    fingerprint: string[];
+    extra: Record<string, unknown>;
+    processors: ((e: Record<string, unknown>) => Record<string, unknown>)[];
+  }
+  let current: Scope | null = null;
+  return {
+    withScope: (cb: (scope: unknown) => void) => {
+      const scope: Scope = { tags: {}, fingerprint: [], extra: {}, processors: [] };
+      current = scope;
+      cb({
+        setLevel: (l: string) => (scope.level = l),
+        setTags: (t: Record<string, string>) => Object.assign(scope.tags, t),
+        setFingerprint: (f: string[]) => (scope.fingerprint = f),
+        setExtras: (e: Record<string, unknown>) => Object.assign(scope.extra, e),
+        addEventProcessor: (p: (e: Record<string, unknown>) => Record<string, unknown>) => scope.processors.push(p),
+      });
+      current = null;
+    },
+    captureMessage: (message: string) => {
+      const scope = current!;
+      const event = scope.processors.reduce((e, p) => p(e), {} as Record<string, unknown>);
+      order.push("capture");
+      captured.push({ message, level: scope.level, tags: scope.tags, fingerprint: scope.fingerprint, extra: scope.extra, logger: event.logger as string | undefined });
+    },
+    flush: (ms?: number) => {
+      order.push("flush");
+      return flush(ms);
+    },
+  };
+});
+// The health check must not touch Slack: both ways in are replaced by something that fails the test.
+const slackPost = vi.fn();
+vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: slackPost }));
+vi.mock("@/lib/slack-client", () => ({ createSlackClient: slackPost }));
 
 let repos: Repos;
 vi.mock("@/lib/data/repos", async () => ({
@@ -46,7 +92,10 @@ beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   heartbeat.mockClear();
-  sendOperationsAlert.mockClear();
+  captured.length = 0;
+  order.length = 0;
+  slackPost.mockClear();
+  flush.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   requireAdmin.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
@@ -61,7 +110,7 @@ describe("GET /api/internal/csp-health", () => {
     expect((await GET(request())).status).toBe(401);
     requireAdmin.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
     expect((await GET(request())).status).toBe(403);
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
     expect(heartbeat).not.toHaveBeenCalled();
   });
 
@@ -71,13 +120,14 @@ describe("GET /api/internal/csp-health", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.alerted).toBe(false);
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
+    expect(flush).not.toHaveBeenCalled();
     expect(heartbeat).toHaveBeenCalledWith("csp-health");
   });
 
   it("says nothing with no activity at all", async () => {
     expect((await (await GET(request())).json()).alerted).toBe(false);
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
   });
 
   it("alerts when members load pages but never run our scripts", async () => {
@@ -85,13 +135,45 @@ describe("GET /api/internal/csp-health", () => {
     await member(100, { pages: 0, before: 0 });
     await member(101, { pages: 0, before: 0 });
     await GET(request());
-    expect(sendOperationsAlert).toHaveBeenCalledTimes(1);
-    const [, alert] = sendOperationsAlert.mock.calls[0] as unknown as [unknown, { type: string; problems: string[] }];
-    expect(alert.type).toBe("csp_health");
-    expect(alert.problems).toHaveLength(1);
-    expect(alert.problems[0]).toContain("2 of 30 active members loaded pages but never ran our scripts");
-    expect(alert.problems[0]).toContain("Chrome 150 (2)");
-    expect(JSON.stringify(alert)).not.toMatch(/00000000-|Mozilla/);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      message: "CSP health: members load pages but never run our scripts",
+      level: "error",
+      tags: { logger: "csp-health", check: "stranded" },
+      fingerprint: ["csp-health", "stranded"],
+      logger: "csp-health",
+      extra: { users: 2, of: 30, windowHours: CSP_HEALTH.windowHours, browsers: { "Chrome 150": 2 } },
+    });
+    expect(JSON.stringify(captured)).not.toMatch(/00000000-|Mozilla/);
+    expect(slackPost).not.toHaveBeenCalled();
+  });
+
+  it("waits for the events to be sent before it answers", async () => {
+    for (let n = 1; n <= 28; n++) await member(n);
+    await member(100, { pages: 0, before: 0 });
+    await member(101, { pages: 0, before: 0 });
+    await GET(request());
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["capture", "flush"]);
+  });
+
+  it("sends the same message and fingerprint again tomorrow, so a lasting problem is one issue", async () => {
+    for (let n = 1; n <= 28; n++) await member(n);
+    await member(100, { pages: 0, before: 0 });
+    await member(101, { pages: 0, before: 0 });
+    await GET(request());
+    await GET(request());
+    expect(captured).toHaveLength(2);
+    expect(captured[1]).toEqual(captured[0]);
+  });
+
+  it("sends one event per failing check", async () => {
+    for (let n = 1; n <= 11; n++) await member(n);
+    for (let n = 20; n < 24; n++) await member(n, { ga: false });
+    await member(50, { userAgent: OLD_CHROME });
+    await GET(request());
+    expect(captured.map((c) => c.tags.check)).toEqual(["lost-google-cookie", "unsupported-browser"]);
+    expect(slackPost).not.toHaveBeenCalled();
   });
 
   it("does not alert for members in a tab left open: they poll our API but have no new page view", async () => {
@@ -101,38 +183,37 @@ describe("GET /api/internal/csp-health", () => {
       await repos.accessEvents.record({ user_id: `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`, is_page: false, path: "/api/live-room", user_agent: CHROME, created_at: new Date(NOW - HOUR).toISOString() });
     }
     await GET(request());
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
   });
 
   it("alerts when members who had the Google cookie have lost it", async () => {
     for (let n = 1; n <= 12; n++) await member(n);
     for (let n = 20; n < 24; n++) await member(n, { ga: false });
     await GET(request());
-    const [, alert] = sendOperationsAlert.mock.calls[0] as unknown as [unknown, { problems: string[] }];
-    expect(alert.problems).toHaveLength(1);
-    expect(alert.problems[0]).toContain("4 of 16 members who had the Google Analytics cookie");
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({ tags: { check: "lost-google-cookie" }, fingerprint: ["csp-health", "lost-google-cookie"], extra: { users: 4, of: 16 } });
   });
 
   it("does not alert for members who never had the cookie, however many", async () => {
     for (let n = 1; n <= 20; n++) await member(n);
     for (let n = 30; n < 40; n++) await member(n, { ga: false, before: 0 });
     await GET(request());
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
   });
 
   it("alerts on a browser below the minimum, and ignores page views older than the window", async () => {
     for (let n = 1; n <= 10; n++) await member(n);
     await member(50, { userAgent: OLD_CHROME });
     await GET(request());
-    const [, alert] = sendOperationsAlert.mock.calls[0] as unknown as [unknown, { problems: string[] }];
-    expect(alert.problems.join("\n")).toContain("Chrome 51 (1)");
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({ tags: { check: "unsupported-browser" }, extra: { browsers: { "Chrome 51": 1 } } });
   });
 
   it("looks at the configured window: activity older than it is not counted", async () => {
     await member(1, { pages: 0, before: 0, requests: 0 });
     await repos.accessEvents.record({ user_id: "00000000-0000-0000-0000-000000000009", is_page: false, path: "/x", user_agent: OLD_CHROME, created_at: new Date(NOW - (CSP_HEALTH.windowHours + 1) * HOUR).toISOString() });
     await GET(request());
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
   });
 
   it("handles more than 1000 members, all in the same state", async () => {
@@ -153,6 +234,6 @@ describe("GET /api/internal/csp-health", () => {
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(heartbeat).not.toHaveBeenCalled();
-    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
   });
 });

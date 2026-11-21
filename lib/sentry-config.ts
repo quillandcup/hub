@@ -62,7 +62,7 @@ export interface AlertRule {
   when: AlertTrigger;
   /** Only events whose `logger` tag equals this (CSP reports carry logger csp). */
   logger: string;
-  /** Only with `when: every_event`: fire once the issue has more than `count` events within `interval`. */
+  /** Only with `when: every_event`: fire once the issue has more than `count` events within `interval`. Without it the rule fires on an issue's first event, then at most every `frequencyMinutes`. */
   moreThan?: { count: number; interval: AlertInterval };
   /** Minutes between two notifications for the same issue (Sentry accepts 0, 5, 10, 30, 60, 180, 720, 1440). */
   frequencyMinutes: number;
@@ -107,8 +107,9 @@ export function parseAlertRules(raw: unknown): AlertRule[] {
         throw new Error(`${where}: moreThan needs a count of 1 or more and an interval of ${ALERT_INTERVALS.join(", ")}`);
       }
       rule.moreThan = { count: m.count as number, interval: m.interval as AlertInterval };
-    } else if (rule.when === "every_event") {
-      throw new Error(`${where}: when: every_event needs moreThan, or it would alert on every event`);
+    } else if (rule.when === "every_event" && rule.frequencyMinutes === 0) {
+      // Without a threshold the rule fires on every event of an issue; frequencyMinutes is what throttles it.
+      throw new Error(`${where}: when: every_event needs moreThan or a frequencyMinutes above 0, or it would email on every event`);
     }
     return rule;
   });

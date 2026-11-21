@@ -3,27 +3,28 @@
 The Content-Security-Policy is moving to a strict, nonce-based script policy (`lib/csp.ts`, `docs/TODO.md`, "CSP for scripts and styles (nonces)"). Two things can go wrong without anyone noticing, so two layers watch for them:
 
 1. **Sentry alert rules** (`config/sentry.yml`, `alerts:`) email when a CSP violation is new, comes back, or floods in.
-2. **A daily health check** (`/api/internal/csp-health`, `lib/csp-health.ts`) reads the access log and posts to the alerts channel when browsers are not running our scripts. It says nothing when all is well.
+2. **A daily health check** (`/api/internal/csp-health`, `lib/csp-health.ts`) reads the access log and, when browsers are not running our scripts, sends a Sentry event per failing check. A fourth Sentry rule emails about those. It sends nothing when all is well. Everything arrives by Sentry email: one channel, nothing goes to Slack.
 
 Neither pushes anything to production by itself: the Sentry rules are applied by CI after a deploy (`docs/SENTRY_CONFIG.md`), the check is a Vercel cron (`vercel.json`, 15:00 UTC daily; an admin can open the URL to run it now).
 
 ## Sentry alert rules
 
-All three match CSP reports only (the tag `logger=csp`, which every report carries) and email the issue owners, or the active members when an issue has no owner. Sentry's own default alerts are left alone: only rules named `Hub: ...` are managed, and deleting one from the file deletes it from Sentry.
+The first three match CSP reports only (the tag `logger=csp`, which every report carries) and email the issue owners, or the active members when an issue has no owner. Sentry's own default alerts are left alone: only rules named `Hub: ...` are managed, and deleting one from the file deletes it from Sentry.
 
 | Rule | Fires when | What to check |
 |---|---|---|
 | `Hub: CSP violation, new issue` | A violation of a kind not seen before (a new blocked host or directive). | Open the issue: the blocked host and directive are in the title. Is it ours (add the host to `app.config.ts` `csp.*Hosts`) or a browser extension (ignore, or filter)? |
 | `Hub: CSP violation, came back after being resolved` | A resolved CSP issue gets a new event (a regression). | The fix did not hold: compare with the release it was resolved in. |
 | `Hub: CSP violation, more than 100 events in an hour` | One CSP issue gets more than 100 events within an hour (at most one email an hour per issue). | A policy change now blocks something every page loads, or a loop is reporting. Look at the newest events (URL, browser). |
+| `Hub: CSP health check failed` | The daily health check sent an event (tag `logger=csp-health`, not `csp`, so it never matches the three above). The first event of an issue emails at once; after that at most one email a day per issue (`frequencyMinutes: 1440`, the workflow's pause between two notifications for the same issue). | See "The daily health check" below: the issue's title says which check, its event has the counts and browsers. |
 
 **Why 100 an hour.** Measured in Sentry on 2026-11-20 (14 days): the noisiest issue, a font host blocked on every page builder load, had 847 events in two days (about 18 an hour on average), the next 660 in eight hours (about 80 an hour), and every deploy to a preview URL produces a burst of 30 events within seconds. 100 stays quiet on those and still catches a policy that starts blocking something on every page view of the 90 or so active members.
 
-**Email only.** Our Sentry plan cannot send to Slack. The emails go to the issue's owners (ownership rules), or, when an issue has no owner, to the active members of the project's teams. Slack routing for CSP problems comes from the daily health check below, which posts through `lib/operations-alerts.ts`.
+**Email only, one channel.** Our Sentry plan cannot send to Slack, and the owner wants no second channel: the health check does not post to Slack either. The emails go to the issue's owners (ownership rules), or, when an issue has no owner, to the active members of the project's teams.
 
 ## The daily health check
 
-Over the last 24 hours (`app.config.ts` `cspHealth`; every threshold below lives there). It reads one SQL aggregate (`csp_rollout_activity`, one row per user and user agent, about a hundred rows) and never the request log row by row. The post carries counts and browser names only, never names, emails, ids or user agents. User agents `node` and anything with `HeadlessChrome` (our test runs) are ignored.
+Over the last 24 hours (`app.config.ts` `cspHealth`; every threshold below lives there). It reads one SQL aggregate (`csp_rollout_activity`, one row per user and user agent, about a hundred rows) and never the request log row by row. When a check trips, the route calls `Sentry.captureMessage` (level error, tags `logger=csp-health` and `check=<stranded|lost-google-cookie|unsupported-browser>`, a fixed message and fingerprint per check, so a problem that lasts is one issue) and waits for `Sentry.flush` before it answers. The event's extra data has counts and browser family and major version only, never names, emails, ids or user agents. The check reads nothing from Sentry. User agents `node` and anything with `HeadlessChrome` (our test runs) are ignored.
 
 ### 1. Members load pages but never run our scripts
 
@@ -54,4 +55,4 @@ Means: a member's browser cannot run the policy at all. **Check:** the browser n
 
 ### When it alerts
 
-The alert is rate limited to one post per 10 minutes (`lib/operations-alerts.ts`) and the cron runs once a day, so an unfixed problem posts again the next day. If the cron itself fails (the access log could not be read) the route answers 500 and logs `[csp-health]`; look there in the Vercel logs. It has no Checkly monitor yet, like the other jobs held back by the plan limit (`lib/cron-heartbeats.ts`).
+The cron runs once a day and sends the same event again each day an unfixed problem lasts. Sentry groups them into one issue (the fixed fingerprint), and the rule emails once for the issue and then at most once a day. Resolve the issue in Sentry once fixed; it reopens, and emails, only if the problem returns. If the cron itself fails (the access log could not be read) the route answers 500 and logs `[csp-health]`; look there in the Vercel logs. It has no Checkly monitor yet, like the other jobs held back by the plan limit (`lib/cron-heartbeats.ts`).

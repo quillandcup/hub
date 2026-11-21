@@ -1,8 +1,8 @@
 // The daily health check for the nonce-based Content-Security-Policy (app/api/internal/csp-health, docs/CSP_ALERTS.md).
 // A strict policy can fail quietly: a browser that ignores nonces never runs our scripts, and one that ignores
 // 'strict-dynamic' blocks the Google tag the page injects. Three checks over the access log say so within a day.
-// Everything here is pure: the route loads the activity rows and posts the result, so the checks are unit-tested at
-// their thresholds. Output is counts and browser names only (the channel is not private and the repo is public).
+// Everything here is pure: the route loads the activity rows and sends the result to Sentry, so the checks are
+// unit-tested at their thresholds. Output is counts and browser names only (the repo is public).
 
 import type { AccessActivityRow } from "@/lib/data/access-events";
 import { parseDevice } from "@/lib/device";
@@ -188,28 +188,31 @@ export function evaluateCspHealth(rows: AccessActivityRow[], config: CspHealthCo
   };
 }
 
-const browserList = (browsers: Record<string, number>) =>
-  Object.entries(browsers)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([name, n]) => `${name} (${n})`)
-    .join(", ");
+/** The Sentry `logger` the health check's events carry; the alert rule in config/sentry.yml filters on it. */
+export const CSP_HEALTH_LOGGER = "csp-health";
 
-/** One line per check that tripped; empty when all is well. Counts and browser names only. */
-export function cspHealthProblems(health: CspHealth, config: CspHealthConfig): string[] {
-  const problems: string[] = [];
-  const { stranded, lostGoogleCookie, unsupported } = health;
-  if (stranded.tripped) {
-    problems.push(
-      `${stranded.users} of ${stranded.of} active members loaded pages but never ran our scripts (no page view recorded). Browsers: ${browserList(stranded.browsers)}. A browser may be ignoring the nonces.`,
-    );
-  }
-  if (lostGoogleCookie.tripped) {
-    problems.push(
-      `${lostGoogleCookie.users} of ${lostGoogleCookie.of} members who had the Google Analytics cookie before have it on none of their page views in the last ${config.windowHours} hours. Browsers: ${browserList(lostGoogleCookie.browsers)}. The Google tag may be blocked ('strict-dynamic' unsupported or a host missing).`,
-    );
-  }
-  if (unsupported.tripped) {
-    problems.push(`A browser below the minimum for nonces and 'strict-dynamic' is in use: ${browserList(unsupported.browsers)}.`);
-  }
-  return problems;
+/** One Sentry event for a check that tripped. The message and fingerprint are fixed per check, so a condition that lasts is one issue. */
+export interface CspHealthEvent {
+  check: "stranded" | "lost-google-cookie" | "unsupported-browser";
+  message: string;
+  /** Counts and browser family and major version only: never member ids, names, emails or user agents. */
+  extra: { users: number; of: number; windowHours: number; browsers: Record<string, number> };
+}
+
+const MESSAGES: Record<CspHealthEvent["check"], string> = {
+  stranded: "CSP health: members load pages but never run our scripts",
+  "lost-google-cookie": "CSP health: members lost the Google Analytics cookie they used to have",
+  "unsupported-browser": "CSP health: a browser below the minimum for nonces and strict-dynamic is in use",
+};
+
+/** One event per check that tripped; empty when all is well. */
+export function cspHealthEvents(health: CspHealth, config: CspHealthConfig): CspHealthEvent[] {
+  const named: [CspHealthEvent["check"], CheckResult][] = [
+    ["stranded", health.stranded],
+    ["lost-google-cookie", health.lostGoogleCookie],
+    ["unsupported-browser", health.unsupported],
+  ];
+  return named
+    .filter(([, result]) => result.tripped)
+    .map(([check, r]) => ({ check, message: MESSAGES[check], extra: { users: r.users, of: r.of, windowHours: config.windowHours, browsers: r.browsers } }));
 }

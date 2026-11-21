@@ -5,7 +5,7 @@ import {
   checkLostGoogleCookie,
   checkStrandedUsers,
   checkUnsupportedBrowsers,
-  cspHealthProblems,
+  cspHealthEvents,
   evaluateCspHealth,
   isToolingUserAgent,
   isUnsupportedBrowser,
@@ -216,27 +216,30 @@ describe("checkUnsupportedBrowsers", () => {
   });
 });
 
-describe("evaluateCspHealth and cspHealthProblems", () => {
+describe("evaluateCspHealth and cspHealthEvents", () => {
   it("is quiet when all is well", () => {
     const health = evaluateCspHealth([row(1, CHROME("150")), row(2, IOS_SAFARI("18_5"))], CSP_HEALTH);
     expect(health.stranded.tripped || health.lostGoogleCookie.tripped || health.unsupported.tripped).toBe(false);
-    expect(cspHealthProblems(health, CSP_HEALTH)).toEqual([]);
+    expect(cspHealthEvents(health, CSP_HEALTH)).toEqual([]);
   });
 
-  it("says one line per failing check, with counts and browser names and nothing identifying", () => {
+  it("makes one event per failing check, with fixed messages, counts and browser names and nothing identifying", () => {
     const rows = [
       row(1, IOS_SAFARI("14_8"), { pageViews: 0, pageViewsWithGa: 0 }),
       row(2, IOS_SAFARI("14_8"), { pageViews: 0, pageViewsWithGa: 0 }),
       ...[3, 4, 5, 6].map((n) => row(n, CHROME("150"), { pageViewsWithGa: 0 })),
     ];
-    const lines = cspHealthProblems(evaluateCspHealth(rows, CSP_HEALTH), CSP_HEALTH);
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toContain("2 of 6 active members");
-    expect(lines[0]).toContain("Safari 14 (iOS 14.8) (2)");
-    expect(lines[1]).toContain("4 of 4 members");
-    expect(lines[1]).toContain(`last ${CSP_HEALTH.windowHours} hours`);
-    expect(lines[2]).toContain("Safari 14 (iOS 14.8) (2)");
-    const text = lines.join("\n");
-    expect(text).not.toMatch(/u\d|Mozilla|@/);
+    const events = cspHealthEvents(evaluateCspHealth(rows, CSP_HEALTH), CSP_HEALTH);
+    expect(events.map((e) => e.check)).toEqual(["stranded", "lost-google-cookie", "unsupported-browser"]);
+    expect(events[0].extra).toEqual({ users: 2, of: 6, windowHours: CSP_HEALTH.windowHours, browsers: { "Safari 14 (iOS 14.8)": 2 } });
+    expect(events[1].extra).toMatchObject({ users: 4, of: 4, browsers: { "Chrome 150": 4 } });
+    expect(events[2].extra.browsers).toEqual({ "Safari 14 (iOS 14.8)": 2 });
+    // The same condition tomorrow has the same message, so it stays one Sentry issue.
+    expect(events.map((e) => e.message)).toEqual([
+      "CSP health: members load pages but never run our scripts",
+      "CSP health: members lost the Google Analytics cookie they used to have",
+      "CSP health: a browser below the minimum for nonces and strict-dynamic is in use",
+    ]);
+    expect(JSON.stringify(events)).not.toMatch(/u\d|Mozilla|@/);
   });
 });

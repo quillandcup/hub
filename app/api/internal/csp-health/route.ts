@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { clock } from "@/lib/clock";
 import { CSP_HEALTH } from "@/lib/config";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
-import { cspHealthProblems, evaluateCspHealth } from "@/lib/csp-health";
+import { CSP_HEALTH_LOGGER, cspHealthEvents, evaluateCspHealth } from "@/lib/csp-health";
 import { createRepos } from "@/lib/data/repos";
-import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const maxDuration = 60;
 
 const HOUR_MS = 60 * 60 * 1000;
+const FLUSH_TIMEOUT_MS = 5000;
 
 /**
  * The daily Content-Security-Policy health check (lib/csp-health.ts, docs/CSP_ALERTS.md): over the last 24 hours, are
  * there members who load pages but never run our scripts, members who lost the Google cookie they used to have, or
- * browsers too old for nonces plus 'strict-dynamic'? Quiet when all is well; otherwise one post to the alerts channel
- * with counts and browser names only.
+ * browsers too old for nonces plus 'strict-dynamic'? Quiet when all is well; otherwise one Sentry event per failing
+ * check (level error, tag logger=csp-health, a fixed fingerprint so a lasting condition stays one issue), with counts
+ * and browser names only. A Sentry alert rule (config/sentry.yml) emails about them; nothing goes to Slack.
  *
- * Scheduled daily via Vercel Cron (GET); an admin can run it by opening the URL. Read-only apart from the post.
+ * Scheduled daily via Vercel Cron (GET); an admin can run it by opening the URL. Read-only apart from the events.
  * One SQL aggregate (one row per user and user agent) feeds all three checks, so it never reads the request log row by row.
  */
 export async function GET(request: NextRequest) {
@@ -41,10 +43,22 @@ export async function GET(request: NextRequest) {
   }
 
   const health = evaluateCspHealth(rows, CSP_HEALTH);
-  const problems = cspHealthProblems(health, CSP_HEALTH);
-  if (problems.length > 0) await sendOperationsAlert(repos, { type: "csp_health", problems });
+  const events = cspHealthEvents(health, CSP_HEALTH);
+  for (const event of events) {
+    Sentry.withScope((scope) => {
+      scope.setLevel("error");
+      scope.setTags({ logger: CSP_HEALTH_LOGGER, check: event.check });
+      scope.setFingerprint([CSP_HEALTH_LOGGER, event.check]);
+      scope.setExtras(event.extra);
+      // Sentry's own `logger` field is what its `logger:` search and tag use; the SDK has no option for it.
+      scope.addEventProcessor((sentryEvent) => ({ ...sentryEvent, logger: CSP_HEALTH_LOGGER }));
+      Sentry.captureMessage(event.message, "error");
+    });
+  }
+  // A serverless function can be frozen as soon as it answers: wait until the events have left.
+  if (events.length > 0) await Sentry.flush(FLUSH_TIMEOUT_MS);
 
-  const summary = { alerted: problems.length > 0, ...health };
+  const summary = { alerted: events.length > 0, ...health };
   console.log("[csp-health]", JSON.stringify(summary));
   return withCronHeartbeat("csp-health", NextResponse.json(summary));
 }
