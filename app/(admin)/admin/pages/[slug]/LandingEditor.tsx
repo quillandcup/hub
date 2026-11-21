@@ -19,7 +19,9 @@ import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-templ
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
+import { ITEM_BLOCKS } from "@/components/landing/config";
 import { aiPlugin } from "./AiPanel";
+import { outlinePlugin } from "./OutlinePanel";
 import { addPlugin, panelOverrides } from "./SidePanels";
 import { settingsPlugin } from "./SettingsPanel";
 import { useMirrorHostTheme } from "./useMirrorHostTheme";
@@ -170,13 +172,13 @@ function EditorHeader({
         </p>
       </div>
       <div role="group" aria-label="Side panels" className="flex items-center gap-1">
-        <Tooltip content="Show or hide the blocks panel">
-          <button type="button" aria-label="Blocks panel" aria-pressed={leftOpen} onClick={() => dispatch({ type: "setUi", ui: { leftSideBarVisible: !leftOpen } })} className={ICON}>
+        <Tooltip content="Show or hide the editing panel (outline, add, AI, settings)">
+          <button type="button" aria-label="Editing panel" aria-pressed={leftOpen} onClick={() => dispatch({ type: "setUi", ui: { leftSideBarVisible: !leftOpen } })} className={ICON}>
             <PanelLeft size={16} aria-hidden="true" />
           </button>
         </Tooltip>
-        <Tooltip content="Show or hide the settings panel">
-          <button type="button" aria-label="Settings panel" aria-pressed={rightOpen} onClick={() => dispatch({ type: "setUi", ui: { rightSideBarVisible: !rightOpen } })} className={ICON}>
+        <Tooltip content="Pin a block's fields beside the page, in a panel of their own, instead of in the editing panel">
+          <button type="button" aria-label="Pin fields beside the page" aria-pressed={rightOpen} onClick={() => dispatch({ type: "setUi", ui: { rightSideBarVisible: !rightOpen } })} className={ICON}>
             <PanelRight size={16} aria-hidden="true" />
           </button>
         </Tooltip>
@@ -290,7 +292,10 @@ export default function LandingEditor({ page: initial, data, versions, starters 
   const [page, setPage] = useState(initial);
   // The kind of page never changes, so the config is made once: a new config object would make Puck remount the canvas.
   const config = useMemo(() => editorConfigFor({ pageType: initial.pageType === "website" ? "website" : "landing", site, editing: true }), [initial.pageType, site]);
-  const plugins = useMemo(() => [addPlugin, aiPlugin, settingsPlugin(initial.pageType === "website" ? "website" : "landing", site ?? EMPTY_SITE_TEMPLATE)], [initial.pageType, site]);
+  const plugins = useMemo(() => {
+    const pageType = initial.pageType === "website" ? "website" : "landing";
+    return [outlinePlugin(pageType, ITEM_BLOCKS), addPlugin, aiPlugin, settingsPlugin(pageType, site ?? EMPTY_SITE_TEMPLATE)];
+  }, [initial.pageType, site]);
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
   const [hasUnpublished, setHasUnpublished] = useState(false);

@@ -56,6 +56,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "page-editor-one-panel-drilldown",
+    date: "2026-11-21",
+    audience: "staff",
+    category: "improved",
+    title: "Page editor: one left panel that goes from the page to a section to a block",
+    summary: "The page editor's left panel now starts at the page, opens a section to show its blocks, and opens a block to show its fields, so the page keeps its width.",
+    body: `Open a page in the admin Pages editor. The **Outline** tab shows the page: the header, the sections in order, **Add section** and the footer.
+
+- **Click a section** to see its blocks, with **Add block** (only what that place takes) and the section's own settings under them. Click a block to edit its fields in the same panel. **Back** goes up one level.
+- **Click on the page** and the panel jumps to that level.
+- **Reorder** sections, or blocks and items inside a block, by dragging the handle, or with the menu beside each row (Move to position), which also works from the keyboard.
+- **Header and footer** of a website page are links to Design. A landing page's open its own fields.
+- The right panel no longer opens by itself. **Pin fields beside the page** in the header brings it back.`,
+  },
+  {
     slug: "page-builder-website-and-landing-pages",
     date: "2026-11-20",
     audience: "staff",

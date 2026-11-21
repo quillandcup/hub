@@ -243,8 +243,8 @@ describe("the header", () => {
 
   it("shows or hides each side panel", () => {
     editor();
-    const left = screen.getByRole("button", { name: "Blocks panel" });
-    const right = screen.getByRole("button", { name: "Settings panel" });
+    const left = screen.getByRole("button", { name: "Editing panel" });
+    const right = screen.getByRole("button", { name: "Pin fields beside the page" });
     expect(left).toHaveAttribute("aria-pressed", "true");
     expect(right).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(left);
