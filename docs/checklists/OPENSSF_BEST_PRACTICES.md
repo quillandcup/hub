@@ -1,6 +1,6 @@
 # OpenSSF Best Practices: where we stand
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
 The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels. **We are not applying for the badge**: the Passing level requires a FLOSS license and ours is proprietary (`LICENSE`). This page uses the checklist as a list of good practice and records how we score, so we know what is already done and what is worth doing anyway.
 
@@ -36,7 +36,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 ### Documentation
 | Criterion | Status | Evidence or gap |
 |---|---|---|
-| `documentation_basics` [MUST] | Partly | Setup and use for developers: `README.md`, `docs/runbooks/SETUP.md`, `docs/runbooks/QUICK_START.md`. Member-facing help is in the app (`/help`). |
+| `documentation_basics` [MUST] | Partly | Setup and use for developers: `README.md`, `docs/runbooks/SETUP.md`. Member-facing help is in the app (`/help`). |
 | `documentation_interface` [MUST] | Partly | Routes and data access are documented in `docs/` and `.claude/rules/`; there is no generated API reference. |
 
 ### Other
@@ -107,7 +107,7 @@ Silver also requires every Passing criterion, and promotes several SHOULD or SUG
 | `documentation_roadmap` [MUST] | Partly | `docs/TODO.md` is a backlog, not a one-year plan. |
 | `documentation_architecture` [MUST] | Met | `docs/architecture/MEDALLION_ARCHITECTURE.md`, `docs/architecture/ERD.md`, `docs/architecture/SEQUENCE_DIAGRAMS.md`. |
 | `documentation_security` [MUST] | Partly | `docs/trust/THREAT_MODEL.md` has the threat model and a review; there is no explicit assurance case. |
-| `documentation_quick_start` [MUST] | Met | `docs/runbooks/QUICK_START.md`. |
+| `documentation_quick_start` [MUST] | Met | `docs/runbooks/SETUP.md`. |
 | `documentation_current` [MUST] | Partly | Docs are maintained with changes but not checked for drift. |
 | `documentation_achievements` [MUST] | Met | Scorecard and scan badges on `README.md` (there is no OpenSSF badge). |
 | `sites_password_security` | N/A | The project's sites store no external passwords. |
@@ -126,7 +126,7 @@ Silver also requires every Passing criterion, and promotes several SHOULD or SUG
 | `interfaces_current` [SHOULD] | Unverified | |
 | `build_standard_variables`, `build_preserve_debug`, `build_non_recursive`, `installation_standard_variables` | N/A | No native build or install system. |
 | `build_repeatable` [MUST] | Not met | `deploy.yml` stamps each build with the run id, so no two builds are identical. Making it repeatable means removing that and checking the output matches. |
-| `installation_common`, `installation_development_quick` [MUST] | Met | `pnpm install`, then the local stack (`docs/runbooks/QUICK_START.md`). |
+| `installation_common`, `installation_development_quick` [MUST] | Met | `pnpm install`, then the local stack (`docs/runbooks/SETUP.md`). |
 | `implement_secure_design` [MUST] | Met | Row level security on every table, admin guards, a test per rule (`docs/trust/RLS_SECURITY.md`). |
 | `input_validation` [MUST] | Partly | Sanitizers and validation exist; their allow-lists are listed as not reviewed in `docs/trust/THREAT_MODEL.md`. |
 | `hardening` [SHOULD] | Partly | Security headers are set (`next.config.ts`); the CSP for scripts and styles is report-only. |

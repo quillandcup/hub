@@ -1,6 +1,6 @@
 # Integration Links
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Quick reference for managing all external service integrations. These dashboards are hard to find — bookmark this file.
 
@@ -75,9 +75,9 @@ Alert destinations are configured per system and environment:
 
 | System | Where it's configured | Status |
 |---|---|---|
-| Checkly (uptime, SSL, cron heartbeats) | Code: `config/checkly/__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
-| Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/infrastructure/SLACK_OPERATIONS_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
-| Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/infrastructure/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
+| Checkly (uptime, SSL, cron heartbeats) | Code: `config/checkly/__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
+| Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/infrastructure/SLACK_OPERATIONS_ALERTS.md`) | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
+| Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/infrastructure/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
 | GitHub Actions (failed runs) | Per-user notification settings | Not routable per environment today |
@@ -129,7 +129,7 @@ secret CI rewrites on every run. Setup, `pnpm slack:manifest:diff` and recovery:
 |------|-----|
 | Service Accounts | https://console.cloud.google.com/iam-admin/serviceaccounts?project=quillandcup |
 
-Calendar ID: `dd6745e544f1a8a93f0f7fd6d3fc633ab9c864e1090603a793c69d101f695e6e@group.calendar.google.com`
+Calendar ID: `GOOGLE_CALENDAR_ID` in `.env.shared` (`docs/infrastructure/CALENDAR_SETUP.md`)
 Service account: `quill-cup-admin-portal@quillandcup.iam.gserviceaccount.com`
 
 Webhook URL: `https://hub.quillandcup.com/api/webhooks/calendar`

@@ -470,6 +470,19 @@ Production (2026-11-10): lesson thumbnails are all copied into the media library
 
 - **Resolved:** the chat player now sits inside the same `LessonCompletionProvider` as the lesson page when `POST /api/chat/videos/<message id>` says `completion: { completed }` (the viewer has the course, the lesson is open and the view is being recorded, so not in sudo); `AutoCompleteAtWatchedMark` completes the lesson at about 90% while playing, through `setLessonComplete`, which checks access and sudo again. A lesson already complete is not redone, and "✓ Lesson complete" shows under the video (`components/chat/ChatVideo.tsx`). A reader without the course watching a share an admin opened to the channel gets `completion: null`: nothing of theirs is completed. The entry `lesson-videos-in-chat`, the help article and `/privacy` (Course videos row) say so.
 
+### Remove the unused Kajabi CSV import
+
+The Kajabi API is the only data source now (`docs/infrastructure/KAJABI_API_SETUP.md`); the owner confirmed the CSV import is not used. Deferred from the docs cleanup PR, which changed no code. Still in the repo:
+
+- **Routes:** `app/api/import/members/route.ts` and `app/api/import/subscriptions/route.ts` (parse Kajabi CSV exports into `bronze.kajabi_members` and `bronze.subscription_history`).
+- **UI:** `app/(admin)/admin/data/import/KajabiImportForm.tsx`, `MemberImportForm.tsx`, `SubscriptionImportForm.tsx`, and the dev-only `app/(admin)/admin/data/import/testing/page.tsx` ("CSV Testing Import" link in `page.tsx`, the `/admin/data/import/testing` entry in `tests/lib/site-pages.test.ts`, and its mocks in `tests/components/pages/admin-prickle-types-pages.test.tsx`).
+- **Data layer:** `NewKajabiMember`, `NewSubscriptionHistory` and the insert methods in `lib/data/billing.ts` (and `lib/data/in-memory.ts`), the legacy tables `bronze.kajabi_members` and `bronze.subscription_history` (deprecated; drop with expand, then contract, `.claude/rules/migrations.md`, after checking production: `verify-against-prod.md`).
+- **Tests:** `tests/lib/billing-import-routes.test.ts`, `tests/api/idempotency/members-import-idempotency.test.ts`, `tests/api/reprocessability/members-reprocessability.test.ts`, the idempotency README section on the members import, and `tests/fixtures/subscription-snapshots/`.
+- **Docs and files:** `docs/members-import-example.csv` (sample file; `docs/README.md` mentions it), the legacy-table notes in `docs/architecture/ERD.md`, `docs/architecture/MEDALLION_ARCHITECTURE.md` and `app/api/reconcile/README.md`. The decision snapshots under `docs/decisions/` that discuss CSV exports stay as history.
+- **Not part of this:** the Product Progress report CSV upload (`/api/import/kajabi-product-progress`, `lib/courses/product-progress-csv.ts`) is a different, still-rendered feature for course progress (`docs/product/COURSES.md`); decide separately whether it is still wanted. The Slack CSV import (`/api/import/slack`) is also separate.
+
+Start with the two routes and the three forms, then the tests that import them, then the legacy tables in a later migration PR.
+
 ## Infrastructure & Deployment
 
 ### Refresh the aging architecture docs
@@ -616,8 +629,7 @@ what the page shows and when, and check whether the alias row is gone at that mo
    - Add environment info to settings/about page
 
 **Documentation:**
-- Setup guide: `docs/infrastructure/DEPLOYMENT_SETUP.md`
-- Quick start: `docs/runbooks/QUICK_START.md`
+- Setup guide: `docs/runbooks/SETUP.md`
 - Env files and syncing: `docs/infrastructure/ENV_MANAGEMENT.md`
 
 **Benefits:**
@@ -1169,7 +1181,7 @@ location instead.
 1. **Remove from the current files** (normal PR), replacing each with a pointer to where the
    value lives (`.env.shared` / `.env.prod`, see `docs/infrastructure/ENV_MANAGEMENT.md`):
    - Staff email (the Zoom login line) -- `docs/runbooks/SECRET_ROTATION.md`
-   - Real Google Calendar ID -- `docs/infrastructure/CALENDAR_SETUP.md`, `docs/infrastructure/CALENDAR_SYNC.md`, `docs/infrastructure/INTEGRATION_LINKS.md`
+   - Real Google Calendar ID -- **Resolved** in the current docs (replaced by the env var name); still in history
    - Google service-account emails -- `docs/infrastructure/INTEGRATION_LINKS.md`, `docs/runbooks/SECRET_ROTATION.md`
    - Kajabi client ID -- `docs/infrastructure/INTEGRATION_LINKS.md`
    - Slack workspace/app IDs -- `docs/infrastructure/INTEGRATION_LINKS.md`, `docs/runbooks/SECRET_ROTATION.md`

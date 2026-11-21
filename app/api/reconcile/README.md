@@ -190,10 +190,10 @@ Required environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase public API key
 
-See `docs/infrastructure/DEPLOYMENT_SETUP.md` for setup instructions.
+See `docs/runbooks/SETUP.md` for setup instructions.
 
 ## Related Documentation
 
 - [Architecture Foundation](../../../docs/architecture-foundation.md) - Overall data pipeline design
-- [Deployment Setup](../../../docs/infrastructure/DEPLOYMENT_SETUP.md) - Environment configuration
+- [Setup Guide](../../../docs/runbooks/SETUP.md) and [Environment Management](../../../docs/infrastructure/ENV_MANAGEMENT.md) - Environment configuration
 - [Processing Routes](../process/README.md) - Silver layer processing logic

@@ -272,7 +272,7 @@ export function validateEnvironment() {
     throw new Error(
       `Missing required environment variables: ${missing.join(', ')}\n` +
       `Please check your .env.local file or Vercel environment settings.\n` +
-      `See docs/infrastructure/DEPLOYMENT_SETUP.md for setup instructions.`
+      `See docs/runbooks/SETUP.md for setup instructions.`
     );
   }
 }
