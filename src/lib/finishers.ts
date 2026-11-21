@@ -1,5 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
-import { VISIBILITIES, type Visibility } from "@/lib/writing-visibility";
+import { VISIBILITIES, isVisibility, type Visibility } from "@/lib/writing-visibility";
 
 /**
  * The Finisher record (docs/product/FINISHERS.md): the milestones a member can claim, the one consent they may give for marketing, and the
@@ -42,6 +42,8 @@ export const MILESTONE_CLAIMS: Record<MilestoneKind, string> = {
 /** The third milestone, derived from the Bookshelf and never stored (docs/product/FINISHERS.md). */
 export const PUBLISHED_TITLE = "Published Author";
 export const PUBLISHED_CLAIM = "It is published";
+/** How Published reads in a strip, beside its title. */
+export const PUBLISHED_SHOWN = "Published";
 
 /** What the member says when they add a milestone themselves ("I wrote THE END"), per kind. */
 export const MILESTONE_SELF_ADD: Record<MilestoneKind, { button: string; confirmLabel: string }> = {
@@ -63,6 +65,14 @@ export const MILESTONE_SOURCE_NOTES: Record<MilestoneSource, string> = {
  * means something on a confirmed milestone with a story, and is never a condition of saving (docs/product/FINISHERS.md).
  */
 export const SHARE_STORY_DEFAULT = false;
+
+/**
+ * Where a milestone starts when the member confirms it: the globe. A writer's page should be good enough on the day they switch it
+ * on, without changing each item (a book on the Bookshelf is public already). The globe reaches the web only when writer profiles are
+ * open to the member and their page is on; members see it either way. The database trigger
+ * (`member_milestones_default_visibility`) starts it at the same level; `tests/lib/finishers.test.ts` keeps the two in step.
+ */
+export const MILESTONE_DEFAULT_VISIBILITY: Visibility = "public";
 export const SHARE_STORY_LABEL = "Share my story to inspire other writers.";
 export const SHARE_STORY_NOTE =
   "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here, and you can change your mind any time.";
@@ -127,9 +137,18 @@ export function hasStory(m: { storyBefore: string | null; storyAfter: string | n
 
 export const MAX_STORY_LENGTH = 2000;
 
+/** Who will see a milestone at each level, in the sentence beside the story fields. The globe line never promises more than will happen. */
+export const MILESTONE_LEVEL_LINES: Record<Visibility, string> = {
+  private: "Only you can see it.",
+  community: "Other members can see it on your profile. It is not on the web.",
+  public: "Anyone on the internet, once your writer profile is on; members see it now.",
+};
+
 /** What a member sends when they answer a proposal. */
 export type MilestoneAnswerInput = {
   answer: "confirm" | "decline";
+  /** Who sees it. Left out, a milestone confirmed for the first time starts at `MILESTONE_DEFAULT_VISIBILITY`. */
+  visibility?: string | null;
   achievedOn?: string | null;
   storyBefore?: string | null;
   storyAfter?: string | null;
@@ -138,7 +157,15 @@ export type MilestoneAnswerInput = {
 };
 
 /** A confirmed answer: what the repository stores when the member says "yes, this is me" (or adds the milestone themselves). */
-export type ConfirmedMilestoneAnswer = { status: "confirmed"; achievedOn: string | null; storyBefore: string | null; storyAfter: string | null; consent_testimonial: boolean };
+export type ConfirmedMilestoneAnswer = {
+  status: "confirmed";
+  achievedOn: string | null;
+  storyBefore: string | null;
+  storyAfter: string | null;
+  consent_testimonial: boolean;
+  /** The level the member picked on the form. Absent: the default at the first confirmation, and no change afterwards. */
+  visibility?: Visibility;
+};
 
 /** What the repository stores for an answer (declined drops the consent and the level: both only exist on a confirmed row). */
 export type MilestoneAnswer = ConfirmedMilestoneAnswer | { status: "declined" };
@@ -180,7 +207,9 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
     if (story !== null && story.length > MAX_STORY_LENGTH) return { error: `Please keep each story under ${MAX_STORY_LENGTH} characters.` };
   }
   const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null);
-  return { status: "confirmed", achievedOn, storyBefore, storyAfter, consent_testimonial };
+  if (input.visibility != null && !isVisibility(input.visibility)) return { error: "That choice is not available." };
+  const visibility = input.visibility != null ? input.visibility : undefined;
+  return { status: "confirmed", achievedOn, storyBefore, storyAfter, consent_testimonial, ...(visibility ? { visibility } : {}) };
 }
 
 /**

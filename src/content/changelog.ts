@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "page-block-registry",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "A page block registry: modules add blocks to the page builder",
+    summary: "Every block of the page builder is now one definition in a registry, and the events blocks (Announcement strip, Schedule panel, Coming up) come from an events module instead of the pages code.",
+    body: `The page builder no longer knows what events are. A block is a \`definePageBlock\` definition (stored type, label, palette group, defaults, component, slots, publish checks), and the editor's config, the public renderer, the publish check, the AI builder and the JSON import all read one registry built from those.
+
+- **Rule.** The pages code never imports a module (lint and a boundary test fail it). A module (\`src/modules/<name>\`) contributes three things on three sides: blocks (server and browser), editor fields (client only) and live data loaders (server only), and the composition root \`src/modules/index.ts\`, \`editor.ts\` and \`server.ts\` is the one place that lists the installed ones.
+- **Hooks.** \`definePageBlock\`, \`createPageBlockRegistry\` (rejects duplicate types), \`createEditorKit\`, \`PageDataLoader\`. Stored page JSON is unchanged; a stored block whose module is absent draws nothing for visitors and shows a note in the editor, keeping its props.
+- **Detail.** \`docs/architecture/PAGE_BLOCKS.md\`.`,
+  },
+  {
     slug: "project-stage-milestone-prompt",
     date: "2026-11-21",
     audience: "engineering",
@@ -100,13 +113,34 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Show your writing milestones on your profile",
-    summary: "Mark when you wrote THE END or got your manuscript ready to publish, and choose who sees it: just you, other members, or anyone on the internet through your writer profile, once that is open to you.",
-    body: `In **Settings, Profile, Your milestones**, each of your projects and books has its own steps: you wrote THE END (that makes you a Finisher), and it is ready to publish (that makes you an Author). Only you can mark a step.
+    summary: "Mark when you wrote THE END or got your manuscript ready to publish. You choose who sees each one: only you, other members, or anyone on the internet through your writer profile, once that is open to you.",
+    image: { src: "/changelog/milestones-on-your-profile/06-one-work-3-published-profile.webp", alt: "The Milestones list on a profile: one book with THE END, ready to publish and published, each with its date and a few words from the writer" },
+    body: `In **Settings, Profile, Your milestones**, each of your projects and books has its own steps: you wrote THE END (that makes you a Finisher), your manuscript is ready to publish (an Author), and it is published (a Published Author). You mark the first two yourself. The third comes by itself once the book is on your Bookshelf of published books.
 
-- **Choose who sees it.** The lock keeps it to you. The house shows it to other members on your profile, and is where a step starts once you confirm it. The globe puts it on your writer profile on the web, once writer profiles are open to you.
-- **Add your story**, how it felt before and how it feels now, and it shows with the step, to the same people.
-- **Earn badges.** Each work you wrote THE END on adds to your Finisher badge. Each work that is ready to publish adds to your Author badge. At 3, 5 and 10 works the badge reads 3x, 5x or 10x. Milestones dated before you joined do not count; ones with no date do. On your own profile your badges count every milestone you confirmed. Other members see only the ones you showed with the house (other members) or the globe (everyone), so their count can be lower.
-- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.`,
+![The Milestones list on a profile: one book with THE END, ready to publish and published, each with its date and a few words from the writer](/changelog/milestones-on-your-profile/06-one-work-3-published-profile.webp)
+
+- **Choose who sees each step.** The lock: only you. The house: other members, on your profile. The globe: other members too, and also your writer profile on the web, once writer profiles are open to you and yours is switched on. A step you confirm starts at the globe, and you can change it with the icon next to it any time.
+- **Look before you go public.** When you switch your writer profile on, you see a short list of everything anyone on the internet will see, each with the same icon to change it.
+- **Add your story**, how it felt before and how it feels now. It shows under that step, for the same people who can see the step.
+- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.
+
+![Your milestones in Settings, for a book whose three steps are done, with the globe on each and the share box](/changelog/milestones-on-your-profile/07-one-work-3-published-settings.webp)
+
+**One book, step by step.** After THE END, then after ready to publish:
+
+![A profile with one step: THE END](/changelog/milestones-on-your-profile/01-one-work-1-the-end-profile.webp)
+
+![A profile with two steps: THE END and ready to publish](/changelog/milestones-on-your-profile/04-one-work-2-publish-ready-profile.webp)
+
+**Several books at once.** Each book has its own steps, and each step has its own icon. A step on the lock is visible only to you, in Settings. A step on the house is on your profile for other members. Only a step on the globe is on the web.
+
+![Your milestones in Settings for several books, with the globe, the house and the lock](/changelog/milestones-on-your-profile/10-many-works-settings.webp)
+
+![What other members see on that profile](/changelog/milestones-on-your-profile/09-many-works-profile.webp)
+
+![What anyone on the web sees on the writer profile](/changelog/milestones-on-your-profile/11-many-works-web.webp)
+
+![The list shown when you switch your writer profile on](/changelog/milestones-on-your-profile/12-switch-on-review.webp)`,
   },
   {
     slug: "page-editor-one-panel-drilldown",
@@ -155,7 +189,7 @@ The sign-in link doesn't know whether someone is already signed in. Custom code 
     category: "new",
     title: "The Finisher record: milestones a member confirms, and who sees them",
     summary: "Writing milestones have a record of their own, proposed by staff and confirmed by the member, with a lock, house or globe for who sees each one and one marketing consent.",
-    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own record, one per work (a project and/or a Bookshelf book, or a title the member wrote); the third, published, is derived from the Bookshelf and never stored. The rules to follow: staff and courses only propose, and the member alone confirms (or adds their own, already confirmed). Who sees a milestone is the same lock, house or globe as everywhere, one level per milestone with its story, starting at the house once confirmed. Other members and the web read only through two readers that hold back anything private, whoever asks (staff included), so a new surface uses `shownToMembers` or `shownOnWeb`, never the table. There is one marketing consent, off by default, and whatever reads it must check it when it renders. Hooks: `MilestoneRepository` (`src/lib/data/milestones.ts`), wording and parsing in `src/lib/finishers.ts`, `MilestoneStrip` for the profile strip, and the member's card in Settings, Profile. Detail, including how a withdrawal reaches the cached web page: `docs/product/FINISHERS.md`.",
+    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own record, one per work (a project and/or a Bookshelf book, or a title the member wrote); the third, published, is derived from the Bookshelf and never stored. The rules to follow: staff and courses only propose, and the member alone confirms (or adds their own, already confirmed). Who sees a milestone is the same lock, house or globe as everywhere, one level per milestone with its story. A confirmed milestone starts at the globe (`MILESTONE_DEFAULT_VISIBILITY`, kept in step with the database trigger by a test), and the answer form shows the level next to the story so the default is a visible one-click choice; turning the writer profile on shows who sees what in one place, with the same controls. The globe reaches the web only when writer profiles are open to the member and the page is on. Other members and the web read only through readers that hold back anything private, whoever asks (staff included), so a new surface uses `worksShownToMembers` or `worksShownOnWeb`, never the table: they return each work with its milestones in order plus Published, derived from the live Bookshelf books at the globe, grouped by an opaque work number rather than an id. There is one marketing consent, off by default, and whatever reads it must check it when it renders. Hooks: `MilestoneRepository` (`src/lib/data/milestones.ts`), wording and parsing in `src/lib/finishers.ts`, `groupShownWorks` and `MilestoneStrip` for the strips, and the member's card in Settings, Profile. Detail, including how a withdrawal reaches the cached web page: `docs/product/FINISHERS.md`.",
   },
   {
     slug: "csp-rollout-alerts",

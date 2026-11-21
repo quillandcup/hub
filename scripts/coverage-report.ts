@@ -49,7 +49,7 @@ export const AREA_FLOORS: Record<string, Record<"lines" | "statements" | "functi
   "app/api": { lines: 82, statements: 79, functions: 85, branches: 71 },
 };
 // The source folders all live under src/ (the areas below are named without it).
-const SOURCE = /^src\/((app|lib|content|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
+const SOURCE = /^src\/((app|lib|content|components|emails|modules)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
 const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 

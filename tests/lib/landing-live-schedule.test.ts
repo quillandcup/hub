@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { DEFAULT_EXPERIENCED_HOST_TEXT, EXPERIENCED_HOST_PRICKLES, loadScheduleSnapshot, publicTitle, scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapshot } from "@/lib/landing/live-schedule";
+import { DEFAULT_EXPERIENCED_HOST_TEXT, EXPERIENCED_HOST_PRICKLES, loadScheduleSnapshot, publicTitle, scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapshot } from "@/modules/events/page-blocks/live-schedule";
 
 type Seed = NonNullable<ConstructorParameters<typeof InMemoryDataset>[0]>;
 

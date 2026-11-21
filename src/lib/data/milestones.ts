@@ -1,4 +1,4 @@
-import type { ConfirmedMilestoneAnswer, MilestoneAnswer, MilestoneKind, MilestoneSource, MilestoneStatus } from "@/lib/finishers";
+import { MILESTONE_DEFAULT_VISIBILITY, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
 import { workKey, type WorkRef } from "@/lib/finishers-works";
 import { isShownToMembers, type Visibility } from "@/lib/writing-visibility";
 import type { Db, Row } from "./db";
@@ -36,6 +36,24 @@ export type Milestone = {
 export type ShownMilestone = {
   kind: MilestoneKind;
   /** The title the member wrote, or the book's; null for a milestone of a project (a project's name follows the project's own level). */
+  workTitle: string | null;
+  achievedOn: string | null;
+  storyBefore: string | null;
+  storyAfter: string | null;
+  visibility: Visibility;
+};
+
+/** A step on a work as the strips show it: a stored milestone, or Published (derived from a Bookshelf book, always at the globe). */
+export type ShownStepKind = MilestoneKind | "published";
+
+/**
+ * One row of a member's works as the strips read it: `workNo` numbers the works (1, 2, 3...) so rows of the same work can be
+ * grouped without an id. `workTitle` is the work's name as the viewer may know it: the book's title or the one the member wrote,
+ * null for a project that is not on the Bookshelf (a project's name follows the project's own level).
+ */
+export type ShownWorkStep = {
+  workNo: number;
+  kind: ShownStepKind;
   workTitle: string | null;
   achievedOn: string | null;
   storyBefore: string | null;
@@ -99,6 +117,20 @@ function toMilestone(r: MilestoneColumns): Milestone {
 
 type ShownColumns = { kind: string; work_title: string | null; achieved_on: string | null; story_before: string | null; story_after: string | null; visibility: string };
 
+type WorkStepColumns = ShownColumns & { work_no: number };
+
+function toWorkStep(r: WorkStepColumns): ShownWorkStep {
+  return {
+    workNo: r.work_no,
+    kind: r.kind as ShownStepKind,
+    workTitle: r.work_title,
+    achievedOn: r.achieved_on,
+    storyBefore: r.story_before,
+    storyAfter: r.story_after,
+    visibility: r.visibility as Visibility,
+  };
+}
+
 function toShown(r: ShownColumns): ShownMilestone {
   return { kind: r.kind as MilestoneKind, workTitle: r.work_title, achievedOn: r.achieved_on, storyBefore: r.story_before, storyAfter: r.story_after, visibility: r.visibility as Visibility };
 }
@@ -129,14 +161,16 @@ const MEMBER_MADE_SOURCES: readonly string[] = ["member", "project_stage"];
 
 /**
  * The columns an answer writes. A decline clears the consent and the level, because both only exist on a confirmed row. A
- * confirmation names no level: the database moves a milestone that was not confirmed before to "community" (the default), and
- * changing one that is already confirmed never moves it.
+ * confirmation that names no level moves a milestone that was not confirmed before to the default (the database trigger,
+ * `MILESTONE_DEFAULT_VISIBILITY`), and changing one that is already confirmed never moves it. A level the member picked is
+ * written with the answer, except "private": the trigger would read a private write as "no level named", so `answer` sets it afterwards.
  */
 function answerColumns(answer: MilestoneAnswer, nowIso: string) {
   if (answer.status === "declined") {
     return { status: "declined", confirmed_at: null, consent_testimonial: false, visibility: "private", updated_at: nowIso };
   }
   return {
+    ...(answer.visibility && answer.visibility !== "private" ? { visibility: answer.visibility } : {}),
     status: "confirmed",
     confirmed_at: nowIso,
     achieved_on: answer.achievedOn,
@@ -200,7 +234,13 @@ export interface MilestoneRepository {
    */
   shownToMembers(memberId: string): Promise<ShownMilestone[]>;
   /** What a visitor of the web sees on this member's writer profile: only the milestones at the globe. Service role; the page checks that the profile is on. */
-  shownOnWeb(memberId: string): Promise<ShownMilestone[]>;
+  /**
+   * The strip on this member's profile for other members: their works, each with its milestones at community or public level
+   * and Published (derived from the live Bookshelf books, at the globe), in order. Never a private milestone, whoever asks.
+   */
+  worksShownToMembers(memberId: string): Promise<ShownWorkStep[]>;
+  /** The strip on the writer profile on the web: the works with their milestones at the globe and Published. Service role; the page checks the profile is on. */
+  worksShownOnWeb(memberId: string): Promise<ShownWorkStep[]>;
   /**
    * Every member's confirmed, live milestones at community or public level, for the Finisher and Author badges of many members
    * at once (kind and date only, paged past 1,000 rows). Never a private one, an admin's client included. It reads the table, so
@@ -335,7 +375,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
         story_after: add.answer.storyAfter,
         status: "confirmed",
         confirmed_at: now.toISOString(),
-        visibility: "community",
+        visibility: add.answer.visibility ?? MILESTONE_DEFAULT_VISIBILITY,
         consent_testimonial: add.answer.consent_testimonial,
       })
       .select(COLUMNS)
@@ -401,6 +441,8 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       .select("id")
       .maybeSingle();
     if (error) throw new Error(error.message);
+    // The trigger turns a write that names no level (private) into the default, so a member who chose "only me" gets it in a second write.
+    if (data !== null && answer.status === "confirmed" && answer.visibility === "private") return this.setVisibility(id, memberId, "private", now);
     return data !== null;
   }
 
@@ -436,8 +478,12 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
     return (must(await this.db.rpc("milestones_shown_to_members", { p_member_id: memberId })) ?? []).map(toShown);
   }
 
-  async shownOnWeb(memberId: string) {
-    return (must(await this.db.rpc("milestones_shown_on_web", { p_member_id: memberId })) ?? []).map(toShown);
+  async worksShownToMembers(memberId: string) {
+    return (must(await this.db.rpc("member_works_shown_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep);
+  }
+
+  async worksShownOnWeb(memberId: string) {
+    return (must(await this.db.rpc("member_works_shown_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep);
   }
 
   async allShownToMembers() {
@@ -597,7 +643,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       consent_profile: false,
       consent_homepage: false,
       consent_testimonial: add.answer.consent_testimonial,
-      visibility: "community",
+      visibility: add.answer.visibility ?? MILESTONE_DEFAULT_VISIBILITY,
       created_by: add.createdBy,
       confirmed_at: iso,
       created_at: iso,
@@ -657,8 +703,12 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     if (!row) return false;
     const wasConfirmed = row.status === "confirmed";
     Object.assign(row, answerColumns(answer, now.toISOString()));
-    // The database trigger: a milestone confirmed for the first time starts at "community"; one already confirmed keeps its level.
-    if (answer.status === "confirmed" && !wasConfirmed && row.visibility === "private") row.visibility = "community";
+    // The database trigger: a milestone confirmed for the first time that names no level starts at the default (the globe); one already
+    // confirmed keeps its level. A level the member picked wins, "private" included (the Supabase repository writes it in a second step).
+    if (answer.status === "confirmed") {
+      if (answer.visibility) row.visibility = answer.visibility;
+      else if (!wasConfirmed && row.visibility === "private") row.visibility = MILESTONE_DEFAULT_VISIBILITY;
+    }
     return true;
   }
 
@@ -700,8 +750,50 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return this.shown(memberId, ["community", "public"]);
   }
 
-  async shownOnWeb(memberId: string) {
-    return this.shown(memberId, ["public"]);
+  /** The same grouping as `member_works_shown`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
+  private works(memberId: string, levels: readonly string[]): ShownWorkStep[] {
+    const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null);
+    type Item = ShownWorkStep & { key: string; step: number; createdAt: string };
+    const items: Item[] = [];
+    for (const m of this.live()) {
+      if (m.member_id !== memberId || m.status !== "confirmed" || !levels.includes(m.visibility)) continue;
+      const book = m.book_id ? books.find((b) => b.id === m.book_id) : undefined;
+      items.push({
+        key: book?.project_id ?? m.project_id ?? m.book_id ?? workKey({ projectId: null, bookId: null, title: m.title }),
+        step: m.kind === "the_end" ? 1 : 2,
+        createdAt: m.created_at,
+        workNo: 0,
+        kind: m.kind as MilestoneKind,
+        workTitle: m.title ?? book?.title ?? null,
+        achievedOn: m.achieved_on,
+        storyBefore: m.story_before,
+        storyAfter: m.story_after,
+        visibility: m.visibility as Visibility,
+      });
+    }
+    for (const b of books.filter((x) => x.member_id === memberId)) {
+      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, storyBefore: null, storyAfter: null, visibility: "public" });
+    }
+    const first = new Map<string, string>();
+    const title = new Map<string, string | null>();
+    for (const i of items) {
+      if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);
+      // The largest title among the work's rows, as the SQL window's max() reads it.
+      const seen = title.get(i.key) ?? null;
+      if (i.workTitle !== null && (seen === null || i.workTitle > seen)) title.set(i.key, i.workTitle);
+    }
+    const order = [...first.keys()].sort((a, b) => (first.get(a)! < first.get(b)! ? -1 : first.get(a)! > first.get(b)! ? 1 : a < b ? -1 : a > b ? 1 : 0));
+    return items
+      .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key) || a.step - b.step || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
+      .map(({ key, step: _step, createdAt: _createdAt, ...rest }) => ({ ...rest, workNo: order.indexOf(key) + 1, workTitle: title.get(key) ?? null }));
+  }
+
+  async worksShownToMembers(memberId: string) {
+    return this.works(memberId, ["community", "public"]);
+  }
+
+  async worksShownOnWeb(memberId: string) {
+    return this.works(memberId, ["public"]);
   }
 
   async allShownToMembers() {

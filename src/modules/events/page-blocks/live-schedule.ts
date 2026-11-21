@@ -2,7 +2,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import type { Repos } from "@/lib/data/repos";
 import { cleanEventTitle } from "@/lib/events-agenda";
 import { loadLiveRoom } from "@/lib/live-room";
-import { easternDay } from "./live-stats";
+import { easternDay } from "@/lib/landing/live-stats";
 
 /**
  * The public schedule behind the Schedule panel and the Announcement strip (docs/product/LANDING_PAGES.md, "Live data").

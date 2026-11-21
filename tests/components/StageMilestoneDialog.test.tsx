@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import StageMilestoneDialog from "@/app/(member)/projects/[id]/StageMilestoneDialog";
 import ProjectDetailView from "@/app/(member)/projects/[id]/ProjectDetailView";
@@ -93,7 +93,7 @@ describe("StageMilestoneDialog: one question", () => {
     await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", storyBefore: "", storyAfter: "Finally here.", shareStory: false }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", storyBefore: "", storyAfter: "Finally here.", shareStory: false, visibility: "public" }),
     );
     expect(await screen.findByTestId("stage-celebration")).toHaveTextContent(MILESTONE_CELEBRATION.the_end);
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -102,13 +102,25 @@ describe("StageMilestoneDialog: one question", () => {
     expect(answerStageMilestone).toHaveBeenCalledTimes(1);
   });
 
+  it("sends the level the member picks beside the story, not only the default", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
+    const field = screen.getByTestId("milestone-form-level");
+    // Starts at the globe; one click goes to the lock, another to the house.
+    await user.click(within(field).getByRole("button", { name: /Who can see this milestone/ }));
+    await user.click(within(field).getByRole("button", { name: /Who can see this milestone/ }));
+    await user.click(screen.getByRole("button", { name: "Save it" }));
+    await waitFor(() => expect(answerStageMilestone).toHaveBeenCalledWith(expect.objectContaining({ kind: "the_end", answer: "yes", visibility: "community" })));
+  });
+
   it("saves a yes with nothing filled in (the date and stories are optional)", async () => {
     const user = userEvent.setup();
     renderDialog();
     await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, storyBefore: "", storyAfter: "", shareStory: false }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, storyBefore: "", storyAfter: "", shareStory: false, visibility: "public" }),
     );
   });
 

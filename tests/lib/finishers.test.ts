@@ -1,6 +1,10 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   MAX_STORY_LENGTH,
+  MILESTONE_DEFAULT_VISIBILITY,
+  MILESTONE_LEVEL_LINES,
   MILESTONE_CELEBRATION,
   MILESTONE_SHOWN,
   SHARE_STORY_DEFAULT,
@@ -163,5 +167,37 @@ describe("the share consent and the visibility words", () => {
     expect(hasStory({ storyBefore: "  ", storyAfter: null })).toBe(false);
     expect(hasStory({ storyBefore: null, storyAfter: "Done." })).toBe(true);
     expect(milestoneDateWords("2026-05-01")).toBe("May 1, 2026");
+  });
+});
+
+describe("where a milestone starts", () => {
+  it("is the globe: a writer's page is good enough the day they switch it on, and the lock and house stay one click away", () => {
+    expect(MILESTONE_DEFAULT_VISIBILITY).toBe("public");
+    expect(MILESTONE_LEVEL_LINES.public).toBe("Anyone on the internet, once your writer profile is on; members see it now.");
+    expect(Object.keys(MILESTONE_LEVEL_LINES)).toEqual(["private", "community", "public"]);
+  });
+
+  it("is the level the database trigger starts a confirmed milestone at (its latest definition in the migrations)", () => {
+    const dir = join(process.cwd(), "supabase/migrations");
+    const definitions = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .map((f) => readFileSync(join(dir, f), "utf8"))
+      .filter((sql) => /FUNCTION public\.member_milestones_default_visibility\(\)/.test(sql));
+    const latest = definitions[definitions.length - 1];
+    expect(latest).toContain(`NEW.visibility := '${MILESTONE_DEFAULT_VISIBILITY}'`);
+  });
+
+  it("keeps the level a member picks with their answer, and refuses one that does not exist", () => {
+    const answer = (visibility: string | null | undefined) => parseMilestoneAnswer({ answer: "confirm", visibility }, NOW);
+    expect(answer("private")).toMatchObject({ status: "confirmed", visibility: "private" });
+    expect(answer("community")).toMatchObject({ visibility: "community" });
+    expect(answer("public")).toMatchObject({ visibility: "public" });
+    // Not naming one leaves it to the default; the answer carries no level at all.
+    expect(answer(undefined)).not.toHaveProperty("visibility");
+    expect(answer(null)).not.toHaveProperty("visibility");
+    expect(answer("everyone")).toEqual({ error: "That choice is not available." });
+    expect(parseMilestoneSelfAdd({ kind: "the_end", visibility: "community" }, NOW)).toMatchObject({ kind: "the_end", answer: { visibility: "community" } });
+    expect(parseMilestoneSelfAdd({ kind: "the_end", visibility: "nope" }, NOW)).toEqual({ error: "That choice is not available." });
   });
 });

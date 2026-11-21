@@ -291,7 +291,9 @@ export default function LandingEditor({ page: initial, data, versions, starters 
   useMirrorHostTheme();
   const [page, setPage] = useState(initial);
   // The kind of page never changes, so the config is made once: a new config object would make Puck remount the canvas.
-  const config = useMemo(() => editorConfigFor({ pageType: initial.pageType === "website" ? "website" : "landing", site, editing: true }), [initial.pageType, site]);
+  // A block the page was stored with that no installed module owns gets a stand-in that keeps it as stored, so the types are read from the page as it opened.
+  const [openedWith] = useState(data);
+  const config = useMemo(() => editorConfigFor({ pageType: initial.pageType === "website" ? "website" : "landing", site, editing: true }, openedWith), [initial.pageType, site, openedWith]);
   const plugins = useMemo(() => {
     const pageType = initial.pageType === "website" ? "website" : "landing";
     return [outlinePlugin(pageType, ITEM_BLOCKS), addPlugin, aiPlugin, settingsPlugin(pageType, site ?? EMPTY_SITE_TEMPLATE)];

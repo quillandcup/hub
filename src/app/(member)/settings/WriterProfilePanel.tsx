@@ -30,7 +30,18 @@ const CHECK_DELAY_MS = 400;
  * moving it to a new address ask first (`.claude/rules/confirmations.md`). The settings are the parent's (they are also what
  * decides whether a globe is shown); `onChanged` asks it to reload them after a change.
  */
-export function WriterProfilePanel({ settings: data, onChanged }: { settings: MyWriterProfile; onChanged: () => Promise<void> }) {
+export function WriterProfilePanel({
+  settings: data,
+  onChanged,
+  onTurnedOn,
+  onTurnedOff,
+}: {
+  settings: MyWriterProfile;
+  onChanged: () => Promise<void>;
+  /** Called once the page has been switched on, so the parent can show who sees what. */
+  onTurnedOn?: () => void;
+  onTurnedOff?: () => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [handleInput, setHandleInput] = useState(data.handle ?? data.suggestedHandle);
@@ -97,6 +108,8 @@ export function WriterProfilePanel({ settings: data, onChanged }: { settings: My
     if ("error" in result) return result.error;
     setMessage(isPublic ? "Your profile is on. Anyone can open it." : "Your profile is off. It is no longer public.");
     await onChanged();
+    if (isPublic) onTurnedOn?.();
+    else onTurnedOff?.();
     return null;
   }
 

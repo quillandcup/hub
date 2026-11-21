@@ -148,6 +148,31 @@ describe("WriterProfilePanel", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
+  it("tells its parent when the page goes on (so it can show who sees what) and when it goes off, and not when the switch is refused", async () => {
+    const onTurnedOn = vi.fn();
+    const onTurnedOff = vi.fn();
+    vi.mocked(actions.setWriterProfileSwitch).mockResolvedValue({ success: true });
+    const { unmount } = render(<WriterProfilePanel settings={withPage} onChanged={onChanged} onTurnedOn={onTurnedOn} onTurnedOff={onTurnedOff} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /Show my profile on the web/ }));
+    await waitFor(() => expect(onTurnedOn).toHaveBeenCalledTimes(1));
+    expect(onTurnedOff).not.toHaveBeenCalled();
+    unmount();
+
+    const second = render(<WriterProfilePanel settings={{ ...withPage, isPublic: true }} onChanged={onChanged} onTurnedOn={onTurnedOn} onTurnedOff={onTurnedOff} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /Show my profile on the web/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off profile" }));
+    await waitFor(() => expect(onTurnedOff).toHaveBeenCalledTimes(1));
+    expect(onTurnedOn).toHaveBeenCalledTimes(1);
+    second.unmount();
+
+    vi.mocked(actions.setWriterProfileSwitch).mockResolvedValue({ error: "Not now." });
+    onTurnedOn.mockClear();
+    render(<WriterProfilePanel settings={withPage} onChanged={onChanged} onTurnedOn={onTurnedOn} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /Show my profile on the web/ }));
+    expect(await screen.findByText("Not now.")).toBeInTheDocument();
+    expect(onTurnedOn).not.toHaveBeenCalled();
+  });
+
   it("shows the server's reason when the switch is refused, as a plain message", async () => {
     vi.mocked(actions.setWriterProfileSwitch).mockResolvedValue({ error: "Choose the name your profile shows first, under \"Name shown\"." });
     renderPanel({ ...withPage, nameChosen: false, nameChoices: [{ kind: "account", aliasId: null, label: "Grace Example" }] });

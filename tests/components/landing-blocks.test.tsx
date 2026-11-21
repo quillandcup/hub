@@ -14,7 +14,8 @@ vi.hoisted(() => {
 import { readFileSync } from "node:fs";
 import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { AnnouncementStrip, ComingUp, FinishLineCard, FinishLineCards, FinisherCard, FinisherCards, JourneyMap, OutcomeNumber, OutcomeNumbers, PlanPhase, PlanPhases, ScheduleRowItem, SchedulePanel, Timeline, TimelineMoment, WeekDay, WeekStrip } from "@/components/landing/homepage-blocks";
+import { FinishLineCard, FinishLineCards, FinisherCard, FinisherCards, JourneyMap, OutcomeNumber, OutcomeNumbers, PlanPhase, PlanPhases, Timeline, TimelineMoment, WeekDay, WeekStrip } from "@/components/landing/homepage-blocks";
+import { AnnouncementStrip, ComingUp, ScheduleRowItem, SchedulePanel } from "@/modules/events/page-blocks/blocks";
 import { itemsSlot } from "./landing-items-slot";
 import { Button, CardGrid, CtaBanner, Divider, Faq, FaqItem, GridCard, Heading, Hero, Image, LinkItem, LinkList, List, ListItem, RichText, Section, Spacer, Split, Stat, Stats, Step, Steps, Testimonial, Testimonials, Video } from "@/components/landing/blocks";
 import { BLOCK_DEFAULTS, PageFrame } from "@/components/landing/config";
