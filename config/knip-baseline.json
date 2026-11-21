@@ -2,7 +2,6 @@
   "entries": [
     "dependencies:package.json:image-size",
     "dependencies:package.json:rehype-raw",
-    "devDependencies:package.json:slack-blocks-to-jsx",
     "devDependencies:package.json:squawk-cli",
     "files:app/(admin)/admin/data/import/MemberImportForm.tsx",
     "files:app/(admin)/admin/data/import/SubscriptionImportForm.tsx",
