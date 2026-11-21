@@ -14,7 +14,7 @@ export default function MemberFooter() {
 
   const link = "text-slate-600 underline-offset-2 hover:text-plum-700 hover:underline dark:text-slate-400 dark:hover:text-plum-300";
   return (
-    <footer className="shrink-0 border-t border-slate-200 px-6 py-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
+    <footer className="border-t border-slate-200 px-6 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
       <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <Link data-track="footer-privacy" href="/privacy" className={link}>
           Privacy

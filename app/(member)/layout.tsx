@@ -73,6 +73,7 @@ export default async function MemberLayout({
     // while it is on the page there is room under the content, so the last control scrolls clear of it.
     <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain group-has-[[data-onboarding-card]]/shell:pb-80">
       {children}
+      <MemberFooter />
     </main>
   )
 
@@ -103,7 +104,6 @@ export default async function MemberLayout({
             />
           </AppHeader>
           <ShortcutsLayout>{main}</ShortcutsLayout>
-          <MemberFooter />
         </ShortcutsProvider>
         </WithInAppNotifications>
         </SecondaryTimezoneProvider>
