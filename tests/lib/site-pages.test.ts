@@ -20,6 +20,7 @@ const EXCLUDED: Record<string, string> = {
   "/admin/courses/new": "the course builder's blank form, reached from Courses",
   "/admin/pages/new": "a create form, reached from Pages",
   "/admin/pages/templates": "the Templates tab of Pages (a path-based tab)",
+  "/admin/pages/landing": "the Landing tab of Pages (a path-based tab)",
   "/admin/data/prickle-types/new": "a create form, reached from Prickle Types",
   "/admin/data/import/testing": "developer test harness, reached from Import Data",
   "/admin/segments": "redirects to Previews, kept so old links and bookmarks work",

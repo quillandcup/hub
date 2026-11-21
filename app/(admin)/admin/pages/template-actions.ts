@@ -78,7 +78,7 @@ async function saveImpl(auth: Auth, data: unknown, input: SaveTemplateInput): Pr
       if ((await repo.list("template")).some((t) => t.title.trim().toLowerCase() === name.toLowerCase())) return { error: NAME_TAKEN };
       for (const slug of slugCandidates(name)) {
         try {
-          template = await repo.create({ title: name, slug, data: clean, createdBy: auth.user.id, kind: "template" });
+          template = await repo.create({ title: name, slug, data: clean, createdBy: auth.user.id, kind: "template", pageType: from && (from.page_type === "website" || from.page_type === "landing") ? from.page_type : "landing" });
           break;
         } catch (error) {
           if (!(error instanceof LandingPageSlugTakenError)) throw error;

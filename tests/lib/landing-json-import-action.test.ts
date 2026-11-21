@@ -239,7 +239,7 @@ describe("importLandingDraftJson", () => {
     });
 
     it("is identical for a starter's page, with its nested blocks", async () => {
-      await createLandingPage({ title: "From starter", slug: "starter", starter: "home" });
+      await createLandingPage({ title: "From starter", slug: "starter", starter: "home", pageType: "website" });
       const page = (await state.repos.landingPages.bySlug("starter"))!;
       const exported = buildLandingExport({ slug: page.slug, title: page.title, kind: "draft", data: page.draft_data, now: NOW });
       if (!exported.ok) throw new Error(exported.error);

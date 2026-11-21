@@ -172,7 +172,7 @@ describe("Start over lists", () => {
 
 describe("New page from a template", () => {
   it("lists built-in starters and published templates apart and creates the page from the template", async () => {
-    render(<NewPageForm aiAvailable={false} templates={[{ id: kit.id, name: kit.name }]} />);
+    render(<NewPageForm aiAvailable={false} templates={[{ id: kit.id, name: kit.name, pageType: "website" }]} />);
     const select = screen.getByLabelText(/Start from/);
     expect(within(select).getByRole("group", { name: "Built in" })).toBeInTheDocument();
     expect(within(select).getByRole("group", { name: "Templates" })).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe("New page from a template", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create page" }));
     });
-    expect(mocks.create).toHaveBeenCalledWith({ title: "Launch kit", slug: "", template: kit.id });
+    expect(mocks.create).toHaveBeenCalledWith({ title: "Launch kit", slug: "", template: kit.id, pageType: "website" });
     expect(mocks.push).toHaveBeenCalledWith("/admin/pages/my-page");
   });
 
@@ -204,6 +204,7 @@ describe("the Templates list", () => {
     slug: "launch-kit",
     title: "Launch kit",
     kind: "template",
+    page_type: "landing",
     status: "published",
     seo_title: null,
     seo_description: null,

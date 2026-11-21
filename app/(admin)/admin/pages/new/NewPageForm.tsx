@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { LandingPageType } from "@/lib/data/landing-pages";
 import { PROMPT_MAX } from "@/lib/landing/ai-limits";
 import { slugify } from "@/lib/landing/slug";
 import { LANDING_STARTERS, STARTER_KEYS, isStarterKey } from "@/lib/landing/starters";
@@ -9,18 +10,22 @@ import { createLandingPage, createLandingPageWithAi } from "../actions";
 
 const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 
-export type TemplateChoice = { id: string; name: string };
+export type TemplateChoice = { id: string; name: string; pageType: LandingPageType };
 
-export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailable: boolean; templates?: TemplateChoice[] }) {
+export default function NewPageForm({ aiAvailable, defaultType = "website", templates = [] }: { aiAvailable: boolean; defaultType?: LandingPageType; templates?: TemplateChoice[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [edited, setEdited] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [pageType, setPageType] = useState<LandingPageType>(defaultType);
   const [starter, setStarter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const template = templates.find((t) => t.id === starter);
+  // Only starting points for the chosen kind are offered; changing the kind drops a choice that no longer fits.
+  const starterKeys = STARTER_KEYS.filter((key) => LANDING_STARTERS[key].pageType === pageType);
+  const choices = templates.filter((t) => t.pageType === pageType);
+  const template = choices.find((t) => t.id === starter);
   const useAi = !starter && Boolean(prompt.trim());
 
   return (
@@ -29,13 +34,40 @@ export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailab
         e.preventDefault();
         setError(null);
         start(async () => {
-          const result = useAi ? await createLandingPageWithAi({ title, slug, prompt }) : await createLandingPage(template ? { title, slug, template: template.id } : { title, slug, starter: starter || undefined });
+          const result = useAi ? await createLandingPageWithAi({ title, slug, prompt, pageType }) : await createLandingPage(template ? { title, slug, template: template.id, pageType } : { title, slug, starter: starter || undefined, pageType });
           if (result.error || !result.slug) return setError(result.error ?? "Couldn't create the page.");
           router.push(`/admin/pages/${result.slug}`);
         });
       }}
       className="space-y-4"
     >
+      <fieldset>
+        <legend className="text-sm font-medium">Kind of page</legend>
+        {(
+          [
+            ["website", "Website page", "Shares the site's header, footer and style with the other website pages (home, about, ...)."],
+            ["landing", "Landing page", "Stands alone, for one purpose such as a sign-up or a campaign. Styled on its own."],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <label key={value} className="mt-2 flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="pageType"
+              value={value}
+              checked={pageType === value}
+              onChange={() => {
+                setPageType(value);
+                setStarter("");
+              }}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium">{label}</span>
+              <span className="block text-xs text-slate-600 dark:text-slate-400">{hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
       <label className="block text-sm font-medium">
         Title
         <input
@@ -71,7 +103,7 @@ export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailab
           onChange={(e) => {
             const next = e.target.value;
             setStarter(next);
-            const chosen = templates.find((t) => t.id === next);
+            const chosen = choices.find((t) => t.id === next);
             if (chosen && !title.trim()) setTitle(chosen.name);
             if (isStarterKey(next)) {
               if (!title.trim()) setTitle(LANDING_STARTERS[next].title);
@@ -81,16 +113,18 @@ export default function NewPageForm({ aiAvailable, templates = [] }: { aiAvailab
           className={`${INPUT} mt-1`}
         >
           <option value="">A blank page</option>
-          <optgroup label="Built in">
-            {STARTER_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {LANDING_STARTERS[key].label}
-              </option>
-            ))}
-          </optgroup>
-          {templates.length > 0 && (
+          {starterKeys.length > 0 && (
+            <optgroup label="Built in">
+              {starterKeys.map((key) => (
+                <option key={key} value={key}>
+                  {LANDING_STARTERS[key].label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {choices.length > 0 && (
             <optgroup label="Templates">
-              {templates.map((t) => (
+              {choices.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>

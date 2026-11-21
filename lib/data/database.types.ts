@@ -3954,6 +3954,7 @@ export type Database = {
           import_key: string | null
           imported_at: string | null
           kind: string
+          page_type: string
           published_at: string | null
           published_data: Json | null
           restored_at: string | null
@@ -3978,6 +3979,7 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           kind?: string
+          page_type?: string
           published_at?: string | null
           published_data?: Json | null
           restored_at?: string | null
@@ -4002,6 +4004,7 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           kind?: string
+          page_type?: string
           published_at?: string | null
           published_data?: Json | null
           restored_at?: string | null

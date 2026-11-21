@@ -11,7 +11,7 @@ import { DataTableSearch } from "@/components/DataTableSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
-import type { LandingPageSummary } from "@/lib/data/landing-pages";
+import type { LandingPageSummary, LandingPageType } from "@/lib/data/landing-pages";
 import { deleteLandingPage, duplicateLandingPage } from "./actions";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
 import Tooltip from "@/components/Tooltip";
@@ -30,7 +30,7 @@ function Glyph({ name, label }: { name: IconName; label: string }) {
 }
 
 /** The list of pages, or (`kind="template"`) of templates: a template has no public address, no link to copy, and is "Published" when it can be used to start a page. */
-export default function PagesTable({ pages, publicBase, kind = "page" }: { pages: LandingPageSummary[]; publicBase: string; kind?: "page" | "template" }) {
+export default function PagesTable({ pages, publicBase, kind = "page", pageType }: { pages: LandingPageSummary[]; publicBase: string; kind?: "page" | "template"; pageType?: LandingPageType }) {
   const noun = kind === "template" ? "template" : "page";
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -71,9 +71,9 @@ export default function PagesTable({ pages, publicBase, kind = "page" }: { pages
           </p>
         )}
       </div>
-      <TableKeyboardNav table={table} label={kind === "template" ? "Templates" : "Pages"}>
+      <TableKeyboardNav table={table} label={kind === "template" ? "Templates" : pageType === "website" ? "Website pages" : pageType === "landing" ? "Landing pages" : "Pages"}>
       {pages.length === 0 ? (
-        <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">{kind === "template" ? "No templates yet. Open a page, then History, then Save as template." : "No pages yet. Make the first one with New page."}</p>
+        <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">{kind === "template" ? "No templates yet. Open a page, then History, then Save as template." : pageType === "website" ? "No website pages yet. Make the first one with New page; the Homepage starter is a good start." : pageType === "landing" ? "No landing pages yet. Make the first one with New page." : "No pages yet. Make the first one with New page."}</p>
       ) : (
         <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
           <table className="w-full text-left text-sm">

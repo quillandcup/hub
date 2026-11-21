@@ -765,6 +765,20 @@ describe("history and details", () => {
     expect(mocks.details).toHaveBeenCalled();
   });
 
+  it("shows the kind of page in the details, read only", () => {
+    editor({ pageType: "website" });
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText(/Website page/)).toBeInTheDocument();
+    expect(screen.getByText(/Shares the site's header, footer and style/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
+  it("shows a landing page as standalone", () => {
+    editor({ pageType: "landing" });
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText(/Stands alone and is styled on its own/)).toBeInTheDocument();
+  });
+
   it("saves the details and follows a changed address", async () => {
     mocks.details.mockResolvedValueOnce({ slug: "spring-2027" });
     editor();

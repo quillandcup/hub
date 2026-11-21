@@ -127,6 +127,22 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       ).rejects.toBeInstanceOf(LandingPageSlugTakenError);
     });
 
+    it("is a landing page unless made a website page, and lists and offers templates by that type", async () => {
+      const landing = await ctx.repo().create({ title: "Funnel", slug: ctx.unique("type-l"), createdBy: null });
+      const website = await ctx.repo().create({ title: "Home", slug: ctx.unique("type-w"), createdBy: null, pageType: "website" });
+      expect(landing.page_type).toBe("landing");
+      expect(website.page_type).toBe("website");
+      expect((await ctx.repo().list("page", "website")).map((p) => p.id)).toContain(website.id);
+      expect((await ctx.repo().list("page", "website")).map((p) => p.id)).not.toContain(landing.id);
+      expect((await ctx.repo().list("page", "landing")).map((p) => p.id)).toContain(landing.id);
+      expect((await ctx.repo().list("page")).map((p) => p.id)).toEqual(expect.arrayContaining([landing.id, website.id]));
+      const kit = await ctx.repo().create({ title: "Site kit", slug: ctx.unique("type-t"), createdBy: null, kind: "template", pageType: "website" });
+      await ctx.repo().publish(kit.id);
+      expect((await ctx.repo().usableTemplates("website")).map((t) => t.id)).toContain(kit.id);
+      expect((await ctx.repo().usableTemplates("landing")).map((t) => t.id)).not.toContain(kit.id);
+      expect((await ctx.repo().usableTemplates()).find((t) => t.id === kit.id)?.pageType).toBe("website");
+    });
+
     it("lists live pages without their documents, and not deleted ones", async () => {
       const kept = await ctx.repo().create({ title: "Kept", slug: ctx.unique("kept"), createdBy: null });
       const gone = await ctx.repo().create({ title: "Gone", slug: ctx.unique("gone"), createdBy: null });

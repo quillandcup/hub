@@ -20,7 +20,8 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
   const repos = createRepos(await createClient());
   const page = await repos.landingPages.bySlug(slug);
   if (!page) notFound();
-  const [versions, templates] = await Promise.all([repos.landingPages.versions(page.id, 20), repos.landingPages.usableTemplates()]);
+  const pageType = page.page_type === "website" ? "website" : "landing";
+  const [versions, templates] = await Promise.all([repos.landingPages.versions(page.id, 20), repos.landingPages.usableTemplates(pageType)]);
   const names = await editorNames(repos, versions.map((v) => v.published_by));
   const allTemplates = page.kind === "template" ? [] : await repos.landingPages.list("template");
 
@@ -39,11 +40,12 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
         publishedJson: page.published_data ? JSON.stringify(normalizeLandingData(page.published_data)) : null,
         publicPath: page.kind === "template" ? "" : `/p/${page.slug}`,
         kind: page.kind === "template" ? "template" : "page",
+        pageType,
       }}
       data={normalizeLandingData(page.draft_data)}
       versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
       starters={[
-        ...STARTER_KEYS.map((key) => ({ key, label: LANDING_STARTERS[key].label, description: LANDING_STARTERS[key].description })),
+        ...STARTER_KEYS.filter((key) => LANDING_STARTERS[key].pageType === pageType).map((key) => ({ key, label: LANDING_STARTERS[key].label, description: LANDING_STARTERS[key].description })),
         // Only a published template is offered, and what is copied is its published copy. A template is never offered to itself.
         ...templates.filter((t) => t.id !== page.id).map((t) => ({ key: t.id, label: t.title, description: "A template you published.", group: "template" as const })),
       ]}
