@@ -1,10 +1,10 @@
 # Slack notification operations alerts
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The Sentry Slack integration requires a Team plan, so the Hub app posts its own production
-alerts to [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) through Billie Bot.
-The channel ID is in `config/app.ts`; the alert cases are in `lib/operations-alerts.ts`:
+alerts to the alerts channel (`slack.alertsChannelName` in `config/app.ts`) through Billie Bot.
+The channel is set in `config/app.ts` (`slack.alertsChannelId`); the alert cases are in `lib/operations-alerts.ts`:
 
 - A Slack member notification DM failed and was skipped by the notifier.
 - A Slack user matched ambiguously to Hub members and was rejected.

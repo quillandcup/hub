@@ -1,6 +1,6 @@
-# Google Calendar Setup with Service Account
+# Google Calendar: setup and sync
 
-> **Status:** living. **Last reviewed:** 2026-10-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 ## Why Service Account?
 
@@ -69,8 +69,8 @@
 # Google Calendar API (Service Account)
 GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"...paste entire JSON here..."}
 
-# Quill & Cup Prickle Calendar ID
-GOOGLE_CALENDAR_ID=dd6745e544f1a8a93f0f7fd6d3fc633ab9c864e1090603a793c69d101f695e6e@group.calendar.google.com
+# The prickle calendar's ID (Google Calendar settings, "Integrate calendar")
+GOOGLE_CALENDAR_ID=your_calendar_id@group.calendar.google.com
 ```
 
 **Note**: The JSON should be on ONE line (no newlines). If your editor auto-formats it, make sure to remove newlines.
@@ -78,21 +78,30 @@ GOOGLE_CALENDAR_ID=dd6745e544f1a8a93f0f7fd6d3fc633ab9c864e1090603a793c69d101f695
 ### 7. Test It
 
 1. Restart your dev server: `pnpm dev`
-2. Go to `http://localhost:3000/dashboard/import`
-3. Scroll to "Import Prickles from Google Calendar"
-4. Click "Sync Now"
-5. Should see: "Sync Complete!" with event counts
+2. Sign in as an admin and go to `http://localhost:3000/admin/data/import`
+3. Find "Import Prickles from Google Calendar" and run the import (`CalendarImportForm`; the dates default to 30 days back and 90 forward)
+4. The result reports how many events were imported
 
 ## Production Setup
 
 For Vercel/production:
 
-1. Go to project settings → Environment Variables
-2. Add `GOOGLE_SERVICE_ACCOUNT_KEY` with the full JSON (one line)
-3. Add `GOOGLE_CALENDAR_ID` with the calendar ID
-4. Redeploy
+1. Put `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_CALENDAR_ID` and `GOOGLE_CALENDAR_WEBHOOK_TOKEN` in `.env.shared` (or the per-environment files), then `pnpm env:sync` (`docs/infrastructure/ENV_MANAGEMENT.md`)
+2. Deploy: the values are read at build and run time of the deployment
 
-**Security Note**: The service account key is sensitive! Never commit it to git. It's already in `.gitignore` via `.env.local`.
+**Security Note**: The service account key is sensitive! Never commit it to git; the `.env*` files that hold it are gitignored.
+
+## How the sync works
+
+The service account has read-only access (`calendar.readonly`, `lib/google-calendar/client.ts`). A sync writes the calendar's timed events to Bronze unmodified (`bronze.calendar_events`, upserted by Google's event id, so it is idempotent); a separate processing step (`/api/process/calendar`) turns them into prickles, so the schedule can always be rebuilt from source. All-day items have no start and end time and are skipped (`isTimedEvent`, `lib/google-calendar/events.ts`).
+
+Three ways a sync runs:
+
+1. **Push notifications (seconds after an edit).** Google calls `/api/webhooks/calendar`, which runs an incremental sync (only what changed since the last one, including cancellations) in the background. Setup and checks: `docs/infrastructure/WEBHOOK_SETUP.md`, "Google Calendar Webhooks".
+2. **Nightly reconcile (the guaranteed path).** The Vercel cron in `vercel.json` calls `/api/reconcile/calendar` at 2:00 AM: it opens or renews the push channel (production only), runs a full import of 90 days back and 90 forward, removes events deleted outside that window, and reprocesses. It pings a Checkly heartbeat on success (`lib/cron-heartbeats.ts`).
+3. **By hand (admin).** `/admin/data/import`, "Import Prickles from Google Calendar" (`POST /api/import/calendar`, admin only). Use it to import a wider range than the 90-day window, which older items need before they can match a prickle type (`docs/product/CALENDAR_EVENTS.md`, "How a calendar title finds its prickle type").
+
+The import accepts either `fromDate` and `toDate`, or `daysBack` (default 30) and `daysForward` (default 90). Re-running it is safe: unchanged events are not rewritten. How an item becomes a prickle or an event, and what an admin can edit on top, is in `docs/product/CALENDAR_EVENTS.md`.
 
 ## Troubleshooting
 

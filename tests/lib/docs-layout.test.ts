@@ -122,11 +122,12 @@ describe("references to docs", () => {
   // KNOWN GAP: point them at a real doc or drop them.
   const KNOWN_DANGLING = new Set(["FEATURE_MANIFEST", "CONVERSATIONS"]);
 
+  // config/.gitleaksignore is skipped: its fingerprints name the path a finding had at a past commit, which may be a doc deleted since.
   it("every mention of a docs/NAME.md file resolves to a file that exists", () => {
     const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, maxBuffer: 1 << 28 })
       .toString()
       .split("\0")
-      .filter((f) => f && !f.endsWith("tests/lib/docs-layout.test.ts") && !/\.(png|jpe?g|webp|gif|ico|woff2?|mp4|mp3|wav|pdf|zip|csv)$/i.test(f));
+      .filter((f) => f && !f.endsWith("tests/lib/docs-layout.test.ts") && f !== "config/.gitleaksignore" && !/\.(png|jpe?g|webp|gif|ico|woff2?|mp4|mp3|wav|pdf|zip|csv)$/i.test(f));
     const mention = /(?<![A-Za-z0-9_])docs\/((?:[a-z]+\/)?[A-Z][A-Z0-9_]*)\.md/g;
     const dangling: string[] = [];
     for (const file of tracked) {
