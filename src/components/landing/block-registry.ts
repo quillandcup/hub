@@ -10,7 +10,7 @@ import { blocksOf } from "@/lib/landing/walk";
  *
  * This file is plain data and functions with no editor and no server code, so the public page, the editor and the tests share it.
  * What only one side may load is a separate contribution of its own: editor fields (`editor-kit.tsx`, a client bundle that
- * carries TipTap and the media picker) and live data loaders (`lib/landing/live-data.ts`, server only).
+ * carries TipTap and the media picker) and live data loaders (`src/lib/landing/live-data.ts`, server only).
  */
 
 /** The palette's groups, in the order the editor lists them. `parts` is filled from the blocks that sit inside another block's list. */
