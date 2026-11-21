@@ -8,7 +8,7 @@
 //    on an untouched line is the old backlog and does not fail. Same notion of "added lines" as
 //    the coverage gate (scripts/added-lines.ts).
 // 2. knip: an unused file or an unused / unlisted dependency (also binaries, unresolved imports)
-//    that is not in knip-baseline.json fails, and a baseline entry that is no longer a finding
+//    that is not in config/knip-baseline.json fails, and a baseline entry that is no longer a finding
 //    fails too, so the list only shrinks (like LUCIDE_BASELINE in tests/lib/icons.test.ts).
 //
 // Everything else the report tools show (complexity, depth, params, clones, unused exports and
@@ -27,14 +27,14 @@ export const GATE_RULES = ["sonarjs/no-identical-functions", "sonarjs/no-all-dup
 /** knip issue kinds that fail the gate (anything not in the baseline). Exports and types stay report-only. */
 export const KNIP_GATE_KINDS = ["files", "dependencies", "devDependencies", "optionalPeerDependencies", "unlisted", "binaries", "unresolved"];
 
-export const BASELINE_FILE = "knip-baseline.json";
+export const BASELINE_FILE = "config/knip-baseline.json";
 
 export type KnipItem = { name: string; line?: number };
 export type KnipReport = { issues: ({ file: string } & Record<string, unknown>)[] };
 export type KnipFinding = { key: string; kind: string; file: string; name: string; line?: number };
 export type Baseline = { entries: string[] };
 
-/** The stable id of a knip finding, as written in knip-baseline.json. */
+/** The stable id of a knip finding, as written in config/knip-baseline.json. */
 export function knipKey(kind: string, file: string, name: string): string {
   return kind === "files" ? `files:${name}` : `${kind}:${file}:${name}`;
 }
@@ -94,7 +94,7 @@ export function gateProblems(input: GateInput): string[] {
     problems.push(
       `${where}  knip ${f.kind}: ${f.name}\n` +
         `    Fix: delete the file or dependency, or declare the dependency in package.json.\n` +
-        `    Intentional exception: add it to \`ignore\` / \`ignoreDependencies\` / \`ignoreBinaries\` in knip.json (not to ${BASELINE_FILE}, which only shrinks).`,
+        `    Intentional exception: add it to \`ignore\` / \`ignoreDependencies\` / \`ignoreBinaries\` in config/knip.json (not to ${BASELINE_FILE}, which only shrinks).`,
     );
   }
   for (const key of stale) {
@@ -132,7 +132,7 @@ function eslintOn(files: string[]): EslintFileResult[] {
 
 function knipReport(): KnipReport {
   // knip exits 1 when it finds anything, which is the normal case here.
-  const r = run("pnpm", ["exec", "knip", "--reporter", "json"]);
+  const r = run("pnpm", ["exec", "knip", "--config", "config/knip.json", "--reporter", "json"]);
   try {
     return JSON.parse(r.stdout) as KnipReport;
   } catch {
