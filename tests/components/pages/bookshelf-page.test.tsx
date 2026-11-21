@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The Hedgie Book Shelf page (app/(member)/bookshelf/page.tsx): every live book, newest first, under
+ * The Hedgie Book Shelf page (src/app/(member)/bookshelf/page.tsx): every live book, newest first, under
  * the name it is published as -- the pen name, else the author's display name, else a legal name, else
  * "A Hedgie" when the author's member record is gone.
  */

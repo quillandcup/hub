@@ -8,7 +8,7 @@ It uses Supabase Auth's MFA (TOTP), switched on in production by `[remotes.prod.
 
 ## How it works
 
-A session is `aal1` after a link or code sign-in and `aal2` once it has also passed a TOTP challenge. The rules are in `lib/staff-mfa.ts` (`staffMfaState`):
+A session is `aal1` after a link or code sign-in and `aal2` once it has also passed a TOTP challenge. The rules are in `src/lib/staff-mfa.ts` (`staffMfaState`):
 
 | The staff account | Session | Result |
 |---|---|---|
@@ -19,17 +19,17 @@ A session is `aal1` after a link or code sign-in and `aal2` once it has also pas
 
 "Staff" is an admin or a community manager. Four places hold it, and a new admin entry point needs the same check (`.claude/rules/admin-route-protection.md`):
 
-- the proxy (`lib/supabase/middleware.ts`): the token's `aal` claim and `user.factors` from the `getUser()` it already runs, so a factor removed in the dashboard counts at once;
-- `requireAdminPage()` and `requireStaffPage()` (`lib/admin-auth.ts`): redirect through the `staffMfa` gate (`lib/gates.ts`) to `/mfa?next=<where they were going>`;
+- the proxy (`src/lib/supabase/middleware.ts`): the token's `aal` claim and `user.factors` from the `getUser()` it already runs, so a factor removed in the dashboard counts at once;
+- `requireAdminPage()` and `requireStaffPage()` (`src/lib/admin-auth.ts`): redirect through the `staffMfa` gate (`src/lib/gates.ts`) to `/mfa?next=<where they were going>`;
 - `requireAdminAction()` and `requireStaffAction()`: return `{ ok: false, error: MFA_REQUIRED_ERROR }`;
-- `requireAdmin()` (`lib/supabase/api-auth.ts`, admin API routes): `forbidden`.
+- `requireAdmin()` (`src/lib/supabase/api-auth.ts`, admin API routes): `forbidden`.
 
-The guards use `lib/staff-mfa.server.ts`: aal2 comes from the verified token (no network); only an aal1 session asks Supabase Auth for the user's factors. A failed read counts as "has a factor", so it fails toward the code screen. Sudo and role preview are not affected (they change the acting member or the effective role, not the signed-in staff member), and the audit log still records the real staff user.
+The guards use `src/lib/staff-mfa.server.ts`: aal2 comes from the verified token (no network); only an aal1 session asks Supabase Auth for the user's factors. A failed read counts as "has a factor", so it fails toward the code screen. Sudo and role preview are not affected (they change the acting member or the effective role, not the signed-in staff member), and the audit log still records the real staff user.
 
 ## Screens
 
-- **Settings, Account, "Two-step sign-in"** (`components/mfa/MfaPanel.tsx`): for every signed-in member, not while in sudo. Scan the QR code or type the key, confirm with a code, see the enrolled app, remove it (a `ConfirmDialog`). One authenticator app per account in the UI.
-- **`/mfa`** (`app/mfa/page.tsx`, outside both route groups like `/no-access`): the code screen, or the set-up screen when the account has no factor. It follows the gate standard (`.claude/rules/gates-and-return-to.md`): the destination is carried through, and "Not now" goes to the dashboard.
+- **Settings, Account, "Two-step sign-in"** (`src/components/mfa/MfaPanel.tsx`): for every signed-in member, not while in sudo. Scan the QR code or type the key, confirm with a code, see the enrolled app, remove it (a `ConfirmDialog`). One authenticator app per account in the UI.
+- **`/mfa`** (`src/app/mfa/page.tsx`, outside both route groups like `/no-access`): the code screen, or the set-up screen when the account has no factor. It follows the gate standard (`.claude/rules/gates-and-return-to.md`): the destination is carried through, and "Not now" goes to the dashboard.
 - **Banner** in the admin layout for staff with no factor while the requirement is off.
 
 ## Turning the requirement on (owner)

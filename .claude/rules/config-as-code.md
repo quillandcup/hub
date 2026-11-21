@@ -27,7 +27,7 @@ paths:
 
 ### Sentry config as code
 
-`config/sentry.yml` is the source of truth for the Sentry organization's data-scrubbing settings (server-side scrubbing, default scrubbers, no IP storage) and for the project's issue alert rules (`alerts:`, the CSP alerts; only rules named `Hub: ...` are managed, deleting one from the file deletes it from Sentry). On a push to main that changes it or `scripts/sentry-config.ts`, after the production deploy, the `push-sentry-config` job applies it, so change the file, not the Settings page. `pnpm sentry:config:diff` previews against the live organization (read-only). Needs the `SENTRY_CONFIG_TOKEN` secret, an internal integration token, not the build token `SENTRY_AUTH_TOKEN`. Session Replay masking is in code (`instrumentation-client.ts`, `data-sentry-unmask`), retention is Sentry's plan. Details: `docs/infrastructure/SENTRY_CONFIG.md`.
+`config/sentry.yml` is the source of truth for the Sentry organization's data-scrubbing settings (server-side scrubbing, default scrubbers, no IP storage) and for the project's issue alert rules (`alerts:`, the CSP alerts; only rules named `Hub: ...` are managed, deleting one from the file deletes it from Sentry). On a push to main that changes it or `scripts/sentry-config.ts`, after the production deploy, the `push-sentry-config` job applies it, so change the file, not the Settings page. `pnpm sentry:config:diff` previews against the live organization (read-only). Needs the `SENTRY_CONFIG_TOKEN` secret, an internal integration token, not the build token `SENTRY_AUTH_TOKEN`. Session Replay masking is in code (`src/instrumentation-client.ts`, `data-sentry-unmask`), retention is Sentry's plan. Details: `docs/infrastructure/SENTRY_CONFIG.md`.
 
 ### Slack app manifest as code
 

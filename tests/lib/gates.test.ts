@@ -70,7 +70,7 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
 }
 
 describe("every gate has a page that shows the way out", () => {
-  const files = ["app", "components"].flatMap((d) => sourceFiles(d)).map((path) => ({ path, text: readFileSync(path, "utf8") }));
+  const files = ["src/app", "src/components"].flatMap((d) => sourceFiles(d)).map((path) => ({ path, text: readFileSync(path, "utf8") }));
 
   it.each(entries)("%s: some page serves the gate and renders <GateExit>", (key) => {
     const serving = files.filter((f) => f.text.includes(`GATES.${key}`) && f.text.includes("<GateExit"));
@@ -79,7 +79,7 @@ describe("every gate has a page that shows the way out", () => {
 });
 
 describe("gates are redirected to through the registry", () => {
-  const lib = sourceFiles("lib").concat(sourceFiles("app")).map((path) => ({ path, text: readFileSync(path, "utf8") }));
+  const lib = sourceFiles("src/lib").concat(sourceFiles("src/app")).map((path) => ({ path, text: readFileSync(path, "utf8") }));
 
   it.each(entries)("%s: no code hand-writes a redirect to the gate's page with its parameters", (_key, gate) => {
     const literal = `${gate.path}?${new URLSearchParams(gate.params).toString()}`;

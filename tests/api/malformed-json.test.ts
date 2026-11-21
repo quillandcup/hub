@@ -9,7 +9,7 @@ import { getTestAuthHeaders } from '../helpers/supabase'
  * unhandled SyntaxError). Handlers are found from the source: any exported method whose body
  * returns "Invalid JSON body", so a new route that follows the pattern is covered with no edit.
  */
-const API_DIR = path.resolve(import.meta.dirname, '../../app/api')
+const API_DIR = path.resolve(import.meta.dirname, '../../src/app/api')
 const DUMMY_ID = '00000000-0000-0000-0000-000000000000'
 
 function routeFiles(dir: string): string[] {
@@ -25,7 +25,7 @@ function guardedHandlers(): Array<{ url: string; method: string }> {
   for (const file of routeFiles(API_DIR)) {
     const source = readFileSync(file, 'utf8')
     const url = '/api/' + path.relative(API_DIR, path.dirname(file)).split(path.sep).map((s) => (s.startsWith('[') ? DUMMY_ID : s)).join('/')
-    // Every top-level function, exported or not: a handler wrapped for its outcome (lib/analytics/outcome.ts) is a
+    // Every top-level function, exported or not: a handler wrapped for its outcome (src/lib/analytics/outcome.ts) is a
     // private `handlePost` behind an exported `POST`, and the body that answers 400 is in the private one.
     const parts = source.split(/^(?:export )?(?:async )?function /m).slice(1)
     for (const part of parts) {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildMembershipTimeline } from "@/lib/membership-timeline";
 
 function fmt(d: Date): string {
-  // Date-only inputs are parsed as host-local midnight (lib/member-tenure.ts parseDateOnly), so read local fields.
+  // Date-only inputs are parsed as host-local midnight (src/lib/member-tenure.ts parseDateOnly), so read local fields.
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 

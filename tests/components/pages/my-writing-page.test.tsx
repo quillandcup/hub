@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Page wiring for My Writing (app/(member)/projects/ProjectsPage.tsx): the Projects/Books/Awards
+ * Page wiring for My Writing (src/app/(member)/projects/ProjectsPage.tsx): the Projects/Books/Awards
  * tabs and their routes (/projects, /projects/books, /projects/awards; legacy ?tab= redirects), and
  * the data each panel receives. MyBooksPanel renders for real (its own behavior
  * is covered in MyBooksPanel.test.tsx); the Projects and Awards panels are stubbed to show what they

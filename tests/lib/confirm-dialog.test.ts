@@ -3,37 +3,37 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Confirmations go through `components/ConfirmDialog.tsx` (`ConfirmDialog`, or `useConfirm()` where a handler used to say
+ * Confirmations go through `src/components/ConfirmDialog.tsx` (`ConfirmDialog`, or `useConfirm()` where a handler used to say
  * `if (!confirm(...)) return;`; rule and wording: `.claude/rules/confirmations.md`). This fails on a `confirm(` or
  * `window.confirm(` in `app` or `components` beyond what CONFIRM_BASELINE lists. The baseline is files that predate the
  * rule and how many calls each holds: convert one as you touch it and lower or delete its entry. It only shrinks: a stale or
  * too-high entry fails, and so does a file with more calls than listed.
  */
 const CONFIRM_BASELINE: Record<string, number> = {
-  "app/(admin)/admin/badges/BadgeTypeForm.tsx": 1,
-  "app/(admin)/admin/care/EngagementCard.tsx": 2,
-  "app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx": 1,
-  "app/(admin)/admin/data/prickle-types/UnmatchedEventsTable.tsx": 1,
-  "app/(admin)/admin/data/slack-channels/RestrictionToggle.tsx": 1,
-  "app/(admin)/admin/hosts/HostsClient.tsx": 3,
-  "app/(admin)/admin/hygiene/ProcessOrphanedButton.tsx": 1,
-  "app/(admin)/admin/hygiene/ProcessOrphanedMeetingsButton.tsx": 1,
-  "app/(admin)/admin/member-overrides/MemberOverridesClient.tsx": 1,
-  "app/(admin)/admin/members/[id]/MemberIdentityPanel.tsx": 2,
-  "app/(admin)/admin/members/[id]/MemberTimelinePanel.tsx": 1,
-  "app/(admin)/admin/mentorship/MatchesPanel.tsx": 1,
-  "app/(admin)/admin/previews/PreviewsClient.tsx": 2,
-  "app/(admin)/admin/programs/[id]/ProgramDetailClient.tsx": 2,
-  "app/(member)/hosting/HostingScheduleManager.tsx": 1,
-  "app/(member)/projects/MyAwardsPanel.tsx": 1,
-  "app/(member)/projects/MyBooksPanel.tsx": 1,
-  "app/(member)/projects/[id]/ProjectDetailClient.tsx": 2,
-  "components/chat/MessageFiles.tsx": 1,
-  "components/writing/ProjectDetailsModal.tsx": 1,
+  "src/app/(admin)/admin/badges/BadgeTypeForm.tsx": 1,
+  "src/app/(admin)/admin/care/EngagementCard.tsx": 2,
+  "src/app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx": 1,
+  "src/app/(admin)/admin/data/prickle-types/UnmatchedEventsTable.tsx": 1,
+  "src/app/(admin)/admin/data/slack-channels/RestrictionToggle.tsx": 1,
+  "src/app/(admin)/admin/hosts/HostsClient.tsx": 3,
+  "src/app/(admin)/admin/hygiene/ProcessOrphanedButton.tsx": 1,
+  "src/app/(admin)/admin/hygiene/ProcessOrphanedMeetingsButton.tsx": 1,
+  "src/app/(admin)/admin/member-overrides/MemberOverridesClient.tsx": 1,
+  "src/app/(admin)/admin/members/[id]/MemberIdentityPanel.tsx": 2,
+  "src/app/(admin)/admin/members/[id]/MemberTimelinePanel.tsx": 1,
+  "src/app/(admin)/admin/mentorship/MatchesPanel.tsx": 1,
+  "src/app/(admin)/admin/previews/PreviewsClient.tsx": 2,
+  "src/app/(admin)/admin/programs/[id]/ProgramDetailClient.tsx": 2,
+  "src/app/(member)/hosting/HostingScheduleManager.tsx": 1,
+  "src/app/(member)/projects/MyAwardsPanel.tsx": 1,
+  "src/app/(member)/projects/MyBooksPanel.tsx": 1,
+  "src/app/(member)/projects/[id]/ProjectDetailClient.tsx": 2,
+  "src/components/chat/MessageFiles.tsx": 1,
+  "src/components/writing/ProjectDetailsModal.tsx": 1,
 };
 
 const root = path.resolve(__dirname, "../..");
-const DIALOG_FILE = "components/ConfirmDialog.tsx";
+const DIALOG_FILE = "src/components/ConfirmDialog.tsx";
 
 function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -48,7 +48,7 @@ const NATIVE_CONFIRM = /(?<![\w.])(?:window\.)?confirm\(/g;
 export const countConfirms = (source: string) => (source.match(NATIVE_CONFIRM) ?? []).length;
 
 describe("confirmations", () => {
-  const files = ["app", "components"]
+  const files = ["src/app", "src/components"]
     .flatMap((dir) => sourceFiles(path.join(root, dir)))
     .map((file) => [path.relative(root, file).split(path.sep).join("/"), fs.readFileSync(file, "utf8")] as const)
     .filter(([file]) => file !== DIALOG_FILE);
@@ -61,7 +61,7 @@ describe("confirmations", () => {
 
   it("has no new window.confirm (use ConfirmDialog or useConfirm)", () => {
     const offenders = files.filter(([file, src]) => countConfirms(src) > (CONFIRM_BASELINE[file] ?? 0)).map(([file, src]) => `${file} (${countConfirms(src)})`);
-    expect(offenders, "use <ConfirmDialog> or useConfirm() from components/ConfirmDialog.tsx (.claude/rules/confirmations.md)").toEqual([]);
+    expect(offenders, "use <ConfirmDialog> or useConfirm() from src/components/ConfirmDialog.tsx (.claude/rules/confirmations.md)").toEqual([]);
   });
 
   it("keeps the baseline honest: no entry for a call that is gone", () => {

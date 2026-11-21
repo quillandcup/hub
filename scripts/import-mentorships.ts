@@ -19,9 +19,9 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { parseCsv, planImport, toImportRows } from "../lib/mentorship-import";
-import { fetchTrialWindows, pickTrialWindow } from "../lib/trial-window";
-import type { Member, MemberAlias, MemberEmailAlias } from "../lib/member-matching";
+import { parseCsv, planImport, toImportRows } from "../src/lib/mentorship-import";
+import { fetchTrialWindows, pickTrialWindow } from "../src/lib/trial-window";
+import type { Member, MemberAlias, MemberEmailAlias } from "../src/lib/member-matching";
 import { createRepos } from "@/lib/data/repos";
 
 const args = process.argv.slice(2);

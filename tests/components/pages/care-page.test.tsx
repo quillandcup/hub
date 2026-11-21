@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Hedgie Care (app/(admin)/admin/care): staff only, what needs her reply first on the Active tab, closed and lapsed
+ * Hedgie Care (src/app/(admin)/admin/care): staff only, what needs her reply first on the Active tab, closed and lapsed
  * engagements under Earlier, and the controls that call the server actions. Data comes from the in-memory repository; the actions are stubbed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -152,7 +152,7 @@ const RESULTS = (() => {
   };
 })();
 
-// Pinned "now" for the page (lib/clock reads Date) and for the browser's own timing of a close.
+// Pinned "now" for the page (src/lib/clock reads Date) and for the browser's own timing of a close.
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);

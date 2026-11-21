@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({ save: vi.fn(), create: vi.fn(), createAi: vi.f
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, refresh: mocks.refresh, replace: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
-vi.mock("../../app/(admin)/admin/pages/actions", () => ({ createLandingPage: mocks.create, createLandingPageWithAi: mocks.createAi, duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove }));
-vi.mock("../../app/(admin)/admin/pages/template-actions", () => ({ saveLandingTemplate: mocks.save }));
+vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({ createLandingPage: mocks.create, createLandingPageWithAi: mocks.createAi, duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove }));
+vi.mock("../../src/app/(admin)/admin/pages/template-actions", () => ({ saveLandingTemplate: mocks.save }));
 
 import SaveAsTemplate from "@/app/(admin)/admin/pages/[slug]/SaveAsTemplate";
 import StarterReplace from "@/app/(admin)/admin/pages/[slug]/StarterReplace";

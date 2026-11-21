@@ -1,0 +1,44 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { isBrowserNavigation } from "@/lib/browser-navigation";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { consumeSlackSignIn } from "@/lib/slack-sign-in";
+import { rememberSignInFailure, rememberSignInMethod } from "@/lib/signin-method";
+import { finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
+
+/**
+ * Target of the Slack app's "Open Hedgie Hub" button (src/lib/slack-sign-in.ts). A click signs the
+ * member in and lands them where they were headed, with no intermediate page.
+ *
+ * Slack never unfurls Block Kit button URLs, but a GET that spends a credential should still only
+ * do so for a real top-level browser navigation. Browsers send Sec-Fetch-Mode: navigate and
+ * Sec-Fetch-Dest: document for that; link checkers, prefetchers and scripts don't. Anything else
+ * (including browsers too old to send the headers) gets the Continue page, which spends the token
+ * only on an explicit click.
+ */
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token") ?? "";
+  const origin = url.origin;
+
+  if (!isBrowserNavigation(request.headers)) {
+    const continueUrl = new URL("/auth/slack/continue", origin);
+    if (token) continueUrl.searchParams.set("token", token);
+    return NextResponse.redirect(continueUrl, 303);
+  }
+
+  const service = createServiceRoleClient();
+  const slackUserId = await consumeSlackSignIn(service, { token });
+  if (!slackUserId) {
+    const refreshed = await refreshHomeForDeadToken(service, token, origin);
+    console.warn("slack-sign-in: dead sign-in link clicked (Home tab refreshed: %s)", refreshed);
+    await rememberSignInFailure("slack_link_expired");
+    return NextResponse.redirect(new URL(`/auth/slack/continue?error=expired${refreshed ? "&refreshed=1" : ""}`, origin), 303);
+  }
+
+  const result = await finishSlackSignIn(service, slackUserId, origin);
+  if (!result.ok) {
+    return NextResponse.redirect(new URL(`/auth/slack/continue?error=${result.error}`, origin), 303);
+  }
+  await rememberSignInMethod("slack_link");
+  return NextResponse.redirect(new URL(result.next, origin), 303);
+}

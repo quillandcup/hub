@@ -1,6 +1,6 @@
 /**
- * proxy.ts → lib/supabase/middleware.ts hands the address being asked for to Server Components in a request header
- * (`x-hub-path`), so a gate decided while rendering (lib/gates.server.ts) can tell the visitor where to come back to. Next exposes
+ * src/proxy.ts → src/lib/supabase/middleware.ts hands the address being asked for to Server Components in a request header
+ * (`x-hub-path`), so a gate decided while rendering (src/lib/gates.server.ts) can tell the visitor where to come back to. Next exposes
  * request headers the proxy overrides on the response as `x-middleware-request-<name>`.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

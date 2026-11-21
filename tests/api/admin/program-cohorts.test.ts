@@ -4,7 +4,7 @@ import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the programs / program-cohorts / program-enrollments
- * admin CRUD APIs (app/api/admin/programs, program-cohorts, program-enrollments).
+ * admin CRUD APIs (src/app/api/admin/programs, program-cohorts, program-enrollments).
  */
 describe('Program Cohorts API', () => {
   const supabase = getTestSupabaseAdminClient()

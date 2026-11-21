@@ -215,7 +215,7 @@ max_frequency = "1s"
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour; 86400 is the max). Covers
 # invite, magic link, recovery and confirmation links and the typed code in the same email, which
-# share this lifetime; the email copy in supabase/emails and emails/launch says one hour. It was
+# share this lifetime; the email copy in supabase/emails and src/emails/launch says one hour. It was
 # 86400 until 2026-11-18, while a mail scanner could still spend a link; `/auth/confirm` now makes a
 # spent link recoverable (the login page sends a new link or code), so the short life is safe.
 otp_expiry = 3600
@@ -278,7 +278,7 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# Adds the `app_role` claim (user_profiles.role) that proxy.ts's /admin pre-filter reads instead of
+# Adds the `app_role` claim (user_profiles.role) that src/proxy.ts's /admin pre-filter reads instead of
 # querying user_profiles; see supabase/migrations/20260926000900_add_role_to_access_token.sql.
 # Not overridden under [remotes.prod], so `pnpm config:push` enables it on production too. Apply
 # that migration to production (`pnpm db:push`) BEFORE pushing this: while the hook points at a

@@ -11,7 +11,7 @@ import config from "@/config/tailwind";
 const layers = Object.keys(((config.theme as { extend?: { zIndex?: Record<string, string> } }).extend ?? {}).zIndex ?? {});
 
 const root = path.resolve(__dirname, "../..");
-const dirs = ["app", "components", "lib", "emails"];
+const dirs = ["src/app", "src/components", "src/lib", "src/emails"];
 
 function sourceFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];

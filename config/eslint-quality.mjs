@@ -20,7 +20,7 @@ export default [
       "coverage/**",
       "reports/**",
       "supabase/migrations/**",
-      "lib/data/database.types.ts",
+      "src/lib/data/database.types.ts",
     ],
   },
   {

@@ -120,7 +120,7 @@ describe('POST /api/import/slack-api thread selection', () => {
     return (data ?? []).map((r) => r.message_ts)
   }
 
-  // The import's pauses and time budget run on a fake clock (lib/clock), not
+  // The import's pauses and time budget run on a fake clock (src/lib/clock), not
   // vi.useFakeTimers(): faking global timers also fired the HTTP client's
   // headers timeout on in-flight Supabase requests in CI.
   const fake = useFakeClock()

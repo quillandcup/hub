@@ -1,5 +1,5 @@
 /**
- * Helpers for testing async App Router server-component pages (`app/**\/page.tsx`) in jsdom.
+ * Helpers for testing async App Router server-component pages (`src/app/**\/page.tsx`) in jsdom.
  *
  * The pattern: mock the page's data dependencies, `await` the page's default export like a plain
  * async function, then `render()` the JSX it returns. Mock client children that are heavy or need
@@ -169,7 +169,7 @@ export function createFakeSupabase(tables: FakeTables = {}) {
       return q.args(...args);
     },
     auth: {
-      // A signed-in session that has passed the second step (lib/staff-mfa.ts), so the admin guards let it through.
+      // A signed-in session that has passed the second step (src/lib/staff-mfa.ts), so the admin guards let it through.
       getClaims: vi.fn(async () => ({ data: { claims: { aal: "aal2" } }, error: null })),
       getUser: vi.fn(async () => ({ data: { user: null }, error: null })),
     },
@@ -215,7 +215,7 @@ export async function renderServerPage<P>(
 
 /**
  * Like renderServerPage, for a thin route page that returns one async server component (e.g. a
- * path-based tab route returning `<MyPricklesPage tab="all" />`, lib/tab-routes.ts): awaits the
+ * path-based tab route returning `<MyPricklesPage tab="all" />`, src/lib/tab-routes.ts): awaits the
  * route, then that component, and renders the result.
  */
 export async function renderServerRoute<P>(

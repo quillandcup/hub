@@ -11,11 +11,11 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../lib/data/database.types";
-import { createRepos } from "../lib/data/repos";
-import { KAJABI_PHOTO_HOSTS } from "../lib/config";
-import { MEMBER_PHOTO_BUCKET, memberPhotoPublicUrl } from "../lib/member-photo";
-import { adoptMemberPhotos } from "../lib/members/adopt-photos";
+import type { Database } from "../src/lib/data/database.types";
+import { createRepos } from "../src/lib/data/repos";
+import { KAJABI_PHOTO_HOSTS } from "../src/lib/config";
+import { MEMBER_PHOTO_BUCKET, memberPhotoPublicUrl } from "../src/lib/member-photo";
+import { adoptMemberPhotos } from "../src/lib/members/adopt-photos";
 import { loadLayeredEnv } from "./load-layered-env";
 import { parseAdoptArgs } from "./adopt-book-covers-args";
 

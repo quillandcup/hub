@@ -24,7 +24,7 @@
 // This file is just the schema: name, secrecy, and destinations. SOPS-encrypting the value
 // files so they can be committed is a planned follow-up, tracked separately.
 
-import { CRON_HEARTBEATS } from "../lib/cron-heartbeats";
+import { CRON_HEARTBEATS } from "../src/lib/cron-heartbeats";
 
 /**
  * A Vercel environment the sync manages. Vercel's "development" target (read only by
@@ -419,7 +419,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "NEXT_PUBLIC_GA_ID",
     group: "Analytics & Monitoring",
     description:
-      "GA4 measurement ID. Public by design. Production only: app/layout.tsx skips GA when it's unset, so testing on previews isn't tracked.",
+      "GA4 measurement ID. Public by design. Production only: src/app/layout.tsx skips GA when it's unset, so testing on previews isn't tracked.",
     type: "config",
     destinations: [{ kind: "vercel", target: "production" }],
   },
@@ -495,7 +495,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     (heartbeat): EnvVarSpec => ({
       name: heartbeat.envVar,
       group: "Analytics & Monitoring",
-      description: `Checkly heartbeat ping URL for ${heartbeat.path}, copied from the Checkly monitor after \`checkly deploy\`. Unset = no ping. Production only so manual preview runs don't mask a missed production run. See lib/cron-heartbeats.ts.`,
+      description: `Checkly heartbeat ping URL for ${heartbeat.path}, copied from the Checkly monitor after \`checkly deploy\`. Unset = no ping. Production only so manual preview runs don't mask a missed production run. See src/lib/cron-heartbeats.ts.`,
       // Not a credential, but anyone holding it can fake a successful run.
       type: "secret",
       destinations: [{ kind: "vercel", target: "production" }],
@@ -599,7 +599,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "RESEND_API_KEY",
     group: "Email (Resend)",
     description:
-      "Resend API key (full access: the nightly import lists sent emails with it, /api/reconcile/email; a sending-only key cannot). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`pnpm config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
+      "Resend API key (full access: the nightly import lists sent emails with it, /api/reconcile/email; a sending-only key cannot). The app sends member notification emails with it (src/lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`pnpm config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
     type: "secret",
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
@@ -607,7 +607,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "RESEND_WEBHOOK_SECRET",
     group: "Email (Resend)",
     description:
-      "Signing secret (`whsec_...`) of the Resend webhook that posts to /api/webhooks/resend (Resend dashboard -> Webhooks), which verifies every request with it (lib/email-events.ts). Without it a deployed build rejects every webhook. The webhook should send sent, delivered, delivery delayed, bounced, complained, opened, clicked and failed events. The nightly import (/api/reconcile/email) also lists emails with RESEND_API_KEY, which therefore needs full access, not sending access only.",
+      "Signing secret (`whsec_...`) of the Resend webhook that posts to /api/webhooks/resend (Resend dashboard -> Webhooks), which verifies every request with it (src/lib/email-events.ts). Without it a deployed build rejects every webhook. The webhook should send sent, delivered, delivery delayed, bounced, complained, opened, clicked and failed events. The nightly import (/api/reconcile/email) also lists emails with RESEND_API_KEY, which therefore needs full access, not sending access only.",
     type: "secret",
     destinations: vercelAllEnvs,
   },
@@ -615,7 +615,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "EMAIL_UNSUBSCRIBE_SECRET",
     group: "Email (Resend)",
     description:
-      "Signing secret for the unsubscribe links in notification emails (lib/email-unsubscribe.ts). Changing it breaks the unsubscribe links in emails already sent, so treat it as permanent. Emails aren't sent without it.",
+      "Signing secret for the unsubscribe links in notification emails (src/lib/email-unsubscribe.ts). Changing it breaks the unsubscribe links in emails already sent, so treat it as permanent. Emails aren't sent without it.",
     type: "secret",
     destinations: vercelAllEnvs,
   },
@@ -623,7 +623,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "POSTAL_ADDRESS",
     group: "Email (Resend)",
     description:
-      "Our mailing address on one line (street, city, state and zip), printed in the footer of every notification email (CAN-SPAM). Quote the value in the env file if it has a `#` (a unit number, say): unquoted, everything from the `#` on is read as a comment. Not in the repo, which is public. Emails aren't sent without it (lib/config.ts postalAddress()).",
+      "Our mailing address on one line (street, city, state and zip), printed in the footer of every notification email (CAN-SPAM). Quote the value in the env file if it has a `#` (a unit number, say): unquoted, everything from the `#` on is read as a comment. Not in the repo, which is public. Emails aren't sent without it (src/lib/config.ts postalAddress()).",
     type: "config",
     destinations: vercelAllEnvs,
   },
@@ -646,7 +646,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "ANTHROPIC_API_KEY",
     group: "Anthropic",
     description:
-      "Claude API key for \"Build with AI\" on the landing page builder (lib/landing/ai.ts). Only the admin's own description of a page is sent, never anything a member wrote. Without it the option is shown as unavailable.",
+      "Claude API key for \"Build with AI\" on the landing page builder (src/lib/landing/ai.ts). Only the admin's own description of a page is sent, never anything a member wrote. Without it the option is shown as unavailable.",
     type: "secret",
     destinations: vercelAllEnvs,
   },

@@ -10,7 +10,7 @@ import { boundary, importsOf, looksLikeComponent, serverActionExportOffenders, t
  */
 
 const ROOT = path.resolve(__dirname, "../..");
-const DIRS = ["app", "components", "lib", "emails"];
+const DIRS = ["src/app", "src/components", "src/lib", "src/emails"];
 
 function sources(dir: string): string[] {
   if (!fs.existsSync(path.join(ROOT, dir))) return [];
@@ -41,7 +41,7 @@ describe("the client/server import boundary, in the app", () => {
 describe("server action exports, on examples", () => {
   it("rejects the chat regression and other runtime values, including multiline exports", () => {
     const offenders = serverActionExportOffenders(fixture({
-      "app/actions.ts": `// Header comment
+      "src/app/actions.ts": `// Header comment
 "use server";
 export const NOTIFY_SETTINGS = ["default", "all"] as const;
 export const config = {};
@@ -56,13 +56,13 @@ export default {};
 `,
     }));
     expect(offenders).toHaveLength(7);
-    expect(offenders[0]).toContain("app/actions.ts:3 exports NOTIFY_SETTINGS");
+    expect(offenders[0]).toContain("src/app/actions.ts:3 exports NOTIFY_SETTINGS");
     expect(offenders.some((message) => message.includes("exports settings"))).toBe(true);
   });
 
   it("allows async declarations, async expressions, aliases and type-only exports", () => {
     expect(serverActionExportOffenders(fixture({
-      "lib/actions.ts": `/* Header */
+      "src/lib/actions.ts": `/* Header */
 'use strict';
 'use server';
 export async function save() {}
@@ -76,15 +76,15 @@ export type Choice = "all";
 export type { Something } from "./types";
 export { type Another } from "./types";
 `,
-      "components/Widget.tsx": '"use client"; export const values = [];',
-      "lib/shared.ts": 'export const values = [];',
-      "app/inline.ts": 'export function render() { async function save() { "use server"; } }',
+      "src/components/Widget.tsx": '"use client"; export const values = [];',
+      "src/lib/shared.ts": 'export const values = [];',
+      "src/app/inline.ts": 'export function render() { async function save() { "use server"; } }',
     }))).toEqual([]);
   });
 
   it("requires explicit async entry points instead of unchecked runtime re-exports", () => {
     expect(serverActionExportOffenders(fixture({
-      "app/actions.ts": '"use server"; export * from "./shared"; export { values } from "./shared";',
+      "src/app/actions.ts": '"use server"; export * from "./shared"; export { values } from "./shared";',
     }))).toHaveLength(2);
   });
 });
@@ -94,66 +94,66 @@ describe("the client/server import boundary, on examples", () => {
 
   it("flags a client file that reaches server-only code, however far down, but not through a server action", () => {
     const direct = fixture({
-      "app/a/Client.tsx": '"use client";\nimport { thing } from "@/lib/mid";',
-      "lib/mid.ts": 'import { other } from "./deep";',
-      "lib/deep.ts": 'import { cookies } from "next/headers";',
+      "src/app/a/Client.tsx": '"use client";\nimport { thing } from "@/lib/mid";',
+      "src/lib/mid.ts": 'import { other } from "./deep";',
+      "src/lib/deep.ts": 'import { cookies } from "next/headers";',
     });
-    expect(boundary(direct).clientBundleOffenders()).toEqual(["app/a/Client.tsx -> lib/mid.ts -> lib/deep.ts (server-only)"]);
+    expect(boundary(direct).clientBundleOffenders()).toEqual(["src/app/a/Client.tsx -> src/lib/mid.ts -> src/lib/deep.ts (server-only)"]);
 
     const viaAction = fixture({
-      "app/a/Client.tsx": '"use client";\nimport { save } from "./actions";',
-      "app/a/actions.ts": '"use server";\nimport { cookies } from "next/headers";',
+      "src/app/a/Client.tsx": '"use client";\nimport { save } from "./actions";',
+      "src/app/a/actions.ts": '"use server";\nimport { cookies } from "next/headers";',
     });
     expect(boundary(viaAction).clientBundleOffenders()).toEqual([]);
   });
 
   it("flags a client file that reaches a server SDK, as #615 did through the Slack alert path", () => {
     const files = fixture({
-      "components/History.tsx": '"use client";\nimport { feed } from "@/lib/feed";',
-      "lib/feed.ts": 'import { throwIfDbError } from "@/lib/trace";',
-      "lib/trace.ts": 'import { sendAlert } from "@/lib/alerts";',
-      "lib/alerts.ts": 'import { WebClient } from "@slack/web-api";',
+      "src/components/History.tsx": '"use client";\nimport { feed } from "@/lib/feed";',
+      "src/lib/feed.ts": 'import { throwIfDbError } from "@/lib/trace";',
+      "src/lib/trace.ts": 'import { sendAlert } from "@/lib/alerts";',
+      "src/lib/alerts.ts": 'import { WebClient } from "@slack/web-api";',
     });
     expect(boundary(files).clientBundleOffenders()).toEqual([
-      "components/History.tsx -> lib/feed.ts -> lib/trace.ts -> lib/alerts.ts (server-only)",
+      "src/components/History.tsx -> src/lib/feed.ts -> src/lib/trace.ts -> src/lib/alerts.ts (server-only)",
     ]);
   });
 
   it("ignores a type import, and what the browser can load", () => {
     const files = fixture({
-      "app/a/Client.tsx": '"use client";\nimport type { Db } from "@/lib/server";\nimport { randomInt } from "crypto";',
-      "lib/server.ts": 'import { cookies } from "next/headers";',
+      "src/app/a/Client.tsx": '"use client";\nimport type { Db } from "@/lib/server";\nimport { randomInt } from "crypto";',
+      "src/lib/server.ts": 'import { cookies } from "next/headers";',
     });
     expect(boundary(files).clientBundleOffenders()).toEqual([]);
   });
 
   it("flags a server file that calls a function, reads a constant, or takes a namespace or lowercase default from a client file", () => {
     const files = fixture({
-      "app/a/Client.tsx": CLIENT,
-      "app/a/page.tsx": 'import { helper, LIMITS, Widget } from "./Client";\nimport Panel from "./Client";\nimport * as client from "./Client";\nimport render from "./Client";\nexport { helper as again } from "./Client";',
+      "src/app/a/Client.tsx": CLIENT,
+      "src/app/a/page.tsx": 'import { helper, LIMITS, Widget } from "./Client";\nimport Panel from "./Client";\nimport * as client from "./Client";\nimport render from "./Client";\nexport { helper as again } from "./Client";',
     });
     expect(boundary(files).serverImportOffenders()).toEqual([
-      "app/a/page.tsx imports helper from the client file app/a/Client.tsx",
-      "app/a/page.tsx imports LIMITS from the client file app/a/Client.tsx",
-      "app/a/page.tsx imports a namespace (*) from the client file app/a/Client.tsx",
-      "app/a/page.tsx imports the default render from the client file app/a/Client.tsx",
-      "app/a/page.tsx imports helper from the client file app/a/Client.tsx",
+      "src/app/a/page.tsx imports helper from the client file src/app/a/Client.tsx",
+      "src/app/a/page.tsx imports LIMITS from the client file src/app/a/Client.tsx",
+      "src/app/a/page.tsx imports a namespace (*) from the client file src/app/a/Client.tsx",
+      "src/app/a/page.tsx imports the default render from the client file src/app/a/Client.tsx",
+      "src/app/a/page.tsx imports helper from the client file src/app/a/Client.tsx",
     ]);
   });
 
   it("lets a server file render a client component, import its types, and load it dynamically", () => {
     const files = fixture({
-      "app/a/Client.tsx": CLIENT,
-      "app/a/page.tsx": 'import Panel, { Widget, type Props } from "./Client";\nimport type { helper } from "./Client";\nconst Lazy = import("./Client");',
+      "src/app/a/Client.tsx": CLIENT,
+      "src/app/a/page.tsx": 'import Panel, { Widget, type Props } from "./Client";\nimport type { helper } from "./Client";\nconst Lazy = import("./Client");',
     });
     expect(boundary(files).serverImportOffenders()).toEqual([]);
   });
 
   it("does not hold a file the client bundles to the server rule: it is client code without the directive", () => {
     const files = fixture({
-      "app/a/Client.tsx": CLIENT,
-      "lib/shared.ts": 'import { helper } from "@/app/a/Client";',
-      "app/b/Other.tsx": '"use client";\nimport { x } from "@/lib/shared";',
+      "src/app/a/Client.tsx": CLIENT,
+      "src/lib/shared.ts": 'import { helper } from "@/app/a/Client";',
+      "src/app/b/Other.tsx": '"use client";\nimport { x } from "@/lib/shared";',
     });
     expect(boundary(files).serverImportOffenders()).toEqual([]);
   });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
-// Project actions in app/(member)/projects/actions.ts over the in-memory writing repository: they
+// Project actions in src/app/(member)/projects/actions.ts over the in-memory writing repository: they
 // scope every read and write to the acting member's id (never a client-passed one).
 
 let dataset = new InMemoryDataset();

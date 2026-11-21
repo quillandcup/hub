@@ -119,14 +119,14 @@ describe('Attendance Processing Pagination', () => {
     it('should verify pagination code exists in attendance route', async () => {
       const fs = await import('fs/promises')
       const path = await import('path')
-      const routePath = path.join(process.cwd(), 'app/api/process/attendance/route.ts')
+      const routePath = path.join(process.cwd(), 'src/app/api/process/attendance/route.ts')
       const content = await fs.readFile(routePath, 'utf-8')
 
       // zoom_attendees are read through the repository, which pages past 1000 rows (tests/api/data/zoom-repository.test.ts),
       // by way of loadWholeMeetings (it reads the meetings the range touches whole)
       expect(content).toContain('loadWholeMeetings(')
       expect(content).not.toContain('from("zoom_attendees")')
-      const helper = await fs.readFile(path.join(process.cwd(), 'lib/processing/attendance.ts'), 'utf-8')
+      const helper = await fs.readFile(path.join(process.cwd(), 'src/lib/processing/attendance.ts'), 'utf-8')
       expect(helper).toContain('zoom.attendeesOverlapping(')
       expect(helper).toContain('zoom.attendeesOfSessions(')
 

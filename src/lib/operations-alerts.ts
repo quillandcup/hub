@@ -1,0 +1,196 @@
+import { createSlackClient } from "@/lib/slack-client";
+import * as Sentry from "@sentry/nextjs";
+import appConfig from "../../config/app";
+import { isProduction, SLACK_ALERTS_CHANNEL_ID } from "@/lib/config";
+import { sendEmail } from "@/lib/email";
+import type { Repos } from "@/lib/data/repos";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
+
+/** Alerts about the member-notification path, delivered outside that path. */
+export type OperationsAlert =
+  | { type: "slack_dm_failed"; notificationKind: string; memberId: string }
+  | { type: "section_failed"; section: string; code?: string; ms: number }
+  | { type: "client_crash"; route: string; message: string }
+  | { type: "video_failed"; what: VideoFailure; route?: string; detail?: string; playback?: PlaybackFailure }
+  | { type: "cron_partial_failure"; job: string; problems: string[] }
+  | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
+  | { type: "slack_blocks_refused"; where: "post" | "edit" | "upload" }
+  | { type: "slack_unfurl_removal_failed"; reason: string }
+  | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
+
+/** Where the course video path broke: Mux's webhook couldn't be recorded, Mux couldn't prepare a video, or a member's player errored. */
+export type VideoFailure = "webhook_upload" | "webhook_asset" | "asset_errored" | "playback";
+
+/** What a member's player said about a playback failure (validated by /api/client-errors). Never the playback token. */
+export interface PlaybackFailure {
+  code: number;
+  lessonId?: string;
+  playbackId?: string;
+  restricted?: boolean;
+  status?: number;
+  detail?: string;
+  /** Mux Data was monitoring this view, so its Errors page has the failure too. */
+  muxData?: boolean;
+}
+
+const MEDIA_ERROR_NAMES: Record<number, string> = { 0: "unknown", 1: "aborted", 2: "network", 3: "decode", 4: "source not supported", 5: "encrypted" };
+
+/** One line saying what failed, from the player's own report (every value already checked to be a word, an id or a number). */
+function playbackSummary(p: PlaybackFailure): string {
+  const parts = [`media error ${p.code} (${MEDIA_ERROR_NAMES[p.code] ?? "other"})`];
+  if (p.detail) parts.push(`hls.js: ${p.detail}`);
+  if (p.status) parts.push(`HTTP ${p.status}`);
+  if (p.restricted !== undefined) parts.push(p.restricted ? "link with the referrer restriction" : "link without the restriction");
+  if (p.lessonId) parts.push(`lesson ${p.lessonId}`);
+  if (p.playbackId) parts.push(`playback id ${p.playbackId}`);
+  return parts.join(", ");
+}
+
+const ALERT_WINDOW_SECONDS = 10 * 60;
+
+/** Sentry issue search for events tagged with this section, last 24 hours, newest first. */
+export function sentrySectionSearchUrl(section: string): string {
+  const query = new URLSearchParams({ query: `section:"${section}"`, statsPeriod: "24h", sort: "date" });
+  return `https://${appConfig.sentry.org}.sentry.io/issues/?${query}`;
+}
+
+function alertDetails(alert: OperationsAlert): { bucket: string; title: string; text: string } {
+  if (alert.type === "slack_dm_failed") {
+    return {
+      bucket: `operations_alert:slack_dm_failed:${alert.notificationKind}`,
+      title: "Slack notification DM failed",
+      text: `Slack notification DM failed (kind: ${alert.notificationKind}, member ID: ${alert.memberId}). Check server logs and the Sentry event tagged notification_channel=slack. The failed DM was not retried by the notifier.`,
+    };
+  }
+
+  if (alert.type === "section_failed") {
+    const what = alert.code === "57014" ? "timed out in the database" : `failed${alert.code ? ` (${alert.code})` : ""}`;
+    return {
+      bucket: `operations_alert:section_failed:${alert.section}`,
+      title: `Page section ${alert.section} ${what}`,
+      text: `Page section "${alert.section}" ${what} after ${alert.ms} ms. Find the event in <${sentrySectionSearchUrl(alert.section)}|Sentry> (tagged section; it has the member id and the request) and the "[section failed]" line in the Vercel logs.`,
+    };
+  }
+
+  if (alert.type === "client_crash") {
+    // The message comes from a browser, so it is untrusted: one short line, escaped for Slack.
+    const message = alert.message.replace(/\s+/g, " ").trim().slice(0, 200).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return {
+      bucket: `operations_alert:client_crash:${alert.route}`,
+      title: `Page ${alert.route} crashed in the browser`,
+      text: `Page ${alert.route} crashed in a member's or admin's browser: "${message}". Server logs have nothing for it; look for the browser event in Sentry for this route, and in the browser console.`,
+    };
+  }
+
+  if (alert.type === "video_failed") {
+    // The detail may come from a browser, so it is untrusted: one short line, escaped for Slack.
+    const detail = (alert.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 200).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const text = {
+      webhook_upload: "Mux told us an upload finished, but the Hub could not record it, so that video will stay in preparing. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux upload\".",
+      webhook_asset: "Mux told us a video is ready (or failed), but the Hub could not record it, so a lesson may keep saying the video is being prepared. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux asset update\".",
+      asset_errored: "Mux could not prepare a course video (asset errored). The lesson tells members \"We've been told\"; re-upload the video, or look at the asset in the Mux dashboard.",
+      playback: `A course video failed to play in a member's browser${alert.route ? ` on ${alert.route}` : ""}${alert.playback ? `: ${playbackSummary(alert.playback)}` : ""}. An expired link is retried once before this alert, so this failed with a fresh link or could not be retried.${alert.playback?.muxData ? " This view was measured: see <https://dashboard.mux.com|Mux Data> (Errors) for what the player saw." : ""} Try the lesson yourself.`,
+    }[alert.what];
+    return {
+      bucket: `operations_alert:video_failed:${alert.what}${alert.route ? `:${alert.route}` : ""}`,
+      title: `Course video: ${alert.what.replace("_", " ")}`,
+      text: `${text}${detail ? ` (${detail})` : ""}`,
+    };
+  }
+
+  if (alert.type === "slack_bot_token_failed") {
+    const what = {
+      refresh_failed: "could not be refreshed and is close to expiring",
+      not_stored: "was refreshed but the new token could not be stored (this server instance uses it for now; others still hold the old one)",
+      expired: "has expired and could not be refreshed, so everything the Hub does as Billie Bot is failing (Slack DMs, the Home tab, these alerts, the import's bot calls)",
+    }[alert.problem];
+    // The detail is an error message from our own code or Slack's: one short line, escaped for Slack.
+    const detail = (alert.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 200).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return {
+      bucket: `operations_alert:slack_bot_token_failed:${alert.problem}`,
+      title: `Slack bot token ${alert.problem.replace("_", " ")}`,
+      text: `The Slack bot's rotating token ${what}.${detail ? ` (${detail})` : ""} Look for "Slack bot token" lines in the Vercel logs and see "The bot's rotating token" in docs/runbooks/SECRET_ROTATION.md for recovery (pnpm slack:bot-token status shows the stored expiry).`,
+    };
+  }
+
+  if (alert.type === "slack_blocks_refused") {
+    const what = { post: "chat message", edit: "chat message edit", upload: "chat message with files" }[alert.where];
+    return {
+      bucket: `operations_alert:slack_blocks_refused:${alert.where}`,
+      title: `Slack refused a ${what}'s blocks`,
+      // No message id here: it is a Hub id, and this goes to Slack. The Sentry event has it.
+      text: `Slack refused the rich-text blocks (invalid_blocks) for a ${what}, so it was sent as plain text without its list or underline. The blocks our conversion built (bodyToBlocks in src/lib/chat/rich-blocks.ts) are something Slack does not accept. Find the Sentry event tagged chat_blocks_refused=${alert.where} (it has the message id and Slack's error) and the "Slack refused the blocks" line in the Vercel logs; reproduce with that message's text.`,
+    };
+  }
+
+  if (alert.type === "slack_unfurl_removal_failed") {
+    return {
+      bucket: `operations_alert:slack_unfurl_removal_failed:${alert.reason}`,
+      title: "Slack kept a link preview an author removed",
+      // No message id or address: this goes to Slack. The Vercel log line has the message id.
+      text: `A member removed a link preview from a message they wrote in Hub Chat, and the update that takes it off the Slack copy failed (${alert.reason}). The Hub no longer shows the card; Slack readers may still see it. Look for "taking a preview off the Slack copy" in the Vercel logs (src/lib/chat/slack-unfurl-removal.ts).`,
+    };
+  }
+
+  if (alert.type === "cron_partial_failure") {
+    return {
+      bucket: `operations_alert:cron_partial_failure:${alert.job}`,
+      title: `Scheduled job ${alert.job} did not finish cleanly`,
+      text: `Scheduled job ${alert.job} did not finish cleanly, so its Checkly heartbeat was skipped:\n${alert.problems.join("\n")}\nCheck the Vercel logs for that run.`,
+    };
+  }
+
+  const examples = alert.collisions.slice(0, 3).map(({ reason, slackUserIds, memberIds }) =>
+    `${reason}: Slack IDs ${slackUserIds.join(", ") || "none"}; member IDs ${memberIds.join(", ") || "none"}`
+  );
+  return {
+    bucket: "operations_alert:ambiguous_slack_member_match",
+    title: "Ambiguous Slack member match",
+    text: `${alert.collisions.length} ambiguous Slack member match(es) rejected. Check server logs and Sentry for the full details.\n${examples.join("\n")}`,
+  };
+}
+
+/**
+ * Rate-limit repeated failures across serverless invocations, then post to the staff channel.
+ * If the bot itself is broken, email ALERTS_EMAIL through Resend so that failure is still visible.
+ * Never throws into the member notification or identity-resolution path.
+ */
+export async function sendOperationsAlert(repos: Pick<Repos, "rateLimit">, alert: OperationsAlert): Promise<void> {
+  if (!isProduction) return;
+  const { bucket, title, text } = alertDetails(alert);
+  try {
+    if (!(await repos.rateLimit.hit(bucket, ALERT_WINDOW_SECONDS, 1))) return;
+  } catch (error) {
+    console.error("[operations-alerts] rate limit lookup threw", error);
+  }
+
+  try {
+    const token = await getSlackBotToken();
+    if (!token) throw new Error("SLACK_BOT_TOKEN is not configured");
+    await createSlackClient(token).chat.postMessage({
+      channel: SLACK_ALERTS_CHANNEL_ID,
+      text: `🚨 ${text}`,
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+  } catch (error) {
+    console.error("[operations-alerts] Slack channel post failed", error);
+    Sentry.captureException(error, { tags: { operations_alert: alert.type, alert_channel: "slack" } });
+    const address = process.env.ALERTS_EMAIL;
+    if (!address) {
+      console.error("[operations-alerts] ALERTS_EMAIL is not configured; email fallback unavailable");
+      return;
+    }
+    try {
+      await sendEmail({
+        to: address,
+        subject: `[Hub alert] ${title}`,
+        text,
+        html: `<pre>${text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</pre>`,
+      });
+    } catch (emailError) {
+      console.error("[operations-alerts] email fallback failed", emailError);
+      Sentry.captureException(emailError, { tags: { operations_alert: alert.type, alert_channel: "email" } });
+    }
+  }
+}

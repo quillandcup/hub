@@ -7,7 +7,7 @@ import { hostShortName } from '@/lib/formatters'
 
 /**
  * DB integration test for the query path of getRankedUpcomingPrickles
- * (lib/upcoming-prickles.ts). The pure scoring in lib/prickle-recommendations.ts
+ * (src/lib/upcoming-prickles.ts). The pure scoring in src/lib/prickle-recommendations.ts
  * is unit-tested elsewhere; this verifies that the two parallel fetch rounds
  * (upcoming prickles, member attendance, 60-day past prickles; then past
  * attendance and all-time hosted counts) feed that scoring correctly.

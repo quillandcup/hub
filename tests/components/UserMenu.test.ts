@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 describe('UserMenu Component', () => {
-  const userMenuPath = path.join(process.cwd(), 'components/UserMenu.tsx');
+  const userMenuPath = path.join(process.cwd(), 'src/components/UserMenu.tsx');
   const userMenuContent = fs.readFileSync(userMenuPath, 'utf-8');
 
   it('should have a Settings link', () => {

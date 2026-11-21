@@ -29,7 +29,7 @@ function community(count: number, extra: { off?: number } = {}) {
   return createInMemoryRepos(data);
 }
 
-/** Every file of the sitemap, the way `app/w/sitemap.ts` serves them. */
+/** Every file of the sitemap, the way `src/app/w/sitemap.ts` serves them. */
 async function allFiles(repos: ReturnType<typeof community>, pageSize: number) {
   const ids = sitemapIds(await repos.writerProfiles.publicCount(), pageSize);
   return Promise.all(ids.map((id) => writerSitemapEntries(repos, id, pageSize)));

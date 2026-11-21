@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 const memberRouteSrc = fs.readFileSync(
-  path.join(process.cwd(), 'app/api/process/members/route.ts'),
+  path.join(process.cwd(), 'src/app/api/process/members/route.ts'),
   'utf-8'
 )
 

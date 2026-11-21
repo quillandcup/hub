@@ -6,7 +6,7 @@ interface Stored {
   createdAt: number;
 }
 
-/** A one-bucket stand-in for the parts of Supabase Storage the unfurl picture cache uses. Time comes from lib/clock. */
+/** A one-bucket stand-in for the parts of Supabase Storage the unfurl picture cache uses. Time comes from src/lib/clock. */
 export class FakeStorage {
   objects = new Map<string, Stored>();
   uploads = 0;

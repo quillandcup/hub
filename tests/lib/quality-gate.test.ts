@@ -16,30 +16,30 @@ import type { EslintFileResult } from "../../scripts/quality-new-code";
 
 const ROOT = "/repo";
 const added = new Map([
-  ["lib/new.ts", new Set([10, 11])],
+  ["src/lib/new.ts", new Set([10, 11])],
   ["README.md", new Set([1])],
 ]);
 
-const eslint = (ruleId: string, line: number, file = "/repo/lib/new.ts"): EslintFileResult[] => [
+const eslint = (ruleId: string, line: number, file = "/repo/src/lib/new.ts"): EslintFileResult[] => [
   { filePath: file, messages: [{ ruleId, line, message: "duplicated" }] },
 ];
 
 const knip: KnipReport = {
   issues: [
-    { file: "components/Old.tsx", files: [{ name: "components/Old.tsx" }] },
+    { file: "src/components/Old.tsx", files: [{ name: "src/components/Old.tsx" }] },
     { file: "package.json", dependencies: [{ name: "left-pad", line: 7 }], exports: [{ name: "ignored" }] },
-    { file: "lib/x.ts", unlisted: [{ name: "ghost" }], types: [{ name: "T" }] },
+    { file: "src/lib/x.ts", unlisted: [{ name: "ghost" }], types: [{ name: "T" }] },
   ],
 };
 const baseline: Baseline = {
-  entries: ["files:components/Old.tsx", "dependencies:package.json:left-pad", "unlisted:lib/x.ts:ghost"],
+  entries: ["files:src/components/Old.tsx", "dependencies:package.json:left-pad", "unlisted:src/lib/x.ts:ghost"],
 };
 
 describe("eslintGateFindings", () => {
   it("fails on a gated rule on an added line", () => {
     const f = eslintGateFindings(eslint("sonarjs/no-identical-functions", 10), ROOT, added);
     expect(f).toHaveLength(1);
-    expect(f[0]).toMatchObject({ file: "lib/new.ts", line: 10 });
+    expect(f[0]).toMatchObject({ file: "src/lib/new.ts", line: 10 });
     expect(eslintGateFindings(eslint("sonarjs/no-all-duplicated-branches", 11), ROOT, added)).toHaveLength(1);
   });
 
@@ -62,16 +62,16 @@ describe("knip baseline", () => {
 
   it("flags a finding that is not in the baseline", () => {
     const more: KnipReport = {
-      issues: [...knip.issues, { file: "components/New.tsx", files: [{ name: "components/New.tsx" }] }],
+      issues: [...knip.issues, { file: "src/components/New.tsx", files: [{ name: "src/components/New.tsx" }] }],
     };
     const { added: a, stale } = compareToBaseline(knipGateFindings(more), baseline);
-    expect(a.map((f) => f.key)).toEqual(["files:components/New.tsx"]);
+    expect(a.map((f) => f.key)).toEqual(["files:src/components/New.tsx"]);
     expect(stale).toEqual([]);
   });
 
   it("flags a baseline entry that is no longer a finding", () => {
     const fewer: KnipReport = { issues: knip.issues.slice(0, 2) };
-    expect(compareToBaseline(knipGateFindings(fewer), baseline).stale).toEqual(["unlisted:lib/x.ts:ghost"]);
+    expect(compareToBaseline(knipGateFindings(fewer), baseline).stale).toEqual(["unlisted:src/lib/x.ts:ghost"]);
   });
 });
 
@@ -84,7 +84,7 @@ describe("gateProblems", () => {
 
   it("explains an ESLint failure with the suppression comment", () => {
     const [p] = gateProblems({ ...clean, eslint: eslint("sonarjs/no-identical-functions", 10) });
-    expect(p).toContain("lib/new.ts:10");
+    expect(p).toContain("src/lib/new.ts:10");
     expect(p).toContain("eslint-disable-next-line sonarjs/no-identical-functions");
   });
 
@@ -106,7 +106,7 @@ describe("gateProblems", () => {
 
 describe("lintableFiles", () => {
   it("keeps source files only", () => {
-    expect(lintableFiles(added)).toEqual(["lib/new.ts"]);
+    expect(lintableFiles(added)).toEqual(["src/lib/new.ts"]);
   });
 });
 

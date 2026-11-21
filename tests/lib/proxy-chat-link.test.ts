@@ -1,6 +1,6 @@
 /**
  * What a Slack reader who isn't signed in to the Hub gets from the "Watch it in Hub Chat" link in a shared-video message
- * (`sharedVideoSlackLine`, lib/chat/video-link.ts): the proxy sends them to /login without exposing the message, remembers
+ * (`sharedVideoSlackLine`, src/lib/chat/video-link.ts): the proxy sends them to /login without exposing the message, remembers
  * the link (query and all) in the `hub_next` cookie, and the sign-in paths bring them back to exactly that message
  * (`takeNextPath`). A signed-in member goes straight through. The link is taken from the real Slack text, so a change to its
  * shape that the proxy or the return path would mishandle fails here.
@@ -109,7 +109,7 @@ describe("a signed-out visitor following the Slack link to a shared video", () =
   });
 
   // Sign-in uses the remembered address up. If the chat page then sends them on to connect Slack, that gate carries the page itself
-  // (lib/gates.ts: `?next=`, through Settings and Slack's approval page), so nothing depends on the sign-in cookie lasting.
+  // (src/lib/gates.ts: `?next=`, through Settings and Slack's approval page), so nothing depends on the sign-in cookie lasting.
   it("is carried on by the connect-Slack gate after sign-in has used the address up", async () => {
     const path = await slackLinkPath();
     const res = await call(path);

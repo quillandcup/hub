@@ -4,10 +4,10 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
- * Tables with a repository in lib/data/ are queried only through it, so rules like "count distinct
+ * Tables with a repository in src/lib/data/ are queried only through it, so rules like "count distinct
  * prickles, not attendance records" and pagination live in one place and callers can be tested
  * with the in-memory twin. This fails on a direct `.from("<table>")` in app, lib or components
- * outside lib/data/.
+ * outside src/lib/data/.
  *
  * Allowlist: files not yet moved over. Move a file's queries into the repository and delete its
  * line; a stale entry (the file no longer queries the table directly) fails too, so the list only
@@ -22,7 +22,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Prickle types (PrickleRepository): every query is moved.
   prickle_types: [],
   members: [
-    "app/api/health/route.ts",
+    "src/app/api/health/route.ts",
   ],
   in_app_notifications: [],
   notification_preferences: [],
@@ -94,19 +94,19 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_host_vibes: [],
   prickle_schedule_locks: [],
   prickle_checkin_dm_log: [],
-  // The Wheel of Wonder's matches (WheelOfWonderRepository, lib/data/wheel-of-wonder.ts) and the page-view log
-  // (AccessEventRepository, lib/data/access-events.ts): every query is moved.
+  // The Wheel of Wonder's matches (WheelOfWonderRepository, src/lib/data/wheel-of-wonder.ts) and the page-view log
+  // (AccessEventRepository, src/lib/data/access-events.ts): every query is moved.
   wheel_of_wonder_matches: [],
   access_events: [],
-  // The lesson video a chat message shares (ChatVideoRepository, lib/data/chat-videos.ts): every query is moved.
+  // The lesson video a chat message shares (ChatVideoRepository, src/lib/data/chat-videos.ts): every query is moved.
   chat_message_videos: [],
-  // Hedgie Care's engagements (CareRepository, lib/data/care.ts): every query is moved.
+  // Hedgie Care's engagements (CareRepository, src/lib/data/care.ts): every query is moved.
   care_engagements: [],
-  // The DMs staff track for Hedgie Care (CareTrackedDmRepository, lib/data/care-dms.ts): every query is moved.
+  // The DMs staff track for Hedgie Care (CareTrackedDmRepository, src/lib/data/care-dms.ts): every query is moved.
   care_tracked_dms: [],
-  // Who interacted with whom in chat (MemberInteractionRepository, lib/data/member-interactions.ts): every query is moved.
+  // Who interacted with whom in chat (MemberInteractionRepository, src/lib/data/member-interactions.ts): every query is moved.
   member_interactions: [],
-  // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, lib/data/chat-link-previews.ts): every query is moved.
+  // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, src/lib/data/chat-link-previews.ts): every query is moved.
   chat_link_previews: [],
   chat_hidden_unfurls: [],
   // A member's blocked link previews (ChatLinkPreviewRepository too).
@@ -114,14 +114,14 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
   member_metrics: [],
   member_engagement: [],
-  // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
+  // Chat (ChatRepository, src/lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [
   ],
   chat_channel_members: [],
   chat_messages: [],
   chat_message_contents: [],
-  // Members' unsent chat text (ChatDraftRepository, lib/data/chat-drafts.ts): every query is in the repository.
+  // Members' unsent chat text (ChatDraftRepository, src/lib/data/chat-drafts.ts): every query is in the repository.
   chat_drafts: [],
   chat_reactions: [],
   chat_slack_authors: [],
@@ -144,7 +144,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_product_progress: [],
   kajabi_lesson_progress: [],
   kajabi_lesson_comments: [],
-  // Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
+  // Billing (BillingRepository, src/lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
   kajabi_contacts: [],
   kajabi_customers: [],
   kajabi_purchases: [],
@@ -161,9 +161,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_status_overrides: [],
   member_join_date_overrides: [],
   member_profile_overrides: [],
-  // Members' bookshelves (BookRepository, lib/data/books.ts): every query is moved (lib/data/media.ts reads it for the library's usage list, inside lib/data/).
+  // Members' bookshelves (BookRepository, src/lib/data/books.ts): every query is moved (src/lib/data/media.ts reads it for the library's usage list, inside src/lib/data/).
   member_books: [],
-  // Commitments, check-ins and the dismissed check-in/check-out offers (PrickleActivityRepository, lib/data/prickle-activity.ts): every query is moved.
+  // Commitments, check-ins and the dismissed check-in/check-out offers (PrickleActivityRepository, src/lib/data/prickle-activity.ts): every query is moved.
   // CalendarFeedRepository and CalendarSyncStateRepository: every query is moved.
   calendar_feed_tokens: [],
   calendar_feed_items: [],
@@ -173,8 +173,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_checkins: [],
   prickle_checkin_dismissals: [],
   prickle_checkout_dismissals: [],
-  // Courses (CourseRepository, lib/data/courses.ts: the Silver curriculum and the Mux videos; CourseProgressRepository,
-  // lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments): every query is moved.
+  // Courses (CourseRepository, src/lib/data/courses.ts: the Silver curriculum and the Mux videos; CourseProgressRepository,
+  // src/lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments): every query is moved.
   courses: [],
   course_modules: [],
   course_lessons: [],
@@ -234,7 +234,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
 };
 
 /**
- * Tables still queried directly outside lib/data/ (no repository yet). The census below fails on a direct
+ * Tables still queried directly outside src/lib/data/ (no repository yet). The census below fails on a direct
  * query of a table that is neither registered above nor listed here, so a new table can't slip in without
  * a repository, and fails on a stale entry here, so the list only shrinks. When a table gets a repository,
  * move it from here to REPOSITORY_TABLES.
@@ -247,7 +247,7 @@ const UNMIGRATED_TABLES = new Set<string>([
  * names can see. Each needs a reason; the census fails on a new one and on a stale entry.
  */
 const VARIABLE_TABLE_FILES: Record<string, string> = {
-  "lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
+  "src/lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
 };
 
 const root = path.resolve(__dirname, "../..");
@@ -260,10 +260,10 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-const files = ["app", "lib", "components"]
+const files = ["src/app", "src/lib", "src/components"]
   .flatMap((dir) => sourceFiles(path.join(root, dir)))
   .map((file) => path.relative(root, file))
-  .filter((file) => !file.startsWith("lib/data/"));
+  .filter((file) => !file.startsWith("src/lib/data/"));
 
 function filesQuerying(table: string): string[] {
   const direct = new RegExp(`\\.from\\(\\s*["'\`]${table}["'\`]\\s*\\)`);
@@ -281,14 +281,14 @@ describe("data access layer", () => {
   for (const [table, allowed] of Object.entries(REPOSITORY_TABLES)) {
     it(`${table} is queried through its repository (allowlist: ${allowed.length} files left to move)`, () => {
       const querying = filesQuerying(table);
-      expect(querying.filter((file) => !allowed.includes(file)), "use the repository in lib/data/ instead of .from()").toEqual([]);
+      expect(querying.filter((file) => !allowed.includes(file)), "use the repository in src/lib/data/ instead of .from()").toEqual([]);
       expect(allowed.filter((file) => !querying.includes(file)), "no longer queries it directly: remove from the allowlist").toEqual([]);
     });
   }
 });
 
 /**
- * Every `.from(x)` call outside lib/data/, found by parsing the source (a text search misses a table named by a
+ * Every `.from(x)` call outside src/lib/data/, found by parsing the source (a text search misses a table named by a
  * variable). File storage (`.storage.from(bucket)`, a bucket constant or a hyphenated name) and `Array.from` /
  * `Buffer.from` are not queries.
  */
@@ -325,7 +325,7 @@ describe("data access layer census", () => {
 
   it("no table is queried directly unless it is registered or listed as not yet migrated", () => {
     const unknown = [...tables.keys()].filter((t) => !registered.has(t) && !UNMIGRATED_TABLES.has(t)).sort();
-    expect(unknown, "add a repository in lib/data/ for these tables (and register them in REPOSITORY_TABLES)").toEqual([]);
+    expect(unknown, "add a repository in src/lib/data/ for these tables (and register them in REPOSITORY_TABLES)").toEqual([]);
   });
 
   it("UNMIGRATED_TABLES lists only tables that are still queried directly", () => {
@@ -344,14 +344,14 @@ describe("data access layer census", () => {
  * Supabase Auth's admin API (`<client>.auth.admin`: list, create, invite, ban, delete, sign-in links) is not a table, so the
  * `.from()` census cannot see it. Its accounts have a repository too (AuthUserRepository), which pages the listing past the
  * admin API's 1000 per page (a route that called listUsers itself silently dropped everyone after the first thousand) and has
- * an in-memory twin. Outside lib/data/, use `repos.authUsers`. `scripts/` is checked as well, since the launch scripts
+ * an in-memory twin. Outside src/lib/data/, use `repos.authUsers`. `scripts/` is checked as well, since the launch scripts
  * used to talk to the admin API directly.
  */
 describe("Supabase Auth admin API", () => {
-  const authFiles = ["app", "lib", "components", "scripts"]
+  const authFiles = ["src/app", "src/lib", "src/components", "scripts"]
     .flatMap((dir) => sourceFiles(path.join(root, dir)))
     .map((file) => path.relative(root, file))
-    .filter((file) => !file.startsWith("lib/data/"));
+    .filter((file) => !file.startsWith("src/lib/data/"));
 
   it("is only used through AuthUserRepository", () => {
     const direct: string[] = [];
@@ -368,6 +368,6 @@ describe("Supabase Auth admin API", () => {
       };
       visit(sf);
     }
-    expect([...new Set(direct)].sort(), "use repos.authUsers (lib/data/auth-users.ts) instead of <client>.auth.admin").toEqual([]);
+    expect([...new Set(direct)].sort(), "use repos.authUsers (src/lib/data/auth-users.ts) instead of <client>.auth.admin").toEqual([]);
   });
 });

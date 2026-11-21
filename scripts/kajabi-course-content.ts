@@ -43,14 +43,14 @@ import {
   type EditorPost,
   type LessonTarget,
   type SaveOutcome,
-} from "../lib/kajabi/lesson-content";
-import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
-import { describeDomShape, describeJson, describeMarkup, formatProbe, loginHint, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
-import { ORG_TIMEZONE } from "../lib/config";
-import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
-import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../lib/kajabi/progress-capture";
-import { extractCommentsInPage, parsePostsList, type PostLink } from "../lib/kajabi/comments-capture";
-import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from "../lib/kajabi/comments-run";
+} from "../src/lib/kajabi/lesson-content";
+import { findCourseHero, imageFieldNames, saveCourseHero } from "../src/lib/kajabi/course-hero";
+import { describeDomShape, describeJson, describeMarkup, formatProbe, loginHint, normalizeRequestPath, queryNames, type ProbedRequest } from "../src/lib/kajabi/probe";
+import { ORG_TIMEZONE } from "../src/lib/config";
+import { ProgressSessionExpiredError, runProgressCapture } from "../src/lib/kajabi/progress-run";
+import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../src/lib/kajabi/progress-capture";
+import { extractCommentsInPage, parsePostsList, type PostLink } from "../src/lib/kajabi/comments-capture";
+import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from "../src/lib/kajabi/comments-run";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 

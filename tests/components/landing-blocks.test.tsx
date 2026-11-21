@@ -463,7 +463,7 @@ describe("checks for the ready-made blocks", () => {
   });
 });
 
-// ---- Homepage blocks (components/landing/homepage-blocks.tsx) ---------------------------------------------------------
+// ---- Homepage blocks (src/components/landing/homepage-blocks.tsx) ---------------------------------------------------------
 
 describe("AnnouncementStrip", () => {
   it("is dark text on gold with a link button, and a dot that is hidden from screen readers and pulses only when motion is allowed", () => {
@@ -475,7 +475,7 @@ describe("AnnouncementStrip", () => {
     const dot = container.querySelector("[aria-hidden='true']")!;
     expect(dot.className).toContain("landing-pulse");
     // The animation exists only inside the no-preference media query.
-    const css = readFileSync("app/globals.css", "utf8");
+    const css = readFileSync("src/app/globals.css", "utf8");
     expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.landing-pulse \{\s*animation:/);
     expect(css.replace(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.landing-pulse[^}]*\}\s*\}/, "")).not.toMatch(/\.landing-pulse\s*\{[^}]*animation/);
   });

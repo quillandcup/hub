@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({ duplicate: vi.fn(), remove: vi.fn(), create: v
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, refresh: mocks.refresh, replace: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));
-vi.mock("../../app/(admin)/admin/pages/actions", () => ({ duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove, createLandingPage: mocks.create, createLandingPageWithAi: mocks.createAi }));
+vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({ duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove, createLandingPage: mocks.create, createLandingPageWithAi: mocks.createAi }));
 
 import PagesTable from "@/app/(admin)/admin/pages/PagesTable";
 import NewPageForm from "@/app/(admin)/admin/pages/new/NewPageForm";

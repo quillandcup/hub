@@ -3,7 +3,7 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } fro
 import { apiFetch } from '../../helpers/api-fetch'
 
 /**
- * Integration tests for event attendees (app/api/admin/events/[id]/attendees) and their
+ * Integration tests for event attendees (src/app/api/admin/events/[id]/attendees) and their
  * interaction with badge auto-granting (badge_types.event_id / member_badges.event_id, see
  * 20260905010000_link_badges_to_events_and_attendees.sql). Exercises the real HTTP API end to
  * end -- the underlying SQL functions themselves were verified directly against a live Postgres

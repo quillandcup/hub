@@ -30,7 +30,7 @@ describe("contentId", () => {
   });
 
   it("skips a path the commit doesn't have, and is null when git knows none of them", () => {
-    expect(contentId("a", (_rev, p) => (p === "app" ? "x" : null))).toMatch(/^[0-9a-f]{12}$/);
+    expect(contentId("a", (_rev, p) => (p === "src/app" ? "x" : null))).toMatch(/^[0-9a-f]{12}$/);
     expect(contentId("a", () => null)).toBeNull();
   });
 });

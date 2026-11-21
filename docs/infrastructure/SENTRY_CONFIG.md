@@ -23,13 +23,13 @@ Read-only. It needs `SENTRY_CONFIG_TOKEN` in `.env.prod` or `.env.shared`. It li
 
 ## Adding a rule
 
-Add an entry under `alerts:` with a name starting `Hub: `, a `when` (`new_issue`, `regression` or `every_event`), the `tag` it is limited to (`{ key, value }` for a tag equal to a value, `{ key }` for a tag that is merely set), and `frequencyMinutes` (the pause between two emails for the same issue). `when: every_event` needs either `moreThan: { count, interval }` (more than `count` events within `interval`, such as `1h`) or a `frequencyMinutes` above 0: without a threshold the rule emails on an issue's first event, and then at most once per `frequencyMinutes` (the health check rule uses 1440, one email a day per issue). Sentry's workflow `frequency` is that per-issue pause. The shapes are checked by `parseAlertRules` (`lib/sentry-config.ts`).
+Add an entry under `alerts:` with a name starting `Hub: `, a `when` (`new_issue`, `regression` or `every_event`), the `tag` it is limited to (`{ key, value }` for a tag equal to a value, `{ key }` for a tag that is merely set), and `frequencyMinutes` (the pause between two emails for the same issue). `when: every_event` needs either `moreThan: { count, interval }` (more than `count` events within `interval`, such as `1h`) or a `frequencyMinutes` above 0: without a threshold the rule emails on an issue's first event, and then at most once per `frequencyMinutes` (the health check rule uses 1440, one email a day per issue). Sentry's workflow `frequency` is that per-issue pause. The shapes are checked by `parseAlertRules` (`src/lib/sentry-config.ts`).
 
 **Sentry alerts email only on this plan** (to the issue owners, or the active members of the project's teams when an issue has no owner). Sentry cannot send to Slack here, and the owner wants one channel: the daily health check (`docs/infrastructure/CSP_ALERTS.md`) emits Sentry events too, not Slack posts. Nothing here reads from Sentry.
 
 ## Not covered
 
-- **Session Replay masking** is client-side: `instrumentation-client.ts` and `data-sentry-unmask` on the components it unmasks.
+- **Session Replay masking** is client-side: `src/instrumentation-client.ts` and `data-sentry-unmask` on the components it unmasks.
 - **Retention** (replays, errors) is set by Sentry's plan, not by the API.
 - **Other project settings** (additional sensitive fields, safe fields, custom scrubbing rules) are not managed; add them to the file and script when one is needed.
 - **Alert rules other than `Hub: ...`**, including Sentry's defaults, stay as they are in the dashboard.

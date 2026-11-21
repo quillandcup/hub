@@ -1,6 +1,6 @@
 // Service worker for Browser notifications (Web Push). Registered from the settings page when a
-// member turns notifications on for a device (components/BrowserNotificationsToggle.tsx). The payload
-// shape is PushPayload in lib/channels/web-push.ts. No app content is cached or precached: it shows
+// member turns notifications on for a device (src/components/BrowserNotificationsToggle.tsx). The payload
+// shape is PushPayload in src/lib/channels/web-push.ts. No app content is cached or precached: it shows
 // notifications, opens the Hub, and keeps a small local history for click diagnostics.
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -129,7 +129,7 @@ self.addEventListener("notificationclick", (event) => {
 async function handleClick(event, notificationId, context) {
   context.operation = "close_notification";
   event.notification.close();
-  // A Hub path, or an https link the server allowed (notificationUrl in lib/channels/in-app.ts: the
+  // A Hub path, or an https link the server allowed (notificationUrl in src/lib/channels/in-app.ts: the
   // Slack workspace only); resolve against our own origin.
   context.operation = "resolve_target";
   const target = new URL(context.target, self.location.origin);

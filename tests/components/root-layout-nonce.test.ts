@@ -1,5 +1,5 @@
 /**
- * The proxy makes a script nonce per request (lib/csp.ts, proxy.ts). The root layout passes it to the pieces that write inline
+ * The proxy makes a script nonce per request (src/lib/csp.ts, src/proxy.ts). The root layout passes it to the pieces that write inline
  * scripts and styles: the theme provider, the consent default script and the Google Analytics tag. Without it the browser
  * reports each of them as a violation (production reports, 2026-11-18).
  */

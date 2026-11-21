@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 const src = fs.readFileSync(
-  path.join(process.cwd(), 'components/CalendarWeekView.tsx'),
+  path.join(process.cwd(), 'src/components/CalendarWeekView.tsx'),
   'utf-8'
 );
 

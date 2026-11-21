@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-// `pnpm types:gen` runs one pinned Supabase CLI so the generated lib/data/database.types.ts is the
+// `pnpm types:gen` runs one pinned Supabase CLI so the generated src/lib/data/database.types.ts is the
 // same on every machine and in CI (the generator formats its output differently from version to
 // version), and CI's `types:check` regenerates it with that version. If the workflow's CLI pin moves,
 // the script has to move with it, or the check fails on every run.

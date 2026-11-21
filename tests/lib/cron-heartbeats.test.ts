@@ -64,7 +64,7 @@ describe("CRON_HEARTBEATS coverage", () => {
 
   it("pings from each job's route", () => {
     for (const [job, h] of Object.entries(CRON_HEARTBEATS)) {
-      const src = fs.readFileSync(path.join(process.cwd(), "app", h.path, "route.ts"), "utf8");
+      const src = fs.readFileSync(path.join(process.cwd(), "src", "app", h.path, "route.ts"), "utf8");
       expect(src, h.path).toMatch(new RegExp(`CronHeartbeat\\("${job}"`));
     }
   });

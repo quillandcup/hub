@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Member directory (app/(member)/members/page.tsx): lists current members from the
+ * Member directory (src/app/(member)/members/page.tsx): lists current members from the
  * get_member_directory RPC, searches them client-side, and folds in the viewer's own private
  * notes (never in sudo).
  */

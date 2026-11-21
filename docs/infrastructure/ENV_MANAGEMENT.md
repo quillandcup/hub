@@ -8,7 +8,7 @@ How environment variables are declared, where their values live, how they reach 
 
 | Where | What | Committed |
 |---|---|---|
-| `config/app.ts` (read through `lib/config.ts`) | Settings that are the same in every environment and fine to publish: URLs, hosts, the org timezone, ids, slugs. No env var, no sync. | yes |
+| `config/app.ts` (read through `src/lib/config.ts`) | Settings that are the same in every environment and fine to publish: URLs, hosts, the org timezone, ids, slugs. No env var, no sync. | yes |
 | An env var declared in `config/env-vars.ts` | A secret, or anything not fit to publish (the repo is public). | no (only the declaration) |
 | `.env.example` | A template with no real values, in the same group order as `config/env-vars.ts`. | yes |
 
@@ -49,7 +49,7 @@ pnpm env:sync:vault    # Supabase Vault, for SQL and pg_cron
   pnpm env:sync --only=NAME1,NAME2 --target=production
   ```
 
-  `--only` and `--target` also take a space instead of `=`. Anything the script does not understand, including a name that is not synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (the heartbeat variables, for instance, are generated from `lib/cron-heartbeats.ts`), so pull first.
+  `--only` and `--target` also take a space instead of `=`. Anything the script does not understand, including a name that is not synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (the heartbeat variables, for instance, are generated from `src/lib/cron-heartbeats.ts`), so pull first.
 - **GitHub**: `pnpm env:sync:github --only=NAME[,NAME...]` takes the same `--only` flag; without it every GitHub secret and variable is rewritten.
 - **Vault**: production-only secrets, sourced from `.env.prod`, written to the linked Supabase project.
 - Sync only what a variable's destinations in `config/env-vars.ts` say.

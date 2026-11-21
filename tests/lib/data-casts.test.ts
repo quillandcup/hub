@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * The repositories in `lib/data/` are where the PostgREST client's types start, so a column or shape mistake
+ * The repositories in `src/lib/data/` are where the PostgREST client's types start, so a column or shape mistake
  * should be a compile error, not a runtime bug. Type a query by letting the client infer it from
  * `database.types.ts`; where it can't (a select string built at runtime, a view whose columns are all
  * nullable, a text column held to a union by a check constraint) end the chain with
@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
  */
 const CEILING = 3;
 
-const DIR = path.join(process.cwd(), "lib/data");
+const DIR = path.join(process.cwd(), "src/lib/data");
 const CAST = /\bas unknown as\b|\bas any\b|:\s*any\b|<any>|\bas never\b/;
 
 function casts() {
@@ -32,7 +32,7 @@ function casts() {
   return found;
 }
 
-describe("lib/data type casts", () => {
+describe("src/lib/data type casts", () => {
   const found = casts();
 
   it("every remaining cast says why, on the same or the previous line", () => {

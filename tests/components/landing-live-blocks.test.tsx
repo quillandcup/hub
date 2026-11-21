@@ -109,7 +109,7 @@ describe("SchedulePanel, live", () => {
 });
 
 describe("OutcomeNumbers, live", () => {
-  // The server puts `live` in the props of each figure that has one (lib/landing/live-data.ts); `note` is the block's switch.
+  // The server puts `live` in the props of each figure that has one (src/lib/landing/live-data.ts); `note` is the block's switch.
   const items = [
     { source: "live" as const, stat: "hours_30d", value: "typed", label: "", note: "", live: { value: "890+", caption: "hours written together in prickles in the last 30 days", note: true } },
     { source: "live" as const, stat: "words_30d", value: "50,000+", label: "words in the Hub", note: "", live: { value: "54,000+", caption: "the caption", note: true } },

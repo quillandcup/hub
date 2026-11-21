@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from "vitest";
 // A client component must not reach a module that imports a Node built-in (crypto, vm, stream...): the bundler then ships
 // browser copies of them, and the `vm` one calls eval(), which a Content-Security-Policy without 'unsafe-eval' blocks
 // (Sentry HUB-1E; docs/TODO.md, "CSP for scripts and styles (nonces)"). Keep browser code on small client-safe modules
-// (lib/chat/channels.ts is the pattern) and leave the Node-only work to server modules.
+// (src/lib/chat/channels.ts is the pattern) and leave the Node-only work to server modules.
 
 const ROOT = process.cwd();
 const BUILTIN = /^(node:)?(crypto|vm|stream|zlib|buffer|fs|path|child_process|os|net|tls|http|https|util)$/;
@@ -30,8 +30,11 @@ const read = (file: string): string => {
   return cache.get(file)!;
 };
 
+/** Where an `@/` import points, from the repo root: src/, except the root folders `paths` in tsconfig.json also maps. */
+const atRoot = (spec: string): string => (/^@\/(config|scripts|tests)\//.test(spec) ? spec.slice(2) : `src/${spec.slice(2)}`);
+
 function resolveImport(from: string, spec: string): string | null {
-  const base = spec.startsWith("@/") ? join(ROOT, spec.slice(2)) : spec.startsWith(".") ? resolve(dirname(from), spec) : null;
+  const base = spec.startsWith("@/") ? join(ROOT, atRoot(spec)) : spec.startsWith(".") ? resolve(dirname(from), spec) : null;
   if (!base) return null;
   for (const ext of EXTENSIONS) if (existsSync(base + ext) && statSync(base + ext).isFile()) return base + ext;
   return null;
@@ -69,7 +72,7 @@ describe("client components and Node built-ins", () => {
   const rel = (path: string) => path.replace(`${ROOT}/`, "");
 
   it("no client component reaches a module that imports a Node built-in", () => {
-    const files = ["app", "components", "lib"].flatMap((dir) => walk(join(ROOT, dir)));
+    const files = ["src/app", "src/components", "src/lib"].flatMap((dir) => walk(join(ROOT, dir)));
     const chains = [...clientEntriesReachingBuiltins(files).values()].map((chain) => chain.map(rel).join(" > "));
     expect(chains).toEqual([]);
   });

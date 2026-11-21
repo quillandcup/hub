@@ -1,10 +1,10 @@
 ---
 paths:
   - "supabase/migrations/**"
-  - "lib/ids.ts"
-  - "lib/data/**"
-  - "app/api/**"
-  - "app/**/page.tsx"
+  - "src/lib/ids.ts"
+  - "src/lib/data/**"
+  - "src/app/api/**"
+  - "src/app/**/page.tsx"
 ---
 
 ### Resource ID Tiers
@@ -22,6 +22,6 @@ Not everything that looks like an id is one of ours. Slugs and feature or badge 
 - **Prefix.** Lowercase letters only, unique across all tables, short and pronounceable (see the Tier 1 and Tier 2 lists in the plan; take the next free one for a new table). Record it in the table comment: `COMMENT ON TABLE ... IS '... [id prefix: xxx_]'`. A table a person will see in a URL, link or message is Tier 1 and needs a readable prefix agreed with the owner first; everything else is Tier 2 and its id must never be exposed (previous section).
 - **References.** `member_id text NOT NULL REFERENCES members(id)`, not `uuid`. Tables whose key is a reference (`member_id` as the primary key) or a composite of references follow the same rule.
 - **Still uuid.** Anything Supabase owns (`auth.users.id` and every column that references it: `user_id`, `created_by`, `updated_by`, ...), auth session ids, Vault secret ids, and ids the browser makes up (analytics `message_id`/`session_id`, watch-segment ids) stay `uuid`. External ids (Slack, Zoom, Kajabi, Stripe, Mux) are text from the source and are not ours.
-- **App code.** Validate an id from a URL, query string or form with `isId(value, "<prefix>")` from `lib/ids.ts` (add the prefix to `ID_PREFIXES` for a new Tier 1 table), never with a uuid regex or `z.string().uuid()`. `isUuid` is only for auth and browser-made ids. Tests and fixtures use prefixed ids (`mbr_AAAAAAAAAAA1`; base58 has no `0`, `O`, `I` or `l`), not uuid literals.
+- **App code.** Validate an id from a URL, query string or form with `isId(value, "<prefix>")` from `src/lib/ids.ts` (add the prefix to `ID_PREFIXES` for a new Tier 1 table), never with a uuid regex or `z.string().uuid()`. `isUuid` is only for auth and browser-made ids. Tests and fixtures use prefixed ids (`mbr_AAAAAAAAAAA1`; base58 has no `0`, `O`, `I` or `l`), not uuid literals.
 - **SQL functions.** Arguments, results and variables that hold one of our ids are `text`. A function with a uuid argument that is really one of our ids breaks the moment the table converts: `CREATE OR REPLACE` cannot change a signature, so it means a drop and recreate with grants and comments replayed.
 - **Migrations that rewrite ids.** If one sets `session_replication_role = replica` (to keep triggers and audit rows quiet), end it with `NOTIFY pgrst, 'reload schema';`: replica mode also silences the event trigger that makes PostgREST reload, and production would keep calling the old function signatures. See "Lessons from the phase 1 run" in the plan.

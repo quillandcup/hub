@@ -1,6 +1,6 @@
 -- pgTAP tests for the settings of a course's modules and lessons (20270401000000): each has its
 -- OWN setting, an item can simply follow what is above it, and the state members get is worked out from
--- them by one rule (lib/courses/visibility.ts is the same rule: keep the two in step, tests/lib/
+-- them by one rule (src/lib/courses/visibility.ts is the same rule: keep the two in step, tests/lib/
 -- courses-visibility-rule.test.ts has the same cases). Changing a setting is one audit entry for the
 -- thing changed, and the states that merely follow are not audited row by row. Runs in one transaction that
 -- is rolled back, so it leaves the shared local DB untouched. Run with `pnpm test:pgtap`.

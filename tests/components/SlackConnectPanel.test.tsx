@@ -106,7 +106,7 @@ describe("SlackConnectPanel privacy link", () => {
     expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
   });
 
-  // The connect-Slack gate (lib/gates.ts): chat sent them here with the page they were headed to.
+  // The connect-Slack gate (src/lib/gates.ts): chat sent them here with the page they were headed to.
   describe("when the connect-Slack gate sent the member here", () => {
     const DESTINATION = "/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1";
 

@@ -10,7 +10,7 @@ const ROOT = resolve(__dirname, "../..");
 /**
  * Every trust page row points at where its promise is kept. A path in the list that no longer exists is a row
  * nobody can check, so it fails here (a rename or a deleted file shows up in the PR that does it).
- * An entry may carry a note after the path ("lib/x.ts (what part)"); the path is its first word. Entries that
+ * An entry may carry a note after the path ("src/lib/x.ts (what part)"); the path is its first word. Entries that
  * are prose and not a path ("no Stripe.js or checkout code anywhere") are skipped.
  */
 const LISTS: Record<string, readonly string[]> = {

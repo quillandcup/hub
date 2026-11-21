@@ -6,7 +6,7 @@ import { apiFetch } from '../../helpers/api-fetch'
  * member_status_overrides (gift, direct_stripe) must actually stick after
  * reprocessing — this is the fix for the bug where a manually-set 'active'
  * status got silently reverted to the Kajabi-derived value on every nightly
- * sync (see app/api/process/members/route.ts and the reprocess_members_atomic
+ * sync (see src/app/api/process/members/route.ts and the reprocess_members_atomic
  * override step it relies on). Hiatus has its own dedicated table and its
  * own reprocessability coverage — see member-hiatus-history.test.ts.
  */

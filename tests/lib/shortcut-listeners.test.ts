@@ -12,19 +12,19 @@ const ROOT = process.cwd();
 
 /** Listeners that handle more than Escape, and why each is fine. Keep it honest and small. */
 const ALLOWED: Record<string, string> = {
-  "components/Modal.tsx": "registered: Esc closes the top dialog (basics-close)",
-  "components/HelpMenu.tsx": "registered: Esc closes the Help menu (basics-close)",
-  "components/shortcuts/ShortcutsProvider.tsx": "registered: ? and Esc for the panel (basics-panel, basics-close)",
-  "components/search/SearchPalette.tsx": "registered: Mod+K and / (search-open); the list keys are its own (search-*)",
-  "components/CalendarKeyboardNav.tsx": "registered: reads CALENDAR_KEYBOARD_SHORTCUTS, calls useRegisterShortcuts",
-  "lib/hooks/useTableKeyboardNav.ts": "registered: reads TABLE_KEYBOARD_SHORTCUTS via TableKeyboardNav",
-  "lib/hooks/usePhotoViewerKeys.ts": "registered: Left/Right step through photos while a lightbox is open (photo-viewer-previous, photo-viewer-next)",
-  "app/(admin)/admin/pages/[slug]/LandingEditor.tsx": "registered: Ctrl/Cmd+S saves the page (landing-editor-save)",
+  "src/components/Modal.tsx": "registered: Esc closes the top dialog (basics-close)",
+  "src/components/HelpMenu.tsx": "registered: Esc closes the Help menu (basics-close)",
+  "src/components/shortcuts/ShortcutsProvider.tsx": "registered: ? and Esc for the panel (basics-panel, basics-close)",
+  "src/components/search/SearchPalette.tsx": "registered: Mod+K and / (search-open); the list keys are its own (search-*)",
+  "src/components/CalendarKeyboardNav.tsx": "registered: reads CALENDAR_KEYBOARD_SHORTCUTS, calls useRegisterShortcuts",
+  "src/lib/hooks/useTableKeyboardNav.ts": "registered: reads TABLE_KEYBOARD_SHORTCUTS via TableKeyboardNav",
+  "src/lib/hooks/usePhotoViewerKeys.ts": "registered: Left/Right step through photos while a lightbox is open (photo-viewer-previous, photo-viewer-next)",
+  "src/app/(admin)/admin/pages/[slug]/LandingEditor.tsx": "registered: Ctrl/Cmd+S saves the page (landing-editor-save)",
 };
 
 /** Escape-only popups that also have a keyboard handler of their own on an element, which this check cannot tell apart. */
 const ESCAPE_LISTENER_WITH_ELEMENT_KEYS: Record<string, string> = {
-  "components/chat/EmojiPicker.tsx": "Esc closes the popup; the cell grid's arrows are element-level onKeyDown (docs/TODO.md, \"Chat Emoji Picker\")",
+  "src/components/chat/EmojiPicker.tsx": "Esc closes the popup; the cell grid's arrows are element-level onKeyDown (docs/TODO.md, \"Chat Emoji Picker\")",
 };
 
 const LISTENER = /(?:window|document)\.addEventListener\(\s*["'`]key(?:down|up|press)["'`]/;
@@ -46,11 +46,11 @@ function readsOtherKeys(source: string): boolean {
 }
 
 describe("page-wide key listeners", () => {
-  const files = ["components", "app", "lib"].flatMap((dir) => sourceFiles(dir));
+  const files = ["src/components", "src/app", "src/lib"].flatMap((dir) => sourceFiles(dir));
   const withListener = files.filter((file) => LISTENER.test(readFileSync(join(ROOT, file), "utf8")));
 
   it("finds the listeners it should (so a broken pattern cannot pass for ever)", () => {
-    expect(withListener).toEqual(expect.arrayContaining(Object.keys(ALLOWED).filter((f) => !f.startsWith("app/") || true)));
+    expect(withListener).toEqual(expect.arrayContaining(Object.keys(ALLOWED).filter((f) => !f.startsWith("src/app/") || true)));
     expect(withListener.length).toBeGreaterThan(10);
   });
 
@@ -60,7 +60,7 @@ describe("page-wide key listeners", () => {
       .filter((file) => readsOtherKeys(readFileSync(join(ROOT, file), "utf8")));
     expect(
       unregistered,
-      `${unregistered.join(", ")} listens for keys on the whole page. Register the shortcut in lib/shortcuts.ts, add a driver in tests/components/ShortcutDrivers.test.tsx and, only if it is not a shortcut, list the file in tests/lib/shortcut-listeners.test.ts with a reason. See .claude/rules/keyboard-shortcuts.md.`,
+      `${unregistered.join(", ")} listens for keys on the whole page. Register the shortcut in src/lib/shortcuts.ts, add a driver in tests/components/ShortcutDrivers.test.tsx and, only if it is not a shortcut, list the file in tests/lib/shortcut-listeners.test.ts with a reason. See .claude/rules/keyboard-shortcuts.md.`,
     ).toEqual([]);
   });
 

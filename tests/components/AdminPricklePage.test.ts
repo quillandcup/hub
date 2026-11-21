@@ -3,19 +3,19 @@ import fs from 'fs';
 import path from 'path';
 
 const adminPageSrc = fs.readFileSync(
-  path.join(process.cwd(), 'app/(admin)/admin/prickles/[id]/page.tsx'),
+  path.join(process.cwd(), 'src/app/(admin)/admin/prickles/[id]/page.tsx'),
   'utf-8'
 );
 
 const memberPageSrc = fs.readFileSync(
-  path.join(process.cwd(), 'app/(member)/prickles/[id]/page.tsx'),
+  path.join(process.cwd(), 'src/app/(member)/prickles/[id]/page.tsx'),
   'utf-8'
 );
 
 describe('Admin prickle detail page routing', () => {
   it('exists at the admin route path', () => {
     const exists = fs.existsSync(
-      path.join(process.cwd(), 'app/(admin)/admin/prickles/[id]/page.tsx')
+      path.join(process.cwd(), 'src/app/(admin)/admin/prickles/[id]/page.tsx')
     );
     expect(exists).toBe(true);
   });
@@ -64,14 +64,14 @@ describe('Admin prickle detail page routing', () => {
 describe('PrickleDetails component location', () => {
   it('is in the shared components directory', () => {
     const exists = fs.existsSync(
-      path.join(process.cwd(), 'components/PrickleDetails.tsx')
+      path.join(process.cwd(), 'src/components/PrickleDetails.tsx')
     );
     expect(exists).toBe(true);
   });
 
   it('is no longer in the member route group', () => {
     const exists = fs.existsSync(
-      path.join(process.cwd(), 'app/(member)/prickles/[id]/PrickleDetails.tsx')
+      path.join(process.cwd(), 'src/app/(member)/prickles/[id]/PrickleDetails.tsx')
     );
     expect(exists).toBe(false);
   });

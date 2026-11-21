@@ -18,7 +18,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseAddedLines } from "./added-lines";
+import { addedLinesDiffArgs, parseAddedLines } from "./added-lines";
 import { qualityFindings, type EslintFileResult, type Finding } from "./quality-new-code";
 
 /** ESLint rules that fail the gate when they fire on an added line. */
@@ -114,7 +114,7 @@ function run(cmd: string, args: string[]): { status: number | null; stdout: stri
 }
 
 function addedLines(base: string): Map<string, Set<number>> {
-  const diff = run("git", ["diff", "-U0", "--no-color", "--diff-filter=AM", `${base}...HEAD`]);
+  const diff = run("git", addedLinesDiffArgs(base));
   if (diff.status !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
   return parseAddedLines(diff.stdout);
 }

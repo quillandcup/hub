@@ -1,0 +1,416 @@
+"use client";
+
+import { useState } from "react";
+import { clock } from "@/lib/clock";
+import Link from "next/link";
+import MemberAttendanceView from "@/components/MemberAttendanceView";
+import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusBadge";
+import { InfoTip } from "@/components/InfoTip";
+import { TabBar, replaceTabPath, setTabDocumentTitle, useFollowTabPath } from "@/components/Tabs";
+import { MEMBER_TAB_IDS, MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
+import { parseDateOnly } from "@/lib/member-tenure";
+import { countDistinctPrickles } from "@/lib/attendance-grouping";
+import MemberTimelinePanel from "./MemberTimelinePanel";
+import type { SlackSummary } from "@/lib/data/activities";
+import MemberSlackActivityPanel, { type SlackPageData } from "./MemberSlackActivityPanel";
+import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
+import MemberNoteForm from "./MemberNoteForm";
+import LatestNoteCard, { type LatestNote } from "./LatestNoteCard";
+import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
+import ActivityRangeSummary from "@/app/(admin)/admin/activity/ActivityRangeSummary";
+import { ALL_TIME_DAYS, feedSearch, MEMBER_DEFAULTS, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
+import MemberBadgesPanel from "./MemberBadgesPanel";
+import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNotificationsPanel";
+import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
+import type { EarnedBadge } from "@/lib/badges";
+import { formatDateInZone } from "@/lib/formatters";
+import RemoveMemberPanel from "./RemoveMemberPanel";
+import { useTimeZone } from "@/components/Timezone";
+import type { AdminMember } from "@/lib/data/members";
+import type { StaffFeature } from "@/lib/staff-access";
+
+/** The member as the page shows them: the admin view plus the engagement numbers computed for this page. */
+export type MemberView = AdminMember & {
+  metrics: { lastAttendedAt: string | null; pricklesLast30Days: number; totalPrickles: number; engagementScore: number } | null;
+  engagement: { riskLevel: string } | null;
+};
+
+interface MemberDetailsProps {
+  /** The tab the route opened (/admin/members/<id>[/<tab>]). */
+  initialTab: MemberTabId;
+  member: MemberView;
+  attendanceRecords: any[];
+  hiatusHistory: any[];
+  /** One page of the member's Slack activity (empty off the Slack tab). */
+  slackPage: SlackPageData;
+  /** Totals over all of the member's Slack activity; slackActivities is only the latest page. */
+  slackSummary: SlackSummary;
+  /** One page of this member's activity log (src/lib/activity-feed.ts). */
+  /** Null when the feed query failed. */
+  activityFeed: FeedPage | null;
+  /** The filters that feed was fetched with (parsed from the tab's URL). */
+  activityFilters: FeedFilters;
+  /** The signed-in admin, and how long they can edit a note they wrote: the timeline shows Edit only on their own recent notes. */
+  currentUserId: string | null;
+  noteEditMinutes: number;
+  /** The newest staff note, for the Overview; null when there are none. */
+  latestNote: LatestNote | null;
+  userTimezonePreference?: string; // User's timezone preference from profile
+  membershipHistory: any[];
+  programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
+  statusOverrides?: { id: string; override_type: string; reason: string | null; starts_at: string; expires_at: string | null }[];
+  earnedBadges: EarnedBadge[];
+  /** The address of each event an earned badge is linked to, by event id. */
+  eventSlugs?: Record<string, string>;
+  awardableBadgeTypes: { id: string; name: string; icon: string }[];
+  awards: {
+    id: string;
+    badgeTypeId: string;
+    badgeTypeName: string;
+    badgeTypeIcon: string;
+    occurredAt: string;
+    note: string | null;
+    eventId: string | null;
+    eventTitle: string | null;
+    eventSlug: string | null;
+  }[];
+  nameAliases: NameAliasRow[];
+  emailAliases: EmailAliasRow[];
+  /** The Notifications tab's data; null off that tab or when the viewer may not see it. */
+  notificationsInfo?: { devices: string[]; newcomer: boolean; kinds: NotificationKindRow[] } | null;
+  /** What the viewer may see or do beyond reading (src/lib/staff-access.ts): everything else is hidden. */
+  features: readonly StaffFeature[];
+}
+
+type Tab = MemberTabId;
+
+export default function MemberDetails({
+  initialTab,
+  member,
+  attendanceRecords,
+  hiatusHistory,
+  slackPage,
+  slackSummary,
+  activityFeed,
+  activityFilters,
+  currentUserId,
+  noteEditMinutes,
+  latestNote,
+  userTimezonePreference = "browser",
+  membershipHistory,
+  programOverrides = [],
+  statusOverrides = [],
+  earnedBadges,
+  eventSlugs,
+  awardableBadgeTypes,
+  awards,
+  nameAliases,
+  emailAliases,
+  notificationsInfo = null,
+  features,
+}: MemberDetailsProps) {
+  const can = (feature: StaffFeature) => features.includes(feature);
+  // The Activity tab: the whole log for an admin, only the member's own activity for a community manager (the limited feature).
+  const activityLimited = !can("member.activity_tab") && can("member.activity_tab_limited");
+  const showActivity = can("member.activity_tab") || activityLimited;
+  const timeZone = useTimeZone();
+  const [activeTab, setActiveTabState] = useState<Tab>(initialTab);
+  // Keep the tab in the URL path so a reload, or Back from a prickle/detail page, returns to it.
+  const basePath = `/admin/members/${member.id}`;
+  useFollowTabPath(basePath, MEMBER_TAB_IDS, setActiveTabState);
+  const setActiveTab = (tab: Tab) => {
+    setActiveTabState(tab);
+    if (tab === activeTab) return;
+    replaceTabPath(basePath, tab, "overview");
+    setTabDocumentTitle({ record: member.displayName?.trim() || member.name }, MEMBER_TAB_LABELS[tab], tab === "overview");
+  };
+
+  const status = member.status as MemberStatus; // members.status is checked to these four values
+  const memberMetrics = member.metrics;
+  const memberEngagement = member.engagement;
+
+  const isRejoin = !!(member.mostRecentJoinedAt && member.mostRecentJoinedAt !== member.firstJoinedAt);
+  const mostRecentJoinedDate = member.mostRecentJoinedAt ? parseDateOnly(member.mostRecentJoinedAt) : null;
+  const daysSinceRejoin = mostRecentJoinedDate
+    ? Math.floor((clock.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
+    : Infinity;
+  const showWelcomeBack = isRejoin && daysSinceRejoin <= 30;
+
+  const distinctPrickleCount = countDistinctPrickles(attendanceRecords);
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "overview", label: MEMBER_TAB_LABELS.overview },
+    { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
+    { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
+    ...(!showActivity ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
+    ...(!can("member.account_tab") ? [] : [{ id: "account" as const, label: MEMBER_TAB_LABELS.account }]),
+    ...(!can("member.push_devices") ? [] : [{ id: "notifications" as const, label: MEMBER_TAB_LABELS.notifications }]),
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Condensed stat strip */}
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <StatItem label="Status">
+            <div className="flex flex-col gap-0.5">
+              <MemberStatusBadge status={status} />
+              {statusOverrides.length > 0 && (
+                <Link
+                  href="/admin/member-overrides"
+                  className="text-xs text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
+                >
+                  Status Overrides
+                </Link>
+              )}
+            </div>
+          </StatItem>
+          <StatItem
+            label="Engagement"
+            info="Activity points from the last 30 days (a prickle is worth 10, Slack activity 1-3), capped at 100."
+          >
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {memberMetrics?.engagementScore || 0}
+              <span className="text-xs font-normal text-slate-600 dark:text-slate-400"> / 100</span>
+            </span>
+          </StatItem>
+          {member.status === "active" && (
+            <StatItem
+              label="Churn risk"
+              info="Days since the member last attended a prickle: low under 15, medium 15-30, high over 30 or never. Separate from the engagement score."
+            >
+              <RiskBadge risk={memberEngagement?.riskLevel || "low"} />
+            </StatItem>
+          )}
+          <StatItem label="Total Prickles">
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {memberMetrics?.totalPrickles || 0}
+            </span>
+          </StatItem>
+          <StatItem label="Last Attended">
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {memberMetrics?.lastAttendedAt
+                ? formatDateInZone(memberMetrics?.lastAttendedAt, timeZone)
+                : "Never"}
+            </span>
+          </StatItem>
+          <StatItem label="First Joined">
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {member.firstJoinedAt
+                ? parseDateOnly(member.firstJoinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : "—"}
+            </span>
+            {showWelcomeBack && (
+              <span className="text-xs text-amber-600 dark:text-amber-400">Welcome back</span>
+            )}
+          </StatItem>
+          <StatItem label="Active Months">
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {member.totalActiveMonths}
+            </span>
+          </StatItem>
+        </div>
+      </div>
+
+      <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          <div className="@container">
+            <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
+            <SummaryCard
+              title="Attendance"
+              onViewAll={() => setActiveTab("attendance")}
+              viewAllLabel="View attendance history"
+            >
+              <SummaryStat label="Total Prickles" value={memberMetrics?.totalPrickles || 0} />
+              <SummaryStat label="Last 30 Days" value={memberMetrics?.pricklesLast30Days || 0} />
+              <SummaryStat
+                label="Last Attended"
+                value={
+                  memberMetrics?.lastAttendedAt
+                    ? formatDateInZone(memberMetrics?.lastAttendedAt, timeZone)
+                    : "Never"
+                }
+              />
+            </SummaryCard>
+
+            <SummaryCard
+              title="Slack Activity"
+              onViewAll={() => setActiveTab("slack")}
+              viewAllLabel="View Slack activity"
+            >
+              {slackSummary.total > 0 ? (
+                <>
+                  <SummaryStat label="Messages" value={slackSummary.messages} />
+                  <SummaryStat label="Reactions" value={slackSummary.reactions} />
+                  <SummaryStat label="Last 30 Days" value={slackSummary.last30Days} />
+                  <SummaryStat label="Channels" value={slackSummary.channels} />
+                </>
+              ) : (
+                <p className="text-sm text-slate-600 dark:text-slate-400">No Slack activity yet.</p>
+              )}
+            </SummaryCard>
+          </div>
+          </div>
+
+          <LatestNoteCard memberId={member.id} note={latestNote} timeZone={timeZone} readOnly={!can("member.notes_write")} />
+
+          <MemberTimelinePanel
+            memberId={member.id}
+            hiatusHistory={hiatusHistory}
+            membershipHistory={membershipHistory}
+            programOverrides={programOverrides}
+            statusOverrides={statusOverrides}
+            readOnly={!can("member.timeline_edit")}
+          />
+
+          <MemberBadgesPanel
+            memberId={member.id}
+            earnedBadges={earnedBadges}
+            eventSlugs={eventSlugs}
+            awardableBadgeTypes={awardableBadgeTypes}
+            awards={awards}
+            readOnly={!can("member.badges_edit")}
+          />
+        </div>
+      )}
+
+      {activeTab === "account" && (
+        <MemberIdentityPanel
+          memberId={member.id}
+          name={member.name}
+          displayName={member.displayName}
+          hasKajabiId={!!member.kajabiId}
+          email={member.email}
+          emailAliases={emailAliases}
+          nameAliases={nameAliases}
+        />
+      )}
+
+      {activeTab === "account" && can("member.remove") && (
+        <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />
+      )}
+
+      {activeTab === "notifications" && notificationsInfo && (
+        <MemberNotificationsPanel email={member.email} {...notificationsInfo} />
+      )}
+
+      {activeTab === "attendance" && (
+        <MemberAttendanceView
+          member={member}
+          attendanceRecords={attendanceRecords}
+          userTimezonePreference={userTimezonePreference}
+          prickleBasePath="/admin/prickles"
+        />
+      )}
+
+      {activeTab === "activity" && showActivity && (
+        <div>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+            {activityLimited ? (
+              "What this member did and what happened for them, including what an admin did while viewing as them. Changes staff made to their record are not shown."
+            ) : (
+              <>
+                Their own activity, what staff did for or as them, and changes to their record.{" "}
+                <Link
+                  // The central log has no custom range or all time yet: its longest window (a year) is the nearest.
+                  href={`/admin/activity${feedSearch(activityFilters.range || activityFilters.days === ALL_TIME_DAYS ? { ...activityFilters, days: 365 } : activityFilters)}`}
+                  className="text-plum-600 dark:text-plum-400 hover:underline"
+                >
+                  Open in the central log
+                </Link>
+              </>
+            )}
+          </p>
+          {can("member.notes_write") && <MemberNoteForm memberId={member.id} />}
+          <ActivityFilters variant="member" limited={activityLimited} filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
+          {!activityFeed ? (
+            <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+              The activity log didn&apos;t load. Reload the page to try again; if it keeps failing, the team has been alerted.
+            </p>
+          ) : (
+            <>
+              <ActivityRangeSummary
+                filters={activityFilters}
+                total={activityFeed.total}
+                now={new Date(clock.now())}
+                clearHref={`/admin/members/${member.id}/activity${feedSearch({ ...activityFilters, range: null, memberId: null }, MEMBER_DEFAULTS)}`}
+              />
+              {activityFeed.total === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this range. Try a longer one.</p>
+              ) : (
+                <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout limited={activityLimited} noteControls={!can("member.notes_write") ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {activeTab === "slack" && <MemberSlackActivityPanel slackPage={slackPage} slackSummary={slackSummary} />}
+    </div>
+  );
+}
+
+function StatItem({ label, info, children }: { label: string; info?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+        {label}
+        {info && <InfoTip label={`About ${label}`}>{info}</InfoTip>}
+      </span>
+      <div className="flex items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function SummaryCard({
+  title,
+  onViewAll,
+  viewAllLabel,
+  children,
+}: {
+  title: string;
+  onViewAll: () => void;
+  viewAllLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold">{title}</h3>
+        <button
+          onClick={onViewAll}
+          className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
+        >
+          {viewAllLabel} →
+        </button>
+      </div>
+      <div className="@container">
+        <div className="grid grid-cols-2 @pair:grid-cols-4 gap-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}</div>
+      <div className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{value}</div>
+    </div>
+  );
+}
+
+function RiskBadge({ risk }: { risk: string }) {
+  const colors = {
+    high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+    low: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  };
+
+  return (
+    <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[risk as keyof typeof colors] || colors.low}`}>
+      {risk}
+    </span>
+  );
+}

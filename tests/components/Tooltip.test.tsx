@@ -217,7 +217,7 @@ describe("Tooltip", () => {
   });
 
   it("does not use bare hover rules in its source: hover is decided in JS, from the (hover: hover) media query and the pointer type", () => {
-    const source = fs.readFileSync(path.resolve(__dirname, "../../components/Tooltip.tsx"), "utf8");
+    const source = fs.readFileSync(path.resolve(__dirname, "../../src/components/Tooltip.tsx"), "utf8");
     expect(source).not.toMatch(/group-hover|\bhover:block|\bhover:opacity/);
     expect(source).toContain('"(hover: hover)"');
     expect(source).toContain('"touch"');

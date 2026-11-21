@@ -1,21 +1,21 @@
 /**
- * Loads a typed seed profile (lib/data/profiles/) into the LOCAL database, for development.
+ * Loads a typed seed profile (src/lib/data/profiles/) into the LOCAL database, for development.
  *
  *   pnpm seed:local -- --profile first-week [--now 2026-10-24T20:00:00Z] [--clear]
  *
  * Reads NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from .env.local, and refuses any
- * database that is not local (lib/data/seed-loader.ts). Safe to run again: it replaces what the
+ * database that is not local (src/lib/data/seed-loader.ts). Safe to run again: it replaces what the
  * previous run of the same profile wrote. `--clear` only removes it.
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ORG_TIMEZONE } from "../lib/config";
-import type { Database } from "../lib/data/database.types";
-import { PROFILE_NAMES, PROFILES, isProfileName } from "../lib/data/profiles/index";
-import { assertSeedTarget, clearProfile, loadProfile } from "../lib/data/seed-loader";
-import { buildDataset } from "../lib/data/seed-profile";
+import { ORG_TIMEZONE } from "../src/lib/config";
+import type { Database } from "../src/lib/data/database.types";
+import { PROFILE_NAMES, PROFILES, isProfileName } from "../src/lib/data/profiles/index";
+import { assertSeedTarget, clearProfile, loadProfile } from "../src/lib/data/seed-loader";
+import { buildDataset } from "../src/lib/data/seed-profile";
 
 export function parseArgs(argv: string[]): { profile: string | undefined; now: Date; clear: boolean } {
   const value = (flag: string) => {

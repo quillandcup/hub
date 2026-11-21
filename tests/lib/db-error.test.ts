@@ -14,10 +14,10 @@ describe("db-error", () => {
     expect(() => throwIfDbError("feed", { message: "boom" })).toThrow(DbQueryError);
   });
 
-  // lib/activity-feed is imported by client components (RecordHistoryButton), so a server-only
+  // src/lib/activity-feed is imported by client components (RecordHistoryButton), so a server-only
   // import here ships the Slack client and node:fs to the browser and crashes every page using it.
   it("keeps client-reachable modules free of server-only imports", () => {
-    expect(readFileSync("lib/db-error.ts", "utf8")).not.toMatch(/^import /m);
-    expect(readFileSync("lib/activity-feed.ts", "utf8")).not.toContain("@/lib/query-trace");
+    expect(readFileSync("src/lib/db-error.ts", "utf8")).not.toMatch(/^import /m);
+    expect(readFileSync("src/lib/activity-feed.ts", "utf8")).not.toContain("@/lib/query-trace");
   });
 });

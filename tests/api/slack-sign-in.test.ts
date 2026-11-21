@@ -4,7 +4,7 @@ import { createHmac } from 'crypto'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../helpers/supabase'
 
 /**
- * "Sign in from Slack" (lib/slack-sign-in.ts) against the local stack: Slack-id bindings,
+ * "Sign in from Slack" (src/lib/slack-sign-in.ts) against the local stack: Slack-id bindings,
  * single-use button tokens and codes, the button's GET route, the Continue and code actions
  * (real GoTrue generateLink + verifyOtp), the /hub command, the Home tab event and its refresh
  * button. The Slack Web API is mocked.

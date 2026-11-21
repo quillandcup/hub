@@ -10,10 +10,10 @@ offer appears and disappears, on which surface, and for whom.** It is written fr
 
 | Piece | What it is | Where |
 |---|---|---|
-| **DM / message** | The check-in or check-out sent through the notifier (`createNotifier`, kinds `prickle_checkin` and `prickle_checkout`). It goes out on the channels the member keeps on: Slack, in-app (banner, bell, inbox), browser push, email. | `lib/prickle-checkin-dms.ts`, cron `app/api/internal/prickle-checkins/route.ts` (every 5 minutes) |
-| **Dashboard row pills** | "Check in →" and "Check out →" on a prickle's row in Upcoming Prickles (Dashboard, My Prickles). | `components/UpcomingPrickleRow.tsx`, `lib/upcoming-prickles.ts` |
-| **Search palette** | "Needs attention" lists check-ins on offer. | `app/actions/search.ts` |
-| **"What did you write?" card** | Dashboard card for prickles that ended and are not yet checked out of, logged or dismissed. | `getUnloggedRecentPrickles` in `app/(member)/projects/actions.ts` |
+| **DM / message** | The check-in or check-out sent through the notifier (`createNotifier`, kinds `prickle_checkin` and `prickle_checkout`). It goes out on the channels the member keeps on: Slack, in-app (banner, bell, inbox), browser push, email. | `src/lib/prickle-checkin-dms.ts`, cron `src/app/api/internal/prickle-checkins/route.ts` (every 5 minutes) |
+| **Dashboard row pills** | "Check in →" and "Check out →" on a prickle's row in Upcoming Prickles (Dashboard, My Prickles). | `src/components/UpcomingPrickleRow.tsx`, `src/lib/upcoming-prickles.ts` |
+| **Search palette** | "Needs attention" lists check-ins on offer. | `src/app/actions/search.ts` |
+| **"What did you write?" card** | Dashboard card for prickles that ended and are not yet checked out of, logged or dismissed. | `getUnloggedRecentPrickles` in `src/app/(member)/projects/actions.ts` |
 
 Defaults: Slack, in-app and browser push are on for both kinds; **email is off** until a member
 opts in per kind. A member who turned every channel off, or can be reached on none, is skipped
@@ -24,8 +24,8 @@ Notifications".
 ## Pop-Up Prickles are paused
 
 Pop-Up Prickles (source `zoom`, created by the attendance processing from a Zoom room) get no
-check-in or check-out for now, on any surface. `checkinsPausedFor` in `lib/prickle-checkins.ts` is
-the one rule: the DMs (`app/api/internal/prickle-checkins/route.ts`) and the dashboard's "How did
+check-in or check-out for now, on any surface. `checkinsPausedFor` in `src/lib/prickle-checkins.ts` is
+the one rule: the DMs (`src/app/api/internal/prickle-checkins/route.ts`) and the dashboard's "How did
 it go?" card (`getUnloggedRecentPrickles`, `recentPresentPrickles`) ask it through `offersCheckins`
 (which also limits them to writing prickles), and the dashboard pills and the search palette ask
 it in `checkinOffered`. The pills and the palette do not limit themselves to writing prickles: a
@@ -41,7 +41,7 @@ that describes scheduled prickles.
 The offers on the Dashboard and in search need a **tie** between the member and the prickle
 (`checkinOffered`): hosting it, an active commitment, a calendar item added by hand, or being **in
 its Zoom room** while it runs (`markPresent`, live presence from the participant webhooks in
-`lib/zoom-presence.ts`).
+`src/lib/zoom-presence.ts`).
 
 The **check-in message** is sent ahead of time, so only the first three can count: it goes to
 active members who have the prickle on their calendar feed (`planCheckinDMs`), whether or not
@@ -70,7 +70,7 @@ push text stay one line without it.
 **Staying on from the previous prickle does not count as attending the next.** Everything that
 works from live presence (the drop-in check-in, the check-out message, the "You're in the room" tie
 and the "What did you write?" card) counts time in the room the way the attendance processing does
-(`staysOf` and `countedPrickleIds` in `lib/zoom-presence.ts`, `EDGE_STAY_MS` = 15 minutes,
+(`staysOf` and `countedPrickleIds` in `src/lib/zoom-presence.ts`, `EDGE_STAY_MS` = 15 minutes,
 `docs/product/ATTENDANCE_RULES.md`): a stay of less than 15 minutes in a prickle does not count when the stay
 in the neighbouring prickle was 15 minutes or more. A member who lingers a few minutes into the
 next prickle therefore gets no check-out for it and is not marked present in it. That rule needs the

@@ -30,7 +30,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh, 
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/landing/editor-config", () => ({ editorConfig: {}, editorConfigFor: (frame: unknown) => ({ frame }) }));
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));
-vi.mock("../../app/(admin)/admin/pages/actions", () => ({
+vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({
   saveLandingDraft: mocks.save,
   publishLandingPage: mocks.publish,
   unpublishLandingPage: mocks.unpublish,
@@ -40,7 +40,7 @@ vi.mock("../../app/(admin)/admin/pages/actions", () => ({
   importLandingDraftJson: mocks.importJson,
   updateLandingPageDetails: mocks.details,
 }));
-vi.mock("../../app/(admin)/admin/pages/template-actions", () => ({ replaceLandingDraftWithTemplate: mocks.template, saveLandingTemplate: mocks.saveTemplate }));
+vi.mock("../../src/app/(admin)/admin/pages/template-actions", () => ({ replaceLandingDraftWithTemplate: mocks.template, saveLandingTemplate: mocks.saveTemplate }));
 vi.mock("@puckeditor/core", () => ({
   // The editor itself is Puck's; what is ours is the header, the autosave and the publish step around it.
   Puck: ({ onChange, overrides }: { onChange: (data: unknown) => void; overrides: { header: () => ReactNode } }) => {

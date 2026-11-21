@@ -6,7 +6,7 @@ on:
   pull_request:
     paths:
       - "config/checkly/**"
-      - "lib/cron-heartbeats.ts"
+      - "src/lib/cron-heartbeats.ts"
       - "config/app.ts"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -15,7 +15,7 @@ on:
     branches: [main]
     paths:
       - "config/checkly/**"
-      - "lib/cron-heartbeats.ts"
+      - "src/lib/cron-heartbeats.ts"
       - "config/app.ts"
       - "package.json"
       - "pnpm-lock.yaml"

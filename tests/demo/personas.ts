@@ -15,7 +15,7 @@ export interface Persona {
   joinedDaysAgo: number | null;
 }
 
-// The cast is the community profile (lib/data/profiles/community.ts); this file keeps the demo's names for it.
+// The cast is the community profile (src/lib/data/profiles/community.ts); this file keeps the demo's names for it.
 export const PERSONAS: Persona[] = COMMUNITY.people
   .filter((p) => p.signsIn)
   .map(({ key, name, email, role, joinedDaysAgo }) => ({ key, name, email, role: role ?? "member", joinedDaysAgo }));

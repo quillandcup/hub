@@ -3,9 +3,9 @@
     "dependencies:package.json:image-size",
     "dependencies:package.json:rehype-raw",
     "devDependencies:package.json:squawk-cli",
-    "files:app/(admin)/admin/data/import/MemberImportForm.tsx",
-    "files:app/(admin)/admin/data/import/SubscriptionImportForm.tsx",
-    "files:components/FeaturePreviewsSection.tsx",
+    "files:src/app/(admin)/admin/data/import/MemberImportForm.tsx",
+    "files:src/app/(admin)/admin/data/import/SubscriptionImportForm.tsx",
+    "files:src/components/FeaturePreviewsSection.tsx",
     "unlisted:postcss.config.mjs:postcss-load-config"
   ]
 }

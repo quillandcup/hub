@@ -5,7 +5,7 @@ import { editorConfig } from "@/components/landing/editor-config";
 import { EXTRA_PROPS, ROOT_PROPS } from "@/lib/landing/json-transfer";
 
 /**
- * JSON import keeps only the props a block has (lib/landing/json-transfer.ts). That list is the block's defaults, its slots
+ * JSON import keeps only the props a block has (src/lib/landing/json-transfer.ts). That list is the block's defaults, its slots
  * and `EXTRA_PROPS`; this fails when the editor gives a block a field the import would drop, so a new field is added to
  * `EXTRA_PROPS` (or the block's defaults) in the same change.
  */

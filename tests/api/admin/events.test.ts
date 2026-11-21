@@ -3,7 +3,7 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } fro
 import { apiFetch } from '../../helpers/api-fetch'
 
 /**
- * Integration tests for the events admin CRUD API (app/api/admin/events) and
+ * Integration tests for the events admin CRUD API (src/app/api/admin/events) and
  * the photo hide/unhide + authenticated photo-proxy routes.
  *
  * The Google Photos Picker OAuth/import flow itself isn't covered here --

@@ -34,7 +34,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseAddedLines } from "./added-lines";
+import { addedLinesDiffArgs, parseAddedLines } from "./added-lines";
 
 export const MIN_PATCH_SCORE = 80;
 /**
@@ -48,7 +48,8 @@ export const AREA_FLOORS: Record<string, Record<"lines" | "statements" | "functi
   components: { lines: 88, statements: 86, functions: 84, branches: 82 },
   "app/api": { lines: 82, statements: 79, functions: 85, branches: 71 },
 };
-const SOURCE = /^((app|lib|content|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
+// The source folders all live under src/ (the areas below are named without it).
+const SOURCE = /^src\/((app|lib|content|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
 const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 
@@ -121,9 +122,9 @@ export function mergeSuites(suites: SuiteHits[]): SuiteHits {
   return merged;
 }
 
-/** First path segment, the route group under app/, or "(root files)" for top-level files. */
+/** First path segment under src/, the route group under app/, or "(root files)" for top-level files. */
 export function areaKey(file: string): string {
-  const parts = file.split("/");
+  const parts = file.replace(/^src\//, "").split("/");
   if (parts.length === 1) return "(root files)";
   return parts[0] === "app" && parts.length > 2 ? `app/${parts[1]}` : parts[0];
 }
@@ -418,7 +419,7 @@ function main(): void {
 
   let patch: Patch | null = null;
   if (base) {
-    const diff = spawnSync("git", ["diff", "-U0", "--no-color", "--diff-filter=AM", `${base}...HEAD`], {
+    const diff = spawnSync("git", addedLinesDiffArgs(base), {
       encoding: "utf8",
       maxBuffer: 256 * 1024 * 1024,
     });

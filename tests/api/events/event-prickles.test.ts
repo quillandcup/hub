@@ -5,7 +5,7 @@ import { fetchUpcomingEventPrickles } from '@/lib/event-prickles'
 
 /**
  * DB integration test for the Events page's event-prickles query
- * (lib/event-prickles.ts, called from app/(member)/events/page.tsx).
+ * (src/lib/event-prickles.ts, called from src/app/(member)/events/page.tsx).
  *
  * Runs against an isolated far-future window (year 2185) with uniquely named
  * fixtures, and asserts only on the rows it created -- other tests may be

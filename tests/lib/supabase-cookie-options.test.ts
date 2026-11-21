@@ -1,6 +1,6 @@
 /**
  * The Supabase sign-in cookies are `Secure` in a deployed build, and the browser, server and proxy clients all get the
- * same options (lib/supabase/cookie-options.ts). The library's own defaults (path, SameSite, no Domain) are not overridden.
+ * same options (src/lib/supabase/cookie-options.ts). The library's own defaults (path, SameSite, no Domain) are not overridden.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";

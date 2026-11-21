@@ -583,7 +583,7 @@ describe("TableKeyboardNav markup, hints and shortcut list", () => {
   });
 });
 
-describe("lib/keyboard guards", () => {
+describe("src/lib/keyboard guards", () => {
   it("treats text fields as typing and checkboxes and buttons as not", () => {
     const text = document.createElement("input");
     const box = document.createElement("input");

@@ -9,15 +9,15 @@ import path from "node:path";
 // rows or is a billing/matching tool that needs the legal name, list the file here.
 
 const ROOT = path.resolve(__dirname, "../..");
-const SCAN = ["app", "components", "lib"];
-const SKIP_DIRS = [path.join("lib", "data", "database.types.ts")];
+const SCAN = ["src/app", "src/components", "src/lib"];
+const SKIP_DIRS = [path.join("src", "lib", "data", "database.types.ts")];
 
 // Files that read `host.name` on purpose, each with the reason.
 const ALLOWED: Record<string, string> = {
-  "lib/data/prickles.ts": "the repository: maps the row to { name, displayName }",
-  "lib/attendance-view.ts": "maps the repository's host to a row with display_name beside name",
-  "lib/prickle-schedule.ts": "maps the host to { name, display_name } for getMemberDisplayName",
-  "lib/prickle-picker.ts": "its hosts come from the picker action, already by display name",
+  "src/lib/data/prickles.ts": "the repository: maps the row to { name, displayName }",
+  "src/lib/attendance-view.ts": "maps the repository's host to a row with display_name beside name",
+  "src/lib/prickle-schedule.ts": "maps the host to { name, display_name } for getMemberDisplayName",
+  "src/lib/prickle-picker.ts": "its hosts come from the picker action, already by display name",
 };
 
 const HOST_NAME = /\bhost\??\.name\b|\bhostInfo\??\.name\b/;

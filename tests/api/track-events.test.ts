@@ -28,7 +28,7 @@ function event(overrides: Record<string, unknown> = {}) {
 
 function setup(upsertError: { message: string } | null = null, optedOut = false) {
   const upsert = vi.fn().mockResolvedValue({ error: upsertError })
-  // The member's profile says whether they chose "leave me out of statistics" (lib/analytics/opt-out.ts).
+  // The member's profile says whether they chose "leave me out of statistics" (src/lib/analytics/opt-out.ts).
   const profile = {
     select: () => ({
       eq: () => ({ maybeSingle: async () => ({ data: { analytics_opt_out_at: optedOut ? '2026-10-30T10:00:00Z' : null }, error: null }) }),

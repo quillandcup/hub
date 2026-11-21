@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { clock, systemClock } from '@/lib/clock'
 import { FakeClock, useFakeClock } from '../helpers/fake-clock'
 
-describe('lib/clock', () => {
+describe('src/lib/clock', () => {
   it('uses the system clock by default', () => {
     const before = Date.now()
     const now = clock.now()
@@ -33,7 +33,7 @@ describe('FakeClock', () => {
 describe('useFakeClock', () => {
   const fake = useFakeClock(() => 42_000)
 
-  it('routes lib/clock through a fresh fake per test', async () => {
+  it('routes src/lib/clock through a fresh fake per test', async () => {
     expect(clock.now()).toBe(42_000)
     await clock.sleep(1_000)
     expect(fake.clock.now()).toBe(43_000)

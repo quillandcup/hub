@@ -1,0 +1,142 @@
+import { createRepos } from "@/lib/data/repos";
+import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createKajabiClient, toKajabiContactBronzeRecord } from "@/lib/kajabi/client";
+import { triggerReprocessing } from "@/lib/processing/trigger";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { syncKajabiCourses } from "@/lib/courses/sync";
+import { NextRequest, NextResponse } from "next/server";
+import { asJson } from "@/lib/data/json";
+
+/**
+ * Sync data from Kajabi API
+ *
+ * This endpoint:
+ * 1. Fetches contacts (members) from Kajabi API
+ * 2. Fetches subscriptions from Kajabi API
+ * 3. Imports to Bronze layer (kajabi_members, subscription_history)
+ * 4. Auto-triggers Silver layer processing
+ * 5. Syncs course structure and refreshes the published courses and their access (after the
+ *    members, so access sees the fresh purchases); a courses problem is reported in `courses`,
+ *    never failing the member sync (src/lib/courses/sync.ts)
+ */
+export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
+
+  try {
+    const results: any = {
+      members: null,
+    };
+
+    // Create Kajabi API client
+    const kajabi = createKajabiClient();
+
+    // Import members (contacts, customers, purchases, offers)
+    // Following medallion architecture: Store RAW data in Bronze, transform in Silver
+      console.log("Fetching raw data from Kajabi API (contacts, customers, purchases, offers)...");
+
+      // Fetch all raw data from Kajabi API
+      const [contacts, customers, purchases, offers] = await Promise.all([
+        kajabi.fetchAllContacts(),
+        kajabi.fetchAllCustomers(),
+        kajabi.fetchAllSubscriptions(),
+        kajabi.fetchAllOffers(),
+      ]);
+
+      console.log(`Fetched ${contacts.length} contacts, ${customers.length} customers, ${purchases.length} purchases, ${offers.length} offers from Kajabi`);
+
+      const importTimestamp = new Date().toISOString();
+
+      // BRONZE LAYER: Store raw data as-is (no transformation)
+
+      // 1. Contacts (all people in Kajabi)
+      const contactRecords = contacts.map((contact) => toKajabiContactBronzeRecord(contact, importTimestamp));
+
+      const billing = createRepos(supabase).billing;
+      await billing.upsertKajabiContacts(contactRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_contacts:", error);
+        throw new Error(`Contacts import failed: ${error.message}`);
+      });
+
+      // 2. Customers (people who made purchases)
+      const customerRecords = customers.map(customer => ({
+        kajabi_customer_id: customer.id,
+        email: customer.attributes.email.toLowerCase(),
+        name: customer.attributes.name,
+        created_at_kajabi: customer.attributes.created_at,
+        updated_at_kajabi: customer.attributes.updated_at,
+        imported_at: importTimestamp,
+        data: asJson(customer),
+      }));
+
+      await billing.upsertKajabiCustomers(customerRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_customers:", error);
+        throw new Error(`Customers import failed: ${error.message}`);
+      });
+
+      // 3. Purchases (subscription records)
+      const purchaseRecords = purchases.map(purchase => ({
+        kajabi_purchase_id: purchase.id,
+        kajabi_customer_id: purchase.relationships?.customer?.data?.id || null,
+        kajabi_offer_id: purchase.relationships?.offer?.data?.id || null,
+        amount_in_cents: purchase.attributes.amount_in_cents,
+        currency: purchase.attributes.currency || 'USD',
+        status: purchase.attributes.deactivated_at ? 'canceled' : 'active',
+        created_at_kajabi: purchase.attributes.created_at,
+        effective_start_at: purchase.attributes.effective_start_at,
+        deactivated_at: purchase.attributes.deactivated_at,
+        imported_at: importTimestamp,
+        data: asJson(purchase),
+      }));
+
+      await billing.upsertKajabiPurchases(purchaseRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_purchases:", error);
+        throw new Error(`Purchases import failed: ${error.message}`);
+      });
+
+      // 4. Offers (products/subscriptions offered)
+      const offerRecords = offers.map(offer => ({
+        kajabi_offer_id: offer.id,
+        name: offer.attributes.title, // title, not name
+        status: offer.attributes.status,
+        trial_period_days: offer.attributes.trial_period_days,
+        imported_at: importTimestamp,
+        data: asJson(offer),
+      }));
+
+      await billing.upsertKajabiOffers(offerRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_offers:", error);
+        throw new Error(`Offers import failed: ${error.message}`);
+      });
+
+      console.log("Bronze import complete. Triggering Silver processing...");
+      const processingResults = await triggerReprocessing("kajabi_contacts", "bronze");
+
+      results.members = {
+        contacts: contactRecords.length,
+        customers: customerRecords.length,
+        purchases: purchaseRecords.length,
+        offers: offerRecords.length,
+        importTimestamp,
+        processing: processingResults.processed,
+      };
+
+      results.courses = await syncKajabiCourses(createRepos(createServiceRoleClient()), kajabi);
+
+    return NextResponse.json({
+      success: true,
+      ...results,
+    });
+  } catch (error: any) {
+    console.error("Error syncing Kajabi data:", error);
+    return NextResponse.json(
+      {
+        error: error.message || "Failed to sync Kajabi data",
+        details: error.stack,
+      },
+      { status: 500 }
+    );
+  }
+}

@@ -1,7 +1,7 @@
 name: Refresh temp-mail domain list
 
 # Weekly: re-fetches the public blocklist of temporary-mail domains (disposable-email-domains/disposable-email-domains,
-# CC0) into lib/disposable-email-domains.generated.ts and, when it changed, opens a PR. The PR is a normal one: the
+# CC0) into src/lib/disposable-email-domains.generated.ts and, when it changed, opens a PR. The PR is a normal one: the
 # required checks run on it and auto-merge (auto-merge.yml) lands it on green, so a refresh needs nobody unless
 # something fails. The script refuses a list that is suspiciously short or that names a mainstream provider (Gmail,
 # Outlook, ...), so a bad upstream edit fails this job instead of reaching members.
@@ -50,17 +50,17 @@ jobs:
       - name: Open a PR when it changed
         if: steps.open.outputs.count == '0'
         run: |
-          if git diff --quiet -- lib/disposable-email-domains.generated.ts; then echo "The list is unchanged."; exit 0; fi
+          if git diff --quiet -- src/lib/disposable-email-domains.generated.ts; then echo "The list is unchanged."; exit 0; fi
           branch="chore/disposable-email-domains-$(date -u +%Y%m%d)"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add lib/disposable-email-domains.generated.ts
+          git add src/lib/disposable-email-domains.generated.ts
           git commit -m "Refresh the temp-mail domain list"
           git push origin "$branch"
           gh pr create --base main --head "$branch" \
             --title "Refresh the temp-mail domain list" \
-            --body "Weekly refresh of \`lib/disposable-email-domains.generated.ts\` from the public disposable-email-domains list (CC0), by \`.github/workflows/disposable-email-domains.yml\`. One domain per line, so the diff shows exactly which were added or removed. Auto-merges when the required checks pass."
+            --body "Weekly refresh of \`src/lib/disposable-email-domains.generated.ts\` from the public disposable-email-domains list (CC0), by \`.github/workflows/disposable-email-domains.yml\`. One domain per line, so the diff shows exactly which were added or removed. Auto-merges when the required checks pass."
 
       # Same channel and secret as audit.yml: a failed refresh (including the script refusing a bad list) is not only a red run.
       - name: Post failure to Slack

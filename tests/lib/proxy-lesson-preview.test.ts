@@ -1,5 +1,5 @@
 /**
- * proxy.ts → lib/supabase/middleware.ts: a signed-out visit to a lesson address is rewritten to the
+ * src/proxy.ts → src/lib/supabase/middleware.ts: a signed-out visit to a lesson address is rewritten to the
  * public lesson preview (title, picture and teaser for shared links); every other signed-out visit
  * to a member page still goes to /login, and a signed-in visit is untouched. The preview page
  * decides whether the lesson may be shown (tests/components/pages/lesson-preview.test.tsx).

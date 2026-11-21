@@ -31,7 +31,7 @@ const MIN_TOP5_CLIENTS_PERCENT = 95;
 // Apple Mail, Gmail, Outlook, Samsung Email, Yahoo — ~85% of email opens (Litmus 2024).
 const TOP_5_FAMILIES = new Set(["apple-mail", "gmail", "outlook", "samsung-email", "yahoo"]);
 
-// Supabase Auth's templates (supabase/emails/), plus one per notification kind (emails/notifications/).
+// Supabase Auth's templates (supabase/emails/), plus one per notification kind (src/emails/notifications/).
 const AUTH_TEMPLATE_NAMES = ["invite", "confirmation", "recovery", "magic_link", "email_change"];
 const ALL_TEMPLATE_NAMES = [...AUTH_TEMPLATE_NAMES, ...NOTIFICATION_KINDS.map((k) => k.id)];
 

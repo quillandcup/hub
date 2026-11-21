@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 const src = fs.readFileSync(
-  path.join(process.cwd(), 'components/TimezoneInitializer.tsx'),
+  path.join(process.cwd(), 'src/components/TimezoneInitializer.tsx'),
   'utf-8'
 );
 

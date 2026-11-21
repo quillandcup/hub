@@ -8,7 +8,7 @@ import { SCHEDULE_TIMEZONE } from '@/lib/calendar-feed'
 
 /**
  * Personal calendar feeds (supabase/migrations/20260928000000_create_calendar_feed_tokens.sql,
- * app/api/calendar/feed/[token]/route.ts): RLS on calendar_feed_tokens with real signed-in
+ * src/app/api/calendar/feed/[token]/route.ts): RLS on calendar_feed_tokens with real signed-in
  * sessions, and the feed route end to end against the local stack -- the token resolves to one
  * member, and the feed holds that member's hosted and committed prickles only.
  */

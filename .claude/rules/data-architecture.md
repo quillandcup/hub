@@ -1,11 +1,11 @@
 ---
 paths:
-  - "app/api/process/**"
-  - "app/api/import/**"
-  - "app/api/reconcile/**"
-  - "app/api/webhooks/**"
+  - "src/app/api/process/**"
+  - "src/app/api/import/**"
+  - "src/app/api/reconcile/**"
+  - "src/app/api/webhooks/**"
   - "supabase/migrations/**"
-  - "lib/data/**"
+  - "src/lib/data/**"
   - "tests/api/**"
 ---
 
@@ -13,9 +13,9 @@ paths:
 
 **Bronze Layer** (raw imports from external systems):
 - `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`, `subscription_history`, `slack_messages`, `slack_reactions`, `slack_channels` (channels and, with `is_mpim`, group DMs the bot is in), `slack_users`, `slack_channel_members` (who is in each conversation now; `left_at` is when they last left), `slack_channel_member_events` (append-only history of joins and leaves, from Slack's join/leave notices, webhook events and the member list; read it as periods through the `slack_channel_membership_periods` view), `slack_custom_emoji` (`deleted_at` soft delete), `slack_files` (files on messages and the path of our copy in the private `slack-files` bucket; service role only), `resend_events` (email events from Resend: sent, delivered, opened, clicked, bounced...; append-only, service role only, written by `/api/webhooks/resend` and the nightly `/api/reconcile/email`; the member timeline rows, `member_activities` with source `resend`, are rebuilt from it one email at a time; `ResendEventRepository`; see `docs/architecture/EMAIL_TIMELINE.md`)
-- `stripe_invoices` and `stripe_charges` (who was billed what and when: amounts in cents, status, period, paid date, the failure code; no raw record, card details or customer email or name; service role only; `BillingRepository`; pull import in the manual Stripe import and the nightly `/api/reconcile/stripe-billing`, upsert on Stripe's id; see `lib/stripe/billing-import.ts`; the same nightly job and manual import also fill `stripe_customers`, `stripe_products` and `stripe_subscriptions` first, through `lib/stripe/core-import.ts`: upsert only, nothing removed, and each step runs even if the other fails)
+- `stripe_invoices` and `stripe_charges` (who was billed what and when: amounts in cents, status, period, paid date, the failure code; no raw record, card details or customer email or name; service role only; `BillingRepository`; pull import in the manual Stripe import and the nightly `/api/reconcile/stripe-billing`, upsert on Stripe's id; see `src/lib/stripe/billing-import.ts`; the same nightly job and manual import also fill `stripe_customers`, `stripe_products` and `stripe_subscriptions` first, through `src/lib/stripe/core-import.ts`: upsert only, nothing removed, and each step runs even if the other fails)
 - **Slack content is service role only**: `slack_messages` (text, files, raw payload) and `slack_files` can't be read by admins. Admin pages read `bronze.slack_messages_meta` (who, where, when, thread shape, `has_files`; no content; a `security_invoker` view over column grants on `slack_messages`, so its metadata columns need a `GRANT SELECT (col)` when added); code that needs the text runs server-side with the service role after checking the caller. `raw_payload` on `slack_users`, `slack_channels`, `slack_reactions` and `slack_channel_member_events` is hidden the same way with column grants, so `select("*")` on those fails for a signed-in user, and a column added to one of them needs its own `GRANT SELECT (col) ... TO authenticated` (`slack_content_privacy.test.sql` fails if one is missed).
-- **Direct messages with staff are not special in chat** (decided 2026-11-12): no chat policy treats a DM with a staff member differently; it stays break-glass only. The one exception lives in Hedgie Care: the messages of a member's tracked one-on-one DM sent inside the windows of that member's care plans are shown in full to admins and community managers (`lib/care-messages.ts`, read with the service role after `requireStaffAction()` and `care.write`, with an audit entry and a note in Hub Chat; `docs/product/HEDGIE_CARE.md`, "Plan messages"). "A staff member" has one definition, `staff_member_ids()` in the database, read in TypeScript only through `StaffRepository.memberIds()` (the `staff` roster plus the members behind admin, assistant and community manager accounts); do not work it out again, and do not confuse it with who may read (admins and community managers only). `/privacy` ("Messages in a Hedgie Care plan") and `CarePlanNotice` say it: change them with the code.
+- **Direct messages with staff are not special in chat** (decided 2026-11-12): no chat policy treats a DM with a staff member differently; it stays break-glass only. The one exception lives in Hedgie Care: the messages of a member's tracked one-on-one DM sent inside the windows of that member's care plans are shown in full to admins and community managers (`src/lib/care-messages.ts`, read with the service role after `requireStaffAction()` and `care.write`, with an audit entry and a note in Hub Chat; `docs/product/HEDGIE_CARE.md`, "Plan messages"). "A staff member" has one definition, `staff_member_ids()` in the database, read in TypeScript only through `StaffRepository.memberIds()` (the `staff` roster plus the members behind admin, assistant and community manager accounts); do not work it out again, and do not confuse it with who may read (admins and community managers only). `/privacy` ("Messages in a Hedgie Care plan") and `CarePlanNotice` say it: change them with the code.
 - **Pattern**: UPSERT on natural keys for idempotency
 
 **Local Layer** (operational data owned by this app):

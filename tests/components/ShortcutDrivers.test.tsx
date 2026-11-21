@@ -29,7 +29,7 @@ vi.mock("@puckeditor/core/no-external.css", () => ({}));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/landing/editor-config", () => ({ editorConfig: {}, editorConfigFor: () => ({}) }));
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));
-vi.mock("../../app/(admin)/admin/pages/actions", () => ({
+vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({
   saveLandingDraft: landing.save,
   publishLandingPage: vi.fn(),
   unpublishLandingPage: vi.fn(),
@@ -64,7 +64,7 @@ import { SHORTCUTS, visibleSections, type Shortcut } from "@/lib/shortcuts";
 import { messageBox, typeInto } from "../helpers/message-box";
 
 /**
- * Drift guard for the keyboard shortcuts panel (`lib/shortcuts.ts`): for every hand-written entry of the registry,
+ * Drift guard for the keyboard shortcuts panel (`src/lib/shortcuts.ts`): for every hand-written entry of the registry,
  * the real component is rendered, the keys the registry shows are pressed, and the handler must respond. The keys
  * come from the registry, so changing a key there (or in a handler) fails the matching driver. The table and
  * calendar entries are read from their components' own constants (`tests/lib/shortcuts.test.ts`) and are not here.

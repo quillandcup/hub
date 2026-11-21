@@ -1,6 +1,6 @@
 /**
  * Link unfurls (Slack, Facebook, LinkedIn) need an absolute og:image and a twitter card. Next builds
- * the image tags from app/opengraph-image.jpg, 1200x630.
+ * the image tags from src/app/opengraph-image.jpg, 1200x630.
  */
 import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
@@ -24,7 +24,7 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => null }));
 
 // Reads the size from the JPEG's start-of-frame marker.
 function jpegSize(file: string): { width: number; height: number } {
-  const buf = fs.readFileSync(path.join(process.cwd(), "app", file));
+  const buf = fs.readFileSync(path.join(process.cwd(), "src", "app", file));
   let i = 2;
   while (i < buf.length) {
     const marker = buf[i + 1];
@@ -38,7 +38,7 @@ function jpegSize(file: string): { width: number; height: number } {
 // Slack's unfurl fetcher drops large images, so keep the photos small.
 const MAX_BYTES = 500 * 1024;
 function bytes(file: string): number {
-  return fs.statSync(path.join(process.cwd(), "app", file)).size;
+  return fs.statSync(path.join(process.cwd(), "src", "app", file)).size;
 }
 
 describe("link unfurl metadata", () => {

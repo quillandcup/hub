@@ -8,7 +8,7 @@
 //   tsx scripts/sentry-config.ts push   apply the file to the live organization
 //
 // Only the settings the file lists are written (PUT /api/0/organizations/<org>/ with just those keys). The alert
-// rules are the workflows whose name starts with the managed prefix (lib/sentry-config.ts): created, updated or
+// rules are the workflows whose name starts with the managed prefix (src/lib/sentry-config.ts): created, updated or
 // deleted to match the file. Sentry's own default alerts are never touched.
 //
 // Env: SENTRY_CONFIG_TOKEN, an internal integration token with Organization: Read & Write, Project: Read and
@@ -27,7 +27,7 @@ import {
   type LiveWorkflow,
   type OrgSettingChange,
   type WorkflowChange,
-} from "../lib/sentry-config";
+} from "../src/lib/sentry-config";
 import { outboundFetch } from "@/lib/http/outbound";
 
 const CONFIG_FILE = "config/sentry.yml";

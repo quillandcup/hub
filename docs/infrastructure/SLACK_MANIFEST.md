@@ -43,7 +43,7 @@ Billie Bot also holds the incoming webhook the weekly dependency audit (`.github
 
 The webhook is created in the Slack dashboard, not by the manifest, so a manifest push never creates one. After the first push with the `incoming-webhook` scope (a scope change):
 
-1. **Reinstall Billie Bot** (a scope change needs a manual reinstall; the push job prints a warning). Billie Bot has token rotation on, so the dashboard has no Reinstall button: sign in as an admin and open `/api/oauth/slack/bot/start`, approve in Slack, and the Hub stores the new token pair (see "If the refresh token is lost" in [docs/runbooks/SECRET_ROTATION.md](../runbooks/SECRET_ROTATION.md); `lib/slack-bot-install.ts` asks for the manifest's bot scopes, a test keeps the two equal). Slack may ask which channel the incoming webhook posts to during that approval; the Hub ignores that webhook, so use step 2 for the one the audit uses.
+1. **Reinstall Billie Bot** (a scope change needs a manual reinstall; the push job prints a warning). Billie Bot has token rotation on, so the dashboard has no Reinstall button: sign in as an admin and open `/api/oauth/slack/bot/start`, approve in Slack, and the Hub stores the new token pair (see "If the refresh token is lost" in [docs/runbooks/SECRET_ROTATION.md](../runbooks/SECRET_ROTATION.md); `src/lib/slack-bot-install.ts` asks for the manifest's bot scopes, a test keeps the two equal). Slack may ask which channel the incoming webhook posts to during that approval; the Hub ignores that webhook, so use step 2 for the one the audit uses.
 2. **Add the webhook**: the same app -> Incoming Webhooks -> Add New Webhook to Workspace -> pick **#hub-alerts** -> Allow. Copy the webhook URL.
 3. **Store it**:
 

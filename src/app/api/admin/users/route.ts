@@ -1,0 +1,145 @@
+import { createRepos } from "@/lib/data/repos";
+import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import type { Database } from "@/lib/data/database.types";
+
+function getServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createServiceClient<Database>(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// members can exceed Supabase's default 1000-row query limit (former members
+// are retained, not deleted — see .claude/rules/data-architecture.md), and this endpoint needs the
+// full table both to resolve every user's linked member and to let the
+// frontend offer every unlinked member as a link target. Paginate to avoid
+// silently truncating to the first 1000 rows.
+async function fetchAllMembers(supabase: SupabaseClient) {
+  const members = await createRepos(supabase).members.list();
+  return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
+}
+
+/**
+ * When the user last did anything in the Hub: the later of their latest page view or API call (the access log)
+ * and their last sign-in (which covers the time before the log, and sign-ins that made no request yet).
+ * Sessions last for weeks, so sign-in alone would show an active member as gone. Null: never signed in.
+ */
+function latestOf(...times: (string | null | undefined)[]): string | null {
+  const present = times.filter((t): t is string => Boolean(t));
+  if (present.length === 0) return null;
+  return present.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a));
+}
+
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const supabase = getServiceClient();
+
+  const [
+    authUsers,
+    profiles,
+    previews,
+    allStaff,
+    allMembers,
+    nameAliases,
+    emailAliases,
+    lastSeen,
+  ] = await Promise.all([
+    createRepos(supabase).authUsers.all().catch((error: Error) => error),
+    createRepos(supabase).profiles.all(),
+    createRepos(supabase).featureFlags.allPreviews(),
+    createRepos(supabase).staff.all(),
+    fetchAllMembers(supabase),
+    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+    createRepos(supabase).aliases.emailOwners(),
+    createRepos(supabase).accessEvents.lastSeenByUser(),
+  ]);
+
+  if (authUsers instanceof Error) {
+    return NextResponse.json({ error: authUsers.message }, { status: 500 });
+  }
+
+  // What a member is also known by (Zoom/Slack names, extra emails), so the page's search finds them by it.
+  const aliasesByMember = new Map<string, string[]>();
+  const addAlias = (memberId: string, alias: string) => {
+    if (!aliasesByMember.has(memberId)) aliasesByMember.set(memberId, []);
+    aliasesByMember.get(memberId)!.push(alias);
+  };
+  for (const a of nameAliases) addAlias(a.member_id, a.alias);
+  for (const a of emailAliases) addAlias(a.member_id, a.alias_email);
+
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+  const featureMap = new Map<string, string[]>();
+  for (const row of previews) {
+    if (!featureMap.has(row.userId)) featureMap.set(row.userId, []);
+    featureMap.get(row.userId)!.push(row.featureKey);
+  }
+  const staffByMemberId = new Map(allStaff.filter((s) => s.member_id).map((s) => [s.member_id, s]));
+  const memberByUserId = new Map((allMembers ?? []).filter((m) => m.user_id).map((m) => [m.user_id, m]));
+
+  const users = authUsers.map((u) => {
+    const profile = profileMap.get(u.id);
+    const member = memberByUserId.get(u.id);
+    const staff = member ? staffByMemberId.get(member.id) : undefined;
+    return {
+      id: u.id,
+      email: u.email ?? "",
+      role: profile?.role ?? "member",
+      features: featureMap.get(u.id) ?? [],
+      createdAt: u.createdAt,
+      lastActivityAt: latestOf(lastSeen.get(u.id), u.lastSignInAt),
+      staffId: staff?.id ?? null,
+      staffName: staff?.name ?? null,
+      staffRole: staff?.role ?? null,
+      memberId: member?.id ?? null,
+      memberName: member?.name ?? null,
+      memberDisplayName: member?.displayName ?? null,
+      aliases: member ? (aliasesByMember.get(member.id) ?? []) : [],
+      pending: !u.confirmed,
+      // A ban (bannedUntil in the future) stops sign-in and token refresh; it is how access is held back or removed.
+      bannedUntil: u.bannedUntil && new Date(u.bannedUntil).getTime() > Date.now() ? u.bannedUntil : null,
+    };
+  });
+
+  users.sort((a, b) => a.email.localeCompare(b.email));
+
+  return NextResponse.json({ users, allMembers: allMembers ?? [] });
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { email } = parsed;
+  if (!email?.trim()) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  }
+
+  const supabase = getServiceClient();
+  const repos = createRepos(supabase);
+  let invited;
+  try {
+    invited = await repos.authUsers.invite(email.trim().toLowerCase());
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to invite user" }, { status: 400 });
+  }
+
+  // Link this new auth user to any existing member with a matching email —
+  // otherwise members.user_id only ever gets set via the staff-merge step
+  // (src/app/api/process/members) or manual admin linking, leaving it null for
+  // an ordinary invited member indefinitely. Best-effort: a missing member
+  // row (e.g. inviting a staff-only email) is not an error here.
+  if (invited.email) {
+    await repos.members.linkAuthUserByEmail(invited.email, invited.id).catch(() => {});
+  }
+
+  return NextResponse.json({ user: { id: invited.id, email: invited.email } });
+}

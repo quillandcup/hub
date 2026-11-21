@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * 1. The feature is "writer profiles" everywhere (docs/product/WRITER_TITLES.md), in what members read, in the docs and in the
  *    names in the code. "Writer page" is not a name for it. Migrations are history and stay as they were written.
  * 2. Nothing reads a visibility level by asking for `community`. A level is a rank (private < community < public) and "shown to
- *    members" means "not private" (`isShownToMembers`, `lib/writing-visibility.ts`; `<> 'private'` in SQL), so a globe item is
+ *    members" means "not private" (`isShownToMembers`, `src/lib/writing-visibility.ts`; `<> 'private'` in SQL), so a globe item is
  *    shown to members too. `community` appears as a default or in a backfill or a sync trigger, never as a test of what a reader may see.
  */
 const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
@@ -54,7 +54,7 @@ describe("visibility is read as 'not private', never as 'community'", () => {
   it("has no equality test against community in the app, the library, the components or a migration", () => {
     const offenders: string[] = [];
     for (const file of tracked) {
-      const isCode = /^(app|lib|components)\/.*\.tsx?$/.test(file);
+      const isCode = /^src\/(app|lib|components)\/.*\.tsx?$/.test(file);
       const isMigration = file.startsWith("supabase/migrations/") && file.endsWith(".sql") && !COMMUNITY_WRITERS.has(file);
       if (!isCode && !isMigration) continue;
       const pattern = isCode ? TS_EQUALITY : SQL_COMPARISON;

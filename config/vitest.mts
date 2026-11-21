@@ -55,17 +55,17 @@ export default defineConfig({
       // Every source area, so code no test imports shows up as 0% instead of being absent
       // (config files and Checkly checks are left out: they are configuration, not logic).
       include: [
-        'app/**/*.{ts,tsx}',
-        'lib/**/*.{ts,tsx}',
-        'content/**/*.{ts,tsx}',
-        'components/**/*.{ts,tsx}',
-        'emails/**/*.{ts,tsx}',
+        'src/app/**/*.{ts,tsx}',
+        'src/lib/**/*.{ts,tsx}',
+        'src/content/**/*.{ts,tsx}',
+        'src/components/**/*.{ts,tsx}',
+        'src/emails/**/*.{ts,tsx}',
         'scripts/**/*.ts',
-        'proxy.ts',
-        'instrumentation.ts',
-        'instrumentation-client.ts',
+        'src/proxy.ts',
+        'src/instrumentation.ts',
+        'src/instrumentation-client.ts',
       ],
-      exclude: ['**/*.d.ts', '**/*.test.*', '**/*.generated.*', 'lib/**/types.ts'],
+      exclude: ['**/*.d.ts', '**/*.test.*', '**/*.generated.*', 'src/lib/**/types.ts'],
       // json is what scripts/coverage-report.ts reads; html is the browsable report in the artifacts.
       reporter: ['text-summary', 'json', 'html'],
       reportOnFailure: true,
@@ -127,8 +127,10 @@ export default defineConfig({
     ],
   },
   resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, '..'),
-    },
+    // `@/` is src/, except for the three root folders tests and app code import by it (mirrors `paths` in tsconfig.json).
+    alias: [
+      { find: /^@\/(config|scripts|tests)\//, replacement: path.resolve(import.meta.dirname, '..') + '/$1/' },
+      { find: '@', replacement: path.resolve(import.meta.dirname, '..', 'src') },
+    ],
   },
 })

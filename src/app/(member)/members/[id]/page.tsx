@@ -1,0 +1,387 @@
+import { cache } from "react"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
+import { redirect, notFound } from "next/navigation"
+import type { Metadata } from "next"
+import { getEffectiveIdentity } from "@/lib/sudo"
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server"
+import { getUserTimezonePreference } from "@/lib/timezone"
+import MemberAvatar from "./MemberAvatar"
+import WelcomeBackBanner from "./WelcomeBackBanner"
+import { parseDateOnly } from "@/lib/member-tenure"
+import { getProfileWriting } from "@/app/(member)/projects/actions"
+import { MEASURE_LABELS, isMissedGoal } from "@/lib/writing-projects"
+import GoalDisplay from "@/components/writing/GoalDisplay"
+import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
+import { createRepos } from "@/lib/data/repos"
+import MemberBadgeChips from "@/components/member/MemberBadgeChips"
+import MilestoneStrip from "@/components/member/MilestoneStrip"
+import MemberSocialLinks from "@/components/member/MemberSocialLinks"
+import AskMeAboutTopics from "@/components/member/AskMeAboutTopics"
+import { safeUrl } from "@/lib/url"
+import { getMemberDisplayName } from "@/lib/member-display-name"
+import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles"
+import { computePublicHostingSummary } from "@/lib/hosting-stats"
+import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
+import MemberHostingCard from "./MemberHostingCard"
+import MemberNotesCard from "./MemberNotesCard"
+import BookEditionLinks from "@/components/books/BookEditionLinks"
+import { canStartDirectMessage } from "@/lib/chat/can-message"
+import MessageMemberButton from "@/components/chat/MessageMemberButton"
+import { ORG_TIMEZONE } from "@/lib/config";
+
+// Long enough to catch a monthly slot's next occurrence, not just weekly ones.
+const HOSTING_SCHEDULE_WINDOW_DAYS = 35
+
+/** "Sep 24", or "Sep 24, 2025" when it wasn't this year (both in the viewer's timezone). */
+function formatLastPrickle(iso: string, now: Date, timeZone: string): string {
+  const yearOf = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", timeZone })
+  const date = new Date(iso)
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(yearOf(date) === yearOf(now) ? {} : { year: "numeric" }),
+    timeZone,
+  })
+}
+
+const getMember = cache(async (id: string) => {
+  const supabase = await createClient()
+  return createRepos(supabase).directory.byId(id)
+})
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  const member = await getMember(id)
+  return { title: member ? getMemberDisplayName(member) : "Member" }
+}
+
+export default async function MemberProfilePage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const supabase = await createClient()
+  const { id } = await params
+
+  const user = await getCurrentUser()
+  if (!user) redirect("/login")
+
+  const effectiveIdentity = await getEffectiveIdentity(user)
+  if (!effectiveIdentity) redirect("/admin")
+
+  const member = await getMember(id)
+
+  if (!member) notFound()
+
+  const profileWriting = await getProfileWriting(id)
+  const writing = { ...profileWriting, goals: profileWriting.goals.filter((goal) => !isMissedGoal(goal)) }
+
+  // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
+  // themselves as it shows to any other member, per docs -- no account info, engagement scores,
+  // or prickle history (that's on My Prickles > Attendance History instead).
+  // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
+  // would resolve the admin as the author -- see src/app/(member)/members/[id]/noteActions.ts.
+  const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
+  const [booksData, awards, tzPref, askMeAbout, noteRow, milestones] = await Promise.all([
+    createRepos(supabase).books.ofMember(id),
+    createRepos(supabase).awards.ofMember(id),
+    getUserTimezonePreference(),
+    createRepos(supabase).memberProfile.askMeAbout(id),
+    showNotes ? createRepos(supabase).memberProfile.noteAbout(effectiveIdentity.memberId, id) : Promise.resolve(null),
+    // Only milestones the member showed to other members (or the web): the same list for them, an admin and any member, never a private one.
+    createRepos(supabase).milestones.shownToMembers(id).catch(() => []),
+  ])
+  const books = booksData
+  const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
+
+  // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per .claude/rules/attendance-table.md) rather
+  // than the member_metrics table, which nothing in the app populates -- see
+  // docs/architecture/MEDALLION_ARCHITECTURE.md.
+  // Hosting stats are the public subset only (no punctuality), and the schedule is the
+  // member's upcoming calendar prickles grouped into recurring slots in the viewer's timezone.
+  // "Last prickle" is the member's most recent join, shown in the header instead of stats.
+  const now = new Date()
+  const [totalPricklesAttended, hostedRecords, hostingSlots, lastPrickleAt] = await Promise.all([
+    getAttendedPrickleCount(createRepos(supabase).attendance, id),
+    fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
+    getMemberHostingSchedule(createRepos(supabase), id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
+    createRepos(supabase).attendance.lastJoinTime(id, { before: now.toISOString() }),
+  ])
+  const hostingSummary = computePublicHostingSummary(hostedRecords)
+
+  const earnedBadges = await getMemberBadges(
+    createRepos(supabase),
+    id,
+    totalPricklesAttended,
+    member.first_joined_at,
+    // Your own profile counts every milestone you confirmed; anyone else's counts only the ones shown to members.
+    id === effectiveIdentity.memberId ? "self" : "others"
+  )
+  // The Big Sister badge links to /big-sisters, which only members with the preview can open.
+  const ownFeatures = await getUserFeaturePreviews(user.id)
+  const bigSistersEnabled = await effectiveMemberHasFeature("big_sisters", effectiveIdentity, ownFeatures)
+  // A direct message needs the DM preview, and never starts in sudo (read-only) or with yourself.
+  const canMessage =
+    member.id !== effectiveIdentity.memberId &&
+    canStartDirectMessage(effectiveIdentity, ownFeatures)
+
+  // No fallback to joined_at (Kajabi contact creation) — a lead who never
+  // had a real subscription has no first_joined_at, and isn't a member, so
+  // shows no "Hedgie since" line at all.
+  const firstJoinedDate = member.first_joined_at ? parseDateOnly(member.first_joined_at) : null
+  const formatMonthYear = (d: Date) =>
+    `${d.toLocaleString("en-US", { month: "long" })} ${d.getFullYear()}`
+
+  const isRejoin = !!(
+    member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at
+  )
+  const mostRecentJoinedDate = member.most_recent_joined_at ? parseDateOnly(member.most_recent_joined_at) : null
+  const daysSinceRejoin = mostRecentJoinedDate
+    ? Math.floor((now.getTime() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
+    : Infinity
+  const showWelcomeBack = isRejoin && daysSinceRejoin <= 30
+
+  const totalActiveMonths = member.total_active_months ?? 0
+  const hedgieYears = Math.floor(totalActiveMonths / 12)
+  const hedgieMonthsRemainder = totalActiveMonths % 12
+  const hedgieversaryLabel =
+    hedgieYears > 0
+      ? `${hedgieYears}-year Hedgieversary${hedgieMonthsRemainder > 0 ? ` + ${hedgieMonthsRemainder} mo` : ""}`
+      : `${totalActiveMonths} ${totalActiveMonths === 1 ? "month" : "months"} as a Hedgie`
+
+  const safeTwitter = safeUrl(member.twitter_url)
+  const safeInstagram = safeUrl(member.instagram_url)
+  const safeFacebook = safeUrl(member.facebook_url)
+  const safePhoto = safeUrl(member.photo_url)
+  const displayName = getMemberDisplayName(member)
+
+  return (
+    <div className="container mx-auto px-6 py-8 max-w-2xl">
+      {/* Header */}
+      <div className="mb-8 flex items-center gap-4">
+        <MemberAvatar name={displayName} photoUrl={safePhoto} size={56} />
+        <div>
+          <h1 className="text-3xl font-bold">{displayName}</h1>
+          {firstJoinedDate && (
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              Hedgie since {formatMonthYear(firstJoinedDate)}
+              {totalActiveMonths > 0 && <span className="mx-1.5">·</span>}
+              {totalActiveMonths > 0 && <span>{hedgieversaryLabel}</span>}
+            </p>
+          )}
+          {lastPrickleAt && (
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+              Last prickle {formatLastPrickle(lastPrickleAt, now, timeZone)}
+            </p>
+          )}
+        </div>
+        {canMessage && <MessageMemberButton memberId={member.id} className="ml-auto shrink-0" />}
+        {member.id === effectiveIdentity.memberId && (
+          <Link data-track="member-profile-edit-profile"
+            href="/settings/profile"
+            className="ml-auto shrink-0 text-sm px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            Edit profile
+          </Link>
+        )}
+      </div>
+
+      {showWelcomeBack && mostRecentJoinedDate && (
+        <WelcomeBackBanner
+          memberId={member.id}
+          rejoinedAt={member.most_recent_joined_at!}
+          monthLabel={formatMonthYear(mostRecentJoinedDate)}
+        />
+      )}
+
+      {/* Bio */}
+      {member.bio && (
+        <p className="text-slate-700 dark:text-slate-300 mb-6 leading-relaxed whitespace-pre-line">
+          {member.bio}
+        </p>
+      )}
+
+      {askMeAbout.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Ask me about…</h2>
+          <AskMeAboutTopics topics={askMeAbout} />
+        </div>
+      )}
+
+      <MemberSocialLinks twitterUrl={safeTwitter} instagramUrl={safeInstagram} facebookUrl={safeFacebook} className="mb-6" />
+
+      {showNotes && (
+        <MemberNotesCard
+          subjectMemberId={member.id}
+          firstName={displayName.split(" ")[0]}
+          initialBody={noteRow?.body ?? ""}
+          initialUpdatedAt={noteRow?.updated_at ?? null}
+        />
+      )}
+
+      {/* Tier 3: visible to all -- renders nothing for members who don't host */}
+      <MemberHostingCard
+        summary={hostingSummary}
+        slots={hostingSlots}
+        timeZone={timeZone}
+        firstName={displayName.split(" ")[0]}
+      />
+
+      {/* Tier 3: visible to all */}
+      {earnedBadges.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Badges
+          </h2>
+          <MemberBadgeChips badges={earnedBadges} bigSistersEnabled={bigSistersEnabled} />
+        </div>
+      )}
+
+      {/* Tier 3: visible to all -- only milestones the member showed to other members (the lock hides them) */}
+      {milestones.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <MilestoneStrip milestones={milestones} />
+        </div>
+      )}
+
+      {/* Tier 3: visible to all -- only projects and goals the member opted in via "Show on my profile" */}
+      {(writing.projects.length > 0 || writing.goals.length > 0) && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Writing Progress
+          </h2>
+          {writing.projects.length > 0 && (
+            <ul className="space-y-2">
+              {writing.projects.map((project) => (
+                <li key={project.id} className="flex items-baseline gap-2">
+                  {project.headline ? (
+                    <>
+                      <span className="text-3xl font-bold">{project.headline.total.toLocaleString()}</span>
+                      <span className="text-slate-600 dark:text-slate-400">
+                        {MEASURE_LABELS[project.headline.measure].toLowerCase()} on {project.title}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-slate-600 dark:text-slate-400">{project.title}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {writing.goals.length > 0 && (
+            <div className={`space-y-4 ${writing.projects.length > 0 ? "mt-6" : ""}`}>
+              {writing.goals.map((goal) => (
+                <div key={goal.id}>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">{goal.projectTitle}</p>
+                  <GoalDisplay goal={goal} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tier 3: visible to all */}
+      {books.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Published Books
+          </h2>
+          <ul className="space-y-3">
+            {books.map((book) => {
+              const safeCover = safeUrl(book.cover_url)
+              const safePurchase = safeUrl(book.editions[0]?.purchase_url)
+              return (
+                <li key={book.id} className="flex items-center gap-3">
+                  {safeCover && (
+                    <img
+                      src={safeCover}
+                      alt=""
+                      className="w-10 h-14 object-cover rounded flex-shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    {safePurchase ? (
+                      <a data-track="member-profile-open-book"
+                        href={safePurchase}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium hover:underline"
+                      >
+                        {book.title}
+                      </a>
+                    ) : (
+                      <p className="text-sm font-medium">{book.title}</p>
+                    )}
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      {formatMonthYear(parseDateOnly(book.published_date))}
+                      {book.editions.length > 1 && (
+                        <>
+                          {" · "}
+                          <BookEditionLinks
+                            editions={book.editions.map((e) => ({ format: e.format, purchaseUrl: e.purchase_url, price: e.price }))}
+                            track="member-profile-open-edition"
+                          />
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* Tier 3: visible to all */}
+      {awards.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Awards
+          </h2>
+          <ul className="space-y-3">
+            {awards.map((award) => {
+              const safeAwardUrl = safeUrl(award.url)
+              return (
+                <li key={award.id}>
+                  <p className="text-sm font-medium">
+                    🏆 {award.award_name}
+                    {award.category && (
+                      <span className="font-normal text-slate-600 dark:text-slate-400">
+                        {" "}
+                        — {award.category}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    for &ldquo;{award.work_title}&rdquo; · {formatMonthYear(parseDateOnly(award.award_date))}
+                    {safeAwardUrl && (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <a data-track="member-profile-details"
+                          href={safeAwardUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          details
+                        </a>
+                      </>
+                    )}
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}

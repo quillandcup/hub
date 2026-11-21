@@ -46,7 +46,7 @@ describe("/unsubscribe page", () => {
     await renderFor(token);
 
     expect(screen.getByRole("heading")).toHaveTextContent("prickle check-ins");
-    expect(screen.getByRole("button", { name: /Unsubscribe from these emails/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Unsubscribe from these emails\b/ })).toBeInTheDocument();
     expect(document.querySelector('input[name="enabled"]')).toHaveValue("false");
     expect(await stored()).toEqual([emailChoice(true)]);
   });

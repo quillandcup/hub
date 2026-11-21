@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./config/app";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS } from "./lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS } from "./src/lib/csp";
 import { helpImagesVersion } from "./scripts/help-images-version";
 import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 
@@ -26,7 +26,7 @@ import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 // via the explicit `pnpm lint` step in CI.
 const isPreview = process.env.VERCEL_ENV === "preview";
 
-// The paths proxy.ts's matcher leaves out. Keep in step with it (tests/lib/csp.test.ts).
+// The paths src/proxy.ts's matcher leaves out. Keep in step with it (tests/lib/csp.test.ts).
 const PROXY_SKIPPED_SOURCES = [
   "/_next/static/:path*",
   "/_next/image",
@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
   env: {
     HELP_IMAGES_VERSION: helpImagesVersion(),
     // When this build was made, and how long Vercel keeps serving a deployment to the tabs opened on it (config/vercel.yml,
-    // applied by scripts/vercel-config.ts): the page can tell when its own deployment is about to stop being served (lib/skew-deadline.ts).
+    // applied by scripts/vercel-config.ts): the page can tell when its own deployment is about to stop being served (src/lib/skew-deadline.ts).
     BUILD_TIME: new Date().toISOString(),
     SKEW_PROTECTION_MAX_AGE_SECONDS: String(readSkewMaxAgeSeconds()),
   },
@@ -62,7 +62,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true }];
   },
-  // The browser protections on every response (lib/csp.ts). The Content-Security-Policy is sent by proxy.ts on the paths it matches
+  // The browser protections on every response (src/lib/csp.ts). The Content-Security-Policy is sent by src/proxy.ts on the paths it matches
   // (a policy header from here reaches Next's request on Vercel and hides the script nonce); here it stays only for the paths the
   // proxy skips (its matcher): static files, pictures, the Sentry tunnel, the service worker.
   async headers() {

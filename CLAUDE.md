@@ -7,21 +7,22 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 - `pnpm dev` / `pnpm build` / `pnpm lint`
 - `pnpm typecheck`: **never bare `tsc --noEmit`**; it runs `next typegen` first (`PageProps`/`LayoutProps` come from `.next/types`). A clean run is zero errors.
 - `pnpm test:unit`, `pnpm test:db` (local Supabase stack), `pnpm test:pgtap` (SQL/RLS), `pnpm test:smoke`
-- `pnpm types:gen` after a migration (commit `lib/data/database.types.ts`), `pnpm check:migrations`
+- `pnpm types:gen` after a migration (commit `src/lib/data/database.types.ts`), `pnpm check:migrations`
 - Every worktree has its own `node_modules`: if `next` or `tsc` is missing, run `pnpm install --frozen-lockfile`, then check your change. Never report "not installed" as the reason a check was skipped.
 
 ## Repo layout
 
-- `app/(member)/`, `app/(admin)/admin/`, `app/api/` (process, import, reconcile, webhooks, internal), `app/actions/`
-- `lib/` (domain logic), `lib/data/` (repositories, the only place that queries tables), `components/`, `emails/`
+- Application code is under `src/`: `src/app/`, `src/components/`, `src/lib/`, `src/emails/`, `src/content/`, plus `src/proxy.ts`, `src/instrumentation.ts` and `src/instrumentation-client.ts`. `@/` means `src/` (so `@/lib/x` is `src/lib/x.ts`); `@/config`, `@/scripts` and `@/tests` still reach those root folders. `public/` stays at the root. Always write a path with its `src/` (`tests/lib/source-layout.test.ts` fails on `lib/x.ts` for `src/lib/x.ts`), and test files go in `tests/`, not next to the code.
+- `src/app/(member)/`, `src/app/(admin)/admin/`, `src/app/api/` (process, import, reconcile, webhooks, internal), `src/app/actions/`
+- `src/lib/` (domain logic), `src/lib/data/` (repositories, the only place that queries tables), `src/components/`, `src/emails/`
 - `config/` (app.ts and env-vars.ts, the config-as-code YAML for GitHub, Sentry, Slack, Vercel and Mux, Sentry init, vitest, eslint, tailwind, squawk, knip, jscpd, osv-scanner, gitleaks, a PostCSS plugin), `supabase/migrations/`, `supabase/tests/database/` (pgTAP), `tests/` (`lib`, `api`, `components`), `docs/`
 - `docs/` is sorted by whether a doc is living or a snapshot (index in `docs/README.md`). Living docs (`runbooks/`, `checklists/`, `architecture/`, `infrastructure/`, `trust/`, `product/`) are maintained with the code: a change that makes one wrong fixes it in the same PR. `decisions/` holds snapshots, a decision or analysis as of a date, kept unchanged as history. Every doc opens with a `> **Status:**` line saying which; `tests/lib/docs-layout.test.ts` enforces it. Living docs also carry `**Last reviewed:**` and a review cadence (quarterly for `checklists/`, yearly otherwise); the weekly "Docs overdue for review" issue lists what is due, and when you edit a doc to make it correct, bump its Last reviewed date. New decisions are ADRs in `docs/decisions/` (see its README). `docs/TODO.md` stays at the top.
 - Data layers: Bronze (raw imports) → Local (app-owned) → Silver (reprocessable from Bronze + Local) → Gold (on demand)
 
 ## Universal rules
 
-- **Pagination**: Supabase returns at most 1000 rows per query. Page with `fetchAllRows` (`lib/supabase/paginate.ts`) or a repository, never a bare `select("*")` on a table that can grow.
-- **Tables are queried through `lib/data/` repositories**, not `.from("<table>")` in pages, actions or routes.
+- **Pagination**: Supabase returns at most 1000 rows per query. Page with `fetchAllRows` (`src/lib/supabase/paginate.ts`) or a repository, never a bare `select("*")` on a table that can grow.
+- **Tables are queried through `src/lib/data/` repositories**, not `.from("<table>")` in pages, actions or routes.
 - **Batch database work** in API routes (load reference data with `Promise.all`, process in memory, write in chunks); no sequential queries in loops.
 - **Member data in member pages** comes from `getEffectiveIdentity`, so sudo works.
 - **Show members by `getMemberDisplayName`**, not `member.name`.
@@ -34,7 +35,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 
 ### No Hardcoded Config
 
-**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks: `config/app.ts` (read via `lib/config.ts`) when it is the same in every environment, an env var declared in `config/env-vars.ts` when it is a secret or not fit to publish (the repo is public). Adding one: `.claude/rules/new-env-var.md`. Tests assert against the imported config values, not repeated literals.
+**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks: `config/app.ts` (read via `src/lib/config.ts`) when it is the same in every environment, an env var declared in `config/env-vars.ts` when it is a secret or not fit to publish (the repo is public). Adding one: `.claude/rules/new-env-var.md`. Tests assert against the imported config values, not repeated literals.
 
 ## Path-scoped rules (`.claude/rules/`)
 

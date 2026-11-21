@@ -1,8 +1,8 @@
 ---
 paths:
-  - "lib/data/attendance.ts"
-  - "lib/attendance*.ts"
-  - "app/api/process/attendance/**"
+  - "src/lib/data/attendance.ts"
+  - "src/lib/attendance*.ts"
+  - "src/app/api/process/attendance/**"
   - "supabase/migrations/**"
 ---
 

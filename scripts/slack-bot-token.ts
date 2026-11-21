@@ -1,4 +1,4 @@
-// The Slack bot's rotating token (lib/slack-bot-token.ts), by hand:
+// The Slack bot's rotating token (src/lib/slack-bot-token.ts), by hand:
 //
 //   pnpm slack:bot-token status               when the stored credential expires (never prints a token)
 //   pnpm slack:bot-token seed --confirm       recovery: replace the stored credential with an access and refresh token
@@ -11,7 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createSlackClient } from "@/lib/slack-client";
 import { createInterface } from "node:readline/promises";
-import { botTokenStatus, seedBotToken } from "../lib/slack-bot-token";
+import { botTokenStatus, seedBotToken } from "../src/lib/slack-bot-token";
 
 const [command, ...flags] = process.argv.slice(2);
 

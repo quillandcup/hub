@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Page wiring for the member profile (app/(member)/members/[id]/page.tsx): the public Hosting card
+ * Page wiring for the member profile (src/app/(member)/members/[id]/page.tsx): the public Hosting card
  * (MemberHostingCard, itself covered in MemberHostingCard.test.tsx), and the Books and Awards
  * sections. Hosted-prickle records go through the page's real computePublicHostingSummary, so
  * records that include late and no-show hosting must still never surface punctuality.

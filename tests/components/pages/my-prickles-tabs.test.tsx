@@ -2,7 +2,7 @@
 /**
  * The standalone /hosting and /calendar pages were removed in favor of My Prickles tabs (and /prickle-picker in
  * favor of Find a Prickle, covered in unflagged-pages.test.tsx). These check each tab's route
- * (/my-prickles/<tab>, lib/tab-routes.ts) serves that content when linked to directly, and that
+ * (/my-prickles/<tab>, src/lib/tab-routes.ts) serves that content when linked to directly, and that
  * legacy ?tab= links redirect there.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

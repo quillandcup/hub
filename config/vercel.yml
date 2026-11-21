@@ -8,7 +8,7 @@
 # land on the live deployment, and a server action it sends is refused (Sentry HUB-6). Vercel's default is
 # one day; it can't exceed the project's Deployment Retention (30 days for production). next.config.ts reads
 # the same number, so the app warns a tab shortly before its deployment stops being served
-# (components/announcements/AppUpdatedBar.tsx).
+# (src/components/announcements/AppUpdatedBar.tsx).
 skewProtection:
   maxAgeSeconds: 604800 # 7 days
 

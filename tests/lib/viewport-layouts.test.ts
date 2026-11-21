@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
  * matching) fails too, so the list can't rot.
  */
 const ALLOWED: Record<string, string> = {
-  "components/ConsentBanner.tsx": "fixed to the bottom of the window, outside the app shell: laid out by the viewport",
+  "src/components/ConsentBanner.tsx": "fixed to the bottom of the window, outside the app shell: laid out by the viewport",
 };
 
 const STRUCTURAL = /(?<![\w@-])((?:sm|md|lg|xl|2xl):(?:flex-row|flex-col|flex-row-reverse|flex-col-reverse|flex-nowrap|flex-wrap|flex-wrap-reverse|grid-cols-[\w[\](),.%_-]+|col-span-\w+|col-start-\w+|col-end-\w+|row-span-\w+|row-start-\w+))/g;
@@ -31,7 +31,7 @@ function sourceFiles(dir: string): string[] {
 /** Repo-relative file -> the viewport layout variants it uses. */
 function viewportLayouts(): Map<string, string[]> {
   const found = new Map<string, string[]>();
-  for (const file of ["app", "components"].flatMap((dir) => sourceFiles(path.join(root, dir)))) {
+  for (const file of ["src/app", "src/components"].flatMap((dir) => sourceFiles(path.join(root, dir)))) {
     const matches = [...fs.readFileSync(file, "utf8").matchAll(STRUCTURAL)].map((m) => m[1]);
     if (matches.length) found.set(path.relative(root, file), matches);
   }

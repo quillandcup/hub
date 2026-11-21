@@ -130,7 +130,7 @@ describe("a button's look comes from the site unless the button chooses its own"
     expect(follows(screen.getAllByRole("link", { name: "Own" })[0].className)).toBe(false);
   });
 
-  it("draws the same classes in light and dark theme: the theme is CSS (tested against app/globals.css), not a class on the button", () => {
+  it("draws the same classes in light and dark theme: the theme is CSS (tested against src/app/globals.css), not a class on the button", () => {
     const props = { label: "Join", href: "/join", look: "inherit", color: "plum", shape: "pill", align: "left", full: false } as const;
     const light = render(<Button {...props} />);
     const lightClass = link("Join");

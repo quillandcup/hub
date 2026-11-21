@@ -64,7 +64,7 @@ describe("CalendarWeekView layout", () => {
 
   it("keeps its sticky layers below the app header, whose popovers (On Air, help, user menu) must paint over them", () => {
     const { container } = renderCalendar();
-    const appHeader = readFileSync(join(process.cwd(), "components/AppHeader.tsx"), "utf8");
+    const appHeader = readFileSync(join(process.cwd(), "src/components/AppHeader.tsx"), "utf8");
     const layer = (cls: string | undefined) => Number(zIndex[cls ?? ""] ?? 0);
     const headerZ = layer(/<header[^>]*\bz-([\w-]+)/.exec(appHeader)?.[1]);
     expect(headerZ).toBeGreaterThan(0);

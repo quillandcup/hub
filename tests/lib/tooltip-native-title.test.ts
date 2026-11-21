@@ -4,7 +4,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
- * A hint on anything goes through `components/Tooltip.tsx` (rule: `.claude/rules/tooltips.md`), never a native
+ * A hint on anything goes through `src/components/Tooltip.tsx` (rule: `.claude/rules/tooltips.md`), never a native
  * `title="..."`: that is a small grey browser box that looks different from every other tooltip, never shows on a touch
  * screen and can't be styled. This fails on a native `title` attribute on a lowercase (DOM) JSX element in `app` or
  * `components`. There is no baseline: every file is clean, and it has to stay that way.
@@ -61,9 +61,9 @@ describe("tooltips: no native title", () => {
   });
 
   it("has no native title tooltip anywhere in app or components (use <Tooltip content=...>)", () => {
-    const offenders = ["app", "components"]
+    const offenders = ["src/app", "src/components"]
       .flatMap((dir) => sourceFiles(path.join(root, dir)))
       .flatMap((file) => nativeTitles(fs.readFileSync(file, "utf8")).map((line) => `${path.relative(root, file)}:${line}`));
-    expect(offenders, "wrap the element in <Tooltip content=...> from components/Tooltip.tsx instead of title= (.claude/rules/tooltips.md)").toEqual([]);
+    expect(offenders, "wrap the element in <Tooltip content=...> from src/components/Tooltip.tsx instead of title= (.claude/rules/tooltips.md)").toEqual([]);
   });
 });

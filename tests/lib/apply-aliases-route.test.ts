@@ -4,7 +4,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 // POST /api/admin/apply-aliases reads supabase/member-aliases.csv (email,alias per line). Each name
-// is checked like any other new alias (lib/name-alias-conflict.ts) before it is created.
+// is checked like any other new alias (src/lib/name-alias-conflict.ts) before it is created.
 
 let dataset = new InMemoryDataset();
 let repos = createInMemoryRepos(dataset);

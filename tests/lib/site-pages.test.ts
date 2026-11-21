@@ -6,7 +6,7 @@ import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import { SITE_PAGES, navGroups, pageEnabled, ADMIN_NAV_GROUPS, MEMBER_NAV_GROUPS } from "@/lib/site-pages";
 
 /**
- * lib/site-pages.ts feeds the sidebars and universal search. This fails when a static page route
+ * src/lib/site-pages.ts feeds the sidebars and universal search. This fails when a static page route
  * is in neither the registry nor EXCLUDED below, and when a registry entry points at a page that
  * no longer exists, so adding or removing a page forces the decision. Dynamic routes ([id]) are
  * records, not destinations, and are skipped.
@@ -28,7 +28,7 @@ const EXCLUDED: Record<string, string> = {
   "/admin/player-spike": "temporary Video.js v10 player spike (docs/product/COURSES.md), reached by URL; delete with the real lesson player",
 };
 
-const ROOT = path.resolve(__dirname, "../../app");
+const ROOT = path.resolve(__dirname, "../../src/app");
 
 function routes(dir: string, prefix = ""): string[] {
   const out: string[] = [];
@@ -50,7 +50,7 @@ describe("site pages registry", () => {
   it("lists every static member and admin page, or excludes it with a reason", () => {
     const listed = new Set(SITE_PAGES.map((p) => pathOf(p.href)));
     const missing = staticRoutes.filter((r) => !listed.has(r) && !(r in EXCLUDED));
-    expect(missing, `add to lib/site-pages.ts (or EXCLUDED here, with a reason): ${missing.join(", ")}`).toEqual([]);
+    expect(missing, `add to src/lib/site-pages.ts (or EXCLUDED here, with a reason): ${missing.join(", ")}`).toEqual([]);
   });
 
   it("points only at pages that exist", () => {
@@ -117,7 +117,7 @@ describe("settings sections", () => {
 
   it("anchors every listed section in a panel", () => {
     const gone = SETTINGS_SECTIONS.filter((s) => !ids.has(s.id)).map((s) => s.id);
-    expect(gone, "section ids that no panel renders; fix lib/site-pages via app/(member)/settings/sections.ts").toEqual([]);
+    expect(gone, "section ids that no panel renders; fix src/lib/site-pages via src/app/(member)/settings/sections.ts").toEqual([]);
   });
 
   it("lists every section heading a panel renders", () => {
@@ -129,7 +129,7 @@ describe("settings sections", () => {
       if (TAB_HEADINGS.has(text) || text === "Settings") continue;
       if (!id || !listed.has(id)) unlisted.push(text);
     }
-    expect(unlisted, "add these headings (with an id) to app/(member)/settings/sections.ts").toEqual([]);
+    expect(unlisted, "add these headings (with an id) to src/app/(member)/settings/sections.ts").toEqual([]);
   });
 
   it("anchors every notification kind's row", () => {

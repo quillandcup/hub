@@ -1,7 +1,7 @@
 ---
 paths:
-  - "app/**/*.tsx"
-  - "components/**"
+  - "src/app/**/*.tsx"
+  - "src/components/**"
   - "config/tailwind.ts"
   - "tests/lib/z-layers.test.ts"
   - "tests/lib/viewport-layouts.test.ts"
@@ -13,7 +13,7 @@ paths:
 
 **Why**: The content area is narrower than the window by the sidebar's width. A page that picks its own viewport breakpoint has to guess what the shell is doing, and the guesses drift: the lesson page moved its outline into a side column at `lg` (1024px) while the sidebar was still visible until `md` (768px), so from 768-1023px the video was squeezed between two panels.
 
-- The member and admin sidebars show from `lg` and become a hamburger menu below it (`components/MemberNavigation.tsx`, `app/(admin)/admin/AdminNavigation.tsx`, `components/MobileMenuButton.tsx`: change all three together). `@outline` is derived from this (the content area jumps 16rem narrower when the sidebar appears, so it is set above any width reachable then); if the sidebar's width or `lg` switch point changes, revisit it in `config/tailwind.ts`. Use Tailwind's default breakpoints; define any new one once in `theme.screens` in `config/tailwind.ts`, not as `min-[...px]` literals.
+- The member and admin sidebars show from `lg` and become a hamburger menu below it (`src/components/MemberNavigation.tsx`, `src/app/(admin)/admin/AdminNavigation.tsx`, `src/components/MobileMenuButton.tsx`: change all three together). `@outline` is derived from this (the content area jumps 16rem narrower when the sidebar appears, so it is set above any width reachable then); if the sidebar's width or `lg` switch point changes, revisit it in `config/tailwind.ts`. Use Tailwind's default breakpoints; define any new one once in `theme.screens` in `config/tailwind.ts`, not as `min-[...px]` literals.
 - Until a page is converted to container queries, a side column next to the main content must start at a viewport breakpoint at which the sidebar is already shown *and* enough room is left (the sidebar is 16rem wide).
 - Mobile-first: base styles for small screens, then add `sm:`/`md:`... as it grows. Don't pick a layout in JavaScript (`useMediaQuery`): it flashes and mismatches on hydration.
 - Check a layout change at widths just either side of every breakpoint it touches (e.g. 700, 800, 1000, 1100px), not just phone/tablet/desktop; the squeezed zone sits between two breakpoints.

@@ -39,7 +39,7 @@ vi.mock("@/lib/supabase/service", () => ({
   }),
 }));
 
-// Members and attendance come from their repositories (lib/data/), in memory here: the members
+// Members and attendance come from their repositories (src/lib/data/), in memory here: the members
 // are the rows a test registers for the "members" table, and nobody has attended anything.
 vi.mock("@/lib/data/repos", async () => {
   const { InMemoryDataset } = await import("@/lib/data/in-memory");

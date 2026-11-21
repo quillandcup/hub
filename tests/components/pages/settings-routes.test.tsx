@@ -12,7 +12,7 @@ import {
   useFakeSupabase,
 } from "@/tests/helpers/server-page";
 
-// Settings tabs live at /settings (Account) and /settings/<id> (lib/tab-routes.ts); legacy
+// Settings tabs live at /settings (Account) and /settings/<id> (src/lib/tab-routes.ts); legacy
 // /settings?tab=<id> links redirect there. Panels that load their own data are stubbed.
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));

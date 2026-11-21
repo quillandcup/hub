@@ -4,7 +4,7 @@ import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from
 import type { RawComment } from '@/lib/kajabi/comments-capture'
 
 /**
- * `courses:content --comments` (lib/kajabi/comments-run.ts) is idempotent (Bronze pattern: UPSERT on the natural
+ * `courses:content --comments` (src/lib/kajabi/comments-run.ts) is idempotent (Bronze pattern: UPSERT on the natural
  * key, soft-delete what a full snapshot no longer lists):
  * 1. First capture writes each lesson's comments to kajabi_lesson_comments
  * 2. Capturing the same data again writes nothing

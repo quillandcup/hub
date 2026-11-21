@@ -1,5 +1,5 @@
 // Mints a Mux signed-playback token (RS256 JWT) with Node's crypto only, the way
-// `mux.jwt.signPlaybackId` in lib/mux.ts does, so the nightly check (mux-e2e.check.ts) needs no
+// `mux.jwt.signPlaybackId` in src/lib/mux.ts does, so the nightly check (mux-e2e.check.ts) needs no
 // dependency inside Checkly's runtime. Tested in tests/lib/mux-token.test.ts.
 
 import { createSign } from 'node:crypto'
