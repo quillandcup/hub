@@ -100,13 +100,34 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Show your writing milestones on your profile",
-    summary: "Mark when you wrote THE END or got your manuscript ready to publish, and choose who sees it: just you, other members, or anyone on the internet through your writer profile, once that is open to you.",
-    body: `In **Settings, Profile, Your milestones**, each of your projects and books has its own steps: you wrote THE END (that makes you a Finisher), and it is ready to publish (that makes you an Author). Only you can mark a step.
+    summary: "Mark when you wrote THE END or got your manuscript ready to publish. You choose who sees each one: only you, other members, or anyone on the internet through your writer profile, once that is open to you.",
+    image: { src: "/changelog/milestones-on-your-profile/06-one-work-3-published-profile.webp", alt: "The Milestones list on a profile: one book with THE END, ready to publish and published, each with its date and a few words from the writer" },
+    body: `In **Settings, Profile, Your milestones**, each of your projects and books has its own steps: you wrote THE END (that makes you a Finisher), your manuscript is ready to publish (an Author), and it is published (a Published Author). You mark the first two yourself. The third comes by itself once the book is on your Bookshelf of published books.
 
-- **Choose who sees it.** The lock keeps it to you. The house shows it to other members on your profile, and is where a step starts once you confirm it. The globe puts it on your writer profile on the web, once writer profiles are open to you.
-- **Add your story**, how it felt before and how it feels now, and it shows with the step, to the same people.
-- **Earn badges.** Each work you wrote THE END on adds to your Finisher badge. Each work that is ready to publish adds to your Author badge. At 3, 5 and 10 works the badge reads 3x, 5x or 10x. Milestones dated before you joined do not count; ones with no date do. On your own profile your badges count every milestone you confirmed. Other members see only the ones you showed with the house (other members) or the globe (everyone), so their count can be lower.
-- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.`,
+![The Milestones list on a profile: one book with THE END, ready to publish and published, each with its date and a few words from the writer](/changelog/milestones-on-your-profile/06-one-work-3-published-profile.webp)
+
+- **Choose who sees each step.** The lock: only you. The house: other members, on your profile. The globe: other members too, and also your writer profile on the web, once writer profiles are open to you and yours is switched on. A step you confirm starts at the globe, and you can change it with the icon next to it any time.
+- **Look before you go public.** When you switch your writer profile on, you see a short list of everything anyone on the internet will see, each with the same icon to change it.
+- **Add your story**, how it felt before and how it feels now. It shows under that step, for the same people who can see the step.
+- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.
+
+![Your milestones in Settings, for a book whose three steps are done, with the globe on each and the share box](/changelog/milestones-on-your-profile/07-one-work-3-published-settings.webp)
+
+**One book, step by step.** After THE END, then after ready to publish:
+
+![A profile with one step: THE END](/changelog/milestones-on-your-profile/01-one-work-1-the-end-profile.webp)
+
+![A profile with two steps: THE END and ready to publish](/changelog/milestones-on-your-profile/04-one-work-2-publish-ready-profile.webp)
+
+**Several books at once.** Each book has its own steps, and each step has its own icon. A step on the lock is visible only to you, in Settings. A step on the house is on your profile for other members. Only a step on the globe is on the web.
+
+![Your milestones in Settings for several books, with the globe, the house and the lock](/changelog/milestones-on-your-profile/10-many-works-settings.webp)
+
+![What other members see on that profile](/changelog/milestones-on-your-profile/09-many-works-profile.webp)
+
+![What anyone on the web sees on the writer profile](/changelog/milestones-on-your-profile/11-many-works-web.webp)
+
+![The list shown when you switch your writer profile on](/changelog/milestones-on-your-profile/12-switch-on-review.webp)`,
   },
   {
     slug: "page-editor-one-panel-drilldown",
