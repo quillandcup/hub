@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-The Kajabi API is the only source of Kajabi data for the Hub. Members, purchases, offers and course structure are read from it; nothing is uploaded from Kajabi exports (the old CSV import is unused: `docs/TODO.md`, "Remove the unused Kajabi CSV import").
+The Kajabi API is the only source of Kajabi data for the Hub's regular sync. Members, purchases, offers and course structure are read from it. Two CSV uploads still exist for other purposes; see "CSV uploads" below.
 
 ## What it is used for
 
@@ -36,6 +36,7 @@ Every response lists what was fetched and written. Kajabi's calls go through `ou
 2. For the nightly job, look at the `reconcile-members` heartbeat in Checkly, or the `[Reconciliation]` lines in the Vercel logs (`.claude/rules/read-only-clis.md`).
 3. An authentication failure surfaces as "Kajabi OAuth" errors in the response and logs: check the three variables above in the environment that failed.
 
-## The old CSV path
+## CSV uploads
 
-`/api/import/members` and `/api/import/subscriptions` (with their admin forms on the dev-only testing page) accepted Kajabi CSV exports. They are unused and written for tables the app no longer reads (`bronze.kajabi_members`, `subscription_history`); do not use them. Their removal is tracked in `docs/TODO.md`.
+- **Product Progress report (kept, needed for the migration).** `/api/import/kajabi-product-progress` takes the report exported from Kajabi (the product, Export) and stores each student's percent of a course completed, so members moving from Kajabi to the Hub do not lose their progress (`docs/product/COURSES.md`, "Importing Kajabi per-lesson progress"). It is part of the Kajabi-to-Hub migration, not of the regular sync.
+- **Members and subscriptions CSV (kept for testing).** `/api/import/members` and `/api/import/subscriptions`, with their forms on the dev-only testing page, accept Kajabi CSV exports. They are not part of production data flow: the regular sync does not use them, and they write to older tables (`bronze.kajabi_members`, `bronze.subscription_history`) that the app no longer reads. Use them to exercise import code and the fixtures in `tests/fixtures/subscription-snapshots/`, not to load real data.
