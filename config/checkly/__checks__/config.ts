@@ -1,6 +1,6 @@
 // Config for the checks: shared settings from config/app.ts, per-environment ones from env vars
 // (config/env-vars.ts; CI passes them from GitHub Actions variables).
-import appConfig from '../config/app'
+import appConfig from '../../app'
 
 /** The deployment the monitors watch, e.g. https://hub.quillandcup.com (no trailing slash). */
 export const appUrl = appConfig.appUrl.replace(/\/+$/, '')

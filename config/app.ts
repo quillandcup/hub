@@ -4,7 +4,7 @@
 // Values that differ per environment, and all secrets, are env vars instead -- see
 // config/env-vars.ts. Nothing else in the code should hardcode these.
 //
-// Read by lib/config.ts (app code), next.config.ts, __checks__/config.ts (Checkly), and
+// Read by lib/config.ts (app code), next.config.ts, config/checkly/__checks__/config.ts (Checkly), and
 // scripts. SQL can't import this file: `pnpm env:sync:vault` copies the values pg_cron
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
@@ -101,7 +101,7 @@ export const appConfig = {
     introChannel: "start-here",
     /** Production operations alerts for failed notification DMs and ambiguous member matches. */
     alertsChannelId: "C0CA91G8LGH", // #hub-alerts
-    /** The same channel by name, for the Checkly Slack app (__checks__/alert-channels.ts), which takes names. */
+    /** The same channel by name, for the Checkly Slack app (config/checkly/__checks__/alert-channels.ts), which takes names. */
     alertsChannelName: "#hub-alerts",
     /**
      * Where the weekly "What's new" digest is also posted (#announcements, open to all members): an excerpt of the

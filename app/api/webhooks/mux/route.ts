@@ -8,7 +8,7 @@ import { assetUpdateFromEvent, createMuxClient, unwrapWebhook, uploadAssetFromEv
 export const maxDuration = 60;
 
 /**
- * Our own Checkly check (`__checks__/mux-e2e.check.ts`) posts an unsigned body to this route on purpose, nightly and on
+ * Our own Checkly check (`config/checkly/__checks__/mux-e2e.check.ts`) posts an unsigned body to this route on purpose, nightly and on
  * every pull request that runs the checks, to see that it is refused. Checkly's API checks identify themselves with this
  * user agent. It is only a hint for how loud the log line is: anyone can send it, and the answer is the same 401.
  */

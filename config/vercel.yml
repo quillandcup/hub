@@ -21,7 +21,7 @@ skewProtection:
 #   rate:        percent of matching requests to trace, 0-100 (0 matches and collects nothing)
 tracing:
   sampling:
-    # Checkly's uptime monitor (__checks__/hub-uptime.check.ts) hits this constantly.
+    # Checkly's uptime monitor (config/checkly/__checks__/hub-uptime.check.ts) hits this constantly.
     # Add any new health-check style endpoint here, above the catch-all.
     - environment: production
       path: /api/health

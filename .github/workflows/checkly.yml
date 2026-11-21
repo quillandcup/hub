@@ -5,8 +5,7 @@ name: Checkly CI/CD
 on:
   pull_request:
     paths:
-      - "__checks__/**"
-      - "checkly.config.ts"
+      - "config/checkly/**"
       - "lib/cron-heartbeats.ts"
       - "config/app.ts"
       - "package.json"
@@ -15,8 +14,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "__checks__/**"
-      - "checkly.config.ts"
+      - "config/checkly/**"
       - "lib/cron-heartbeats.ts"
       - "config/app.ts"
       - "package.json"
@@ -48,11 +46,12 @@ jobs:
         with:
           command: test
           install-command: pnpm install --frozen-lockfile
+          config: config/checkly/checkly.config.ts
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
-          ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
-          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by __checks__/config.ts
+          ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by config/checkly/__checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by config/checkly/__checks__/config.ts
           MUX_CHECK_SIGNING_KEY_PRIVATE: ${{ secrets.MUX_CHECK_SIGNING_KEY_PRIVATE }}
           MUX_CHECK_PLAYBACK_ID: ${{ vars.MUX_CHECK_PLAYBACK_ID }}
 
@@ -77,12 +76,12 @@ jobs:
       # value yet. `shell: bash` matters: GitHub's default is `bash -e`, without pipefail, so the pipe
       # would hand the step sed's exit status and a failed deploy (the plan's monitor limit, say) would
       # show as a pass. Explicit `bash` adds `-o pipefail`.
-      - run: pnpm exec checkly deploy --force 2>&1 | sed -E 's#(ping\.checklyhq\.com/)[0-9a-fA-F-]+#\1***#g'
+      - run: pnpm exec checkly deploy --force --config config/checkly/checkly.config.ts 2>&1 | sed -E 's#(ping\.checklyhq\.com/)[0-9a-fA-F-]+#\1***#g'
         shell: bash
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
-          ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
-          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by __checks__/config.ts
+          ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by config/checkly/__checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by config/checkly/__checks__/config.ts
           MUX_CHECK_SIGNING_KEY_PRIVATE: ${{ secrets.MUX_CHECK_SIGNING_KEY_PRIVATE }}
           MUX_CHECK_PLAYBACK_ID: ${{ vars.MUX_CHECK_PLAYBACK_ID }}

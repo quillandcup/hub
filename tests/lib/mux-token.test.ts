@@ -1,6 +1,6 @@
 import { createVerify, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { signMuxToken } from "../../__checks__/mux-token";
+import { signMuxToken } from "../../config/checkly/__checks__/mux-token";
 
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const privateKeyBase64 = Buffer.from(privateKey.export({ type: "pkcs1", format: "pem" })).toString("base64");

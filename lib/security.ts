@@ -373,7 +373,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "We watch for errors and for scheduled jobs that don't run, and the team is alerted. Error recordings mask what is typed on screen.",
         staff: {
           how: "Error and performance monitoring with masked recordings and server-side scrubbing (configured in the repo), heartbeat monitors on scheduled jobs, uptime and end-to-end checks, and operations alerts posted to a staff channel.",
-          evidence: ["docs/SENTRY_CONFIG.md", "config/sentry.yml", "lib/cron-heartbeats.ts", "checkly.config.ts", "docs/SLACK_OPERATIONS_ALERTS.md"],
+          evidence: ["docs/SENTRY_CONFIG.md", "config/sentry.yml", "lib/cron-heartbeats.ts", "config/checkly/checkly.config.ts", "docs/SLACK_OPERATIONS_ALERTS.md"],
           checked: "2026-11-17",
           open: [],
         },

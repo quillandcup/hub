@@ -118,7 +118,7 @@ curl https://hub.quillandcup.com/api/reconcile/members \
 Each job pings a Checkly heartbeat monitor after a successful run, and Checkly emails
 the owner when a ping is late (failed run, or a run that never fired). The job list,
 periods and grace windows are in `lib/cron-heartbeats.ts`; the monitors are built from
-it in `__checks__/cron-heartbeats.check.ts`. `tests/lib/cron-heartbeats.test.ts` fails if
+it in `config/checkly/__checks__/cron-heartbeats.check.ts`. `tests/lib/cron-heartbeats.test.ts` fails if
 a `vercel.json` cron has no heartbeat.
 
 Adding a cron job: add it to `CRON_HEARTBEATS`, ping from its route
