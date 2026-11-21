@@ -82,6 +82,8 @@ export type ImportedGoalPatch = Pick<
 export interface ProjectChoice {
   id: string;
   title: string;
+  /** The project's phase (`lib/writing-projects.ts`). */
+  phase: string;
 }
 
 /** What a member logged, to be saved. `amount` is a change (`delta`) or a new total (`set_total`). */
@@ -357,7 +359,7 @@ export class SupabaseWritingRepository implements WritingRepository {
   async activeProjects(memberId: string, { limit }: { limit?: number } = {}): Promise<ProjectChoice[]> {
     let query = this.db
       .from("writing_projects")
-      .select("id, title")
+      .select("id, title, phase")
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -902,7 +904,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   async activeProjects(memberId: string, { limit }: { limit?: number } = {}) {
     return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.deleted_at))
       .slice(0, limit)
-      .map(({ id, title }) => ({ id, title }));
+      .map(({ id, title, phase }) => ({ id, title, phase }));
   }
 
   async projectVisibility(memberId: string, projectId: string) {

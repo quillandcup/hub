@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   type Consents,
   type MilestoneKind,
 } from "@/lib/finishers";
+import { buildWorks, isFeaturedWork, summarizeTitles, MAX_WORK_TITLE_LENGTH, type CardBook, type CardProject, type Work } from "@/lib/finishers-works";
 import type { Milestone } from "@/lib/data/milestones";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { addMilestone, answerMilestone, takeBackMilestone } from "./milestoneActions";
@@ -29,12 +30,8 @@ const SECONDARY = "px-4 py-2 text-sm rounded-md border border-slate-300 dark:bor
 const NOTE = "mt-1 text-sm text-slate-600 dark:text-slate-400";
 
 type FormResult = { success: true } | { error: string };
-type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; consents: Consents; projectId: string | null };
+type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; consents: Consents };
 
-/** A project the member can link a milestone to. */
-export type MilestoneProject = { id: string; title: string };
-/** A live book on the member's Bookshelf: the third milestone is derived from these. */
-export type ShelfBookRef = { id: string; title: string };
 
 const consentsOf = (m: Milestone): Consents => ({
   consent_profile: m.consentProfile,
@@ -49,12 +46,12 @@ function dayWords(value: string): string {
 
 /**
  * The answer form: an optional date, a before and an after story, and one tick per use (all unticked). It confirms a proposal,
- * changes a confirmed answer, or (with `projects`) adds a new milestone; `run` does the saving.
+ * changes a confirmed answer, or adds a new milestone for a work; `run` does the saving. `lead` is extra fields above the form.
  */
 function MilestoneForm({
   idPrefix,
   initial,
-  projects,
+  lead,
   submitLabel,
   run,
   onDone,
@@ -62,7 +59,7 @@ function MilestoneForm({
 }: {
   idPrefix: string;
   initial: Milestone | null;
-  projects?: MilestoneProject[];
+  lead?: ReactNode;
   submitLabel: string;
   run: (input: FormInput) => Promise<FormResult>;
   onDone: () => void;
@@ -74,7 +71,6 @@ function MilestoneForm({
   const [date, setDate] = useState(initial?.achievedOn ?? "");
   const [before, setBefore] = useState(initial?.storyBefore ?? "");
   const [after, setAfter] = useState(initial?.storyAfter ?? "");
-  const [projectId, setProjectId] = useState("");
   // Every use starts unticked; a milestone already confirmed shows what the member chose.
   const [consents, setConsents] = useState<Consents>(initial?.status === "confirmed" ? consentsOf(initial) : NO_CONSENT);
 
@@ -82,7 +78,7 @@ function MilestoneForm({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await run({ achievedOn: date || null, storyBefore: before, storyAfter: after, consents, projectId: projectId || null });
+      const result = await run({ achievedOn: date || null, storyBefore: before, storyAfter: after, consents });
       if ("error" in result) {
         setError(result.error);
         return;
@@ -94,27 +90,13 @@ function MilestoneForm({
 
   return (
     <form onSubmit={submit} className="mt-3 space-y-4">
+      {lead}
       <div>
         <label htmlFor={`${idPrefix}-date`} className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
           When did it happen? (optional)
         </label>
         <input id={`${idPrefix}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${INPUT} sm:w-56`} />
       </div>
-      {projects && projects.length > 0 && (
-        <div>
-          <label htmlFor={`${idPrefix}-project`} className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Which project was it? (optional)
-          </label>
-          <select id={`${idPrefix}-project`} value={projectId} onChange={(e) => setProjectId(e.target.value)} className={`${INPUT} sm:w-72`}>
-            <option value="">Not linked to a project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
       <div>
         <label htmlFor={`${idPrefix}-before`} className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
           How did it feel before you got here? (optional)
@@ -174,7 +156,7 @@ function RowHeading({ kind }: { kind: MilestoneKind }) {
   );
 }
 
-function MilestoneItem({ kind, milestone, projects, readOnly }: { kind: MilestoneKind; milestone: Milestone | undefined; projects: MilestoneProject[]; readOnly: boolean }) {
+function MilestoneItem({ kind, milestone, work, readOnly }: { kind: MilestoneKind; milestone: Milestone | undefined; work: Work; readOnly: boolean }) {
   const router = useRouter();
   const { ask, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -206,11 +188,10 @@ function MilestoneItem({ kind, milestone, projects, readOnly }: { kind: Mileston
     });
   };
 
-  const projectTitle = milestone?.projectId ? projects.find((p) => p.id === milestone.projectId)?.title : undefined;
   const chosen = milestone ? MILESTONE_CONSENTS.filter(({ key }) => consentsOf(milestone)[key]).map(({ label }) => label) : [];
 
   return (
-    <li className="rounded-md border border-slate-200 dark:border-slate-700 p-4" data-milestone={kind}>
+    <li className="rounded-md border border-slate-200 dark:border-slate-700 p-4" data-milestone={`${work.key || "none"}-${kind}`}>
       <RowHeading kind={kind} />
 
       {!milestone && !editing && (
@@ -225,11 +206,19 @@ function MilestoneItem({ kind, milestone, projects, readOnly }: { kind: Mileston
       )}
       {!milestone && editing && (
         <MilestoneForm
-          idPrefix={`ms-add-${kind}`}
+          idPrefix={`ms-add-${work.key || "none"}-${kind}`}
           initial={null}
-          projects={projects}
           submitLabel={MILESTONE_SELF_ADD[kind].confirmLabel}
-          run={(i) => addMilestone({ kind, achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, consents: i.consents, projectId: i.projectId })}
+          run={(i) => addMilestone({
+              kind,
+              projectId: work.projectId,
+              bookId: work.bookId,
+              title: work.projectId || work.bookId ? null : work.title,
+              achievedOn: i.achievedOn,
+              storyBefore: i.storyBefore,
+              storyAfter: i.storyAfter,
+              consents: i.consents,
+            })}
           onDone={() => setEditing(false)}
           readOnly={readOnly}
         />
@@ -251,8 +240,7 @@ function MilestoneItem({ kind, milestone, projects, readOnly }: { kind: Mileston
       {milestone?.status === "confirmed" && !editing && (
         <>
           <p className={NOTE}>
-            Confirmed{milestone.achievedOn ? ` (${dayWords(milestone.achievedOn)})` : ""}
-            {projectTitle ? `, for ${projectTitle}` : ""}.{" "}
+            Confirmed{milestone.achievedOn ? ` (${dayWords(milestone.achievedOn)})` : ""}.{" "}
             {chosen.length > 0 ? `You said we may show it on: ${chosen.join(", ")}.` : "You haven't chosen anywhere to show it, so it stays private."}
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -301,36 +289,92 @@ function MilestoneItem({ kind, milestone, projects, readOnly }: { kind: Mileston
   );
 }
 
-/** The third milestone: nobody adds it, it is true when they have a book on the Bookshelf. */
-function PublishedItem({ books }: { books: ShelfBookRef[] }) {
+/** The third milestone: nobody adds it, it is true when the work is a book on the Bookshelf. */
+function PublishedItem() {
   return (
     <li className="rounded-md border border-slate-200 dark:border-slate-700 p-4" data-milestone="published">
       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
         {PUBLISHED_CLAIM} <span className="text-slate-500 dark:text-slate-400">({PUBLISHED_TITLE})</span>
       </p>
-      {books.length > 0 ? (
-        <p className={NOTE}>
-          Confirmed by your Bookshelf: {books.length === 1 ? books[0].title : `${books.length} books`}.{" "}
-          <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
-            See your Bookshelf
-          </Link>
-        </p>
-      ) : (
-        <p className={NOTE}>
-          Not yet. This appears by itself when you have a published book on the Bookshelf.{" "}
-          <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
-            Go to the Bookshelf
-          </Link>
-        </p>
-      )}
+      <p className={NOTE}>
+        Confirmed by your Bookshelf.{" "}
+        <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
+          See your Bookshelf
+        </Link>
+      </p>
     </li>
   );
 }
 
+function WorkItem({ work, readOnly }: { work: Work; readOnly: boolean }) {
+  return (
+    <li className="space-y-2" data-work={work.key || "none"}>
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{work.title ?? "A work you added earlier"}</h3>
+      <ul className="space-y-3">
+        {MILESTONE_KINDS.map((kind) => (
+          <MilestoneItem key={kind} kind={kind} milestone={work.milestones[kind]} work={work} readOnly={readOnly} />
+        ))}
+        {work.published && <PublishedItem />}
+      </ul>
+    </li>
+  );
+}
+
+/** "Add a work that is not listed here": a title, which milestone, and the same answer form. */
+function UnlistedWork({ readOnly }: { readOnly: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<MilestoneKind>("the_end");
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} disabled={readOnly} className={SECONDARY} data-track="milestone-add-unlisted-open">
+        Add a work that is not listed here
+      </button>
+    );
+  }
+  return (
+    <div className="rounded-md border border-slate-200 dark:border-slate-700 p-4">
+      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">A work that is not listed here</p>
+      <MilestoneForm
+        idPrefix="ms-unlisted"
+        initial={null}
+        lead={
+          <>
+            <div>
+              <label htmlFor="ms-unlisted-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                What is it called?
+              </label>
+              <input id="ms-unlisted-title" value={title} maxLength={MAX_WORK_TITLE_LENGTH} onChange={(e) => setTitle(e.target.value)} className={`${INPUT} sm:w-96`} />
+            </div>
+            <div>
+              <label htmlFor="ms-unlisted-kind" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                What did you reach?
+              </label>
+              <select id="ms-unlisted-kind" value={kind} onChange={(e) => setKind(e.target.value as MilestoneKind)} className={`${INPUT} sm:w-72`}>
+                {MILESTONE_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {MILESTONE_CLAIMS[k]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        }
+        submitLabel="Add it"
+        run={(i) => addMilestone({ kind, title, achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, consents: i.consents })}
+        onDone={() => setOpen(false)}
+        readOnly={readOnly}
+      />
+    </div>
+  );
+}
+
 /**
- * Settings > Profile: "Your milestones", always there. THE END and publish-ready are each a row the member can add
- * themselves, confirm (when staff suggested it) or take back; published comes from their Bookshelf and is read-only.
- * Nothing here is public: a milestone is only used where its box is ticked.
+ * Settings > Profile: "Your milestones", always there, per work (docs/product/FINISHERS.md). Each of the member's projects and
+ * Bookshelf books has its own THE END and publish-ready rows, which they can add themselves, confirm (when staff suggested
+ * it) or take back; a book also shows Published, which comes from the Bookshelf and is read-only. Works with a milestone, on
+ * the Bookshelf or past the drafting stage come first; the rest wait under "Show all my projects". Nothing here is public: a
+ * milestone is only used where its box is ticked.
  */
 export function MilestonesPanel({
   milestones,
@@ -339,28 +383,53 @@ export function MilestonesPanel({
   readOnly = false,
 }: {
   milestones: Milestone[];
-  projects?: MilestoneProject[];
-  books?: ShelfBookRef[];
+  projects?: CardProject[];
+  books?: CardBook[];
   readOnly?: boolean;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const works = buildWorks(projects, books, milestones);
+  const featured = works.filter(isFeaturedWork);
+  const rest = works.filter((w) => !isFeaturedWork(w));
   const waiting = milestones.some((m) => m.status === "proposed");
+  const summary = summarizeTitles(works);
   return (
     <section aria-labelledby="your-milestones" className="border-t border-slate-200 dark:border-slate-700 pt-6 mt-6">
       <h2 id="your-milestones" className="text-lg font-medium text-slate-900 dark:text-slate-100">
         Your milestones
       </h2>
-      <p className="mt-1 mb-4 text-sm text-slate-600 dark:text-slate-400">
-        The steps on a writer&rsquo;s path: you wrote THE END, you made it publish-ready, you published. Only you can say you reached one, and nothing is
-        shown to anyone until you choose where.
+      <p className="mt-1 mb-2 text-sm text-slate-600 dark:text-slate-400">
+        The steps on a writer&rsquo;s path, for each of your works: you wrote THE END, you made it publish-ready, you published. Only you can say you reached
+        one, and nothing is shown to anyone until you choose where.
         {waiting && " We think you may have reached one already. Tell us if that’s right."}
         {readOnly && " (You are viewing as this member, so you can look but not change anything.)"}
       </p>
-      <ul className="space-y-3">
-        {MILESTONE_KINDS.map((kind) => (
-          <MilestoneItem key={kind} kind={kind} milestone={milestones.find((m) => m.kind === kind)} projects={projects} readOnly={readOnly} />
+      {summary && (
+        <p className="mb-4 text-sm font-medium text-slate-900 dark:text-slate-100" data-testid="milestone-summary">
+          {summary}
+        </p>
+      )}
+      {works.length === 0 && <p className={`${NOTE} mb-4`}>You have no projects or books yet. Add a work below, or start a project and it will be listed here.</p>}
+      <ul className="space-y-6">
+        {featured.map((w) => (
+          <WorkItem key={w.key || "none"} work={w} readOnly={readOnly} />
         ))}
-        <PublishedItem books={books} />
+        {showAll && rest.map((w) => <WorkItem key={w.key} work={w} readOnly={readOnly} />)}
       </ul>
+      {rest.length > 0 && !showAll && (
+        <button type="button" onClick={() => setShowAll(true)} className={`${SECONDARY} mt-4`}>
+          Show all my projects ({rest.length} more)
+        </button>
+      )}
+      <div className="mt-6 space-y-3">
+        <p className={NOTE}>
+          A book on your Bookshelf is a published milestone by itself.{" "}
+          <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
+            Go to the Bookshelf
+          </Link>
+        </p>
+        <UnlistedWork readOnly={readOnly} />
+      </div>
     </section>
   );
 }

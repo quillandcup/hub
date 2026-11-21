@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { clock } from "@/lib/clock";
 import { parseMilestoneAnswer, parseMilestoneSelfAdd, type MilestoneAnswerInput } from "@/lib/finishers";
+import { parseWork } from "@/lib/finishers-works";
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 
 /**
@@ -44,7 +45,7 @@ export async function answerMilestone(...args: Parameters<typeof answerMilestone
   }));
 }
 
-type AddInput = { kind: string; projectId?: string | null } & Omit<MilestoneAnswerInput, "answer">;
+type AddInput = { kind: string; projectId?: string | null; bookId?: string | null; title?: string | null } & Omit<MilestoneAnswerInput, "answer">;
 
 /**
  * A member adds a milestone themselves ("I wrote THE END") without waiting for staff: one step, already confirmed
@@ -64,9 +65,18 @@ async function addMilestoneImpl(input: AddInput): Promise<{ success: true; added
 
   try {
     const repos = createRepos(await createClient());
-    const projectId = input.projectId || null;
-    if (projectId !== null && !(await repos.writing.ownsProject(identity.memberId, projectId))) return { error: "We couldn't find that project." };
-    const { result } = await repos.milestones.addOwn({ memberId: identity.memberId, kind: parsed.kind, answer: parsed.answer, projectId, createdBy: user.id }, new Date(clock.now()));
+    const named = parseWork(input);
+    if ("error" in named) return { error: named.error };
+    let work = named;
+    if (work.projectId !== null && !(await repos.writing.ownsProject(identity.memberId, work.projectId))) return { error: "We couldn't find that project." };
+    if (work.bookId !== null) {
+      // A book and its project are one work: take the project from the book, and refuse a project that is not its own.
+      const book = (await repos.books.mine(identity.memberId)).find((b) => b.id === work.bookId);
+      if (!book) return { error: "We couldn't find that book." };
+      if (work.projectId !== null && book.project_id !== work.projectId) return { error: "That book belongs to a different project." };
+      work = { projectId: book.project_id ?? null, bookId: book.id, title: null };
+    }
+    const { result } = await repos.milestones.addOwn({ memberId: identity.memberId, kind: parsed.kind, answer: parsed.answer, work, createdBy: user.id }, new Date(clock.now()));
     revalidatePath("/settings/profile");
     return { success: true, added: result === "added" };
   } catch (error) {

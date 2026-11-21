@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }
 vi.mock("@/app/(admin)/admin/finishers/actions", () => ({
   proposeMilestonesFromBooks: vi.fn(),
   proposeMilestone: vi.fn(),
+  loadWorksOfMember: vi.fn(),
   withdrawMilestone: vi.fn(),
 }));
 
@@ -27,6 +28,7 @@ const row = (overrides: Partial<StaffMilestone> = {}): StaffMilestone => ({
   source: "staff",
   achievedOn: null,
   createdAt: "2026-11-20T12:00:00Z",
+  workTitle: "A Fake Novel",
   name: "Ada Legalname",
   displayName: "Ada Example",
   ...overrides,
@@ -50,11 +52,12 @@ describe("FinishersClient", () => {
     expect(screen.queryByText("Ada Legalname")).not.toBeInTheDocument();
     const table = within(screen.getByRole("table"));
     expect(table.getByText("THE END")).toBeInTheDocument();
+    expect(table.getByText("A Fake Novel")).toBeInTheDocument();
     expect(table.getByText(/Suggested by the Quill & Cup team/i)).toBeInTheDocument();
   });
 
   it("asks before the backfill, then reports how many it proposed", async () => {
-    vi.mocked(actions.proposeMilestonesFromBooks).mockResolvedValue({ success: true, added: 12 });
+    vi.mocked(actions.proposeMilestonesFromBooks).mockResolvedValue({ success: true, proposals: 12, members: 5, books: 7 });
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole("button", { name: "Propose from published books" }));
@@ -62,12 +65,12 @@ describe("FinishersClient", () => {
     expect(actions.proposeMilestonesFromBooks).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Propose milestones" }));
     await waitFor(() => expect(actions.proposeMilestonesFromBooks).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Proposed 12 milestones.")).toBeInTheDocument();
+    expect(await screen.findByText("12 proposals for 5 members across 7 books.")).toBeInTheDocument();
     expect(refresh).toHaveBeenCalled();
   });
 
   it("says when the backfill had nothing new, and shows an error from the server", async () => {
-    vi.mocked(actions.proposeMilestonesFromBooks).mockResolvedValueOnce({ success: true, added: 0 }).mockResolvedValueOnce({ error: "Not authorized" });
+    vi.mocked(actions.proposeMilestonesFromBooks).mockResolvedValueOnce({ success: true, proposals: 0, members: 0, books: 0 }).mockResolvedValueOnce({ error: "Not authorized" });
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole("button", { name: "Propose from published books" }));
@@ -86,27 +89,47 @@ describe("FinishersClient", () => {
     expect(actions.proposeMilestonesFromBooks).not.toHaveBeenCalled();
   });
 
-  it("adds one by hand for the chosen member and milestone", async () => {
+  it("adds one by hand for the chosen member, one of their works and a milestone", async () => {
     vi.mocked(actions.proposeMilestone).mockResolvedValue({ success: true, added: true });
+    vi.mocked(actions.loadWorksOfMember).mockResolvedValue({ success: true, works: [{ projectId: "wpr_A1", bookId: null, title: "A Fake Novel" }] });
     const user = userEvent.setup();
     renderPage();
     expect(screen.getByRole("button", { name: "Add proposal" })).toBeDisabled();
     await user.type(screen.getByPlaceholderText("Search for a member..."), "Bo");
     await user.click(await screen.findByText("Bo Example"));
     await user.selectOptions(screen.getByRole("combobox", { name: "Milestone" }), "publish_ready");
+    expect(await screen.findByRole("option", { name: "A Fake Novel" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add proposal" }));
-    await waitFor(() => expect(actions.proposeMilestone).toHaveBeenCalledWith({ memberId: "mbr_AAAAAAAAAAA2", kind: "publish_ready" }));
+    await waitFor(() =>
+      expect(actions.proposeMilestone).toHaveBeenCalledWith({ memberId: "mbr_AAAAAAAAAAA2", kind: "publish_ready", projectId: "wpr_A1", bookId: null, title: null }),
+    );
     expect(await screen.findByText("Added as a proposal.")).toBeInTheDocument();
   });
 
-  it("says when the member already has that milestone", async () => {
+  it("adds one for a work that is not listed, by title", async () => {
     vi.mocked(actions.proposeMilestone).mockResolvedValue({ success: true, added: false });
+    vi.mocked(actions.loadWorksOfMember).mockResolvedValue({ success: true, works: [] });
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByPlaceholderText("Search for a member..."), "Bo");
+    await user.click(await screen.findByText("Bo Example"));
+    await user.type(await screen.findByPlaceholderText("Title of the work"), "A Second Fake Work");
+    await user.click(screen.getByRole("button", { name: "Add proposal" }));
+    await waitFor(() =>
+      expect(actions.proposeMilestone).toHaveBeenCalledWith({ memberId: "mbr_AAAAAAAAAAA2", kind: "the_end", projectId: undefined, bookId: undefined, title: "A Second Fake Work" }),
+    );
+    expect(await screen.findByText("That work already has this milestone.")).toBeInTheDocument();
+  });
+
+  it("says when the work already has that milestone", async () => {
+    vi.mocked(actions.proposeMilestone).mockResolvedValue({ success: true, added: false });
+    vi.mocked(actions.loadWorksOfMember).mockResolvedValue({ success: true, works: [] });
     const user = userEvent.setup();
     renderPage();
     await user.type(screen.getByPlaceholderText("Search for a member..."), "Bo");
     await user.click(await screen.findByText("Bo Example"));
     await user.click(screen.getByRole("button", { name: "Add proposal" }));
-    expect(await screen.findByText("That member already has this milestone.")).toBeInTheDocument();
+    expect(await screen.findByText("That work already has this milestone.")).toBeInTheDocument();
   });
 
   it("takes back a proposal after confirming, and offers it only for proposals", async () => {

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { MilestoneRepository } from "@/lib/data/milestones";
 import { parseMilestoneAnswer, type MilestoneAnswer } from "@/lib/finishers";
+import { workKey, type WorkRef } from "@/lib/finishers-works";
 
 export type MilestonesContractContext = {
   repo: () => MilestoneRepository;
@@ -10,8 +11,8 @@ export type MilestonesContractContext = {
   missingMemberId: string;
   /** An auth user id to record as the staff member who proposes. */
   staffUserId: string;
-  /** Gives a member one live (not deleted) published book. */
-  addBook: (memberId: string) => Promise<void>;
+  /** Gives a member one live (not deleted) published book, optionally linked to one of their projects, and returns its id. */
+  addBook: (memberId: string, projectId?: string) => Promise<string>;
   /** Soft-deletes every book of the member. */
   deleteBooks: (memberId: string) => Promise<void>;
   /** Gives a member one live writing project and returns its id. */
@@ -21,10 +22,12 @@ export type MilestonesContractContext = {
 };
 
 const NOW = new Date("2026-11-20T15:00:00Z");
-const ownAdd = (memberId: string, createdBy: string, kind: "the_end" | "publish_ready" = "the_end", extra: Partial<Parameters<typeof parseMilestoneAnswer>[0]> = {}, projectId: string | null = null) => ({
+/** The work most tests use: one the member names by title. */
+const WORK: WorkRef = { projectId: null, bookId: null, title: "A Fake Novel" };
+const ownAdd = (memberId: string, createdBy: string, kind: "the_end" | "publish_ready" = "the_end", extra: Partial<Parameters<typeof parseMilestoneAnswer>[0]> = {}, work: WorkRef = WORK) => ({
   memberId,
   kind,
-  projectId,
+  work,
   createdBy,
   answer: confirmed(extra),
 });
@@ -45,7 +48,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
     }, 60_000);
     const [ada, bo] = [0, 1];
     const id = (i: number) => ctx.members[i];
-    const proposal = (i: number, kind: "the_end" | "publish_ready" = "the_end") => ({ memberId: id(i), kind, achievedOn: null, createdBy: ctx.staffUserId });
+    const proposal = (i: number, kind: "the_end" | "publish_ready" = "the_end", work: WorkRef = WORK) => ({ memberId: id(i), kind, work, achievedOn: null, createdBy: ctx.staffUserId });
 
     it("adds a proposal by hand, hidden as proposed with every consent off, and says when it already exists", async () => {
       const repo = ctx.repo();
@@ -157,14 +160,14 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       const repo = ctx.repo();
       await ctx.addBook(id(ada));
       const added = await repo.proposeFromBooks();
-      expect(added).toBeGreaterThanOrEqual(2);
+      expect(added.proposals).toBeGreaterThanOrEqual(2);
       const mine = await repo.ofMember(id(ada));
       expect(mine.map((m) => [m.kind, m.status, m.source])).toEqual([
         ["the_end", "proposed", "staff"],
         ["publish_ready", "proposed", "staff"],
       ]);
       expect(await repo.ofMember(id(bo))).toEqual([]);
-      expect(await repo.proposeFromBooks()).toBe(0);
+      expect((await repo.proposeFromBooks()).proposals).toBe(0);
       expect(await repo.ofMember(id(ada))).toHaveLength(2);
     });
 
@@ -175,7 +178,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       const [theEnd, ready] = await repo.ofMember(id(ada));
       await repo.answer(theEnd.id, id(ada), { status: "declined" }, NOW);
       await repo.withdraw(ready.id);
-      expect(await repo.proposeFromBooks()).toBe(0);
+      expect((await repo.proposeFromBooks()).proposals).toBe(0);
       expect(await repo.ofMember(id(ada))).toHaveLength(1);
       expect((await repo.ofMember(id(ada)))[0].status).toBe("declined");
 
@@ -185,6 +188,67 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       await repo.proposeFromBooks();
       expect(await repo.ofMember(id(bo))).toEqual([]);
     });
+
+    it("proposes per book: several books give several proposals, a book that is its project's work counts once, and a second run adds nothing", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      const linkedBook = await ctx.addBook(id(ada), projectId);
+      const otherBook = await ctx.addBook(id(ada));
+      await ctx.addBook(id(bo));
+      const first = await repo.proposeFromBooks();
+      expect(first.proposals).toBeGreaterThanOrEqual(6);
+      expect(first.members).toBeGreaterThanOrEqual(2);
+      expect(first.books).toBeGreaterThanOrEqual(3);
+      const mine = await repo.ofMember(id(ada));
+      expect(mine).toHaveLength(4);
+      expect(mine.filter((m) => m.bookId === linkedBook).every((m) => m.projectId === projectId)).toBe(true);
+      expect(mine.filter((m) => m.bookId === otherBook).map((m) => m.kind).sort()).toEqual(["publish_ready", "the_end"]);
+      expect(await repo.ofMember(id(bo))).toHaveLength(2);
+      expect(await repo.proposeFromBooks()).toEqual({ proposals: 0, members: 0, books: 0 });
+    });
+
+    it("skips a book whose project already has the milestone, in any status, and proposes the other kind", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      const book = await ctx.addBook(id(ada), projectId);
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW);
+      await repo.proposeFromBooks();
+      const mine = await repo.ofMember(id(ada));
+      expect(mine.map((m) => [m.kind, m.source, m.bookId])).toEqual([
+        ["the_end", "member", null],
+        ["publish_ready", "staff", book],
+      ]);
+    });
+
+    it("lets a member have the same kind for many works, and one row per work", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      const bookId = await ctx.addBook(id(ada));
+      const a = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW);
+      const b = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId, title: null }), NOW);
+      const c = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "Another Fake Work" }), NOW);
+      expect([a.result, b.result, c.result]).toEqual(["added", "added", "added"]);
+      expect(await repo.ofMember(id(ada))).toHaveLength(3);
+      // The same work again, however it is named, shows the existing one: a title is the same work in any case and spacing.
+      const again = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "another fake work" }), NOW);
+      expect(again).toMatchObject({ result: "exists", milestone: { id: c.milestone.id } });
+      expect((await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW)).result).toBe("exists");
+      // The other kind for the same work is its own row.
+      expect((await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW)).result).toBe("added");
+      expect(workKey(c.milestone)).toBe("title:another fake work");
+      expect(await repo.ofMember(id(ada))).toHaveLength(4);
+    });
+
+    it("lets staff propose per work, and says when that work already has it", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      expect(await repo.propose(proposal(ada, "the_end", { projectId, bookId: null, title: null }))).toBe("added");
+      expect(await repo.propose(proposal(ada, "the_end", { projectId, bookId: null, title: null }))).toBe("exists");
+      expect(await repo.propose(proposal(ada, "the_end", { projectId: null, bookId: null, title: "A Second Fake Work" }))).toBe("added");
+      const page = await repo.page({ limit: 1000, offset: 0 });
+      expect(page.filter((m) => m.memberId === id(ada)).map((m) => m.workTitle).sort()).toEqual(["A Fake Novel", "A Second Fake Work"].sort());
+    });
+
     it("lets a member add their own milestone: confirmed in one step, source member, with the date, stories and ticks they chose", async () => {
       const repo = ctx.repo();
       const out = await repo.addOwn(
@@ -198,6 +262,8 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         status: "confirmed",
         source: "member",
         projectId: null,
+        bookId: null,
+        title: "A Fake Novel",
         achievedOn: "2026-05-01",
         storyBefore: null,
         storyAfter: "Done.",
@@ -213,8 +279,8 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
     it("adds with every consent off when none is ticked, and links one of the member's projects", async () => {
       const repo = ctx.repo();
       const projectId = await ctx.addProject(id(ada));
-      const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, projectId), NOW);
-      expect(milestone).toMatchObject({ kind: "publish_ready", projectId, consentProfile: false, consentHomepage: false, consentTestimonial: false });
+      const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW);
+      expect(milestone).toMatchObject({ kind: "publish_ready", projectId, title: null, consentProfile: false, consentHomepage: false, consentTestimonial: false });
     });
 
     it("shows the existing one instead of adding a second, whoever started it", async () => {
@@ -231,10 +297,10 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(onTop).toMatchObject({ result: "exists", milestone: { id: proposed.id, status: "proposed", source: "staff" } });
       expect(await repo.ofMember(id(bo))).toHaveLength(1);
 
-      // A linked project does not let a second live row of the same kind in.
+      // Another work is another row.
       const projectId = await ctx.addProject(id(ada));
-      expect((await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, projectId), NOW)).result).toBe("exists");
-      expect(await repo.ofMember(id(ada))).toHaveLength(1);
+      expect((await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW)).result).toBe("added");
+      expect(await repo.ofMember(id(ada))).toHaveLength(2);
     });
 
     it("takes back a milestone the member added (a soft delete that frees the slot), but only theirs", async () => {
@@ -259,8 +325,8 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
 
     it("lets the member change what they added, and the staff backfill skips a kind they already have (even one they took back)", async () => {
       const repo = ctx.repo();
-      await ctx.addBook(id(ada));
-      const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end"), NOW);
+      const bookId = await ctx.addBook(id(ada));
+      const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId, title: null }), NOW);
       expect(await repo.answer(milestone.id, id(ada), confirmed({ storyBefore: "Stuck.", consents: { consent_profile: true } }), NOW)).toBe(true);
       expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ source: "member", status: "confirmed", storyBefore: "Stuck.", consentProfile: true });
 
@@ -271,7 +337,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       ]);
 
       await repo.takeBack(milestone.id, id(ada), NOW);
-      expect(await repo.proposeFromBooks()).toBe(0);
+      expect((await repo.proposeFromBooks()).proposals).toBe(0);
       expect((await repo.ofMember(id(ada))).map((m) => m.kind)).toEqual(["publish_ready"]);
     });
   });
