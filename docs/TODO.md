@@ -1954,7 +1954,7 @@ Books and awards stay public by default with no switch (decided 2026-11-19, "Wri
 
 
 ### Finisher record: what is left _(Needs Scheduling)_
-The record exists (`member_milestones`, `docs/product/FINISHERS.md`): staff backfill, hand-add and the member's confirmation card. It was shipped without the pieces below; each was left out on purpose so this change stays data, staff tool and member confirmation only.
+The record exists (`member_milestones`, `docs/product/FINISHERS.md`): staff backfill, hand-add, the member's card (always shown; members add, confirm and take back their own). It was shipped without the pieces below; each was left out on purpose so this change stays data, staff tool and member confirmation only.
 
 - **Photo upload** for a milestone (the day-of photo). Needs the media library flow (`media_assets`, as `member_books.cover_asset_id` does it), ownership and usage rules, and removal handling. Add `photo_asset_id text REFERENCES media_assets(id)` to `member_milestones` and the upload to the card in `app/(member)/settings/MilestonesPanel.tsx`.
 - **The project-stage prompt**: moving a project from Drafting to a later stage asks "Did you write THE END?" and reaching Publishing or Complete asks for the second milestone (source `project_stage`, `project_id` set). Start from `lib/writing-projects.ts`; the verify-first note in "Writer profiles" about `writing_projects.phase` still applies.
@@ -1962,7 +1962,6 @@ The record exists (`member_milestones`, `docs/product/FINISHERS.md`): staff back
 - **Notify proposed members.** Nobody is told today; a member finds the card only by opening Settings, Profile. Send it through `createNotifier` with a new kind and a dry-run rollout (`.claude/rules/member-notifications.md`), after the owner approves the copy.
 - **The public Finishers page and the homepage numbers**, reading only confirmed rows with the matching consent flag, through the service role. The homepage should show counts only for `consent_homepage`.
 - **The name of milestone 2's stamp** (FINAL DRAFT is a placeholder in `PUBLISH_READY_STAMP`, `lib/finishers.ts`). See `docs/product/WRITER_TITLES.md`, "Still open".
-- **Members adding a milestone themselves** (source `member`): the table allows it by design, but the RLS has no member INSERT policy yet and the card has no form.
 - **Going back a stage or Hibernating:** whether it cancels or pauses a milestone is undecided (`docs/product/WRITER_TITLES.md`).
 - **Member merge** does not move `member_milestones` (it is on `NOT_MOVED` in `lib/member-merge-coverage.ts`, like the other member tables, see "Member merge drops most of a member's data"): a merged duplicate's milestones go with it. Moving them needs the one-live-row-per-kind rule respected (keep the kept member's row, and the more confirmed of the two).
 

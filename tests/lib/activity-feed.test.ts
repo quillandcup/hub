@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { MILESTONE_LABELS } from "@/lib/finishers";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -771,6 +772,13 @@ describe("the Finisher record in the Activity Log", () => {
     expect(describeRow(milestone("update", { status: { old: "proposed", new: "declined" } }))).toBe("said a proposed writing milestone is not theirs, or not yet");
     expect(describeRow(milestone("update", { consent_homepage: { old: false, new: true } }))).toBe("changed where a writing milestone may be shown");
     expect(describeRow(milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }, "Ada & <Bo>"))).toBe("took back a proposed milestone for Ada & <Bo>");
+  });
+
+  it("says a milestone the member added themselves, and their own take-back, without a date or a story", () => {
+    const own = describeRow(milestone("insert", { kind: { old: null, new: "publish_ready" }, source: { old: null, new: "member" }, status: { old: null, new: "confirmed" }, story_after: { old: null, new: "[redacted]" } }));
+    expect(own).toBe(`added the \u201c${MILESTONE_LABELS.publish_ready}\u201d milestone`);
+    expect(own).not.toMatch(/proposed|redacted/);
+    expect(describeRow({ ...milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }), actor_kind: "member" })).toBe("took back a milestone they added");
   });
 
   it("never repeats a story or a date the member wrote", () => {
