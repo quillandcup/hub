@@ -1,6 +1,7 @@
 import { afterAll, beforeAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseMilestoneRepository } from "@/lib/data/milestones";
+import { SupabaseWritingRepository } from "@/lib/data/writing";
 import { defineMilestonesContract } from "@/tests/helpers/milestones-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
@@ -15,7 +16,7 @@ const must = <T>(result: { data: T; error: { message: string } | null }) => {
 };
 
 const clear = async () => {
-  for (const table of ["member_milestones", "member_books"] as const) {
+  for (const table of ["member_milestones", "member_books", "writing_projects"] as const) {
     const { error } = await db.from(table).delete().in("member_id", memberIds);
     if (error) throw new Error(error.message);
   }
@@ -59,5 +60,6 @@ defineMilestonesContract("SupabaseMilestoneRepository", () => ({
   deleteBooks: async (memberId) => {
     must(await db.from("member_books").update({ deleted_at: new Date().toISOString() }).eq("member_id", memberId));
   },
+  addProject: (memberId) => new SupabaseWritingRepository(db).createProject(memberId, "A Fake Novel", "drafting"),
   clear,
 }));

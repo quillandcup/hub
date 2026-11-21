@@ -120,6 +120,8 @@ export const OUTCOME_ACTIONS = [
   "writer_page_switched",
   "writer_page_settings_saved",
   "milestone_answered",
+  "milestone_added",
+  "milestone_taken_back",
   "profile_visibility_set",
   "email_alias_added",
   "email_verification_sent",

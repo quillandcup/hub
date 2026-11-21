@@ -3,6 +3,9 @@
 --     and kind, a withdrawn row frees the slot;
 --   * who can read and change what: a member only their own, nothing for anyone signed out, an admin can propose and
 --     take back proposals but never confirm for a member or touch a confirmed row, a member cannot move a row;
+--   * a member adding their own (source member, already confirmed): allowed for themselves with consents and an own project,
+--     refused for anyone else, for an admin, in sudo, for a visitor, unconfirmed, with someone else's project or book,
+--     taken back as a soft delete, and in the Activity Log without the stories;
 --   * the backfill from published books: both kinds per member with a live book, idempotent, over 1000 members,
 --     skipping a decline or a withdrawal, and refused for anyone but an admin;
 --   * the Activity Log entry (stories redacted) and what a member's removal does to the rows.
@@ -12,7 +15,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(29);
+SELECT plan(50);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -58,15 +61,15 @@ GRANT INSERT ON result TO authenticated, anon;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a1", "email": "ms-alice@example.test", "role": "authenticated"}', true);
-INSERT INTO result SELECT 'alice_sees', jsonb_agg(member_id ORDER BY member_id) FROM public.member_milestones;
+INSERT INTO result SELECT 'alice_sees', jsonb_agg(member_id ORDER BY member_id) FROM public.member_milestones WHERE deleted_at IS NULL;
 -- Alice confirms her own row with one consent.
 UPDATE public.member_milestones SET status = 'confirmed', confirmed_at = now(), consent_profile = true, story_after = 'Done at last.'
   WHERE member_id = 'mbr_msAlice00001' AND deleted_at IS NULL;
-INSERT INTO result SELECT 'alice_confirmed', to_jsonb(status) FROM public.member_milestones WHERE member_id = 'mbr_msAlice00001';
+INSERT INTO result SELECT 'alice_confirmed', to_jsonb(status) FROM public.member_milestones WHERE member_id = 'mbr_msAlice00001' AND deleted_at IS NULL;
 -- She cannot answer Bob's.
 UPDATE public.member_milestones SET status = 'declined' WHERE id = 'mlst_msRow0000002';
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a2", "email": "ms-bob@example.test", "role": "authenticated"}', true);
-INSERT INTO result SELECT 'bob_sees', jsonb_agg(member_id ORDER BY member_id) FROM public.member_milestones;
+INSERT INTO result SELECT 'bob_sees', jsonb_agg(member_id ORDER BY member_id) FROM public.member_milestones WHERE deleted_at IS NULL;
 INSERT INTO result SELECT 'bob_status', to_jsonb(status) FROM public.member_milestones WHERE id = 'mlst_msRow0000002';
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a4", "email": "ms-dana@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'dana_sees', jsonb_agg(DISTINCT member_id) FROM public.member_milestones WHERE member_id IN ('mbr_msAlice00001', 'mbr_msBob0000001');
@@ -82,7 +85,7 @@ SELECT is((SELECT value FROM result WHERE label = 'dana_sees'), '["mbr_msAlice00
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a1", "email": "ms-alice@example.test", "role": "authenticated"}', true);
 SELECT throws_ok($$UPDATE public.member_milestones SET member_id = 'mbr_msBob0000001' WHERE member_id = 'mbr_msAlice00001'$$, '42501', NULL, 'a member cannot move a milestone to someone else');
-SELECT throws_ok($$INSERT INTO public.member_milestones (member_id, kind, source) VALUES ('mbr_msAlice00001', 'publish_ready', 'member')$$, '42501', NULL, 'a member cannot add one for themselves yet');
+SELECT throws_ok($$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msBob0000001', 'publish_ready', 'member', 'confirmed', now())$$, '42501', NULL, 'a member cannot add a milestone for someone else');
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a4", "email": "ms-dana@example.test", "role": "authenticated"}', true);
 SELECT throws_ok($$INSERT INTO public.member_milestones (member_id, kind, source, status) VALUES ('mbr_msDana000001', 'the_end', 'member', 'proposed')$$, '42501', NULL, 'an admin can only add staff proposals');
 SELECT throws_ok(
@@ -132,6 +135,122 @@ SELECT is(
 SELECT is(
   (SELECT changes -> 'story_after' ->> 'new' FROM public.audit_log WHERE entity_type = 'member_milestone' AND changes ? 'story_after' ORDER BY id LIMIT 1), '[redacted]',
   'a story is logged as changed, never with its words');
+
+-- Members add their own milestones (migration 20270864000000). Erin and Gus are regular members with one project each,
+-- Dana is the admin from above.
+INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
+  ('00000000-0000-4000-a000-00000000f5a5', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-erin@example.test'),
+  ('00000000-0000-4000-a000-00000000f5a6', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-gus@example.test');
+INSERT INTO public.user_profiles (id, email, role) VALUES
+  ('00000000-0000-4000-a000-00000000f5a5', 'ms-erin@example.test', 'member'),
+  ('00000000-0000-4000-a000-00000000f5a6', 'ms-gus@example.test', 'member')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
+  ('mbr_msErin000001', 'Erin Milestone', 'ms-erin@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a5'),
+  ('mbr_msGus0000001', 'Gus Milestone', 'ms-gus@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a6');
+INSERT INTO public.writing_projects (id, member_id, title) VALUES
+  ('prj_msErin000001', 'mbr_msErin000001', 'Erin Fake Novel'),
+  ('prj_msGus0000001', 'mbr_msGus0000001', 'Gus Fake Novel');
+INSERT INTO public.member_books (id, member_id, title, cover_url, published_date) VALUES
+  ('book_msGus00001', 'mbr_msGus0000001', 'Gus Fake Book', 'https://example.test/c.png', '2026-01-01');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a5", "email": "ms-erin@example.test", "role": "authenticated"}', true);
+SELECT lives_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at, achieved_on, story_after, consent_homepage, project_id, created_by)
+    VALUES ('mbr_msErin000001', 'the_end', 'member', 'confirmed', now(), '2026-05-01', 'Erin story words', true, 'prj_msErin000001', '00000000-0000-4000-a000-00000000f5a5')$$,
+  'a member adds their own confirmed milestone, with a consent, a date, a story and one of their own projects');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at, project_id) VALUES ('mbr_msErin000001', 'the_end', 'member', 'confirmed', now(), 'prj_msErin000001')$$,
+  '23505', NULL, 'a second live milestone of the same kind and project is refused by the unique index (the repository shows the existing one instead)');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msGus0000001', 'publish_ready', 'member', 'confirmed', now())$$,
+  '42501', NULL, 'a member cannot add one for another member');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status) VALUES ('mbr_msErin000001', 'publish_ready', 'member', 'proposed')$$,
+  '42501', NULL, 'a member cannot add a proposal of their own: their own row is confirmed or nothing');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, consent_profile) VALUES ('mbr_msErin000001', 'publish_ready', 'member', 'proposed', true)$$,
+  '42501', NULL, 'a consent on an unconfirmed row is refused');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msErin000001', 'publish_ready', 'staff', 'confirmed', now())$$,
+  '42501', NULL, 'a member cannot pass a milestone off as staff or course work (source must be member)');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at, project_id) VALUES ('mbr_msErin000001', 'publish_ready', 'member', 'confirmed', now(), 'prj_msGus0000001')$$,
+  '42501', NULL, 'a member cannot link someone else''s project');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at, book_id) VALUES ('mbr_msErin000001', 'publish_ready', 'member', 'confirmed', now(), 'book_msGus00001')$$,
+  '42501', NULL, 'a member cannot link a book');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at, created_by) VALUES ('mbr_msErin000001', 'publish_ready', 'member', 'confirmed', now(), '00000000-0000-4000-a000-00000000f5a6')$$,
+  '42501', NULL, 'a member cannot record someone else as the one who added it');
+
+-- Taking back is a soft delete the member's own update policy already allows; they cannot take back another member's.
+UPDATE public.member_milestones SET deleted_at = now() WHERE member_id = 'mbr_msErin000001' AND kind = 'the_end';
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a6", "email": "ms-gus@example.test", "role": "authenticated"}', true);
+UPDATE public.member_milestones SET deleted_at = now() WHERE member_id = 'mbr_msAlice00001';
+RESET ROLE;
+SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_msErin000001' AND deleted_at IS NOT NULL), 1, 'a member takes back their own milestone (a soft delete: the row stays)');
+SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_msAlice00001' AND kind = 'the_end' AND deleted_at IS NULL), 1, 'and cannot take back someone else''s');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a5", "email": "ms-erin@example.test", "role": "authenticated"}', true);
+SELECT lives_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msErin000001', 'the_end', 'member', 'confirmed', now())$$,
+  'a taken-back milestone frees the slot, so the member can add it again');
+
+-- An admin cannot add a milestone as a member, for themselves in sudo or for anyone else.
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a4", "email": "ms-dana@example.test", "role": "authenticated"}', true);
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msGus0000001', 'the_end', 'member', 'confirmed', now())$$,
+  '42501', NULL, 'an admin cannot add a confirmed milestone as a member');
+RESET ROLE;
+
+-- Sudo: an admin who is also a member (valid short id, which the X-Acting-As header needs) views as themselves.
+INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
+  ('00000000-0000-4000-a000-00000000f5a7', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-sudo@example.test');
+INSERT INTO public.user_profiles (id, email, role) VALUES ('00000000-0000-4000-a000-00000000f5a7', 'ms-sudo@example.test', 'admin')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
+  ('mbr_msSudoAdmin1', 'Sudo Milestone', 'ms-sudo@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a7');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a7", "email": "ms-sudo@example.test", "role": "authenticated"}', true);
+SELECT set_config('request.headers', '{"x-acting-as": "00000000-0000-4000-a000-00000000f5a7:mbr_msSudoAdmin1"}', true);
+SELECT is(public.current_acting_as_member_id(), 'mbr_msSudoAdmin1', 'the sudo header is honored for this admin (so the next refusal is the sudo rule)');
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msSudoAdmin1', 'the_end', 'member', 'confirmed', now())$$,
+  '42501', NULL, 'while viewing as a member (sudo), nothing can be added in their name');
+SELECT set_config('request.headers', '{}', true);
+SELECT lives_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msSudoAdmin1', 'the_end', 'member', 'confirmed', now())$$,
+  'the same insert outside sudo is allowed for the member themselves');
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+SELECT throws_ok(
+  $$INSERT INTO public.member_milestones (member_id, kind, source, status, confirmed_at) VALUES ('mbr_msGus0000001', 'the_end', 'member', 'confirmed', now())$$,
+  '42501', NULL, 'a visitor cannot add one');
+RESET ROLE;
+
+-- Activity Log: the member's own addition is an entry with its source, and the story is never in it.
+SELECT is(
+  (SELECT changes -> 'source' ->> 'new' FROM public.audit_log
+    WHERE entity_type = 'member_milestone' AND action = 'insert'
+      AND entity_id = (SELECT id FROM public.member_milestones WHERE member_id = 'mbr_msErin000001' AND deleted_at IS NOT NULL)),
+  'member', 'a member adding their own is one Activity Log entry, marked as theirs');
+SELECT is(
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'member_milestone' AND changes::text LIKE '%Erin story words%'), 0,
+  'the words the member wrote never reach the Activity Log');
+
+-- Backfill after a self-add: Erin has the_end of her own, so only publish_ready is proposed for her (and Gus, who has a book, gets both).
+INSERT INTO public.member_books (member_id, title, cover_url, published_date) VALUES ('mbr_msErin000001', 'Erin Fake Book', 'https://example.test/c.png', '2026-01-01');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a4", "email": "ms-dana@example.test", "role": "authenticated"}', true);
+SELECT lives_ok($$SELECT public.propose_milestones_from_books()$$, 'the staff backfill runs after members added their own');
+RESET ROLE;
+SELECT is(
+  (SELECT string_agg(kind || ':' || source || ':' || status, ',' ORDER BY kind) FROM public.member_milestones WHERE member_id = 'mbr_msErin000001' AND deleted_at IS NULL),
+  'publish_ready:staff:proposed,the_end:member:confirmed', 'the backfill skips a kind the member added themselves and proposes only the other');
 
 -- Removal: a member's milestones go with them.
 CREATE TEMP TABLE removed(r jsonb) ON COMMIT DROP;

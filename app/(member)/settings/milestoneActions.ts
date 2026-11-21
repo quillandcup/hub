@@ -6,7 +6,7 @@ import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { clock } from "@/lib/clock";
-import { parseMilestoneAnswer, type MilestoneAnswerInput } from "@/lib/finishers";
+import { parseMilestoneAnswer, parseMilestoneSelfAdd, type MilestoneAnswerInput } from "@/lib/finishers";
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 
 /**
@@ -42,4 +42,66 @@ export async function answerMilestone(...args: Parameters<typeof answerMilestone
     ...actionOutcome(result),
     detail: args[0].answer === "decline" ? "declined" : "confirmed",
   }));
+}
+
+type AddInput = { kind: string; projectId?: string | null } & Omit<MilestoneAnswerInput, "answer">;
+
+/**
+ * A member adds a milestone themselves ("I wrote THE END") without waiting for staff: one step, already confirmed
+ * (docs/product/FINISHERS.md), with the optional date, stories and the ticks they chose (all off unless ticked), and optionally
+ * one of their own projects. When they already have one of that kind it is returned instead of an error. Never in sudo:
+ * an admin viewing as the member can look, and the database refuses the write too.
+ */
+async function addMilestoneImpl(input: AddInput): Promise<{ success: true; added: boolean } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Please sign in again." };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "We couldn't find your member record." };
+  if (identity.isSudo) return { error: "Only the member can add this." };
+
+  const parsed = parseMilestoneSelfAdd(input, clock.now());
+  if ("error" in parsed) return { error: parsed.error };
+
+  try {
+    const repos = createRepos(await createClient());
+    const projectId = input.projectId || null;
+    if (projectId !== null && !(await repos.writing.ownsProject(identity.memberId, projectId))) return { error: "We couldn't find that project." };
+    const { result } = await repos.milestones.addOwn({ memberId: identity.memberId, kind: parsed.kind, answer: parsed.answer, projectId, createdBy: user.id }, new Date(clock.now()));
+    revalidatePath("/settings/profile");
+    return { success: true, added: result === "added" };
+  } catch (error) {
+    console.error("milestones.addOwn failed", error instanceof Error ? error.message : String(error));
+    return { error: "We couldn't save that. Please try again in a moment." };
+  }
+}
+
+export async function addMilestone(...args: Parameters<typeof addMilestoneImpl>) {
+  return withAction("milestone_added", () => addMilestoneImpl(...args), (result) => ({
+    ...actionOutcome(result),
+    detail: "success" in result ? (result.added ? "added" : "already_there") : undefined,
+  }));
+}
+
+/** A member takes back a milestone they added themselves (it is a soft delete; they can add it again). Never in sudo. */
+async function takeBackMilestoneImpl(id: string): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Please sign in again." };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "We couldn't find your member record." };
+  if (identity.isSudo) return { error: "Only the member can take this back." };
+  if (!id) return { error: "We couldn't find that milestone." };
+
+  try {
+    const done = await createRepos(await createClient()).milestones.takeBack(id, identity.memberId, new Date(clock.now()));
+    if (!done) return { error: "We couldn't find that milestone. It may already be taken back." };
+  } catch (error) {
+    console.error("milestones.takeBack failed", error instanceof Error ? error.message : String(error));
+    return { error: "We couldn't take that back. Please try again in a moment." };
+  }
+  revalidatePath("/settings/profile");
+  return { success: true };
+}
+
+export async function takeBackMilestone(...args: Parameters<typeof takeBackMilestoneImpl>) {
+  return withAction("milestone_taken_back", () => takeBackMilestoneImpl(...args));
 }

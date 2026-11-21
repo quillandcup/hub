@@ -560,9 +560,12 @@ function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChang
   if (row.entity_type !== "member_milestone") return null;
   if (row.event_type === "insert") {
     const kind = typeof fields.kind?.new === "string" ? milestoneLabel(fields.kind.new) : "a writing";
+    // A member adds their own already confirmed (source member); staff and courses only propose.
+    if (fields.source?.new === "member") return `added the “${kind}” milestone`;
     return `proposed the “${kind}” milestone for ${row.member_name ?? "a member"}`;
   }
   if (row.event_type !== "update") return null;
+  if (fields.deleted_at?.new && !fields.deleted_at.old && row.actor_kind === "member") return "took back a milestone they added";
   if (fields.deleted_at?.new && !fields.deleted_at.old) return `took back a proposed milestone for ${row.member_name ?? "a member"}`;
   if (fields.status?.new === "confirmed") return "confirmed a writing milestone";
   if (fields.status?.new === "declined") return "said a proposed writing milestone is not theirs, or not yet";

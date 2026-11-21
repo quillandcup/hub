@@ -1,4 +1,4 @@
-import type { MilestoneAnswer, MilestoneKind, MilestoneSource, MilestoneStatus } from "@/lib/finishers";
+import type { ConfirmedMilestoneAnswer, MilestoneAnswer, MilestoneKind, MilestoneSource, MilestoneStatus } from "@/lib/finishers";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { byKeyThenId, must } from "./query";
@@ -11,6 +11,8 @@ export type Milestone = {
   id: string;
   memberId: string;
   kind: MilestoneKind;
+  /** The member's own project this is linked to, when they picked one. */
+  projectId: string | null;
   status: MilestoneStatus;
   source: MilestoneSource;
   achievedOn: string | null;
@@ -41,11 +43,11 @@ export type MilestoneProposal = {
 };
 
 const COLUMNS =
-  "id, member_id, kind, status, source, achieved_on, story_before, story_after, consent_profile, consent_homepage, consent_testimonial, confirmed_at, created_at";
+  "id, member_id, kind, project_id, status, source, achieved_on, story_before, story_after, consent_profile, consent_homepage, consent_testimonial, confirmed_at, created_at";
 
 type MilestoneColumns = Pick<
   MilestoneRow,
-  | "id" | "member_id" | "kind" | "status" | "source" | "achieved_on" | "story_before" | "story_after"
+  | "id" | "member_id" | "kind" | "project_id" | "status" | "source" | "achieved_on" | "story_before" | "story_after"
   | "consent_profile" | "consent_homepage" | "consent_testimonial" | "confirmed_at" | "created_at"
 >;
 
@@ -55,6 +57,7 @@ function toMilestone(r: MilestoneColumns): Milestone {
     id: r.id,
     memberId: r.member_id,
     kind: r.kind as MilestoneKind,
+    projectId: r.project_id,
     status: r.status as MilestoneStatus,
     source: r.source as MilestoneSource,
     achievedOn: r.achieved_on,
@@ -69,6 +72,17 @@ function toMilestone(r: MilestoneColumns): Milestone {
 }
 
 const STATUSES: readonly MilestoneStatus[] = ["proposed", "confirmed", "declined"];
+
+/** What the member says when they add a milestone themselves. */
+export type MilestoneSelfAdd = {
+  memberId: string;
+  kind: MilestoneKind;
+  answer: ConfirmedMilestoneAnswer;
+  /** One of the member's own projects, or null. The database refuses anyone else's. */
+  projectId: string | null;
+  /** The signed-in user (an auth user id). */
+  createdBy: string;
+};
 
 /** The columns an answer writes. A decline clears every consent, because a consent only exists on a confirmed row. */
 function answerColumns(answer: MilestoneAnswer, nowIso: string) {
@@ -91,7 +105,7 @@ function answerColumns(answer: MilestoneAnswer, nowIso: string) {
 /**
  * The Finisher record (`member_milestones`, docs/product/FINISHERS.md). Under a member's own client the rows are theirs alone;
  * under an admin's they are all rows, but an admin can only add proposals and edit or withdraw ones that are still
- * proposals. Only live rows (`deleted_at` null) are read or changed. Every method throws on a database error.
+ * proposals. A member can also add their own, already confirmed, and take those back. Only live rows (`deleted_at` null) are read or changed. Every method throws on a database error.
  */
 export interface MilestoneRepository {
   /** The member's own live milestones, THE END first. */
@@ -110,6 +124,14 @@ export interface MilestoneRepository {
   propose(proposal: MilestoneProposal): Promise<"added" | "exists">;
   /** Staff take back a proposal the member has not answered. False when there is no such live proposal. */
   withdraw(id: string): Promise<boolean>;
+  /**
+   * The member adds a milestone themselves: one step, already confirmed (source `member`), with the consents they ticked.
+   * When they already have a live milestone of that kind (any status, linked to a project or not) nothing is written and
+   * that one comes back as "exists", so the card can show it instead of an error.
+   */
+  addOwn(add: MilestoneSelfAdd, now: Date): Promise<{ result: "added" | "exists"; milestone: Milestone }>;
+  /** The member takes back a milestone they added themselves (a soft delete). False when they have no such live one. */
+  takeBack(id: string, memberId: string, now: Date): Promise<boolean>;
   /** The member answers (or changes their answer). False when the member has no such live milestone. */
   answer(id: string, memberId: string, answer: MilestoneAnswer, now: Date): Promise<boolean>;
 }
@@ -195,6 +217,66 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", id)
       .eq("status", "proposed")
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data !== null;
+  }
+
+  private async liveOfKind(memberId: string, kind: MilestoneKind) {
+    const { data, error } = await this.db
+      .from("member_milestones")
+      .select(COLUMNS)
+      .eq("member_id", memberId)
+      .eq("kind", kind)
+      .is("deleted_at", null)
+      .order("id")
+      .limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0] ? toMilestone(data[0]) : null;
+  }
+
+  async addOwn(add: MilestoneSelfAdd, now: Date) {
+    const existing = await this.liveOfKind(add.memberId, add.kind);
+    if (existing) return { result: "exists" as const, milestone: existing };
+    const { data, error } = await this.db
+      .from("member_milestones")
+      .insert({
+        member_id: add.memberId,
+        kind: add.kind,
+        project_id: add.projectId,
+        source: "member",
+        created_by: add.createdBy,
+        achieved_on: add.answer.achievedOn,
+        story_before: add.answer.storyBefore,
+        story_after: add.answer.storyAfter,
+        status: "confirmed",
+        confirmed_at: now.toISOString(),
+        consent_profile: add.answer.consent_profile,
+        consent_homepage: add.answer.consent_homepage,
+        consent_testimonial: add.answer.consent_testimonial,
+      })
+      .select(COLUMNS)
+      .single();
+    if (error) {
+      if (error.code === "23505") {
+        // Two taps at once: the other one won, show it.
+        const winner = await this.liveOfKind(add.memberId, add.kind);
+        if (winner) return { result: "exists" as const, milestone: winner };
+      }
+      throw new Error(error.message);
+    }
+    return { result: "added" as const, milestone: toMilestone(data) };
+  }
+
+  async takeBack(id: string, memberId: string, now: Date) {
+    const { data, error } = await this.db
+      .from("member_milestones")
+      .update({ deleted_at: now.toISOString(), updated_at: now.toISOString() })
+      .eq("id", id)
+      .eq("member_id", memberId)
+      .eq("source", "member")
       .is("deleted_at", null)
       .select("id")
       .maybeSingle();
@@ -307,6 +389,45 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     const row = this.live().find((m) => m.id === id && m.status === "proposed");
     if (!row) return false;
     row.deleted_at = new Date().toISOString();
+    return true;
+  }
+
+  async addOwn(add: MilestoneSelfAdd, now: Date) {
+    if (!this.data.members.some((m) => m.id === add.memberId)) throw new Error("violates foreign key constraint on member_id");
+    if (add.projectId !== null && !this.data.writingProjects.some((p) => p.id === add.projectId && p.member_id === add.memberId && !p.deleted_at)) {
+      throw new Error("new row violates row-level security policy for table member_milestones");
+    }
+    const existing = this.live().find((m) => m.member_id === add.memberId && m.kind === add.kind);
+    if (existing) return { result: "exists" as const, milestone: toMilestone(existing) };
+    const iso = now.toISOString();
+    const row: MilestoneRow = {
+      id: `mlst_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      member_id: add.memberId,
+      kind: add.kind,
+      project_id: add.projectId,
+      book_id: null,
+      achieved_on: add.answer.achievedOn,
+      story_before: add.answer.storyBefore,
+      story_after: add.answer.storyAfter,
+      source: "member",
+      status: "confirmed",
+      consent_profile: add.answer.consent_profile,
+      consent_homepage: add.answer.consent_homepage,
+      consent_testimonial: add.answer.consent_testimonial,
+      created_by: add.createdBy,
+      confirmed_at: iso,
+      created_at: iso,
+      updated_at: iso,
+      deleted_at: null,
+    };
+    this.data.memberMilestones.push(row);
+    return { result: "added" as const, milestone: toMilestone(row) };
+  }
+
+  async takeBack(id: string, memberId: string, now: Date) {
+    const row = this.live().find((m) => m.id === id && m.member_id === memberId && m.source === "member");
+    if (!row) return false;
+    row.deleted_at = now.toISOString();
     return true;
   }
 

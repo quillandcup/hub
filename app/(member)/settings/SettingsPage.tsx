@@ -78,7 +78,15 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
 
   // Milestones staff or a course proposed (docs/product/FINISHERS.md): the member's own, listed for them to confirm or decline. A failed
   // read just leaves the card out. In sudo the admin can look but not answer.
-  const milestones = effectiveIdentity ? await createRepos(supabase).milestones.ofMember(effectiveIdentity.memberId).catch(() => []) : [];
+  // The card is always shown: it also needs their projects (to link a milestone they add) and live books (the third milestone is derived).
+  const milestoneRepos = createRepos(supabase);
+  const [milestones, milestoneProjects, shelfBooks] = effectiveIdentity
+    ? await Promise.all([
+        milestoneRepos.milestones.ofMember(effectiveIdentity.memberId).catch(() => []),
+        milestoneRepos.writing.activeProjects(effectiveIdentity.memberId).catch(() => []),
+        milestoneRepos.books.ofMember(effectiveIdentity.memberId).catch(() => []),
+      ])
+    : [[], [], []];
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -145,7 +153,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 content: (
                   <>
                     <ProfilePanel />
-                    <MilestonesPanel milestones={milestones} readOnly={effectiveIdentity?.isSudo ?? false} />
+                    <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title }))} readOnly={effectiveIdentity?.isSudo ?? false} />
                   </>
                 ),
               },

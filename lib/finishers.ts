@@ -38,6 +38,16 @@ export const MILESTONE_CLAIMS: Record<MilestoneKind, string> = {
   publish_ready: "You revised a book until it was ready to publish",
 };
 
+/** The third milestone, derived from the Bookshelf and never stored (docs/product/FINISHERS.md). */
+export const PUBLISHED_TITLE = "Published Author";
+export const PUBLISHED_CLAIM = "You published a book";
+
+/** What the member says when they add a milestone themselves ("I wrote THE END"), per kind. */
+export const MILESTONE_SELF_ADD: Record<MilestoneKind, { button: string; confirmLabel: string }> = {
+  the_end: { button: "I wrote THE END", confirmLabel: "Add it" },
+  publish_ready: { button: "My manuscript is publish-ready", confirmLabel: "Add it" },
+};
+
 /** Where a proposal came from, in words a member understands. */
 export const MILESTONE_SOURCE_NOTES: Record<MilestoneSource, string> = {
   member: "You added this.",
@@ -68,10 +78,11 @@ export type MilestoneAnswerInput = {
   consents?: Partial<Consents>;
 };
 
+/** A confirmed answer: what the repository stores when the member says "yes, this is me" (or adds the milestone themselves). */
+export type ConfirmedMilestoneAnswer = { status: "confirmed"; achievedOn: string | null; storyBefore: string | null; storyAfter: string | null } & Consents;
+
 /** What the repository stores for an answer (declined drops any consent: a consent only exists on a confirmed row). */
-export type MilestoneAnswer =
-  | ({ status: "confirmed"; achievedOn: string | null; storyBefore: string | null; storyAfter: string | null } & Consents)
-  | { status: "declined" };
+export type MilestoneAnswer = ConfirmedMilestoneAnswer | { status: "declined" };
 
 /** Today's date (YYYY-MM-DD) for the org, not for the server's zone. */
 export function orgToday(nowMs: number): string {
@@ -111,6 +122,18 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
   }
   const consents = Object.fromEntries(MILESTONE_CONSENTS.map(({ key }) => [key, input.consents?.[key] === true])) as Consents;
   return { status: "confirmed", achievedOn, storyBefore, storyAfter, ...consents };
+}
+
+/**
+ * Reads what a member sends when they add a milestone themselves: the same answer as confirming a proposal (so the same date
+ * and story rules), always a confirmation. `{ error }` is a sentence for the member.
+ */
+export function parseMilestoneSelfAdd(input: Omit<MilestoneAnswerInput, "answer"> & { kind: unknown }, nowMs: number): { kind: MilestoneKind; answer: ConfirmedMilestoneAnswer } | { error: string } {
+  if (!isMilestoneKind(input.kind)) return { error: "Choose which milestone you are adding." };
+  const answer = parseMilestoneAnswer({ ...input, answer: "confirm" }, nowMs);
+  if ("error" in answer) return answer;
+  if (answer.status !== "confirmed") return { error: "Choose whether this is you." };
+  return { kind: input.kind, answer };
 }
 
 export function isMilestoneKind(value: unknown): value is MilestoneKind {

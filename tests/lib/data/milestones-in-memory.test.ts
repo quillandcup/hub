@@ -1,5 +1,7 @@
+import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryMilestoneRepository } from "@/lib/data/milestones";
+import { InMemoryWritingRepository } from "@/lib/data/writing";
 import { defineMilestonesContract } from "@/tests/helpers/milestones-contract";
 
 const ADA = "mbr_AAAAAAAAAAA1";
@@ -24,9 +26,24 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
     deleteBooks: async (memberId) => {
       for (const b of data.memberBooks) if (b.member_id === memberId) b.deleted_at = new Date().toISOString();
     },
+    addProject: (memberId) => new InMemoryWritingRepository(data).createProject(memberId, "A Fake Novel", "drafting"),
     clear: async () => {
+      data.writingProjects = [];
       data.memberMilestones = [];
       data.memberBooks = [];
     },
   };
+});
+
+describe("InMemoryMilestoneRepository.addOwn", () => {
+  // The Supabase contract runs as the service role, which has no row-level security, so this rule is tested on the twin
+  // here and on the real policy in supabase/tests/database/member_milestones.test.sql.
+  it("refuses a project that is not the member's, as the database policy does", async () => {
+    const data = new InMemoryDataset({ members: [{ id: ADA, name: "Ada Example" }, { id: BO, name: "Bo Example" }] });
+    const otherProject = await new InMemoryWritingRepository(data).createProject(BO, "A Fake Novel", "drafting");
+    const repo = new InMemoryMilestoneRepository(data);
+    const answer = { status: "confirmed" as const, achievedOn: null, storyBefore: null, storyAfter: null, consent_profile: false, consent_homepage: false, consent_testimonial: false };
+    await expect(repo.addOwn({ memberId: ADA, kind: "the_end", answer, projectId: otherProject, createdBy: "11111111-1111-4111-8111-111111111111" }, new Date())).rejects.toThrow();
+    expect(await repo.ofMember(ADA)).toEqual([]);
+  });
 });

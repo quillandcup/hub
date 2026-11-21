@@ -10,6 +10,7 @@ import {
   milestoneLabel,
   orgToday,
   parseMilestoneAnswer,
+  parseMilestoneSelfAdd,
 } from "@/lib/finishers";
 
 const NOW = Date.parse("2026-11-20T15:00:00Z");
@@ -86,5 +87,24 @@ describe("parseMilestoneAnswer", () => {
     expect(parseMilestoneAnswer({ answer: "confirm", storyAfter: "x".repeat(MAX_STORY_LENGTH) }, NOW)).toMatchObject({ status: "confirmed" });
     expect(parseMilestoneAnswer({ answer: "confirm", storyAfter: "x".repeat(MAX_STORY_LENGTH + 1) }, NOW)).toHaveProperty("error");
     expect(parseMilestoneAnswer({ answer: "maybe" as "confirm" }, NOW)).toHaveProperty("error");
+  });
+});
+
+describe("parseMilestoneSelfAdd", () => {
+  it("reads the kind and a confirmed answer, every consent off unless ticked", () => {
+    expect(parseMilestoneSelfAdd({ kind: "the_end" }, NOW)).toEqual({
+      kind: "the_end",
+      answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_profile: false, consent_homepage: false, consent_testimonial: false },
+    });
+    expect(parseMilestoneSelfAdd({ kind: "publish_ready", achievedOn: "2026-05-01", consents: { consent_profile: true } }, NOW)).toMatchObject({
+      kind: "publish_ready",
+      answer: { achievedOn: "2026-05-01", consent_profile: true, consent_homepage: false },
+    });
+  });
+
+  it("refuses the derived milestone, an unknown kind and a bad date", () => {
+    expect(parseMilestoneSelfAdd({ kind: "published" }, NOW)).toHaveProperty("error");
+    expect(parseMilestoneSelfAdd({ kind: undefined }, NOW)).toHaveProperty("error");
+    expect(parseMilestoneSelfAdd({ kind: "the_end", achievedOn: "2999-01-01" }, NOW)).toHaveProperty("error");
   });
 });
