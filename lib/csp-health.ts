@@ -188,8 +188,14 @@ export function evaluateCspHealth(rows: AccessActivityRow[], config: CspHealthCo
   };
 }
 
-/** The Sentry `logger` the health check's events carry; the alert rule in config/sentry.yml filters on it. */
+/** The Sentry `logger` the health check's events carry. Informational: nothing depends on it. */
 export const CSP_HEALTH_LOGGER = "csp-health";
+
+/**
+ * The plain custom tag every health check event carries, with the check's name as its value. The alert rule in
+ * config/sentry.yml filters on this tag being set: a custom tag is indexed whatever the SDK does with Sentry's own `logger` field.
+ */
+export const CSP_HEALTH_TAG = "csp_health_check";
 
 /** One Sentry event for a check that tripped. The message and fingerprint are fixed per check, so a condition that lasts is one issue. */
 export interface CspHealthEvent {

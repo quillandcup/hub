@@ -139,7 +139,7 @@ describe("GET /api/internal/csp-health", () => {
     expect(captured[0]).toMatchObject({
       message: "CSP health: members load pages but never run our scripts",
       level: "error",
-      tags: { logger: "csp-health", check: "stranded" },
+      tags: { csp_health_check: "stranded", logger: "csp-health", check: "stranded" },
       fingerprint: ["csp-health", "stranded"],
       logger: "csp-health",
       extra: { users: 2, of: 30, windowHours: CSP_HEALTH.windowHours, browsers: { "Chrome 150": 2 } },
@@ -173,6 +173,8 @@ describe("GET /api/internal/csp-health", () => {
     await member(50, { userAgent: OLD_CHROME });
     await GET(request());
     expect(captured.map((c) => c.tags.check)).toEqual(["lost-google-cookie", "unsupported-browser"]);
+    // The alert rule matches on this tag alone (config/sentry.yml), so every event must carry it, with its check as the value.
+    expect(captured.map((c) => c.tags.csp_health_check)).toEqual(["lost-google-cookie", "unsupported-browser"]);
     expect(slackPost).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { CSP_HEALTH_LOGGER } from "@/lib/csp-health";
+import { CSP_HEALTH_TAG } from "@/lib/csp-health";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import {
@@ -65,20 +65,20 @@ describe("planOrgSettings", () => {
   });
 });
 
-const rule = { name: "Hub: CSP, new issue", when: "new_issue", logger: "csp", frequencyMinutes: 0 };
-const burst = { name: "Hub: CSP, burst", when: "every_event", logger: "csp", moreThan: { count: 100, interval: "1h" }, frequencyMinutes: 60 };
+const rule = { name: "Hub: CSP, new issue", when: "new_issue", tag: { key: "logger", value: "csp" }, frequencyMinutes: 0 };
+const burst = { name: "Hub: CSP, burst", when: "every_event", tag: { key: "logger", value: "csp" }, moreThan: { count: 100, interval: "1h" }, frequencyMinutes: 60 };
 
 describe("config/sentry.yml alerts", () => {
   const rules = parseAlertRules(parseYaml(readFileSync("config/sentry.yml", "utf8")));
 
   it("has the three CSP report alerts, each limited to logger csp", () => {
-    const reports = rules.filter((r) => r.logger === "csp");
+    const reports = rules.filter((r) => r.tag.key === "logger" && r.tag.value === "csp");
     expect(reports.map((r) => r.when).sort()).toEqual(["every_event", "new_issue", "regression"]);
     expect(reports.find((r) => r.when === "every_event")?.moreThan).toEqual({ count: 100, interval: "1h" });
   });
 
-  it("emails about the health check's events (logger csp-health) at most once a day per issue", () => {
-    const health = rules.filter((r) => r.logger === CSP_HEALTH_LOGGER);
+  it("emails about the health check events (tag csp_health_check, set or not) at most once a day per issue", () => {
+    const health = rules.filter((r) => r.tag.key === CSP_HEALTH_TAG);
     expect(health).toHaveLength(1);
     expect(health[0]).toMatchObject({ when: "every_event", frequencyMinutes: 1440 });
     expect(health[0].moreThan).toBeUndefined();
@@ -100,7 +100,10 @@ describe("parseAlertRules", () => {
     [{ alerts: "x" }, /must be a list/],
     [{ alerts: [{ ...rule, name: "CSP, new issue" }] }, /starting with "Hub: "/],
     [{ alerts: [{ ...rule, when: "always" }] }, /when must be one of/],
-    [{ alerts: [{ ...rule, logger: "" }] }, /logger must be a non-empty string/],
+    [{ alerts: [{ ...rule, tag: { key: "" } }] }, /tag must be/],
+    [{ alerts: [{ ...rule, tag: undefined }] }, /tag must be/],
+    [{ alerts: [{ ...rule, tag: { key: "logger", value: "" } }] }, /tag must be/],
+    [{ alerts: [{ ...rule, tag: { key: "logger", extra: 1 } }] }, /tag must be/],
     [{ alerts: [{ ...rule, frequencyMinutes: -1 }] }, /frequencyMinutes/],
     [{ alerts: [{ ...rule, extra: 1 }] }, /unknown key extra/],
     [{ alerts: [{ ...rule, moreThan: { count: 5, interval: "1h" } }] }, /needs when: every_event/],
@@ -130,14 +133,15 @@ describe("workflowBody", () => {
     });
   });
 
-  it("filters a health-check rule on its own logger and throttles it with the frequency, with no count filter", () => {
-    const body = workflowBody(parseAlertRules({ alerts: [{ name: "Hub: x", when: "every_event", logger: "csp-health", frequencyMinutes: 1440 }] })[0], "77") as {
+  it("filters a health-check rule on its tag being set, and throttles it with the frequency, with no count filter", () => {
+    const body = workflowBody(parseAlertRules({ alerts: [{ name: "Hub: x", when: "every_event", tag: { key: "csp_health_check" }, frequencyMinutes: 1440 }] })[0], "77") as {
       config: { frequency: number };
-      actionFilters: { conditions: { type: string; comparison: { value?: string } }[] }[];
+      actionFilters: { conditions: { type: string; comparison: Record<string, string> }[] }[];
     };
     expect(body.config.frequency).toBe(1440);
     expect(body.actionFilters[0].conditions).toHaveLength(1);
-    expect(body.actionFilters[0].conditions[0].comparison.value).toBe("csp-health");
+    expect(body.actionFilters[0].conditions[0]).toMatchObject({ type: "tagged_event", comparison: { key: "csp_health_check", match: "is" } });
+    expect(body.actionFilters[0].conditions[0].comparison).not.toHaveProperty("value");
   });
 
   it("adds the frequency filter and the every-event trigger for a burst rule", () => {

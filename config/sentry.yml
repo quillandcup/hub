@@ -22,25 +22,26 @@ alerts:
   # A violation of a kind not seen before: a new blocked host or directive.
   - name: "Hub: CSP violation, new issue"
     when: new_issue
-    logger: csp
+    tag: { key: logger, value: csp }
     frequencyMinutes: 0
   # A violation that was marked resolved is back: a fix that did not hold.
   - name: "Hub: CSP violation, came back after being resolved"
     when: regression
-    logger: csp
+    tag: { key: logger, value: csp }
     frequencyMinutes: 0
   # One violation flooding in. Real volumes (14 days to 2026-11-20): the noisiest issue had 847 events in two
   # days and a bad deploy produces 30 events at once, so a 100 an hour floor stays quiet on those and still
   # catches a policy that starts blocking something every page loads. Once an hour per issue at most.
   - name: "Hub: CSP violation, more than 100 events in an hour"
     when: every_event
-    logger: csp
+    tag: { key: logger, value: csp }
     moreThan: { count: 100, interval: 1h }
     frequencyMinutes: 60
   # The daily health check (app/api/internal/csp-health) sends one Sentry event per failing check, tagged
-  # logger=csp-health (not csp, so the three rules above never match them). Every event of an issue is evaluated, the
-  # first emails at once, and frequencyMinutes 1440 keeps a problem that lasts days to one email a day per issue.
+  # csp_health_check=<check> (a plain custom tag, so it is indexed whatever the SDK does with Sentry's own logger
+  # field; the three rules above filter on logger=csp and never match these). Every event of an issue is evaluated,
+  # the first emails at once, and frequencyMinutes 1440 keeps a problem that lasts days to one email a day per issue.
   - name: "Hub: CSP health check failed"
     when: every_event
-    logger: csp-health
+    tag: { key: csp_health_check }
     frequencyMinutes: 1440

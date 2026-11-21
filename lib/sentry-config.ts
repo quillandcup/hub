@@ -60,8 +60,8 @@ export type AlertTrigger = (typeof ALERT_TRIGGERS)[number];
 export interface AlertRule {
   name: string;
   when: AlertTrigger;
-  /** Only events whose `logger` tag equals this (CSP reports carry logger csp). */
-  logger: string;
+  /** Only events with this tag: set to `value` when one is given, merely present when not. */
+  tag: { key: string; value?: string };
   /** Only with `when: every_event`: fire once the issue has more than `count` events within `interval`. Without it the rule fires on an issue's first event, then at most every `frequencyMinutes`. */
   moreThan?: { count: number; interval: AlertInterval };
   /** Minutes between two notifications for the same issue (Sentry accepts 0, 5, 10, 30, 60, 180, 720, 1440). */
@@ -82,7 +82,7 @@ export function parseAlertRules(raw: unknown): AlertRule[] {
   const rules = alerts.map((entry, i): AlertRule => {
     const where = `config/sentry.yml: alerts[${i}]`;
     const e = (entry ?? {}) as Record<string, unknown>;
-    const unknown = Object.keys(e).filter((k) => !["name", "when", "logger", "moreThan", "frequencyMinutes"].includes(k));
+    const unknown = Object.keys(e).filter((k) => !["name", "when", "tag", "moreThan", "frequencyMinutes"].includes(k));
     if (unknown.length > 0) throw new Error(`${where}: unknown key ${unknown.join(", ")}`);
     if (typeof e.name !== "string" || !e.name.startsWith(MANAGED_RULE_PREFIX) || e.name.length > 256) {
       throw new Error(`${where}: name must be a string starting with "${MANAGED_RULE_PREFIX}"`);
@@ -90,14 +90,22 @@ export function parseAlertRules(raw: unknown): AlertRule[] {
     if (!(ALERT_TRIGGERS as readonly unknown[]).includes(e.when)) {
       throw new Error(`${where}: when must be one of ${ALERT_TRIGGERS.join(", ")}`);
     }
-    if (typeof e.logger !== "string" || e.logger === "") throw new Error(`${where}: logger must be a non-empty string`);
+    const tag = (e.tag ?? {}) as Record<string, unknown>;
+    const badTag =
+      typeof e.tag !== "object" ||
+      e.tag === null ||
+      typeof tag.key !== "string" ||
+      tag.key === "" ||
+      (tag.value !== undefined && (typeof tag.value !== "string" || tag.value === "")) ||
+      Object.keys(tag).some((k) => k !== "key" && k !== "value");
+    if (badTag) throw new Error(`${where}: tag must be { key, value? } with non-empty strings`);
     if (!Number.isInteger(e.frequencyMinutes) || (e.frequencyMinutes as number) < 0) {
       throw new Error(`${where}: frequencyMinutes must be a whole number of minutes`);
     }
     const rule: AlertRule = {
       name: e.name,
       when: e.when as AlertTrigger,
-      logger: e.logger,
+      tag: tag.value === undefined ? { key: tag.key as string } : { key: tag.key as string, value: tag.value as string },
       frequencyMinutes: e.frequencyMinutes as number,
     };
     if (e.moreThan !== undefined) {
@@ -122,7 +130,12 @@ export function parseAlertRules(raw: unknown): AlertRule[] {
 /** The body Sentry's workflow API takes for a rule: email to the issue owners, or active members without owner. */
 export function workflowBody(rule: AlertRule, detectorId: string): Record<string, unknown> {
   const filters: Record<string, unknown>[] = [
-    { type: "tagged_event", comparison: { key: "logger", match: "eq", value: rule.logger }, conditionResult: true },
+    {
+      type: "tagged_event",
+      // "is" matches when the tag is set at all; "eq" when it equals the value.
+      comparison: rule.tag.value === undefined ? { key: rule.tag.key, match: "is" } : { key: rule.tag.key, match: "eq", value: rule.tag.value },
+      conditionResult: true,
+    },
   ];
   if (rule.moreThan) {
     filters.push({

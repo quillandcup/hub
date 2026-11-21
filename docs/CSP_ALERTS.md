@@ -16,7 +16,7 @@ The first three match CSP reports only (the tag `logger=csp`, which every report
 | `Hub: CSP violation, new issue` | A violation of a kind not seen before (a new blocked host or directive). | Open the issue: the blocked host and directive are in the title. Is it ours (add the host to `config/app.ts` `csp.*Hosts`) or a browser extension (ignore, or filter)? |
 | `Hub: CSP violation, came back after being resolved` | A resolved CSP issue gets a new event (a regression). | The fix did not hold: compare with the release it was resolved in. |
 | `Hub: CSP violation, more than 100 events in an hour` | One CSP issue gets more than 100 events within an hour (at most one email an hour per issue). | A policy change now blocks something every page loads, or a loop is reporting. Look at the newest events (URL, browser). |
-| `Hub: CSP health check failed` | The daily health check sent an event (tag `logger=csp-health`, not `csp`, so it never matches the three above). The first event of an issue emails at once; after that at most one email a day per issue (`frequencyMinutes: 1440`, the workflow's pause between two notifications for the same issue). | See "The daily health check" below: the issue's title says which check, its event has the counts and browsers. |
+| `Hub: CSP health check failed` | The daily health check sent an event (it carries the plain custom tag `csp_health_check`, set to the check name, and the rule matches on that tag being set; CSP reports have no such tag, and these events are tagged `logger=csp-health`, not `csp`, so the three rules above never match them). The first event of an issue emails at once; after that at most one email a day per issue (`frequencyMinutes: 1440`, the workflow's pause between two notifications for the same issue). | See "The daily health check" below: the issue's title says which check, its event has the counts and browsers. |
 
 **Why 100 an hour.** Measured in Sentry on 2026-11-20 (14 days): the noisiest issue, a font host blocked on every page builder load, had 847 events in two days (about 18 an hour on average), the next 660 in eight hours (about 80 an hour), and every deploy to a preview URL produces a burst of 30 events within seconds. 100 stays quiet on those and still catches a policy that starts blocking something on every page view of the 90 or so active members.
 
@@ -24,7 +24,7 @@ The first three match CSP reports only (the tag `logger=csp`, which every report
 
 ## The daily health check
 
-Over the last 24 hours (`config/app.ts` `cspHealth`; every threshold below lives there). It reads one SQL aggregate (`csp_rollout_activity`, one row per user and user agent, about a hundred rows) and never the request log row by row. When a check trips, the route calls `Sentry.captureMessage` (level error, tags `logger=csp-health` and `check=<stranded|lost-google-cookie|unsupported-browser>`, a fixed message and fingerprint per check, so a problem that lasts is one issue) and waits for `Sentry.flush` before it answers. The event's extra data has counts and browser family and major version only, never names, emails, ids or user agents. The check reads nothing from Sentry. User agents `node` and anything with `HeadlessChrome` (our test runs) are ignored.
+Over the last 24 hours (`config/app.ts` `cspHealth`; every threshold below lives there). It reads one SQL aggregate (`csp_rollout_activity`, one row per user and user agent, about a hundred rows) and never the request log row by row. When a check trips, the route calls `Sentry.captureMessage` (level error, tags `csp_health_check=<stranded|lost-google-cookie|unsupported-browser>` (the one the alert rule matches, because a plain custom tag is indexed whatever the SDK does with Sentry's own `logger` field), plus `check` with the same value and `logger=csp-health` for people reading the issue (nothing depends on those two), a fixed message and fingerprint per check, so a problem that lasts is one issue) and waits for `Sentry.flush` before it answers. The event's extra data has counts and browser family and major version only, never names, emails, ids or user agents. The check reads nothing from Sentry. User agents `node` and anything with `HeadlessChrome` (our test runs) are ignored.
 
 ### 1. Members load pages but never run our scripts
 
@@ -52,6 +52,14 @@ Means: a member's browser cannot run the policy at all. **Check:** the browser n
 - About **13 of 91** members never get the `_ga` cookie in any browser, steady.
 - No unsupported browser. The oldest seen: Chrome 150, Firefox 153, Edge 155, iOS 18.5, desktop Safari 18.
 - Reading the aggregate takes about 0.25 s on production (533k rows); the first version, which let the planner walk the per-user index, took 3.5 s against the 8 s statement timeout, so the function sets `enable_indexscan = off`.
+
+### Verify after the first deploy
+
+An alert that fails silently is the worst kind, so check the path once, end to end:
+
+1. **The rules exist.** After CI's `push-sentry-config` job has run for the merge, `pnpm sentry:config:diff` (read-only) must print "No differences." Four `+ alert ... (create)` lines mean the push did not happen or failed: read that job's log first. In Sentry, Alerts should list the four `Hub: ...` rules.
+2. **A real event matches the health check rule.** Open the daily route once as an admin (`/api/internal/csp-health`) on a day when a check is tripped, or ask for a test event: in Sentry, open the event of an issue titled "CSP health check: ..." and confirm it has the tag `csp_health_check`; the alert email for the first event should arrive. If an event has the tag and no email comes, the rule's filter or the integration's permissions are wrong, not the check. When no check is tripped nothing is sent, so there may be no event to look at: that is the normal state, and then only step 1 can be verified.
+3. **The CSP report rules.** A real report such as the ones already in Sentry carries `logger=csp`; the "new issue" rule fires on the first report of a kind not seen before.
 
 ### When it alerts
 
