@@ -38,7 +38,7 @@ An entry's screenshots are **frozen at ship time**: taken once from the demo com
 To take them:
 
 1. Add the entry to `lib/changelog/entries.ts` (a `product` or a `staff` one; an `engineering` entry has no screenshots and `captureProblem` refuses it).
-2. Write a scene at `demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog` in its test title, that signs in as a demo persona, drives the feature and calls `shot()` (see `whats-new-changelog.spec.ts`). Like every scene it also runs the page checks (accessibility, overflow, console), so it doubles as a test of the feature: the first run on this page found a contrast bug.
+2. Write a scene at `tests/demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog` in its test title, that signs in as a demo persona, drives the feature and calls `shot()` (see `whats-new-changelog.spec.ts`). Like every scene it also runs the page checks (accessibility, overflow, console), so it doubles as a test of the feature: the first run on this page found a contrast bug.
 3. With the demo stack up (`pnpm demo:stack up`), the demo app running (`pnpm demo:app`; another port with `DEMO_APP_URL`) and the community seeded (`pnpm demo:seed`), run `pnpm changelog:capture <slug>`. It runs that scene on desktop light and writes the screenshots into `public/changelog/<slug>/` as **WebP, at most 1200 px wide** (about a quarter of the PNG: the repo keeps every version of every image forever, so they are kept small). Reference them as `.webp`.
 4. Open every image and check it shows no real data, delete the ones the entry doesn't use, then reference them from the entry and commit them.
 
@@ -50,7 +50,7 @@ Entries written one PR at a time read like a developer diary, so there is a draf
 
 `pnpm changelog:draft [--since YYYY-MM-DD] [--live-flags a,b] [--run]` lists the PRs merged to `main` since that day (default 2 days) with `gh`, drops the ones that only touch docs, tests, demo scenes or the changelog, and works in two small steps so a run stays cheap (the first version sent every PR body in one prompt, 140 KB for four days, and used a lot of a subscription's weekly quota):
 
-1. **Group** (`--model haiku`): a titles-only prompt, about 19 KB for four days (PR number, title, three file paths, no bodies), asks for JSON: stories (several PRs each), engineering PRs, skipped ones. Written to `demo/out/changelog-draft/grouping.json`.
+1. **Group** (`--model haiku`): a titles-only prompt, about 19 KB for four days (PR number, title, three file paths, no bodies), asks for JSON: stories (several PRs each), engineering PRs, skipped ones. Written to `tests/demo/out/changelog-draft/grouping.json`.
 2. **Draft** (`--model sonnet`): only the member-visible stories, with each PR's body cut to 600 characters and the writing rules from `.claude/rules/changelog-writing.md` inside the prompt, so the model needs no tools (`--tools ""`, `--max-turns 1`). Written to `drafts.md`: entry literals in the `ChangelogEntry` shape, the PRs each came from, a demo-scene suggestion and "Check:" lines for claims it was unsure of.
 
 Nothing is written to `lib/changelog/entries.ts`. It uses the Claude Code CLI, not an SDK: nothing is added to `package.json` or the app, and no member data is involved (it reads public PR text). Keep it that way, because the "no AI touches your writing" statement is checked against the dependencies and the code (`.claude/rules/changelog-writing.md`).

@@ -27,7 +27,7 @@ const options = { flagKeys: ["chat_videos", "hosting"], liveFlags: [] as string[
 describe("classifyPr", () => {
   it("skips docs, tests, demo and changelog-only changes", () => {
     expect(classifyPr({ files: ["docs/TODO.md", "tests/lib/a.test.ts"] })).toBe("skip");
-    expect(classifyPr({ files: ["lib/changelog/entries.ts", "public/changelog/x/a.webp", "demo/scenes/a.spec.ts"] })).toBe("skip");
+    expect(classifyPr({ files: ["lib/changelog/entries.ts", "public/changelog/x/a.webp", "tests/demo/scenes/a.spec.ts"] })).toBe("skip");
   });
 
   it("calls a change under a member-facing path member-visible, but not an admin screen", () => {

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { DEMO_APP_PORT, DEMO_PROJECT_ID, demoConfig } from "@/demo/stack";
-import { orgDate } from "@/demo/seed";
-import { assertLocal } from "@/demo/env";
-import { PERSONAS, demoEvents, persona } from "@/demo/personas";
+import { DEMO_APP_PORT, DEMO_PROJECT_ID, demoConfig } from "@/tests/demo/stack";
+import { orgDate } from "@/tests/demo/seed";
+import { assertLocal } from "@/tests/demo/env";
+import { PERSONAS, demoEvents, persona } from "@/tests/demo/personas";
 
 const devConfig = readFileSync("supabase/config.toml", "utf8");
 

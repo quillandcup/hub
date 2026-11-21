@@ -52,7 +52,7 @@ const marked = (message: OutboundMessage): OutboundMessage => ({
 /**
  * The sample messages for one kind: usually one, two when it goes to two different people (Big Sisters).
  * Marked as tests by default (the admin test send); `{ test: false }` gives them as a member receives them,
- * which is what the notification mockups in demo/ draw.
+ * which is what the notification mockups in tests/demo/ draw.
  */
 export async function sampleMessages(
   repos: TestSendRepos,

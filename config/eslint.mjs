@@ -2,7 +2,7 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 
 const eslintConfig = [{
-  ignores: [".claude/worktrees/**", "next-env.d.ts", ".next-demo/**", "demo/.stack/**", "demo/out/**"],
+  ignores: [".claude/worktrees/**", "next-env.d.ts", ".next-demo/**", "tests/demo/.stack/**", "tests/demo/out/**"],
 }, ...nextCoreWebVitals, ...nextTypescript, {
   rules: {
     // Downgraded pending cleanup of ~300 pre-existing violations across the codebase.

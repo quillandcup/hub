@@ -31,10 +31,10 @@ export async function toCommittedScreenshot(png: Buffer): Promise<Buffer> {
 /** The tag every changelog scene carries, so the scheduled help-screenshots run can leave them out. */
 export const CHANGELOG_SCENE_TAG = "@changelog";
 
-export const sceneFile = (slug: string) => path.join("demo", "scenes", "changelog", `${slug}.spec.ts`);
+export const sceneFile = (slug: string) => path.join("tests", "demo", "scenes", "changelog", `${slug}.spec.ts`);
 
 /** Where the capture run writes (`shot()` names the folder after the scene file). */
-export const captureDir = (slug: string) => path.join("demo", "out", slug, CAPTURE_PROJECT);
+export const captureDir = (slug: string) => path.join("tests", "demo", "out", slug, CAPTURE_PROJECT);
 
 /** Where the entry's screenshots are committed, and served from at `/changelog/<slug>/<file>`. */
 export const publicDir = (slug: string, root: string = process.cwd()) => path.join(root, "public", "changelog", slug);
@@ -53,7 +53,7 @@ export function captureProblem(slug: string, entries: readonly ChangelogEntry[] 
   const entry = entries.find((e) => e.slug === slug);
   if (!entry) return `No changelog entry has the slug "${slug}": add the entry to lib/changelog/entries.ts first`;
   if (entry.audience === "engineering") return `"${slug}" is an engineering entry, which has no screenshots`;
-  if (!existsSync(path.join(root, sceneFile(slug)))) return `No scene at ${sceneFile(slug)}: write one (see demo/scenes/changelog/ for an example)`;
+  if (!existsSync(path.join(root, sceneFile(slug)))) return `No scene at ${sceneFile(slug)}: write one (see tests/demo/scenes/changelog/ for an example)`;
   return null;
 }
 
@@ -74,7 +74,7 @@ export function missingImageFiles(entries: readonly ChangelogEntry[] = CHANGELOG
 
 /** The Playwright arguments that run one entry's scene on the capture project. */
 export const playwrightArgs = (slug: string): string[] => [
-  "exec", "playwright", "test", "--config", "demo/playwright.config.ts", "--project", CAPTURE_PROJECT, "--grep", CHANGELOG_SCENE_TAG, sceneFile(slug),
+  "exec", "playwright", "test", "--config", "tests/demo/playwright.config.ts", "--project", CAPTURE_PROJECT, "--grep", CHANGELOG_SCENE_TAG, sceneFile(slug),
 ];
 
 export type CaptureResult = { ok: true; copied: string[]; target: string } | { ok: false; error: string };
@@ -97,7 +97,7 @@ export async function captureEntry(
   const problem = captureProblem(slug, entries, root);
   if (problem) return { ok: false, error: problem };
 
-  rmSync(path.join(root, "demo", "out", slug), { recursive: true, force: true });
+  rmSync(path.join(root, "tests", "demo", "out", slug), { recursive: true, force: true });
   const status = run(playwrightArgs(slug));
   if (status !== 0) return { ok: false, error: `The scene failed (exit ${status}); nothing was copied.` };
 

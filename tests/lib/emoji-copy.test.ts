@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { animatedGif, bouncingDisc, DISC_PALETTE } from "../../demo/gif";
+import { animatedGif, bouncingDisc, DISC_PALETTE } from "../demo/gif";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
