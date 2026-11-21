@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { renderServerPage } from "@/tests/helpers/server-page";
-import { COMPLIANCE_STATUSES } from "@/lib/compliance";
+import { COMPLIANCE_STATUSES } from "@/content/compliance";
 import { PRIVACY_GROUPS } from "@/lib/privacy-promises";
 import { RETENTION } from "@/lib/retention";
 import { SUPPORT_EMAIL } from "@/lib/config";

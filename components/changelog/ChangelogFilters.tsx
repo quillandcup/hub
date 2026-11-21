@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, type ChangelogAudience, type ChangelogCategory } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, type ChangelogAudience, type ChangelogCategory } from "@/content/changelog";
 
 export interface ChangelogFilterState {
   q: string;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_STATUSES } from "@/lib/security";
+import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_STATUSES } from "@/content/security";
 import { RichText, StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 /**
  * How the Hub keeps its members' information safe, in plain words. Public like `/privacy`. The list lives in
- * `lib/security.ts`, which the staff page (`/admin/security`) reads too, so the two cannot drift; every line
+ * `content/security.ts`, which the staff page (`/admin/security`) reads too, so the two cannot drift; every line
  * must be true of the code, so change them together.
  */
 export default async function SecurityPage() {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { plainText, richParts } from "@/lib/trust-text";
-import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS } from "@/lib/compliance";
-import { SECURITY_GROUPS } from "@/lib/security";
+import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS } from "@/content/compliance";
+import { SECURITY_GROUPS } from "@/content/security";
 
 describe("richParts links the trust pages", () => {
   it("turns each mention of the Privacy, Compliance and Security page into a link, and keeps the words around it", () => {

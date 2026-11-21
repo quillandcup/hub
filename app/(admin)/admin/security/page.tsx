@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_ITEMS, SECURITY_STATUSES } from "@/lib/security";
+import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_ITEMS, SECURITY_STATUSES } from "@/content/security";
 import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
 import { TrustNav } from "@/components/trust/Trust";
 
@@ -22,14 +22,14 @@ const ROWS: StaffRow[] = SECURITY_ITEMS.map((item) => ({
 /**
  * The staff view of the Security page: the same list as `/security`, with how each thing works, where it is
  * enforced and tested, when it was last checked and what is still open. The repo is public, so the detail
- * here is public-safe by design (see `lib/security.ts`).
+ * here is public-safe by design (see `content/security.ts`).
  */
 export default async function AdminSecurityPage() {
   await requireAdminPage();
 
   return (
     <StaffPage title="Security">
-      <StaffIntro publicHref="/security" publicName="Security" listFile="lib/security.ts" effective={SECURITY_EFFECTIVE} />
+      <StaffIntro publicHref="/security" publicName="Security" listFile="content/security.ts" effective={SECURITY_EFFECTIVE} />
       <OpenSummary rows={ROWS} />
       <StatusKey statuses={SECURITY_STATUSES} />
       <TrustNav links={SECURITY_GROUPS.map((g) => ({ id: g.id, title: g.title }))} />

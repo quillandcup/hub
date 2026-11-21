@@ -7,7 +7,7 @@ import {
   COMPLIANCE_STATUSES,
   complianceItemId,
   type ComplianceStatus,
-} from "@/lib/compliance";
+} from "@/content/compliance";
 import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
 import { TrustNav, TrustSection } from "@/components/trust/Trust";
 
@@ -31,14 +31,14 @@ const ALL_ROWS: StaffRow[] = COMPLIANCE_GROUPS.flatMap((group) =>
 /**
  * The staff view of the Compliance page: the same list as `/compliance`, with where each row is enforced,
  * when it was last checked and what is still open. The repo is public, so the detail here is public-safe by
- * design (see `lib/compliance.ts`).
+ * design (see `content/compliance.ts`).
  */
 export default async function AdminCompliancePage() {
   await requireAdminPage();
 
   return (
     <StaffPage title="Compliance">
-      <StaffIntro publicHref="/compliance" publicName="Compliance" listFile="lib/compliance.ts" effective={COMPLIANCE_EFFECTIVE} />
+      <StaffIntro publicHref="/compliance" publicName="Compliance" listFile="content/compliance.ts" effective={COMPLIANCE_EFFECTIVE} />
       <OpenSummary rows={ALL_ROWS} />
       <StatusKey statuses={Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]} />
       <TrustNav links={[...COMPLIANCE_GROUPS.map((g) => ({ id: g.id, title: g.title })), { id: "providers", title: "Services we rely on" }]} />

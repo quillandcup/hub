@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { APP_URL } from "@/lib/config";
-import type { ChangelogEntry } from "@/lib/changelog/entries";
+import type { ChangelogEntry } from "@/content/changelog";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 

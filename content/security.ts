@@ -1,11 +1,11 @@
-import type { ComplianceStatus } from "@/lib/compliance";
+import type { ComplianceStatus } from "@/content/compliance";
 
 /**
  * What the Security pages list: the public one (`/security`, for members) and the staff one
  * (`/admin/security`, with more detail) read this one list, so they cannot drift.
  *
  * Security says what we do: encryption in transit and at rest, how keys and sessions are handled, backups and
- * recovery. Compliance (`lib/compliance.ts`) says which laws, standards and frameworks we follow.
+ * recovery. Compliance (`content/compliance.ts`) says which laws, standards and frameworks we follow.
  *
  * Every line must be true of the code or of the live system today. `member` is what a member reads: plain,
  * no file names, and no provider names (providers are described by role; see the staff page for the names).

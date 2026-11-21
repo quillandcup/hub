@@ -515,7 +515,7 @@ export function privacyText(ids: readonly string[]): string {
   return ids
     .map((id) => {
       const unit = units.get(id);
-      if (!unit) throw new Error(`lib/privacy.ts has no item with id "${id}"`);
+      if (!unit) throw new Error(`content/privacy.ts has no item with id "${id}"`);
       return unit.text;
     })
     .join(" ");

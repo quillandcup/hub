@@ -11,7 +11,7 @@ import {
   PRIVACY_TAGLINE,
   PRIVACY_TITLE,
   type PrivacyBlock,
-} from "@/lib/privacy";
+} from "@/content/privacy";
 import { RichText, TrustAside, TrustDetail, TrustNav, TrustSection, TrustSubheading, TrustTable } from "@/components/trust/Trust";
 import { StatsOptOutSwitch } from "./StatsOptOutSwitch";
 
@@ -19,13 +19,13 @@ export const metadata: Metadata = {
   title: PRIVACY_TITLE,
 };
 
-/** When the wording was last checked against the code. Bump it whenever the page or `lib/privacy.ts` changes. */
+/** When the wording was last checked against the code. Bump it whenever the page or `content/privacy.ts` changes. */
 export const PRIVACY_EFFECTIVE = "2026-11-18";
 
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
  *
- * The sentences are not here: they are data in `lib/privacy.ts`, which this page renders and which the staff page
+ * The sentences are not here: they are data in `content/privacy.ts`, which this page renders and which the staff page
  * (`/admin/privacy`, `lib/privacy-promises.ts`) reads too, with where each promise is enforced. Providers are described
  * by role, never named (`tests/lib/trust-no-provider-names.test.ts`).
  *

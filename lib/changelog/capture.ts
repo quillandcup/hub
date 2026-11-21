@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:
 import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 import path from "node:path";
-import type { ChangelogEntry } from "@/lib/changelog/entries";
-import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import type { ChangelogEntry } from "@/content/changelog";
+import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { isChangelogSlug } from "@/lib/changelog";
 
 /**
@@ -51,7 +51,7 @@ export function capturedImages(dir: string): string[] {
 export function captureProblem(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES, root: string = process.cwd()): string | null {
   if (!isChangelogSlug(slug)) return `"${slug}" is not a changelog slug (lowercase words and hyphens)`;
   const entry = entries.find((e) => e.slug === slug);
-  if (!entry) return `No changelog entry has the slug "${slug}": add the entry to lib/changelog/entries.ts first`;
+  if (!entry) return `No changelog entry has the slug "${slug}": add the entry to content/changelog.ts first`;
   if (entry.audience === "engineering") return `"${slug}" is an engineering entry, which has no screenshots`;
   if (!existsSync(path.join(root, sceneFile(slug)))) return `No scene at ${sceneFile(slug)}: write one (see tests/demo/scenes/changelog/ for an example)`;
   return null;

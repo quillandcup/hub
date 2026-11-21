@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { cleanup, within } from "@testing-library/react";
 import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { PRIVACY_GROUPS } from "@/lib/privacy-promises";
-import { PRIVACY_SECTIONS, PRIVACY_SUMMARY, privacyText, privacyUnits } from "@/lib/privacy";
+import { PRIVACY_SECTIONS, PRIVACY_SUMMARY, privacyText, privacyUnits } from "@/content/privacy";
 import { plainText } from "@/lib/trust-text";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -37,7 +37,7 @@ describe("the Privacy page and its staff view read one list", () => {
     for (const row of ROWS) {
       for (const id of row.reads) {
         const unit = units.get(id)!;
-        expect(unit, `${row.id} reads "${id}", which is not in lib/privacy.ts`).toBeDefined();
+        expect(unit, `${row.id} reads "${id}", which is not in content/privacy.ts`).toBeDefined();
         for (const shown of unit.shown) expect(page, `"${shown.slice(0, 50)}..." (${id}) is not on /privacy`).toContain(flat(shown));
       }
     }

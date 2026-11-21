@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/content/changelog";
 import { filterByAudience, filterByCategory, groupByMonth, listChangelog, parseAudienceFilter, parseCategoryFilter, searchChangelog } from "@/lib/changelog";
 import ChangelogFilters from "@/components/changelog/ChangelogFilters";
 
@@ -12,7 +12,7 @@ const majorBadge = (
 );
 
 /**
- * Every changelog entry, product, staff and engineering (`lib/changelog/entries.ts`): what members see on What's new plus the engineering
+ * Every changelog entry, product, staff and engineering (`content/changelog.ts`): what members see on What's new plus the engineering
  * history that members never do. Search, filter by category, and by audience (the filter members' page does not have).
  */
 export default async function AdminChangelogPage({ searchParams }: PageProps<"/admin/changelog">) {

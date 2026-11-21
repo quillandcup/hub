@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import { COMPLIANCE_EFFECTIVE, COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, type ComplianceStatus } from "@/lib/compliance";
+import { COMPLIANCE_EFFECTIVE, COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, type ComplianceStatus } from "@/content/compliance";
 import { RichText, StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 /**
  * The laws, standards and frameworks the Hub follows, relies on a provider for, or is working toward.
- * Public like `/privacy`: anyone can read it. The list lives in `lib/compliance.ts`, and every line must
+ * Public like `/privacy`: anyone can read it. The list lives in `content/compliance.ts`, and every line must
  * be true of the code, so change them together.
  */
 export default async function CompliancePage() {

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/content/changelog";
 import { CAPTURE_PROJECT, SCREENSHOT_MAX_WIDTH, captureDir, captureEntry, playwrightArgs, toCommittedScreenshot, captureProblem, capturedImages, entryImagePaths, missingImageFiles, publicDir, sceneFile } from "@/lib/changelog/capture";
 
 const entry = (over: Partial<ChangelogEntry> = {}): ChangelogEntry => ({

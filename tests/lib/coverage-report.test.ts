@@ -51,6 +51,7 @@ const metrics = (lines: [number, number], statements = lines, functions = lines,
 describe("isGated / areaKey", () => {
   it("gates app/lib/components/emails and the root runtime files, API routes, but not tests or scripts", () => {
     expect(isGated("lib/x.ts")).toBe(true);
+    expect(isGated("content/x.ts")).toBe(true);
     expect(isGated("components/Y.tsx")).toBe(true);
     expect(isGated("emails/notifications/a.tsx")).toBe(true);
     expect(isGated("proxy.ts")).toBe(true);

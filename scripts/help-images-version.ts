@@ -26,6 +26,7 @@ export const HELP_IMAGE_INPUTS = [
   "app",
   "components",
   "lib",
+  "content",
   "tests/demo",
   "public",
   "supabase/migrations",

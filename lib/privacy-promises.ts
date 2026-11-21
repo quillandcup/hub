@@ -1,10 +1,10 @@
-import type { ComplianceStatus } from "@/lib/compliance";
-import { privacyText } from "@/lib/privacy";
+import type { ComplianceStatus } from "@/content/compliance";
+import { privacyText } from "@/content/privacy";
 import { RETENTION } from "@/lib/retention";
 
 /**
  * What the Privacy page promises, one row per promise, with where the code keeps it: the list behind the staff
- * view (`/admin/privacy`). What members read is written once, in `lib/privacy.ts`, and the page renders it; a row
+ * view (`/admin/privacy`). What members read is written once, in `content/privacy.ts`, and the page renders it; a row
  * here names the items it is about (`reads`) and `member` is those items' text, so the staff page shows exactly
  * what the page says and a change to the wording changes both.
  *
@@ -20,9 +20,9 @@ export interface PrivacyPromise {
   id: string;
   title: string;
   status: ComplianceStatus;
-  /** The ids in `lib/privacy.ts` of the sentences or table rows that make this promise on the page. */
+  /** The ids in `content/privacy.ts` of the sentences or table rows that make this promise on the page. */
   reads: readonly string[];
-  /** The promise exactly as the Privacy page says it: the text of `reads`, from `lib/privacy.ts`. */
+  /** The promise exactly as the Privacy page says it: the text of `reads`, from `content/privacy.ts`. */
   member: string;
   /** How the code keeps it, for the team. */
   how: string;
@@ -197,7 +197,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         status: "working",
         reads: ["chat-break-glass"],
         how: "A commitment, not a screen. There is no in-app tool, so anything done under it is done by hand and has to be recorded as the page promises.",
-        evidence: ["lib/privacy.ts (emergency access, the member-facing name for break-glass)", "docs/SLACK_BRIDGED_CHAT.md"],
+        evidence: ["content/privacy.ts (emergency access, the member-facing name for break-glass)", "docs/SLACK_BRIDGED_CHAT.md"],
         checked: "2026-11-17",
         open: ["Build the in-app tool, with the record written by the tool, so the promise doesn't rest on a person remembering to write it down."],
       },
@@ -233,8 +233,8 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         title: "Only the services that run the Hub receive your information",
         status: "provider",
         reads: ["more-sharing", "services-transfers"],
-        how: "The list is kept by hand in lib/privacy.ts. The certification status was checked against the Data Privacy Framework list; the Compliance page carries the row and its open items.",
-        evidence: ["lib/privacy.ts (services)", "docs/TODO.md (the Data Privacy Framework check)"],
+        how: "The list is kept by hand in content/privacy.ts. The certification status was checked against the Data Privacy Framework list; the Compliance page carries the row and its open items.",
+        evidence: ["content/privacy.ts (services)", "docs/TODO.md (the Data Privacy Framework check)"],
         checked: "2026-11-17",
         open: [
           "A new provider must be added to the page's list and checked against the certification list before it receives anything. Nothing enforces that; it is a review step.",
@@ -248,7 +248,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         reads: ["choices-asking"],
         how: "Requests come by email to the support address and are handled by a person. Removal has a staff tool: \"Remove on request\" on the admin member page shows what would be removed (a dry run), asks for the member's name to confirm, then deletes or anonymises their records in one database transaction and removes their sign-in and stored files, leaving the copies in the imports from other services to be removed at the source. Turning off usage statistics is a switch on the Privacy page.",
         evidence: [
-          "lib/privacy.ts (asking us)",
+          "content/privacy.ts (asking us)",
           "app/(admin)/admin/members/[id]/RemoveMemberPanel.tsx",
           "app/(admin)/admin/members/[id]/removal-actions.ts",
           "lib/member-removal.ts",
@@ -265,7 +265,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         status: "inPlace",
         reads: ["more-children"],
         how: "A policy statement; membership is by invitation.",
-        evidence: ["lib/privacy.ts (also good to know)"],
+        evidence: ["content/privacy.ts (also good to know)"],
         checked: "2026-11-17",
         open: [],
       },

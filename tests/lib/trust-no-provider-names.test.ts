@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS } from "@/lib/compliance";
-import { SECURITY_GROUPS } from "@/lib/security";
-import { PRIVACY_SECTIONS, privacyMemberText } from "@/lib/privacy";
+import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS } from "@/content/compliance";
+import { SECURITY_GROUPS } from "@/content/security";
+import { PRIVACY_SECTIONS, privacyMemberText } from "@/content/privacy";
 import { PRIVACY_GROUPS } from "@/lib/privacy-promises";
 
 /**
@@ -12,7 +12,7 @@ import { PRIVACY_GROUPS } from "@/lib/privacy-promises";
  *
  * The Privacy page is looser, on purpose: it names the services a member uses or sees directly (Slack, Zoom,
  * Google Analytics, Gravatar) and keeps everything internal generic (the database, hosting, monitoring, email and
- * video providers; also billing, course, calendar and photo services). Its member-facing content (`lib/privacy.ts`,
+ * video providers; also billing, course, calendar and photo services). Its member-facing content (`content/privacy.ts`,
  * and the "Share usage statistics" switch) is checked against the internal list below; the staff rows of
  * `lib/privacy-promises.ts` may name anything.
  */

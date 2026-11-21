@@ -1,4 +1,4 @@
-import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogAudience, type ChangelogCategory, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogAudience, type ChangelogCategory, type ChangelogEntry } from "@/content/changelog";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

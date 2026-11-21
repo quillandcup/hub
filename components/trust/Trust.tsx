@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { COMPLIANCE_STATUSES, type ComplianceStatus } from "@/lib/compliance";
+import { COMPLIANCE_STATUSES, type ComplianceStatus } from "@/content/compliance";
 import { richParts, type Rich } from "@/lib/trust-text";
 
 /**
