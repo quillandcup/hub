@@ -38,7 +38,7 @@ const CAP_CLASS: Record<number, string> = {
  * most the block's layout is made for are hidden (the publish check says so). In the editor neither applies, so an empty
  * list stays a place to drop into and every item stays reachable.
  */
-export const itemList = (max: number, editing?: boolean): string => (editing ? "" : `empty:hidden ${CAP_CLASS[max] ?? ""}`);
+export const itemList = (max: number | null, editing?: boolean): string => (editing ? "" : `empty:hidden ${(max !== null && CAP_CLASS[max]) || ""}`);
 const noImage = null;
 
 /**
@@ -193,31 +193,34 @@ export function Button({ label, href, look, color, shape, align, full }: ButtonP
 
 // ---- ButtonRow -----------------------------------------------------------------------------------------------
 
-export type ButtonRowItem = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
-export type ButtonRowProps = { items: ButtonRowItem[]; align: "left" | "center"; gap: "small" | "medium" };
+export type ButtonRowProps = { items: Slot; align: "left" | "center"; gap: "small" | "medium"; editing?: boolean };
 const ROW_GAP = { small: "gap-2", medium: "gap-3" } as const;
-const ROW_MAX = 3;
 
-/** One to three buttons side by side, wrapping onto the next line when the container is too narrow. Built like Button: same classes, `safeHref`, disabled without a usable link. */
-export function ButtonRow({ items, align, gap }: ButtonRowProps) {
-  const shown = (Array.isArray(items) ? items : []).filter((item) => item && item.label).slice(0, ROW_MAX);
-  if (shown.length === 0) return null;
+/** One to three buttons side by side (each a `RowButton` in the `items` slot), wrapping onto the next line when the container is too narrow. Built like Button: same classes, `safeHref`, disabled without a usable link. */
+export function ButtonRow({ items: Items, align, gap, editing }: ButtonRowProps) {
+  return <Items as="ul" collisionAxis="dynamic" className={`my-3 flex flex-wrap ${pick(ROW_GAP, gap, "medium")} ${align === "center" ? "justify-center" : "justify-start"} ${itemList(ITEM_LIMITS.ButtonRow, editing)}`} />;
+}
+
+export type RowButtonProps = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect" } & ItemProps;
+
+/** One button of a Buttons block. With no label it draws nothing on the public page; while editing it shows as a faded placeholder, so it can still be found and dragged. */
+export function RowButton({ label, href, look, color, shape, dragRef, editing }: RowButtonProps) {
+  if (!label && !editing) return null;
+  const target = safeHref(href);
+  const classes = buttonClasses(look, color, shape, false);
   return (
-    <div className={`my-3 flex flex-wrap ${pick(ROW_GAP, gap, "medium")} ${align === "center" ? "justify-center" : "justify-start"}`}>
-      {shown.map((item, i) => {
-        const target = safeHref(item.href);
-        const classes = buttonClasses(item.look, item.color, item.shape, false);
-        return target ? (
-          <a key={i} href={target} className={classes}>
-            {item.label}
-          </a>
-        ) : (
-          <span key={i} aria-disabled="true" className={`${classes} opacity-50`}>
-            {item.label}
-          </span>
-        );
-      })}
-    </div>
+    <li ref={dragRef}>
+      {target && label ? (
+        <a href={target} className={classes}>
+          {label}
+        </a>
+      ) : (
+        // No (or an unsafe) link: shown disabled rather than as a button that goes nowhere.
+        <span aria-disabled="true" className={`${classes} opacity-50`}>
+          {label || "Button"}
+        </span>
+      )}
+    </li>
   );
 }
 
@@ -255,74 +258,85 @@ export function Split({ imageAssetId, alt, decorative, imageSide, html }: SplitP
 
 // ---- List ----------------------------------------------------------------------------------------------------
 
-export type ListProps = { items: { text: string; icon: string }[]; align: "left" | "center" };
-export function List({ items, align }: ListProps) {
-  const rows = (items ?? []).filter((i) => i.text);
-  if (rows.length === 0) return null;
+export type ListProps = { items: Slot; align: "left" | "center"; editing?: boolean };
+
+/** A list of short points with a marker each, every point a `ListItem` in the `items` slot. */
+export function List({ items: Items, align, editing }: ListProps) {
+  return <Items as="ul" collisionAxis="y" className={`my-3 space-y-2 ${align === "center" ? "mx-auto w-fit" : ""} ${itemList(null, editing)}`} />;
+}
+
+export type ListItemProps = { text: string; icon: string } & ItemProps;
+
+/** One point of a List: its marker (a check mark when none is set) and its words. */
+export function ListItem({ text, icon, dragRef, editing }: ListItemProps) {
+  if (!text && !editing) return null;
   return (
-    <ul className={`my-3 space-y-2 ${align === "center" ? "mx-auto w-fit" : ""}`}>
-      {rows.map((item, i) => (
-        <li key={i} className="flex gap-3">
-          <span aria-hidden="true" className="shrink-0">
-            {item.icon || "✓"}
-          </span>
-          <span>{item.text}</span>
-        </li>
-      ))}
-    </ul>
+    <li ref={dragRef} className="flex gap-3">
+      <span aria-hidden="true" className="shrink-0">
+        {icon || "✓"}
+      </span>
+      <span>{text}</span>
+    </li>
   );
 }
 
 // ---- Testimonials --------------------------------------------------------------------------------------------
 
-export type TestimonialsProps = { items: { quote: string; name: string; detail: string }[] };
-export function Testimonials({ items }: TestimonialsProps) {
-  const rows = (items ?? []).filter((i) => i.quote);
-  if (rows.length === 0) return null;
+export type TestimonialsProps = { items: Slot; editing?: boolean };
+
+/** Quotes in two columns once there is room, each a `Testimonial` in the `items` slot. */
+export function Testimonials({ items: Items, editing }: TestimonialsProps) {
+  return <Items collisionAxis="dynamic" className={`grid gap-4 py-4 @cards:grid-cols-2 ${itemList(null, editing)}`} />;
+}
+
+export type TestimonialProps = { quote: string; name: string; detail: string } & ItemProps;
+
+/** One quote with who said it. Nothing is drawn without the quote itself. */
+export function Testimonial({ quote, name, detail, dragRef, editing }: TestimonialProps) {
+  if (!quote && !editing) return null;
   return (
-    <div className="grid gap-4 py-4 @cards:grid-cols-2">
-      {rows.map((t, i) => (
-        <figure key={i} className="rounded-xl border-t-4 border-accent bg-tile p-5 text-ink shadow-sm">
-          <blockquote className="whitespace-pre-line">“{t.quote}”</blockquote>
-          {(t.name || t.detail) && (
-            <figcaption className="mt-3 text-sm">
-              <span className="font-semibold">{t.name}</span>
-              {t.detail && <span className="block text-ink-muted">{t.detail}</span>}
-            </figcaption>
-          )}
-        </figure>
-      ))}
-    </div>
+    <figure ref={dragRef} className="rounded-xl border-t-4 border-accent bg-tile p-5 text-ink shadow-sm">
+      <blockquote className="whitespace-pre-line">“{quote}”</blockquote>
+      {(name || detail) && (
+        <figcaption className="mt-3 text-sm">
+          <span className="font-semibold">{name}</span>
+          {detail && <span className="block text-ink-muted">{detail}</span>}
+        </figcaption>
+      )}
+    </figure>
   );
 }
 
 // ---- FAQ -----------------------------------------------------------------------------------------------------
 
-export type FaqProps = { items: { question: string; answer: string }[] };
-/** Native disclosure elements: keyboard and screen reader support without script. */
-export function Faq({ items }: FaqProps) {
-  const rows = (items ?? []).filter((i) => i.question);
-  if (rows.length === 0) return null;
+export type FaqProps = { items: Slot; editing?: boolean };
+
+/** A ruled box of questions, each a `FaqItem` in the `items` slot. */
+export function Faq({ items: Items, editing }: FaqProps) {
+  return <Items collisionAxis="y" className={`my-3 divide-y divide-current rounded-lg border border-current ${itemList(null, editing)}`} />;
+}
+
+export type FaqItemProps = { question: string; answer: string } & ItemProps;
+
+/** One question and its answer. Native disclosure elements: keyboard and screen reader support without script. */
+export function FaqItem({ question, answer, dragRef, editing }: FaqItemProps) {
+  if (!question && !editing) return null;
   return (
-    <div className="my-3 divide-y divide-current rounded-lg border border-current">
-      {rows.map((q, i) => (
-        <details key={i} className="group p-4">
-          <summary className="cursor-pointer list-none font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center justify-between gap-3">
-              {q.question}
-              <span aria-hidden="true" className="transition-transform group-open:rotate-45">
-                +
-              </span>
-            </span>
-          </summary>
-          <div className="mt-2 space-y-2">
-            {(q.answer ?? "").split(/\n+/).filter(Boolean).map((line, j) => (
-              <p key={j}>{line}</p>
-            ))}
-          </div>
-        </details>
-      ))}
-    </div>
+    <details ref={dragRef} className="group p-4">
+      <summary className="cursor-pointer list-none font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center justify-between gap-3">
+          {question}
+          <span aria-hidden="true" className="transition-transform group-open:rotate-45">
+            +
+          </span>
+        </span>
+      </summary>
+      <div className="mt-2 space-y-2">
+        {(answer ?? "").split(/\n+/).filter(Boolean).map((line, j) => (
+          <p key={j}>{line}</p>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -336,62 +350,74 @@ export function CountdownBlock({ targetAt, heading, whenExpired, expiredMessage 
 
 // ---- Card grid -----------------------------------------------------------------------------------------------
 
-export type CardGridProps = { columns: "2" | "3" | "4"; items: { imageAssetId?: string; alt: string; icon?: string; title: string; description?: string; price: string; buttonLabel: string; href: string }[] };
+export type CardGridProps = { columns: "2" | "3" | "4"; items: Slot; editing?: boolean };
 const GRID = { "2": "@pair:grid-cols-2", "3": "@pair:grid-cols-2 @cards:grid-cols-3", "4": "@pair:grid-cols-2 @cards:grid-cols-3 @columns:grid-cols-4" } as const;
 
-/** Cards that wrap into rows; the number of columns is the most the room allows (container queries), up to `columns`. */
-export function CardGrid({ columns, items }: CardGridProps) {
-  const rows = (items ?? []).filter((i) => i.title);
-  if (rows.length === 0) return null;
+/** Cards that wrap into rows, each a `GridCard` in the `items` slot; the number of columns is the most the room allows (container queries), up to `columns`. */
+export function CardGrid({ columns, items: Items, editing }: CardGridProps) {
+  return <Items as="ul" collisionAxis="dynamic" className={`grid gap-5 py-4 ${GRID[columns] ?? GRID["3"]} ${itemList(null, editing)}`} />;
+}
+
+export type GridCardProps = { imageAssetId?: string; alt: string; icon?: string; title: string; description?: string; price: string; buttonLabel: string; href: string } & ItemProps;
+
+/** One card of a Card grid: an optional picture or icon, a title, a line, a price and a button (shown only with a usable link). */
+export function GridCard({ imageAssetId, alt, icon, title, description, price, buttonLabel, href: link, dragRef, editing }: GridCardProps) {
+  if (!title && !editing) return null;
+  const src = pageImage(imageAssetId, "event_card");
+  const href = safeHref(link);
   return (
-    <ul className={`grid gap-5 py-4 ${GRID[columns] ?? GRID["3"]}`}>
-      {rows.map((card, i) => {
-        const src = pageImage(card.imageAssetId, "event_card");
-        const href = safeHref(card.href);
-        return (
-          <li key={i} className="flex flex-col overflow-hidden rounded-xl border-t-4 border-accent bg-tile text-ink shadow-sm">
-            {src && (
-              // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-              <img src={src} alt={card.alt} loading="lazy" className="aspect-video w-full object-cover" />
-            )}
-            <div className="flex flex-1 flex-col gap-2 p-4">
-              {card.icon && (
-                <span aria-hidden="true" className="text-3xl leading-none">
-                  {card.icon}
-                </span>
-              )}
-              <h3 className="font-display text-lg font-semibold">{card.title}</h3>
-              {card.description && <p className="text-sm">{card.description}</p>}
-              {card.price && <p className="font-semibold text-accent-ink">{card.price}</p>}
-              {card.buttonLabel && href && (
-                <a href={href} className="mt-auto rounded-full bg-plum-600 px-4 py-2 text-center text-sm font-semibold text-white no-underline hover:bg-plum-700">
-                  {card.buttonLabel}
-                </a>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <li ref={dragRef} className="flex flex-col overflow-hidden rounded-xl border-t-4 border-accent bg-tile text-ink shadow-sm">
+      {src && (
+        // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
+        <img src={src} alt={alt} loading="lazy" className="aspect-video w-full object-cover" />
+      )}
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        {icon && (
+          <span aria-hidden="true" className="text-3xl leading-none">
+            {icon}
+          </span>
+        )}
+        <h3 className="font-display text-lg font-semibold">{title}</h3>
+        {description && <p className="text-sm">{description}</p>}
+        {price && <p className="font-semibold text-accent-ink">{price}</p>}
+        {buttonLabel && href && (
+          <a href={href} className="mt-auto rounded-full bg-plum-600 px-4 py-2 text-center text-sm font-semibold text-white no-underline hover:bg-plum-700">
+            {buttonLabel}
+          </a>
+        )}
+      </div>
+    </li>
   );
 }
 
 // ---- Link list -----------------------------------------------------------------------------------------------
 
-export type LinkListProps = { items: { label: string; href: string }[]; look: "solid" | "outline"; color: "plum" | "light" | "brown" };
-export function LinkList({ items, look, color }: LinkListProps) {
-  const rows = (items ?? []).filter((i) => i.label && safeHref(i.href));
-  if (rows.length === 0) return null;
+export type LinkListProps = { items: Slot; editing?: boolean };
+
+/** A stack of full-width link buttons, each a `LinkItem` in the `items` slot. */
+export function LinkList({ items: Items, editing }: LinkListProps) {
+  return <Items as="ul" collisionAxis="y" className={`mx-auto my-3 max-w-md space-y-3 ${itemList(null, editing)}`} />;
+}
+
+export type LinkItemProps = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown" } & ItemProps;
+
+/** One link of a Link list, drawn as a full-width button. Without a usable address a visitor sees nothing (the publish check asks for it); while editing it shows disabled. */
+export function LinkItem({ label, href, look, color, dragRef, editing }: LinkItemProps) {
+  const target = safeHref(href);
+  if (!(label && target) && !editing) return null;
+  const classes = buttonClasses(look, color, "pill", true);
   return (
-    <ul className="mx-auto my-3 max-w-md space-y-3">
-      {rows.map((link, i) => (
-        <li key={i}>
-          <a href={safeHref(link.href)} className={buttonClasses(look, color, "pill", true)}>
-            {link.label}
-          </a>
-        </li>
-      ))}
-    </ul>
+    <li ref={dragRef}>
+      {target && label ? (
+        <a href={target} className={classes}>
+          {label}
+        </a>
+      ) : (
+        <span aria-disabled="true" className={`${classes} opacity-50`}>
+          {label || "Link"}
+        </span>
+      )}
+    </li>
   );
 }
 

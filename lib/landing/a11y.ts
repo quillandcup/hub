@@ -42,7 +42,7 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
  * called, what one item is called, the item type and the prop the public page needs before it shows one. An empty list, or
  * more items than the layout is made for, is worth a warning: the block would show nothing, or hide the extra ones.
  */
-const ITEM_BLOCKS: Record<string, { block: string; noun: string; plural: string; item: string; key: string; limit: number }> = {
+const ITEM_BLOCKS: Record<string, { block: string; noun: string; plural: string; item: string; key: string; limit?: number; liveOk?: boolean; shown?: (props: Record<string, unknown>) => boolean }> = {
   Steps: { block: "Steps", noun: "step", plural: "steps", item: "Step", key: "title", limit: ITEM_LIMITS.Steps },
   Stats: { block: "Stats", noun: "figure", plural: "figures", item: "Stat", key: "value", limit: ITEM_LIMITS.Stats },
   FinisherCards: { block: "Finisher cards", noun: "Finisher", plural: "Finishers", item: "FinisherCard", key: "name", limit: ITEM_LIMITS.FinisherCards },
@@ -50,6 +50,16 @@ const ITEM_BLOCKS: Record<string, { block: string; noun: string; plural: string;
   WeekStrip: { block: "Week strip", noun: "day", plural: "days", item: "WeekDay", key: "label", limit: ITEM_LIMITS.WeekStrip },
   FinishLineCards: { block: "Finish-line cards", noun: "finish line", plural: "finish lines", item: "FinishLineCard", key: "title", limit: ITEM_LIMITS.FinishLineCards },
   PlanPhases: { block: "Plan phases", noun: "phase", plural: "phases", item: "PlanPhase", key: "title", limit: ITEM_LIMITS.PlanPhases },
+  ButtonRow: { block: "Buttons", noun: "button", plural: "buttons", item: "RowButton", key: "label", limit: ITEM_LIMITS.ButtonRow },
+  List: { block: "List", noun: "item", plural: "items", item: "ListItem", key: "text" },
+  Testimonials: { block: "Testimonials", noun: "testimonial", plural: "testimonials", item: "Testimonial", key: "quote" },
+  Faq: { block: "FAQ", noun: "question", plural: "questions", item: "FaqItem", key: "question" },
+  CardGrid: { block: "Card grid", noun: "card", plural: "cards", item: "GridCard", key: "title" },
+  LinkList: { block: "Link list", noun: "link", plural: "links", item: "LinkItem", key: "label" },
+  // A live panel falls back to its typed sessions only when the live read fails, so having none is not worth a warning there.
+  SchedulePanel: { block: "Schedule panel", noun: "session", plural: "sessions", item: "ScheduleRow", key: "title", limit: ITEM_LIMITS.SchedulePanel, liveOk: true },
+  // A figure that is live shows with no typed value.
+  OutcomeNumbers: { block: "Outcome numbers", noun: "figure", plural: "figures", item: "OutcomeNumber", key: "value", limit: ITEM_LIMITS.OutcomeNumbers, shown: (i) => Boolean(str(i.value)) || (i.source === "live" && Boolean(str(i.stat))) },
 };
 /** The parent of each item type, to say what an item standing alone needs. */
 const ITEM_PARENT = Object.fromEntries(Object.entries(ITEM_BLOCKS).map(([parent, rule]) => [rule.item, parent]));
@@ -76,9 +86,9 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
     if (owner && place.parent !== owner) issues.push({ severity: "warning", block: ITEM_BLOCKS[owner].block, message: `A ${ITEM_BLOCKS[owner].noun} is outside a ${ITEM_BLOCKS[owner].block} block. Drag it into one, or delete it.` });
     const list = ITEM_BLOCKS[type];
     if (list) {
-      const shown = (Array.isArray(p.items) ? (p.items as Node[]) : []).filter((i) => i?.type === list.item && str(i.props?.[list.key]));
-      if (shown.length === 0) issues.push({ severity: "warning", block: list.block, message: `${list.block} has no ${list.plural}, so it shows nothing. Drag one in from "Parts of a block".` });
-      if (shown.length > list.limit) issues.push({ severity: "warning", block: list.block, message: `${list.block} shows ${list.limit} ${list.plural} at most; the ${shown.length - list.limit} after that are hidden.` });
+      const shown = (Array.isArray(p.items) ? (p.items as Node[]) : []).filter((i) => i?.type === list.item && (list.shown ? list.shown(i.props ?? {}) : str(i.props?.[list.key])));
+      if (shown.length === 0 && !(list.liveOk && p.source === "live")) issues.push({ severity: "warning", block: list.block, message: `${list.block} has no ${list.plural}, so it shows nothing. Drag one in from "Parts of a block".` });
+      if (list.limit !== undefined && shown.length > list.limit) issues.push({ severity: "warning", block: list.block, message: `${list.block} shows ${list.limit} ${list.plural} at most; the ${shown.length - list.limit} after that are hidden.` });
     }
     // "Finisher 2" by its place in its block's list; one standing on its own has no place to number it by.
     const finisher = place.parent === "FinisherCards" ? `Finisher ${place.index + 1}` : "A Finisher";
@@ -112,13 +122,14 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Banner", message: `The button "${str(p.label)}" has no link.` });
         if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Banner", message: `A button that says "${str(p.label)}" doesn't say where it goes.` });
         break;
-      case "CardGrid":
-        for (const [i, card] of ((p.items as Record<string, unknown>[]) ?? []).entries()) {
-          if (str(card.imageAssetId) && !str(card.alt)) issues.push({ severity: "error", block: "Card grid", message: `Card ${i + 1} has a picture with no description.` });
-          if (str(card.buttonLabel) && !safeHref(card.href)) issues.push({ severity: "error", block: "Card grid", message: `Card ${i + 1}'s button has no link.` });
-          if (GENERIC_LINK_TEXT.test(str(card.buttonLabel))) issues.push({ severity: "warning", block: "Card grid", message: `Card ${i + 1}'s button says "${str(card.buttonLabel)}": say where it goes.` });
-        }
+      case "GridCard": {
+        // "Card 2" by its place in the grid; one standing on its own has no place to number it by.
+        const card = place.parent === "CardGrid" ? `Card ${place.index + 1}` : "A card";
+        if (str(p.imageAssetId) && !str(p.alt)) issues.push({ severity: "error", block: "Card grid", message: `${card} has a picture with no description.` });
+        if (str(p.buttonLabel) && !safeHref(p.href)) issues.push({ severity: "error", block: "Card grid", message: `${card}'s button has no link.` });
+        if (GENERIC_LINK_TEXT.test(str(p.buttonLabel))) issues.push({ severity: "warning", block: "Card grid", message: `${card}'s button says "${str(p.buttonLabel)}": say where it goes.` });
         break;
+      }
       case "AnnouncementStrip":
         checkButton("Announcement strip", p.buttonLabel, p.href);
         break;
@@ -189,17 +200,13 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Button", message: `The button "${str(p.label)}" has no link.` });
         if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Button", message: `A button that says "${str(p.label)}" doesn't say where it goes.` });
         break;
-      case "ButtonRow":
-        for (const button of rows(p.items)) {
-          if (str(button.label) && !safeHref(button.href)) issues.push({ severity: "error", block: "Buttons", message: `The button "${str(button.label)}" has no link.` });
-          if (GENERIC_LINK_TEXT.test(str(button.label))) issues.push({ severity: "warning", block: "Buttons", message: `A button that says "${str(button.label)}" doesn't say where it goes.` });
-        }
+      case "RowButton":
+        if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Buttons", message: `The button "${str(p.label)}" has no link.` });
+        if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Buttons", message: `A button that says "${str(p.label)}" doesn't say where it goes.` });
         break;
-      case "LinkList":
-        for (const link of (p.items as Record<string, unknown>[]) ?? []) {
-          if (str(link.label) && !safeHref(link.href)) issues.push({ severity: "error", block: "Link list", message: `The link "${str(link.label)}" has no address.` });
-          if (GENERIC_LINK_TEXT.test(str(link.label))) issues.push({ severity: "warning", block: "Link list", message: `A link that says "${str(link.label)}" doesn't say where it goes.` });
-        }
+      case "LinkItem":
+        if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Link list", message: `The link "${str(p.label)}" has no address.` });
+        if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Link list", message: `A link that says "${str(p.label)}" doesn't say where it goes.` });
         break;
       case "Section":
         if (str(p.backgroundImageAssetId) && p.overlay === "none") issues.push({ severity: "warning", block: "Section", message: "Text over a picture with no shade can be hard to read. Add a dark or light shade." });

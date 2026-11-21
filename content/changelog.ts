@@ -191,15 +191,15 @@ Desktop and mobile follow the room the page has, so the phone and tablet preview
     audience: "staff",
     category: "improved",
     title: "Page builder: drag the cards, steps and days of a block to reorder them on the page",
-    summary: "In the page builder you can now drag the Finisher cards, the days of the week strip, the steps, the timeline moments, the finish-line cards, the plan phases and the figures straight on the page, the way you move sections.",
-    body: `Open a page in the admin Pages editor and drag any of those items to a new place inside its block. Click one to edit it in the right-hand panel.
+    summary: "In the page builder you can now drag the Finisher cards, the days of the week strip, the steps, the timeline moments, the finish-line cards, the plan phases, the figures, the buttons, the list points, the testimonials, the questions, the cards, the links and the sessions straight on the page, the way you move sections.",
+    body: `Open a page in the admin Pages editor and drag any of those items to a new place inside its block. The events of a Coming up block and the stages of a Journey map still reorder in the right-hand panel. Click one to edit it in the right-hand panel.
 
 - **Add one.** Open "Parts of a block" in the Add list and drag an item into the block, or duplicate one that is there.
 - **Remove one.** Select it and delete it.
 - **New blocks.** A block you add starts with a few items to change.
 - **Check before publishing.** A block with no items, or with more than it can show, is flagged.
 
-Pages built before this show their items as they were; the starter homepage has them as items already.`,
+Pages built before this are converted when they are opened; the starter homepage has them as items already. A Link list's style and colour are now set on each link, and a typed Schedule panel session carries its own status and host line.`,
   },
   {
     slug: "landing-block-items-as-slots",
@@ -207,11 +207,11 @@ Pages built before this show their items as they were; the starter homepage has 
     audience: "engineering",
     category: "new",
     title: "Landing blocks hold their items as a slot of child blocks",
-    summary: "A repeating landing block (Finisher cards, week strip, steps...) now keeps its items as child blocks in a slot, so they drag on the canvas like sections do.",
+    summary: "A repeating landing block (Finisher cards, week strip, steps, buttons, FAQ, Card grid, the Schedule panel's sessions, Outcome numbers...) now keeps its items as child blocks in a slot, so they drag on the canvas like sections do.",
     body: `A block with repeating items no longer has an array field: each item is a small block of its own, in the parent's \`items\` slot, limited to one item type.
 
 - **Rule.** Add a repeating block by giving it an entry in \`SLOT_ALLOW\` (\`components/landing/config.tsx\`), an item component that takes \`dragRef\` and \`editing\`, and the item's fields. Everything that walks a page (publish check, AI builder, JSON import, assets) follows the table.
-- **Hooks.** \`itemList\` and \`ITEM_LIMITS\` for the empty and past-the-limit behaviour, \`itemsSlot\` in tests.
+- **Hooks.** \`itemList\` and \`ITEM_LIMITS\` for the empty and past-the-limit behaviour, \`itemsSlot\` in tests. An item cannot see its block, so a setting the whole list shared moves onto each item, or (live data) the server writes it into the item's props.
 - **Detail.** "Blocks with items" in \`docs/product/LANDING_PAGES.md\`.`,
   },
   {

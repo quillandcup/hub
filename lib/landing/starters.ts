@@ -69,10 +69,10 @@ function homeContent(): unknown[] {
           heading("THE END is the best two words in the English language.", "h1", "left"),
           text("<p>We help writers get there, and we celebrate every Finisher who does. Someone is always writing beside you, and someone notices when you're missing.</p>", "left"),
           block("ButtonRow", {
-            items: [
+            items: items("RowButton", [
               { label: "Start your first prickle", href: "", look: "solid", color: "light", shape: "pill" },
               { label: "Drop in now", href: "", look: "outline", color: "light", shape: "pill" },
-            ],
+            ]),
             align: "left",
             gap: "medium",
           }),
@@ -89,25 +89,25 @@ function homeContent(): unknown[] {
             rowNote: "",
             footer: "Camera optional. Chat optional. Everyone is welcome.",
             zoneLabel: orgZoneLabel(),
-            rows: [
+            items: items("ScheduleRow", [
               { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "Hosted by [Host name], who has hosted [number] prickles." },
               { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" },
               { time: "12:30 pm", title: "Lunch hour", status: "", state: "open", host: "Hosted by [Host name] · first-timers welcome" },
               { time: "8:00 pm", title: "Night owls", status: "", state: "open", host: "" },
-            ],
+            ]),
           }),
         ],
       ]),
     ]),
     block("OutcomeNumbers", {
-      items: [
+      items: items("OutcomeNumber", [
         // Live: the Bookshelf's count of books members have published; the typed figure shows if it can't be read.
         { source: "live", stat: "books_published", value: "50+", label: "", note: "" },
-        { value: "100s", label: "of Finishers who typed THE END", note: "" },
+        { source: "manual", stat: "hours_30d", value: "100s", label: "of Finishers who typed THE END", note: "" },
         // Live from the Hub once the page is published ("Live from the Hub" in the block's settings); the typed figure is only what shows if it can't be read.
         { source: "live", stat: "hours_30d", value: "[number]", label: "", note: "" },
         { source: "live", stat: "words_30d", value: "[number]", label: "", note: "" },
-      ],
+      ]),
     }),
     section({ background: "none" }, [
       heading("Meet the Finishers"),

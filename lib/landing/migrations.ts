@@ -72,6 +72,31 @@ function itemsToChildBlocks(itemType: string) {
   };
 }
 
+/** Step 3's blocks: the same wrapping, for the eight more blocks whose items became child blocks. */
+const ITEM_BLOCK_OF_STEP_3: Record<string, string> = {
+  ButtonRow: "RowButton",
+  List: "ListItem",
+  Testimonials: "Testimonial",
+  Faq: "FaqItem",
+  CardGrid: "GridCard",
+  OutcomeNumbers: "OutcomeNumber",
+};
+
+/** A Link list's style and colour were the list's; each link has its own now. Once they are gone from the list there is nothing to move, so running it again changes nothing. */
+function linkListToChildBlocks(props: Props): Props {
+  const { look, color, ...rest } = props;
+  const items = Array.isArray(rest.items) ? rest.items.map((item) => (isObject(item) && !isNode(item) ? { look: look ?? "solid", color: color ?? "plum", ...item } : item)) : rest.items;
+  return itemsToChildBlocks("LinkItem")(items === undefined ? rest : { ...rest, items });
+}
+
+/** The Schedule panel's typed `rows` became its `items` slot of `ScheduleRow` blocks. Without a `rows` prop there is nothing to move. */
+function scheduleRowsToChildBlocks(props: Props): Props {
+  if (!("rows" in props)) return props;
+  const { rows, ...rest } = props;
+  if (Array.isArray(rest.items) && rest.items.some(isNode)) return rest;
+  return itemsToChildBlocks("ScheduleRow")({ ...rest, items: Array.isArray(rows) ? rows : [] });
+}
+
 /** Append a step to change a block's props; never edit or remove an earlier one. */
 export const LANDING_MIGRATIONS: LandingMigration[] = [
   {
@@ -83,6 +108,15 @@ export const LANDING_MIGRATIONS: LandingMigration[] = [
     // The items of Steps, Stats, Finisher cards, Timeline, Week strip, Finish-line cards and Plan phases become child blocks (#1600).
     version: 2,
     blocks: Object.fromEntries(Object.entries(ITEM_BLOCK_OF).map(([parent, item]) => [parent, itemsToChildBlocks(item)])),
+  },
+  {
+    // The items of Buttons, List, Testimonials, FAQ, Card grid, Link list, Outcome numbers and the Schedule panel's rows become child blocks.
+    version: 3,
+    blocks: {
+      ...Object.fromEntries(Object.entries(ITEM_BLOCK_OF_STEP_3).map(([parent, item]) => [parent, itemsToChildBlocks(item)])),
+      LinkList: linkListToChildBlocks,
+      SchedulePanel: scheduleRowsToChildBlocks,
+    },
   },
 ];
 

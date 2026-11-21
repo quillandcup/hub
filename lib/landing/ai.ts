@@ -26,8 +26,8 @@ type Block = { type: string; props: Props };
 /** What the model may use. Excluded on purpose: Image and Split (need a picture), Testimonials (it would invent quotes), Countdown (a date), Video, OptInForm (a Kajabi form id). CardGrid is offered without pictures, prices or buttons. */
 export const AI_BLOCKS = ["Section", "Hero", "Heading", "RichText", "Button", "List", "Steps", "Stats", "Faq", "LinkList", "CtaBanner", "CardGrid", "Divider", "Spacer"] as const;
 type AiBlock = (typeof AI_BLOCKS)[number];
-/** The blocks the model writes inside one of those: the items of Steps and Stats. They are only ever offered in their parent's list, never on their own. */
-const AI_ITEMS = ["Step", "Stat"] as const;
+/** The blocks the model writes inside one of those: the items of Steps, Stats, List, FAQ, Link list and Card grid. They are only ever offered in their parent's list, never on their own. */
+const AI_ITEMS = ["Step", "Stat", "ListItem", "FaqItem", "LinkItem", "GridCard"] as const;
 const WRITABLE: readonly string[] = [...AI_BLOCKS, ...AI_ITEMS];
 
 const LOOK = ["solid", "outline"];
@@ -40,7 +40,7 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
   Heading: { level: ["h1", "h2", "h3"], align: ALIGN },
   Button: { look: LOOK, color: ["plum", "light", "brown"], shape: ["pill", "rect"], align: ALIGN },
   List: { align: ALIGN },
-  LinkList: { look: LOOK, color: ["plum", "light", "brown"] },
+  LinkItem: { look: LOOK, color: ["plum", "light", "brown"] },
   Divider: { look: ["short", "line"] },
   Spacer: { size: ["small", "medium", "large"] },
   Hero: { level: ["h1", "h2"], imageMode: ["background", "side"], overlay: ["none", "dark", "light"], background: Object.keys(BACKGROUNDS), align: ALIGN, padding: Object.keys(PADDING) },
@@ -50,18 +50,24 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
 
 /** What the model is shown and may set for a block: the builder's defaults, except where those are sample content (a card's price and "Buy now"). */
 const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
-const SHAPES: Partial<Record<AiBlock, Props>> = {
+const SHAPES: Partial<Record<AiBlock | (typeof AI_ITEMS)[number], Props>> = {
   // The items of these are child blocks (`SLOT_ALLOW`), described beside the props.
   Steps: { heading: BLOCK_DEFAULTS.Steps.heading },
   Stats: {},
+  List: { align: BLOCK_DEFAULTS.List.align },
+  Faq: {},
+  LinkList: {},
+  CardGrid: { columns: "3" },
   // Spacing as numbers (px) for desktop and mobile. The model is not offered hiding a section: that is the admin's call.
   Section: SECTION_SHAPE,
-  CardGrid: { columns: "3", items: [{ icon: "", title: "", description: "", price: "", buttonLabel: "", href: "" }] },
+  // A card is offered without a picture, a price or a button: the request rarely gives them, and the model must not invent them.
+  GridCard: { icon: "", title: "", description: "", price: "", buttonLabel: "", href: "" },
 };
-const shapeOf = (type: AiBlock | (typeof AI_ITEMS)[number]): Props => SHAPES[type as AiBlock] ?? (BLOCK_DEFAULTS[type] as unknown as Props);
+const shapeOf = (type: AiBlock | (typeof AI_ITEMS)[number]): Props => SHAPES[type as keyof typeof SHAPES] ?? (BLOCK_DEFAULTS[type] as unknown as Props);
 
 /** A card grid with a picture on any card stays as it is: the model never sees pictures, so it could not keep them. */
-const hasPictures = (block: Block): boolean => block.type === "CardGrid" && Array.isArray(block.props.items) && block.props.items.some((i) => isObject(i) && typeof i.imageAssetId === "string" && i.imageAssetId !== "");
+const hasPictures = (block: Block): boolean =>
+  block.type === "CardGrid" && Array.isArray(block.props.items) && block.props.items.some((i) => isObject(i) && isObject(i.props) && typeof i.props.imageAssetId === "string" && i.props.imageAssetId !== "");
 
 const MAX_BLOCKS = 40;
 const MAX_ITEMS = 12;
@@ -150,7 +156,7 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing, allow: rea
     const kids = Array.isArray(given.content) ? given.content : Array.isArray(raw.content) ? raw.content : [];
     props.content = depth === 0 ? kids.map((c) => cleanBlock(c, depth + 1, existing)).filter((b): b is Block => b !== null) : [];
   }
-  // The items of a Steps or Stats block: child blocks of the one type its list takes, written in `props.items` (or beside props, as with a Section's).
+  // The items of a block that holds a list (Steps, Stats, List, FAQ, Link list, Card grid): child blocks of the one type its list takes, written in `props.items` (or beside props, as with a Section's).
   for (const [slot, types] of Object.entries(SLOT_ALLOW[type] ?? {})) {
     if (before && before.type === type && !(slot in given) && !(slot in raw)) continue;
     const kids = Array.isArray(given[slot]) ? given[slot] : Array.isArray(raw[slot]) ? raw[slot] : [];
@@ -212,7 +218,7 @@ export function systemPrompt(task: Task = "page"): string {
     "You build landing pages for Quill & Cup, a community for writers, in a block page builder. You answer only by calling the build_page tool.",
     "Write warm, plain, specific copy in the voice the request implies. Use only facts, prices, dates, names and links the request gives you; never invent figures, quotes, testimonials, deadlines or links. Where a fact is missing, write copy that does not need it, and leave a button's href empty so the admin fills it in.",
     TASK_RULES[task],
-    "A Section's blocks go in its props.content list. The steps of a Steps block and the figures of a Stats block go in its props.items list, each as a Step or Stat block. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
+    "A Section's blocks go in its props.content list. The entries of a Steps, Stats, List, FAQ, Link list or Card grid block go in its props.items list, each as a block of the item type given for it below. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
     "For cards side by side (pillars, offers, features), use a CardGrid: each card has an `icon` (one fitting emoji), a `title` and a short `description`; leave price, buttonLabel and href empty unless the request gives them.",
     "Spacing: a Section's paddingDesktop and paddingMobile are the space inside it in px (top, bottom, left, right; 0 to 320). The defaults suit most sections: change them only when asked, or for an airy opening or closing band. Width: the blocks inside a Section sit on a 12-column grid. Give a block `span` (1 to 12: its width on desktop) and, if it should differ on a phone, `spanMobile` (full width when left out) to put blocks side by side, for example two Buttons with span 6, or a Heading and some text with span 5 and 7. Leave both out for full width.",
     "Rich text (`html`) may use only p, h2, h3, ul, ol, li, strong, em, a and blockquote. There are no pictures: leave picture props out. Never mention AI.",

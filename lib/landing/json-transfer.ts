@@ -110,6 +110,7 @@ export const EXTRA_PROPS: Record<string, string[]> = {
   Split: ["imageAssetId"],
   Hero: ["imageAssetId"],
   FinisherCard: ["imageAssetId"],
+  GridCard: ["imageAssetId"],
 };
 
 /** The page frame's own props (`root.props`). */
