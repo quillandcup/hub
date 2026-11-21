@@ -10,7 +10,7 @@ Hedgie Hub is owned and run by Quill & Cup LLC. This page says who decides what,
 
 ## How changes are made
 
-All changes land through a pull request. Required checks (unit and database tests, build, coverage on new lines, migration ordering, CodeQL) must pass and every review thread must be resolved; the `main` ruleset in `github-repo-config.yml` enforces it, administrators included. Approvals are not required, because the maintainer team is one person; automated review, tests and the scanners listed in `docs/THREAT_MODEL.md` stand in. Auto-merge is only enabled for pull requests by Dependabot and by the repository's owner, members and collaborators.
+All changes land through a pull request. Required checks (unit and database tests, build, coverage on new lines, migration ordering, CodeQL) must pass and every review thread must be resolved; the `main` ruleset in `config/github.yml` enforces it, administrators included. Approvals are not required, because the maintainer team is one person; automated review, tests and the scanners listed in `docs/THREAT_MODEL.md` stand in. Auto-merge is only enabled for pull requests by Dependabot and by the repository's owner, members and collaborators.
 
 Two-factor authentication is required for the GitHub organization, Vercel and Supabase.
 
