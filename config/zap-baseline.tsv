@@ -1,0 +1,5 @@
+10098	OUTOFSCOPE	.*/_next/static/.*
+10098	OUTOFSCOPE	.*/(icon\.png|icon\.svg|manifest\.webmanifest)
+10055	IGNORE	(CSP: directive with no fallback; decided not needed, see docs/TODO.md)
+90003	IGNORE	(Subresource Integrity; the only third-party script is the Google Analytics tag, which changes without notice and cannot be pinned)
+90004	IGNORE	(Cross-Origin-Embedder-Policy; would break third-party images and embeds, and we need no cross-origin isolation)

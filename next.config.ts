@@ -38,6 +38,8 @@ const PROXY_SKIPPED_SOURCES = [
 ];
 
 const nextConfig: NextConfig = {
+  // Don't announce the framework in an `X-Powered-By: Next.js` header on every response (a ZAP baseline finding; it only helps someone aiming at a known version).
+  poweredByHeader: false,
   // Pairs this build with the help screenshot set captured from the same source (scripts/help-images-version.ts).
   // Derived from git at build time, not configuration: "local" outside CI.
   env: {
