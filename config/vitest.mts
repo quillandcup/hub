@@ -64,7 +64,7 @@ export default defineConfig({
         'instrumentation.ts',
         'instrumentation-client.ts',
       ],
-      exclude: ['**/*.d.ts', '**/*.test.*', 'lib/**/types.ts'],
+      exclude: ['**/*.d.ts', '**/*.test.*', '**/*.generated.*', 'lib/**/types.ts'],
       // json is what scripts/coverage-report.ts reads; html is the browsable report in the artifacts.
       reporter: ['text-summary', 'json', 'html'],
       reportOnFailure: true,
