@@ -18,6 +18,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { editorConfig } from "@/components/landing/editor-config";
 import { ITEM_BLOCKS, SLOT_ALLOW } from "@/components/landing/config";
+import { normalizeLandingData } from "@/lib/landing/data";
 
 afterEach(cleanup);
 
@@ -91,5 +92,24 @@ describe("the real Puck editor with an items slot", () => {
         if (field.type === "slot") expect(field.disallow, name).toEqual(ITEM_BLOCKS);
       }
     }
+  });
+});
+
+describe("a page saved before items became child blocks", () => {
+  // Saved with the items as plain lists (what every page made before #1600 holds). The editor page loads a stored document through
+  // `normalizeLandingData`; Puck itself throws "Cannot read properties of undefined (reading 'id')" on a list item that is not a block.
+  const legacy = {
+    content: [
+      { type: "WeekStrip", props: { id: "w1", subtitle: "A week", items: [{ label: "Mon", emoji: "", text: "First", note: "" }, { label: "Tue", emoji: "", text: "Second", note: "" }] } },
+      { type: "Section", props: { id: "s1", content: [{ type: "Steps", props: { id: "st1", heading: "How", items: [{ title: "One", text: "a" }, { title: "Two", text: "b" }] } }] } },
+    ],
+    root: { props: {} },
+  };
+
+  it("opens in the real editor after loading, with its items in order as blocks of their own", async () => {
+    const { container } = mount(normalizeLandingData(legacy) as unknown as Data);
+    expect(await screen.findAllByText("First")).not.toHaveLength(0);
+    expect(labels(container)[0]).toBe("Mon");
+    expect(labels(container)).toContain("Tue");
   });
 });
