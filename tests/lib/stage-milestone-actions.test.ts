@@ -25,6 +25,7 @@ vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "browser") }));
 vi.mock("@/app/(member)/bookshelf/actions", () => ({ getMyBooks: vi.fn(async () => []) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/data/server", () => ({ getServiceRepos: vi.fn(() => ({})) }));
 vi.mock("@/lib/analytics/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics/server")>();
   return {
@@ -39,6 +40,7 @@ vi.mock("@/lib/analytics/server", async (importOriginal) => {
 
 import { updateProjectPhase } from "@/app/(member)/projects/actions";
 import { answerStageMilestone } from "@/app/(member)/projects/stageMilestoneActions";
+import { addMilestone, answerMilestone } from "@/app/(member)/settings/milestoneActions";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -187,6 +189,38 @@ describe("answerStageMilestone", () => {
     ]);
     expect(data.memberMilestones[0].created_by).toBe(USER);
     expect(recorded).toEqual([{ action: "milestone_stage_answered", outcome: { ok: true, detail: "confirmed" } }]);
+  });
+
+  it("saves the level the member picked in the dialog (the lock, the house or the globe), and the globe when none was named", async () => {
+    for (const [kind, level] of [["the_end", "private"], ["publish_ready", "community"]] as const) {
+      expect(await answerStageMilestone({ projectId: PROJECT, kind, answer: "yes", visibility: level })).toEqual({ success: true, saved: true });
+    }
+    const other = "wprj_CCCCCCCCCCC1";
+    data.writingProjects.push(project(other, ADA, "drafting"));
+    await answerStageMilestone({ projectId: other, kind: "the_end", answer: "yes", visibility: "public" });
+    await answerStageMilestone({ projectId: other, kind: "publish_ready", answer: "yes" });
+    const rows = await mine();
+    const level = (projectId: string, kind: string) => rows.find((m) => m.projectId === projectId && m.kind === kind)?.visibility;
+    expect([level(PROJECT, "the_end"), level(PROJECT, "publish_ready"), level(other, "the_end"), level(other, "publish_ready")]).toEqual(["private", "community", "public", "public"]);
+  });
+
+  it("refuses a level that does not exist and writes nothing", async () => {
+    expect(await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "yes", visibility: "everyone" })).toHaveProperty("error");
+    expect(data.memberMilestones).toEqual([]);
+  });
+
+  it("lets the member still say 'I wrote THE END' on the card after a 'not yet': the declined row is confirmed in place, and a second add shows it", async () => {
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    const [declined] = await mine();
+    expect(declined).toMatchObject({ status: "declined", source: "project_stage" });
+
+    // The card shows "Actually, it is me" on that row, which answers it.
+    expect(await answerMilestone({ id: declined.id, answer: "confirm", achievedOn: "2026-05-01", visibility: "community" })).toEqual({ success: true });
+    expect(await mine()).toEqual([expect.objectContaining({ id: declined.id, status: "confirmed", source: "project_stage", achievedOn: "2026-05-01", visibility: "community" })]);
+
+    // And the card's own "I wrote THE END" add finds that row instead of failing or duplicating it.
+    expect(await addMilestone({ kind: "the_end", projectId: PROJECT })).toEqual({ success: true, added: false });
+    expect(await mine()).toHaveLength(1);
   });
 
   it("keeps the share tick off when it was not ticked or no story was written", async () => {
