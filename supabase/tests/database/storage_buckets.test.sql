@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(11);
+SELECT plan(16);
 
 -- How many policies on storage.objects name this bucket.
 CREATE FUNCTION pg_temp.policies_naming(bucket text) RETURNS int LANGUAGE sql AS $$
@@ -33,5 +33,21 @@ SELECT lives_ok(
   'a media asset can come from an event photo'
 );
 
+SELECT is(pg_temp.policies_naming('member-photos'), 0, 'member-photos has no policy: only the server, after checking the picture, writes to it');
+SELECT is((SELECT file_size_limit FROM storage.buckets WHERE id = 'member-photos'), 2097152::bigint, 'member-photos is limited to 2 MB, the small WebP the server makes');
+SELECT is((SELECT allowed_mime_types FROM storage.buckets WHERE id = 'member-photos'), ARRAY['image/webp']::text[], 'and to a WebP');
+
+-- A photo path must be in the member's own folder (their row can be written by them, so this is what stops a pointer at someone else's file).
+INSERT INTO public.members (id, name, email, joined_at, status) VALUES
+  ('mbr_photoAda0001', 'Ada Example', 'photo-ada@example.test', now(), 'active'),
+  ('mbr_photoBo00001', 'Bo Example', 'photo-bo@example.test', now(), 'active');
+SELECT lives_ok(
+  $$INSERT INTO public.member_profile_overrides (member_id, photo_path) VALUES ('mbr_photoAda0001', 'mbr_photoAda0001/abc.webp')$$,
+  'a photo in the member''s own folder is accepted'
+);
+SELECT throws_ok(
+  $$UPDATE public.member_profile_overrides SET photo_path = 'mbr_photoBo00001/abc.webp' WHERE member_id = 'mbr_photoAda0001'$$,
+  '23514', NULL, 'a photo in another member''s folder is refused'
+);
 SELECT * FROM finish(true);
 ROLLBACK;

@@ -94,6 +94,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/api/feature-previews/route"), "app/api/feature-previews/route.ts", [["POST", "feature_preview_changed"]]],
   [() => import("@/app/api/projects/import/trackbear/route"), "app/api/projects/import/trackbear/route.ts", [["POST", "trackbear_imported"]]],
   [() => import("@/app/api/bookshelf/cover/route"), "app/api/bookshelf/cover/route.ts", [["POST", "book_cover_uploaded"]]],
+  [() => import("@/app/api/profile/photo/route"), "app/api/profile/photo/route.ts", [["POST", "profile_photo_uploaded"], ["DELETE", "profile_photo_removed"]]],
   [() => import("@/app/api/bookshelf/cover/[assetId]/route"), "app/api/bookshelf/cover/[assetId]/route.ts", [["PATCH", "book_cover_edited"]]],
   [() => import("@/app/api/media/route"), "app/api/media/route.ts", [["POST", "media_asset_uploaded"]]],
   [() => import("@/app/api/media/[id]/route"), "app/api/media/[id]/route.ts", [["PATCH", "media_asset_edited"], ["DELETE", "media_asset_deleted"]]],

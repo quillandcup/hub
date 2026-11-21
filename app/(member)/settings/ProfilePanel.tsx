@@ -19,6 +19,7 @@ import { WriterProfilePanel } from "./WriterProfilePanel";
 import ProfileItemVisibility from "./ProfileItemVisibility";
 import SeparatePublicBio from "./SeparatePublicBio";
 import { getMyWriterProfile, type MyWriterProfile } from "./writerProfileActions";
+import ProfilePhoto from "./ProfilePhoto";
 import { setProfileVisibility } from "./profileVisibilityActions";
 import type { ProfileItem } from "@/lib/profile-visibility";
 import type { Visibility } from "@/lib/writing-visibility";
@@ -101,6 +102,12 @@ export function ProfilePanel() {
     setLoading(false);
   }, []);
 
+  // Only the photo is read again after an upload, a removal or a copy of a Gravatar picture, so what is typed in the form stays.
+  const reloadPhoto = useCallback(async () => {
+    const result = await getProfileSettings();
+    if (!("error" in result)) setData((current) => (current ? { ...current, photo: result.photo } : current));
+  }, []);
+
   useEffect(() => {
     load();
     loadPage();
@@ -163,6 +170,9 @@ export function ProfilePanel() {
     if ("error" in result) {
       setData((current) => (current ? { ...current, visibilities: { ...current.visibilities, [item]: before } } : current));
       setError(result.error);
+    } else if (item === "photo") {
+      // The globe on a Gravatar picture saves a copy of it, which changes the photo shown here.
+      await reloadPhoto();
     }
   }
 
@@ -190,7 +200,6 @@ export function ProfilePanel() {
       disabled={savingItem === item}
       onChange={(next) => void handleVisibility(item, next)}
       separateBio={item === "bio" ? separateBio : undefined}
-      photoPublishable={item === "photo" ? (page?.photoAvailable ?? true) : undefined}
     />
   );
 
@@ -228,6 +237,7 @@ export function ProfilePanel() {
             <span id="profile-photo" className="text-sm font-medium text-slate-900 dark:text-slate-100">Photo</span>
             <span className="block text-xs text-slate-600 dark:text-slate-400">The picture shown next to your name.</span>
           </ItemHeader>
+          <ProfilePhoto photo={data.photo} level={level("photo")} webOpen={web.available} onChanged={reloadPhoto} />
         </div>
         <div data-tour="profile-bio">
           <ItemHeader control={control("bio")}>

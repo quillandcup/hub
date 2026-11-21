@@ -204,11 +204,21 @@ export const appConfig = {
    * its old address redirects to the new one until someone takes it afterwards.
    * `bioMaxLength`: characters in the bio on the page.
    * `sitemapPageSize`: addresses in one sitemap file (the limit is 50,000).
-   * `unpublishablePhotoHosts`: where a profile photo can come from but is never put on a public page. Gravatar's address
-   * carries a hash of the member's email.
+   * `unpublishablePhotoHosts`: where a profile photo can come from but its address is never put on a public page, because
+   * Gravatar's address carries a hash of the member's email. A Gravatar photo is published only as our own copy (`memberPhoto`).
    * `reservedHandles`: handles nobody can choose, so a page cannot pass for the community, its staff or a place in the app.
    * Compared with hyphens left out, so "quill-and-cup" is held by "quillandcup".
    */
+  /**
+   * A member's own profile photo (lib/members/photo.ts, docs/product/WRITER_PROFILES.md, "The photo").
+   * `maxUploadBytes`: the largest file a member can upload (JPEG, PNG or WebP); it is re-encoded to a small WebP.
+   * `gravatarHost`: the only host a Gravatar photo is ever fetched from, once, when a member chooses the globe for it.
+   */
+  memberPhoto: {
+    maxUploadBytes: 4 * 1024 * 1024, // under the 4.5 MB request body a Vercel function accepts
+    gravatarHost: "www.gravatar.com",
+  },
+
   writerProfiles: {
     handleMinLength: 3,
     handleMaxLength: 30,

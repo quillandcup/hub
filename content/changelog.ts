@@ -56,6 +56,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "upload-your-own-photo",
+    date: "2026-11-21",
+    audience: "product",
+    category: "new",
+    title: "Upload your own photo",
+    summary: "In Settings, Profile, you can now see the photo other members see, say where it comes from, and upload a different one or take yours away.",
+    body: [
+      "Your photo now has its own place in Settings, under Profile.",
+      "",
+      "- **See it and change it.** The picture other members see is shown, with a line saying where it comes from. Upload a JPEG, PNG or WebP of up to 4 MB, replace it later, or remove it.",
+      "- **Your privacy.** We make your photo smaller and remove hidden details from the file, such as where it was taken.",
+      "- **Who sees it.** The lock means only you: other members see your initials instead. The house means other members see your photo.",
+    ].join("\n"),
+  },
+  {
     slug: "page-editor-one-panel-drilldown",
     date: "2026-11-21",
     audience: "staff",

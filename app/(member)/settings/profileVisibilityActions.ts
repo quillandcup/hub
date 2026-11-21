@@ -10,6 +10,34 @@ import { withAction } from "@/lib/analytics/server";
 import { isLevelAllowed, isProfileItem, isWebItem } from "@/lib/profile-visibility";
 import { WRITER_PROFILES_NOT_AVAILABLE, memberHasWriterProfiles } from "@/lib/writer-profiles-access";
 import { publishablePhotoUrl, writerProfilePath } from "@/lib/writer-profile";
+import { copyGravatarPhoto, isGravatarAddress, memberPhotoStore } from "@/lib/members/photo";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+
+const NO_PHOTO_FOR_THE_WEB = "There is no photo to show on the web yet. Upload one above, then choose the globe again.";
+
+/**
+ * The globe on the photo needs a photo that can be put on a public profile. Ours (uploaded, or a copy) always can. A Gravatar
+ * picture cannot be shown from its own address, which carries a hash of the member's email, so choosing the globe for one is
+ * the member's consent to copy it into our storage once; a member with no Gravatar has nothing to copy and is pointed to the
+ * upload. Null when the photo can be shown, otherwise what to tell the member.
+ */
+async function ensurePublishablePhoto(memberId: string, userId: string, isSudo: boolean): Promise<string | null> {
+  const service = getServiceRepos();
+  const member = await service.members.byId(memberId);
+  if (publishablePhotoUrl(member?.photoUrl) !== null) return null;
+  if (!member || !isGravatarAddress(member.photoUrl)) return NO_PHOTO_FOR_THE_WEB;
+  if (isSudo) return "Staff can look at a member's photo, but not copy it for them.";
+  const copied = await copyGravatarPhoto(
+    { members: service.members, memberStatus: service.memberStatus, store: memberPhotoStore(createServiceRoleClient()) },
+    memberId,
+    member.email,
+    userId,
+  );
+  if (copied.ok) return null;
+  return copied.reason === "none"
+    ? "We couldn't find a Gravatar picture for your email, so there is no photo to show on the web. Upload one above, then choose the globe again."
+    : "We couldn't copy your Gravatar picture just now. Try again, or upload a photo above.";
+}
 
 /**
  * Settings > Profile: who can see one item (the bio, the photo, a social link, the "Ask me about" topics), saved the moment
@@ -35,8 +63,9 @@ async function setProfileVisibilityImpl(item: string, level: string): Promise<{ 
 
   if (level === "public") {
     if (!(await memberHasWriterProfiles(service, memberId))) return { error: WRITER_PROFILES_NOT_AVAILABLE };
-    if (item === "photo" && publishablePhotoUrl((await repos.members.byId(memberId))?.photoUrl) === null) {
-      return { error: "There is no photo that can be shown on a public page. A Gravatar picture is never published, because its address carries a code made from your email." };
+    if (item === "photo") {
+      const problem = await ensurePublishablePhoto(memberId, user.id, identity.isSudo);
+      if (problem) return { error: problem };
     }
   }
 

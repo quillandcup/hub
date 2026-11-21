@@ -32,6 +32,7 @@ const baseSettings: profileActions.ProfileSettings = {
   details: { bio: 'Writes cozy mysteries.', facebookUrl: 'https://facebook.com/someone', twitterUrl: null },
   askMeAbout: ['cozy mysteries'],
   visibilities: defaultProfileVisibilities(),
+  photo: { name: 'Ada Example', url: null, source: 'none', canChange: true },
   syncPending: false,
   showInRoster: true,
 }
@@ -46,7 +47,6 @@ const pageSettings: pageActions.MyWriterProfile = {
   nameChosen: true,
   nameChoices: [{ kind: 'display', aliasId: null, label: 'Ada Example' }],
   useAccountName: false,
-  photoAvailable: true,
   suggestedHandle: 'ada-example',
   addressPrefix: 'hub.example.test/w/',
   pageUrl: 'https://hub.example.test/w/ada-example',
@@ -345,14 +345,6 @@ describe('ProfilePanel who can see each item', () => {
     render(<ProfilePanel />)
     expect(await screen.findByTestId('note-facebook')).toHaveTextContent('writer profiles are not open to you yet')
   })
-
-  it('says a Gravatar picture is never published when the photo is set to the globe but cannot be', async () => {
-    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue({ ...pageSettings, photoAvailable: false })
-    vi.mocked(profileActions.getProfileSettings).mockResolvedValue({ ...baseSettings, visibilities: { ...baseSettings.visibilities, photo: 'public' } })
-    render(<ProfilePanel />)
-
-    expect(await screen.findByTestId('note-photo')).toHaveTextContent('Gravatar')
-  })
 })
 
 describe('ProfilePanel a different public bio', () => {
@@ -429,5 +421,50 @@ describe('ProfilePanel a different public bio', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('at most 1000')
     expect(screen.getByLabelText('Public bio')).toHaveValue('Too long')
+  })
+})
+
+describe('ProfilePanel the photo row', () => {
+  const withPhoto = (photo: Partial<profileActions.ProfileSettings['photo']>, level: 'private' | 'community' | 'public' = 'community') => ({
+    ...baseSettings,
+    visibilities: { ...baseSettings.visibilities, photo: level },
+    photo: { ...baseSettings.photo, ...photo },
+  })
+
+  it('shows the picture in use, where it comes from and who sees it, with a way to change it', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(withPhoto({ url: 'https://storage.example.test/a.webp', source: 'uploaded' }, 'private'))
+    render(<ProfilePanel />)
+
+    expect(await screen.findByRole('img', { name: 'Ada Example' })).toHaveAttribute('src', 'https://storage.example.test/a.webp')
+    expect(screen.getByText('A photo you uploaded.')).toBeInTheDocument()
+    expect(screen.getByText('Only you see your photo; other members see your initials instead.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Replace photo' })).toBeInTheDocument()
+  })
+
+  it('reads the photo again after the globe is chosen on it, since a Gravatar picture is copied then, and keeps what was typed', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValueOnce(withPhoto({ url: 'https://www.gravatar.com/avatar/abc', source: 'gravatar' }))
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
+    vi.mocked(visibilityActions.setProfileVisibility).mockResolvedValue({ success: true })
+    render(<ProfilePanel />)
+    await screen.findByText(/Your Gravatar picture/)
+    await userEvent.type(screen.getByLabelText('Bio'), ' More.')
+
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(withPhoto({ url: 'https://storage.example.test/g.webp', source: 'gravatar_copy' }, 'public'))
+    await userEvent.click(await screen.findByRole('button', { name: /Who can see this photo/ }))
+
+    expect(await screen.findByText('A copy of your Gravatar picture, saved here.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Bio')).toHaveValue('Writes cozy mysteries. More.')
+  })
+
+  it('shows the globe error and leaves the level alone', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(withPhoto({ url: 'https://www.gravatar.com/avatar/abc', source: 'gravatar' }, 'private'))
+    vi.mocked(pageActions.getMyWriterProfile).mockResolvedValue(pageSettings)
+    vi.mocked(visibilityActions.setProfileVisibility).mockResolvedValue({ error: "We couldn't find a Gravatar picture for your email, so there is no photo to show on the web. Upload one above, then choose the globe again." })
+    render(<ProfilePanel />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /Who can see this photo/ }))
+
+    expect(await screen.findByText(/couldn't find a Gravatar picture/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Who can see this photo: Only me' })).toBeInTheDocument()
   })
 })

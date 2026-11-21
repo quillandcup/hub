@@ -14,7 +14,6 @@ import {
   WRITER_PROFILE_PATH,
   WRITER_PREVIEW_PATH,
   cleanBio,
-  publishablePhotoUrl,
   suggestHandle,
   validateHandle,
   writerProfilePath,
@@ -59,8 +58,6 @@ export interface MyWriterProfile {
   nameChosen: boolean;
   /** The display name first (when they have one), then each pen name they marked public, then the name on the account. */
   nameChoices: WriterProfileNameChoice[];
-  /** A photo exists that may be put on a public page (a Gravatar picture never is). */
-  photoAvailable: boolean;
   /** A handle to start from, made from their display name; "" when none fits. */
   suggestedHandle: string;
   /** The start of every address, to show before the handle ("hub.example.com/w/"). */
@@ -116,7 +113,6 @@ export async function getMyWriterProfile(): Promise<MyWriterProfile | { error: s
       ...penNames.map((a) => ({ kind: "alias" as const, aliasId: a.id, label: a.alias })),
       ...(accountName && accountName !== displayName && !penNames.some((a) => a.alias === accountName) ? [{ kind: "account" as const, aliasId: null, label: accountName }] : []),
     ],
-    photoAvailable: publishablePhotoUrl(member?.photoUrl) !== null,
     suggestedHandle: suggestHandle(displayName),
     addressPrefix: `${new URL(APP_URL).host}${WRITER_PROFILE_PATH}/`,
     pageUrl: page ? writerProfileUrl(page.handle) : null,

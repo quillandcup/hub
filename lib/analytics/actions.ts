@@ -195,6 +195,8 @@ export const OUTCOME_ACTIONS = [
   "feature_preview_changed",
   "trackbear_imported",
   "book_cover_uploaded",
+  "profile_photo_uploaded",
+  "profile_photo_removed",
   "book_cover_edited",
   "media_asset_uploaded",
   "media_asset_edited",
