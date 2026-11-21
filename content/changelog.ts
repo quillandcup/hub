@@ -1061,7 +1061,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "new",
     title: "Google Calendar sync into a Bronze events table, processed into prickles",
     summary: "The community calendar is read with a service account into raw calendar events, and a separate step turns those into prickles, so the schedule is rebuilt from source.",
-    body: "The community calendar is read by a Google service account (the calendar is shared with it, so there is no token expiry or user interaction). A sync route writes unmodified events, full JSON with creator and organizer, to Bronze idempotently by upsert (30 days back and 90 forward by default), and a separate processing route turns them into prickles, so the schedule is always rebuilt from source. Processing extracts the prickle type and host from titles shaped like a type, \"w/\", then a host, and normalises type spellings. Rule: sync stores raw, processing infers. See docs/infrastructure/CALENDAR_SETUP.md and docs/infrastructure/CALENDAR_SYNC.md.",
+    body: "The community calendar is read by a Google service account (the calendar is shared with it, so there is no token expiry or user interaction). A sync route writes unmodified events, full JSON with creator and organizer, to Bronze idempotently by upsert (30 days back and 90 forward by default), and a separate processing route turns them into prickles, so the schedule is always rebuilt from source. Processing extracts the prickle type and host from titles shaped like a type, \"w/\", then a host, and normalises type spellings. Rule: sync stores raw, processing infers. See docs/infrastructure/CALENDAR_SETUP.md.",
   },
   {
     slug: "first-pagination-and-row-limit-lesson",

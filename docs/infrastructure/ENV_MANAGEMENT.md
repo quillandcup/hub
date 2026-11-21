@@ -1,284 +1,89 @@
 # Environment Management Guide
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-This project uses separate environments for local development, Vercel previews, and production.
+How environment variables are declared, where their values live, how they reach Vercel, GitHub and Supabase Vault, and how they are rotated. Getting a machine or a new environment running is `docs/runbooks/SETUP.md`.
 
-## Environment Architecture
+## The three places a value can live
+
+| Where | What | Committed |
+|---|---|---|
+| `config/app.ts` (read through `lib/config.ts`) | Settings that are the same in every environment and fine to publish: URLs, hosts, the org timezone, ids, slugs. No env var, no sync. | yes |
+| An env var declared in `config/env-vars.ts` | A secret, or anything not fit to publish (the repo is public). | no (only the declaration) |
+| `.env.example` | A template with no real values, in the same group order as `config/env-vars.ts`. | yes |
+
+`CLAUDE.md` ("No Hardcoded Config") is the rule: never a literal or a `??` fallback in code.
+
+## The env files
+
+All gitignored, never committed:
 
 ```
-┌─────────────────┬──────────────────┬─────────────────────────┐
-│ Environment     │ .env File        │ Supabase Instance       │
-├─────────────────┼──────────────────┼─────────────────────────┤
-│ Local Dev       │ .env.local       │ Local (127.0.0.1:54321) │
-│ Vercel Preview  │ .env.preview     │ Remote Dev              │
-│ Vercel Prod     │ .env.prod        │ Remote Prod             │
-└─────────────────┴──────────────────┴─────────────────────────┘
+.env.local     # local development (the local Supabase stack from `supabase start`); never synced
+.env.shared    # same in every deployed environment (one Zoom, Kajabi, Google and Slack account)
+.env.preview   # Vercel Preview overrides
+.env.prod      # Vercel Production overrides, plus CI and operations credentials (GitHub, Vault)
 ```
 
-## File Structure
+A variable in `.env.preview` or `.env.prod` overrides the same name in `.env.shared` for that environment. `scripts/env-files.ts` does the layering, and `config/env-vars.ts` declares every variable: its name, type (`secret` or `config`), group, description and destinations (Vercel preview and/or production, GitHub, Vault). The sync scripts read only that file, so nothing else lists variables.
 
-```
-.env.local      # Local dev (local Supabase from supabase start) - git-ignored
-.env.shared     # Same in every Vercel environment (one Zoom/Kajabi/Google/Slack account) - git-ignored
-.env.preview    # Vercel Preview overrides (e.g. the dev Supabase project) - git-ignored
-.env.prod       # Vercel Production overrides + CI/ops credentials - git-ignored
-.env.example    # Template with no real values - committed to git
-config/app.ts   # Shared settings that are fine to publish (timezone, URLs, ...) - committed
-```
+Vercel's own "Development" environment is not used (local development runs on `.env.local`), so it is not synced. Whether Preview has its own Supabase project is a question of what `.env.preview` holds; the open work on a separate development project is `docs/TODO.md`, "Multi-Environment Setup".
 
-A var set in `.env.preview`/`.env.prod` overrides `.env.shared` for that environment.
-`config/env-vars.ts` declares every var; `scripts/env-files.ts` does the layering.
+## Adding or changing a variable
 
-## Local Development Workflow
+Follow `.claude/rules/new-env-var.md`: decide whether it needs to be an env var at all, declare it, say which file holds its value, update `.env.example`, read it in one place, and sync it before the code that reads it deploys (a required variable missing from Vercel breaks the production deploy). A `NEXT_PUBLIC_*` variable is never a secret (a test checks), because the production build would bake in Vercel's `[SENSITIVE]` placeholder.
 
-### 1. Start Local Supabase
-
-```bash
-supabase start
-```
-
-This gives you a completely isolated local database at `http://127.0.0.1:54321`.
-
-### 2. Ensure .env.local Points to Local Instance
-
-Your `.env.local` should have:
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc... (from supabase start output)
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc... (from supabase start output)
-```
-
-### 3. Run Your Dev Server
-
-```bash
-pnpm dev
-```
-
-Your app connects to **local** Supabase (completely isolated from dev/prod).
-
-## Syncing Remote Environments to Vercel
+## Syncing
 
 After editing `.env.shared`, `.env.preview` or `.env.prod`:
 
 ```bash
-pnpm env:sync
+pnpm env:sync          # Vercel
+pnpm env:sync:github   # GitHub Actions secrets and variables
+pnpm env:sync:vault    # Supabase Vault, for SQL and pg_cron
 ```
 
-This updates Vercel's environment variables:
-- `.env.shared` + `.env.preview` → Vercel **Preview**
-- `.env.shared` + `.env.prod` → Vercel **Production**
+- **Vercel**: `.env.shared` + `.env.preview` go to Preview, `.env.shared` + `.env.prod` go to Production. To sync only some:
 
-Vercel's **Development** environment isn't used (local dev runs on `.env.local`), so it isn't synced.
+  ```bash
+  pnpm env:sync --only=NAME1,NAME2 --target=production
+  ```
 
-To sync only some variables or environments:
+  `--only` and `--target` also take a space instead of `=`. Anything the script does not understand, including a name that is not synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (the heartbeat variables, for instance, are generated from `lib/cron-heartbeats.ts`), so pull first.
+- **GitHub**: `pnpm env:sync:github --only=NAME[,NAME...]` takes the same `--only` flag; without it every GitHub secret and variable is rewritten.
+- **Vault**: production-only secrets, sourced from `.env.prod`, written to the linked Supabase project.
+- Sync only what a variable's destinations in `config/env-vars.ts` say.
+- These write production secrets, so they are run on purpose, by the owner or on their say-so. A deploy reads values at build time: after changing one, redeploy (or wait for the next merge to `main`).
+- **The syncs only add and overwrite.** Removing a variable from `config/env-vars.ts` leaves it in the destinations until it is deleted there by hand (`docs/TODO.md`, "Env Sync Never Deletes").
+
+## Checking where values went
 
 ```bash
-pnpm env:sync --only=NAME1,NAME2 --target=production
+node_modules/.bin/vercel env ls    # names and the environments each is set for; values are not shown
+gh secret list --repo <owner>/<repo>
+gh variable list --repo <owner>/<repo>
 ```
 
-`--only` and `--target` also take a space instead of `=`. Anything the script doesn't understand, including a name that isn't synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (heartbeat variables, for instance, are generated from `lib/cron-heartbeats.ts`), so `git pull` first.
+Preview and Production should each list the variables you expect (and Production-only ones such as the webhook secrets only under Production). Read-only checks only: `.claude/rules/read-only-clis.md`.
 
-## When to Use Which Environment
+## Rotating a secret
 
-### Local Development (Most of the time)
+Rotate on the provider's side first, update the value in the file it lives in, then run a scoped sync (`pnpm env:sync --only=NAME --target=production`, plus the GitHub or Vault sync if its destinations include them). Per-variable steps, and what to do after an exposure, are in `docs/runbooks/SECRET_ROTATION.md`. Do not rotate a secret that signs or encrypts things users hold (such as `EMAIL_UNSUBSCRIBE_SECRET`): old links and data stop working; the variable's description says so.
 
-```bash
-# Start local Supabase
-supabase start
+## Schema and migrations
 
-# Start Next.js
-pnpm dev
-```
+Migrations are written and tested against the local stack (`supabase migration new <name>`, `pnpm db:up`), reviewed in a PR, and pushed to production by CI before the deploy (`push-migrations`, `docs/infrastructure/DEPLOYMENT.md`). `pnpm db:push` pushes with `.env.prod` and is for out-of-band use only. Migration rules are in `.claude/rules/migrations.md`.
 
-✅ **Use this for**:
-- Feature development
-- Testing database migrations
-- Debugging
-- Day-to-day coding
+## Security notes
 
-🎯 **Why**: Completely isolated, fast, no risk to shared data
+- Safe to commit: `.env.example`, `config/app.ts` values, migration files.
+- Never commit: `.env.local`, `.env.shared`, `.env.preview`, `.env.prod`, or paste a value into a PR, comment or chat (`.claude/rules/public-repo-hygiene.md`).
+- Never point local development at production: keep `.env.local` on `http://127.0.0.1:54321`.
 
-### Remote Dev Supabase (Rarely)
+## See also
 
-Only if you need to test with shared dev data:
-
-```bash
-# Temporarily point to remote dev: copy the dev Supabase values from .env.preview
-# into .env.local
-
-# Start Next.js
-pnpm dev
-
-# IMPORTANT: Switch back when done!
-git checkout .env.local  # or re-run supabase start
-```
-
-⚠️ **Use this ONLY for**:
-- Testing data migrations with real-ish data
-- Debugging issues that don't reproduce locally
-- Coordinating with team on shared dev data
-
-### Remote Prod Supabase (Never locally!)
-
-❌ **Don't do this**: Never point your local dev to production!
-
-## Verifying Your Setup
-
-### Check Local Environment
-
-```bash
-# Should show local Supabase URL
-grep NEXT_PUBLIC_SUPABASE_URL .env.local
-# Expected: http://127.0.0.1:54321
-```
-
-### Check Vercel Environment
-
-```bash
-vercel env ls
-```
-
-You should see:
-- **Preview**: Dev Supabase URL (from .env.preview)
-- **Production**: Prod Supabase URL (from .env.prod)
-
-## Common Tasks
-
-### First Time Setup
-
-```bash
-# 1. Start local Supabase
-supabase start
-
-# 2. .env.local should auto-populate with local credentials
-# 3. Add remote credentials: shared ones to .env.shared, per-environment ones to
-#    .env.preview / .env.prod
-# 4. Sync remote envs to Vercel
-pnpm env:sync
-
-# 5. Start coding!
-pnpm dev
-```
-
-### Daily Development
-
-```bash
-# Ensure local Supabase is running
-supabase start
-
-# Start dev server
-pnpm dev
-```
-
-### After Changing Remote Environment Variables
-
-```bash
-# 1. Edit .env.shared, .env.preview or .env.prod
-# 2. Sync to Vercel
-pnpm env:sync
-
-# 3. Redeploy (or wait for next git push)
-```
-
-### Resetting Local Database
-
-```bash
-# Reset local DB to initial state
-supabase db reset
-
-# Or restart fresh
-supabase stop
-supabase start
-```
-
-## Schema Management
-
-### Local → Remote Dev
-
-```bash
-# 1. Develop and test migrations locally
-supabase migration new your_migration_name
-
-# 2. Apply locally
-supabase db reset
-
-# 3. Push to remote dev
-supabase db push --db-url "your-dev-supabase-connection-string"
-
-# 4. Or link to remote project
-supabase link --project-ref your-dev-project-ref
-supabase db push
-```
-
-### Remote Dev → Production
-
-```bash
-# After testing in dev, push to prod
-supabase db push --db-url "your-prod-supabase-connection-string"
-
-# Or via linked project
-supabase link --project-ref your-prod-project-ref
-supabase db push
-```
-
-## Troubleshooting
-
-### "supabase start" fails
-
-```bash
-# Check if Docker is running
-docker ps
-
-# Reset Supabase
-supabase stop
-supabase start
-```
-
-### "I'm seeing remote data locally"
-
-```bash
-# Check your .env.local
-grep NEXT_PUBLIC_SUPABASE_URL .env.local
-
-# Should show: http://127.0.0.1:54321
-# If it shows remote URL, you've overwritten it!
-
-# Fix: Re-run supabase start and copy credentials
-supabase start
-```
-
-### "Vercel preview using wrong Supabase"
-
-```bash
-# Re-sync environment variables
-pnpm env:sync
-
-# Trigger new deployment
-git push
-```
-
-## Security Notes
-
-✅ **Safe to commit**:
-- `.env.example` (template with fake values)
-- Migration files in `supabase/migrations/`
-
-❌ **Never commit**:
-- `.env.local` (local credentials)
-- `.env.shared`, `.env.preview`, `.env.prod` (remote credentials)
-
-## Environment Best Practices
-
-1. **Default to local**: Always use local Supabase for development
-2. **Sync sparingly**: Only update Vercel envs when credentials change
-3. **Test migrations locally first**: Never run untested migrations on remote
-4. **Keep .env.local local**: Don't overwrite it with remote credentials
-5. **Use git branches**: Each PR gets its own Vercel preview deployment
-
-## See Also
-
-- [Supabase Local Development](https://supabase.com/docs/guides/cli/local-development)
-- [Vercel Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables)
-- [DEPLOYMENT_SETUP.md](./DEPLOYMENT_SETUP.md) - Full Vercel setup guide
+- `docs/runbooks/SETUP.md` - machine and environment setup
+- `docs/infrastructure/DEPLOYMENT.md` - how production deploys
+- `docs/runbooks/SECRET_ROTATION.md` - rotation steps per variable
+- [Supabase local development](https://supabase.com/docs/guides/cli/local-development)
+- [Vercel environment variables](https://vercel.com/docs/projects/environment-variables)

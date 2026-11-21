@@ -41,7 +41,7 @@ Multiple aliases can point to the same email.
 ## Production vs Development
 
 This works the same in both environments:
-1. Import members (Kajabi CSV)
+1. Import members (Kajabi API sync, `/admin/data/import`)
 2. Apply aliases (from CSV)
 3. Process Zoom attendance (uses aliases for matching)
 

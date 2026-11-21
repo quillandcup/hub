@@ -14,4 +14,4 @@ Every doc is either **living** (maintained with the code; if it is wrong, that i
 | `product/` | living | How each feature works and why (attendance rules, check-ins, courses, landing pages, and so on). |
 | `decisions/` | snapshot | Decisions and analyses tied to a moment, kept unchanged. New decisions are numbered ADRs (`NNNN-short-title.md`, template and rules in `decisions/README.md`); the earlier write-ups are snapshots with a dated header. |
 
-`TODO.md` (the backlog) stays at the top of `docs/`. `superpowers/` holds specs and plans written while building; `members-import-example.csv` is a sample file for the member import.
+`TODO.md` (the backlog) stays at the top of `docs/`. `superpowers/` holds specs and plans written while building; `members-import-example.csv` is a sample file for the unused Kajabi CSV import (removal: `TODO.md`).

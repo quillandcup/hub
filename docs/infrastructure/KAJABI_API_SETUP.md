@@ -1,97 +1,41 @@
-# Kajabi API Integration Setup
+# Kajabi API integration
 
-> **Status:** living. **Last reviewed:** 2026-04-28. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-## Check if You Have API Access
+The Kajabi API is the only source of Kajabi data for the Hub. Members, purchases, offers and course structure are read from it; nothing is uploaded from Kajabi exports (the old CSV import is unused: `docs/TODO.md`, "Remove the unused Kajabi CSV import").
 
-1. **Login to Kajabi Admin**
-2. **Go to Settings → Integrations → API**
-   - If you see "API Keys" section → You have API access! ✅
-   - If you don't see this → API not available on your plan ❌
+## What it is used for
 
-## Option 1: Kajabi API (Recommended if available)
+- **Reading (Bronze).** The sync fetches contacts, customers, purchases and offers, and writes them unmodified to `bronze.kajabi_contacts`, `kajabi_customers`, `kajabi_purchases` and `kajabi_offers` (upserted on the Kajabi id, so a re-run is idempotent). Silver `members` is rebuilt from them (`/api/process/members`), so it can always be reprocessed from Bronze plus Local data. Course structure (courses, modules, lessons, offers) is imported the same way (`lib/courses/import.ts`, `docs/product/COURSES.md`).
+- **Writing back.** Small, targeted writes go to Kajabi from the app: a member's changed name, email or Instagram handle on their contact (`updateContact`), the landing page opt-in form submission (`submitForm`, `lib/landing/opt-in-kajabi.ts`), and an admin deleting an empty duplicate contact. After a write, one contact is re-fetched into Bronze (`lib/kajabi/contact-refresh.ts`).
+- **Not in the API.** Lesson content, per-student lesson progress and comments are not in Kajabi's public API; they are captured from the admin with a local script (`pnpm courses:content`, see `docs/product/COURSES.md`). Kajabi webhooks are not used.
 
-### API Endpoints We Need
+## How access is set up
 
-**Contacts (Members):**
-```
-GET https://api.kajabi.com/api/v1/contacts
-```
-Returns all contact data including:
-- ID (contact ID for Kajabi links)
-- Email, Name
-- Tags, Products
-- Custom fields
+The client (`lib/kajabi/client.ts`, `createKajabiClient`) authenticates with the OAuth client-credentials flow against `https://api.kajabi.com` and caches the token until shortly before it expires. It needs three variables, declared in `config/env-vars.ts` (group "Kajabi"):
 
-**Subscriptions:**
-```
-GET https://api.kajabi.com/api/v1/subscriptions
-```
-Returns subscription data including:
-- Customer ID (contact ID)
-- Status (Active, Paused, Canceled)
-- Provider (Stripe)
-- Provider ID (Stripe customer ID)
+| Variable | What |
+|---|---|
+| `KAJABI_CLIENT_ID` | The Kajabi API client ID |
+| `KAJABI_CLIENT_SECRET` | The matching secret (a secret: never paste it anywhere) |
+| `KAJABI_SITE_ID` | The site identifier, the number in the Kajabi admin URL after `/admin/sites/` |
 
-### Setup Steps
+There is one Kajabi account, so the values live in `.env.shared` and go to Vercel with `pnpm env:sync` (`docs/infrastructure/ENV_MANAGEMENT.md`; `.env.example` has the template). The client throws a clear error when a variable is missing. Create the API client in the Kajabi admin under Settings, Public API (`app.kajabi.com/admin/settings/public_api`); the API reference is at https://help.kajabi.com/api-reference/introduction, and the OpenAPI spec the code was written against is `lib/kajabi/openapi.yaml`. To rotate the secret, see `docs/runbooks/SECRET_ROTATION.md`.
 
-1. **Create API Key** in Kajabi Settings → Integrations → API
-2. **Add to environment variables:**
-   ```env
-   KAJABI_API_KEY=your_api_key_here
-   ```
-   - For local development: Add to `.env.local`
-   - For production: Add to Vercel environment variables
-3. **Use the import form:** Go to `/data/import` and use the "Kajabi API Import" section
-4. **Optional:** Schedule daily cron job to auto-sync (future enhancement)
+## How it is synced
 
-### Benefits
-- ✅ No manual CSV exports
-- ✅ Real-time data
-- ✅ Webhooks for instant updates
-- ✅ Gets ALL data in one call (contacts + subscriptions)
-- ✅ Includes external IDs automatically
+- **Nightly.** The Vercel cron in `vercel.json` calls `/api/reconcile/members` at 3:00 AM UTC; it runs the same sync as below and pings its Checkly heartbeat when it succeeds (`lib/cron-heartbeats.ts`). `app/api/reconcile/README.md` describes the reconcile jobs together.
+- **By hand.** An admin runs the Kajabi API import from `/admin/data/import` (`KajabiApiImportForm`, `POST /api/import/kajabi`, admin only). The route fetches the four resources in parallel, writes Bronze, triggers member processing, and then syncs the courses; a courses problem is reported in the result but never fails the member sync.
+- **Courses alone.** `POST /api/import/kajabi-courses` (optionally `{ "courseIds": [...] }`) imports course structure without the member sync.
 
-## Option 2: Bulk CSV Export (Manual but easier than page-by-page)
+Every response lists what was fetched and written. Kajabi's calls go through `outboundFetch` (`docs/infrastructure/OUTBOUND_REQUESTS.md`).
 
-### In Kajabi Admin
+## Checking that it works
 
-**Export All Contacts:**
-1. Go to **Contacts**
-2. Click **Export** (top right)
-3. Select **All contacts** (not just current page)
-4. Download CSV
+1. Run the import from `/admin/data/import` and read the counts in the result: contacts, customers, purchases and offers should match what Kajabi shows.
+2. For the nightly job, look at the `reconcile-members` heartbeat in Checkly, or the `[Reconciliation]` lines in the Vercel logs (`.claude/rules/read-only-clis.md`).
+3. An authentication failure surfaces as "Kajabi OAuth" errors in the response and logs: check the three variables above in the environment that failed.
 
-**Export All Subscriptions:**
-1. Go to **Sales → Subscriptions**
-2. Click **Export** (top right)
-3. Select **All subscriptions**
-4. Download CSV
+## The old CSV path
 
-**Then:** Import both CSVs to our app via `/data/import`
-
-## Option 3: Zapier/Make Automation (If no API)
-
-### Using Zapier
-
-**Zap 1: Daily Contact Export**
-- Trigger: Schedule (Daily at 1 AM)
-- Action: Kajabi → Get All Contacts
-- Action: Google Sheets → Update spreadsheet
-- Action: Webhook → POST to our `/api/import/members`
-
-**Zap 2: Daily Subscription Export**
-- Similar setup for subscriptions
-
-### Using Make (Integromat)
-- Same concept, often cheaper than Zapier
-- More flexible for complex scenarios
-
-## Recommendation
-
-**Priority order:**
-1. **Kajabi API** (if available on your plan) - Best option
-2. **Bulk CSV Export** - Manual but complete
-3. **Zapier/Make** - Automated but requires subscription
-
-Check your Kajabi plan and let me know what's available!
+`/api/import/members` and `/api/import/subscriptions` (with their admin forms on the dev-only testing page) accepted Kajabi CSV exports. They are unused and written for tables the app no longer reads (`bronze.kajabi_members`, `subscription_history`); do not use them. Their removal is tracked in `docs/TODO.md`.

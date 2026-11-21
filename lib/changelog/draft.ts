@@ -20,7 +20,7 @@ export interface MergedPr {
 export type PrKind = "member-visible" | "engineering" | "skip";
 
 const DOC_OR_TEST = /^(docs\/|tests\/|supabase\/tests\/|.*\.md$|\.claude\/)/;
-const CHANGELOG_FILE = /^(content\/changelog\.ts|lib\/changelog\/|public\/changelog\/|demo\/scenes\/)/;
+const CHANGELOG_FILE = /^(content\/changelog\.ts|lib\/changelog\/|public\/changelog\/)/;
 const ADMIN_PATH = /(^|\/)(admin|\(admin\))(\/|$)/;
 const MEMBER_SURFACE = /^(app\/\(member\)\/|app\/\(public\)\/|components\/|emails\/|lib\/notifications\/)/;
 
