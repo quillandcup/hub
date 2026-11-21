@@ -12,10 +12,10 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => (failing ? { slackWorkspace: { channelById: async () => ({ channel_id: "C_PRIVATE", name: "back-room", is_private: true, is_mpim: false }), restrictChannel: down, unrestrictChannel: down, ignoreUser: down } } : createInMemoryRepos(dataset)),
 }));
-const requireAdminAction = vi.fn();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: () => requireAdminAction() }));
-const requireAdmin = vi.fn();
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: (r: unknown) => requireAdmin(r) }));
+const requireActionPermission = vi.fn();
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: () => requireActionPermission() }));
+const requireApiPermission = vi.fn();
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: (r: unknown) => requireApiPermission(r) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const triggerReprocessing = vi.fn();
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: (...args: unknown[]) => triggerReprocessing(...args) }));
@@ -34,7 +34,7 @@ beforeEach(() => {
       { channel_id: "D_ONE", name: "", is_private: true, is_im: true },
     ],
   });
-  requireAdminAction.mockResolvedValue({ ok: true, supabase: {} });
+  requireActionPermission.mockResolvedValue({ ok: true, supabase: {} });
   triggerReprocessing.mockResolvedValue({ processed: [] });
 });
 
@@ -54,7 +54,7 @@ describe("restrictSlackChannel", () => {
   });
 
   it("does nothing for a non-admin", async () => {
-    requireAdminAction.mockResolvedValue({ ok: false, error: "Forbidden" });
+    requireActionPermission.mockResolvedValue({ ok: false, error: "Forbidden" });
     expect(await restrictSlackChannel("C_PRIVATE")).toEqual({ error: "Forbidden" });
     expect(dataset.restrictedSlackChannels).toEqual([]);
   });
@@ -80,7 +80,7 @@ describe("unrestrictSlackChannel", () => {
   });
 
   it("does nothing for a non-admin", async () => {
-    requireAdminAction.mockResolvedValue({ ok: false, error: "Forbidden" });
+    requireActionPermission.mockResolvedValue({ ok: false, error: "Forbidden" });
     expect(await unrestrictSlackChannel("C_PRIVATE")).toEqual({ error: "Forbidden" });
     expect(triggerReprocessing).not.toHaveBeenCalled();
   });
@@ -97,7 +97,7 @@ describe("when the database is down", () => {
   });
 
   it("fails the skip route with a 500", async () => {
-    requireAdmin.mockResolvedValue({ user: { id: "u" }, forbidden: false, supabase: {} });
+    requireApiPermission.mockResolvedValue({ user: { id: "u" }, forbidden: false, supabase: {} });
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const response = await skipSlackUser(new NextRequest("http://localhost/x", { method: "POST", body: JSON.stringify({ slack_user_id: "U_FAKE1" }) }));
     expect(response.status).toBe(500);
@@ -109,7 +109,7 @@ describe("POST /api/data-hygiene/slack-users/skip", () => {
   const post = (body: unknown) =>
     skipSlackUser(new NextRequest("http://localhost/api/data-hygiene/slack-users/skip", { method: "POST", body: JSON.stringify(body) }));
 
-  beforeEach(() => requireAdmin.mockResolvedValue({ user: { id: "u" }, forbidden: false, supabase: {} }));
+  beforeEach(() => requireApiPermission.mockResolvedValue({ user: { id: "u" }, forbidden: false, supabase: {} }));
 
   it("ignores the Slack user, as a non-member unless told otherwise, and again is fine", async () => {
     expect((await post({ slack_user_id: "U_FAKE1" })).status).toBe(200);
@@ -129,9 +129,9 @@ describe("POST /api/data-hygiene/slack-users/skip", () => {
   });
 
   it("turns away anonymous and non-admin callers", async () => {
-    requireAdmin.mockResolvedValue({ user: null });
+    requireApiPermission.mockResolvedValue({ user: null });
     expect((await post({ slack_user_id: "U_FAKE1" })).status).toBe(401);
-    requireAdmin.mockResolvedValue({ user: { id: "u" }, forbidden: true });
+    requireApiPermission.mockResolvedValue({ user: { id: "u" }, forbidden: true });
     expect((await post({ slack_user_id: "U_FAKE1" })).status).toBe(403);
   });
 });

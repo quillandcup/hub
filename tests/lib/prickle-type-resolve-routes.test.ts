@@ -23,7 +23,7 @@ vi.mock("@/lib/data/repos", async () => {
 
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
+  requireApiPermission: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
 }));
 
 import { POST as resolveOne } from "@/app/api/prickle-types/resolve/route";

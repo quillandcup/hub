@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import RestrictionToggle from "./RestrictionToggle";
 import { formatDateInZone } from "@/lib/formatters";
 import { getViewerTimeZone } from "@/lib/timezone";
@@ -21,7 +21,7 @@ export const maxDuration = 300;
  */
 export default async function SlackChannelsPage() {
   const timeZone = await getViewerTimeZone();
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   // Workspace channel count stays well under 1000.

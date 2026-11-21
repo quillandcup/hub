@@ -13,7 +13,7 @@ let currentEvent: { announced_publicly: boolean; guests_allowed: boolean };
 let repos = createInMemoryRepos();
 let data = new InMemoryDataset();
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),

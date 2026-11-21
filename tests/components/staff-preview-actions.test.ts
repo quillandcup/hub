@@ -25,6 +25,11 @@ describe("startRolePreview", () => {
     expect(store.set).toHaveBeenCalledWith("staff_preview_role", "community_manager", expect.objectContaining({ httpOnly: true, path: "/" }));
   });
 
+  it("previews the conversion specialist too, landing on their home", async () => {
+    await expect(startRolePreview("conversion_specialist")).rejects.toThrow("redirect:/admin/pages");
+    expect(store.set).toHaveBeenCalledWith("staff_preview_role", "conversion_specialist", expect.objectContaining({ httpOnly: true, path: "/" }));
+  });
+
   it("refuses a signed-out caller and a non-admin, setting nothing", async () => {
     state.user = null;
     await expect(startRolePreview("community_manager")).rejects.toThrow("Not authorized");

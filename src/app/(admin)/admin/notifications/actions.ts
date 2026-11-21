@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { isChannelId } from "@/lib/channels";
 import { sendDiagnosticPush as sendPush } from "@/lib/channels/web-push";
 import { sendTestNotification as sendTest } from "@/lib/notification-test";
@@ -21,7 +21,7 @@ const DIAGNOSTIC_PUSHES = {
  * unlike the in-page comparison alerts. Same destination and flags as a check-in, one option at a time.
  */
 export async function sendDiagnosticPush(variant: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("system.dev_tools.use");
   if (!auth.ok) return { error: auth.error };
   if (!Object.hasOwn(DIAGNOSTIC_PUSHES, variant)) return { error: "Unknown push variant" };
   const { tag, urgency, ttlSeconds } = DIAGNOSTIC_PUSHES[variant as keyof typeof DIAGNOSTIC_PUSHES];
@@ -49,7 +49,7 @@ export async function sendDiagnosticPush(variant: string) {
  * can't land in a member's inbox.
  */
 export async function sendTestNotification(kind: string, channel: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("system.dev_tools.use");
   if (!auth.ok) return { error: auth.error };
   if (!isNotificationKind(kind)) return { error: "Unknown notification" };
   if (!isChannelId(channel)) return { error: "Unknown channel" };

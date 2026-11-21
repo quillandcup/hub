@@ -1,7 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { findKajabiMatchesForEvent } from "@/lib/kajabi-event-matching";
 import { contactOfferIds, createKajabiClient } from "@/lib/kajabi/client";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 /** Reads a contact's offers live from Kajabi; none when Kajabi isn't configured here (then nobody is looked up). */
@@ -21,7 +21,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "events.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;

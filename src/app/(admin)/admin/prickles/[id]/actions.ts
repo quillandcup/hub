@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendTestCheckinDM, type CheckinDMKind } from "@/lib/prickle-checkin-dms";
@@ -15,7 +15,7 @@ import { revalidatePath } from "next/cache";
  * email: refused in sudo, so a test can't land in a member's inbox.
  */
 export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickle.test_dms");
   if (!auth.ok) return { error: auth.error };
   if (kind !== "prickle_checkin" && kind !== "prickle_checkout") return { error: "Unknown DM kind" };
 
@@ -43,7 +43,7 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
  * event page uses too, so the two pages edit the same decision (see there).
  */
 export async function updatePrickle(prickleId: string, edits: PrickleEdits) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickle.edit");
   if (!auth.ok) return { error: auth.error };
 
   const result = await applyPrickleEdits(auth.supabase, prickleId, edits);

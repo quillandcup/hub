@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import ProspectsView from "./ProspectsView";
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ProspectsPage() {
-  await requireAdminPage();
+  await requirePermission("outreach.manage");
   const prospects = await createRepos(await createClient()).prospects.list();
 
   return (

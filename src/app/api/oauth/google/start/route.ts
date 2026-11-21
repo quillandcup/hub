@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { buildAuthUrl } from "@/lib/google-photos-picker/client";
 import { redirectUriFor } from "@/lib/google-photos-picker/redirect-uri";
 import { setOAuthStateCookie } from "@/lib/google-photos-picker/import-session-cookie";
@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 // picker) exists today, so this still only ever builds that one auth URL;
 // see the callback route for the equivalent note.
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.integrations.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

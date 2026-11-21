@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createPickerSession, exchangeCodeForToken } from "@/lib/google-photos-picker/client";
 import { redirectUriFor } from "@/lib/google-photos-picker/redirect-uri";
 import { setImportSessionCookie, verifyAndConsumeOAuthState } from "@/lib/google-photos-picker/import-session-cookie";
@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 // a second Google OAuth consumer would need a `purpose`/`flow` discriminator
 // in `state` to dispatch, which isn't built since nothing needs it yet.
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.integrations.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

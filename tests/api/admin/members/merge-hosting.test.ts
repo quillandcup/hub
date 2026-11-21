@@ -3,12 +3,12 @@ import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/members/merge/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }));
 
 vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => [asMember(PRIMARY), asMember(SECONDARY)])));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 const PRIMARY = { id: "primary-1", name: "Wren Holloway", email: "wren@example.com", kajabi_id: "k1", stripe_customer_id: null, user_id: null };
 const SECONDARY = { id: "secondary-1", name: "Wren H", email: "wren.old@example.com", kajabi_id: null, stripe_customer_id: null, user_id: null };
@@ -54,7 +54,7 @@ describe("POST /api/admin/members/merge -- hosting records", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
   });
 
   it("re-points hosted prickles via the real `host` column before deleting the secondary", async () => {

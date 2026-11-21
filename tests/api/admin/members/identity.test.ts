@@ -4,7 +4,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { PATCH } from "@/app/api/admin/members/[id]/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }));
 
 const updateContactMock = vi.fn();
@@ -37,7 +37,7 @@ vi.mock("@/lib/data/repos", async () => {
   };
 });
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 function makeRequest(body: Record<string, unknown>) {
   return { json: async () => body } as unknown as NextRequest;
@@ -77,7 +77,7 @@ function makeSupabaseMock({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireAdmin).mockResolvedValue({
+  vi.mocked(requireApiPermission).mockResolvedValue({
     user: { id: "admin-1" } as any,
     forbidden: false,
     supabase: {} as any,
@@ -86,13 +86,13 @@ beforeEach(() => {
 
 describe("PATCH /api/admin/members/[id]", () => {
   it("returns 401 when unauthenticated", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any });
     const response = await PATCH(makeRequest({ name: "x" }), { params: Promise.resolve({ id: "member-1" }) });
     expect(response.status).toBe(401);
   });
 
   it("returns 403 when not an admin", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "u1" } as any, forbidden: true, supabase: {} as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "u1" } as any, forbidden: true, supabase: {} as any });
     const response = await PATCH(makeRequest({ name: "x" }), { params: Promise.resolve({ id: "member-1" }) });
     expect(response.status).toBe(403);
   });
@@ -100,7 +100,7 @@ describe("PATCH /api/admin/members/[id]", () => {
   it("pushes the new name to Kajabi and updates the member when kajabi_id is set", async () => {
     updateContactMock.mockResolvedValue({});
     const mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(
       makeRequest({ name: "Erica Haraldsen" }),
@@ -115,7 +115,7 @@ describe("PATCH /api/admin/members/[id]", () => {
   it("returns 502 and leaves the DB untouched when the Kajabi push fails", async () => {
     updateContactMock.mockRejectedValue(new Error("Kajabi is down"));
     const mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(
       makeRequest({ name: "Erica Haraldsen" }),
@@ -129,7 +129,7 @@ describe("PATCH /api/admin/members/[id]", () => {
   it("keeps the old name as a pen name and sets it as the default display name", async () => {
     updateContactMock.mockResolvedValue({});
     const mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     await PATCH(
       makeRequest({ name: "Erica Haraldsen", keepOldNameAsPenName: true }),
@@ -142,7 +142,7 @@ describe("PATCH /api/admin/members/[id]", () => {
 
   it("rejects a displayName that isn't one of the member's aliases", async () => {
     const mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(
       makeRequest({ displayName: "Not A Real Alias" }),
@@ -155,7 +155,7 @@ describe("PATCH /api/admin/members/[id]", () => {
 
   it("returns 409 when a new pen name collides with another member's alias", async () => {
     const mock = makeSupabaseMock({ takenAlias: "Taken Name" });
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(
       makeRequest({ newPenName: "Taken Name" }),
@@ -167,7 +167,7 @@ describe("PATCH /api/admin/members/[id]", () => {
 
   it("skips the Kajabi call when the member has no kajabi_id", async () => {
     const mock = makeSupabaseMock({ member: { id: "member-1", name: "Local Staffer", kajabi_id: null } });
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(
       makeRequest({ name: "New Name" }),

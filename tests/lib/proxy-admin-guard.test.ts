@@ -2,7 +2,7 @@
  * src/proxy.ts → src/lib/supabase/middleware.ts: the optimistic /admin pre-filter.
  * Anonymous → /login (existing behaviour), signed-in non-admin → /no-access,
  * admin (sudo or not) → through. The secure check behind it is
- * requireAdminPage() (tests/components/pages/admin-auth.test.tsx).
+ * requirePermission() (tests/components/pages/admin-auth.test.tsx).
  *
  * The role comes only from the access token's `app_role` claim (custom access
  * token hook); a missing claim is not-admin. The proxy never reads
@@ -106,9 +106,9 @@ describe("proxy admin guard", () => {
     }
   );
 
-  it("sends an assistant claim to /no-access", async () => {
+  it.each(["/admin", "/admin/members", "/admin/users", "/admin/changelog", "/admin/a-page-nobody-listed"])("lets an assistant claim through to %s, like an admin's", async (path) => {
     signIn(MEMBER, "assistant");
-    expect(await redirectedTo("/admin/members")).toBe("/no-access");
+    expect(await redirectedTo(path)).toBeNull();
   });
 
   it("drops the admin query string on the /no-access redirect", async () => {
@@ -183,6 +183,23 @@ describe("proxy community manager and role preview", () => {
   it.each(["/admin/users", "/admin/members/network", "/admin/members/m1/identity", "/admin/activity"])("sends a community manager on %s to /no-access", async (path) => {
     signIn(MEMBER, "community_manager");
     expect(await redirectedTo(path)).toBe("/no-access");
+  });
+
+  it.each(["/admin", "/admin/pages", "/admin/pages/new", "/admin/pages/some-page", "/admin/pages/some-page/preview", "/admin/outreach", "/admin/outreach/prospects"])("lets a conversion specialist claim through to %s", async (path) => {
+    signIn(MEMBER, "conversion_specialist");
+    expect(await redirectedTo(path)).toBeNull();
+  });
+
+  it.each(["/admin/members", "/admin/members/m1", "/admin/members/network", "/admin/changelog", "/admin/changelog/an-entry", "/admin/users", "/admin/at-risk", "/admin/stats", "/admin/media", "/admin/a-page-nobody-listed"])("sends a conversion specialist on %s to /no-access", async (path) => {
+    signIn(MEMBER, "conversion_specialist");
+    expect(await redirectedTo(path)).toBe("/no-access");
+  });
+
+  it("checks an admin previewing the conversion specialist as that role, and sends them to its home", async () => {
+    signIn(ADMIN, "admin");
+    const preview = { staff_preview_role: "conversion_specialist" };
+    expect(await redirectedTo("/admin/pages", preview)).toBeNull();
+    expect(await redirectedTo("/admin/members", preview)).toBe("/admin/pages");
   });
 
   it("checks an admin previewing the role as that role, and sends them to its home, not /no-access", async () => {

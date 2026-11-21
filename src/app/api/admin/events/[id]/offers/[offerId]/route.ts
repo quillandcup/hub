@@ -1,6 +1,6 @@
 import { overlapMessage, parseWindow } from "@/lib/event-offer-window";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 // Unlinking an offer leaves the attendees it added where they are.
@@ -8,7 +8,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; offerId: string }> }
 ) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "events.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id, offerId } = await params;
@@ -28,7 +28,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; offerId: string }> }
 ) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "events.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id, offerId } = await params;

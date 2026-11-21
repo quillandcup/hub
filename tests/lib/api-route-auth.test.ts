@@ -21,7 +21,7 @@ const API_DIR = join(process.cwd(), "src/app/api");
 /** The recognised credential kinds, each the helper names that are the check. */
 const CREDENTIAL_KINDS: Record<string, RegExp> = {
   // A signed-in staff account: refused for anyone else (the cron and service keys also pass, see src/lib/supabase/api-auth.ts).
-  admin: /\b(requireAdmin|requireAdminAction|requireAdminPage|requireStaffAction)\(/,
+  admin: /\b(requireApiPermission|requireActionPermission|requirePermission|requireActionPermission)\(/,
   // A signed-in member session.
   session: /\b(getCurrentUser|getCoursesCaller|getEffectiveIdentity|chatCaller|postingCaller|dmCaller|createApiAuth)\(/,
   // The shared secret of our own scheduled jobs, refused when unset.

@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { isEventName } from "@/lib/analytics/events";
 import { isDeclaredProperty } from "@/lib/analytics/explore";
 
@@ -13,7 +13,7 @@ const MAX_SUGGESTIONS = 30;
  * doesn't declare.
  */
 export async function suggestFilterValues(event: string, property: string): Promise<string[]> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("analytics.usage.read");
   if (!auth.ok) return [];
   if (!isEventName(event) || !isDeclaredProperty(event, property)) return [];
 

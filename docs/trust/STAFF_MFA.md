@@ -1,6 +1,6 @@
 # Staff two-step sign-in (TOTP)
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Why: a staff account takeover is the highest-impact risk in `docs/trust/THREAT_MODEL.md` (A07). A sign-in link or code is enough to become that person, and sudo, imports and the admin pages are powerful. A second factor, a 6-digit code from an authenticator app, puts something a stolen email link cannot supply in front of the admin area.
 
@@ -17,12 +17,12 @@ A session is `aal1` after a link or code sign-in and `aal2` once it has also pas
 | no factor, requirement on | any | **enrol**: sent to `/mfa` to set one up |
 | no factor, requirement off (today) | any | in, with a banner in the admin layout |
 
-"Staff" is an admin or a community manager. Four places hold it, and a new admin entry point needs the same check (`.claude/rules/admin-route-protection.md`):
+"Staff" is anyone with a staff role (admin, assistant, community manager, conversion specialist; `src/lib/permissions.ts`). Four places hold it, and a new admin entry point needs the same check (`.claude/rules/admin-route-protection.md`):
 
 - the proxy (`src/lib/supabase/middleware.ts`): the token's `aal` claim and `user.factors` from the `getUser()` it already runs, so a factor removed in the dashboard counts at once;
-- `requireAdminPage()` and `requireStaffPage()` (`src/lib/admin-auth.ts`): redirect through the `staffMfa` gate (`src/lib/gates.ts`) to `/mfa?next=<where they were going>`;
-- `requireAdminAction()` and `requireStaffAction()`: return `{ ok: false, error: MFA_REQUIRED_ERROR }`;
-- `requireAdmin()` (`src/lib/supabase/api-auth.ts`, admin API routes): `forbidden`.
+- `requirePermission(...)` (`src/lib/admin-auth.ts`): redirect through the `staffMfa` gate (`src/lib/gates.ts`) to `/mfa?next=<where they were going>`;
+- `requireActionPermission(...)`: return `{ ok: false, error: MFA_REQUIRED_ERROR }`;
+- `requireApiPermission(...)` (`src/lib/supabase/api-auth.ts`, staff API routes): `forbidden`.
 
 The guards use `src/lib/staff-mfa.server.ts`: aal2 comes from the verified token (no network); only an aal1 session asks Supabase Auth for the user's factors. A failed read counts as "has a factor", so it fails toward the code screen. Sudo and role preview are not affected (they change the acting member or the effective role, not the signed-in staff member), and the audit log still records the real staff user.
 
@@ -59,7 +59,7 @@ If the only admin is locked out, the same dashboard step is the way back in: it 
 
 ## Tests
 
-`tests/lib/staff-mfa.test.ts` (states, date boundary, reading the session), `tests/lib/proxy-admin-guard.test.ts` (the proxy), `tests/components/pages/admin-auth.test.tsx` (the page and action guards, the banner), `tests/api/require-admin.test.ts` (API routes), `tests/components/MfaPanel.test.tsx` (enrol, confirm, remove, challenge), `tests/components/pages/mfa-page.test.tsx` (`/mfa`).
+`tests/lib/staff-mfa.test.ts` (states, date boundary, reading the session), `tests/lib/proxy-admin-guard.test.ts` (the proxy), `tests/components/pages/admin-auth.test.tsx` (the page and action guards, the banner), `tests/api/require-api-permission.test.ts` (API routes), `tests/components/MfaPanel.test.tsx` (enrol, confirm, remove, challenge), `tests/components/pages/mfa-page.test.tsx` (`/mfa`).
 
 ## Not built
 

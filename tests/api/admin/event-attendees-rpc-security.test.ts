@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 
 /**
- * Calls the event-attendee RPCs directly over PostgREST (not through the requireAdmin-gated
+ * Calls the event-attendee RPCs directly over PostgREST (not through the requireApiPermission-gated
  * API routes), since that's the path the Supabase Security Advisor flagged: they used to be
  * SECURITY DEFINER + executable by anon, so anyone with the public anon key could award
  * badges. See 20260926000300_harden_security_advisor_findings.sql.

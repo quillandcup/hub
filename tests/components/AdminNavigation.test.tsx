@@ -123,3 +123,41 @@ describe("AdminNavigation sidebar mode", () => {
     expect(adminHrefs).toContain("/admin/users");
   });
 });
+
+describe("AdminNavigation by role (the sidebar shows what the role's permissions open)", () => {
+  const hrefsFor = (role: string) => {
+    const { unmount } = render(<AdminNavigation role={role} enabledFeatures={["work_queue", "big_sisters", "hedgieversaries", "program_cohorts", "member_overrides"]} />);
+    const hrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    unmount();
+    return hrefs;
+  };
+
+  it("shows a conversion specialist the landing pages and outreach, and nothing of the members area, the changelog or the data tools", () => {
+    const hrefs = hrefsFor("conversion_specialist");
+    expect(hrefs).toEqual(expect.arrayContaining(["/dashboard", "/admin/pages", "/admin/outreach"]));
+    for (const hidden of ["/admin", "/admin/members", "/admin/members/network", "/admin/changelog", "/admin/users", "/admin/at-risk", "/admin/care", "/admin/stats", "/admin/media", "/admin/data/import", "/admin/hygiene", "/admin/activity", "/admin/member-overrides", "/admin/insights/resubscriptions"]) {
+      expect(hrefs, hidden).not.toContain(hidden);
+    }
+  });
+
+  it("shows a community manager what the role always had, and not the specialist's pages", () => {
+    const hrefs = hrefsFor("community_manager");
+    expect(hrefs).toEqual(expect.arrayContaining(["/admin/at-risk", "/admin/members", "/admin/stats", "/admin/calendar", "/admin/care"]));
+    expect(hrefs).not.toContain("/admin");
+    expect(hrefs).not.toContain("/admin/pages");
+    expect(hrefs).not.toContain("/admin/outreach");
+  });
+
+  it("shows the assistant exactly what the admin sees", () => {
+    const adminHrefs = hrefsFor("admin");
+    expect(adminHrefs).toEqual(expect.arrayContaining(["/admin", "/admin/pages", "/admin/outreach", "/admin/members", "/admin/changelog", "/admin/users"]));
+    expect(hrefsFor("assistant")).toEqual(adminHrefs);
+  });
+
+  it("shows nothing but the way back to an unknown role", () => {
+    expect(hrefsFor("member")).toEqual(["/dashboard"]);
+  });
+});
+

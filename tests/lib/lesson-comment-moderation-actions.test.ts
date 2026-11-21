@@ -10,7 +10,7 @@ vi.mock("next/server", () => ({ after: (run: () => unknown) => void run() }));
 vi.mock("@/lib/courses/comment-notifications", () => ({ notifyLessonComment: (...args: unknown[]) => notify(...args) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: (name: string, run: () => unknown) => run() }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: async () => state.auth }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: async () => state.auth }));
 
 let data = new InMemoryDataset();
 vi.mock("@/lib/data/repos", async (importOriginal) => {

@@ -14,7 +14,7 @@ import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSea
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
-import { requireStaffPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { staffCan, type StaffFeature } from "@/lib/staff-access";
 import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
@@ -52,7 +52,7 @@ export default async function AdminPrickleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   // Every control is a staff feature a community manager has only if granted (src/lib/staff-access.ts).
-  const role = (await requireStaffPage()).role;
+  const role = (await requirePermission("prickles.read")).role;
   const can = (feature: StaffFeature) => staffCan(role, feature);
   const { id } = await params;
   const supabase = await createClient();

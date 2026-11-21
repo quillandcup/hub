@@ -171,7 +171,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Sign-in is by invitation. The database enforces who can read each row, staff access is limited by role, and admin pages check it again on every request. Connections are encrypted, and each member's chat connection is stored encrypted and used only by the Hub's server. The Security page has the detail.",
-        evidence: ["src/lib/supabase/middleware.ts", "src/lib/admin-auth.ts", "src/lib/staff-access.ts", "/admin/security has the full detail"],
+        evidence: ["src/lib/supabase/middleware.ts", "src/lib/admin-auth.ts", "src/lib/permissions.ts", "/admin/security has the full detail"],
         checked: "2026-11-17",
         open: [],
       },

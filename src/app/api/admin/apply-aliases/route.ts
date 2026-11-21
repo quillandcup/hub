@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse } from "next/server";
@@ -11,7 +11,7 @@ import path from "path";
  * This is an on-demand operation that creates aliases for known Zoom name variations
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.hygiene.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;

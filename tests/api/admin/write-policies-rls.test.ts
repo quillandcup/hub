@@ -4,7 +4,7 @@ import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers
 /**
  * RLS write boundary for the tables tightened in
  * 20260926000600_tighten_permissive_write_policies.sql. Hits PostgREST directly with real
- * member/admin sessions (the API routes' requireAdmin isn't in play here).
+ * member/admin sessions (the API routes' requireApiPermission isn't in play here).
  *
  * Postgres checks RLS WITH CHECK before NOT NULL / other constraints, so an empty INSERT is a
  * clean probe: a denied role gets 42501, a permitted one gets past RLS (and then usually a

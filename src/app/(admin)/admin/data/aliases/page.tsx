@@ -5,14 +5,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import AliasesTable from "./AliasesTable";
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Name Aliases",
 };
 
 export default async function AliasListPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   // Get all aliases with their member info

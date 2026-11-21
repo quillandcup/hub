@@ -14,7 +14,7 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 
 const rpcMock = vi.fn();

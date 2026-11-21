@@ -1,7 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { fetchActivityFeed, parseFeedFilters, type FeedView } from "@/lib/activity-feed";
 import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
@@ -40,7 +40,7 @@ export default async function ActivityLogPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAdminPage();
+  await requirePermission("activity.read");
   const params = await searchParams;
   const filters = parseFeedFilters(params);
   const supabase = await createClient();

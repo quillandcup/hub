@@ -149,7 +149,7 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  // The admin wheel page guards itself with requireAdminPage() (src/lib/admin-auth.ts, run for real here
+  // The admin wheel page guards itself with requirePermission() (src/lib/admin-auth.ts, run for real here
   // against the fake user_profiles rows) rather than relying on the admin layout.
   it("admin Wheel of Wonder still renders for an admin in sudo mode", async () => {
     signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: true });

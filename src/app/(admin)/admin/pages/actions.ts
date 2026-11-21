@@ -2,7 +2,7 @@
 
 import { isDeepStrictEqual } from "node:util";
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { LandingPageSlugTakenError, isLandingPageType, type LandingPageType } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
@@ -25,7 +25,7 @@ import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib
 export type PageResult = { error?: string; slug?: string };
 export type PublishResult = { error?: string; issues?: A11yIssue[]; publishedAt?: string };
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 const NOT_FOUND = "That page no longer exists.";
 const MAX_BYTES = MAX_LANDING_BYTES;
@@ -66,7 +66,7 @@ async function createImpl(auth: Auth, input: { title: string; slug?: string; dat
  * as it is used); its address is the title's words unless one is given.
  */
 export async function createLandingPage(input: { title: string; slug?: string; template?: string; pageType?: string }): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", async () => {
     // Website or landing (docs/product/LANDING_PAGES.md): a landing page unless said otherwise.
@@ -100,7 +100,7 @@ async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string
 
 /** Makes a draft page from the admin's description (src/lib/landing/ai.ts). Never published: the admin reads it in the editor first. */
 export async function createLandingPageWithAi(input: { title: string; slug?: string; prompt: string; pageType?: string }): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_ai_built", () => buildWithAiImpl(auth, input), (r) => ({ ok: !r.error }));
 }
@@ -112,7 +112,7 @@ export type AiBlocksResult = { error?: string; blocks?: unknown[]; notes?: A11yI
  * nothing: the editor inserts them (one undo step) and autosave takes it from there. The page itself is not sent.
  */
 export async function generateLandingBlocks(prompt: string): Promise<AiBlocksResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction(
     "landing_page_ai_added",
@@ -131,7 +131,7 @@ export async function generateLandingBlocks(prompt: string): Promise<AiBlocksRes
  * or not); the answer is the whole revised list for the editor to put in place as one undo step. Saves nothing.
  */
 export async function reviseLandingBlocks(prompt: string, content: unknown): Promise<AiBlocksResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction(
     "landing_page_ai_revised",
@@ -150,7 +150,7 @@ export async function reviseLandingBlocks(prompt: string, content: unknown): Pro
 
 /** Saves the draft as it is edited. Not audited and not counted: the audit log records publishing, not typing. */
 export async function saveLandingDraft(pageId: string, data: unknown): Promise<{ error?: string; savedAt?: string }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (tooBig(data)) return { error: "This page is too large to save." };
@@ -191,7 +191,7 @@ async function detailsImpl(auth: Auth, pageId: string, input: DetailsInput): Pro
 
 /** The title, address and what a search result or a shared link shows. A published page's address change takes effect at once. */
 export async function updateLandingPageDetails(pageId: string, input: DetailsInput): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_details_saved", () => detailsImpl(auth, pageId, input));
 }
@@ -241,7 +241,7 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown, note?: str
 
 /** Publishes what the editor is showing: checks it, keeps a version (with an optional note on what changed, at most 200 characters, shown in History and never in the Activity Log), and makes its pictures public. Stops on problems that would stop a visitor. */
 export async function publishLandingPage(pageId: string, data: unknown, options?: { note?: string }): Promise<PublishResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.publish");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_published", () => publishImpl(auth, pageId, data, typeof options?.note === "string" ? options.note : undefined), (r) => ({ ok: !r.error, detail: r.error ? "refused" : undefined }));
 }
@@ -260,7 +260,7 @@ async function unpublishImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** Takes the page off the public site at once; the draft and the versions stay. */
 export async function unpublishLandingPage(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.publish");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_unpublished", () => unpublishImpl(auth, pageId));
 }
@@ -281,7 +281,7 @@ async function restoreImpl(auth: Auth, versionId: string): Promise<PageResult> {
 
 /** Puts an earlier published version into the draft. It does not go live until it is published again. */
 export async function restoreLandingPageVersion(versionId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_version_restored", () => restoreImpl(auth, versionId));
 }
@@ -300,7 +300,7 @@ async function resetDraftImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** Throws the draft's unpublished changes away: the draft becomes the published document again. Nothing goes live or changes publicly. */
 export async function resetLandingDraftToPublished(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_draft_reset", () => resetDraftImpl(auth, pageId));
 }
@@ -376,7 +376,7 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
  * nothing. The old draft is kept in History; the published copy, title, address and search settings are untouched, and nothing goes live.
  */
 export async function importLandingDraftJson(pageId: string, text: string, options?: { dryRun?: boolean }): Promise<JsonImportResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   const dryRun = options?.dryRun === true;
   return withAction(
@@ -414,7 +414,7 @@ async function duplicateImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** A new draft page with this page's content, titled "(copy)". */
 export async function duplicateLandingPage(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_duplicated", () => duplicateImpl(auth, pageId));
 }
@@ -434,7 +434,7 @@ async function deleteImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** Deletes the page (it stays in the database until removed on request, and its address is free again). It disappears from the public site at once. */
 export async function deleteLandingPage(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.delete");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_deleted", () => deleteImpl(auth, pageId));
 }

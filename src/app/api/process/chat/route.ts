@@ -1,6 +1,6 @@
 import { rewriteInSlack, shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
@@ -37,7 +37,7 @@ type ChannelCounts = { channels?: number; members?: number };
  * in Bronze, so this runs with the service role after the admin check.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const supabase = createServiceRoleClient();

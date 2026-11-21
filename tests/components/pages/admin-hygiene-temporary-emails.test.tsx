@@ -5,11 +5,11 @@ import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => undefined) }));
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
@@ -40,7 +40,7 @@ describe("temporary emails page", () => {
 
     await renderServerPage(TemporaryEmailsPage, {});
 
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     const ada = screen.getByRole("link", { name: "Ada E (Ada Example)" });
     expect(ada).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA1");
     expect(screen.getByText("ada@mailinator.com")).toBeInTheDocument();

@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { createMuxClient } from "@/lib/mux"
-import { requireAdminPage } from "@/lib/admin-auth"
+import { requirePermission } from "@/lib/admin-auth"
 import PlayerSpike from "./PlayerSpike"
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ const PLAYBACK_ID = /^[A-Za-z0-9]{20,}$/
 // Without a query it plays Mux's public demo asset. `?signed=<playbackId>` plays a signed-policy asset instead,
 // with playback, poster and storyboard tokens minted here, server-side, after the admin check.
 export default async function PlayerSpikePage({ searchParams }: PageProps<"/admin/player-spike">) {
-  await requireAdminPage()
+  await requirePermission("system.dev_tools.use")
   const { signed } = await searchParams
   const signedId = typeof signed === "string" && PLAYBACK_ID.test(signed) ? signed : null
 

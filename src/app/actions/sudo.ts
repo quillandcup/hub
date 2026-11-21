@@ -3,7 +3,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { requireAdminAction } from '@/lib/admin-auth'
+import { requireActionPermission } from '@/lib/admin-auth'
 import { getCurrentUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { signSudoCookie } from '@/lib/sudo'
@@ -44,7 +44,7 @@ async function logSudoEvent(supabase: Awaited<ReturnType<typeof createClient>>, 
  */
 export async function startSudo(memberId: string, landingUrl?: string) {
   // Throws (as before) rather than returning { error }: callers treat a failed start as an exception.
-  const auth = await requireAdminAction()
+  const auth = await requireActionPermission("member.sudo")
   if (!auth.ok) throw new Error(auth.error)
   const { user, supabase } = auth
 

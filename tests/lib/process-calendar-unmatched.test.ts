@@ -22,7 +22,7 @@ vi.mock("@/lib/data/repos", async () => ({
 
 const rpc = vi.fn(async (_name: string, _args: Record<string, unknown>) => ({ error: null }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, forbidden: false, supabase: { rpc } }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, forbidden: false, supabase: { rpc } }),
 }));
 vi.mock("@/lib/calendar-events", async () => ({
   ...(await vi.importActual<typeof import("@/lib/calendar-events")>("@/lib/calendar-events")),

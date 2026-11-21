@@ -4,7 +4,7 @@ import { createRepos } from '@/lib/data/repos'
 
 /**
  * Exercises RLS on events / event_attendees / event_photos directly over PostgREST (not through
- * the requireAdmin-gated API routes): reads stay open to any signed-in user, but writes are
+ * the requireApiPermission-gated API routes): reads stay open to any signed-in user, but writes are
  * admin-only. See 20260926000400_restrict_event_writes_to_admins.sql.
  *
  * Note RLS semantics: a blocked INSERT returns an error, but a blocked UPDATE/DELETE just

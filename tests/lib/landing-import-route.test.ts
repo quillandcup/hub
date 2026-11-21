@@ -17,7 +17,7 @@ vi.mock("@/lib/analytics/server", () => ({
   },
 }));
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () =>
+  requireActionPermission: async () =>
     state.auth === "ok" ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: state.auth === "anon" ? "Not authenticated" : "Not authorized" },
 }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));

@@ -3,13 +3,13 @@ import { NextRequest } from "next/server";
 import { POST, DELETE } from "@/app/api/zoom/ignore/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }));
 vi.mock("@/lib/processing/trigger", () => ({
   triggerReprocessing: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 
 const PRICKLE_ID = "prkl_AAAAAAAAAAA1";
@@ -38,7 +38,7 @@ function makeSupabaseMock(error: { message: string } | null = null) {
 }
 
 function signInAsAdmin(supabase: ReturnType<typeof makeSupabaseMock>) {
-  vi.mocked(requireAdmin).mockResolvedValue({
+  vi.mocked(requireApiPermission).mockResolvedValue({
     user: { id: "admin-1" } as any,
     forbidden: false,
     supabase: supabase as any,
@@ -51,10 +51,10 @@ beforeEach(() => {
 
 describe("POST /api/zoom/ignore", () => {
   it("returns 401 when unauthenticated and 403 for a non-admin", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any });
     expect((await POST(makeRequest("POST", { zoomName: "iPhone" }))).status).toBe(401);
 
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "u1" } as any, forbidden: true, supabase: {} as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "u1" } as any, forbidden: true, supabase: {} as any });
     expect((await POST(makeRequest("POST", { zoomName: "iPhone" }))).status).toBe(403);
   });
 

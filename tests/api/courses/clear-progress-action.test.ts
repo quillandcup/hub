@@ -13,7 +13,7 @@ const emailOf = (who: string) => `clear-progress-${who}-${ts}@example.com`
 
 const auth = vi.hoisted(() => ({ admin: true }))
 const caller = vi.hoisted(() => ({ current: null as null | { identity: { memberId: string; isSudo: boolean }; scope: { memberId: string; isAdminActing: boolean } } }))
-vi.mock('@/lib/admin-auth', () => ({ requireAdminAction: async () => (auth.admin ? { ok: true } : { ok: false, error: 'Not authorized' }) }))
+vi.mock('@/lib/admin-auth', () => ({ requireActionPermission: async () => (auth.admin ? { ok: true } : { ok: false, error: 'Not authorized' }) }))
 vi.mock('@/lib/courses/caller', () => ({ getCoursesCaller: async () => caller.current }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 

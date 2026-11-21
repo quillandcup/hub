@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import FeedbackClient from "./FeedbackClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { isId } from "@/lib/ids";
 
 export const metadata: Metadata = {
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function FeedbackPage({ searchParams }: { searchParams: Promise<{ member?: string }> }) {
-  await requireAdminPage();
+  await requirePermission("system.feedback.manage");
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

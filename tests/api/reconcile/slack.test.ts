@@ -7,7 +7,7 @@ vi.mock('@/lib/processing/trigger', () => ({
 }))
 
 vi.mock('@/lib/supabase/api-auth', () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }))
 
 vi.mock('@/lib/cron-heartbeats', () => ({
@@ -24,7 +24,7 @@ vi.mock('@/lib/supabase/service', () => ({
 
 import { triggerSlackSync } from '@/lib/processing/trigger'
 import { sendOperationsAlert } from '@/lib/operations-alerts'
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
 
 function makeRequest() {
@@ -34,7 +34,7 @@ function makeRequest() {
 describe('GET /api/reconcile/slack', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireAdmin).mockResolvedValue({
+    vi.mocked(requireApiPermission).mockResolvedValue({
       user: { id: 'service-role' } as any,
       forbidden: false,
       supabase: {} as any,
@@ -43,7 +43,7 @@ describe('GET /api/reconcile/slack', () => {
 
   describe('auth', () => {
     it('returns 401 when unauthenticated', async () => {
-      vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any })
+      vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any })
 
       const response = await GET(makeRequest())
 
@@ -51,7 +51,7 @@ describe('GET /api/reconcile/slack', () => {
     })
 
     it('returns 403 when authenticated but not admin', async () => {
-      vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'user-1' } as any, forbidden: true, supabase: {} as any })
+      vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: 'user-1' } as any, forbidden: true, supabase: {} as any })
 
       const response = await GET(makeRequest())
 

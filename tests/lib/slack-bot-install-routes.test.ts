@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 
-const { requireAdmin, setConnectStateCookie, consumeConnectStateCookie, completeBotInstall } = vi.hoisted(() => ({
-  requireAdmin: vi.fn(),
+const { requireApiPermission, setConnectStateCookie, consumeConnectStateCookie, completeBotInstall } = vi.hoisted(() => ({
+  requireApiPermission: vi.fn(),
   setConnectStateCookie: vi.fn(async (_prefix?: string) => "bot.state-1"),
   consumeConnectStateCookie: vi.fn(async () => true),
   completeBotInstall: vi.fn(),
 }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/slack-connect", async (original) => ({
   ...(await original<typeof import("@/lib/slack-connect")>()),
@@ -32,7 +32,7 @@ const ok = "/api/oauth/slack/callback?code=code-1&state=bot.state-1";
 beforeEach(() => {
   vi.stubEnv("SLACK_CLIENT_ID", "client-1");
   vi.stubEnv("SLACK_CLIENT_SECRET", "secret-1");
-  requireAdmin.mockResolvedValue({ user: { id: "a1" }, forbidden: false });
+  requireApiPermission.mockResolvedValue({ user: { id: "a1" }, forbidden: false });
   consumeConnectStateCookie.mockResolvedValue(true);
   completeBotInstall.mockResolvedValue({ ok: true, botUser: "U_BOT", expiresAt: new Date("2026-11-02T00:00:00Z") });
   setConnectStateCookie.mockClear();
@@ -51,9 +51,9 @@ describe("GET /api/oauth/slack/bot/start", () => {
   });
 
   it("refuses everyone but admins, and when Slack isn't configured", async () => {
-    requireAdmin.mockResolvedValueOnce({ user: null, forbidden: false });
+    requireApiPermission.mockResolvedValueOnce({ user: null, forbidden: false });
     expect((await start(request("/api/oauth/slack/bot/start"))).status).toBe(403);
-    requireAdmin.mockResolvedValueOnce({ user: { id: "m1" }, forbidden: true });
+    requireApiPermission.mockResolvedValueOnce({ user: { id: "m1" }, forbidden: true });
     expect((await start(request("/api/oauth/slack/bot/start"))).status).toBe(403);
     vi.stubEnv("SLACK_CLIENT_SECRET", "");
     expect((await start(request("/api/oauth/slack/bot/start"))).status).toBe(503);
@@ -70,7 +70,7 @@ describe("GET /api/oauth/slack/callback for a bot install", () => {
   });
 
   it.each([
-    ["not an admin", () => requireAdmin.mockResolvedValueOnce({ user: { id: "m1" }, forbidden: true }), ok, 403],
+    ["not an admin", () => requireApiPermission.mockResolvedValueOnce({ user: { id: "m1" }, forbidden: true }), ok, 403],
     ["an unknown state", () => consumeConnectStateCookie.mockResolvedValueOnce(false), ok, 400],
     ["a declined approval", () => {}, "/api/oauth/slack/callback?error=access_denied&state=bot.state-1", 400],
     ["no code", () => {}, "/api/oauth/slack/callback?state=bot.state-1", 400],

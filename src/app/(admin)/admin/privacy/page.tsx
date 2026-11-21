@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { COMPLIANCE_STATUSES, type ComplianceStatus } from "@/content/compliance";
 import { PRIVACY_GROUPS, PRIVACY_PROMISES_EFFECTIVE } from "@/lib/privacy-promises";
 import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
@@ -29,7 +29,7 @@ const ALL_ROWS: StaffRow[] = PRIVACY_GROUPS.flatMap((group) =>
  * public-safe by design (see `src/lib/privacy-promises.ts`).
  */
 export default async function AdminPrivacyPage() {
-  await requireAdminPage();
+  await requirePermission("system.compliance.read");
 
   return (
     <StaffPage title="Privacy">

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { isMilestoneKind } from "@/lib/finishers";
@@ -19,7 +19,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
  * the same work). Rows start as proposals nobody but the member and staff can see. Running it again adds nothing.
  */
 export async function proposeMilestonesFromBooks(): Promise<Result<BackfillResult>> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("community.manage");
   if (!auth.ok) return { error: auth.error };
   try {
     const result = await createRepos(auth.supabase).milestones.proposeFromBooks();
@@ -33,7 +33,7 @@ export async function proposeMilestonesFromBooks(): Promise<Result<BackfillResul
 
 /** The works a member has (their projects and live books, a book with a project counted once), for the hand-add picker. */
 export async function loadWorksOfMember(memberId: string): Promise<Result<{ works: Array<{ projectId: string | null; bookId: string | null; title: string }> }>> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("community.manage");
   if (!auth.ok) return { error: auth.error };
   if (!memberId || !isId(memberId, "mbr")) return { error: "Choose a member." };
   try {
@@ -54,7 +54,7 @@ export async function loadWorksOfMember(memberId: string): Promise<Result<{ work
 
 /** Staff add one milestone for one work of one member (a project or book of theirs, or a title). It stays a proposal until the member confirms. */
 export async function proposeMilestone(input: { memberId: string | null; kind: string; projectId?: string | null; bookId?: string | null; title?: string | null }): Promise<Result<{ added: boolean }>> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("community.manage");
   if (!auth.ok) return { error: auth.error };
   if (!input.memberId || !isId(input.memberId, "mbr")) return { error: "Choose a member." };
   if (!isMilestoneKind(input.kind)) return { error: "Choose which milestone." };
@@ -86,7 +86,7 @@ export async function proposeMilestone(input: { memberId: string | null; kind: s
 
 /** Staff take back a proposal the member has not answered. */
 export async function withdrawMilestone(id: string): Promise<Result> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("community.manage");
   if (!auth.ok) return { error: auth.error };
   if (!id) return { error: "Missing milestone." };
   try {

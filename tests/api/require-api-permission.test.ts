@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-// We test requireAdmin by mocking createApiAuth's dependencies.
+// We test requireApiPermission by mocking createApiAuth's dependencies.
 // The function under test is exported from api-auth.ts.
 
 // Mock the supabase server client
@@ -9,7 +9,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { createClient } from '@/lib/supabase/server'
 
 function makeRequest(authHeader?: string): NextRequest {
@@ -44,12 +44,12 @@ beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-secret'
 })
 
-describe('requireAdmin', () => {
+describe('requireApiPermission', () => {
   it('returns forbidden=true when no user session', async () => {
     const mockSupabase = makeSupabaseMock(null, null)
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any)
 
-    const result = await requireAdmin(makeRequest())
+    const result = await requireApiPermission(makeRequest(), 'system.users.manage')
     expect(result.user).toBeNull()
     expect(result.forbidden).toBe(true)
   })
@@ -58,16 +58,31 @@ describe('requireAdmin', () => {
     const mockSupabase = makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, 'member')
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any)
 
-    const result = await requireAdmin(makeRequest())
+    const result = await requireApiPermission(makeRequest(), 'system.users.manage')
     expect(result.user).not.toBeNull()
     expect(result.forbidden).toBe(true)
+  })
+
+  it.each([
+    ['assistant', 'system.users.manage', false],
+    ['community_manager', 'system.users.manage', true],
+    ['community_manager', 'members.read', false],
+    ['conversion_specialist', 'pages.edit', false],
+    ['conversion_specialist', 'outreach.manage', false],
+    ['conversion_specialist', 'members.read', true],
+    ['conversion_specialist', 'member.sudo', true],
+    ['conversion_specialist', 'data.export', true],
+    ['conversion_specialist', 'changelog.edit', true],
+  ] as const)('the role %s asking for %s is forbidden=%s', async (role, permission, forbidden) => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, role) as any)
+    expect((await requireApiPermission(makeRequest(), permission)).forbidden).toBe(forbidden)
   })
 
   it('returns forbidden=false for authenticated admin', async () => {
     const mockSupabase = makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, 'admin')
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any)
 
-    const result = await requireAdmin(makeRequest())
+    const result = await requireApiPermission(makeRequest(), 'system.users.manage')
     expect(result.forbidden).toBe(false)
   })
 
@@ -78,17 +93,17 @@ describe('requireAdmin', () => {
 
     it('is forbidden for an admin with a factor whose session is still aal1', async () => {
       adminAt({ aal: 'aal1', factors: totp })
-      expect((await requireAdmin(makeRequest())).forbidden).toBe(true)
+      expect((await requireApiPermission(makeRequest(), 'system.users.manage')).forbidden).toBe(true)
     })
 
     it('lets an aal2 admin through', async () => {
       adminAt({ aal: 'aal2', factors: totp })
-      expect((await requireAdmin(makeRequest())).forbidden).toBe(false)
+      expect((await requireApiPermission(makeRequest(), 'system.users.manage')).forbidden).toBe(false)
     })
 
     it('lets an admin with no factor through while the requirement is off', async () => {
       adminAt({ aal: 'aal1', factors: [] })
-      expect((await requireAdmin(makeRequest())).forbidden).toBe(false)
+      expect((await requireApiPermission(makeRequest(), 'system.users.manage')).forbidden).toBe(false)
     })
   })
 
@@ -96,13 +111,13 @@ describe('requireAdmin', () => {
     const mockSupabase = makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, 'admin', 'connection lost')
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any)
 
-    const result = await requireAdmin(makeRequest())
+    const result = await requireApiPermission(makeRequest(), 'system.users.manage')
     expect(result.forbidden).toBe(true)
   })
 
   it('returns forbidden=false for service-role key (test bypass)', async () => {
     // Service role key in Authorization header bypasses role check
-    const result = await requireAdmin(makeRequest('Bearer service-role-secret'))
+    const result = await requireApiPermission(makeRequest('Bearer service-role-secret'), 'system.users.manage')
     expect(result.user?.id).toBe('service-role')
     expect(result.forbidden).toBe(false)
   })

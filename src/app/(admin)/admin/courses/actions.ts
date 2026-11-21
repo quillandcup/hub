@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
@@ -18,7 +18,7 @@ import { parseCourseDetails, type CourseDetails, type CourseDetailsErrors, type 
  * changed with the service role after the admin check, since the policies only cover Hub-owned rows.
  */
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 export type CourseSaveResult = { error?: string; fieldErrors?: CourseDetailsErrors; id?: string };
 
 const UNIQUE_VIOLATION = "23505";
@@ -103,19 +103,19 @@ async function setCoursePublishedImpl(auth: Auth, courseId: string, published: b
 const saved = (result: CourseSaveResult) => ({ ok: !result.error && !result.fieldErrors });
 
 export async function createCourse(input: CourseDetailsInput): Promise<CourseSaveResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_created", () => createCourseImpl(auth, input), saved);
 }
 
 export async function updateCourseDetails(courseId: string, input: CourseDetailsInput): Promise<CourseSaveResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_details_saved", () => updateCourseDetailsImpl(auth, courseId, input), saved);
 }
 
 export async function setCoursePublished(courseId: string, published: boolean): Promise<CourseSaveResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_publish_changed", () => setCoursePublishedImpl(auth, courseId, published), saved);
 }

@@ -15,7 +15,7 @@ vi.mock("@/lib/data/repos", async () => ({
 let signedIn = true;
 let admin = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (!signedIn ? { user: null } : !admin ? { user: { id: "u" }, forbidden: true } : { user: { id: "admin" }, supabase: {} }),
+  requireApiPermission: async () => (!signedIn ? { user: null } : !admin ? { user: { id: "u" }, forbidden: true } : { user: { id: "admin" }, supabase: {} }),
 }));
 const listMeetings = vi.fn();
 const getParticipants = vi.fn();

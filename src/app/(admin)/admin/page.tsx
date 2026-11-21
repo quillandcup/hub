@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
 import { redirect } from "next/navigation";
-import { requireStaffPage } from "@/lib/admin-auth";
-import { COMMUNITY_MANAGER_HOME } from "@/lib/staff-access";
+import { requirePermission } from "@/lib/admin-auth";
+import { can, staffHome } from "@/lib/permissions";
 import { createRepos } from "@/lib/data/repos";
 import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 import Tooltip from "@/components/Tooltip";
@@ -15,8 +15,9 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  // The admin dashboard is admin-only; a community manager's first page is the At-Risk list.
-  if ((await requireStaffPage()).role !== "admin") redirect(COMMUNITY_MANAGER_HOME);
+  // The dashboard is for the admin and the assistant; every other staff role starts on its own home page (staffHome).
+  const staff = await requirePermission("staff.access");
+  if (!can(staff, "dashboard.read")) redirect(staffHome(staff.role));
   const supabase = await createClient();
 
   // Fetch dashboard metrics

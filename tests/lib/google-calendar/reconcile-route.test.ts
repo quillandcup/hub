@@ -18,7 +18,7 @@ vi.mock("@/lib/config", async (importOriginal) => ({
     return mocks.config.isProduction;
   },
 }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => ({ user: { id: "u" } }) }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => ({ user: { id: "u" } }) }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerCalendarSync: mocks.sync, triggerReprocessing: mocks.reprocess }));
 vi.mock("@/lib/google-calendar/incremental-sync", () => ({ sweepCancelledEvents: mocks.sweep }));
 vi.mock("@/lib/cron-heartbeats", () => ({ pingCronHeartbeat: mocks.ping }));
