@@ -32,6 +32,8 @@ SET LOCAL ROLE anon;
 INSERT INTO result SELECT 'anon_refused', to_jsonb(pg_temp.refused($$SELECT count(*) FROM public.landing_site_template$$));
 RESET ROLE;
 
+-- The table holds one row, and the repository tests leave theirs behind: start from none (rolled back with the rest).
+DELETE FROM public.landing_site_template;
 INSERT INTO public.landing_site_template (id, draft_data) VALUES ('lpst_SiteTest0001', '{"header": {"show": true}}');
 
 -- A member sees nothing and changes nothing.
