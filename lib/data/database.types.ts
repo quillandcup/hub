@@ -7415,6 +7415,7 @@ export type Database = {
           published_at: string | null
           show_photo: boolean
           updated_at: string
+          use_account_name: boolean
         }
         Insert: {
           created_at?: string
@@ -7428,6 +7429,7 @@ export type Database = {
           published_at?: string | null
           show_photo?: boolean
           updated_at?: string
+          use_account_name?: boolean
         }
         Update: {
           created_at?: string
@@ -7441,6 +7443,7 @@ export type Database = {
           published_at?: string | null
           show_photo?: boolean
           updated_at?: string
+          use_account_name?: boolean
         }
         Relationships: [
           {

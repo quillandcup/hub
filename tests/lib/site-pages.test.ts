@@ -13,7 +13,7 @@ import { SITE_PAGES, navGroups, pageEnabled, ADMIN_NAV_GROUPS, MEMBER_NAV_GROUPS
  */
 const EXCLUDED: Record<string, string> = {
   "/search": "the search results page itself",
-  "/writer-page/preview": "the member-only preview of their public writer page, reached from Settings, Profile (a link, never in search)",
+  "/writer-profile/preview": "the member-only preview of their public writer profile, reached from Settings, Profile (a link, never in search)",
   "/chat/search": "chat's own search page, reached from chat",
   "/admin/search": "the search results page itself",
   "/admin/badges/new": "a create form, reached from Badges",

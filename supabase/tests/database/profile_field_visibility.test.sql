@@ -44,7 +44,7 @@ SELECT throws_ok(
 INSERT INTO public.member_ask_me_about (member_id, topics) VALUES ('mbr_pvisAlice001', ARRAY['Plotting', 'Poetry']);
 SELECT throws_ok(
   $$UPDATE public.member_ask_me_about SET visibility = 'public' WHERE member_id = 'mbr_pvisAlice001'$$,
-  '23514', NULL, 'the topics cannot be opened to the internet: the writer page does not show them'
+  '23514', NULL, 'the topics cannot be opened to the internet: the writer profile does not show them'
 );
 SELECT is(
   (SELECT visibility FROM public.member_ask_me_about WHERE member_id = 'mbr_pvisAlice001'), 'community',

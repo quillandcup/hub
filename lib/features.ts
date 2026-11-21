@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments' | 'lesson_comment_notifications' | 'writer_pages';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments' | 'lesson_comment_notifications' | 'writer_profiles';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -113,8 +113,8 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     description: 'Makes course video play only from the Hub, preview and local sites (plus devices that send no referrer) by adding the Mux playback restriction to the video token. Wrong settings stop video playing for whoever it covers, so turn it on for yourself first, watch videos on desktop and phone (including Safari on iPhone), then widen it. Does nothing where MUX_PLAYBACK_RESTRICTION_ID is not set',
   },
   {
-    key: 'writer_pages',
-    name: 'Writers\' pages on the web',
+    key: 'writer_profiles',
+    name: 'Writer profiles on the web',
     description: 'Lets a member have a page of their own on the open web (/w/<handle>), shown to anyone without signing in and listed by search engines. This is decided for the page\'s owner, not for the visitor: for a member it covers (everyone when switched on globally, otherwise members in a linked segment or with their own preview) Settings → Profile shows the page\'s section and they can switch it on. For everyone else the section is hidden, the page and its preview answer as if there were none, and the sitemap leaves it out. Turning this off never deletes or changes a page\'s settings: the page just stops being served, and comes back when the flag is on again',
   },
 ];

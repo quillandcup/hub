@@ -13,8 +13,8 @@ import {
   publishablePhotoUrl,
   suggestHandle,
   validateHandle,
-  writerPagePath,
-  writerPageUrl,
+  writerProfilePath,
+  writerProfileUrl,
 } from "@/lib/writer-profile";
 
 const { handleMinLength: MIN, handleMaxLength: MAX } = WRITER_PROFILES;
@@ -106,8 +106,8 @@ describe("normalizeHandle and addresses", () => {
   });
 
   it("builds the page address from the app URL and the /w path", () => {
-    expect(writerPagePath("ada-example")).toBe("/w/ada-example");
-    expect(writerPageUrl("ada-example")).toBe(`${APP_URL}/w/ada-example`);
+    expect(writerProfilePath("ada-example")).toBe("/w/ada-example");
+    expect(writerProfileUrl("ada-example")).toBe(`${APP_URL}/w/ada-example`);
   });
 });
 

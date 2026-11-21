@@ -6,13 +6,14 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { WRITER_PROFILES } from "@/lib/config";
 import { validateHandle } from "@/lib/writer-profile";
 import {
+  addProfilePenName,
   claimWriterHandle,
   loadHandleStatus,
-  saveWriterPageDetails,
-  setWriterPageSwitch,
+  saveWriterProfileDetails,
+  setWriterProfileSwitch,
   type HandleStatus,
-  type WriterPageSettings,
-} from "./writerPageActions";
+  type MyWriterProfile,
+} from "./writerProfileActions";
 
 const INPUT_CLASS = "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
 const SAVE_CLASS = "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
@@ -22,30 +23,32 @@ const LINK_CLASS = "underline text-plum-700 dark:text-plum-300";
 const CHECK_DELAY_MS = 400;
 
 /**
- * Settings > Profile > "Your writer page on the web": the switch, the address and the name of the member's public page
+ * Settings > Profile > "Your writer profile on the web": the switch, the address and the name of the member's public page
  * (docs/product/WRITER_PROFILES.md). What the page shows (the bio, photo and social links) is chosen item by item above, with the
  * lock, house and globe on each; this block only holds what is about the page itself. It asks for the address first and
  * then the name, because the page cannot go on without both, and it stays off until they switch it on. Turning it off and
  * moving it to a new address ask first (`.claude/rules/confirmations.md`). The settings are the parent's (they are also what
  * decides whether a globe is shown); `onChanged` asks it to reload them after a change.
  */
-export function WriterPagePanel({ settings: data, onChanged }: { settings: WriterPageSettings; onChanged: () => Promise<void> }) {
+export function WriterProfilePanel({ settings: data, onChanged }: { settings: MyWriterProfile; onChanged: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [handleInput, setHandleInput] = useState(data.handle ?? data.suggestedHandle);
-  const [aliasId, setAliasId] = useState<string | null>(data.publicNameAliasId);
+  // What the name list shows as chosen: a pen name's id, "account", "display" (the display name), or "" when nothing is chosen yet.
+  const savedChoice = data.publicNameAliasId ?? (data.useAccountName ? "account" : data.nameChoices.some((c) => c.kind === "display") ? "display" : "");
+  const [choice, setChoice] = useState(savedChoice);
+  const [penName, setPenName] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"off" | "address" | null>(null);
 
   // A reload that changes what is saved (the address after a save, the name after a save) starts the inputs from it again.
   const savedHandle = data.handle;
-  const savedAlias = data.publicNameAliasId;
   useEffect(() => {
     if (savedHandle) setHandleInput(savedHandle);
   }, [savedHandle]);
   useEffect(() => {
-    setAliasId(savedAlias);
-  }, [savedAlias]);
+    setChoice(savedChoice);
+  }, [savedChoice]);
 
   // The live check. What cannot be a handle is said at once, here; only an address that could be one is asked of the server, after
   // a pause. Nothing is asked for what is already theirs. A saved answer is for the address it was asked about.
@@ -74,7 +77,7 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
     const result = await claimWriterHandle(handleInput);
     setBusy(false);
     if ("error" in result) return result.error;
-    setMessage(result.changed ? "Address changed. The old one sends visitors to the new one." : "Address saved. Next, choose the name for your page.");
+    setMessage(result.changed ? "Address changed. The old one sends visitors to the new one." : "Address saved. Next, choose the name for your profile.");
     await onChanged();
     return null;
   }
@@ -89,10 +92,10 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
     setError(null);
     setMessage(null);
     setBusy(true);
-    const result = await setWriterPageSwitch(isPublic);
+    const result = await setWriterProfileSwitch(isPublic);
     setBusy(false);
     if ("error" in result) return result.error;
-    setMessage(isPublic ? "Your page is on. Anyone can open it." : "Your page is off. It is no longer public.");
+    setMessage(isPublic ? "Your profile is on. Anyone can open it." : "Your profile is off. It is no longer public.");
     await onChanged();
     return null;
   }
@@ -102,27 +105,48 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
     setError(null);
     setMessage(null);
     setBusy(true);
-    const result = await saveWriterPageDetails({ publicNameAliasId: aliasId, bio: data.publicBio });
+    const result = await saveWriterProfileDetails({
+      publicNameAliasId: penNameChosen ? choice : null,
+      useAccountName: choice === "account",
+      bio: data.publicBio,
+    });
     setBusy(false);
     if ("error" in result) return setError(result.error);
     setMessage("Name saved.");
     await onChanged();
   }
 
+  async function addPenName(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    setBusy(true);
+    const result = await addProfilePenName(penName);
+    setBusy(false);
+    if ("error" in result) return setError(result.error);
+    setPenName("");
+    setMessage("Pen name added. Choose “Save name” to show it on your profile.");
+    await onChanged();
+    setChoice(result.aliasId);
+  }
+
   const addressChanged = data.handle !== handleInput.trim().toLowerCase();
   const canSaveAddress = !busy && handleInput.trim() !== "" && addressChanged && (handleStatus === null || handleStatus.status === "available");
-  const shownName = data.nameChoices.find((c) => c.aliasId === aliasId)?.label ?? null;
-  const nameChanged = aliasId !== data.publicNameAliasId || !data.nameChosen;
+  const optionValue = (c: MyWriterProfile["nameChoices"][number]) => (c.kind === "alias" ? (c.aliasId as string) : c.kind);
+  const chosen = data.nameChoices.find((c) => optionValue(c) === choice) ?? null;
+  const penNameChosen = chosen?.kind === "alias";
+  const shownName = chosen?.label ?? null;
+  const nameChanged = choice !== savedChoice;
   const canSwitchOn = data.hasPage && data.nameChosen;
 
   return (
     <div className="max-w-md space-y-4">
       <div>
-        <h2 id="profile-writer-page" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">
-          Your writer page on the web
+        <h2 id="profile-writer-profile" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">
+          Your writer profile on the web
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Turn this on and you get a page of your own that anyone can open without signing in, and that search engines such as
+          Turn this on and you get a profile page of your own that anyone can open without signing in, and that search engines such as
           Google can list. It always shows the name you choose below. Everything else on it is what you have opened to the
           internet with the globe, in the profile above. It shows nothing else from the Hub: not your email, your writing or
           your prickles. It stays off until you switch it on.
@@ -137,13 +161,13 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
       )}
 
       <form onSubmit={handleSubmitHandle} className="space-y-1">
-        <label htmlFor="writer-page-handle" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+        <label htmlFor="writer-profile-handle" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
           Your address
         </label>
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">{data.addressPrefix}</span>
           <input
-            id="writer-page-handle"
+            id="writer-profile-handle"
             type="text"
             value={handleInput}
             onChange={(e) => setHandleInput(e.target.value)}
@@ -165,46 +189,69 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
             </>
           )}
         </p>
-        <button type="submit" data-track="settings-writer-page-address" disabled={!canSaveAddress} className={SAVE_CLASS}>
+        <button type="submit" data-track="settings-writer-profile-address" disabled={!canSaveAddress} className={SAVE_CLASS}>
           {data.hasPage ? "Change address" : "Save address"}
         </button>
       </form>
 
       {data.hasPage && (
         <form onSubmit={saveName} className="space-y-1">
-          <label htmlFor="writer-page-name" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+          <label htmlFor="writer-profile-name" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
             Name shown
           </label>
           <select
-            id="writer-page-name"
-            value={aliasId ?? ""}
-            onChange={(e) => setAliasId(e.target.value || null)}
-            data-track="settings-writer-page-name"
+            id="writer-profile-name"
+            value={choice}
+            onChange={(e) => setChoice(e.target.value)}
+            data-track="settings-writer-profile-name"
             className={INPUT_CLASS}
           >
-            {!data.nameChosen && aliasId === null && (
+            {choice === "" && (
               <option value="" disabled>
                 Choose a name…
               </option>
             )}
-            {data.nameChoices.map((choice) => (
-              <option key={choice.aliasId ?? "display"} value={choice.aliasId ?? ""}>
-                {choice.label}
-                {choice.aliasId === null ? " (your display name)" : " (pen name)"}
+            {data.nameChoices.map((c) => (
+              <option key={optionValue(c)} value={optionValue(c)}>
+                {c.label}
+                {c.kind === "display" ? " (your display name)" : c.kind === "alias" ? " (pen name)" : " (the name on your account)"}
               </option>
             ))}
           </select>
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            {data.nameChoices.length === 0
-              ? "You have not chosen a display name, and the page never uses the name on your account unless you pick it. Set a display name under Identity, or mark a pen name there as “Show on my writer page”, then come back."
-              : shownName
-                ? `Your page would be headed “${shownName}”. Take a moment to check it is the name you want on the open web.`
-                : "Choose the name that heads your page. It is the one thing the page always shows."}{" "}
-            Pen names you have marked &ldquo;Show on my writer page&rdquo; under Identity appear here.
+            {shownName
+              ? `Your profile would be headed “${shownName}”. Check that it is the name you want on the open web.`
+              : "Choose the name that heads your profile. It is the one thing your profile always shows, and the name on your account is only used if you pick it here."}
           </p>
-          <button type="submit" data-track="settings-writer-page-save-name" disabled={busy || !nameChanged || (aliasId === null && !data.nameChoices.some((c) => c.aliasId === null))} className={SAVE_CLASS}>
+          <button type="submit" data-track="settings-writer-profile-save-name" disabled={busy || !nameChanged || choice === ""} className={SAVE_CLASS}>
             Save name
           </button>
+        </form>
+      )}
+
+      {data.hasPage && (
+        <form onSubmit={addPenName} className="space-y-1">
+          <label htmlFor="writer-profile-pen-name" className="block text-sm font-medium text-slate-900 dark:text-slate-100">
+            Add a pen name
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="writer-profile-pen-name"
+              type="text"
+              value={penName}
+              onChange={(e) => setPenName(e.target.value)}
+              maxLength={200}
+              autoComplete="off"
+              placeholder="The name you write under"
+              className={INPUT_CLASS}
+            />
+            <button type="submit" data-track="settings-writer-profile-add-pen-name" disabled={busy || penName.trim() === ""} className={SAVE_CLASS}>
+              Add pen name
+            </button>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            It joins your names under Identity, and then it is in the list above for you to choose.
+          </p>
         </form>
       )}
 
@@ -215,33 +262,33 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
             checked={data.isPublic}
             disabled={busy}
             onChange={(e) => (e.target.checked ? void switchPage(true).then((p) => p && setError(p)) : setConfirm("off"))}
-            data-track="settings-writer-page-switch"
+            data-track="settings-writer-profile-switch"
             className="mt-0.5 rounded"
           />
           <span>
-            Show my page on the web
+            Show my profile on the web
             <span className="block text-xs text-slate-600 dark:text-slate-400">
               {data.isPublic
-                ? "Your page is on: anyone can open it and search engines can list it."
+                ? "Your profile is on: anyone can open it and search engines can list it."
                 : canSwitchOn
-                  ? "Your page is off: only you can see it, as a preview."
+                  ? "Your profile is off: only you can see it, as a preview."
                   : data.hasPage
-                    ? "Choose the name for your page first. Until then it stays off."
+                    ? "Choose the name your profile shows first. Until then it stays off."
                     : "Choose your address first. Until then it stays off."}
             </span>
           </span>
         </label>
         {data.hasPage && (
           <p className="text-sm">
-            <Link href={data.previewPath} target="_blank" data-track="settings-writer-page-preview" className={LINK_CLASS}>
+            <Link href={data.previewPath} target="_blank" data-track="settings-writer-profile-preview" className={LINK_CLASS}>
               View as a visitor
             </Link>
             <span className="text-xs text-slate-600 dark:text-slate-400"> (opens a preview that only you can see)</span>
             {data.isPublic && data.pageUrl && (
               <>
                 {" · "}
-                <a href={data.pageUrl} target="_blank" rel="noreferrer" data-track="settings-writer-page-open" className={LINK_CLASS}>
-                  Open your page
+                <a href={data.pageUrl} target="_blank" rel="noreferrer" data-track="settings-writer-profile-open" className={LINK_CLASS}>
+                  Open your profile
                 </a>
               </>
             )}
@@ -252,15 +299,15 @@ export function WriterPagePanel({ settings: data, onChanged }: { settings: Write
       <ConfirmDialog
         open={confirm === "off"}
         onClose={() => setConfirm(null)}
-        title="Turn off your page?"
-        body="Your page stops being public at once, and the address shows a page that was not found. Search engines drop it over time. Your address stays yours, and you can switch it back on whenever you like."
-        confirmLabel="Turn off page"
+        title="Turn off your profile?"
+        body="Your profile stops being public at once, and its address shows a page that was not found. Search engines drop it over time. Your address stays yours, and you can switch it back on whenever you like."
+        confirmLabel="Turn off profile"
         onConfirm={async () => (await switchPage(false)) ?? undefined}
       />
       <ConfirmDialog
         open={confirm === "address"}
         onClose={() => setConfirm(null)}
-        title="Change your page address?"
+        title="Change your profile address?"
         body={`Anyone who opens your old address is sent to the new one, and no one else can take the old address for ${WRITER_PROFILES.handleReservationDays} days. Links you have already shared keep working. Links to the new address will be the ones to share from now on.`}
         confirmLabel="Change address"
         onConfirm={async () => (await saveHandle()) ?? undefined}

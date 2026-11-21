@@ -25,7 +25,7 @@ export interface MemberNameAlias {
   source: string;
   active: boolean;
   createdAt: string;
-  /** The member allows this name on their public writer page as a pen name (docs/product/WRITER_PROFILES.md). Only a name they added themselves can be. */
+  /** The member allows this name on their public writer profile as a pen name (docs/product/WRITER_PROFILES.md). Only a name they added themselves can be. */
   isPublic: boolean;
 }
 
@@ -92,7 +92,7 @@ export interface AliasRepository {
   /** Turns the member's own alias on or off; false when the id isn't theirs. Never a hard delete. */
   setNameActive(memberId: string, id: string, active: boolean): Promise<boolean>;
   /**
-   * Allows (or stops allowing) the member's own alias on their public writer page; false when the id isn't theirs, or when turning
+   * Allows (or stops allowing) the member's own alias on their public writer profile; false when the id isn't theirs, or when turning
    * it on for a name they didn't add themselves (a Zoom or Slack name matched by staff). Nothing else makes a name public.
    */
   setNamePublic(memberId: string, id: string, isPublic: boolean): Promise<boolean>;

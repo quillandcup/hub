@@ -8,7 +8,7 @@ describe("profile item levels", () => {
     expect(Object.keys(defaultProfileVisibilities()).sort()).toEqual([...PROFILE_ITEMS].sort());
   });
 
-  it("offers the globe only on what the writer page shows, and only where pages on the web are open", () => {
+  it("offers the globe only on what the writer profile shows, and only where pages on the web are open", () => {
     for (const item of WEB_ITEMS) {
       expect(levelsFor(item, { webPageAvailable: true })).toEqual(["private", "community", "public"]);
       expect(levelsFor(item, { webPageAvailable: false })).toEqual(["private", "community"]);

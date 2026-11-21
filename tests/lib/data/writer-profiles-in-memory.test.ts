@@ -49,6 +49,36 @@ defineWriterProfileContract("InMemoryWriterProfileRepository", () => {
       data.nameAliases.push({ id, member_id: memberId, alias, source, active: options.active ?? true, isPublic: options.isPublic ?? false });
       return id;
     },
+    seedPublicPages: async (count) => {
+      const at = "2027-03-01T12:00:00Z";
+      const ids = Array.from({ length: count }, () => `mbr_${String(++n).padStart(12, "S")}`);
+      const handles = ids.map((id) => `seeded-${id.toLowerCase()}`);
+      data.members.push(...ids.map((id) => ({ id, name: `Seeded ${id}` })));
+      data.writerProfiles.push(
+        ...ids.map((id, i) => ({
+          id: `wpage_${id.slice(4)}`,
+          member_id: id,
+          handle: handles[i],
+          is_public: true,
+          public_name_alias_id: null,
+          use_account_name: false,
+          show_photo: false,
+          public_bio: null,
+          published_at: at,
+          created_at: at,
+          updated_at: at,
+          deleted_at: null,
+        })),
+      );
+      return {
+        handles,
+        remove: async () => {
+          const gone = new Set(ids);
+          data.members = data.members.filter((m) => !gone.has(m.id));
+          data.writerProfiles = data.writerProfiles.filter((p) => !gone.has(p.member_id));
+        },
+      };
+    },
     changeAlias: async (id, changes) => {
       const row = data.nameAliases.find((a) => a.id === id)!;
       if (changes.isPublic !== undefined) row.isPublic = changes.isPublic;

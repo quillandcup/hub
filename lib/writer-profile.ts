@@ -2,24 +2,24 @@ import { APP_URL, WRITER_PROFILES } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
- * A writer's public page (docs/product/WRITER_PROFILES.md): the rules that are not a database query. The handle's shape, the words
+ * A writer profile (docs/product/WRITER_PROFILES.md): the rules that are not a database query. The handle's shape, the words
  * nobody can choose, the name shown, the photo that may be shown and the one function that decides whether a page is served.
  */
 
 /** The path every page is under: `/w/<handle>`. */
-export const WRITER_PAGE_PATH = "/w";
+export const WRITER_PROFILE_PATH = "/w";
 
 /** Where a member sees their own page as a visitor would, whether or not it is on (a member-only route, never indexed). */
-export const WRITER_PREVIEW_PATH = "/writer-page/preview";
+export const WRITER_PREVIEW_PATH = "/writer-profile/preview";
 
 /** The address of a page, relative (for a link or a redirect). */
-export function writerPagePath(handle: string): string {
-  return `${WRITER_PAGE_PATH}/${handle}`;
+export function writerProfilePath(handle: string): string {
+  return `${WRITER_PROFILE_PATH}/${handle}`;
 }
 
 /** The full address of a page: the canonical URL, the one in the sitemap and in the structured data. */
-export function writerPageUrl(handle: string): string {
-  return `${APP_URL}${writerPagePath(handle)}`;
+export function writerProfileUrl(handle: string): string {
+  return `${APP_URL}${writerProfilePath(handle)}`;
 }
 
 /** Letters and digits, with single hyphens between (never at either end, never two in a row). */
@@ -123,10 +123,15 @@ export function publishableLink(url: string | null | undefined): string | null {
   }
 }
 
-/** What the name shown can be: the display name, or one of the pen names the member allowed on their page. */
-export function publicName(member: { name: string; display_name?: string | null }, penName: string | null): string {
+/**
+ * What the name shown can be: a pen name the member allowed on their profile, or the name on their account when they
+ * picked it (`useAccountName`), or else the display name. The account name is never the result unless it was picked, or
+ * the member has no display name at all (a profile cannot be switched on in that case without picking one of these).
+ */
+export function publicName(member: { name: string; display_name?: string | null }, penName: string | null, useAccountName = false): string {
   const pen = penName?.trim();
-  return pen || getMemberDisplayName(member);
+  if (pen) return pen;
+  return useAccountName ? member.name : getMemberDisplayName(member);
 }
 
 /**

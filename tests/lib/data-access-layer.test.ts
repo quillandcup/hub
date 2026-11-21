@@ -225,7 +225,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   landing_page_versions: [],
   // The site template shared by website pages (LandingSiteTemplateRepository): every query is in the repository.
   landing_site_template: [],
-  // Writers' public pages and their handle history (WriterProfileRepository): every query is in the repository.
+  // Writer profiles and their handle history (WriterProfileRepository): every query is in the repository.
   writer_profiles: [],
   writer_profile_handles: [],
   // The Finisher record (MilestoneRepository): every query is in the repository.

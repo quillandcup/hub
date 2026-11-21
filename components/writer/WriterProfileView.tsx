@@ -2,14 +2,14 @@ import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import MemberSocialLinks from "@/components/member/MemberSocialLinks";
 import type { PublicWriterProfile } from "@/lib/data/writer-profiles";
 import { SITE_URL } from "@/lib/config";
-import { jsonLdScript, writerPageJsonLd } from "@/lib/writer-page-seo";
+import { jsonLdScript, writerProfileJsonLd } from "@/lib/writer-profile-seo";
 
 /**
- * A writer's public page (docs/product/WRITER_PROFILES.md): the name, and the photo, bio and social links they opened to the internet. Made only
+ * A writer profile (docs/product/WRITER_PROFILES.md): the name, and the photo, bio and social links they opened to the internet. Made only
  * from `PublicWriterProfile`, which holds nothing else, so no other field can end up here. The bio is plain text (React
  * escapes it; line breaks are kept by the style). `banner` is the member-only preview's note above the page.
  */
-export default function WriterPageView({ profile, banner }: { profile: PublicWriterProfile; banner?: React.ReactNode }) {
+export default function WriterProfileView({ profile, banner }: { profile: PublicWriterProfile; banner?: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       {banner}
@@ -29,7 +29,7 @@ export default function WriterPageView({ profile, banner }: { profile: PublicWri
         </a>{" "}
         · a community of writers
       </footer>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(writerPageJsonLd(profile)) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(writerProfileJsonLd(profile)) }} />
     </div>
   );
 }

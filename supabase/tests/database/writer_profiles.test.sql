@@ -1,4 +1,4 @@
--- pgTAP tests for writers' public pages (20270828000000_writer_profiles.sql): the handle rules and their history, who can
+-- pgTAP tests for writer profiles (20270828000000_writer_profiles.sql): the handle rules and their history, who can
 -- read and change what, the pen names that may be shown, and the audit entries.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(42);
+SELECT plan(44);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -190,6 +190,15 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$UPDATE public.writer_profiles SET public_name_alias_id = '00000000-0000-4000-a000-00000000b101' WHERE member_id = 'mbr_wprofAlice01'$$,
   '23514', 'public_name_not_allowed', 'a page cannot show another member''s pen name'
+);
+-- The name on the account is shown only when picked, and never together with a pen name.
+SELECT throws_ok(
+  $$UPDATE public.writer_profiles SET use_account_name = true WHERE member_id = 'mbr_wprofAlice01'$$,
+  '23514', NULL, 'the account name cannot be chosen while a pen name is'
+);
+SELECT lives_ok(
+  $$UPDATE public.writer_profiles SET public_name_alias_id = NULL, use_account_name = true WHERE member_id = 'mbr_wprofAlice01'$$,
+  'the account name can be chosen on its own'
 );
 RESET ROLE;
 

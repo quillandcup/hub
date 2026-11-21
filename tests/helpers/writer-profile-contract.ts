@@ -29,6 +29,8 @@ export type WriterProfileContractContext = {
   addAlias: (memberId: string, alias: string, source: "member" | "zoom" | "slack", options?: { isPublic?: boolean; active?: boolean }) => Promise<string>;
   /** Changes a pen name's switches behind the repository's back (as staff could). */
   changeAlias: (aliasId: string, changes: { isPublic?: boolean; active?: boolean }) => Promise<void>;
+  /** Adds this many more members, each with a page that is on (active members, unique handles). Returns their handles and a way to remove them all. */
+  seedPublicPages: (count: number) => Promise<{ handles: string[]; remove: () => Promise<void> }>;
 };
 
 /**
@@ -60,7 +62,7 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
 
         expect(await claim(ada, handle)).toBe("created");
 
-        expect(await ctx.profiles().ofMember(ada)).toEqual({ handle, isPublic: false, publicNameAliasId: null, bio: null, publishedAt: null });
+        expect(await ctx.profiles().ofMember(ada)).toEqual({ handle, isPublic: false, publicNameAliasId: null, useAccountName: false, bio: null, publishedAt: null });
         expect(await ctx.profiles().publicByHandle(handle)).toEqual({ kind: "none" });
         expect(await ctx.profiles().publicCount()).toBe(before);
       });
@@ -414,6 +416,43 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
         const paged = [];
         for (let page = 0; page < total; page++) paged.push(...(await ctx.profiles().publicHandles(page, 1)));
         expect(paged.map((h) => h.handle).sort()).toEqual(all.map((h) => h.handle).sort());
+      });
+
+      it("lists every page when a file holds more than the 1000 rows one request returns, with none dropped or repeated across files", async () => {
+        const seeded = await ctx.seedPublicPages(2000);
+        try {
+          const total = await ctx.profiles().publicCount();
+          expect(total).toBeGreaterThanOrEqual(2000);
+          const everything = await ctx.profiles().publicHandles(0, total + 10);
+          expect(everything).toHaveLength(total);
+          const listed = new Set(everything.map((h) => h.handle));
+          expect(listed.size).toBe(total);
+          for (const handle of seeded.handles) expect(listed.has(handle)).toBe(true);
+
+          // The sizes around one request's limit, then the whole list in one file or split in two.
+          for (const size of [999, 1000, 1001, 2000, total - 1, total]) {
+            const files: { handle: string }[][] = [];
+            for (let page = 0; page * size < total; page++) files.push(await ctx.profiles().publicHandles(page, size));
+            expect(files[0]).toHaveLength(Math.min(size, total));
+            files.forEach((file, i) => expect(file).toHaveLength(i < files.length - 1 ? size : total - size * i));
+            expect(files.flat().map((h) => h.handle)).toEqual(everything.map((h) => h.handle));
+          }
+        } finally {
+          await seeded.remove();
+        }
+      });
+
+      it("lists exactly 1000 and exactly 1001 pages in one file", async () => {
+        for (const size of [1000, 1001]) {
+          const seeded = await ctx.seedPublicPages(size - (await ctx.profiles().publicCount()));
+          try {
+            const all = await ctx.profiles().publicHandles(0, 5000);
+            expect(all).toHaveLength(size);
+            expect(new Set(all.map((h) => h.handle)).size).toBe(size);
+          } finally {
+            await seeded.remove();
+          }
+        }
       });
 
       it("leaves out a page switched off again", async () => {

@@ -37,6 +37,29 @@ export async function fetchAllRows<T>(
   return all;
 }
 
+/**
+ * Fetch rows `from` to `from + count - 1` of an ordered query, which may be more than the 1000 rows one request
+ * returns: it asks for at most 1000 at a time and stops at the first short batch. `buildQuery` must order by a unique
+ * column, so the batches never overlap or skip a row.
+ */
+export async function fetchRowWindow<T>(
+  from: number,
+  count: number,
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  const end = from + count;
+  for (let offset = from; offset < end; offset += BATCH_SIZE) {
+    const take = Math.min(BATCH_SIZE, end - offset);
+    const { data, error } = await buildQuery(offset, offset + take - 1);
+    if (error) throw new Error(error.message);
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < take) break;
+  }
+  return rows;
+}
+
 /** Split an array into chunks of at most `size` items. */
 export function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
