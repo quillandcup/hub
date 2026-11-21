@@ -17,7 +17,7 @@
     "supabase/migrations/**",
     "lib/data/database.types.ts",
     "tests/fixtures/**",
-    "test-data/**",
+    "tests/fixtures/subscription-snapshots/**",
     "demo/.stack/**",
     "demo/out/**",
     "**/*.d.ts",
