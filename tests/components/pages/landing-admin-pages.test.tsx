@@ -5,6 +5,7 @@ import { cleanup, screen } from "@testing-library/react";
 import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { normalizeSiteTemplate } from "@/lib/landing/site-template";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
@@ -82,7 +83,7 @@ describe("/admin/pages", () => {
 });
 
 describe("/admin/pages/design", () => {
-  const draft = (text: string) => ({ header: { show: false, align: "spread" as const, mobileMenu: "fold" as const, items: [] }, footer: { show: true, text, links: [], social: [] } });
+  const draft = (text: string) => normalizeSiteTemplate({ footer: { show: true, text } });
 
   it("checks for an admin, then shows the Design tab with the site template's draft and whether it is published", async () => {
     const { default: DesignTab } = await import("@/app/(admin)/admin/pages/design/page");
@@ -187,15 +188,15 @@ describe("/admin/pages/[slug]", () => {
     expect(screen.getByTestId("editor").getAttribute("data-starters")).toBe("built:Homepage,template:Site kit");
   });
 
-  it("gives a website page the site design draft for the regions of its canvas, and a landing page none", async () => {
-    await state.repos.landingSiteTemplate.saveDraft({ header: { show: true, align: "spread", mobileMenu: "fold", items: [] }, footer: { show: true, text: "Fern Quills", links: [], social: [] } }, null);
+  it("gives every page the site design draft: a website page's regions come from it, and a landing page takes its style from it", async () => {
+    await state.repos.landingSiteTemplate.saveDraft(normalizeSiteTemplate({ header: { show: true }, footer: { show: true, text: "Fern Quills" } }), null);
     await state.repos.landingPages.create({ title: "About", slug: "about", createdBy: null, pageType: "website" });
     await state.repos.landingPages.create({ title: "Funnel", slug: "funnel", createdBy: null });
     await renderServerPage(EditLandingPage, params("about"));
     expect(screen.getByTestId("editor")).toHaveAttribute("data-site", "Fern Quills");
     cleanup();
     await renderServerPage(EditLandingPage, params("funnel"));
-    expect(screen.getByTestId("editor")).toHaveAttribute("data-site", "none");
+    expect(screen.getByTestId("editor")).toHaveAttribute("data-site", "Fern Quills");
   });
 
   it("answers 404 for an unknown page and an invalid address, whoever asks", async () => {

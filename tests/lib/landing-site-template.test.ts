@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { STYLE_DEFAULTS } from "@/lib/landing/style";
 import { EMPTY_SITE_TEMPLATE, SITE_ITEMS_MAX, SITE_LINKS_MAX, SIGN_IN_HREF, newHeaderItem, normalizeSiteTemplate, siteAssetIds, siteTemplateIssues } from "@/lib/landing/site-template";
 
 describe("normalizeSiteTemplate", () => {
@@ -10,6 +11,8 @@ describe("normalizeSiteTemplate", () => {
     const site = {
       header: { show: true, align: "center", mobileMenu: "wrap", items: [newHeaderItem("logo"), newHeaderItem("menu"), newHeaderItem("cta"), newHeaderItem("social"), newHeaderItem("signin")] },
       footer: { show: true, text: "Fern Quills", links: [{ label: "Privacy", href: "/privacy" }], social: [{ network: "youtube", href: "https://example.test/c" }] },
+      style: { ...STYLE_DEFAULTS, primary: "teal", fontFamily: "serif" },
+      favicon: { assetId: "mda_AAAAAAAAAAA1" },
     };
     expect(normalizeSiteTemplate(JSON.parse(JSON.stringify(site)))).toEqual(site);
   });

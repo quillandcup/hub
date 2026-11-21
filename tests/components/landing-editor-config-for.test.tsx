@@ -10,7 +10,6 @@ const site = normalizeSiteTemplate({ header: { show: true, items: [{ id: "c", ty
 describe("editorConfigFor", () => {
   it("gives a landing page the config with its own header and footer fields", () => {
     const config = editorConfigFor({ pageType: "landing", site: null, editing: true });
-    expect(config).toBe(editorConfig);
     expect(Object.keys(config.root?.fields ?? {})).toEqual(expect.arrayContaining(["showHeader", "navLinks", "showFooter", "footerText", "footerLinks"]));
   });
 

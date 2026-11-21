@@ -168,7 +168,8 @@ const JUSTIFY = { left: "text-left", center: "text-center", right: "text-right" 
 export function buttonClasses(look: unknown, color: unknown, shape: unknown, full: boolean) {
   const l = look === "outline" ? "outline" : "solid";
   const c = color === "light" || color === "brown" ? color : "plum";
-  return `inline-block ${full ? "w-full text-center" : ""} ${shape === "rect" ? "rounded-md" : "rounded-full"} px-6 py-3 text-base font-semibold no-underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${BUTTON_COLORS[l][c]}`;
+  // `lp-btn` (and `lp-btn-primary` on a solid button in the primary colour) are what the style guide's button size, corners and primary colour act on (app/globals.css).
+  return `lp-btn ${l === "solid" && c === "plum" ? "lp-btn-primary" : ""} inline-block ${full ? "w-full text-center" : ""} ${shape === "rect" ? "rounded-md" : "rounded-full"} px-6 py-3 text-base font-semibold no-underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${BUTTON_COLORS[l][c]}`;
 }
 
 export function Button({ label, href, look, color, shape, align, full }: ButtonProps) {

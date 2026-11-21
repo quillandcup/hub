@@ -76,6 +76,24 @@ describe("publishSiteTemplate", () => {
     expect(revalidated).toContain("/admin/pages");
   });
 
+  it("makes the favicon public with the rest, and refuses one that is not square or not a picture type", async () => {
+    const icon = await state.repos.media.add({ storage_path: `originals/shared/${crypto.randomUUID()}.png`, mime_type: "image/png", width: 64, height: 64, bytes: 1000, sha256: crypto.randomUUID(), title: "Icon", is_public: false });
+    expect((await publishSiteTemplate({ ...site("x"), favicon: { assetId: icon.id } })).error).toBeUndefined();
+    expect((await state.repos.media.byId(icon.id))?.is_public).toBe(true);
+    const wide = await state.repos.media.add({ storage_path: `originals/shared/${crypto.randomUUID()}.png`, mime_type: "image/png", width: 64, height: 32, bytes: 1000, sha256: crypto.randomUUID(), title: "Wide", is_public: false });
+    const refused = await publishSiteTemplate({ ...site("y"), favicon: { assetId: wide.id } });
+    expect(refused.issues).toEqual(["A favicon has to be square. That picture is 64 by 32 pixels."]);
+    expect((await state.repos.landingSiteTemplate.published())?.footer.text).toBe("x");
+    const gone = await publishSiteTemplate({ ...site("z"), favicon: { assetId: "mda_Missing00001" } });
+    expect(gone.issues).toEqual(["The favicon picture is no longer in the library."]);
+  });
+
+  it("saves the style guide cleaned to the lists, and publishes it", async () => {
+    await publishSiteTemplate({ ...site("x"), style: { primary: "teal", fontFamily: "Comic Sans", pageBackground: "cream" } });
+    const published = await state.repos.landingSiteTemplate.published();
+    expect(published?.style).toMatchObject({ primary: "teal", pageBackground: "cream", fontFamily: "default" });
+  });
+
   it("stops on a problem a visitor would meet, and publishes nothing", async () => {
     const result = await publishSiteTemplate(site("x", { ...newHeaderItem("cta"), label: "Join", href: "" }));
     expect(result.error).toBe("Fix these before publishing.");

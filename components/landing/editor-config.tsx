@@ -396,9 +396,10 @@ export const editorConfig: Config = {
 };
 
 /**
- * The editor's config for a page. A landing page edits its own header and footer in the root fields; a website page shows the
- * site's header and footer as fixed regions (edited in Design, not here), so it has no header or footer fields of its own.
+ * The editor's config for a page, framed as the page is (the site's style under it, and for a website page the site's header and
+ * footer). A landing page edits its own header and footer in the root fields; a website page shows the site's as fixed regions
+ * (edited in Design, not here), so it has no header or footer fields of its own. Style and favicon are in the Settings panel.
  */
 export function editorConfigFor(frame: FrameContext): Config {
-  return frame.pageType === "website" ? { ...editorConfig, root: { ...rootConfigFor(frame), fields: {} } } : editorConfig;
+  return { ...editorConfig, root: { ...rootConfigFor(frame), fields: frame.pageType === "website" ? {} : ROOT_FIELDS } };
 }

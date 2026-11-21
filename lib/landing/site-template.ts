@@ -1,4 +1,5 @@
 import { safeHref } from "./data";
+import { normalizeStyle, STYLE_DEFAULTS, type StyleTokens } from "./style";
 
 /**
  * The site template (docs/LANDING_PAGES.md, "Site template"): the header and footer every website page shares. Pure helpers,
@@ -58,11 +59,15 @@ export const HEADER_ITEM_TYPES: { value: HeaderItemType; label: string; hint: st
 
 export type SiteHeader = { show: boolean; align: HeaderAlignment; mobileMenu: MobileMenu; items: HeaderItem[] };
 export type SiteFooter = { show: boolean; text: string; links: SiteLink[]; social: SiteSocialLink[] };
-export type SiteTemplate = { header: SiteHeader; footer: SiteFooter };
+/** The favicon every website page shows (a landing page may have its own). `assetId` is a media library picture; empty means the app's own icon. */
+export type SiteFavicon = { assetId: string };
+export type SiteTemplate = { header: SiteHeader; footer: SiteFooter; style: StyleTokens; favicon: SiteFavicon };
 
 export const EMPTY_SITE_TEMPLATE: SiteTemplate = {
   header: { show: false, align: "spread", mobileMenu: "fold", items: [] },
   footer: { show: false, text: "", links: [], social: [] },
+  style: STYLE_DEFAULTS,
+  favicon: { assetId: "" },
 };
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
@@ -115,12 +120,15 @@ export function normalizeSiteTemplate(value: unknown): SiteTemplate {
   return {
     header: { show: h.show === true, align: oneOf(HEADER_ALIGNMENTS, h.align, "spread"), mobileMenu: oneOf(MOBILE_MENUS, h.mobileMenu, "fold"), items },
     footer: { show: f.show === true, text: text(f.text, 300), links: links(f.links), social: social(f.social) },
+    style: normalizeStyle(v.style),
+    favicon: { assetId: text(obj(v.favicon).assetId, 80) },
   };
 }
 
-/** Every media asset the template uses, to be made public with it. */
+/** Every media asset the template uses (the logo and the favicon), to be made public with it. */
 export function siteAssetIds(site: SiteTemplate): string[] {
-  return [...new Set(site.header.items.flatMap((i) => (i.type === "logo" && i.logoAssetId ? [i.logoAssetId] : [])))];
+  const logos = site.header.items.flatMap((i) => (i.type === "logo" && i.logoAssetId ? [i.logoAssetId] : []));
+  return [...new Set([...logos, ...(site.favicon.assetId ? [site.favicon.assetId] : [])])];
 }
 
 /** A new header block with its defaults. */

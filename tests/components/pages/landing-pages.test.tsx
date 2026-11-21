@@ -10,6 +10,7 @@ import { renderServerPage, resetServerPageMocks, signInAs, ADMIN_USER } from "@/
 import { APP_URL } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { normalizeSiteTemplate } from "@/lib/landing/site-template";
 
 vi.hoisted(() => {
   const g = globalThis as Record<string, unknown>;
@@ -51,7 +52,7 @@ beforeEach(() => {
 });
 
 describe("/p/[slug], a website page", () => {
-  const site = (footer: string) => ({ header: { show: true, align: "spread" as const, mobileMenu: "fold" as const, items: [{ id: "c", type: "cta" as const, show: "both" as const, label: "Join us", href: "/join", look: "solid" as const }] }, footer: { show: true, text: footer, links: [], social: [] } });
+  const site = (footer: string) => normalizeSiteTemplate({ header: { show: true, items: [{ id: "c", type: "cta", label: "Join us", href: "/join" }] }, footer: { show: true, text: footer } });
 
   async function websitePage(slug: string) {
     const page = await state.repos.landingPages.create({ title: `Title of ${slug}`, slug, data: doc("Hello"), createdBy: null, pageType: "website" });
@@ -130,6 +131,42 @@ describe("/p/[slug]", () => {
     expect(metadata.description).toBe("About this page");
     expect(metadata.alternates?.canonical).toBe(`${APP_URL}/p/meta`);
     expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${APP_URL}/p/meta` });
+  });
+
+  it("shows the site's published favicon, the page's own over it, and none when the page says none", async () => {
+    await state.repos.landingSiteTemplate.saveDraft(normalizeSiteTemplate({ favicon: { assetId: "mda_SITE" } }), null);
+    await state.repos.landingSiteTemplate.publish(null);
+    await state.repos.landingSiteTemplate.saveDraft(normalizeSiteTemplate({ favicon: { assetId: "mda_DRAFT" } }), null);
+    await makePage("plain", "Words");
+    expect((await generateMetadata(params("plain"))).icons).toEqual({ icon: expect.stringContaining("mda_SITE") });
+    for (const [slug, own, expected] of [["own", "mda_OWN", "mda_OWN"], ["none", "", null]] as const) {
+      const page = await state.repos.landingPages.create({ title: slug, slug, data: { content: [], root: { props: { faviconOverrideAssetId: own } } }, createdBy: null });
+      await state.repos.landingPages.publish(page.id);
+      const { icons } = await generateMetadata(params(slug));
+      if (expected) expect(icons).toEqual({ icon: expect.stringContaining(expected) });
+      else expect(icons).toBeUndefined();
+    }
+  });
+
+  it("leaves the app's icon alone when neither the site nor the page has a favicon", async () => {
+    await makePage("plain", "Words");
+    expect((await generateMetadata(params("plain"))).icons).toBeUndefined();
+  });
+
+  it("styles a landing page with the site's published style unless it has its own, and never with the draft", async () => {
+    await state.repos.landingSiteTemplate.saveDraft(normalizeSiteTemplate({ style: { primary: "teal" } }), null);
+    await state.repos.landingSiteTemplate.publish(null);
+    await state.repos.landingSiteTemplate.saveDraft(normalizeSiteTemplate({ style: { primary: "charcoal" } }), null);
+    await makePage("plain", "Words");
+    const own = await state.repos.landingPages.create({ title: "own", slug: "own", data: { content: [], root: { props: { styleOverride: { primary: "brown" } } } }, createdBy: null });
+    await state.repos.landingPages.publish(own.id);
+    const frame = () => document.querySelector("[data-lp-frame]")!.className;
+    await renderServerPage(PublicLandingPage, params("plain"));
+    expect(frame()).toContain("lp-primary-teal");
+    expect(frame()).not.toContain("charcoal");
+    cleanup();
+    await renderServerPage(PublicLandingPage, params("own"));
+    expect(frame()).toContain("lp-primary-brown");
   });
 
   it("keeps a missing page out of search results", async () => {

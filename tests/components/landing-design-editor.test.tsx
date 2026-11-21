@@ -64,6 +64,18 @@ describe("the Design view", () => {
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 
+  it("edits the site's style guide and favicon, saves them with the draft, and shows the style on the preview", async () => {
+    const { container } = view();
+    fireEvent.change(screen.getByLabelText("Primary colour (buttons, accents and links)"), { target: { value: "teal" } });
+    fireEvent.change(screen.getByLabelText("Page background"), { target: { value: "cream" } });
+    expect(screen.getByText("picker for the favicon")).toBeInTheDocument();
+    expect(container.querySelector(".lp-primary-teal.lp-bg-cream")).not.toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(900);
+    });
+    expect(mocks.save.mock.calls[0][0].style).toMatchObject({ primary: "teal", pageBackground: "cream" });
+  });
+
   it("offers a menu with links to add and remove, and the logo's picker", () => {
     view({ initial: normalizeSiteTemplate({ header: { show: true, items: [{ id: "m", type: "menu", links: [{ label: "Home", href: "/" }] }, { id: "l", type: "logo", alt: "" }] } }) });
     fireEvent.click(screen.getByRole("button", { name: "Add a menu link" }));
@@ -83,7 +95,7 @@ describe("the Design view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish site design" }));
     await flush();
     expect(mocks.publish).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole("alert")).toHaveTextContent("Every published website page now shows this header and footer.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Every published website page now shows this header, footer and style.");
     expect(screen.getByRole("button", { name: "Reset to published" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Saved");
   });

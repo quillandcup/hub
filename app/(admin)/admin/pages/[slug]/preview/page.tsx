@@ -19,7 +19,7 @@ export default async function PreviewLandingPage({ params }: { params: Promise<{
   const page = await repos.landingPages.bySlug(slug);
   if (!page) notFound();
   const isWebsite = page.page_type === "website";
-  const site = isWebsite ? (await repos.landingSiteTemplate.state()).draft : null;
+  const site = (await repos.landingSiteTemplate.state()).draft;
   return (
     <>
       <div role="note" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
