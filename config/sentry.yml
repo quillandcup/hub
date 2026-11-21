@@ -3,6 +3,11 @@
 # previews against the live organization (read-only). Change the file, not the Settings page: the next
 # push puts these values back. See docs/SENTRY_CONFIG.md.
 #
+# The push runs only when the push to main itself changed this file or the script. When a run is cancelled by a newer
+# merge, the next run sees no change and skips it, so a change can stay unapplied: after a deploy, `pnpm sentry:config:diff`
+# must print "No differences"; if it lists changes, run `pnpm sentry:config:push` (docs/TODO.md, "CI: a docs-only push
+# after a cancelled run skips the deploy of the code it follows").
+#
 # Settings > Security & Privacy. Organization-wide, so every project inherits them (a project's own
 # switches show as locked). Server-side scrubbing covers errors, traces and logs; Session Replay masking
 # is client-side (instrumentation-client.ts), and replay retention is set by Sentry's plan, not here.
