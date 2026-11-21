@@ -71,6 +71,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n"),
   },
   {
+    slug: "finisher-author-badges",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "Finisher and Author badges, computed from confirmed milestones",
+    summary: "Two automatic leveled badges count a member's confirmed THE END and publish-ready milestones, for the viewer who is looking.",
+    body: "Finisher and Author are automatic badge types levelled at 1, 3, 5 and 10, built like Published Author: nothing is stored per member, the level is computed when a profile is read, so no award row exists and nothing is sent when one first appears. They count milestones, one per work, and the rules live in one place each. `reachedWhileMember` (`lib/finishers.ts`) decides \"while a member\": undated counts, a dated milestone counts from the member's first join date on. Viewer awareness is a parameter of `getMemberBadges`: \"self\" counts every confirmed milestone, \"others\" (the default) counts only those the member showed to members, read through `shownToMembers` for one member and `allShownToMembers` (paged, kind and date only) for the admin recipients list. A new automatic badge that depends on private-able data should take the same viewer. Detail: `docs/product/FINISHERS.md`, \"The Finisher and Author badges\".",
+  },
+  {
     slug: "milestones-on-your-profile",
     date: "2026-11-21",
     audience: "product",
@@ -81,6 +90,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 
 - **Choose who sees it.** The lock keeps it to you. The house shows it to other members on your profile, and is where a step starts once you confirm it. The globe puts it on your writer profile on the web, once writer profiles are open to you.
 - **Add your story**, how it felt before and how it feels now, and it shows with the step, to the same people.
+- **Earn badges.** Each work you wrote THE END on adds to your Finisher badge. Each work that is ready to publish adds to your Author badge. At 3, 5 and 10 works the badge reads 3x, 5x or 10x. Milestones dated before you joined do not count; ones with no date do. On your own profile your badges count every milestone you confirmed. Other members see only the ones you showed with the house (other members) or the globe (everyone), so their count can be lower.
 - **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.`,
   },
   {

@@ -1,5 +1,6 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { parseDateOnly } from "@/lib/member-tenure";
+import { milestoneBadgeCounts, type MilestoneBadgeCounts } from "@/lib/finishers";
 import type { AttendanceRepository } from "@/lib/data/attendance";
 import type { MentorshipRepository } from "@/lib/data/mentorship";
 import type { Repos } from "@/lib/data/repos";
@@ -7,7 +8,7 @@ import type { Repos } from "@/lib/data/repos";
 export type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 import type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 
-export type BadgeRepos = Pick<Repos, "attendance" | "badges" | "books" | "members" | "mentorship" | "prickles" | "programs">;
+export type BadgeRepos = Pick<Repos, "attendance" | "badges" | "books" | "members" | "mentorship" | "milestones" | "prickles" | "programs">;
 
 export interface EarnedBadge {
   badgeType: BadgeType;
@@ -36,6 +37,9 @@ export interface AutomaticBadgeMetrics {
   /** The Big Sister program matches this member has mentored, if any (omitted by callers that
    * don't compute it). */
   mentorship?: MentorshipCount;
+  /** Works with a confirmed THE END / publish-ready milestone the viewer may see, counted while a member (omitted by
+   * callers that don't compute it) -- the Finisher and Author badges, see getMilestoneBadgeCounts. */
+  milestoneCounts?: MilestoneBadgeCounts;
 }
 
 /** How many trial members a big sister has mentored (matches whose trial has started), and the
@@ -225,6 +229,12 @@ export function computeEarnedBadges(
         case "published_author":
           pushAutomaticLeveled(earned, badgeType, levels, metrics.publishedBookCount);
           break;
+        case "finisher":
+          pushAutomaticLeveled(earned, badgeType, levels, metrics.milestoneCounts?.the_end ?? 0);
+          break;
+        case "author":
+          pushAutomaticLeveled(earned, badgeType, levels, metrics.milestoneCounts?.publish_ready ?? 0);
+          break;
         case "hedgie_mentor":
           pushMentorship(earned, badgeType, levels, metrics.mentorship, typeAwards);
           break;
@@ -307,6 +317,27 @@ export async function getPublishedBookCount(
   return repos.books.countLive(memberId);
 }
 
+/** Whose eyes the badges are for: the member's own (everything confirmed counts) or anyone else's (only what the member shows to members). */
+export type BadgeViewer = "self" | "others";
+
+/**
+ * The counts behind the Finisher and Author badges for one member. A viewer who is the member counts every confirmed milestone;
+ * anyone else (another member, staff) counts only the ones the member showed to other members, so a badge never gives away a
+ * private milestone. Either way only milestones reached while a member count (reachedWhileMember in lib/finishers.ts).
+ */
+export async function getMilestoneBadgeCounts(
+  repos: BadgeRepos,
+  memberId: string,
+  firstJoinedAt: string | null,
+  viewer: BadgeViewer
+): Promise<MilestoneBadgeCounts> {
+  const milestones =
+    viewer === "self"
+      ? (await repos.milestones.ofMember(memberId)).filter((m) => m.status === "confirmed")
+      : await repos.milestones.shownToMembers(memberId);
+  return milestoneBadgeCounts(milestones, firstJoinedAt);
+}
+
 export interface BadgeRecipient {
   memberId: string;
   /** Display name; `memberRealName` is the legal name when it differs. */
@@ -340,6 +371,8 @@ export interface BulkAutomaticMetrics {
   programCompletionsByProgramId: Map<string, Map<string, ProgramCompletion>>;
   /** Big Sister matches per mentor -- bulk counterpart to AutomaticBadgeMetrics.mentorship. */
   mentorshipByMember?: Map<string, MentorshipCount>;
+  /** Finisher and Author counts per member (only milestones other members may see, counted while a member), see getMilestoneBadgeCountsByMember. */
+  milestoneCountsByMember?: Map<string, MilestoneBadgeCounts>;
 }
 
 function recipientNames(member: RecipientMember): { memberName: string; memberRealName?: string } {
@@ -404,6 +437,15 @@ export function computeBadgeRecipients(
           if (member) pushLeveledRecipient(recipients, member, levels, occurrences);
         }
         break;
+      case "finisher":
+      case "author": {
+        const kind = badgeType.key === "finisher" ? "the_end" : "publish_ready";
+        for (const [memberId, counts] of metrics.milestoneCountsByMember ?? []) {
+          const member = membersById.get(memberId);
+          if (member) pushLeveledRecipient(recipients, member, levels, counts[kind]);
+        }
+        break;
+      }
       case "hedgie_mentor": {
         // `awards` is the hand-awarded rows for this badge type (see pushMentorship's merge rule).
         const legacyByMember = new Map<string, { occurred_at: string; note: string | null }[]>();
@@ -533,6 +575,25 @@ async function getHostedQuarterCountsByMember(repos: BadgeRepos): Promise<Map<st
   return countsByMember;
 }
 
+/** Finisher and Author counts per member, as other members may see them -- the bulk counterpart to getMilestoneBadgeCounts for
+ * viewer "others": one paginated scan instead of N, each member's milestones counted against their own join date. */
+async function getMilestoneBadgeCountsByMember(
+  repos: BadgeRepos,
+  firstJoinedByMember: Map<string, string | null>
+): Promise<Map<string, MilestoneBadgeCounts>> {
+  const byMember = new Map<string, { kind: string; achievedOn: string | null }[]>();
+  for (const m of await repos.milestones.allShownToMembers()) {
+    const list = byMember.get(m.memberId) ?? [];
+    list.push(m);
+    byMember.set(m.memberId, list);
+  }
+  const counts = new Map<string, MilestoneBadgeCounts>();
+  for (const [memberId, list] of byMember) {
+    counts.set(memberId, milestoneBadgeCounts(list, firstJoinedByMember.get(memberId) ?? null));
+  }
+  return counts;
+}
+
 /** Number of books each member has logged on the Hedgie Bookshelf -- the bulk counterpart to
  * getPublishedBookCount, one paginated scan instead of N. */
 async function getPublishedBookCountsByMember(
@@ -659,6 +720,7 @@ export async function getBadgeRecipients(
   // this one badge type -- computeBadgeRecipients merges these with computed completions.
   let legacyAwards: { member_id: string; occurred_at: string; note: string | null }[] = [];
   let mentorshipByMember = new Map<string, MentorshipCount>();
+  let milestoneCountsByMember = new Map<string, MilestoneBadgeCounts>();
   switch (badgeType.key) {
     case "prickle_milestones":
       attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(repos.attendance);
@@ -668,6 +730,11 @@ export async function getBadgeRecipients(
       break;
     case "published_author":
       publishedBookCountsByMember = await getPublishedBookCountsByMember(repos);
+      break;
+    case "finisher":
+    case "author":
+      // Staff look at this list, but it counts what other members may see: a private milestone is never counted for anyone but its member.
+      milestoneCountsByMember = await getMilestoneBadgeCountsByMember(repos, new Map(members.map((m) => [m.id, m.firstJoinedAt])));
       break;
     case "hedgie_mentor": {
       mentorshipByMember = await getMentorshipCounts(repos.mentorship);
@@ -688,20 +755,22 @@ export async function getBadgeRecipients(
     publishedBookCountsByMember,
     programCompletionsByProgramId,
     mentorshipByMember,
+    milestoneCountsByMember,
   });
 }
 
 /** Fetches every badge_type + badge_levels once (shared across all members on a page), this
  * member's manual award rows, and the query-backed automatic metrics (hosted quarters,
- * published books), then merges them into their earned badges. */
+ * published books, milestones), then merges them into their earned badges. */
 export async function getMemberBadges(
   repos: BadgeRepos,
   memberId: string,
   totalPricklesAttended: number,
-  firstJoinedAt: string | null
+  firstJoinedAt: string | null,
+  viewer: BadgeViewer = "others"
 ): Promise<EarnedBadge[]> {
   const badges = repos.badges;
-  const [badgeTypes, levels, awards, hostedQuarterCount, publishedBookCount, programCompletions, mentorshipCounts] = await Promise.all([
+  const [badgeTypes, levels, awards, hostedQuarterCount, publishedBookCount, programCompletions, mentorshipCounts, milestoneCounts] = await Promise.all([
     badges.types(),
     badges.levels(),
     badges.awardsOf(memberId),
@@ -709,6 +778,7 @@ export async function getMemberBadges(
     getPublishedBookCount(repos, memberId),
     getProgramCompletions(repos, memberId),
     getMentorshipCounts(repos.mentorship),
+    getMilestoneBadgeCounts(repos, memberId, firstJoinedAt, viewer),
   ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();
@@ -729,6 +799,7 @@ export async function getMemberBadges(
       publishedBookCount,
       programCompletions,
       mentorship: mentorshipCounts.get(memberId),
+      milestoneCounts,
     }
   );
 }
