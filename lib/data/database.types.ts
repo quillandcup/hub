@@ -4033,10 +4033,13 @@ export type Database = {
         Row: {
           created_at: string
           draft_data: Json
+          draft_reset_at: string | null
           id: string
           published_at: string | null
           published_by: string | null
           published_data: Json | null
+          restored_at: string | null
+          restored_from_version_id: string | null
           singleton: boolean
           updated_at: string
           updated_by: string | null
@@ -4044,10 +4047,13 @@ export type Database = {
         Insert: {
           created_at?: string
           draft_data?: Json
+          draft_reset_at?: string | null
           id?: string
           published_at?: string | null
           published_by?: string | null
           published_data?: Json | null
+          restored_at?: string | null
+          restored_from_version_id?: string | null
           singleton?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -4055,15 +4061,50 @@ export type Database = {
         Update: {
           created_at?: string
           draft_data?: Json
+          draft_reset_at?: string | null
           id?: string
           published_at?: string | null
           published_by?: string | null
           published_data?: Json | null
+          restored_at?: string | null
+          restored_from_version_id?: string | null
           singleton?: boolean
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: []
+      }
+      landing_site_template_versions: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          published_by: string | null
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id?: string
+          published_by?: string | null
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          published_by?: string | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_site_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "landing_site_template"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lesson_comment_follows: {
         Row: {
@@ -8927,6 +8968,7 @@ export type Database = {
         Args: { p_note?: string; p_page_id: string }
         Returns: undefined
       }
+      publish_landing_site_template: { Args: never; Returns: boolean }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -9035,6 +9077,10 @@ export type Database = {
         Returns: Json
       }
       restore_landing_page_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
+      }
+      restore_landing_site_template_version: {
         Args: { p_version_id: string }
         Returns: undefined
       }

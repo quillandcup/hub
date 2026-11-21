@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { EMPTY_SITE_TEMPLATE, normalizeSiteTemplate } from "@/lib/landing/site-template";
 
-const mocks = vi.hoisted(() => ({ save: vi.fn(), publish: vi.fn(), reset: vi.fn() }));
-vi.mock("@/app/(admin)/admin/pages/design/actions", () => ({ saveSiteDraft: mocks.save, publishSiteTemplate: mocks.publish, resetSiteDraft: mocks.reset }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), publish: vi.fn(), reset: vi.fn(), restore: vi.fn() }));
+vi.mock("@/app/(admin)/admin/pages/design/actions", () => ({ saveSiteDraft: mocks.save, publishSiteTemplate: mocks.publish, resetSiteDraft: mocks.reset, restoreSiteVersion: mocks.restore }));
 vi.mock("@/components/media/MediaPicker", () => ({ default: ({ noun }: { noun?: string }) => <div>picker for the {noun}</div> }));
 
 import DesignEditor from "@/app/(admin)/admin/pages/design/DesignEditor";
@@ -112,6 +112,81 @@ describe("the Design view", () => {
     await flush();
     expect(mocks.reset).toHaveBeenCalled();
     expect(screen.getByLabelText(/Text \(for example/)).toHaveValue("Live words");
+  });
+
+  describe("History", () => {
+    const versions = [
+      { id: "lpstv_AAAAAAAAAAA2", createdAt: "2026-11-20T12:05:00Z", by: "Ada Example" },
+      { id: "lpstv_AAAAAAAAAAA1", createdAt: "2026-11-19T09:00:00Z", by: "Someone" },
+    ];
+
+    it("says nothing has been published when there are no versions", async () => {
+      view();
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await flush();
+      expect(within(screen.getByRole("dialog")).getByText(/Nothing has been published yet/)).toBeInTheDocument();
+    });
+
+    it("lists each version with who and when, newest first", async () => {
+      view({ versions, hasPublished: true, publishedAt: "2026-11-20T12:05:00Z", unpublished: false });
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await flush();
+      const dialog = screen.getByRole("dialog");
+      const rows = within(dialog).getAllByRole("listitem");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveTextContent("Latest publish");
+      expect(rows[0]).toHaveTextContent("By Ada Example");
+      expect(rows[1]).toHaveTextContent("By Someone");
+      expect(within(dialog).getByText(/doesn't go live until you publish the site design/)).toBeInTheDocument();
+    });
+
+    it("brings a version back into the draft after asking, without publishing, and says the draft is not published", async () => {
+      mocks.restore.mockResolvedValue({ site: normalizeSiteTemplate({ footer: { show: true, text: "Older words" } }), unpublished: true });
+      view({ versions, hasPublished: true, publishedAt: "2026-11-20T12:05:00Z", unpublished: false });
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await flush();
+      fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: "Bring back" })[1]);
+      await flush();
+      expect(mocks.restore).not.toHaveBeenCalled();
+      const confirm = screen.getAllByRole("dialog").at(-1) as HTMLElement;
+      expect(confirm).toHaveTextContent("Bring this version back?");
+      await act(async () => {
+        fireEvent.click(within(confirm).getByRole("button", { name: "Bring back" }));
+      });
+      await flush();
+      expect(mocks.restore).toHaveBeenCalledWith("lpstv_AAAAAAAAAAA1");
+      expect(mocks.publish).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(/Text \(for example/)).toHaveValue("Older words");
+      expect(screen.getByRole("status")).toHaveTextContent("Draft saved, not published");
+      expect(screen.getByRole("alert")).toHaveTextContent("Brought back into your draft");
+      expect(screen.queryByText("Version history")).toBeNull();
+    });
+
+    it("shows the reason and keeps the draft when a version can't be brought back", async () => {
+      mocks.restore.mockResolvedValue({ error: "That version no longer exists." });
+      view({ versions, hasPublished: true, publishedAt: "2026-11-20T12:05:00Z", unpublished: false, initial: normalizeSiteTemplate({ footer: { show: true, text: "Mine" } }) });
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await flush();
+      fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: "Bring back" })[0]);
+      await flush();
+      await act(async () => {
+        fireEvent.click(within(screen.getAllByRole("dialog").at(-1) as HTMLElement).getByRole("button", { name: "Bring back" }));
+      });
+      await flush();
+      expect(screen.getByRole("alert")).toHaveTextContent("That version no longer exists.");
+      expect(screen.getByLabelText(/Text \(for example/)).toHaveValue("Mine");
+    });
+
+    it("adds the new version to History after a publish", async () => {
+      mocks.publish.mockResolvedValue({ publishedAt: "2026-11-21T10:00:00Z", versions: [{ id: "lpstv_AAAAAAAAAAA3", createdAt: "2026-11-21T10:00:00Z", by: "Grace Example" }, ...versions] });
+      view({ versions });
+      fireEvent.click(screen.getByRole("button", { name: "Publish site design" }));
+      await flush();
+      fireEvent.click(screen.getByRole("button", { name: "History" }));
+      await flush();
+      expect(within(screen.getByRole("dialog")).getAllByRole("listitem")).toHaveLength(3);
+      expect(screen.getByText(/By Grace Example/)).toBeInTheDocument();
+    });
   });
 
   it("keeps the reset off while the draft is the published copy", () => {

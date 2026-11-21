@@ -26,3 +26,4 @@ const BASE58 = "[1-9A-HJ-NP-Za-km-z]{12}";
 /** Page and version ids are Tier 2 (never in a URL, docs/decisions/SHORT_IDS_PLAN.md): they travel only between our own client and server, and are checked at the door. */
 export const isLandingPageId = (value: unknown): value is string => typeof value === "string" && new RegExp(`^lpg_${BASE58}$`).test(value);
 export const isLandingVersionId = (value: unknown): value is string => typeof value === "string" && new RegExp(`^lpgv_${BASE58}$`).test(value);
+export const isLandingSiteVersionId = (value: unknown): value is string => typeof value === "string" && new RegExp(`^lpstv_${BASE58}$`).test(value);

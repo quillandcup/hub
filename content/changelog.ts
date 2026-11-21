@@ -80,6 +80,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: `In the admin Pages list, **Website** pages are the connected pages of the site (home, about, ...) and **Landing** pages are standalone, for one purpose. New page asks which one; it can't be changed later.
 
 - **Design tab.** Edit the site's header (logo, menu, a button, social links and a sign-in link, each shown on every size, only when there is room, or only when narrow), its footer, its favicon and its style guide (page background, primary colour, button size and corners, body font, weight and line height). Changes save to a draft. Nothing changes for visitors until you press Publish site design, which updates every published website page at once.
+- **History for the site design.** Each time you publish it, that version is kept. History lists them with who published and when, and Bring back puts one into your draft; it goes live only when you publish again. Reset to published throws the draft away.
 - **In a website page's editor** the header and footer sit at the top and bottom of the page as fixed, shared parts with a link to Design.
 - **Settings tab** in the editor's left rail: the design tools (guides and a twelve-column grid, only for you while editing), a button for the keyboard shortcuts, and the page's favicon and style. A landing page has "Use site settings" turned on for each by default; turn it off to give just that page its own, turn it on again to follow the site.
 
