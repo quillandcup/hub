@@ -5,7 +5,7 @@ import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { MEMBER_PHOTO } from "@/lib/config";
 import type { PhotoSource } from "@/lib/members/photo";
-import type { Visibility } from "@/lib/writing-visibility";
+import { isShownToMembers, type Visibility } from "@/lib/writing-visibility";
 
 const BUTTON_CLASS =
   "px-3 py-1.5 text-sm rounded-md border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
@@ -25,11 +25,10 @@ export const SOURCE_TEXT: Record<PhotoSource, string> = {
 
 /** What the lock, house or globe means for the photo, in plain words. */
 export function whoSeesPhoto(level: Visibility, source: PhotoSource, webOpen: boolean): string {
-  const initials = "other members see your initials instead";
-  if (level === "private") return `Only you see your photo; ${initials}.`;
-  if (level === "community") return source === "none" ? "Other members see your initials until you add a photo." : "Other members see your photo.";
-  const web = webOpen ? " and anyone on the web sees it on your writer profile once it is on" : "";
-  return source === "none" ? "Other members see your initials until you add a photo." : `Other members see your photo${web}.`;
+  if (!isShownToMembers(level)) return "Only you see your photo; other members see your initials instead.";
+  if (source === "none") return "Other members see your initials until you add a photo.";
+  const web = level === "public" && webOpen ? " and anyone on the web sees it on your writer profile once it is on" : "";
+  return `Other members see your photo${web}.`;
 }
 
 /**
