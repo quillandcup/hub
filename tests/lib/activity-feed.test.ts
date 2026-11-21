@@ -787,6 +787,14 @@ describe("the Finisher record in the Activity Log", () => {
     expect(describeRow({ ...milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }), actor_kind: "member" })).toBe("took back a milestone they added");
   });
 
+  it("says the answer to the question asked when a project moved forward, yes or not yet", () => {
+    const yes = describeRow(milestone("insert", { kind: { old: null, new: "the_end" }, source: { old: null, new: "project_stage" }, status: { old: null, new: "confirmed" } }));
+    expect(yes).toBe(`added the “${MILESTONE_LABELS.the_end}” milestone when a project moved forward`);
+    const notYet = describeRow(milestone("insert", { kind: { old: null, new: "publish_ready" }, source: { old: null, new: "project_stage" }, status: { old: null, new: "declined" } }));
+    expect(notYet).toBe(`said “not yet” to the “${MILESTONE_LABELS.publish_ready}” milestone when a project moved forward`);
+    expect(`${yes} ${notYet}`).not.toMatch(/proposed/);
+  });
+
   it("never repeats a story or a date the member wrote", () => {
     const sentence = describeRow(milestone("update", { status: { old: "proposed", new: "confirmed" }, story_after: { old: "[redacted]", new: "[redacted]" }, achieved_on: { old: null, new: "2026-05-01" } }));
     expect(sentence).toBe("confirmed a writing milestone");
