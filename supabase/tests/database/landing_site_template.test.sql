@@ -50,9 +50,9 @@ SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-000000
 INSERT INTO result SELECT 'admin_sees', to_jsonb(count(*)) FROM public.landing_site_template;
 INSERT INTO result SELECT 'second_row_refused', to_jsonb(pg_temp.refused($$INSERT INTO public.landing_site_template (draft_data) VALUES ('{}')$$));
 UPDATE public.landing_site_template SET draft_data = '{"header": {"show": true, "text": "Zzdraft"}}', updated_at = now(), updated_by = '00000000-0000-4000-a000-00000000f1a2';
-INSERT INTO result SELECT 'autosave_audit_rows', to_jsonb(count(*)) FROM public.audit_log WHERE entity_type = 'landing_site_template' AND action = 'update';
+INSERT INTO result SELECT 'autosave_audit_rows', to_jsonb(count(*)) FROM public.audit_log WHERE entity_type = 'landing_site_template' AND entity_id = 'lpst_SiteTest0001' AND action = 'update';
 UPDATE public.landing_site_template SET published_data = draft_data, published_at = now(), published_by = '00000000-0000-4000-a000-00000000f1a2', updated_at = now();
-INSERT INTO result SELECT 'publish_audit', to_jsonb((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_site_template' AND action = 'update' AND changes ? 'published_at' AND changes::text NOT LIKE '%Zzdraft%'));
+INSERT INTO result SELECT 'publish_audit', to_jsonb((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_site_template' AND entity_id = 'lpst_SiteTest0001' AND action = 'update' AND changes ? 'published_at' AND changes::text NOT LIKE '%Zzdraft%'));
 RESET ROLE;
 INSERT INTO result SELECT 'id_short', to_jsonb(id LIKE 'lpst\_%') FROM public.landing_site_template;
 
@@ -64,7 +64,7 @@ SELECT is((SELECT value FROM result WHERE label = 'second_row_refused'), 'true':
 SELECT is((SELECT value FROM result WHERE label = 'autosave_audit_rows'), '0'::jsonb, 'autosaving the draft writes no audit entry');
 SELECT is((SELECT value FROM result WHERE label = 'publish_audit'), '1'::jsonb, 'publishing is one audit entry without the documents');
 SELECT is((SELECT value FROM result WHERE label = 'id_short'), 'true'::jsonb, 'the id carries the lpst_ prefix');
-SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'landing_site_template' AND changes::text LIKE '%Zzdraft%'), 0, 'neither document is logged');
+SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'landing_site_template' AND entity_id = 'lpst_SiteTest0001' AND changes::text LIKE '%Zzdraft%'), 0, 'neither document is logged');
 
 SELECT * FROM finish(true);
 ROLLBACK;
