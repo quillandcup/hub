@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import WriterPageView from "@/components/writer/WriterPageView";
+import WriterProfileView from "@/components/writer/WriterProfileView";
 import { getCurrentUser } from "@/lib/auth";
 import { createRepos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { memberHasWriterPages } from "@/lib/writer-pages-access";
+import { memberHasWriterProfiles } from "@/lib/writer-profiles-access";
 import { createClient } from "@/lib/supabase/server";
 
 /** Never indexed, and only for a signed-in member: it can show a page that is still off. */
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Preview of your page", robots: { ind
  * on, built by the same repository read the public route uses so what they see is what visitors get. For the effective
  * identity, so sudo previews the member's page. Member-only (the layout signs people in) and noindex.
  */
-export default async function WriterPagePreview() {
+export default async function WriterProfilePreview() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const identity = await getEffectiveIdentity(user);
@@ -25,7 +25,7 @@ export default async function WriterPagePreview() {
 
   // Without the flag there is no page to preview: the same 404 as a page that does not exist.
   const serviceRepos = getServiceRepos();
-  if (!(await memberHasWriterPages(serviceRepos, identity.memberId))) notFound();
+  if (!(await memberHasWriterProfiles(serviceRepos, identity.memberId))) notFound();
 
   const [profile, settings] = await Promise.all([
     serviceRepos.writerProfiles.previewOfMember(identity.memberId),
@@ -46,7 +46,7 @@ export default async function WriterPagePreview() {
   }
 
   return (
-    <WriterPageView
+    <WriterProfileView
       profile={profile}
       banner={
         <div role="status" className="border-b border-amber-300 bg-amber-50 px-6 py-3 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">

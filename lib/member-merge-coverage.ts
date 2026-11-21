@@ -164,7 +164,7 @@ export const MERGE_TABLE_LABELS: Record<string, string> = {
   video_watch_segments: "Video watch history",
   wheel_of_wonder_matches: "Wheel of Wonder matches",
   writer_profile_handles: "Old public page addresses",
-  writer_profiles: "Public writer page",
+  writer_profiles: "Public writer profile",
   writing_goals: "Writing goals",
   writing_progress_entries: "Writing progress entries",
   writing_project_starting_balances: "Writing starting balances",

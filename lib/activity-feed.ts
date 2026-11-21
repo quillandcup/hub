@@ -450,7 +450,7 @@ const ENTITY_LABELS: Record<string, string> = {
   landing_page_template: "template",
   landing_site_template: "site design",
   member_milestone: "milestone",
-  writer_profile: "public writer page",
+  writer_profile: "public writer profile",
 };
 
 const NAME_FIELDS = ["title", "name", "alias"] as const;
@@ -538,18 +538,18 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
 
 /** Phrases for events that read better than "changed calendar link — first fetched at". */
 /**
- * A member's public writer page (docs/product/WRITER_PROFILES.md): the switch, and which settings changed. Never the bio (the trigger
+ * A member's public writer profile (docs/product/WRITER_PROFILES.md): the switch, and which settings changed. Never the bio (the trigger
  * redacts it) and never the address (its changes are recorded as the member's own activity, "Changed the address of ...").
  */
-function writerPagePhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown } | undefined>): string | null {
+function writerProfilePhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown } | undefined>): string | null {
   if (row.entity_type !== "writer_profile" || row.event_type !== "update") return null;
-  if (fields.is_public) return fields.is_public.new ? "turned on their public writer page" : "turned off their public writer page";
+  if (fields.is_public) return fields.is_public.new ? "turned on their public writer profile" : "turned off their public writer profile";
   const changed = [
     fields.public_name_alias_id && "the name shown",
     fields.show_photo && "whether their photo is shown",
     fields.public_bio && "the bio",
   ].filter(Boolean);
-  return changed.length > 0 ? `changed ${changed.join(" and ")} on their public writer page` : null;
+  return changed.length > 0 ? `changed ${changed.join(" and ")} on their public writer profile` : null;
 }
 
 /**
@@ -599,8 +599,8 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   if (feature) return feature;
   const pageBuilder = pageBuilderPhrase(row, fields);
   if (pageBuilder) return pageBuilder;
-  const writerPage = writerPagePhrase(row, fields);
-  if (writerPage) return writerPage;
+  const writerProfile = writerProfilePhrase(row, fields);
+  if (writerProfile) return writerProfile;
   const milestone = milestonePhrase(row, fields);
   if (milestone) return milestone;
   if (row.entity_type === "event_attendee" && row.event_type !== "update") {

@@ -4,9 +4,9 @@ import VisibilityControl from "@/components/writing/VisibilityControl";
 import { ITEM_NOUN, isWebItem, levelsFor, type ProfileItem } from "@/lib/profile-visibility";
 import type { Visibility } from "@/lib/writing-visibility";
 
-/** What the member's writer page is, as far as the visibility notes need to know. */
+/** What the member's writer profile is, as far as the visibility notes need to know. */
 export interface WebPageState {
-  /** The `writer_pages` flag is on for them: the globe is offered, and a page can exist. */
+  /** The `writer_profiles` flag is on for them: the globe is offered, and a page can exist. */
   available: boolean;
   /** The page is switched on. */
   on: boolean;
@@ -15,13 +15,13 @@ export interface WebPageState {
 const WHO: Record<Visibility, (noun: string) => string> = {
   private: (noun) => `Only you can see your ${noun}.`,
   community: (noun) => `Other members can see your ${noun}.`,
-  public: (noun) => `Anyone on the internet can see your ${noun} on your writer page once the page is on. Other members can see it too.`,
+  public: (noun) => `Anyone on the internet can see your ${noun} on your writer profile once it is on. Other members can see it too.`,
 };
 
 const CLICK: Record<Visibility, (noun: string) => string> = {
   private: () => "Click to keep it to yourself.",
   community: () => "Click to show it to other members.",
-  public: (noun) => `Click to show your ${noun} to everyone on the internet, on your writer page.`,
+  public: (noun) => `Click to show your ${noun} to everyone on the internet, on your writer profile.`,
 };
 
 /** The tooltip for a profile item's control: who sees it now, and where a click goes. */
@@ -31,23 +31,23 @@ export function describeProfileItem(item: ProfileItem, visibility: Visibility, n
 }
 
 /**
- * The plain note under an item whose level is the globe, so the globe never promises more than will happen: the page is
- * off, or pages on the web are not open to this member, or the page uses a separate public bio instead. Null when the
+ * The plain note under an item whose level is the globe, so the globe never promises more than will happen: the profile is
+ * off, or writer profiles are not open to this member, or the page uses a separate public bio instead. Null when the
  * level needs no note.
  */
 export function webNote(item: ProfileItem, visibility: Visibility, page: WebPageState, extra: { separateBio?: boolean; photoPublishable?: boolean } = {}): string | null {
   if (visibility !== "public" || !isWebItem(item)) return null;
-  if (!page.available) return "Not shown on the web: pages on the web are not open to you yet.";
-  if (item === "bio" && extra.separateBio) return "Your writer page uses your separate public bio instead.";
+  if (!page.available) return "Other members can see it. It is not on the web, because writer profiles are not open to you yet.";
+  if (item === "bio" && extra.separateBio) return "Your writer profile uses your separate public bio instead.";
   if (item === "photo" && extra.photoPublishable === false) return "No photo can be shown on the web. A Gravatar picture is never published, because its address carries a code made from your email.";
-  if (!page.on) return "Shown on the web once your writer page is on.";
+  if (!page.on) return "Other members already see this. It goes on the web once your writer profile is on.";
   return null;
 }
 
 /**
  * The lock, house or globe on one item of the profile (docs/product/WRITER_PROFILES.md, "Who sees what"), with the note that says
  * what the globe does right now. One click cycles the levels the item can have; the caller saves the level. The globe is
- * offered only on items the writer page shows, and only where pages on the web are open to the member.
+ * offered only on items the writer profile shows, and only where pages on the web are open to the member.
  */
 export default function ProfileItemVisibility({
   item,

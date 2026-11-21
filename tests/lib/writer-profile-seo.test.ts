@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { APP_URL, WRITER_PROFILES } from "@/lib/config";
 import type { PublicWriterProfile } from "@/lib/data/writer-profiles";
-import { jsonLdScript, writerPageDescription, writerPageJsonLd, writerPageMetadata } from "@/lib/writer-page-seo";
+import { jsonLdScript, writerProfileDescription, writerProfileJsonLd, writerProfileMetadata } from "@/lib/writer-profile-seo";
 import { sitemapIds, sitemapUrl } from "@/lib/writer-sitemap";
 
 const profile = (changes: Partial<PublicWriterProfile> = {}): PublicWriterProfile => ({
@@ -15,39 +15,39 @@ const profile = (changes: Partial<PublicWriterProfile> = {}): PublicWriterProfil
   ...changes,
 });
 
-describe("writerPageDescription", () => {
+describe("writerProfileDescription", () => {
   it("is a plain sentence when there is no bio", () => {
-    expect(writerPageDescription(profile())).toBe("Ada Example is a writer in the Quill & Cup community.");
+    expect(writerProfileDescription(profile())).toBe("Ada Example is a writer in the Quill & Cup community.");
   });
 
   it("is the bio on one line when it is short", () => {
-    expect(writerPageDescription(profile({ bio: "I write\ncozy   mysteries." }))).toBe("I write cozy mysteries.");
+    expect(writerProfileDescription(profile({ bio: "I write\ncozy   mysteries." }))).toBe("I write cozy mysteries.");
   });
 
   it("is cut at a word with an ellipsis when it is long", () => {
-    const description = writerPageDescription(profile({ bio: "word ".repeat(100) }));
+    const description = writerProfileDescription(profile({ bio: "word ".repeat(100) }));
     expect(description.length).toBeLessThanOrEqual(156);
     expect(description.endsWith("…")).toBe(true);
     expect(description).not.toMatch(/\s…$/);
   });
 });
 
-describe("writerPageMetadata", () => {
+describe("writerProfileMetadata", () => {
   it("can be indexed or not, with the same canonical address", () => {
-    expect(writerPageMetadata(profile(), { indexed: true }).robots).toEqual({ index: true, follow: true });
-    expect(writerPageMetadata(profile(), { indexed: false }).robots).toEqual({ index: false, follow: false });
-    expect(writerPageMetadata(profile(), { indexed: false }).alternates?.canonical).toBe(`${APP_URL}/w/ada-example`);
+    expect(writerProfileMetadata(profile(), { indexed: true }).robots).toEqual({ index: true, follow: true });
+    expect(writerProfileMetadata(profile(), { indexed: false }).robots).toEqual({ index: false, follow: false });
+    expect(writerProfileMetadata(profile(), { indexed: false }).alternates?.canonical).toBe(`${APP_URL}/w/ada-example`);
   });
 
   it("uses a small card without a photo, and a large one with it", () => {
-    expect(writerPageMetadata(profile(), { indexed: true }).twitter).toMatchObject({ card: "summary" });
-    expect(writerPageMetadata(profile({ photoUrl: "https://photos.example.com/a.png" }), { indexed: true }).twitter).toMatchObject({ card: "summary_large_image" });
+    expect(writerProfileMetadata(profile(), { indexed: true }).twitter).toMatchObject({ card: "summary" });
+    expect(writerProfileMetadata(profile({ photoUrl: "https://photos.example.com/a.png" }), { indexed: true }).twitter).toMatchObject({ card: "summary_large_image" });
   });
 });
 
 describe("structured data", () => {
   it("is a Person with what the page shows and nothing more", () => {
-    expect(writerPageJsonLd(profile())).toEqual({ "@context": "https://schema.org", "@type": "Person", name: "Ada Example", url: `${APP_URL}/w/ada-example` });
+    expect(writerProfileJsonLd(profile())).toEqual({ "@context": "https://schema.org", "@type": "Person", name: "Ada Example", url: `${APP_URL}/w/ada-example` });
   });
 
   it("escapes a closing tag so text can never end the script", () => {

@@ -74,6 +74,30 @@ defineWriterProfileContract("SupabaseWriterProfileRepository", () => ({
     const row = must(await db.from("member_name_aliases").insert({ member_id: memberId, alias, source, active: options.active ?? true, is_public: options.isPublic ?? false }).select("id").single());
     return row!.id;
   },
+  seedPublicPages: async (count) => {
+    const ids: string[] = [];
+    const handles: string[] = [];
+    // In chunks, so no request is too large.
+    for (let from = 0; from < count; from += 500) {
+      const part = Array.from({ length: Math.min(500, count - from) }, (_, i) => from + i);
+      const members = must(
+        await db
+          .from("members")
+          .insert(part.map((i) => ({ name: `Seeded ${i}`, email: `${RUN}-seed-${++counter}-${i}@example.com`, joined_at: "2026-01-01", status: "active" })))
+          .select("id"),
+      );
+      ids.push(...members!.map((m) => m.id));
+      const pages = members!.map((m) => ({ member_id: m.id, handle: `seeded-${RUN}-${++counter}`, is_public: true, published_at: new Date().toISOString() }));
+      must(await db.from("writer_profiles").insert(pages));
+      handles.push(...pages.map((p) => p.handle));
+    }
+    return {
+      handles,
+      remove: async () => {
+        for (let i = 0; i < ids.length; i += 200) must(await db.from("members").delete().in("id", ids.slice(i, i + 200)));
+      },
+    };
+  },
   changeAlias: async (id, changes) => {
     must(await db.from("member_name_aliases").update({ ...(changes.isPublic === undefined ? {} : { is_public: changes.isPublic }), ...(changes.active === undefined ? {} : { active: changes.active }) }).eq("id", id));
   },

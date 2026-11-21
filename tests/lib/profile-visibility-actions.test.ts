@@ -23,9 +23,9 @@ vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOrigina
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
 
 import { setProfileVisibility } from "@/app/(member)/settings/profileVisibilityActions";
-import { WRITER_PAGES_NOT_AVAILABLE } from "@/lib/writer-pages-access";
+import { WRITER_PROFILES_NOT_AVAILABLE } from "@/lib/writer-profiles-access";
 
-const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_pages", enabled_globally, created_at: AT, updated_at: AT });
+const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_profiles", enabled_globally, created_at: AT, updated_at: AT });
 
 beforeEach(() => {
   state.user = { id: "00000000-0000-4000-a000-0000000000a1", email: "ada@example.test" };
@@ -78,7 +78,7 @@ describe("setProfileVisibility", () => {
 
   it("refuses the globe when pages on the web are not open to the member, but still lets a public item be taken back", async () => {
     state.dataset.featureFlags = [flagRow(false)];
-    expect(await setProfileVisibility("bio", "public")).toEqual({ error: WRITER_PAGES_NOT_AVAILABLE });
+    expect(await setProfileVisibility("bio", "public")).toEqual({ error: WRITER_PROFILES_NOT_AVAILABLE });
     expect(state.dataset.memberProfileOverrides).toEqual([]);
 
     await state.repos.memberStatus.saveProfileVisibility(ADA, "bio", "public", null);
@@ -88,7 +88,7 @@ describe("setProfileVisibility", () => {
 
   it("allows the globe when the flag is on for the member through their own preview", async () => {
     state.dataset.featureFlags = [flagRow(false)];
-    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_pages", enabled_at: AT }];
+    state.dataset.userFeaturePreviews = [{ user_id: "user-ada", feature_key: "writer_profiles", enabled_at: AT }];
 
     expect(await setProfileVisibility("instagram", "public")).toEqual({ success: true });
   });
@@ -124,7 +124,7 @@ describe("setProfileVisibility", () => {
     expect(await setProfileVisibility("bio", "private")).toEqual({ error: "Couldn't save that — please try again." });
   });
 
-  it("revalidates the writer page of a member who has one when a web item changes", async () => {
+  it("revalidates the writer profile of a member who has one when a web item changes", async () => {
     await state.repos.writerProfiles.setHandle(ADA, "ada-example", { reserveDays: 1, now: new Date(AT) });
 
     await setProfileVisibility("bio", "public");

@@ -8,8 +8,8 @@ import { createRepos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { withAction } from "@/lib/analytics/server";
 import { isLevelAllowed, isProfileItem, isWebItem } from "@/lib/profile-visibility";
-import { WRITER_PAGES_NOT_AVAILABLE, memberHasWriterPages } from "@/lib/writer-pages-access";
-import { publishablePhotoUrl, writerPagePath } from "@/lib/writer-profile";
+import { WRITER_PROFILES_NOT_AVAILABLE, memberHasWriterProfiles } from "@/lib/writer-profiles-access";
+import { publishablePhotoUrl, writerProfilePath } from "@/lib/writer-profile";
 
 /**
  * Settings > Profile: who can see one item (the bio, the photo, a social link, the "Ask me about" topics), saved the moment
@@ -17,7 +17,7 @@ import { publishablePhotoUrl, writerPagePath } from "@/lib/writer-profile";
  * changes the member's own levels. The change is an audit entry as the member (a trigger on the table; never the text of the
  * item), and "no change" writes nothing.
  *
- * The globe is for the items the writer page shows, and only for a member the `writer_pages` flag is on for; the page itself
+ * The globe is for the items the writer profile shows, and only for a member the `writer_profiles` flag is on for; the page itself
  * decides whether an item with the globe is shown (the page is on, and the flag is on for its owner).
  */
 async function setProfileVisibilityImpl(item: string, level: string): Promise<{ success: true } | { error: string }> {
@@ -34,7 +34,7 @@ async function setProfileVisibilityImpl(item: string, level: string): Promise<{ 
   const service = getServiceRepos();
 
   if (level === "public") {
-    if (!(await memberHasWriterPages(service, memberId))) return { error: WRITER_PAGES_NOT_AVAILABLE };
+    if (!(await memberHasWriterProfiles(service, memberId))) return { error: WRITER_PROFILES_NOT_AVAILABLE };
     if (item === "photo" && publishablePhotoUrl((await repos.members.byId(memberId))?.photoUrl) === null) {
       return { error: "There is no photo that can be shown on a public page. A Gravatar picture is never published, because its address carries a code made from your email." };
     }
@@ -61,7 +61,7 @@ async function setProfileVisibilityImpl(item: string, level: string): Promise<{ 
   revalidatePath(`/members/${memberId}`);
   if (isWebItem(item)) {
     const page = await repos.writerProfiles.ofMember(memberId).catch(() => null);
-    if (page) revalidatePath(writerPagePath(page.handle));
+    if (page) revalidatePath(writerProfilePath(page.handle));
   }
   return { success: true };
 }
