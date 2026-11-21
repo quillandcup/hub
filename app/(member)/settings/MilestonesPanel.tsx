@@ -297,7 +297,7 @@ function PublishedItem() {
         {PUBLISHED_CLAIM} <span className="text-slate-500 dark:text-slate-400">({PUBLISHED_TITLE})</span>
       </p>
       <p className={NOTE}>
-        Confirmed by your Bookshelf.{" "}
+        Reached automatically from your Bookshelf.{" "}
         <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
           See your Bookshelf
         </Link>
@@ -309,7 +309,7 @@ function PublishedItem() {
 function WorkItem({ work, readOnly }: { work: Work; readOnly: boolean }) {
   return (
     <li className="space-y-2" data-work={work.key || "none"}>
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{work.title ?? "A work you added earlier"}</h3>
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{work.title ?? "Not linked to a work"}</h3>
       <ul className="space-y-3">
         {MILESTONE_KINDS.map((kind) => (
           <MilestoneItem key={kind} kind={kind} milestone={work.milestones[kind]} work={work} readOnly={readOnly} />
@@ -348,7 +348,7 @@ function UnlistedWork({ readOnly }: { readOnly: boolean }) {
             </div>
             <div>
               <label htmlFor="ms-unlisted-kind" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                What did you reach?
+                Which step did you reach?
               </label>
               <select id="ms-unlisted-kind" value={kind} onChange={(e) => setKind(e.target.value as MilestoneKind)} className={`${INPUT} sm:w-72`}>
                 {MILESTONE_KINDS.map((k) => (
@@ -399,8 +399,8 @@ export function MilestonesPanel({
         Your milestones
       </h2>
       <p className="mt-1 mb-2 text-sm text-slate-600 dark:text-slate-400">
-        The steps on a writer&rsquo;s path, for each of your works: you wrote THE END, you made it publish-ready, you published. Only you can say you reached
-        one, and nothing is shown to anyone until you choose where.
+        For each of your works, mark the steps you have reached: you wrote THE END, it is ready to publish, it is published. Only you can mark a step.
+        Nothing is shown to anyone until you choose where.
         {waiting && " We think you may have reached one already. Tell us if that’s right."}
         {readOnly && " (You are viewing as this member, so you can look but not change anything.)"}
       </p>
@@ -423,7 +423,7 @@ export function MilestonesPanel({
       )}
       <div className="mt-6 space-y-3">
         <p className={NOTE}>
-          A book on your Bookshelf is a published milestone by itself.{" "}
+          A book on your Bookshelf counts as published automatically.{" "}
           <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
             Go to the Bookshelf
           </Link>

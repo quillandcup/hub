@@ -35,7 +35,7 @@ export const MILESTONE_TITLES: Record<MilestoneKind, string> = {
 /** The same milestone as the member would say it, for the card that asks them. */
 export const MILESTONE_CLAIMS: Record<MilestoneKind, string> = {
   the_end: "You wrote THE END",
-  publish_ready: "You revised it until it was ready to publish",
+  publish_ready: "It is ready to publish",
 };
 
 /** The third milestone, derived from the Bookshelf and never stored (docs/product/FINISHERS.md). */

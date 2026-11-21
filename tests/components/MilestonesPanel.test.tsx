@@ -149,7 +149,7 @@ describe("MilestonesPanel (per work)", () => {
     render(<MilestonesPanel milestones={[]} />);
     await user.click(screen.getByRole("button", { name: "Add a work that is not listed here" }));
     await user.type(screen.getByLabelText("What is it called?"), "A Fake Memoir");
-    await user.selectOptions(screen.getByLabelText("What did you reach?"), "publish_ready");
+    await user.selectOptions(screen.getByLabelText("Which step did you reach?"), "publish_ready");
     await user.click(screen.getByRole("button", { name: "Add it" }));
     await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledTimes(1));
     expect(actions.addMilestone).toHaveBeenCalledWith(expect.objectContaining({ kind: "publish_ready", title: "A Fake Memoir" }));
@@ -168,7 +168,7 @@ describe("MilestonesPanel (per work)", () => {
 
   it("shows a row from before works existed under its own heading", () => {
     render(<MilestonesPanel milestones={[milestone({ projectId: null })]} />);
-    expect(screen.getByRole("heading", { name: "A work you added earlier" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Not linked to a work" })).toBeInTheDocument();
   });
 
   it("takes back a milestone the member added only after a confirmation", async () => {

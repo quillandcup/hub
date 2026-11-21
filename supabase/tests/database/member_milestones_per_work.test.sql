@@ -1,4 +1,4 @@
--- pgTAP tests for 20270876000000_member_milestones_per_work.sql (milestones belong to a work, docs/product/FINISHERS.md):
+-- pgTAP tests for 20270890000000_member_milestones_per_work.sql (milestones belong to a work, docs/product/FINISHERS.md):
 --   * a member can have the same kind for many works (a project, a book, a title), one live row per work;
 --   * the title is short and never blank, and never reaches the Activity Log;
 --   * a member's own insert may link their own live book, nobody else's;
