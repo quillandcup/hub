@@ -203,8 +203,8 @@ export const BLOCK_DEFAULTS = {
   Columns: { count: "2", gap: "medium", verticalAlign: "top" },
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
-  Button: { label: "Join us", href: "", look: "solid", color: "plum", shape: "pill", align: "center", full: false },
-  ButtonRow: { items: [{ label: "Join us", href: "", look: "solid", color: "plum", shape: "pill" }, { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" }], align: "left", gap: "medium" },
+  Button: { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill", align: "center", full: false },
+  ButtonRow: { items: [{ label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill" }, { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" }], align: "left", gap: "medium" },
   Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [{ text: "First thing", icon: "✓" }, { text: "Second thing", icon: "✓" }], align: "left" },
@@ -212,7 +212,7 @@ export const BLOCK_DEFAULTS = {
   Faq: { items: [{ question: "A question?", answer: "The answer." }] },
   Countdown: { targetAt: "", heading: "Starts in", whenExpired: "message", expiredMessage: "It has started." },
   CardGrid: { columns: "3", items: [{ alt: "", title: "A title", price: "$20", buttonLabel: "Buy now", href: "" }] },
-  LinkList: { items: [{ label: "A link", href: "" }], look: "solid", color: "plum" },
+  LinkList: { items: [{ label: "A link", href: "" }], look: "inherit", color: "plum" },
   Divider: { look: "short" },
   Spacer: { size: "medium" },
   Video: { url: "", title: "" },
@@ -220,7 +220,7 @@ export const BLOCK_DEFAULTS = {
   Steps: { heading: "How it works", items: [kid("Step", { title: "Sign up", text: "Tell us a little about you." }), kid("Step", { title: "Join in", text: "Come to your first session." }), kid("Step", { title: "Keep going", text: "Write a little each day." })] },
   Stats: { items: [kid("Stat", { value: "1,000", label: "words written a day" }), kid("Stat", { value: "24/7", label: "company" }), kid("Stat", { value: "3", label: "sessions a week" })] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
-  OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
+  OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "inherit", color: "plum", shape: "pill" },
   // Homepage blocks (components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/product/LANDING_PAGES.md, "Live data"). A block dropped on a page now starts live where its point is to be live (strip, schedule, coming up), with the typed values as the fallback; a block saved without `source` stays typed.
   AnnouncementStrip: { text: "Your next prickle starts soon", buttonLabel: "Drop in", href: "", tone: "gold", source: "live", whenNone: "hide" },
   SchedulePanel: {

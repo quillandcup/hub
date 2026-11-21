@@ -379,7 +379,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
 
   function openPublish() {
     setMessage(null);
-    setIssues(checkLandingPage(JSON.parse(latest.current)));
+    setIssues(checkLandingPage(JSON.parse(latest.current), initial.pageType === "website" ? site?.style : undefined));
     setDialog("publish");
   }
 

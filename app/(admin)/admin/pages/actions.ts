@@ -212,7 +212,9 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown, note?: str
     if (!current) return { error: NOT_FOUND };
     // A template legitimately has placeholders and empty links: its checks are warnings and never block. It is not on the public site either.
     const isTemplate = current.kind === "template";
-    const found = checkLandingPage(clean);
+    // A website page with its own style is judged against the site's published one (what the rest of its style is drawn from).
+    const siteStyle = current.page_type === "website" && pageOverrides(clean).style ? (await repos.landingSiteTemplate.published())?.style : undefined;
+    const found = checkLandingPage(clean, siteStyle);
     const issues: A11yIssue[] = isTemplate ? found.map((i) => ({ ...i, severity: "warning" as const })) : found;
     const errors = issues.filter((i) => i.severity === "error");
     if (errors.length > 0) return { error: "Fix these before publishing.", issues };

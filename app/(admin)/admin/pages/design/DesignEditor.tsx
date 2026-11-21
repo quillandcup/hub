@@ -144,7 +144,8 @@ function ItemFields({ item, onChange }: { item: HeaderItem; onChange: (next: Hea
             <input value={item.href} onChange={(e) => onChange({ ...item, href: e.target.value })} className={INPUT} />
           </Field>
           <Field label="Look">
-            <select value={item.look} onChange={(e) => onChange({ ...item, look: e.target.value as "solid" | "outline" })} className={INPUT}>
+            <select value={item.look} onChange={(e) => onChange({ ...item, look: e.target.value as "inherit" | "solid" | "outline" })} className={INPUT}>
+              <option value="inherit">Same as the site&apos;s buttons</option>
               <option value="solid">Solid</option>
               <option value="outline">Outline</option>
             </select>
@@ -160,8 +161,9 @@ function ItemFields({ item, onChange }: { item: HeaderItem; onChange: (next: Hea
             <input value={item.label} onChange={(e) => onChange({ ...item, label: e.target.value })} className={INPUT} />
           </Field>
           <Field label="Look">
-            <select value={item.look} onChange={(e) => onChange({ ...item, look: e.target.value as "link" | "solid" | "outline" })} className={INPUT}>
+            <select value={item.look} onChange={(e) => onChange({ ...item, look: e.target.value as "link" | "inherit" | "solid" | "outline" })} className={INPUT}>
               <option value="link">A plain link</option>
+              <option value="inherit">Button, as the site&apos;s buttons</option>
               <option value="solid">Solid button</option>
               <option value="outline">Outline button</option>
             </select>

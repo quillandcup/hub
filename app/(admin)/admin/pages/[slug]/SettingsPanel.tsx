@@ -86,7 +86,7 @@ export function SettingsView({
             <span className="font-medium">Favicon:</span> {siteFavicon ? "the site's favicon" : "none (the app's icon)"}
           </p>
           <p>
-            <span className="font-medium">Style:</span> {label(PAGE_BACKGROUNDS, siteStyle.pageBackground)} background, {label(PRIMARY_COLORS, siteStyle.primary).toLowerCase()} primary, {label(FONT_FAMILIES, siteStyle.fontFamily).toLowerCase()} body font.
+            <span className="font-medium">Style:</span> {label(PAGE_BACKGROUNDS, siteStyle.pageBackground)} background, {label(PRIMARY_COLORS, siteStyle.primary).toLowerCase()} primary, {siteStyle.buttonStyle} buttons, {label(FONT_FAMILIES, siteStyle.fontFamily).toLowerCase()} body font.
           </p>
           <p className={NOTE}>
             Shared by every website page. Change them once, in <DesignLink>Design</DesignLink>.

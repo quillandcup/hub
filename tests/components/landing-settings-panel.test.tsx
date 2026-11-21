@@ -66,6 +66,21 @@ describe("Settings on a landing page", () => {
     expect(base.onRoot).toHaveBeenLastCalledWith({ styleOverride: expect.objectContaining({ primary: "brown", pageBackground: "cream" }) });
   });
 
+  it("shows the site's button style while following, and lets the page choose its own once the style is its own", () => {
+    const outlined = normalizeSiteTemplate({ style: { buttonStyle: "outline" } });
+    const { rerender } = render(<SettingsView pageType="landing" {...base} site={outlined} />);
+    expect(screen.getByLabelText("Button style")).toHaveValue("outline");
+    expect(screen.getByLabelText("Button style")).toBeDisabled();
+    rerender(<SettingsView pageType="landing" {...base} site={outlined} root={{ styleOverride: { buttonStyle: "outline" } as never }} />);
+    fireEvent.change(screen.getByLabelText("Button text colour (solid buttons)"), { target: { value: "dark" } });
+    expect(base.onRoot).toHaveBeenLastCalledWith({ styleOverride: expect.objectContaining({ buttonText: "dark", buttonStyle: "outline" }) });
+  });
+
+  it("says on a website page that the site's buttons are solid or outline", () => {
+    render(<SettingsView pageType="website" {...base} site={normalizeSiteTemplate({ style: { buttonStyle: "outline" } })} />);
+    expect(screen.getByText(/outline buttons/)).toBeInTheDocument();
+  });
+
   it("turning it back on drops the override and nothing else the page keeps", () => {
     render(<SettingsView pageType="landing" {...base} root={{ styleOverride: { primary: "brown" }, faviconOverrideAssetId: "mda_OWN" }} />);
     const [favicon, style] = screen.getAllByRole("checkbox", { name: "Use site settings" });

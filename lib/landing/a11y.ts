@@ -1,7 +1,9 @@
 import { ITEM_LIMITS } from "@/components/landing/item-limits";
+import { buttonStyleProblems } from "./button-contrast";
 import { normalizeLandingData, parseEmbed, safeHref } from "./data";
 import { featuredOfferIndex } from "./journey";
 import { COMING_UP_LIST_HEADING } from "./live-kinds";
+import { normalizeStyleOverride, pageOverrides, resolveStyle } from "./style";
 
 /**
  * Checks a page before it is published (docs/product/LANDING_PAGES.md, "Accessibility checks"). A problem a visitor can't work
@@ -54,9 +56,18 @@ const ITEM_BLOCKS: Record<string, { block: string; noun: string; plural: string;
 /** The parent of each item type, to say what an item standing alone needs. */
 const ITEM_PARENT = Object.fromEntries(Object.entries(ITEM_BLOCKS).map(([parent, rule]) => [rule.item, parent]));
 
-export function checkLandingPage(value: unknown): A11yIssue[] {
+/**
+ * `siteStyle` is the site's style tokens (a website page follows them). A page with its own style (`styleOverride`) is also checked
+ * for readable buttons, as the site's own style is when the site design is published (`siteTemplateIssues`); a page that follows
+ * the site is not checked here, the site's check covers it. It is a warning: the page's own style is the editor's to weigh.
+ */
+export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue[] {
   const data = normalizeLandingData(value);
   const issues: A11yIssue[] = [];
+  const override = pageOverrides(data).style;
+  if (normalizeStyleOverride(override)) {
+    for (const message of buttonStyleProblems(resolveStyle(normalizeStyleOverride(siteStyle), override))) issues.push({ severity: "warning", block: "Page style", message });
+  }
   const headings: { level: number; text: string }[] = [];
   let blocks = 0;
 

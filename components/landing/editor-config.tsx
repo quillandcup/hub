@@ -75,7 +75,8 @@ const contentSlot = (): Field => ({ type: "slot", disallow: ITEM_BLOCKS });
 /** The list of items a block holds, each a block of its own: they drag on the canvas, and are edited by clicking one. */
 const itemsSlot = (block: keyof typeof SLOT_ALLOW, label: string): Field => ({ type: "slot", label, allow: SLOT_ALLOW[block]?.items });
 
-const LOOK = select("Style", opts("solid", "outline"));
+/** "Same as the site" takes the site style guide's button style (Design, or a page's own style); solid and outline are this button's own choice. */
+const LOOK = select("Style", [{ label: "Same as the site", value: "inherit" }, { label: "Solid", value: "solid" }, { label: "Outline", value: "outline" }]);
 const COLOR = select("Colour", opts("plum", "light", "brown"));
 
 const FIELDS: Record<string, Fields> = {
