@@ -93,7 +93,7 @@ describe("StageMilestoneDialog: one question", () => {
     await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", storyBefore: "", storyAfter: "Finally here.", shareStory: false }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", storyBefore: "", storyAfter: "Finally here.", shareStory: false, visibility: "public" }),
     );
     expect(await screen.findByTestId("stage-celebration")).toHaveTextContent(MILESTONE_CELEBRATION.the_end);
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -108,7 +108,7 @@ describe("StageMilestoneDialog: one question", () => {
     await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, storyBefore: "", storyAfter: "", shareStory: false }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, storyBefore: "", storyAfter: "", shareStory: false, visibility: "public" }),
     );
   });
 
