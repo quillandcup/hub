@@ -4,12 +4,18 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MilestonesPanel } from "@/app/(member)/settings/MilestonesPanel";
 import * as actions from "@/app/(member)/settings/milestoneActions";
-import { MILESTONE_CONSENTS, MILESTONE_LABELS, MILESTONE_SELF_ADD, MILESTONE_TITLES, PUBLISHED_TITLE } from "@/lib/finishers";
+import { MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, MILESTONE_TITLES, PUBLISHED_TITLE, SHARE_STORY_LABEL, SHARE_STORY_NOTE } from "@/lib/finishers";
 import type { Milestone } from "@/lib/data/milestones";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
-vi.mock("@/app/(member)/settings/milestoneActions", () => ({ answerMilestone: vi.fn(), addMilestone: vi.fn(), takeBackMilestone: vi.fn() }));
+vi.mock("@/app/(member)/settings/milestoneActions", () => ({
+  answerMilestone: vi.fn(),
+  addMilestone: vi.fn(),
+  takeBackMilestone: vi.fn(),
+  setMilestoneVisibility: vi.fn(),
+  setMilestoneShare: vi.fn(),
+}));
 
 const NOVEL = { id: "wpr_NOVEL", title: "A Fake Novel", phase: "revising" };
 const DRAFT = { id: "wpr_DRAFT", title: "A Fake Draft", phase: "drafting" };
@@ -26,8 +32,7 @@ const milestone = (overrides: Partial<Milestone> = {}): Milestone => ({
   achievedOn: null,
   storyBefore: null,
   storyAfter: null,
-  consentProfile: false,
-  consentHomepage: false,
+  visibility: "private",
   consentTestimonial: false,
   confirmedAt: null,
   createdAt: "2026-11-20T12:00:00Z",
@@ -106,16 +111,21 @@ describe("MilestonesPanel (per work)", () => {
     expect(screen.getByTestId("milestone-summary")).toHaveTextContent("Published Author of 1 work · Author of 1 work · Finisher of 1 work");
   });
 
-  it("adds THE END for one work: sends that work, with every consent unticked unless ticked", async () => {
+  it("adds THE END for one work: sends that work, with the share tick unticked unless ticked", async () => {
     vi.mocked(actions.addMilestone).mockResolvedValue({ success: true, added: true });
     const user = userEvent.setup();
     render(<MilestonesPanel milestones={[]} projects={[NOVEL]} books={[{ id: "book_1", title: "Its Book", projectId: NOVEL.id }]} />);
     await user.click(within(work("A Fake Novel")).getByRole("button", { name: MILESTONE_SELF_ADD.the_end.button }));
-    for (const box of screen.getAllByRole("checkbox")) expect(box).not.toBeChecked();
-    expect(screen.getAllByRole("checkbox")).toHaveLength(MILESTONE_CONSENTS.length);
+    // No story yet, so nothing to share: the tick is not on the form at all.
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
     await user.type(screen.getByLabelText(/how does it feel now/i), "Done.");
-    await user.click(screen.getByRole("checkbox", { name: /homepage/ }));
+    // It appears with the story, with the wording and the note, and starts unticked.
+    const tick = screen.getByRole("checkbox", { name: SHARE_STORY_LABEL });
+    expect(tick).not.toBeChecked();
+    expect(screen.getByText(SHARE_STORY_NOTE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "What sharing my story means" })).toBeInTheDocument();
+    await user.click(tick);
     await user.click(screen.getByRole("button", { name: "Add it" }));
     await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledTimes(1));
     expect(actions.addMilestone).toHaveBeenCalledWith({
@@ -126,7 +136,7 @@ describe("MilestonesPanel (per work)", () => {
       achievedOn: "2026-05-01",
       storyBefore: "",
       storyAfter: "Done.",
-      consents: { consent_profile: false, consent_homepage: true, consent_testimonial: false },
+      shareStory: true,
     });
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
@@ -200,11 +210,11 @@ describe("MilestonesPanel (per work)", () => {
     const user = userEvent.setup();
     render(<MilestonesPanel milestones={[milestone()]} projects={[NOVEL]} />);
     expect(screen.getByText(/Suggested by the Quill & Cup team/)).toBeInTheDocument();
-    expect(screen.getByText(/nothing is shown to anyone until you choose where/i)).toBeInTheDocument();
+    expect(screen.getByText(/stays private until you confirm it/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Yes, this is me" }));
-    for (const box of screen.getAllByRole("checkbox")) expect(box).not.toBeChecked();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText(/before you got here/), "Stuck in chapter two.");
-    await user.click(screen.getByRole("checkbox", { name: /My writer profile/ }));
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).not.toBeChecked();
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(actions.answerMilestone).toHaveBeenCalledTimes(1));
     expect(actions.answerMilestone).toHaveBeenCalledWith({
@@ -213,7 +223,7 @@ describe("MilestonesPanel (per work)", () => {
       achievedOn: null,
       storyBefore: "Stuck in chapter two.",
       storyAfter: "",
-      consents: { consent_profile: true, consent_homepage: false, consent_testimonial: false },
+      shareStory: false,
     });
   });
 
@@ -225,25 +235,22 @@ describe("MilestonesPanel (per work)", () => {
     await waitFor(() => expect(actions.answerMilestone).toHaveBeenCalledWith({ id: "mlst_AAAAAAAAAAA1", answer: "decline" }));
   });
 
-  it("shows what a confirmed milestone may be used for, lets the member change it, and reopens a declined one", async () => {
+  it("shows a confirmed milestone's share tick as the member left it, and lets them change it", async () => {
     const user = userEvent.setup();
-    render(<MilestonesPanel milestones={[milestone({ status: "confirmed", confirmedAt: "x", consentHomepage: true })]} projects={[NOVEL]} />);
-    expect(screen.getByText(/we may show it on: The Quill & Cup homepage/)).toBeInTheDocument();
+    render(<MilestonesPanel milestones={[milestone({ status: "confirmed", confirmedAt: "x", storyAfter: "At last.", consentTestimonial: true })]} projects={[NOVEL]} />);
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Change" }));
-    expect(screen.getByRole("checkbox", { name: /homepage/ })).toBeChecked();
+    expect(screen.getAllByRole("checkbox", { name: SHARE_STORY_LABEL })).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeChecked();
   });
 
   it("reopens a declined milestone", async () => {
     const user = userEvent.setup();
     render(<MilestonesPanel milestones={[milestone({ status: "declined" })]} projects={[NOVEL]} />);
-    expect(screen.getByText(/We won.t show it anywhere/)).toBeInTheDocument();
+    expect(screen.getByText(/It isn.t shown anywhere/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Actually, it is me" }));
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
-  });
-
-  it("says a confirmed milestone with no ticks stays private", () => {
-    render(<MilestonesPanel milestones={[milestone({ status: "confirmed", confirmedAt: "x" })]} projects={[NOVEL]} />);
-    expect(screen.getByText(/stays private/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
   it("is look-only while an admin views as the member", () => {
@@ -254,3 +261,102 @@ describe("MilestonesPanel (per work)", () => {
     expect(screen.getByText(/viewing as this member/)).toBeInTheDocument();
   });
 });
+
+const confirmed = (overrides: Partial<Milestone> = {}) => milestone({ status: "confirmed", source: "member", confirmedAt: "2026-11-20T12:00:00Z", visibility: "community", ...overrides });
+
+describe("MilestonesPanel (who sees it, and the share tick)", () => {
+  it("shows the control on a confirmed milestone only, never on a proposal, a declined one or an empty row", () => {
+    render(<MilestonesPanel milestones={[confirmed(), milestone({ id: "m2", kind: "publish_ready" })]} projects={[NOVEL]} />);
+    expect(screen.getAllByRole("button", { name: /Who can see this milestone/ })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Who can see this milestone: Other members" })).toBeInTheDocument();
+  });
+
+  it("cycles lock, house, and only offers the globe when writer profiles are open", async () => {
+    vi.mocked(actions.setMilestoneVisibility).mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    const { unmount } = render(<MilestonesPanel milestones={[confirmed()]} projects={[NOVEL]} web={{ available: false, on: false }} />);
+    // house -> (no globe) -> lock
+    await user.click(screen.getByRole("button", { name: /Who can see this milestone/ }));
+    expect(actions.setMilestoneVisibility).toHaveBeenLastCalledWith("mlst_AAAAAAAAAAA1", "private");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Who can see this milestone: Only me" })).toBeInTheDocument());
+    unmount();
+    render(<MilestonesPanel milestones={[confirmed()]} projects={[NOVEL]} web={{ available: true, on: true }} />);
+    await user.click(screen.getByRole("button", { name: /Who can see this milestone/ }));
+    expect(actions.setMilestoneVisibility).toHaveBeenLastCalledWith("mlst_AAAAAAAAAAA1", "public");
+  });
+
+  it("goes back and says why when the level cannot be saved", async () => {
+    vi.mocked(actions.setMilestoneVisibility).mockResolvedValue({ error: "Writer profiles are not open to you yet." });
+    const user = userEvent.setup();
+    render(<MilestonesPanel milestones={[confirmed()]} projects={[NOVEL]} web={{ available: true, on: true }} />);
+    await user.click(screen.getByRole("button", { name: /Who can see this milestone/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Writer profiles are not open to you yet.");
+    expect(screen.getByRole("button", { name: "Who can see this milestone: Other members" })).toBeInTheDocument();
+  });
+
+  it("says what the globe does right now when the profile is off or not open", () => {
+    const { rerender } = render(<MilestonesPanel milestones={[confirmed({ visibility: "public" })]} projects={[NOVEL]} web={{ available: true, on: false }} />);
+    expect(screen.getByTestId("milestone-web-note")).toHaveTextContent(/once your writer profile is on/);
+    rerender(<MilestonesPanel milestones={[confirmed({ visibility: "public" })]} projects={[NOVEL]} web={{ available: false, on: false }} />);
+    expect(screen.getByTestId("milestone-web-note")).toHaveTextContent(/not open to you yet/);
+    rerender(<MilestonesPanel milestones={[confirmed({ visibility: "public" })]} projects={[NOVEL]} web={{ available: true, on: true }} />);
+    expect(screen.queryByTestId("milestone-web-note")).not.toBeInTheDocument();
+  });
+
+  it("is look-only for the control and the tick while an admin views as the member", () => {
+    render(<MilestonesPanel milestones={[confirmed({ storyAfter: "Done." })]} projects={[NOVEL]} readOnly />);
+    expect(screen.getByRole("button", { name: /Who can see this milestone/ })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeDisabled();
+  });
+
+  it("shows no share tick on a confirmed milestone without a story", () => {
+    render(<MilestonesPanel milestones={[confirmed()]} projects={[NOVEL]} />);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("withdraws the share tick on the card, with no warning, and puts it back if that fails", async () => {
+    vi.mocked(actions.setMilestoneShare).mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ error: "We couldn't save that." });
+    const user = userEvent.setup();
+    render(<MilestonesPanel milestones={[confirmed({ storyAfter: "Done.", consentTestimonial: true })]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL }));
+    expect(actions.setMilestoneShare).toHaveBeenLastCalledWith("mlst_AAAAAAAAAAA1", false);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).not.toBeChecked());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't save that.");
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).not.toBeChecked();
+  });
+
+  it("celebrates THE END after it is confirmed, and a plain line for publish-ready, before anything else", async () => {
+    vi.mocked(actions.answerMilestone).mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    // The server's next render has the milestone confirmed; stand in for it by re-rendering after the save.
+    const { rerender } = render(<MilestonesPanel milestones={[milestone()]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("button", { name: "Yes, this is me" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(actions.answerMilestone).toHaveBeenCalled());
+    rerender(<MilestonesPanel milestones={[confirmed({ source: "staff" })]} projects={[NOVEL]} />);
+    expect(await screen.findByTestId("milestone-celebration")).toHaveTextContent(MILESTONE_CELEBRATION.the_end);
+    expect(MILESTONE_CELEBRATION.the_end).toBe("You wrote THE END. We're so proud of you.");
+  });
+
+  it("celebrates publish-ready with its own line, and not after a plain change of a confirmed one", async () => {
+    vi.mocked(actions.addMilestone).mockResolvedValue({ success: true, added: true });
+    vi.mocked(actions.answerMilestone).mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    const { rerender } = render(<MilestonesPanel milestones={[]} projects={[NOVEL]} />);
+    await user.click(within(work("A Fake Novel")).getByRole("button", { name: MILESTONE_SELF_ADD.publish_ready.button }));
+    await user.click(screen.getByRole("button", { name: "Add it" }));
+    await waitFor(() => expect(actions.addMilestone).toHaveBeenCalled());
+    rerender(<MilestonesPanel milestones={[confirmed({ kind: "publish_ready" })]} projects={[NOVEL]} />);
+    expect(await screen.findByTestId("milestone-celebration")).toHaveTextContent(MILESTONE_CELEBRATION.publish_ready);
+
+    // Changing a milestone that was already confirmed does not celebrate again.
+    rerender(<MilestonesPanel milestones={[confirmed()]} projects={[{ ...NOVEL, id: "wpr_OTHER", title: "Another Fake Novel" }]} />);
+    await user.click(screen.getAllByRole("button", { name: "Change" })[0]);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(actions.answerMilestone).toHaveBeenCalled());
+    expect(screen.queryByTestId("milestone-celebration")).not.toBeInTheDocument();
+  });
+});
+

@@ -27,9 +27,10 @@ export default async function WriterProfilePreview() {
   const serviceRepos = getServiceRepos();
   if (!(await memberHasWriterProfiles(serviceRepos, identity.memberId))) notFound();
 
-  const [profile, settings] = await Promise.all([
+  const [profile, settings, milestones] = await Promise.all([
     serviceRepos.writerProfiles.previewOfMember(identity.memberId),
     createRepos(await createClient()).writerProfiles.ofMember(identity.memberId),
+    serviceRepos.milestones.shownOnWeb(identity.memberId),
   ]);
 
   if (!profile || !settings) {
@@ -48,6 +49,7 @@ export default async function WriterProfilePreview() {
   return (
     <WriterProfileView
       profile={profile}
+      milestones={milestones}
       banner={
         <div role="status" className="border-b border-amber-300 bg-amber-50 px-6 py-3 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
           This is a preview, the way a visitor sees your page.{" "}

@@ -383,6 +383,42 @@ describe("member profile page: private notes", () => {
   });
 });
 
+describe("member profile page: Milestones strip", () => {
+  const SHOWN = [
+    { kind: "the_end", work_title: "A Fake Novel", achieved_on: "2026-05-01", story_before: null, story_after: "I finally did it.", visibility: "community" },
+    { kind: "publish_ready", work_title: null, achieved_on: null, story_before: "<b>Stuck</b> for years.", story_after: null, visibility: "public" },
+  ];
+
+  it("shows what the member showed to other members: the title, the work, the day and the story they wrote", async () => {
+    const supabase = useFakeSupabase(tables({ "rpc:milestones_shown_to_members": { data: SHOWN } }));
+    await renderServerPage(MemberProfilePage, params);
+    const strip = screen.getByTestId("milestone-strip");
+    expect(within(strip).getByRole("heading", { name: "Milestones" })).toBeInTheDocument();
+    expect(within(strip).getByText("Finisher · Wrote THE END")).toBeInTheDocument();
+    expect(within(strip).getByText("A Fake Novel · May 1, 2026")).toBeInTheDocument();
+    expect(within(strip).getByText("I finally did it.")).toBeInTheDocument();
+    expect(within(strip).getByText("Author · Manuscript ready to publish")).toBeInTheDocument();
+    // A story is plain text, never markup.
+    expect(within(strip).getByText("<b>Stuck</b> for years.")).toBeInTheDocument();
+    expect(strip.querySelector("b")).toBeNull();
+    // The reader is asked for the member being viewed, not the signed-in one.
+    expect(supabase.queries.find((q) => q.table === "rpc:milestones_shown_to_members")?.calls).toContainEqual({ method: "args", args: [{ p_member_id: PROFILE_ID }] });
+  });
+
+  it("shows nothing when the member has shown none (an empty strip is not drawn), the same for an admin", async () => {
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Milestones" })).not.toBeInTheDocument();
+  });
+
+  it("still draws the page when the milestones cannot be read", async () => {
+    useFakeSupabase(tables({ "rpc:milestones_shown_to_members": { error: { message: "boom" } } }));
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Hazel Burrowes" })).toBeInTheDocument();
+  });
+});
+
 describe("member profile page: access", () => {
   it("redirects a user with no effective member identity to /admin", async () => {
     signInAs(ADMIN_USER, null);

@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_STORY_LENGTH,
-  MILESTONE_CONSENTS,
+  MILESTONE_CELEBRATION,
+  MILESTONE_SHOWN,
+  SHARE_STORY_DEFAULT,
+  SHARE_STORY_LABEL,
+  SHARE_STORY_NOTE,
+  SHARE_STORY_TIP,
+  describeMilestoneLevel,
+  hasStory,
+  milestoneDateWords,
+  milestoneLevels,
+  milestoneWebNote,
   MILESTONE_KINDS,
   MILESTONE_LABELS,
   MILESTONE_TITLES,
@@ -46,21 +56,25 @@ describe("orgToday", () => {
 });
 
 describe("parseMilestoneAnswer", () => {
-  it("confirms with every consent off unless ticked", () => {
+  it("confirms with the share consent off unless ticked", () => {
+    expect(SHARE_STORY_DEFAULT).toBe(false);
     expect(parseMilestoneAnswer({ answer: "confirm" }, NOW)).toEqual({
       status: "confirmed",
       achievedOn: null,
       storyBefore: null,
       storyAfter: null,
-      consent_profile: false,
-      consent_homepage: false,
       consent_testimonial: false,
     });
-    const ticked = parseMilestoneAnswer({ answer: "confirm", consents: { consent_homepage: true } }, NOW);
-    expect(ticked).toMatchObject({ consent_profile: false, consent_homepage: true, consent_testimonial: false });
+    expect(parseMilestoneAnswer({ answer: "confirm", storyAfter: "At last.", shareStory: true }, NOW)).toMatchObject({ consent_testimonial: true });
+    expect(parseMilestoneAnswer({ answer: "confirm", storyAfter: "At last." }, NOW)).toMatchObject({ consent_testimonial: false });
     // Only a real `true` counts.
-    expect(parseMilestoneAnswer({ answer: "confirm", consents: { consent_profile: "yes" as unknown as boolean } }, NOW)).toMatchObject({ consent_profile: false });
-    expect(MILESTONE_CONSENTS.map((c) => c.key)).toEqual(["consent_profile", "consent_homepage", "consent_testimonial"]);
+    expect(parseMilestoneAnswer({ answer: "confirm", storyAfter: "At last.", shareStory: "yes" as unknown as boolean }, NOW)).toMatchObject({ consent_testimonial: false });
+  });
+
+  it("never keeps the consent without a story to share, and a blank story is no story", () => {
+    expect(parseMilestoneAnswer({ answer: "confirm", shareStory: true }, NOW)).toMatchObject({ consent_testimonial: false });
+    expect(parseMilestoneAnswer({ answer: "confirm", storyBefore: "   ", shareStory: true }, NOW)).toMatchObject({ consent_testimonial: false });
+    expect(parseMilestoneAnswer({ answer: "confirm", storyBefore: "Stuck.", shareStory: true }, NOW)).toMatchObject({ consent_testimonial: true });
   });
 
   it("trims the stories and treats blank as none", () => {
@@ -72,7 +86,7 @@ describe("parseMilestoneAnswer", () => {
   });
 
   it("keeps nothing for a decline, whatever else was sent", () => {
-    expect(parseMilestoneAnswer({ answer: "decline", storyAfter: "x", consents: { consent_profile: true } }, NOW)).toEqual({ status: "declined" });
+    expect(parseMilestoneAnswer({ answer: "decline", storyAfter: "x", shareStory: true }, NOW)).toEqual({ status: "declined" });
   });
 
   it("accepts today and earlier in the Eastern day, refuses tomorrow and nonsense dates", () => {
@@ -91,14 +105,14 @@ describe("parseMilestoneAnswer", () => {
 });
 
 describe("parseMilestoneSelfAdd", () => {
-  it("reads the kind and a confirmed answer, every consent off unless ticked", () => {
+  it("reads the kind and a confirmed answer, the share consent off unless ticked", () => {
     expect(parseMilestoneSelfAdd({ kind: "the_end" }, NOW)).toEqual({
       kind: "the_end",
-      answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_profile: false, consent_homepage: false, consent_testimonial: false },
+      answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false },
     });
-    expect(parseMilestoneSelfAdd({ kind: "publish_ready", achievedOn: "2026-05-01", consents: { consent_profile: true } }, NOW)).toMatchObject({
+    expect(parseMilestoneSelfAdd({ kind: "publish_ready", achievedOn: "2026-05-01", storyAfter: "Done.", shareStory: true }, NOW)).toMatchObject({
       kind: "publish_ready",
-      answer: { achievedOn: "2026-05-01", consent_profile: true, consent_homepage: false },
+      answer: { achievedOn: "2026-05-01", consent_testimonial: true },
     });
   });
 
@@ -106,5 +120,48 @@ describe("parseMilestoneSelfAdd", () => {
     expect(parseMilestoneSelfAdd({ kind: "published" }, NOW)).toHaveProperty("error");
     expect(parseMilestoneSelfAdd({ kind: undefined }, NOW)).toHaveProperty("error");
     expect(parseMilestoneSelfAdd({ kind: "the_end", achievedOn: "2999-01-01" }, NOW)).toHaveProperty("error");
+  });
+});
+
+describe("the share consent and the visibility words", () => {
+  it("keeps the agreed consent wording, with the marketing uses in the tip", () => {
+    expect(SHARE_STORY_LABEL).toBe("Share my story to inspire other writers.");
+    expect(SHARE_STORY_NOTE).toMatch(/we may feature it on the Quill & Cup website/);
+    expect(SHARE_STORY_NOTE).toMatch(/you can change your mind any time/);
+    expect(SHARE_STORY_TIP).toBe("For marketing: the Finishers section of our website, and testimonials we share.");
+  });
+
+  it("says something warm for each milestone and never promises sales or exposure", () => {
+    expect(MILESTONE_CELEBRATION.the_end).toBe("You wrote THE END. We're so proud of you.");
+    for (const kind of MILESTONE_KINDS) {
+      expect(MILESTONE_CELEBRATION[kind].length).toBeGreaterThan(10);
+      expect(MILESTONE_SHOWN[kind].length).toBeGreaterThan(5);
+    }
+    expect(`${SHARE_STORY_NOTE} ${SHARE_STORY_TIP}`).not.toMatch(/sales|sell|exposure|famous|guarantee/i);
+  });
+
+  it("offers the globe only where writer profiles are open", () => {
+    expect(milestoneLevels(false)).toEqual(["private", "community"]);
+    expect(milestoneLevels(true)).toEqual(["private", "community", "public"]);
+  });
+
+  it("describes who sees it now and where a click goes, and says the story goes with it", () => {
+    expect(describeMilestoneLevel("private", "community")).toBe("Only you can see this milestone. The story you wrote goes with it. Click to show it to other members.");
+    expect(describeMilestoneLevel("community", "public")).toMatch(/Other members can see this milestone on your profile\..*everyone on the internet/);
+    expect(describeMilestoneLevel("public", "private")).toMatch(/Anyone on the internet can see this milestone.*Click to keep it to yourself/);
+  });
+
+  it("notes what the globe does right now, only at the globe", () => {
+    expect(milestoneWebNote("community", { available: false, on: false })).toBeNull();
+    expect(milestoneWebNote("public", { available: true, on: true })).toBeNull();
+    expect(milestoneWebNote("public", { available: false, on: false })).toMatch(/not open to you yet/);
+    expect(milestoneWebNote("public", { available: true, on: false })).toMatch(/once your writer profile is on/);
+  });
+
+  it("knows a story from blank, and writes a day as words without a zone", () => {
+    expect(hasStory({ storyBefore: null, storyAfter: null })).toBe(false);
+    expect(hasStory({ storyBefore: "  ", storyAfter: null })).toBe(false);
+    expect(hasStory({ storyBefore: null, storyAfter: "Done." })).toBe(true);
+    expect(milestoneDateWords("2026-05-01")).toBe("May 1, 2026");
   });
 });

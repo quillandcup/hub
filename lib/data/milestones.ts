@@ -1,5 +1,6 @@
 import type { ConfirmedMilestoneAnswer, MilestoneAnswer, MilestoneKind, MilestoneSource, MilestoneStatus } from "@/lib/finishers";
 import { workKey, type WorkRef } from "@/lib/finishers-works";
+import type { Visibility } from "@/lib/writing-visibility";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { byKeyThenId, must } from "./query";
@@ -22,11 +23,23 @@ export type Milestone = {
   achievedOn: string | null;
   storyBefore: string | null;
   storyAfter: string | null;
-  consentProfile: boolean;
-  consentHomepage: boolean;
+  /** Who can see it (and the story with it): only the member, other members, or the web. Only a confirmed milestone is more than private. */
+  visibility: Visibility;
+  /** "Share my story to inspire other writers": the one marketing consent. Only on a confirmed milestone. */
   consentTestimonial: boolean;
   confirmedAt: string | null;
   createdAt: string;
+};
+
+/** A milestone as another member or a visitor of the web sees it: no id, only what the member's level allows. */
+export type ShownMilestone = {
+  kind: MilestoneKind;
+  /** The title the member wrote, or the book's; null for a milestone of a project (a project's name follows the project's own level). */
+  workTitle: string | null;
+  achievedOn: string | null;
+  storyBefore: string | null;
+  storyAfter: string | null;
+  visibility: Visibility;
 };
 
 /** A milestone as the staff list shows it: the member's names, never the stories. */
@@ -51,12 +64,12 @@ export type MilestoneProposal = {
 };
 
 const COLUMNS =
-  "id, member_id, kind, project_id, book_id, title, status, source, achieved_on, story_before, story_after, consent_profile, consent_homepage, consent_testimonial, confirmed_at, created_at";
+  "id, member_id, kind, project_id, book_id, title, status, source, achieved_on, story_before, story_after, visibility, consent_testimonial, confirmed_at, created_at";
 
 type MilestoneColumns = Pick<
   MilestoneRow,
   | "id" | "member_id" | "kind" | "project_id" | "book_id" | "title" | "status" | "source" | "achieved_on" | "story_before" | "story_after"
-  | "consent_profile" | "consent_homepage" | "consent_testimonial" | "confirmed_at" | "created_at"
+  | "visibility" | "consent_testimonial" | "confirmed_at" | "created_at"
 >;
 
 // The check constraints hold kind, status and source to these values; the generated types see plain text.
@@ -73,12 +86,17 @@ function toMilestone(r: MilestoneColumns): Milestone {
     achievedOn: r.achieved_on,
     storyBefore: r.story_before,
     storyAfter: r.story_after,
-    consentProfile: r.consent_profile,
-    consentHomepage: r.consent_homepage,
+    visibility: r.visibility as Visibility,
     consentTestimonial: r.consent_testimonial,
     confirmedAt: r.confirmed_at,
     createdAt: r.created_at,
   };
+}
+
+type ShownColumns = { kind: string; work_title: string | null; achieved_on: string | null; story_before: string | null; story_after: string | null; visibility: string };
+
+function toShown(r: ShownColumns): ShownMilestone {
+  return { kind: r.kind as MilestoneKind, workTitle: r.work_title, achievedOn: r.achieved_on, storyBefore: r.story_before, storyAfter: r.story_after, visibility: r.visibility as Visibility };
 }
 
 const STATUSES: readonly MilestoneStatus[] = ["proposed", "confirmed", "declined"];
@@ -97,10 +115,14 @@ export type MilestoneSelfAdd = {
   createdBy: string;
 };
 
-/** The columns an answer writes. A decline clears every consent, because a consent only exists on a confirmed row. */
+/**
+ * The columns an answer writes. A decline clears the consent and the level, because both only exist on a confirmed row. A
+ * confirmation names no level: the database moves a milestone that was not confirmed before to "community" (the default), and
+ * changing one that is already confirmed never moves it.
+ */
 function answerColumns(answer: MilestoneAnswer, nowIso: string) {
   if (answer.status === "declined") {
-    return { status: "declined", confirmed_at: null, consent_profile: false, consent_homepage: false, consent_testimonial: false, updated_at: nowIso };
+    return { status: "declined", confirmed_at: null, consent_testimonial: false, visibility: "private", updated_at: nowIso };
   }
   return {
     status: "confirmed",
@@ -108,8 +130,6 @@ function answerColumns(answer: MilestoneAnswer, nowIso: string) {
     achieved_on: answer.achievedOn,
     story_before: answer.storyBefore,
     story_after: answer.storyAfter,
-    consent_profile: answer.consent_profile,
-    consent_homepage: answer.consent_homepage,
     consent_testimonial: answer.consent_testimonial,
     updated_at: nowIso,
   };
@@ -147,6 +167,17 @@ export interface MilestoneRepository {
   takeBack(id: string, memberId: string, now: Date): Promise<boolean>;
   /** The member answers (or changes their answer). False when the member has no such live milestone. */
   answer(id: string, memberId: string, answer: MilestoneAnswer, now: Date): Promise<boolean>;
+  /** The member sets who can see one of their confirmed milestones. False when they have no such live confirmed one (a proposal has no level). */
+  setVisibility(id: string, memberId: string, visibility: Visibility, now: Date): Promise<boolean>;
+  /** The member ticks or unticks "share my story" on one of their confirmed milestones. False when they have no such live confirmed one. */
+  setShareStory(id: string, memberId: string, share: boolean, now: Date): Promise<boolean>;
+  /**
+   * What other members see on this member's profile: their confirmed, live milestones at community or public level, with the
+   * stories. Never a private one, whoever asks (an admin included); no ids.
+   */
+  shownToMembers(memberId: string): Promise<ShownMilestone[]>;
+  /** What a visitor of the web sees on this member's writer profile: only the milestones at the globe. Service role; the page checks that the profile is on. */
+  shownOnWeb(memberId: string): Promise<ShownMilestone[]>;
 }
 
 export class SupabaseMilestoneRepository implements MilestoneRepository {
@@ -275,8 +306,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
         story_after: add.answer.storyAfter,
         status: "confirmed",
         confirmed_at: now.toISOString(),
-        consent_profile: add.answer.consent_profile,
-        consent_homepage: add.answer.consent_homepage,
+        visibility: "community",
         consent_testimonial: add.answer.consent_testimonial,
       })
       .select(COLUMNS)
@@ -317,6 +347,42 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data !== null;
+  }
+
+  async setVisibility(id: string, memberId: string, visibility: Visibility, now: Date) {
+    const { data, error } = await this.db
+      .from("member_milestones")
+      .update({ visibility, updated_at: now.toISOString() })
+      .eq("id", id)
+      .eq("member_id", memberId)
+      .eq("status", "confirmed")
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data !== null;
+  }
+
+  async setShareStory(id: string, memberId: string, share: boolean, now: Date) {
+    const { data, error } = await this.db
+      .from("member_milestones")
+      .update({ consent_testimonial: share, updated_at: now.toISOString() })
+      .eq("id", id)
+      .eq("member_id", memberId)
+      .eq("status", "confirmed")
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data !== null;
+  }
+
+  async shownToMembers(memberId: string) {
+    return (must(await this.db.rpc("milestones_shown_to_members", { p_member_id: memberId })) ?? []).map(toShown);
+  }
+
+  async shownOnWeb(memberId: string) {
+    return (must(await this.db.rpc("milestones_shown_on_web", { p_member_id: memberId })) ?? []).map(toShown);
   }
 }
 
@@ -384,6 +450,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       consent_profile: false,
       consent_homepage: false,
       consent_testimonial: false,
+      visibility: "private",
       created_by: createdBy,
       confirmed_at: null,
       created_at: now,
@@ -458,9 +525,10 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       story_after: add.answer.storyAfter,
       source: "member",
       status: "confirmed",
-      consent_profile: add.answer.consent_profile,
-      consent_homepage: add.answer.consent_homepage,
+      consent_profile: false,
+      consent_homepage: false,
       consent_testimonial: add.answer.consent_testimonial,
+      visibility: "community",
       created_by: add.createdBy,
       confirmed_at: iso,
       created_at: iso,
@@ -481,7 +549,52 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
   async answer(id: string, memberId: string, answer: MilestoneAnswer, now: Date) {
     const row = this.live().find((m) => m.id === id && m.member_id === memberId);
     if (!row) return false;
+    const wasConfirmed = row.status === "confirmed";
     Object.assign(row, answerColumns(answer, now.toISOString()));
+    // The database trigger: a milestone confirmed for the first time starts at "community"; one already confirmed keeps its level.
+    if (answer.status === "confirmed" && !wasConfirmed && row.visibility === "private") row.visibility = "community";
     return true;
+  }
+
+  private confirmedOf(id: string, memberId: string) {
+    return this.live().find((m) => m.id === id && m.member_id === memberId && m.status === "confirmed");
+  }
+
+  async setVisibility(id: string, memberId: string, visibility: Visibility, now: Date) {
+    const row = this.confirmedOf(id, memberId);
+    if (!row) return false;
+    row.visibility = visibility;
+    row.updated_at = now.toISOString();
+    return true;
+  }
+
+  async setShareStory(id: string, memberId: string, share: boolean, now: Date) {
+    const row = this.confirmedOf(id, memberId);
+    if (!row) return false;
+    row.consent_testimonial = share;
+    row.updated_at = now.toISOString();
+    return true;
+  }
+
+  private shown(memberId: string, levels: readonly string[]): ShownMilestone[] {
+    return this.live()
+      .filter((m) => m.member_id === memberId && m.status === "confirmed" && levels.includes(m.visibility))
+      .sort(byKeyThenId<MilestoneRow>((m) => m.kind, (m) => m.id, true))
+      .map((m) => ({
+        kind: m.kind as MilestoneKind,
+        workTitle: m.title ?? this.data.memberBooks.find((b) => b.id === m.book_id && (b.deleted_at ?? null) === null)?.title ?? null,
+        achievedOn: m.achieved_on,
+        storyBefore: m.story_before,
+        storyAfter: m.story_after,
+        visibility: m.visibility as Visibility,
+      }));
+  }
+
+  async shownToMembers(memberId: string) {
+    return this.shown(memberId, ["community", "public"]);
+  }
+
+  async shownOnWeb(memberId: string) {
+    return this.shown(memberId, ["public"]);
   }
 }

@@ -5165,6 +5165,7 @@ export type Database = {
           story_before: string | null
           title: string | null
           updated_at: string
+          visibility: string
         }
         Insert: {
           achieved_on?: string | null
@@ -5186,6 +5187,7 @@ export type Database = {
           story_before?: string | null
           title?: string | null
           updated_at?: string
+          visibility?: string
         }
         Update: {
           achieved_on?: string | null
@@ -5207,6 +5209,7 @@ export type Database = {
           story_before?: string | null
           title?: string | null
           updated_at?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -8844,6 +8847,28 @@ export type Database = {
           last_started_on: string
           member_id: string
           mentored_count: number
+        }[]
+      }
+      milestones_shown_on_web: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_title: string
+        }[]
+      }
+      milestones_shown_to_members: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_title: string
         }[]
       }
       moderate_lesson_comment: {

@@ -16,6 +16,7 @@ import GoalDisplay from "@/components/writing/GoalDisplay"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import { createRepos } from "@/lib/data/repos"
 import MemberBadgeChips from "@/components/member/MemberBadgeChips"
+import MilestoneStrip from "@/components/member/MilestoneStrip"
 import MemberSocialLinks from "@/components/member/MemberSocialLinks"
 import AskMeAboutTopics from "@/components/member/AskMeAboutTopics"
 import { safeUrl } from "@/lib/url"
@@ -87,12 +88,14 @@ export default async function MemberProfilePage({
   // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
   // would resolve the admin as the author -- see app/(member)/members/[id]/noteActions.ts.
   const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
-  const [booksData, awards, tzPref, askMeAbout, noteRow] = await Promise.all([
+  const [booksData, awards, tzPref, askMeAbout, noteRow, milestones] = await Promise.all([
     createRepos(supabase).books.ofMember(id),
     createRepos(supabase).awards.ofMember(id),
     getUserTimezonePreference(),
     createRepos(supabase).memberProfile.askMeAbout(id),
     showNotes ? createRepos(supabase).memberProfile.noteAbout(effectiveIdentity.memberId, id) : Promise.resolve(null),
+    // Only milestones the member showed to other members (or the web): the same list for them, an admin and any member, never a private one.
+    createRepos(supabase).milestones.shownToMembers(id).catch(() => []),
   ])
   const books = booksData
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
@@ -235,6 +238,13 @@ export default async function MemberProfilePage({
             Badges
           </h2>
           <MemberBadgeChips badges={earnedBadges} bigSistersEnabled={bigSistersEnabled} />
+        </div>
+      )}
+
+      {/* Tier 3: visible to all -- only milestones the member showed to other members (the lock hides them) */}
+      {milestones.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <MilestoneStrip milestones={milestones} />
         </div>
       )}
 

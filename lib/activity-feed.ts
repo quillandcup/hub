@@ -574,7 +574,14 @@ function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChang
   if (fields.deleted_at?.new && !fields.deleted_at.old) return `took back a proposed milestone for ${row.member_name ?? "a member"}`;
   if (fields.status?.new === "confirmed") return "confirmed a writing milestone";
   if (fields.status?.new === "declined") return "said a proposed writing milestone is not theirs, or not yet";
-  if (fields.consent_profile || fields.consent_homepage || fields.consent_testimonial) return "changed where a writing milestone may be shown";
+  if (typeof fields.visibility?.new === "string") {
+    if (fields.visibility.new === "private") return "made a writing milestone private";
+    if (fields.visibility.new === "public") return "showed a writing milestone on their public writer profile";
+    return "showed a writing milestone to other members";
+  }
+  if (fields.consent_testimonial) {
+    return fields.consent_testimonial.new === true ? "said we may feature the story of a writing milestone" : "took back permission to feature the story of a writing milestone";
+  }
   return null;
 }
 

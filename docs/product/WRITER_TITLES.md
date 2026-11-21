@@ -27,7 +27,7 @@ A course completion can prompt the question but is never the proof. People also 
 
 - **The feature is "writer profiles".** Every member can have a public page, and nobody has to earn it. Never call the pages "author pages".
 - **Titles never gate features.** A writer with no milestone has the whole page. The milestones are things to celebrate on it, shown as a path with the next step in view, never as a gap.
-- **Opt-in, per milestone and per use.** A milestone shows publicly only where the writer allowed it (profile, homepage, testimonial). Entries added by staff stay hidden until the writer confirms.
+- **Opt-in, per milestone and per use.** A milestone is shown only where the writer chose: the lock (only them), the house (other members, the default once they confirm) or the globe (their writer profile on the web). The one marketing consent, "Share my story to inspire other writers", is separate and off until they tick it. Entries added by staff stay hidden until the writer confirms.
 - **"Author" alone means publish-ready.** Copy that counts books ("Published author of 3 books") counts only published books, never "Author of 3 books" for a manuscript.
 - **The third milestone is derived**, not stored: it comes from the books on the Bookshelf (`member_books`), so the two cannot disagree. The first two are stored (see the Finisher record).
 - **Words we do not use** for these milestones: "Ready" (it belongs to The Ready Writer, which is the Finisher course), "Qualifier" (it belongs to gated runs), and running or contest jargon (placer, medalist, winner). A published book is not a win over another writer.

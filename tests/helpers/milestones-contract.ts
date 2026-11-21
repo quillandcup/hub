@@ -61,8 +61,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         status: "proposed",
         source: "staff",
         confirmedAt: null,
-        consentProfile: false,
-        consentHomepage: false,
+        visibility: "private",
         consentTestimonial: false,
         storyBefore: null,
         achievedOn: null,
@@ -74,14 +73,14 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       await expect(ctx.repo().propose({ ...proposal(ada), memberId: ctx.missingMemberId })).rejects.toThrow();
     });
 
-    it("confirms with a date, stories and only the consents ticked", async () => {
+    it("confirms with a date, stories and the share consent when ticked, and starts at 'other members can see it'", async () => {
       const repo = ctx.repo();
       await repo.propose(proposal(ada));
       const [row] = await repo.ofMember(id(ada));
       const ok = await repo.answer(
         row.id,
         id(ada),
-        confirmed({ achievedOn: "2026-05-01", storyBefore: "Stuck in chapter two.", storyAfter: "Done.", consents: { consent_profile: true } }),
+        confirmed({ achievedOn: "2026-05-01", storyBefore: "Stuck in chapter two.", storyAfter: "Done.", shareStory: true }),
         NOW,
       );
       expect(ok).toBe(true);
@@ -91,23 +90,32 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         achievedOn: "2026-05-01",
         storyBefore: "Stuck in chapter two.",
         storyAfter: "Done.",
-        consentProfile: true,
-        consentHomepage: false,
-        consentTestimonial: false,
+        visibility: "community",
+        consentTestimonial: true,
       });
       expect(after.confirmedAt).not.toBeNull();
     });
 
-    it("declines, which drops every consent, and lets the member change their mind", async () => {
+    it("declines, which drops the consent and the level, and lets the member change their mind", async () => {
       const repo = ctx.repo();
       await repo.propose(proposal(ada));
       const [row] = await repo.ofMember(id(ada));
-      await repo.answer(row.id, id(ada), confirmed({ consents: { consent_homepage: true, consent_testimonial: true } }), NOW);
+      await repo.answer(row.id, id(ada), confirmed({ storyAfter: "Done.", shareStory: true }), NOW);
+      await repo.setVisibility(row.id, id(ada), "public", NOW);
       const decline: MilestoneAnswer = { status: "declined" };
       expect(await repo.answer(row.id, id(ada), decline, NOW)).toBe(true);
-      expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ status: "declined", confirmedAt: null, consentHomepage: false, consentTestimonial: false });
+      expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ status: "declined", confirmedAt: null, visibility: "private", consentTestimonial: false });
       expect(await repo.answer(row.id, id(ada), confirmed(), NOW)).toBe(true);
-      expect((await repo.ofMember(id(ada)))[0].status).toBe("confirmed");
+      expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ status: "confirmed", visibility: "community" });
+    });
+
+    it("keeps the level the member chose when they change a confirmed answer", async () => {
+      const repo = ctx.repo();
+      const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId), NOW);
+      expect(milestone.visibility).toBe("community");
+      expect(await repo.setVisibility(milestone.id, id(ada), "private", NOW)).toBe(true);
+      expect(await repo.answer(milestone.id, id(ada), confirmed({ storyAfter: "Done." }), NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ visibility: "private", storyAfter: "Done." });
     });
 
     it("lets only the owner answer a milestone", async () => {
@@ -252,7 +260,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
     it("lets a member add their own milestone: confirmed in one step, source member, with the date, stories and ticks they chose", async () => {
       const repo = ctx.repo();
       const out = await repo.addOwn(
-        ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01", storyAfter: "Done.", consents: { consent_homepage: true } }),
+        ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01", storyAfter: "Done.", shareStory: true }),
         NOW,
       );
       expect(out.result).toBe("added");
@@ -267,20 +275,19 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         achievedOn: "2026-05-01",
         storyBefore: null,
         storyAfter: "Done.",
-        consentProfile: false,
-        consentHomepage: true,
-        consentTestimonial: false,
+        visibility: "community",
+        consentTestimonial: true,
       });
       expect(out.milestone.confirmedAt).not.toBeNull();
       expect(await repo.ofMember(id(ada))).toEqual([out.milestone]);
       expect(await repo.ofMember(id(bo))).toEqual([]);
     });
 
-    it("adds with every consent off when none is ticked, and links one of the member's projects", async () => {
+    it("adds with the share consent off when it is not ticked, and links one of the member's projects", async () => {
       const repo = ctx.repo();
       const projectId = await ctx.addProject(id(ada));
       const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW);
-      expect(milestone).toMatchObject({ kind: "publish_ready", projectId, title: null, consentProfile: false, consentHomepage: false, consentTestimonial: false });
+      expect(milestone).toMatchObject({ kind: "publish_ready", projectId, title: null, visibility: "community", consentTestimonial: false });
     });
 
     it("shows the existing one instead of adding a second, whoever started it", async () => {
@@ -327,8 +334,8 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       const repo = ctx.repo();
       const bookId = await ctx.addBook(id(ada));
       const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId, title: null }), NOW);
-      expect(await repo.answer(milestone.id, id(ada), confirmed({ storyBefore: "Stuck.", consents: { consent_profile: true } }), NOW)).toBe(true);
-      expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ source: "member", status: "confirmed", storyBefore: "Stuck.", consentProfile: true });
+      expect(await repo.answer(milestone.id, id(ada), confirmed({ storyBefore: "Stuck.", shareStory: true }), NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada)))[0]).toMatchObject({ source: "member", status: "confirmed", storyBefore: "Stuck.", consentTestimonial: true });
 
       await repo.proposeFromBooks();
       expect((await repo.ofMember(id(ada))).map((m) => [m.kind, m.status, m.source])).toEqual([
@@ -339,6 +346,73 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       await repo.takeBack(milestone.id, id(ada), NOW);
       expect((await repo.proposeFromBooks()).proposals).toBe(0);
       expect((await repo.ofMember(id(ada))).map((m) => m.kind)).toEqual(["publish_ready"]);
+    });
+
+    it("sets who sees a confirmed milestone, only for its owner and never for a proposal", async () => {
+      const repo = ctx.repo();
+      await repo.propose(proposal(ada));
+      const [proposed] = await repo.ofMember(id(ada));
+      // A proposal has no level: it stays private until the member confirms it.
+      expect(await repo.setVisibility(proposed.id, id(ada), "community", NOW)).toBe(false);
+      expect((await repo.ofMember(id(ada)))[0].visibility).toBe("private");
+
+      await repo.answer(proposed.id, id(ada), confirmed(), NOW);
+      expect(await repo.setVisibility(proposed.id, id(bo), "public", NOW)).toBe(false);
+      expect(await repo.setVisibility(proposed.id, id(ada), "public", NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada)))[0].visibility).toBe("public");
+      expect(await repo.setVisibility(proposed.id, id(ada), "private", NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada)))[0].visibility).toBe("private");
+
+      const own = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready"), NOW);
+      await repo.takeBack(own.milestone.id, id(ada), NOW);
+      expect(await repo.setVisibility(own.milestone.id, id(ada), "community", NOW)).toBe(false);
+    });
+
+    it("ticks and unticks the share consent on a confirmed milestone, only for its owner", async () => {
+      const repo = ctx.repo();
+      const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "Done." }), NOW);
+      expect(milestone.consentTestimonial).toBe(false);
+      expect(await repo.setShareStory(milestone.id, id(bo), true, NOW)).toBe(false);
+      expect(await repo.setShareStory(milestone.id, id(ada), true, NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada)))[0].consentTestimonial).toBe(true);
+      expect(await repo.setShareStory(milestone.id, id(ada), false, NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada)))[0].consentTestimonial).toBe(false);
+
+      // No consent on a proposal: the database refuses it, so the repository says no.
+      await repo.propose(proposal(ada, "publish_ready"));
+      const proposed = (await repo.ofMember(id(ada))).find((m) => m.kind === "publish_ready")!;
+      expect(await repo.setShareStory(proposed.id, id(ada), true, NOW)).toBe(false);
+    });
+
+    it("shows other members only confirmed milestones at community or public, and the web only the globe", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      const community = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01", storyAfter: "Done." }, { projectId: null, bookId, title: null }), NOW);
+      const globe = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", { storyBefore: "Stuck." }, { projectId: null, bookId: null, title: "A Second Fake Work" }), NOW);
+      const hidden = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "Secret words." }, { projectId: null, bookId: null, title: "A Private Fake Work" }), NOW);
+      await repo.propose(proposal(ada, "publish_ready", { projectId: null, bookId: null, title: "A Proposed Fake Work" }));
+      await repo.setVisibility(globe.milestone.id, id(ada), "public", NOW);
+      await repo.setVisibility(hidden.milestone.id, id(ada), "private", NOW);
+      expect(community.milestone.visibility).toBe("community");
+
+      const toMembers = await repo.shownToMembers(id(ada));
+      expect(toMembers.map((m) => [m.kind, m.workTitle, m.visibility])).toEqual([
+        ["the_end", "A Book", "community"],
+        ["publish_ready", "A Second Fake Work", "public"],
+      ]);
+      expect(toMembers[0]).toEqual({ kind: "the_end", workTitle: "A Book", achievedOn: "2026-05-01", storyBefore: null, storyAfter: "Done.", visibility: "community" });
+      // Nothing private, nothing proposed, and no ids anywhere.
+      expect(JSON.stringify(toMembers)).not.toMatch(/Secret words|A Private Fake Work|A Proposed Fake Work|mlst_/);
+
+      const onWeb = await repo.shownOnWeb(id(ada));
+      expect(onWeb.map((m) => [m.kind, m.workTitle])).toEqual([["publish_ready", "A Second Fake Work"]]);
+      expect(await repo.shownToMembers(id(bo))).toEqual([]);
+      expect(await repo.shownOnWeb(id(bo))).toEqual([]);
+
+      // A taken-back milestone leaves both.
+      await repo.takeBack(globe.milestone.id, id(ada), NOW);
+      expect(await repo.shownOnWeb(id(ada))).toEqual([]);
+      expect((await repo.shownToMembers(id(ada))).map((m) => m.kind)).toEqual(["the_end"]);
     });
   });
 }

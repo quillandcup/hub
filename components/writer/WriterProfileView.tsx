@@ -1,5 +1,7 @@
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import MemberSocialLinks from "@/components/member/MemberSocialLinks";
+import MilestoneStrip from "@/components/member/MilestoneStrip";
+import type { ShownMilestone } from "@/lib/data/milestones";
 import type { PublicWriterProfile } from "@/lib/data/writer-profiles";
 import { SITE_URL } from "@/lib/config";
 import { jsonLdScript, writerProfileJsonLd } from "@/lib/writer-profile-seo";
@@ -7,9 +9,11 @@ import { jsonLdScript, writerProfileJsonLd } from "@/lib/writer-profile-seo";
 /**
  * A writer profile (docs/product/WRITER_PROFILES.md): the name, and the photo, bio and social links they opened to the internet. Made only
  * from `PublicWriterProfile`, which holds nothing else, so no other field can end up here. The bio is plain text (React
- * escapes it; line breaks are kept by the style). `banner` is the member-only preview's note above the page.
+ * escapes it; line breaks are kept by the style). `milestones` are the ones at the globe (`MilestoneRepository.shownOnWeb`), with the
+ * story they wrote; the caller has already checked that the page is on and the owner has the feature. `banner` is the member-only
+ * preview's note above the page.
  */
-export default function WriterProfileView({ profile, banner }: { profile: PublicWriterProfile; banner?: React.ReactNode }) {
+export default function WriterProfileView({ profile, banner, milestones = [] }: { profile: PublicWriterProfile; banner?: React.ReactNode; milestones?: ShownMilestone[] }) {
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       {banner}
@@ -21,6 +25,11 @@ export default function WriterProfileView({ profile, banner }: { profile: Public
           </header>
           {profile.bio && <p className="mt-8 whitespace-pre-line break-words text-base leading-relaxed text-slate-700 dark:text-slate-300">{profile.bio}</p>}
           <MemberSocialLinks className="mt-6 justify-center" instagramUrl={profile.links.instagram} facebookUrl={profile.links.facebook} twitterUrl={profile.links.x} />
+          {milestones.length > 0 && (
+            <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-700">
+              <MilestoneStrip milestones={milestones} />
+            </div>
+          )}
         </article>
       </main>
       <footer className="px-6 pb-10 text-center text-sm text-slate-600 dark:text-slate-400">

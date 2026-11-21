@@ -15,6 +15,11 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: vi.fn() }));
+vi.mock("@/lib/data/server", () => ({ getServiceRepos: vi.fn(() => ({})) }));
+vi.mock("@/lib/writer-profiles-access", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/writer-profiles-access")>();
+  return { ...actual, memberHasWriterProfiles: vi.fn(async () => true) };
+});
 vi.mock("@/lib/data/repos", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/data/repos")>();
   return { ...actual, createRepos: () => actual.createInMemoryRepos(data) };
@@ -31,7 +36,9 @@ vi.mock("@/lib/analytics/server", async (importOriginal) => {
   };
 });
 
-import { addMilestone, answerMilestone, takeBackMilestone } from "@/app/(member)/settings/milestoneActions";
+import { addMilestone, answerMilestone, setMilestoneShare, setMilestoneVisibility, takeBackMilestone } from "@/app/(member)/settings/milestoneActions";
+import { revalidatePath } from "next/cache";
+import { memberHasWriterProfiles } from "@/lib/writer-profiles-access";
 import { loadWorksOfMember, proposeMilestone, proposeMilestonesFromBooks, withdrawMilestone } from "@/app/(admin)/admin/finishers/actions";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -56,25 +63,32 @@ beforeEach(async () => {
 const ownId = async () => (await createInMemoryRepos(data).milestones.ofMember(ADA))[0].id;
 
 describe("answerMilestone", () => {
-  it("confirms for the signed-in member, with consents off unless ticked, and records the outcome", async () => {
+  it("confirms for the signed-in member, at 'other members can see it', with the share consent off unless ticked, and records the outcome", async () => {
     const id = await ownId();
-    const result = await answerMilestone({ id, answer: "confirm", achievedOn: "2026-05-01", storyAfter: "At last.", consents: { consent_profile: true } });
+    const result = await answerMilestone({ id, answer: "confirm", achievedOn: "2026-05-01", storyAfter: "At last." });
     expect(result).toEqual({ success: true });
     expect((await createInMemoryRepos(data).milestones.ofMember(ADA))[0]).toMatchObject({
       status: "confirmed",
       achievedOn: "2026-05-01",
       storyAfter: "At last.",
-      consentProfile: true,
-      consentHomepage: false,
+      visibility: "community",
       consentTestimonial: false,
     });
     expect(recorded).toEqual([{ action: "milestone_answered", outcome: { ok: true, detail: "confirmed" } }]);
   });
 
+  it("keeps the share consent only when a story was written", async () => {
+    const id = await ownId();
+    await answerMilestone({ id, answer: "confirm", shareStory: true });
+    expect((await createInMemoryRepos(data).milestones.ofMember(ADA))[0].consentTestimonial).toBe(false);
+    await answerMilestone({ id, answer: "confirm", storyBefore: "Stuck.", shareStory: true });
+    expect((await createInMemoryRepos(data).milestones.ofMember(ADA))[0].consentTestimonial).toBe(true);
+  });
+
   it("declines, which keeps no consent", async () => {
     const id = await ownId();
     expect(await answerMilestone({ id, answer: "decline" })).toEqual({ success: true });
-    expect((await createInMemoryRepos(data).milestones.ofMember(ADA))[0]).toMatchObject({ status: "declined", consentProfile: false });
+    expect((await createInMemoryRepos(data).milestones.ofMember(ADA))[0]).toMatchObject({ status: "declined", visibility: "private", consentTestimonial: false });
     expect(recorded[0].outcome).toEqual({ ok: true, detail: "declined" });
   });
 
@@ -115,11 +129,11 @@ describe("addMilestone", () => {
   });
   const mine = () => createInMemoryRepos(data).milestones.ofMember(ADA);
 
-  it("adds a confirmed milestone of the member's own, consents off unless ticked, and records the outcome", async () => {
-    const result = await addMilestone({ kind: "the_end", title: "A Fake Novel", achievedOn: "2026-05-01", storyBefore: "Stuck.", consents: { consent_testimonial: true } });
+  it("adds a confirmed milestone of the member's own, at 'other members can see it', the share consent off unless ticked, and records the outcome", async () => {
+    const result = await addMilestone({ kind: "the_end", title: "A Fake Novel", achievedOn: "2026-05-01", storyBefore: "Stuck.", shareStory: true });
     expect(result).toEqual({ success: true, added: true });
     expect(await mine()).toEqual([
-      expect.objectContaining({ kind: "the_end", status: "confirmed", source: "member", achievedOn: "2026-05-01", storyBefore: "Stuck.", consentProfile: false, consentHomepage: false, consentTestimonial: true }),
+      expect.objectContaining({ kind: "the_end", status: "confirmed", source: "member", achievedOn: "2026-05-01", storyBefore: "Stuck.", visibility: "community", consentTestimonial: true }),
     ]);
     expect(data.memberMilestones[0].created_by).toBe(STAFF_USER);
     expect(recorded).toEqual([{ action: "milestone_added", outcome: { ok: true, detail: "added" } }]);
@@ -298,5 +312,148 @@ describe("the staff actions", () => {
     await createInMemoryRepos(data).milestones.propose({ memberId: BO, kind: "the_end", work: WORK, achievedOn: null, createdBy: STAFF_USER });
     const boId = (await createInMemoryRepos(data).milestones.ofMember(BO))[0].id;
     expect(await withdrawMilestone(boId)).toEqual({ success: true });
+  });
+});
+
+describe("setMilestoneVisibility", () => {
+  const confirmedId = async () => {
+    const repos = createInMemoryRepos(data);
+    const { milestone } = await repos.milestones.addOwn(
+      { memberId: ADA, kind: "publish_ready", work: WORK, createdBy: STAFF_USER, answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: "Done.", consent_testimonial: false } },
+      new Date("2026-11-20T15:00:00Z"),
+    );
+    return milestone.id;
+  };
+  const level = async (id: string) => (await createInMemoryRepos(data).milestones.ofMember(ADA)).find((m) => m.id === id)?.visibility;
+
+  it("sets the lock, house or globe on a confirmed milestone, revalidates what shows it, and records the level", async () => {
+    const id = await confirmedId();
+    expect(await setMilestoneVisibility(id, "private")).toEqual({ success: true });
+    expect(await level(id)).toBe("private");
+    expect(await setMilestoneVisibility(id, "public")).toEqual({ success: true });
+    expect(await level(id)).toBe("public");
+    expect(recorded).toEqual([
+      { action: "milestone_visibility_set", outcome: { ok: true, detail: "private" } },
+      { action: "milestone_visibility_set", outcome: { ok: true, detail: "public" } },
+    ]);
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/profile");
+    expect(revalidatePath).toHaveBeenCalledWith(`/members/${ADA}`);
+  });
+
+  it("revalidates the member's writer profile on the web too, so a withdrawn level leaves on the next read", async () => {
+    const id = await confirmedId();
+    data.writerProfiles.push({ id: "wpf_1", member_id: ADA, handle: "ada-example", is_public: true } as never);
+    await setMilestoneVisibility(id, "private");
+    expect(revalidatePath).toHaveBeenCalledWith("/w/ada-example");
+  });
+
+  it("refuses a level that does not exist, and the globe when writer profiles are not open to the member", async () => {
+    const id = await confirmedId();
+    expect(await setMilestoneVisibility(id, "everyone")).toEqual({ error: "That choice is not available." });
+    vi.mocked(memberHasWriterProfiles).mockResolvedValueOnce(false);
+    expect(await setMilestoneVisibility(id, "public")).toEqual({ error: "Writer profiles are not open to you yet." });
+    expect(await level(id)).toBe("community");
+    expect(recorded.every((r) => (r.outcome as { ok: boolean }).ok === false)).toBe(true);
+  });
+
+  it("does not need the flag to go back to the lock or the house", async () => {
+    const id = await confirmedId();
+    vi.mocked(memberHasWriterProfiles).mockResolvedValue(false);
+    expect(await setMilestoneVisibility(id, "private")).toEqual({ success: true });
+    vi.mocked(memberHasWriterProfiles).mockResolvedValue(true);
+  });
+
+  it("refuses a proposal, someone else's milestone and a taken-back one", async () => {
+    const proposed = await ownId();
+    expect(await setMilestoneVisibility(proposed, "community")).toHaveProperty("error");
+    expect((await createInMemoryRepos(data).milestones.ofMember(ADA))[0].visibility).toBe("private");
+    const id = await confirmedId();
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(BO));
+    expect(await setMilestoneVisibility(id, "private")).toHaveProperty("error");
+    expect(await level(id)).toBe("community");
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA));
+    await createInMemoryRepos(data).milestones.takeBack(id, ADA, new Date());
+    expect(await setMilestoneVisibility(id, "private")).toHaveProperty("error");
+  });
+
+  it("is look-only in sudo, and needs a signed-in member with a record and an id", async () => {
+    const id = await confirmedId();
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA, true));
+    expect(await setMilestoneVisibility(id, "private")).toEqual({ error: "Only you can change who sees this." });
+    expect(await level(id)).toBe("community");
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect(await setMilestoneVisibility(id, "private")).toHaveProperty("error");
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    expect(await setMilestoneVisibility(id, "private")).toHaveProperty("error");
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: STAFF_USER, email: "ada@example.com" });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA));
+    expect(await setMilestoneVisibility("", "private")).toHaveProperty("error");
+  });
+
+  it("says so, without raising, when the save fails", async () => {
+    const id = await confirmedId();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(createInMemoryRepos(data).milestones, "setVisibility");
+    data.memberMilestones = null as never;
+    expect(await setMilestoneVisibility(id, "private")).toEqual({ error: "We couldn't save that. Please try again in a moment." });
+    spy.mockRestore();
+  });
+});
+
+describe("setMilestoneShare", () => {
+  const withStory = async (story: string | null) => {
+    const { milestone } = await createInMemoryRepos(data).milestones.addOwn(
+      { memberId: ADA, kind: "the_end", work: { projectId: null, bookId: null, title: "Another Fake Novel" }, createdBy: STAFF_USER, answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: story, consent_testimonial: false } },
+      new Date("2026-11-20T15:00:00Z"),
+    );
+    return milestone.id;
+  };
+  const shared = async (id: string) => (await createInMemoryRepos(data).milestones.ofMember(ADA)).find((m) => m.id === id)?.consentTestimonial;
+
+  it("ticks and unticks the consent on a milestone with a story, and records which", async () => {
+    const id = await withStory("Done.");
+    expect(await setMilestoneShare(id, true)).toEqual({ success: true });
+    expect(await shared(id)).toBe(true);
+    expect(await setMilestoneShare(id, false)).toEqual({ success: true });
+    expect(await shared(id)).toBe(false);
+    expect(recorded.map((r) => r.outcome)).toEqual([{ ok: true, detail: "shared" }, { ok: true, detail: "withdrawn" }]);
+    expect(revalidatePath).toHaveBeenCalledWith(`/members/${ADA}`);
+  });
+
+  it("refuses to tick without a story to share, but always lets them untick", async () => {
+    const id = await withStory(null);
+    expect(await setMilestoneShare(id, true)).toEqual({ error: "Write a story first, and then you can share it." });
+    expect(await shared(id)).toBe(false);
+    expect(await setMilestoneShare(id, false)).toEqual({ success: true });
+  });
+
+  it("refuses a proposal (consent only exists on a confirmed milestone), someone else's and a missing one", async () => {
+    expect(await setMilestoneShare(await ownId(), true)).toHaveProperty("error");
+    expect(await setMilestoneShare(await ownId(), false)).toHaveProperty("error");
+    const id = await withStory("Done.");
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(BO));
+    expect(await setMilestoneShare(id, true)).toHaveProperty("error");
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA));
+    expect(await shared(id)).toBe(false);
+    expect(await setMilestoneShare("", true)).toHaveProperty("error");
+  });
+
+  it("is look-only in sudo and needs a signed-in member", async () => {
+    const id = await withStory("Done.");
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA, true));
+    expect(await setMilestoneShare(id, true)).toEqual({ error: "Only the member can change this." });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect(await setMilestoneShare(id, true)).toHaveProperty("error");
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    expect(await setMilestoneShare(id, true)).toHaveProperty("error");
+    expect(await shared(id)).toBe(false);
+  });
+
+  it("says so, without raising, when the save fails", async () => {
+    const id = await withStory("Done.");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    data.memberMilestones = null as never;
+    expect(await setMilestoneShare(id, false)).toEqual({ error: "We couldn't save that. Please try again in a moment." });
+    spy.mockRestore();
   });
 });
