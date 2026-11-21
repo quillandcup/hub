@@ -62,7 +62,6 @@ defineWriterProfileContract("InMemoryWriterProfileRepository", () => {
           is_public: true,
           public_name_alias_id: null,
           use_account_name: false,
-          show_photo: false,
           public_bio: null,
           published_at: at,
           created_at: at,

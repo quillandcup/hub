@@ -7457,7 +7457,6 @@ export type Database = {
           public_bio: string | null
           public_name_alias_id: string | null
           published_at: string | null
-          show_photo: boolean
           updated_at: string
           use_account_name: boolean
         }
@@ -7471,7 +7470,6 @@ export type Database = {
           public_bio?: string | null
           public_name_alias_id?: string | null
           published_at?: string | null
-          show_photo?: boolean
           updated_at?: string
           use_account_name?: boolean
         }
@@ -7485,7 +7483,6 @@ export type Database = {
           public_bio?: string | null
           public_name_alias_id?: string | null
           published_at?: string | null
-          show_photo?: boolean
           updated_at?: string
           use_account_name?: boolean
         }

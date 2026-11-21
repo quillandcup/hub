@@ -550,6 +550,7 @@ function writerProfilePhrase(row: ActivityFeedRow, fields: Record<string, { old:
   if (fields.is_public) return fields.is_public.new ? "turned on their public writer profile" : "turned off their public writer profile";
   const changed = [
     fields.public_name_alias_id && "the name shown",
+    // Audit entries written before the column was dropped keep their field name; the Activity Log still reads them.
     fields.show_photo && "whether their photo is shown",
     fields.public_bio && "the bio",
   ].filter(Boolean);

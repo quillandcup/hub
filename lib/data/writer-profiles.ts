@@ -342,7 +342,6 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
         is_public: false,
         public_name_alias_id: null,
         use_account_name: false,
-        show_photo: false,
         public_bio: null,
         published_at: null,
         created_at: at,
