@@ -315,16 +315,17 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "Formatted text on course lessons and landing pages is reduced to a short list of safe formatting (headings, lists, links, emphasis) before it is stored, so it cannot carry scripts.",
         staff: {
-          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s) and mailto and opened without passing on the opener. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported and again every time it is shown. A search of the app, components and emails on 2026-11-18 found three places that write raw HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); each cleans the text first.",
+          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s), mailto and paths on this site, opened without passing on the opener, and lesson images limited to http(s) or this site. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported, when staff save an edit, and again every time it is shown. A search of the app, components, lib and emails on 2026-11-21 found three places that write stored HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); each cleans the text first. The fourth place that writes raw text into a page is the search-engine data block on writer pages, which is JSON with every `<` escaped. Help articles, the changelog and prickle descriptions are markdown that is never read as HTML. On 2026-11-21 both cleaners were run against 148 attack strings (script and event-handler tricks, javascript, data and vbscript links in every encoding, embedded frames, forms, svg and math, comment and style tricks that browsers re-read) in a test; none got through.",
           evidence: [
             "lib/landing/sanitize.ts",
             "lib/courses/sanitize.ts",
             "lib/courses/process.ts",
             "tests/lib/courses-sanitize.test.ts",
+            "tests/lib/html-sanitizers-xss.test.ts",
             "lib/courses/admin.ts",
             "tests/lib/landing-data.test.ts",
           ],
-          checked: "2026-11-18",
+          checked: "2026-11-21",
           open: [
             "Nothing in the browser yet blocks an injected script: the cleaning is the only barrier. The enforcing policy does not limit scripts (see Browser protections).",
           ],
