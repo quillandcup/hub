@@ -5,7 +5,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div /> }));
 
-import { Button, ButtonRow, CardGrid, CtaBanner, Hero, LinkList, OptInFormBlock } from "@/components/landing/blocks";
+import { Button, ButtonRow, CardGrid, CtaBanner, GridCard, Hero, LinkItem, LinkList, OptInFormBlock, RowButton } from "@/components/landing/blocks";
+import { itemsSlot } from "./landing-items-slot";
 import { FinishLineCard } from "@/components/landing/homepage-blocks";
 import { BLOCK_DEFAULTS, PageFrame, type FrameContext } from "@/components/landing/config";
 import { StyleFields } from "@/components/landing/style-fields";
@@ -103,9 +104,9 @@ describe("a button's look comes from the site unless the button chooses its own"
   it("has every kind of button in the blocks follow the site by default", () => {
     render(
       <>
-        <ButtonRow items={[{ label: "Row one", href: "/a", look: "inherit", color: "plum", shape: "pill" }, { label: "Row two", href: "/b", look: "outline", color: "plum", shape: "pill" }]} align="left" gap="medium" />
-        <LinkList items={[{ label: "A list link", href: "/c" }]} look="inherit" color="plum" />
-        <CardGrid columns="3" items={[{ alt: "", title: "Card", description: "", price: "", icon: "", buttonLabel: "Card button", href: "/d" }]} />
+        <ButtonRow items={itemsSlot(RowButton, [{ label: "Row one", href: "/a", look: "inherit", color: "plum", shape: "pill" }, { label: "Row two", href: "/b", look: "outline", color: "plum", shape: "pill" }])} align="left" gap="medium" />
+        <LinkList items={itemsSlot(LinkItem, [{ label: "A list link", href: "/c", look: "inherit", color: "plum" }])} />
+        <CardGrid columns="3" items={itemsSlot(GridCard, [{ alt: "", title: "Card", description: "", price: "", icon: "", buttonLabel: "Card button", href: "/d" }])} />
         <Hero {...(BLOCK_DEFAULTS.Hero as unknown as Parameters<typeof Hero>[0])} primary={{ label: "Hero primary", href: "/e" }} secondary={{ label: "Hero secondary", href: "/f" }} />
         <CtaBanner {...(BLOCK_DEFAULTS.CtaBanner as unknown as Parameters<typeof CtaBanner>[0])} label="Banner button" href="/g" />
         <FinishLineCard {...({ title: "Finish", buttonLabel: "Card link", href: "/h" } as unknown as Parameters<typeof FinishLineCard>[0])} />
