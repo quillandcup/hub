@@ -1,3 +1,5 @@
+set lock_timeout = '5s';
+
 -- The site template (docs/LANDING_PAGES.md, "Site template"): the one header and footer that every website page shares, kept as a
 -- draft the Design view autosaves and a published copy the public website pages render. One row for the whole site. Publishing is a
 -- separate, explicit step, so an edit never changes a live page by accident. Admin only: a signed-out visitor never reads this table;
