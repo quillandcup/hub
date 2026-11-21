@@ -9,7 +9,7 @@ Two jobs, in order: get a development machine running on a local Supabase stack,
 ### What to install
 
 - **Docker Desktop** (https://docs.docker.com/desktop/), running: the local Supabase stack runs in containers.
-- **Node.js** at the version in `.nvmrc` (currently 24) and **pnpm** (the version is pinned by `packageManager` in `package.json`; with Corepack, `corepack enable` is enough).
+- **Node.js** at the version in `engines.node` of `package.json` (currently 24.x; CI reads the same field) and **pnpm** (the version is pinned by `packageManager` in `package.json`; with Corepack, `corepack enable` is enough).
 - **Supabase CLI** (for example `brew install supabase/tap/supabase`).
 - **GitHub CLI** (`gh`) for pull requests and CI (`.claude/rules/github-cli.md`).
 
@@ -17,7 +17,7 @@ The Vercel CLI is a project dependency: run it as `node_modules/.bin/vercel` (or
 
 ### Steps
 
-1. **Clone and install** (this also installs the git hooks through husky):
+1. **Clone and install** (this also points git at the hooks in `config/husky/`: `pnpm install` runs `git config core.hooksPath config/husky`, and that setting is shared by every worktree of the clone, so a worktree on an older branch without that folder has no hooks until it merges `main`):
 
    ```bash
    pnpm install --frozen-lockfile
