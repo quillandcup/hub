@@ -1,3 +1,4 @@
+import { ITEM_LIMITS } from "@/components/landing/item-limits";
 import { normalizeLandingData, parseEmbed, safeHref } from "./data";
 import { featuredOfferIndex } from "./journey";
 import { COMING_UP_LIST_HEADING } from "./live-kinds";
@@ -15,23 +16,43 @@ type Node = { type?: string; props?: Record<string, unknown> };
 
 const GENERIC_LINK_TEXT = /^(click here|here|read more|more|link|this link|learn more)$/i;
 
-function walk(content: unknown[], visit: (node: Node) => void) {
-  for (const raw of content) {
+/** Where a block sits: the type of the block whose slot holds it, and its place (from 0) among its neighbours there. */
+type Place = { parent?: string; index: number };
+
+function walk(content: unknown[], visit: (node: Node, place: Place) => void, parent?: string) {
+  for (const [index, raw] of content.entries()) {
     if (!raw || typeof raw !== "object") continue;
     const node = raw as Node;
-    visit(node);
+    visit(node, { parent, index });
     for (const [key, value] of Object.entries(node.props ?? {})) {
       // A third column that is switched off is not shown, so what is left in it is not checked either.
       if (node.type === "Columns" && key === "col3" && node.props?.count !== "3") continue;
       // A slot holds a list of blocks.
       if (Array.isArray(value) && value.length > 0 && value.every((v) => v && typeof v === "object" && "type" in (v as object) && "props" in (v as object))) {
-        walk(value, visit);
+        walk(value, visit, node.type);
       }
     }
   }
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * The blocks that hold a list of items as child blocks (components/landing/config.tsx, `SLOT_ALLOW`): what the block is
+ * called, what one item is called, the item type and the prop the public page needs before it shows one. An empty list, or
+ * more items than the layout is made for, is worth a warning: the block would show nothing, or hide the extra ones.
+ */
+const ITEM_BLOCKS: Record<string, { block: string; noun: string; plural: string; item: string; key: string; limit: number }> = {
+  Steps: { block: "Steps", noun: "step", plural: "steps", item: "Step", key: "title", limit: ITEM_LIMITS.Steps },
+  Stats: { block: "Stats", noun: "figure", plural: "figures", item: "Stat", key: "value", limit: ITEM_LIMITS.Stats },
+  FinisherCards: { block: "Finisher cards", noun: "Finisher", plural: "Finishers", item: "FinisherCard", key: "name", limit: ITEM_LIMITS.FinisherCards },
+  Timeline: { block: "Timeline", noun: "moment", plural: "moments", item: "TimelineMoment", key: "title", limit: ITEM_LIMITS.Timeline },
+  WeekStrip: { block: "Week strip", noun: "day", plural: "days", item: "WeekDay", key: "label", limit: ITEM_LIMITS.WeekStrip },
+  FinishLineCards: { block: "Finish-line cards", noun: "finish line", plural: "finish lines", item: "FinishLineCard", key: "title", limit: ITEM_LIMITS.FinishLineCards },
+  PlanPhases: { block: "Plan phases", noun: "phase", plural: "phases", item: "PlanPhase", key: "title", limit: ITEM_LIMITS.PlanPhases },
+};
+/** The parent of each item type, to say what an item standing alone needs. */
+const ITEM_PARENT = Object.fromEntries(Object.entries(ITEM_BLOCKS).map(([parent, rule]) => [rule.item, parent]));
 
 export function checkLandingPage(value: unknown): A11yIssue[] {
   const data = normalizeLandingData(value);
@@ -46,10 +67,21 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
   };
   const rows = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]).filter((r) => r && typeof r === "object") : []);
 
-  walk(data.content, (node) => {
+  walk(data.content, (node, place) => {
     const p = node.props ?? {};
     const type = node.type ?? "";
     blocks += 1;
+    const owner = ITEM_PARENT[type];
+    // An item (a step, a Finisher card) belongs inside its block's list; on its own it is drawn as a bare piece of it.
+    if (owner && place.parent !== owner) issues.push({ severity: "warning", block: ITEM_BLOCKS[owner].block, message: `A ${ITEM_BLOCKS[owner].noun} is outside a ${ITEM_BLOCKS[owner].block} block. Drag it into one, or delete it.` });
+    const list = ITEM_BLOCKS[type];
+    if (list) {
+      const shown = (Array.isArray(p.items) ? (p.items as Node[]) : []).filter((i) => i?.type === list.item && str(i.props?.[list.key]));
+      if (shown.length === 0) issues.push({ severity: "warning", block: list.block, message: `${list.block} has no ${list.plural}, so it shows nothing. Drag one in from "Parts of a block".` });
+      if (shown.length > list.limit) issues.push({ severity: "warning", block: list.block, message: `${list.block} shows ${list.limit} ${list.plural} at most; the ${shown.length - list.limit} after that are hidden.` });
+    }
+    // "Finisher 2" by its place in its block's list; one standing on its own has no place to number it by.
+    const finisher = place.parent === "FinisherCards" ? `Finisher ${place.index + 1}` : "A Finisher";
     switch (type) {
       case "Image":
       case "Split":
@@ -68,9 +100,12 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
         break;
       }
       case "Steps":
-        // Mirrors the block: titles are h3 under the block's own heading, h2 without one.
+        // Mirrors the block: its heading is an h2, and each step's title an h3.
         if (str(p.heading)) headings.push({ level: 2, text: str(p.heading) });
-        for (const step of ((p.items as Record<string, unknown>[]) ?? []).filter((i) => str(i.title))) headings.push({ level: str(p.heading) ? 3 : 2, text: str(step.title) });
+        break;
+      case "Step":
+        // Always a level below the block's heading (h2), so a Steps block with no heading still sits under the section's.
+        if (str(p.title)) headings.push({ level: 3, text: str(p.title) });
         break;
       case "CtaBanner":
         if (str(p.heading)) headings.push({ level: 2, text: str(p.heading) });
@@ -87,24 +122,26 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
       case "AnnouncementStrip":
         checkButton("Announcement strip", p.buttonLabel, p.href);
         break;
+      case "FinisherCard":
+        if (str(p.imageAssetId) && !str(p.alt)) issues.push({ severity: "error", block: "Finisher cards", message: `${finisher} has a photo with no description.` });
+        if (str(p.name)) headings.push({ level: 3, text: str(p.name) });
+        checkButton("Finisher cards", p.linkLabel, p.href, `${finisher}'s link`);
+        break;
       case "FinisherCards": {
-        for (const [i, card] of rows(p.items).entries()) {
-          if (str(card.imageAssetId) && !str(card.alt)) issues.push({ severity: "error", block: "Finisher cards", message: `Finisher ${i + 1} has a photo with no description.` });
-          if (str(card.name)) headings.push({ level: 3, text: str(card.name) });
-          checkButton("Finisher cards", card.linkLabel, card.href, `Finisher ${i + 1}'s link`);
-        }
         const more = (p.more ?? {}) as Record<string, unknown>;
         checkButton("Finisher cards", more.label, more.href, "The link under the cards");
         break;
       }
       case "Timeline":
         if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
-        for (const item of rows(p.items).filter((i) => str(i.title))) headings.push({ level: str(p.heading) ? 4 : 3, text: str(item.title) });
         break;
-      case "FinishLineCards":
-        for (const card of rows(p.items).filter((i) => str(i.title))) {
-          headings.push({ level: 3, text: str(card.title) });
-          checkButton("Finish-line cards", card.buttonLabel, card.href);
+      case "TimelineMoment":
+        if (str(p.title)) headings.push({ level: 3, text: str(p.title) });
+        break;
+      case "FinishLineCard":
+        if (str(p.title)) {
+          headings.push({ level: 3, text: str(p.title) });
+          checkButton("Finish-line cards", p.buttonLabel, p.href);
         }
         break;
       case "PlanPhases":

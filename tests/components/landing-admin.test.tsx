@@ -14,7 +14,7 @@ vi.mock("../../app/(admin)/admin/pages/actions", () => ({ duplicateLandingPage: 
 import PagesTable from "@/app/(admin)/admin/pages/PagesTable";
 import NewPageForm from "@/app/(admin)/admin/pages/new/NewPageForm";
 import { ZonedDateTimeField } from "@/components/landing/fields";
-import { BLOCK_DEFAULTS } from "@/components/landing/config";
+import { BLOCK_DEFAULTS, ITEM_BLOCKS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 
 const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
@@ -247,7 +247,8 @@ describe("the editor's config", () => {
       expect(Object.keys(component.fields ?? {}).length, name).toBeGreaterThan(0);
       expect(component.defaultProps, name).toBeDefined();
     }
-    expect(editorConfig.components.Section.fields?.content).toEqual({ type: "slot" });
+    // A Section holds any block except the parts of other blocks (a lone step or Finisher card).
+    expect(editorConfig.components.Section.fields?.content).toEqual({ type: "slot", disallow: ITEM_BLOCKS });
     expect(Object.keys(editorConfig.root?.fields ?? {})).toEqual(expect.arrayContaining(["logoAssetId", "navLinks", "footerText", "footerLinks"]));
   });
 

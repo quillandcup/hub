@@ -3,7 +3,8 @@ import type { EventType } from "@/lib/events-filter";
 import { safeHref } from "@/lib/landing/data";
 import { featuredOfferIndex } from "@/lib/landing/journey";
 import { COMING_UP_KIND_LABELS, COMING_UP_LIST_HEADING } from "@/lib/landing/live-kinds";
-import { buttonClasses } from "./blocks";
+import { buttonClasses, itemList, type ItemProps, type Slot } from "./blocks";
+import { ITEM_LIMITS } from "./item-limits";
 import JourneyTabs from "./JourneyTabs";
 import { BAND_SPACE, pageImage, pick } from "./theme";
 
@@ -17,7 +18,7 @@ import { BAND_SPACE, pageImage, pick } from "./theme";
  * links keeps them in objects (`more`, `compare`, a stage's `link`).
  */
 
-const MAX = { week: 7, finishers: 6, finishLines: 3, phases: 4, comingUp: 4, outcomes: 4, stages: 6, stageOffers: 4 } as const;
+const MAX = { comingUp: 4, outcomes: 4, stages: 6, stageOffers: 4 } as const;
 
 const rowsOf = <T extends object>(items: T[] | undefined, key: keyof T, max: number) => (items ?? []).filter((i) => i && i[key]).slice(0, max);
 
@@ -208,51 +209,13 @@ export function OutcomeNumbers({ items, padding, showLiveNote }: OutcomeNumbersP
 
 // ---- Finisher cards --------------------------------------------------------------------------------------------
 
-export type FinisherCardsProps = {
-  items: { imageAssetId?: string; alt: string; name: string; kind: string; dayOne: string; theEnd: string; linkLabel: string; href: string }[];
-  more: { label: string; href: string };
-};
+export type FinisherCardsProps = { items: Slot; more: { label: string; href: string }; editing?: boolean };
 
-/** Photo-first cards in a book-cover shape: who, what she wrote, where she started (Day 1) and what she finished (THE END). With no picture, a soft placeholder, never an error. */
-export function FinisherCards({ items, more }: FinisherCardsProps) {
-  const rows = rowsOf(items, "name", MAX.finishers);
-  if (rows.length === 0) return null;
+/** The cards of the block, in the order they are in the `items` slot (a drag on the canvas reorders them). */
+export function FinisherCards({ items: Items, more, editing }: FinisherCardsProps) {
   return (
     <div className="py-4">
-      <ul className="grid grid-cols-2 gap-5 text-left @cards:grid-cols-3">
-        {rows.map((card, i) => {
-          const src = pageImage(card.imageAssetId, "event_card");
-          return (
-            <li key={i} className="flex flex-col gap-3">
-              <div className="aspect-[3/4] overflow-hidden rounded-xl shadow-md">
-                {src ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-                  <img src={src} alt={card.alt ?? ""} loading="lazy" className="h-full w-full object-cover" />
-                ) : (
-                  <div aria-hidden="true" className="flex h-full w-full items-center justify-center bg-gradient-to-br from-plum-200 to-plum-400 text-5xl">
-                    📖
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-display text-xl font-semibold leading-tight">{card.name}</h3>
-                {card.kind && <p className="text-sm">{card.kind}</p>}
-                {card.dayOne && (
-                  <p className="text-sm">
-                    <span className="font-semibold">Day 1:</span> {card.dayOne}
-                  </p>
-                )}
-                {card.theEnd && (
-                  <p className="text-sm">
-                    <span className="font-semibold">THE END:</span> {card.theEnd}
-                  </p>
-                )}
-                <TextLink label={card.linkLabel} href={card.href} className="inline-block pt-1 text-sm" />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <Items as="ul" collisionAxis="dynamic" className={`grid grid-cols-2 gap-5 text-left @cards:grid-cols-3 ${itemList(ITEM_LIMITS.FinisherCards, editing)}`} />
       {more?.label && safeHref(more.href) && (
         <p className="mt-6 text-center">
           <TextLink label={more.label} href={more.href} />
@@ -262,132 +225,170 @@ export function FinisherCards({ items, more }: FinisherCardsProps) {
   );
 }
 
+export type FinisherCardProps = { imageAssetId?: string; alt: string; name: string; kind: string; dayOne: string; theEnd: string; linkLabel: string; href: string } & ItemProps;
+
+/** One Finisher of a Finisher cards block: a photo-first card in a book-cover shape: who, what she wrote, where she started (Day 1) and what she finished (THE END). With no picture, a soft placeholder, never an error. */
+export function FinisherCard({ imageAssetId, alt, name, kind, dayOne, theEnd, linkLabel, href, dragRef, editing }: FinisherCardProps) {
+  if (!name && !editing) return null;
+  const src = pageImage(imageAssetId, "event_card");
+  return (
+    <li ref={dragRef} className="flex min-w-0 flex-col gap-3">
+      <div className="aspect-[3/4] overflow-hidden rounded-xl shadow-md">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
+          <img src={src} alt={alt ?? ""} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div aria-hidden="true" className="flex h-full w-full items-center justify-center bg-gradient-to-br from-plum-200 to-plum-400 text-5xl">
+            📖
+          </div>
+        )}
+      </div>
+      <div className="space-y-1">
+        <h3 className="font-display text-xl font-semibold leading-tight">{name}</h3>
+        {kind && <p className="text-sm">{kind}</p>}
+        {dayOne && (
+          <p className="text-sm">
+            <span className="font-semibold">Day 1:</span> {dayOne}
+          </p>
+        )}
+        {theEnd && (
+          <p className="text-sm">
+            <span className="font-semibold">THE END:</span> {theEnd}
+          </p>
+        )}
+        <TextLink label={linkLabel} href={href} className="inline-block pt-1 text-sm" />
+      </div>
+    </li>
+  );
+}
+
 // ---- Timeline --------------------------------------------------------------------------------------------------
 
-export type TimelineProps = { heading: string; intro: string; items: { when: string; title: string; text: string }[]; closing: string };
+export type TimelineProps = { heading: string; intro: string; items: Slot; closing: string; editing?: boolean };
 
-/** A vertical timeline: a line down the left with a dot for each moment (when, title, text), an optional heading and intro above and a closing line below. */
-export function Timeline({ heading, intro, items, closing }: TimelineProps) {
-  const rows = rowsOf(items, "title", 12);
-  if (rows.length === 0 && !intro && !heading) return null;
-  const ItemTitle = heading ? "h4" : "h3";
+/** A vertical timeline: a line down the left with a dot for each moment (a `TimelineMoment` in the `items` slot), an optional heading and intro above and a closing line below. */
+export function Timeline({ heading, intro, items: Items, closing, editing }: TimelineProps) {
   return (
     <div className="mx-auto max-w-3xl py-4 text-left">
       {heading && <h3 className="font-display text-2xl font-semibold leading-tight">{heading}</h3>}
       {intro && <p className="mt-2 whitespace-pre-line text-lg">{intro}</p>}
-      {rows.length > 0 && (
-        <ol className="mt-6 ml-2 border-l-4 border-accent pl-6">
-          {rows.map((row, i) => (
-            <li key={i} className="relative pb-6 last:pb-0">
-              <span aria-hidden="true" className="absolute -left-[2.1rem] top-1.5 h-3.5 w-3.5 rounded-full bg-accent" />
-              {row.when && <p className="text-sm font-bold uppercase tracking-wide text-accent-ink">{row.when}</p>}
-              <ItemTitle className="font-display text-xl font-semibold leading-tight">{row.title}</ItemTitle>
-              {row.text && <p className="mt-1 whitespace-pre-line">{row.text}</p>}
-            </li>
-          ))}
-        </ol>
-      )}
+      <Items as="ol" collisionAxis="y" className={`ml-2 mt-6 border-l-4 border-accent pl-6 ${itemList(ITEM_LIMITS.Timeline, editing)}`} />
       {closing && <p className="mt-8 border-l-4 border-gold pl-4 font-display text-xl italic">{closing}</p>}
     </div>
   );
 }
 
+export type TimelineMomentProps = { when: string; title: string; text: string } & ItemProps;
+
+/** One moment of a Timeline: its time, a title (an h3, a level below the section's heading) and a short text, with a dot on the line. */
+export function TimelineMoment({ when, title, text, dragRef, editing }: TimelineMomentProps) {
+  if (!title && !editing) return null;
+  return (
+    <li ref={dragRef} className="relative pb-6 last:pb-0">
+      <span aria-hidden="true" className="absolute -left-[2.1rem] top-1.5 h-3.5 w-3.5 rounded-full bg-accent" />
+      {when && <p className="text-sm font-bold uppercase tracking-wide text-accent-ink">{when}</p>}
+      <h3 className="font-display text-xl font-semibold leading-tight">{title}</h3>
+      {text && <p className="mt-1 whitespace-pre-line">{text}</p>}
+    </li>
+  );
+}
+
 // ---- Week strip ------------------------------------------------------------------------------------------------
 
-export type WeekStripProps = { subtitle: string; items: { label: string; emoji: string; text: string; note: string }[] };
-const WEEK_COLUMNS = [
-  "",
-  "",
-  "grid-cols-2",
-  "grid-cols-2 @cards:grid-cols-3",
-  "grid-cols-2 @cards:grid-cols-4",
-  "grid-cols-2 @cards:grid-cols-3 @columns:grid-cols-5",
-  "grid-cols-2 @cards:grid-cols-3 @columns:grid-cols-6",
-  "grid-cols-2 @cards:grid-cols-4 @columns:grid-cols-7",
-] as const;
+export type WeekStripProps = { subtitle: string; items: Slot; editing?: boolean };
 
-/** Up to seven day cards in a row (two columns on a narrow page): a label, an emoji, what happens and a small note. Cards on their own colours, so it reads apart from the schedule panel and the timeline. */
-export function WeekStrip({ subtitle, items }: WeekStripProps) {
-  const rows = rowsOf(items, "label", MAX.week);
-  if (rows.length === 0) return null;
+/** Up to seven day cards in a row (two columns on a narrow page, then as many as fit), each a `WeekDay` in the `items` slot: dragging a day on the canvas reorders the week. */
+export function WeekStrip({ subtitle, items: Items, editing }: WeekStripProps) {
   return (
     <div className="py-4">
       {subtitle && <p className="mb-6 text-center text-lg">{subtitle}</p>}
-      <ol className={`grid gap-3 ${WEEK_COLUMNS[Math.max(rows.length, 2)]}`}>
-        {rows.map((day, i) => (
-          <li key={i} className="flex flex-col items-center gap-1 rounded-xl border-b-4 border-accent bg-card p-3 text-center text-ink shadow-md">
-            <p className="text-xs font-bold uppercase tracking-widest text-accent-ink">{day.label}</p>
-            {day.emoji && (
-              <span aria-hidden="true" className="text-3xl leading-none">
-                {day.emoji}
-              </span>
-            )}
-            {day.text && <p className="font-semibold">{day.text}</p>}
-            {day.note && <p className="text-sm text-ink-muted">{day.note}</p>}
-          </li>
-        ))}
-      </ol>
+      <Items as="ol" collisionAxis="dynamic" className={`grid grid-cols-2 gap-3 @cards:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] ${itemList(ITEM_LIMITS.WeekStrip, editing)}`} />
     </div>
+  );
+}
+
+export type WeekDayProps = { label: string; emoji: string; text: string; note: string } & ItemProps;
+
+/** One day of a Week strip: a label, an emoji, what happens and a small note. A card on its own colours, so it reads apart from the schedule panel and the timeline. */
+export function WeekDay({ label, emoji, text, note, dragRef, editing }: WeekDayProps) {
+  if (!label && !editing) return null;
+  return (
+    <li ref={dragRef} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border-b-4 border-accent bg-card p-3 text-center text-ink shadow-md">
+      <p className="text-xs font-bold uppercase tracking-widest text-accent-ink">{label}</p>
+      {emoji && (
+        <span aria-hidden="true" className="text-3xl leading-none">
+          {emoji}
+        </span>
+      )}
+      {text && <p className="font-semibold">{text}</p>}
+      {note && <p className="text-sm text-ink-muted">{note}</p>}
+    </li>
   );
 }
 
 // ---- Finish-line cards -----------------------------------------------------------------------------------------
 
-export type FinishLineCardsProps = { items: { title: string; program: string; text: string; durationLabel: string; durationPercent: number; buttonLabel: string; href: string }[] };
-const FINISH_GRADIENTS = ["from-plum-700 to-plum-600", "from-brown-deep to-brown", "from-plum-950 to-plum-800"] as const;
-const FINISH_COLUMNS = ["", "", "@split:grid-cols-2", "@split:grid-cols-2 @columns:grid-cols-3"] as const;
+export type FinishLineCardsProps = { items: Slot; editing?: boolean };
+/** A card's gradient follows its place in the list, so a dragged card takes the next one's colour (the order is the page's, not the card's). Written out, so Tailwind finds each class. */
+const FINISH_GRADIENTS = "[&:nth-child(3n+1)]:from-plum-700 [&:nth-child(3n+1)]:to-plum-600 [&:nth-child(3n+2)]:from-brown-deep [&:nth-child(3n+2)]:to-brown [&:nth-child(3n)]:from-plum-950 [&:nth-child(3n)]:to-plum-800";
 const percent = (value: unknown) => Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
 
-/** Two or three big gradient cards: a goal, the program behind it, a line, a duration bar with its label and one button. White text on the card's own gradient, whatever the section behind it. */
-export function FinishLineCards({ items }: FinishLineCardsProps) {
-  const rows = rowsOf(items, "title", MAX.finishLines);
-  if (rows.length === 0) return null;
+/** Two or three big gradient cards, each a `FinishLineCard` in the `items` slot (as many columns as fit, from the split size). */
+export function FinishLineCards({ items: Items, editing }: FinishLineCardsProps) {
+  return <Items as="ul" collisionAxis="dynamic" className={`grid gap-5 py-4 text-left @split:grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] ${itemList(ITEM_LIMITS.FinishLineCards, editing)}`} />;
+}
+
+export type FinishLineCardProps = { title: string; program: string; text: string; durationLabel: string; durationPercent: number; buttonLabel: string; href: string } & ItemProps;
+
+/** One finish line: a goal, the program behind it, a line, a duration bar with its label and one button. White text on the card's own gradient, whatever the section behind it. */
+export function FinishLineCard({ title, program, text, durationLabel, durationPercent, buttonLabel, href, dragRef, editing }: FinishLineCardProps) {
+  if (!title && !editing) return null;
   return (
-    <ul className={`grid gap-5 py-4 text-left ${FINISH_COLUMNS[Math.max(rows.length, 2)]}`}>
-      {rows.map((card, i) => (
-        <li key={i} className={`flex flex-col gap-3 rounded-2xl bg-gradient-to-br p-6 text-white shadow-lg ${FINISH_GRADIENTS[i % FINISH_GRADIENTS.length]}`}>
-          <h3 className="font-display text-2xl font-semibold leading-tight">{card.title}</h3>
-          {card.program && <p className="font-bold">{card.program}</p>}
-          {card.text && <p>{card.text}</p>}
-          {card.durationLabel && (
-            <div>
-              <p className="mb-1 text-right text-sm">{card.durationLabel}</p>
-              <div aria-hidden="true" className="h-3.5 overflow-hidden rounded-full bg-white/25">
-                <div className="h-full rounded-full bg-white" style={{ width: `${percent(card.durationPercent)}%` }} />
-              </div>
-            </div>
-          )}
-          <div className="mt-auto pt-2">
-            <LinkButton label={card.buttonLabel} href={card.href} color="light" />
+    <li ref={dragRef} className={`flex min-w-0 flex-col gap-3 rounded-2xl bg-gradient-to-br from-plum-700 to-plum-600 p-6 text-white shadow-lg ${FINISH_GRADIENTS}`}>
+      <h3 className="font-display text-2xl font-semibold leading-tight">{title}</h3>
+      {program && <p className="font-bold">{program}</p>}
+      {text && <p>{text}</p>}
+      {durationLabel && (
+        <div>
+          <p className="mb-1 text-right text-sm">{durationLabel}</p>
+          <div aria-hidden="true" className="h-3.5 overflow-hidden rounded-full bg-white/25">
+            <div className="h-full rounded-full bg-white" style={{ width: `${percent(durationPercent)}%` }} />
           </div>
-        </li>
-      ))}
-    </ul>
+        </div>
+      )}
+      <div className="mt-auto pt-2">
+        <LinkButton label={buttonLabel} href={href} color="light" />
+      </div>
+    </li>
   );
 }
 
 // ---- Plan phases -----------------------------------------------------------------------------------------------
 
-export type PlanPhasesProps = { heading: string; items: { title: string; text: string }[] };
-const PHASE_SHADES = ["bg-plum-100", "bg-plum-200", "bg-plum-300", "bg-plum-400"] as const;
-const PHASE_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
+export type PlanPhasesProps = { heading: string; items: Slot; editing?: boolean };
+/** Each phase a shade deeper than the one before, by its place in the list (a fifth and later take the deepest). */
+const PHASE_SHADES = "bg-plum-100 [&:nth-child(2)]:bg-plum-200 [&:nth-child(3)]:bg-plum-300 [&:nth-child(n+4)]:bg-plum-400";
 
-/** Two to four phases of a plan, each a panel a shade deeper than the one before (light to deeper plum), with dark text set on every one. */
-export function PlanPhases({ heading, items }: PlanPhasesProps) {
-  const rows = rowsOf(items, "title", MAX.phases);
-  if (rows.length === 0) return null;
+/** Two to four phases of a plan, each a `PlanPhase` in the `items` slot: a panel a shade deeper than the one before (light to deeper plum), with dark text set on every one. */
+export function PlanPhases({ heading, items: Items, editing }: PlanPhasesProps) {
   return (
     <div className="py-4 text-left">
       {heading && <h3 className="mb-4 font-display text-2xl font-semibold leading-tight">{heading}</h3>}
-      <ol className={`grid overflow-hidden rounded-xl ${PHASE_COLUMNS[Math.max(rows.length, 2)]}`}>
-        {rows.map((phase, i) => (
-          <li key={i} className={`p-4 text-plum-950 ${PHASE_SHADES[i]}`}>
-            <p className="font-bold">{phase.title}</p>
-            {phase.text && <p className="mt-1">{phase.text}</p>}
-          </li>
-        ))}
-      </ol>
+      <Items as="ol" collisionAxis="dynamic" className={`grid overflow-hidden rounded-xl @pair:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] ${itemList(ITEM_LIMITS.PlanPhases, editing)}`} />
     </div>
+  );
+}
+
+export type PlanPhaseProps = { title: string; text: string } & ItemProps;
+
+/** One phase of a plan: a title and what happens. */
+export function PlanPhase({ title, text, dragRef, editing }: PlanPhaseProps) {
+  if (!title && !editing) return null;
+  return (
+    <li ref={dragRef} className={`min-w-0 p-4 text-plum-950 ${PHASE_SHADES}`}>
+      <p className="font-bold">{title}</p>
+      {text && <p className="mt-1">{text}</p>}
+    </li>
   );
 }
 

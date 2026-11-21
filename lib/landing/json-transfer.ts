@@ -1,4 +1,4 @@
-import { BLOCK_DEFAULTS, SLOTS } from "@/components/landing/config";
+import { BLOCK_DEFAULTS, SLOT_ALLOW, SLOTS } from "@/components/landing/config";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { normalizeLandingData, type LandingData } from "./data";
 import { LANDING_SCHEMA_VERSION, landingDataVersion } from "./migrations";
@@ -109,6 +109,7 @@ export const EXTRA_PROPS: Record<string, string[]> = {
   Image: ["imageAssetId"],
   Split: ["imageAssetId"],
   Hero: ["imageAssetId"],
+  FinisherCard: ["imageAssetId"],
 };
 
 /** The page frame's own props (`root.props`). */
@@ -169,10 +170,11 @@ export function pruneToKnownBlocks(input: LandingData): Pruned {
     return id;
   };
 
-  const cleanList = (list: unknown[]): { type: string; props: Props }[] => {
+  const cleanList = (list: unknown[], allow?: readonly string[]): { type: string; props: Props }[] => {
     const out: { type: string; props: Props }[] = [];
     for (const raw of list) {
-      if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props) || !isBlockType(raw.type)) {
+      // A slot that takes one kind of block (a Steps block's steps) keeps only that kind.
+      if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props) || !isBlockType(raw.type) || (allow && !allow.includes(raw.type))) {
         const label = isObject(raw) && typeof raw.type === "string" && isObject(raw.props) ? typeLabel(raw) : "not a block";
         left.set(label, (left.get(label) ?? 0) + 1);
         continue;
@@ -186,7 +188,7 @@ export function pruneToKnownBlocks(input: LandingData): Pruned {
           droppedProps += 1;
           continue;
         }
-        props[key] = slots.has(key) ? (Array.isArray(value) ? cleanList(value) : []) : value;
+        props[key] = slots.has(key) ? (Array.isArray(value) ? cleanList(value, SLOT_ALLOW[type]?.[key]) : []) : value;
       }
       for (const slot of slots) if (!(slot in props)) props[slot] = [];
       // A first-seen id stays; a missing, odd or repeated one is replaced.

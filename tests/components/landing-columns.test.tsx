@@ -13,7 +13,7 @@ vi.hoisted(() => {
 import { cleanup, render, screen } from "@testing-library/react";
 import { Columns, Hero, Heading, Section } from "@/components/landing/blocks";
 import { OutcomeNumbers } from "@/components/landing/homepage-blocks";
-import { BLOCK_DEFAULTS, SLOTS, renderConfig } from "@/components/landing/config";
+import { BLOCK_DEFAULTS, ITEM_BLOCKS, SLOTS, renderConfig } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import LandingRender from "@/components/landing/LandingRender";
 import { AI_BLOCKS } from "@/lib/landing/ai";
@@ -101,7 +101,7 @@ describe("Columns in a page", () => {
     expect(SLOTS.Columns).toEqual(["col1", "col2", "col3"]);
     for (const slotName of ["col1", "col2", "col3"]) {
       expect(renderConfig.components.Columns.fields?.[slotName]).toEqual({ type: "slot" });
-      expect(editorConfig.components.Columns.fields?.[slotName]).toEqual({ type: "slot" });
+      expect(editorConfig.components.Columns.fields?.[slotName]).toEqual({ type: "slot", disallow: ITEM_BLOCKS });
       expect(renderConfig.components.Columns.defaultProps?.[slotName]).toEqual([]);
     }
     for (const [key, field] of Object.entries(editorConfig.components.Columns.fields ?? {})) {

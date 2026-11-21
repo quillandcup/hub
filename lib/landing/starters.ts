@@ -27,6 +27,8 @@ const text = (html: string, align: "left" | "center" = "center") => ({ type: "Ri
 const button = (label: string, props: Record<string, unknown>) => ({ type: "Button", props: { id: id("Button"), label, href: "", look: "solid", color: "plum", shape: "pill", align: "left", full: false, ...props } });
 const columns = (props: Record<string, unknown>, cols: unknown[][]) => ({ type: "Columns", props: { id: id("Columns"), count: "2", gap: "medium", verticalAlign: "top", col1: cols[0] ?? [], col2: cols[1] ?? [], col3: cols[2] ?? [], ...props } });
 const block = (type: string, props: Record<string, unknown>) => ({ type, props: { id: id(type), ...props } });
+/** The items of a block that holds a list of them (a Finisher card, a week's day): child blocks, each with an id, for the parent's `items` slot. */
+const items = (type: string, list: Record<string, unknown>[]) => list.map((props) => block(type, props));
 const NO_LINK = { label: "", href: "" };
 /** One program under a Journey map stage; the link stays empty unless given, so the publish check asks for it. `featured` leads the stage's panel. */
 const offer = (status: "open" | "waitlist" | "soon" | "dates", statusLabel: string, title: string, text: string, buttonLabel: string, href = "", featured = false) => ({ status, statusLabel, title, text, buttonLabel, href, featured });
@@ -111,11 +113,10 @@ function homeContent(): unknown[] {
       heading("Meet the Finishers"),
       text("<p>Every one of them started with a blank page and an idea.</p>"),
       block("FinisherCards", {
-        items: [
-          { alt: "", name: "[Name]", kind: "[Kind of book]", dayOne: "[Where she started]", theEnd: "[What she finished, and how long it took]", linkLabel: "Read her story", href: "" },
-          { alt: "", name: "[Name]", kind: "[Kind of book]", dayOne: "[Where she started]", theEnd: "[What she finished, and how long it took]", linkLabel: "Read her story", href: "" },
-          { alt: "", name: "[Name]", kind: "[Kind of book]", dayOne: "[Where she started]", theEnd: "[What she finished, and how long it took]", linkLabel: "Read her story", href: "" },
-        ],
+        items: items(
+          "FinisherCard",
+          [0, 1, 2].map(() => ({ alt: "", name: "[Name]", kind: "[Kind of book]", dayOne: "[Where she started]", theEnd: "[What she finished, and how long it took]", linkLabel: "Read her story", href: "" })),
+        ),
         more: { label: "See every Finisher", href: "" },
       }),
     ]),
@@ -124,12 +125,12 @@ function homeContent(): unknown[] {
       block("Timeline", {
         heading: "",
         intro: "You're never writing alone, and you're never invisible. We know each other's characters like the neighborhood kids.",
-        items: [
+        items: items("TimelineMoment", [
           { when: "8:00 am", title: "Morning pages", text: "Maya joins before work. Four others are writing. Nobody talks. Everyone is there." },
           { when: "Noon", title: "Chat", text: "A thread about stubborn middles. Someone shares what worked." },
           { when: "Thursday", title: "Where's Maya?", text: "You miss your usual 8:00. By lunch, someone has checked on you." },
           { when: "Week six", title: "Streak", text: "The house notices, and so do you." },
-        ],
+        ]),
         closing: "",
       }),
     ]),
@@ -137,13 +138,13 @@ function homeContent(): unknown[] {
       heading("Your first week, so nothing is a surprise"),
       block("WeekStrip", {
         subtitle: "Camera optional. Chat optional. Five minutes to join.",
-        items: [
+        items: items("WeekDay", [
           { label: "Mon", emoji: "👋", text: "Drop into a prickle", note: "20 seconds of courage" },
           { label: "Tue", emoji: "✍️", text: "Write & log progress", note: "about 45 min" },
           { label: "Wed", emoji: "🎯", text: "Set one small goal", note: "2 min" },
           { label: "Thu", emoji: "💬", text: "Say hello in chat", note: "5 minute intro" },
           { label: "Fri", emoji: "🔥", text: "Your first streak day", note: "we'll cheer" },
-        ],
+        ]),
       }),
       button("Start your first prickle", { align: "center" }),
     ]),
@@ -151,18 +152,18 @@ function homeContent(): unknown[] {
       heading("Pick a finish line"),
       text("<p>A plan, a steady pace, and Hedgies beside you all the way.</p>"),
       block("FinishLineCards", {
-        items: [
+        items: items("FinishLineCard", [
           { title: "THE END in a year", program: "The Ready Writer", text: "A steady plan to a finished book.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See The Ready Writer", href: FEATURED_COURSE.offerUrl },
           { title: "THE END in six months", program: "The 180 Program (Accelerated)", text: "Faster, with more support.", durationLabel: "6 months", durationPercent: 50, buttonLabel: "See The 180 Program", href: "" },
-        ],
+        ]),
       }),
       block("PlanPhases", {
         heading: "What the first 12 weeks look like",
-        items: [
+        items: items("PlanPhase", [
           { title: "Weeks 1–4", text: "Build the habit with your group." },
           { title: "Weeks 5–8", text: "Find your pace; share a scene for feedback." },
           { title: "Weeks 9–12", text: "Plan the middle; celebrate the halfway mark." },
-        ],
+        ]),
       }),
     ]),
     section({ background: "cream" }, [

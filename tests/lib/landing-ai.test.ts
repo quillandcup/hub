@@ -47,7 +47,7 @@ describe("cleanGeneratedBlocks", () => {
   });
 
   it("caps lists, keeps a section's children one level deep, and trims item shapes", () => {
-    const items = Array.from({ length: 30 }, (_, i) => ({ title: `Step ${i}`, text: "t", extra: "no" }));
+    const items = Array.from({ length: 30 }, (_, i) => ({ type: "Step", props: { title: `Step ${i}`, text: "t", extra: "no" } }));
     const data = cleanGeneratedBlocks({
       blocks: [
         { type: "Steps", props: { items } },
@@ -56,7 +56,7 @@ describe("cleanGeneratedBlocks", () => {
     });
     const [steps, section] = content(data);
     expect(steps.props.items as unknown[]).toHaveLength(12);
-    expect((steps.props.items as Record<string, unknown>[])[0]).toEqual({ title: "Step 0", text: "t" });
+    expect((steps.props.items as Node[])[0]).toEqual({ type: "Step", props: { id: expect.any(String), title: "Step 0", text: "t" } });
     // The nested section keeps its own children list empty: sections do not nest.
     const kids = section.props.content as Node[];
     expect(kids.map((k) => k.type)).toEqual(["Heading", "Section"]);

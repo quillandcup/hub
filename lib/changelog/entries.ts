@@ -156,6 +156,35 @@ The check only lists them; nothing happens to the member or the import.`,
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
   },
   {
+    slug: "landing-page-drag-items",
+    date: "2026-11-20",
+    audience: "staff",
+    category: "improved",
+    title: "Page builder: drag the cards, steps and days of a block to reorder them on the page",
+    summary: "In the page builder you can now drag the Finisher cards, the days of the week strip, the steps, the timeline moments, the finish-line cards, the plan phases and the figures straight on the page, the way you move sections.",
+    body: `Open a page in the admin Pages editor and drag any of those items to a new place inside its block. Click one to edit it in the right-hand panel.
+
+- **Add one.** Open "Parts of a block" in the Add list and drag an item into the block, or duplicate one that is there.
+- **Remove one.** Select it and delete it.
+- **New blocks.** A block you add starts with a few items to change.
+- **Check before publishing.** A block with no items, or with more than it can show, is flagged.
+
+Pages built before this show their items as they were; the starter homepage has them as items already.`,
+  },
+  {
+    slug: "landing-block-items-as-slots",
+    date: "2026-11-20",
+    audience: "engineering",
+    category: "new",
+    title: "Landing blocks hold their items as a slot of child blocks",
+    summary: "A repeating landing block (Finisher cards, week strip, steps...) now keeps its items as child blocks in a slot, so they drag on the canvas like sections do.",
+    body: `A block with repeating items no longer has an array field: each item is a small block of its own, in the parent's \`items\` slot, limited to one item type.
+
+- **Rule.** Add a repeating block by giving it an entry in \`SLOT_ALLOW\` (\`components/landing/config.tsx\`), an item component that takes \`dragRef\` and \`editing\`, and the item's fields. Everything that walks a page (publish check, AI builder, JSON import, assets) follows the table.
+- **Hooks.** \`itemList\` and \`ITEM_LIMITS\` for the empty and past-the-limit behaviour, \`itemsSlot\` in tests.
+- **Detail.** "Blocks with items" in \`docs/LANDING_PAGES.md\`.`,
+  },
+  {
     slug: "writing-visibility-control",
     date: "2026-11-20",
     audience: "engineering",
