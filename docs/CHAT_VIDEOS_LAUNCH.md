@@ -6,7 +6,7 @@
 
 - The engineering entry `lesson-videos-in-chat-building-blocks` (admin changelog only).
 - The product entry `lesson-videos-in-chat` (marked major: the first feature that works only in Hub Chat), with three screenshots in `public/changelog/lesson-videos-in-chat/` taken from the demo community with `demo/scenes/changelog/lesson-videos-in-chat.spec.ts`. The demo seed has one lesson with a ready (made-up) video and a craft-talk message that shares it (`demo/courses-seed.ts`, `seedChatVideoShare` in `demo/chat-seed.ts`).
-- The help article `help/share-a-lesson-video-in-chat.md` (in `HELP_ORDER`), with `demo/scenes/share-a-lesson-video-in-chat.spec.ts` for its screenshots.
+- The help article `content/help/share-a-lesson-video-in-chat.md` (in `HELP_ORDER`), with `demo/scenes/share-a-lesson-video-in-chat.spec.ts` for its screenshots.
 - `chat_videos` in `LIVE_FLAGS` (`lib/changelog/live-flags.ts`).
 - The copy went through the member reader review (`.claude/skills/member-reader-review`).
 
