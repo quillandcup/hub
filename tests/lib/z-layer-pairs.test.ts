@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import config from "@/tailwind.config";
+import config from "@/config/tailwind";
 
 /**
- * Pairs of things that overlap in practice, and which must win. The scale (`tailwind.config.ts`) is
+ * Pairs of things that overlap in practice, and which must win. The scale (`config/tailwind.ts`) is
  * only half of getting stacking right: a layer is also picked per component, and a wrong pick shows
  * only when two things happen to meet (the hover toolbar under the day divider, a popover under a
  * sticky bar). Each side is read from the real class on the component, so changing one fails here

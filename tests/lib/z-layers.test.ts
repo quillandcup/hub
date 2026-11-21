@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import config from "@/tailwind.config";
+import config from "@/config/tailwind";
 
 /**
- * Stacking order is named in tailwind.config.ts (`z-dropdown`, `z-overlay`...), never a number. Picking
+ * Stacking order is named in config/tailwind.ts (`z-dropdown`, `z-overlay`...), never a number. Picking
  * `z-30` in one component and `z-40` in another leaves nobody able to say which of two things wins; a
  * numeric class compiles fine, so nothing else would catch one. `z-auto` and `z-0` are not layers.
  */

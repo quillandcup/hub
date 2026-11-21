@@ -4,7 +4,7 @@
 //
 //   tsx scripts/quality-new-code.ts --eslint reports/eslint-quality.json --base origin/main
 //
-// The ESLint JSON comes from `pnpm lint:quality` (eslint.quality.config.mjs). The added lines
+// The ESLint JSON comes from `pnpm lint:quality` (config/eslint-quality.mjs). The added lines
 // come from `git diff <base>...HEAD`, parsed by the same helper the coverage gate uses
 // (scripts/added-lines.ts). Gating on touched code later means turning the findings this prints
 // into a failing exit code; nothing here does that yet.
@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAddedLines } from "./added-lines";
 
-/** The rules eslint.quality.config.mjs turns on; any other message in the JSON is not a quality finding. */
+/** The rules config/eslint-quality.mjs turns on; any other message in the JSON is not a quality finding. */
 export const QUALITY_RULES = [
   "complexity",
   "max-depth",

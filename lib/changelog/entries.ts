@@ -383,7 +383,7 @@ Where something isn't finished, the line says so.
 
 - **Use it like this.** \`<Kbd keys={["mod", "K"]} />\` renders one cap per key. Names such as \`mod\`, \`shift\`, \`enter\`, \`esc\`, \`up\` and \`down\` are mapped; a single letter is upper-cased. \`mod\` is the Command key on Apple platforms and Ctrl elsewhere, read on the client with \`useSyncExternalStore\`, so the server render and hydration agree and the right key appears right after.
 - **Decorative only.** It is \`aria-hidden\`. The control that owns a shortcut declares it with \`aria-keyshortcuts\`, which keeps the visible hint out of the button's accessible name.
-- **Only where there is a keyboard.** It is hidden below \`sm\` and on devices without hover and a fine pointer, through the \`fine-pointer\` Tailwind variant in \`tailwind.config.ts\`. Use that variant for any other keyboard-only affordance.
+- **Only where there is a keyboard.** It is hidden below \`sm\` and on devices without hover and a fine pointer, through the \`fine-pointer\` Tailwind variant in \`config/tailwind.ts\`. Use that variant for any other keyboard-only affordance.
 - **Add a hint only for a shortcut that works.** Today: search (open, move, choose, close), the modal close button, sending a chat message, and the admin calendar's week links.`,
   },
   {
@@ -2633,7 +2633,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     summary:
       "The repo moved to pnpm, new PRs auto-merge on green, docs-only changes skip tests and deploy, and layouts use named container queries.",
     body: [
-      "Named container sizes live in tailwind.config.ts. A production tag marks what is deployed. Migration order is checked in pre-commit and CI.",
+      "Named container sizes live in config/tailwind.ts. A production tag marks what is deployed. Migration order is checked in pre-commit and CI.",
     ].join("\n\n"),
   },
   {

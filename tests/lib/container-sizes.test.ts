@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import config from "@/tailwind.config";
+import config from "@/config/tailwind";
 
 /**
- * Container-query variants use the named sizes in tailwind.config.ts (`@split:`, `@outline:`...), so
+ * Container-query variants use the named sizes in config/tailwind.ts (`@split:`, `@outline:`...), so
  * every page reflows at the same widths and shell-derived thresholds live in one place. The
  * plugin's own sizes (`@md:`, `@3xl:`) and `@[62rem]:` literals still compile, which is why this
  * test exists: nothing else would catch one.
