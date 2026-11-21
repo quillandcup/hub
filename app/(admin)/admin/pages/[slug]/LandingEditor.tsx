@@ -14,7 +14,8 @@ import AppIcon from "@/components/Icon";
 import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import MediaPicker from "@/components/media/MediaPicker";
-import { editorConfig } from "@/components/landing/editor-config";
+import { editorConfigFor } from "@/components/landing/editor-config";
+import type { SiteTemplate } from "@/lib/landing/site-template";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
@@ -281,10 +282,13 @@ function EditorHeader({
   );
 }
 
-export default function LandingEditor({ page: initial, data, versions, starters = [], templates = [] }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[]; templates?: TemplateOption[] }) {
+/** `site` is the site template draft a website page shows at the top and bottom of its canvas (edited in Design, not here); null for a landing page. */
+export default function LandingEditor({ page: initial, data, versions, starters = [], templates = [], site = null }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[]; templates?: TemplateOption[]; site?: SiteTemplate | null }) {
   const router = useRouter();
   useMirrorHostTheme();
   const [page, setPage] = useState(initial);
+  // The kind of page never changes, so the config is made once: a new config object would make Puck remount the canvas.
+  const config = useMemo(() => editorConfigFor({ pageType: initial.pageType === "website" ? "website" : "landing", site, editing: true }), [initial.pageType, site]);
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
   const [hasUnpublished, setHasUnpublished] = useState(false);
@@ -453,7 +457,7 @@ export default function LandingEditor({ page: initial, data, versions, starters 
     <div className="landing-editor h-[calc(100dvh-4rem)]">
       <FoldContext.Provider value={foldContext}>
         <Puck
-          config={editorConfig}
+          config={config}
           data={data as unknown as Data}
           onChange={onChange}
           overrides={overrides}

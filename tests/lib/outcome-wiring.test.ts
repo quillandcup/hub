@@ -83,6 +83,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     "app/(admin)/admin/pages/actions.ts",
     [["createLandingPage", "landing_page_created"], ["createLandingPageWithAi", "landing_page_ai_built"], ["generateLandingBlocks", "landing_page_ai_added"], ["reviseLandingBlocks", "landing_page_ai_revised"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["resetLandingDraftToPublished", "landing_page_draft_reset"], ["replaceLandingDraftWithStarter", "landing_page_starter_applied"], ["importLandingDraftJson", "landing_page_json_imported"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
   ],
+  [() => import("@/app/(admin)/admin/pages/design/actions"), "app/(admin)/admin/pages/design/actions.ts", [["publishSiteTemplate", "landing_site_published"], ["resetSiteDraft", "landing_site_draft_reset"]]],
   [
     () => import("@/app/(admin)/admin/pages/template-actions"),
     "app/(admin)/admin/pages/template-actions.ts",

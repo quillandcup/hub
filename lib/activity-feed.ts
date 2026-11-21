@@ -448,6 +448,7 @@ const ENTITY_LABELS: Record<string, string> = {
   care_engagement: "care plan",
   landing_page: "page",
   landing_page_template: "template",
+  landing_site_template: "site design",
   member_milestone: "milestone",
   writer_profile: "public writer page",
 };
@@ -510,6 +511,11 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
   const name = recordName(row);
   const quoted = name ? ` “${name}”` : "";
   const text = (change: FieldChange | undefined) => (typeof change?.old === "string" && change.old ? ` “${formatValue(change.old)}”` : "");
+  // The header and footer shared by every website page: only publishing is an entry (the draft is autosaved), never the content.
+  if (row.entity_type === "landing_site_template") {
+    if (row.event_type === "update" || row.event_type === "insert") return fields.published_at?.new ? "published the site design (the header and footer shared by every website page)" : null;
+    return null;
+  }
   const isTemplate = row.entity_type === "landing_page_template";
   if (row.entity_type === "landing_page" || isTemplate) {
     const noun = isTemplate ? "template" : "page";

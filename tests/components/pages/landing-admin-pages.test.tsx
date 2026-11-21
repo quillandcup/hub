@@ -21,12 +21,17 @@ vi.mock("@/app/(admin)/admin/pages/PagesTable", () => ({
     </div>
   ),
 }));
+vi.mock("@/app/(admin)/admin/pages/design/DesignEditor", () => ({
+  default: ({ initial, publishedAt, hasPublished, unpublished }: { initial: { footer: { text: string } }; publishedAt: string | null; hasPublished: boolean; unpublished: boolean }) => (
+    <div data-testid="design" data-footer={initial.footer.text} data-published-at={publishedAt ?? ""} data-has-published={String(hasPublished)} data-unpublished={String(unpublished)} />
+  ),
+}));
 vi.mock("@/app/(admin)/admin/pages/new/NewPageForm", () => ({
   default: ({ templates = [], defaultType }: { templates?: { id: string; name: string }[]; defaultType?: string }) => <form aria-label="New page form" data-default={defaultType} data-templates={templates.map((t) => t.name).join(",")} />,
 }));
 vi.mock("@/app/(admin)/admin/pages/[slug]/LandingEditor", () => ({
-  default: ({ page, data, versions, starters = [], templates = [] }: { page: { slug: string; seoTitle: string; publishedJson: string | null; kind?: string; pageType?: string; publicPath: string }; data: unknown; versions: unknown[]; starters?: { label: string; group?: string }[]; templates?: { name: string; published: boolean }[] }) => (
-    <div data-testid="editor" data-slug={page.slug} data-seo={page.seoTitle} data-published={String(page.publishedJson !== null)} data-versions={versions.length} data-kind={page.kind} data-type={page.pageType} data-path={page.publicPath} data-starters={starters.map((s) => `${s.group ?? "built"}:${s.label}`).join(",")} data-templates={templates.map((t) => `${t.name}:${t.published}`).join(",")}>
+  default: ({ page, data, versions, starters = [], templates = [], site = null }: { page: { slug: string; seoTitle: string; publishedJson: string | null; kind?: string; pageType?: string; publicPath: string }; data: unknown; versions: unknown[]; starters?: { label: string; group?: string }[]; templates?: { name: string; published: boolean }[]; site?: { footer: { text: string } } | null }) => (
+    <div data-testid="editor" data-slug={page.slug} data-seo={page.seoTitle} data-published={String(page.publishedJson !== null)} data-versions={versions.length} data-kind={page.kind} data-type={page.pageType} data-site={site ? site.footer.text : "none"} data-path={page.publicPath} data-starters={starters.map((s) => `${s.group ?? "built"}:${s.label}`).join(",")} data-templates={templates.map((t) => `${t.name}:${t.published}`).join(",")}>
       {JSON.stringify(data)}
     </div>
   ),
@@ -73,6 +78,30 @@ describe("/admin/pages", () => {
     expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new?type=landing");
     expect(screen.getByTestId("table")).toHaveTextContent("Spring sprint");
     expect(screen.getByTestId("table")).not.toHaveTextContent("Home");
+  });
+});
+
+describe("/admin/pages/design", () => {
+  const draft = (text: string) => ({ header: { show: false, align: "spread" as const, mobileMenu: "fold" as const, items: [] }, footer: { show: true, text, links: [], social: [] } });
+
+  it("checks for an admin, then shows the Design tab with the site template's draft and whether it is published", async () => {
+    const { default: DesignTab } = await import("@/app/(admin)/admin/pages/design/page");
+    await state.repos.landingSiteTemplate.saveDraft(draft("Fern Quills"), null);
+    await renderServerPage(DesignTab, {});
+    expect(requireAdminPage).toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Design", selected: true })).toBeInTheDocument();
+    expect(screen.getByTestId("design")).toHaveAttribute("data-footer", "Fern Quills");
+    expect(screen.getByTestId("design")).toHaveAttribute("data-has-published", "false");
+    expect(screen.getByTestId("design")).toHaveAttribute("data-unpublished", "true");
+  });
+
+  it("is not unpublished once the draft is what was published", async () => {
+    const { default: DesignTab } = await import("@/app/(admin)/admin/pages/design/page");
+    await state.repos.landingSiteTemplate.saveDraft(draft("Live"), null);
+    await state.repos.landingSiteTemplate.publish(null);
+    await renderServerPage(DesignTab, {});
+    expect(screen.getByTestId("design")).toHaveAttribute("data-has-published", "true");
+    expect(screen.getByTestId("design")).toHaveAttribute("data-unpublished", "false");
   });
 });
 
@@ -156,6 +185,17 @@ describe("/admin/pages/[slug]", () => {
     await renderServerPage(EditLandingPage, params("about"));
     expect(screen.getByTestId("editor")).toHaveAttribute("data-type", "website");
     expect(screen.getByTestId("editor").getAttribute("data-starters")).toBe("built:Homepage,template:Site kit");
+  });
+
+  it("gives a website page the site design draft for the regions of its canvas, and a landing page none", async () => {
+    await state.repos.landingSiteTemplate.saveDraft({ header: { show: true, align: "spread", mobileMenu: "fold", items: [] }, footer: { show: true, text: "Fern Quills", links: [], social: [] } }, null);
+    await state.repos.landingPages.create({ title: "About", slug: "about", createdBy: null, pageType: "website" });
+    await state.repos.landingPages.create({ title: "Funnel", slug: "funnel", createdBy: null });
+    await renderServerPage(EditLandingPage, params("about"));
+    expect(screen.getByTestId("editor")).toHaveAttribute("data-site", "Fern Quills");
+    cleanup();
+    await renderServerPage(EditLandingPage, params("funnel"));
+    expect(screen.getByTestId("editor")).toHaveAttribute("data-site", "none");
   });
 
   it("answers 404 for an unknown page and an invalid address, whoever asks", async () => {

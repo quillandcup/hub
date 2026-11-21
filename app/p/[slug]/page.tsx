@@ -37,6 +37,8 @@ export default async function PublicLandingPage({ params }: Params) {
   const { slug } = await params;
   const page = await load(slug);
   if (!page) notFound();
+  // A website page is framed by the site's shared header and footer: the PUBLISHED copy, so a draft of the site design never reaches a visitor.
+  const site = page.pageType === "website" ? await getServiceRepos().landingSiteTemplate.published() : null;
   // Live blocks get their figures here, for this render only (lib/landing/live-data.ts): the stored page is never changed.
-  return <LandingRender data={await withLiveData(page.data)} />;
+  return <LandingRender data={await withLiveData(page.data)} frame={{ pageType: page.pageType, site }} />;
 }
