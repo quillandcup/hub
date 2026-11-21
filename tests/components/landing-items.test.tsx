@@ -21,7 +21,7 @@ import { cleanGeneratedBlocks, pageForModel, systemPrompt } from "@/lib/landing/
 import { collectAssetIds, normalizeLandingData, mapAssetIds } from "@/lib/landing/data";
 import { pruneToKnownBlocks } from "@/lib/landing/json-transfer";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
-import { starterData } from "@/lib/landing/starters";
+import { sampleLandingPage } from "../helpers/landing-sample-page";
 import { itemsSlot } from "./landing-items-slot";
 
 afterEach(cleanup);
@@ -152,9 +152,9 @@ describe("the publish check", () => {
   });
 });
 
-describe("the starters", () => {
+describe("a realistic page", () => {
   it("hold only items of the type their block takes, each with its own id, and pass the publish check's errors only where a link is still to be set", () => {
-    const content = starterData("home").content as Node[];
+    const content = sampleLandingPage().content as Node[];
     const ids: string[] = [];
     const visit = (nodes: Node[], parent?: string) => {
       for (const node of nodes) {
@@ -165,8 +165,8 @@ describe("the starters", () => {
     };
     visit(content);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(pruneToKnownBlocks(normalizeLandingData(starterData("home")))).toMatchObject({ leftOut: [], droppedProps: 0 });
-    // Every block with items has some in the starter, so none is blank.
+    expect(pruneToKnownBlocks(normalizeLandingData(sampleLandingPage()))).toMatchObject({ leftOut: [], droppedProps: 0 });
+    // Every block with items has some in the sample page, so none is blank.
     const text = JSON.stringify(content);
     // The homepage has no List, FAQ, Testimonials, Card grid, Link list, Steps or Stats; every other block with items is in it.
     for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Faq", "CardGrid", "LinkList"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
@@ -321,7 +321,7 @@ describe("the publish check for the second batch", () => {
   });
 });
 
-describe("the starters and JSON import for the second batch", () => {
+describe("a realistic page and JSON import for the second batch", () => {
   it("keep the items of these blocks, and drop another kind of block from their lists", () => {
     const data = {
       content: [
@@ -341,7 +341,7 @@ describe("the starters and JSON import for the second batch", () => {
   });
 
   it("have the homepage's Buttons, Schedule panel and Outcome numbers as blocks in their slots, with ids", () => {
-    const text = JSON.stringify(starterData("home").content);
+    const text = JSON.stringify(sampleLandingPage().content);
     for (const type of ["RowButton", "ScheduleRow", "OutcomeNumber"]) expect(text).toContain(`"type":"${type}"`);
     expect(text).not.toContain('"rows":');
   });

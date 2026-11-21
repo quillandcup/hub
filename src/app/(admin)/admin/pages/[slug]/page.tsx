@@ -6,7 +6,6 @@ import { normalizeLandingData } from "@/lib/landing/data";
 import { isValidSlug } from "@/lib/landing/slug";
 import { UNKNOWN_EDITOR } from "@/lib/landing/version-notes";
 import { editorNames } from "@/lib/landing/version-people";
-import { LANDING_STARTERS, STARTER_KEYS } from "@/lib/landing/starters";
 import { createClient } from "@/lib/supabase/server";
 import LandingEditor from "./LandingEditor";
 
@@ -45,8 +44,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
       site={(await repos.landingSiteTemplate.state()).draft}
       data={normalizeLandingData(page.draft_data)}
       versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
-      starters={[
-        ...STARTER_KEYS.filter((key) => LANDING_STARTERS[key].pageType === pageType).map((key) => ({ key, label: LANDING_STARTERS[key].label, description: LANDING_STARTERS[key].description })),
+      replaceChoices={[
         // Only a published template is offered, and what is copied is its published copy. A template is never offered to itself.
         ...templates.filter((t) => t.id !== page.id).map((t) => ({ key: t.id, label: t.title, description: "A template you published.", group: "template" as const })),
       ]}

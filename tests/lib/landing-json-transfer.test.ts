@@ -10,7 +10,7 @@ import {
   parseLandingImport,
   pruneToKnownBlocks,
 } from "@/lib/landing/json-transfer";
-import { LANDING_STARTERS, STARTER_KEYS, starterData } from "@/lib/landing/starters";
+import { sampleLandingPage } from "../helpers/landing-sample-page";
 
 const heading = { type: "Heading", props: { id: "h1", text: "Welcome", level: "h1", align: "center" } };
 const doc = (...blocks: unknown[]) => ({ content: [heading, ...blocks], root: { props: { showHeader: true } } });
@@ -118,13 +118,11 @@ describe("pruneToKnownBlocks", () => {
   const prune = (value: unknown) => pruneToKnownBlocks(normalizeLandingData(value));
 
   it("leaves a page the builder wrote exactly as it is", () => {
-    for (const key of STARTER_KEYS) {
-      const data = normalizeLandingData(starterData(key));
-      const pruned = pruneToKnownBlocks(data);
-      expect(pruned.leftOut, LANDING_STARTERS[key].label).toEqual([]);
-      expect(pruned.droppedProps, LANDING_STARTERS[key].label).toBe(0);
-      expect(pruned.data).toEqual(data);
-    }
+    const data = normalizeLandingData(sampleLandingPage());
+    const pruned = pruneToKnownBlocks(data);
+    expect(pruned.leftOut).toEqual([]);
+    expect(pruned.droppedProps).toBe(0);
+    expect(pruned.data).toEqual(data);
   });
 
   it("drops blocks the builder doesn't have, at any depth, and counts them by type", () => {

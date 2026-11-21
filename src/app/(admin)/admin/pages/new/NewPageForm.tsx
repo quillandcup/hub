@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import type { LandingPageType } from "@/lib/data/landing-pages";
 import { PROMPT_MAX } from "@/lib/landing/ai-limits";
 import { slugify } from "@/lib/landing/slug";
-import { LANDING_STARTERS, STARTER_KEYS, isStarterKey } from "@/lib/landing/starters";
 import { createLandingPage, createLandingPageWithAi } from "../actions";
 
 const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
@@ -19,14 +18,13 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
   const [edited, setEdited] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [pageType, setPageType] = useState<LandingPageType>(defaultType);
-  const [starter, setStarter] = useState("");
+  const [choice, setChoice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  // Only starting points for the chosen kind are offered; changing the kind drops a choice that no longer fits.
-  const starterKeys = STARTER_KEYS.filter((key) => LANDING_STARTERS[key].pageType === pageType);
+  // Only templates for the chosen kind are offered; changing the kind drops a choice that no longer fits.
   const choices = templates.filter((t) => t.pageType === pageType);
-  const template = choices.find((t) => t.id === starter);
-  const useAi = !starter && Boolean(prompt.trim());
+  const template = choices.find((t) => t.id === choice);
+  const useAi = !choice && Boolean(prompt.trim());
 
   return (
     <form
@@ -34,7 +32,7 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
         e.preventDefault();
         setError(null);
         start(async () => {
-          const result = useAi ? await createLandingPageWithAi({ title, slug, prompt, pageType }) : await createLandingPage(template ? { title, slug, template: template.id, pageType } : { title, slug, starter: starter || undefined, pageType });
+          const result = useAi ? await createLandingPageWithAi({ title, slug, prompt, pageType }) : await createLandingPage(template ? { title, slug, template: template.id, pageType } : { title, slug, pageType });
           if (result.error || !result.slug) return setError(result.error ?? "Couldn't create the page.");
           router.push(`/admin/pages/${result.slug}`);
         });
@@ -57,7 +55,7 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
               checked={pageType === value}
               onChange={() => {
                 setPageType(value);
-                setStarter("");
+                setChoice("");
               }}
               className="mt-1"
             />
@@ -99,29 +97,16 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
       <label className="block text-sm font-medium">
         Start from
         <select
-          value={starter}
+          value={choice}
           onChange={(e) => {
             const next = e.target.value;
-            setStarter(next);
+            setChoice(next);
             const chosen = choices.find((t) => t.id === next);
             if (chosen && !title.trim()) setTitle(chosen.name);
-            if (isStarterKey(next)) {
-              if (!title.trim()) setTitle(LANDING_STARTERS[next].title);
-              if (!edited && !slug) setSlug(LANDING_STARTERS[next].slug);
-            }
           }}
           className={`${INPUT} mt-1`}
         >
           <option value="">A blank page</option>
-          {starterKeys.length > 0 && (
-            <optgroup label="Built in">
-              {starterKeys.map((key) => (
-                <option key={key} value={key}>
-                  {LANDING_STARTERS[key].label}
-                </option>
-              ))}
-            </optgroup>
-          )}
           {choices.length > 0 && (
             <optgroup label="Templates">
               {choices.map((t) => (
@@ -133,11 +118,7 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
           )}
         </select>
         <span className="mt-1 block text-xs font-normal text-slate-600 dark:text-slate-400">
-          {starter && isStarterKey(starter)
-            ? `${LANDING_STARTERS[starter].description} It is saved as a draft for you to edit; nothing is published.`
-            : template
-              ? "A template you published. Its published copy is saved as a draft for you to edit; nothing is published."
-              : "Or begin with a ready-made draft or one of your published templates."}
+          {template ? "A template you published. Its published copy is saved as a draft for you to edit; nothing is published." : "Or begin with one of your published templates."}
         </span>
       </label>
       <label className="block text-sm font-medium">
@@ -147,7 +128,7 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
           onChange={(e) => setPrompt(e.target.value)}
           rows={6}
           maxLength={PROMPT_MAX}
-          disabled={!aiAvailable || Boolean(starter)}
+          disabled={!aiAvailable || Boolean(choice)}
           placeholder={aiAvailable ? "Who it is for, what you offer, the dates and prices, and the link people should follow." : "Build with AI isn't set up yet."}
           className={`${INPUT} mt-1 disabled:opacity-60`}
         />

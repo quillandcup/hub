@@ -127,25 +127,24 @@ describe("the pages list", () => {
 });
 
 describe("the new page form, kind of page", () => {
-  it("asks which kind, offers the homepage starter only for a website page, and sends the kind", async () => {
+  it("asks which kind, offers no built-in starting point for either kind, and sends the kind", async () => {
     render(<NewPageForm aiAvailable={false} defaultType="landing" />);
     expect(screen.getByRole("radio", { name: /Landing page/ })).toBeChecked();
     expect(screen.queryByRole("option", { name: "Homepage" })).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: /Website page/ }));
-    expect(screen.getByRole("option", { name: "Homepage" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /Landing page/ }));
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Opt in" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create page" }));
     });
-    expect(mocks.create).toHaveBeenLastCalledWith({ title: "Opt in", slug: "opt-in", starter: undefined, pageType: "landing" });
+    expect(mocks.create).toHaveBeenLastCalledWith({ title: "Opt in", slug: "opt-in", pageType: "landing" });
   });
 
-  it("offers only the templates of the chosen kind, and drops a starter that no longer fits", () => {
+  it("offers only the templates of the chosen kind, and drops a choice that no longer fits", () => {
     render(<NewPageForm aiAvailable={false} defaultType="website" templates={[{ id: "t1", name: "Site kit", pageType: "website" }, { id: "t2", name: "Funnel kit", pageType: "landing" }]} />);
     expect(screen.getByRole("option", { name: "Site kit" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Funnel kit" })).toBeNull();
-    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "home" } });
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "t1" } });
     fireEvent.click(screen.getByRole("radio", { name: /Landing page/ }));
     expect(screen.getByLabelText(/Start from/)).toHaveValue("");
     expect(screen.getByRole("option", { name: "Funnel kit" })).toBeInTheDocument();
@@ -183,26 +182,40 @@ describe("the new page form", () => {
   });
 });
 
-describe("the new page form, starters", () => {
-  it("offers the homepage, fills in its title and address, and creates the page from it", async () => {
-    mocks.create.mockResolvedValueOnce({ slug: "home" });
-    render(<NewPageForm aiAvailable />);
-    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "home" } });
-    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Quill & Cup");
-    expect((screen.getByLabelText(/Address/) as HTMLInputElement).value).toBe("home");
-    expect(screen.getByLabelText(/Describe the page/)).toBeDisabled();
+describe("the new page form, starting points", () => {
+  const templates = [
+    { id: "lpg_siteKit", name: "Site kit", pageType: "website" as const },
+    { id: "lpg_funnelKit", name: "Funnel kit", pageType: "landing" as const },
+  ];
+
+  it("offers a blank page and only the templates for the chosen kind, with nothing built in", () => {
+    render(<NewPageForm aiAvailable defaultType="website" templates={templates} />);
+    const select = screen.getByLabelText(/Start from/);
+    expect(Array.from((select as HTMLSelectElement).options).map((o) => o.textContent)).toEqual(["A blank page", "Site kit"]);
+    expect(screen.queryByText("Built in")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Landing page/ }));
+    expect(Array.from((screen.getByLabelText(/Start from/) as HTMLSelectElement).options).map((o) => o.textContent)).toEqual(["A blank page", "Funnel kit"]);
+  });
+
+  it("creates a blank page with no starting point", async () => {
+    mocks.create.mockResolvedValueOnce({ slug: "about" });
+    render(<NewPageForm aiAvailable templates={templates} />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "About" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create page" }));
     });
-    expect(mocks.create).toHaveBeenCalledWith({ title: "Quill & Cup", slug: "home", starter: "home", pageType: "website" });
-    expect(mocks.createAi).not.toHaveBeenCalled();
-    expect(mocks.push).toHaveBeenCalledWith("/admin/pages/home");
+    expect(mocks.create).toHaveBeenCalledWith({ title: "About", slug: "about", pageType: "website" });
+    expect(mocks.push).toHaveBeenCalledWith("/admin/pages/about");
   });
 
-  it("keeps a title already typed", () => {
-    render(<NewPageForm aiAvailable={false} />);
+  it("fills in the title from a template, keeps a title already typed, and turns the AI description off", () => {
+    render(<NewPageForm aiAvailable templates={templates} />);
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "lpg_siteKit" } });
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Site kit");
+    expect(screen.getByLabelText(/Describe the page/)).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "" } });
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "My home" } });
-    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "home" } });
+    fireEvent.change(screen.getByLabelText(/Start from/), { target: { value: "lpg_siteKit" } });
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("My home");
   });
 });

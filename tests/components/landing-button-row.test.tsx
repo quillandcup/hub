@@ -5,7 +5,7 @@ import { ButtonRow, RowButton, buttonClasses, type RowButtonProps } from "@/comp
 import { BLOCK_DEFAULTS, BLOCK_LABELS, SLOT_ALLOW, renderConfig } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage } from "@/lib/landing/a11y";
-import { starterData } from "@/lib/landing/starters";
+import { sampleLandingPage } from "../helpers/landing-sample-page";
 import { itemsSlot } from "./landing-items-slot";
 
 afterEach(cleanup);
@@ -103,9 +103,9 @@ describe("ButtonRow accessibility checks", () => {
   });
 });
 
-describe("Homepage starter opening", () => {
+describe("A page opening with two buttons", () => {
   it("has the two buttons in one ButtonRow, primary follows the site and secondary is outline, both light", () => {
-    const content = starterData("home").content as { type: string; props: Record<string, unknown> }[];
+    const content = sampleLandingPage().content as { type: string; props: Record<string, unknown> }[];
     const section = content[1];
     const columns = (section.props.content as { props: Record<string, unknown> }[])[0];
     const buttons = (columns.props.col1 as { type: string; props: Record<string, unknown> }[]).find((b) => b.type === "ButtonRow")!;

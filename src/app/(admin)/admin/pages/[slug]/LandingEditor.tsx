@@ -30,11 +30,11 @@ import { FoldContext, FoldFrame } from "./FoldMarker";
 import IssueList from "./IssueList";
 import JsonTransfer from "./JsonTransfer";
 import SaveAsTemplate, { type TemplateOption } from "./SaveAsTemplate";
-import StarterReplace, { type StarterOption } from "./StarterReplace";
+import TemplateReplace, { type TemplateReplaceOption } from "./TemplateReplace";
 import { replaceLandingDraftWithTemplate } from "../template-actions";
 import { VERSION_NOTE_MAX } from "@/lib/landing/version-notes";
 import { isLandingPageId } from "@/lib/landing/slug";
-import { importLandingDraftJson, publishLandingPage, replaceLandingDraftWithStarter, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
+import { importLandingDraftJson, publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 
@@ -286,7 +286,7 @@ function EditorHeader({
 }
 
 /** `site` is the site template draft a website page shows at the top and bottom of its canvas (edited in Design, not here); null for a landing page. */
-export default function LandingEditor({ page: initial, data, versions, starters = [], templates = [], site = null }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; starters?: StarterOption[]; templates?: TemplateOption[]; site?: SiteTemplate | null }) {
+export default function LandingEditor({ page: initial, data, versions, replaceChoices = [], templates = [], site = null }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; replaceChoices?: TemplateReplaceOption[]; templates?: TemplateOption[]; site?: SiteTemplate | null }) {
   const router = useRouter();
   useMirrorHostTheme();
   const [page, setPage] = useState(initial);
@@ -539,12 +539,12 @@ export default function LandingEditor({ page: initial, data, versions, starters 
             return null;
           }}
         />
-        <StarterReplace
-          starters={starters}
+        <TemplateReplace
+          choices={replaceChoices}
           onReplace={async (key) => {
-            // Save what is typed first, so the draft kept in History is the one on screen, and autosave can't write it back over the starter.
+            // Save what is typed first, so the draft kept in History is the one on screen, and autosave can't write it back over the template.
             if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
-            const result = isLandingPageId(key) ? await replaceLandingDraftWithTemplate(page.id, key) : await replaceLandingDraftWithStarter(page.id, key);
+            const result = await replaceLandingDraftWithTemplate(page.id, key);
             if (result.error) return result.error;
             // The editor takes its document once, so a replacement reloads the page to open the new draft.
             window.location.reload();

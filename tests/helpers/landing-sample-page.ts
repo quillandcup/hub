@@ -1,22 +1,19 @@
 import { FEATURED_COURSE, ORG_TIMEZONE } from "@/lib/config";
-import type { LandingPageType } from "@/lib/data/landing-pages";
-import type { LandingData } from "./data";
-import { presetPadding } from "./layout";
-import { stampLandingVersion } from "./migrations";
+import type { LandingData } from "@/lib/landing/data";
+import { presetPadding } from "@/lib/landing/layout";
+import { stampLandingVersion } from "@/lib/landing/migrations";
 
 /**
- * Ready-made first drafts for "New page" (docs/product/LANDING_PAGES.md, "Starters"). A starter is the same Puck JSON the editor
- * saves, written once (here) and copied into a new draft page: from then on the page is the admin's, edited like any
- * other. Nothing in a starter is published, and it holds no member data, picture or invented fact: figures and
- * statuses are typed by hand (live data comes later), what only a person knows is left empty or in [brackets], and a
- * button with no known address keeps an empty link, which stops a publish until it is set.
+ * A representative landing page for tests: the shape the editor saves, with the blocks (and their child items) a real page uses.
+ * It stands in for the built-in Homepage starter, which was retired when the Homepage became a published template; tests that
+ * need a realistic page, a round trip or a block with items use it. Nothing here is published or holds member data.
  */
 
 /** The organization's zone in words ("Eastern Time"), from `ORG_TIMEZONE`, so no zone is written in the starter. */
 const orgZoneLabel = () => new Intl.DateTimeFormat("en-US", { timeZone: ORG_TIMEZONE, timeZoneName: "longGeneric" }).formatToParts(new Date()).find((part) => part.type === "timeZoneName")?.value ?? "";
 
 let n = 0;
-const id = (type: string) => `${type}-home${(n++).toString(36)}`;
+const id = (type: string) => `${type}-sample${(n++).toString(36)}`;
 
 const section = (props: Record<string, unknown>, content: unknown[]) => ({
   type: "Section",
@@ -52,7 +49,7 @@ const COPY = {
 } as const;
 
 /**
- * The homepage as reviewed with the owner: announcement strip, an opening band with the pitch beside the day's
+ * A homepage-shaped page: announcement strip, an opening band with the pitch beside the day's
  * schedule, outcome numbers, Finishers, a day in the house, the first week, finish lines, the journey map and what is
  * coming up, then a sign-up. The opening band is a plum Section holding two Columns (the Hero block has no second
  * column), and its headline is the page's one h1. Sections default to Medium space; only the closing sign-up is airy.
@@ -252,32 +249,19 @@ function homeContent(): unknown[] {
   ];
 }
 
-export type StarterKey = "home";
-
-export const LANDING_STARTERS: Record<StarterKey, { label: string; title: string; slug: string; description: string; pageType: LandingPageType }> = {
-  home: { pageType: "website", label: "Homepage", title: "Quill & Cup", slug: "home", description: "The public front door: this week's prickles, Finishers, a day in the house, the first week and the next step." },
-};
-
-export const STARTER_KEYS = Object.keys(LANDING_STARTERS) as StarterKey[];
-
-export const isStarterKey = (value: unknown): value is StarterKey => typeof value === "string" && (STARTER_KEYS as string[]).includes(value);
-
-/** A fresh copy of a starter's page (new each call, so a draft never shares objects with another). */
-export function starterData(key: StarterKey): LandingData {
-  const content = key === "home" ? homeContent() : [];
+/** A fresh copy of the sample page (new each call, so a test never shares objects with another). */
+export function sampleLandingPage(): LandingData {
   return stampLandingVersion({
-    content,
+    content: homeContent(),
     root: {
       props: {
         showHeader: false,
         showFooter: true,
         navLinks: [],
-        footerText: "Quill & Cup. Write together. Show up. Write. Celebrate. Repeat.",
+        footerText: "Example Co. Write together. Show up.",
         footerLinks: [
           { label: "Member sign in", href: "/login" },
           { label: "Privacy", href: "/privacy" },
-          { label: "Security", href: "/security" },
-          { label: "Compliance", href: "/compliance" },
         ],
       },
     },

@@ -22,6 +22,7 @@ import {
   saveLandingDraft,
   updateLandingPageDetails,
 } from "@/app/(admin)/admin/pages/actions";
+import { sampleLandingPage } from "../helpers/landing-sample-page";
 
 const title = { type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } };
 const doc = (...blocks: unknown[]) => ({ content: [title, ...blocks], root: { props: {} } });
@@ -238,9 +239,8 @@ describe("importLandingDraftJson", () => {
       expect((await state.repos.landingPages.versions(id)).length).toBe(versions);
     });
 
-    it("is identical for a starter's page, with its nested blocks", async () => {
-      await createLandingPage({ title: "From starter", slug: "starter", starter: "home", pageType: "website" });
-      const page = (await state.repos.landingPages.bySlug("starter"))!;
+    it("is identical for a page with many blocks and their nested blocks", async () => {
+      const page = await state.repos.landingPages.create({ title: "Sample", slug: "sample", data: sampleLandingPage(), createdBy: null, pageType: "website" });
       const exported = buildLandingExport({ slug: page.slug, title: page.title, kind: "draft", data: page.draft_data, now: NOW });
       if (!exported.ok) throw new Error(exported.error);
       const result = await importLandingDraftJson(page.id, exported.json, { dryRun: true });

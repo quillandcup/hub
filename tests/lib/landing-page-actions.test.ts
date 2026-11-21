@@ -23,7 +23,6 @@ import {
   deleteLandingPage,
   duplicateLandingPage,
   publishLandingPage,
-  replaceLandingDraftWithStarter,
   resetLandingDraftToPublished,
   restoreLandingPageVersion,
   saveLandingDraft,
@@ -58,7 +57,6 @@ describe("who may use the page builder", () => {
       unpublishLandingPage(id),
       restoreLandingPageVersion("lpgv_AAAAAAAAAAA1"),
       resetLandingDraftToPublished(id),
-      replaceLandingDraftWithStarter(id, "home"),
       importLandingDraftJson(id, "{}"),
       duplicateLandingPage(id),
       deleteLandingPage(id),
@@ -90,11 +88,9 @@ describe("createLandingPage, kind of page", () => {
     expect(state.dataset.landingPages.map((p) => [p.slug, p.page_type])).toEqual([["funnel", "landing"], ["about", "website"]]);
   });
 
-  it("refuses an unknown kind, and a starter for the other kind, and writes nothing", async () => {
+  it("refuses an unknown kind and writes nothing", async () => {
     expect(await createLandingPage({ title: "X", pageType: "blog" })).toEqual({ error: "Choose a website page or a landing page." });
-    expect(await createLandingPage({ title: "Home", starter: "home", pageType: "landing" })).toEqual({ error: "That starting point is for the other kind of page." });
     expect(state.dataset.landingPages).toHaveLength(0);
-    expect(await createLandingPage({ title: "Home", slug: "home", starter: "home", pageType: "website" })).toEqual({ slug: "home" });
   });
 
   it("keeps the kind on a copy, and reserves the tab addresses", async () => {
@@ -104,22 +100,6 @@ describe("createLandingPage, kind of page", () => {
     expect(state.dataset.landingPages.map((p) => p.page_type)).toEqual(["website", "website"]);
     expect((await createLandingPage({ title: "Landing", slug: "landing" })).error).toContain("lowercase");
     expect((await createLandingPage({ title: "Website", slug: "website" })).error).toContain("lowercase");
-  });
-});
-
-describe("createLandingPage from a starter", () => {
-  it("makes an unpublished draft holding the starter's blocks", async () => {
-    expect(await createLandingPage({ title: "Quill & Cup", slug: "home", starter: "home", pageType: "website" })).toEqual({ slug: "home" });
-    const page = (await state.repos.landingPages.bySlug("home"))!;
-    expect(page.status).toBe("draft");
-    expect(page.published_data).toBeNull();
-    expect((page.draft_data as { content: unknown[] }).content.length).toBeGreaterThan(3);
-    expect(await state.repos.landingPages.published("home")).toBeNull();
-  });
-
-  it("refuses a starter that doesn't exist and writes nothing", async () => {
-    expect(await createLandingPage({ title: "X", starter: "nope" })).toEqual({ error: "That starting point doesn't exist." });
-    expect(state.dataset.landingPages).toHaveLength(0);
   });
 });
 
@@ -312,59 +292,6 @@ describe("unpublish, restore, duplicate and delete", () => {
     expect(await state.repos.landingPages.bySlug("page")).toBeNull();
     expect((await deleteLandingPage(id)).error).toContain("no longer exists");
     expect(await createLandingPage({ title: "Page", slug: "page" })).toEqual({ slug: "page" });
-  });
-});
-
-describe("replaceLandingDraftWithStarter", () => {
-  async function livePage() {
-    await createLandingPage({ title: "My page", slug: "mine" });
-    const id = (await state.repos.landingPages.bySlug("mine"))!.id;
-    await saveLandingDraft(id, doc());
-    await publishLandingPage(id, doc());
-    await saveLandingDraft(id, doc({ type: "Spacer", props: { id: "s", size: "large" } }));
-    await updateLandingPageDetails(id, { title: "My page", slug: "mine", seoTitle: "Search title", seoDescription: "Words", socialImageAssetId: "" });
-    return id;
-  }
-
-  it("replaces only the draft, keeps the old draft in History, and touches nothing else", async () => {
-    const id = await livePage();
-    const before = (await state.repos.landingPages.bySlug("mine"))!;
-    const versionsBefore = await state.repos.landingPages.versions(id);
-
-    expect(await replaceLandingDraftWithStarter(id, "home")).toEqual({ slug: "mine" });
-
-    const page = (await state.repos.landingPages.bySlug("mine"))!;
-    expect(JSON.stringify(page.draft_data)).toContain("THE END is the best two words");
-    expect(JSON.stringify(page.draft_data)).not.toContain("Spacer");
-    expect(page.published_data).toEqual(before.published_data);
-    expect(page).toMatchObject({ title: "My page", slug: "mine", seo_title: "Search title", seo_description: "Words", status: "published", published_at: before.published_at });
-    expect(page.starter_applied_at).toEqual(expect.any(String));
-    const versions = await state.repos.landingPages.versions(id);
-    expect(versions).toHaveLength(versionsBefore.length + 1);
-    expect(versions[0]).toMatchObject({ kind: "before_starter", title: "My page", note: "Replaced by the starter “Homepage”" });
-    expect(revalidated).toContain("/admin/pages");
-  });
-
-  it("can be undone: the kept draft comes back with Bring back", async () => {
-    const id = await livePage();
-    await replaceLandingDraftWithStarter(id, "home");
-    const kept = (await state.repos.landingPages.versions(id)).find((v) => v.kind === "before_starter")!;
-
-    await restoreLandingPageVersion(kept.id);
-
-    const page = (await state.repos.landingPages.bySlug("mine"))!;
-    expect(JSON.stringify(page.draft_data)).toContain("Spacer");
-    expect(JSON.stringify(page.draft_data)).not.toContain("THE END is the best two words");
-  });
-
-  it("refuses a starter that doesn't exist, a bad id and a page that is gone, and keeps nothing", async () => {
-    const id = await livePage();
-    const versions = (await state.repos.landingPages.versions(id)).length;
-    expect(await replaceLandingDraftWithStarter(id, "nope")).toEqual({ error: "That starting point doesn't exist." });
-    expect(await replaceLandingDraftWithStarter("not-an-id", "home")).toEqual({ error: "That page no longer exists." });
-    expect(await replaceLandingDraftWithStarter("lpg_AAAAAAAAAAA1", "home")).toEqual({ error: "That page no longer exists." });
-    expect((await state.repos.landingPages.versions(id)).length).toBe(versions);
-    expect(JSON.stringify((await state.repos.landingPages.bySlug("mine"))!.draft_data)).toContain("Spacer");
   });
 });
 
