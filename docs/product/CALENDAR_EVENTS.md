@@ -1,6 +1,6 @@
 # Events from the shared calendar
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-19. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 An event is a thing members can see in Events (a retreat, a workshop, a speaker session, a listed prickle). **Every event stands on exactly one prickle** (`community_events.prickle_id`, NOT NULL and unique) and has no schedule of its own: its title, description, location, host, guest speaker and times are the prickle's, read through the `community_event_details` view (`EventDetail` in `lib/data/events.ts`). The table is named `community_events` (renamed from `events`, which invites confusion with analytics and instrumentation events); the product noun stays "event" everywhere else: URLs, UI copy, the `EventDetail`/`EventRepository` types, `event_photos`, `event_attendees` and the `event_id` columns. The event row keeps only what the calendar and the prickle have no place for: audience, registration, capacity, photos, focus, agenda, results, cover image, event kind, and whether it is shown (`deleted_at`).
 

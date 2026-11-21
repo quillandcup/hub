@@ -1,6 +1,6 @@
 # Check-ins and Check-outs: When and Where They Appear
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 What the questions are, and why, is in `CHECKINS.md`. This is the other half: **when each
 offer appears and disappears, on which surface, and for whom.** It is written from the code

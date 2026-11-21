@@ -1,6 +1,6 @@
 # Member Reminders
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-08. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Two reminders the Hub sends on its own, from one hourly job.
 

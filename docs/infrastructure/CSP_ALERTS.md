@@ -1,6 +1,6 @@
 # CSP rollout alerts
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The Content-Security-Policy is moving to a strict, nonce-based script policy (`lib/csp.ts`, `docs/TODO.md`, "CSP for scripts and styles (nonces)"). Two things can go wrong without anyone noticing, so two layers watch for them:
 

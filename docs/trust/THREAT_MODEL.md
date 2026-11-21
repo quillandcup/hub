@@ -1,6 +1,6 @@
 # Threat model and OWASP Top 10 review
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Done 2026-11-17 for the "Threat review" item of the [Supabase production security checklist](https://supabase.com/docs/guides/security/production-checklist) (`docs/checklists/SUPABASE_SECURITY_CHECKLIST.md`). It is a review of the code and configuration in this repository, not a penetration test: nothing was attacked, and production was only read. Where a line says "checked" it names what was read; where it says "not checked" nobody has looked yet. Findings that need work are in `docs/TODO.md`, "Threat model follow-ups".
 

@@ -1,6 +1,6 @@
 # Zoom Accounts: more than one account, and which meetings are kept
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Quill & Cup hosts prickles and events on a primary Zoom account. A staff member also has a personal Zoom account whose link is sometimes used for a Quill & Cup session when the main link is occupied. The Hub imports meetings from more than one account, but most meetings on a secondary account are not community business, so they stay out of the Silver layer until an admin keeps them.
 

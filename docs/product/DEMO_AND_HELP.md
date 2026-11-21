@@ -1,6 +1,6 @@
 # Reproducible Demo and Help Docs
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 One mechanism, two outputs: a fictional demo community seeded into a local stack, and Playwright scenes that drive the app and capture screenshots and clips.
 

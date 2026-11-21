@@ -1,0 +1,59 @@
+name: Docs overdue
+
+# Keeps one GitHub issue, "Docs overdue for review", listing the living docs whose review is due
+# (scripts/docs-overdue.ts reads the `**Last reviewed:**` date and `Review:` cadence in each doc's Status
+# line). Weekly, and on demand. The issue is created when something is overdue, its body is refreshed
+# while it stays open, and it is closed with a comment once nothing is overdue. Not a required check and
+# never red because time passed. Only the workflow's own token is used; it reads the repo and writes issues.
+on:
+  schedule:
+    - cron: "23 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-overdue
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Update the overdue docs issue
+    permissions:
+      contents: read
+      issues: write # create, edit and close the one issue
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: Docs overdue for review
+        run: |
+          pnpm --silent docs:overdue > "$RUNNER_TEMP/overdue.md"
+          number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")
+          if [ -s "$RUNNER_TEMP/overdue.md" ]; then
+            if [ -n "$number" ]; then
+              gh issue edit "$number" --body-file "$RUNNER_TEMP/overdue.md"
+              echo "Updated issue #$number."
+            else
+              gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/overdue.md"
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "Nothing is overdue for review any more."
+            echo "Closed issue #$number."
+          else
+            echo "Nothing is overdue and no issue is open."
+          fi

@@ -1,6 +1,6 @@
 # Writers' public pages
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 A member can opt in to a page of their own on the open web, at an address they choose: `/w/<handle>`. Anyone can open it without signing in, and search engines list it. It is the writer's home on the web. This document is the foundation: who a page is for, the handle, the name, and which items of the profile a member opens to the internet, and how a visitor is served. It shows no writing, goals, books or awards yet; those need the three-level visibility control and come in later packages (see `docs/TODO.md`, "Writer profiles: public author pages, Finishers, three-level visibility").
 

@@ -1,6 +1,6 @@
 # Mux configuration as code
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 `config/mux.yml` is the source of truth for the Mux settings its API can manage: the webhook that tells the Hub a course video is ready, and the playback restriction (which sites may play a signed video). `scripts/mux-config.ts` compares it with the live Mux environment (`diff`, read-only) and applies it (`push`). Unlike the Slack, Supabase and Vercel configs, **CI never pushes this one**: the webhook's signing secret is shown once and has to land in `.env.prod`, so the operator runs it.
 

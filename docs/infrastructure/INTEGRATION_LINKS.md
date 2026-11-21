@@ -1,6 +1,6 @@
 # Integration Links
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Quick reference for managing all external service integrations. These dashboards are hard to find — bookmark this file.
 

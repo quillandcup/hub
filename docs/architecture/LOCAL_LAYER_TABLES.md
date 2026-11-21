@@ -1,6 +1,6 @@
 # Local Layer Tables
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Operational data this app owns; never reprocessed (these tables are the source of truth). The layer rules are in `.claude/rules/data-architecture.md`. The first bullet lists the tables, the second the Hub-made events tables; the text is the catalog as it stood before it moved out of the rule file.
 

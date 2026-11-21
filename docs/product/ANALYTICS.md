@@ -1,6 +1,6 @@
 # Usage analytics
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 How the Hub finds out whether a feature earns its place: a log of what members do, and funnels over it.
 Page-level analytics (Google Analytics, Vercel) stay as they are; this is the product-event stream beside them.

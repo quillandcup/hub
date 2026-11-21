@@ -1,6 +1,6 @@
 # Activity log vs. audit log
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Two distinct systems, both "who did what when," but with a different subject — kept as two tables rather than one shared table.
 

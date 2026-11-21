@@ -1,6 +1,6 @@
 # Environment Setup - Getting Started
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-01. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 This directory contains all the documentation you need to set up custom domains and multi-environment configuration for the Hedgie Hub.
 

@@ -1,6 +1,6 @@
 # Email on the member timeline (Resend)
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-03. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 What an email did after the Hub sent it (sent, delivered, opened, clicked, bounced, marked as spam, failed) shows on the member's timeline, next to their Slack activity and logins. Admins see it on the member's **Activity Log** tab and on `/admin/activity` under **Everything → Member activity**.
 

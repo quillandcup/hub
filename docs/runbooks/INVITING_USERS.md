@@ -1,6 +1,6 @@
 # Inviting Users to Hedgie Hub
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it. Review: yearly.
+> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 ## Overview
 

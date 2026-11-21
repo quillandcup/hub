@@ -1,6 +1,6 @@
 # Google Calendar Sync
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-04-05. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Automatically sync prickles from Google Calendar using service account authentication.
 

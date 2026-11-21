@@ -1,6 +1,6 @@
 # Media library
 
-> **Status:** living. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Status: **foundation built** (table, bucket, repository, upload and serving routes, presets; no UI yet). Decisions made with the owner: ids are `media_`; events and the Bookshelf will be public later, so an asset has `is_public`; Amazon ebook covers only for now; the courses workstream is paused, so the foundation lands first. One place for the images the Hub shows, so an image is uploaded once, picked again anywhere, and turned into whatever size a screen or a store needs without anyone cropping by hand.
 
