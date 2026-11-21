@@ -7,7 +7,7 @@ import { scheduleOptions, scheduleRows, stripText, zoneNote, type ScheduleSnapsh
  * Live values for the blocks that can have them (docs/product/LANDING_PAGES.md, "Live data"). Blocks are presentational, so the
  * server resolves what they need before the render and hands it to them in a render-only prop named `live`:
  *
- * - Outcome numbers: per item (`source` "live" and a `stat`), `live: { value, caption }`.
+ * - Outcome numbers: per item (an `OutcomeNumber` block in its `items` slot, with `source` "live" and a `stat`), `live: { value, caption, note }` in the item's own props (`note` is the block's "show a live note" switch, which the item cannot see).
  * - Schedule panel (`source` "live"): `live: { rows, zoneLabel }`.
  * - Announcement strip (`source` "live"): `live: { text }`, "" when nothing is coming up.
  * - Coming up (`source` "live"): `live: { cards }`, the next events announced publicly; no `live` when there are none.
@@ -46,12 +46,14 @@ function mapBlocks(value: unknown, change: (block: Block & { type: string; props
   return isBlock(mapped) ? { ...mapped, props: change(mapped) } : mapped;
 }
 
-const LIVE_TYPES = new Set(["OutcomeNumbers", "SchedulePanel", "AnnouncementStrip", "ComingUp"]);
+const LIVE_TYPES = new Set(["OutcomeNumbers", "OutcomeNumber", "SchedulePanel", "AnnouncementStrip", "ComingUp"]);
 const isLive = (props: Record<string, unknown>) => props.source === "live";
 const withoutLive = ({ live: _live, ...rest }: Record<string, unknown>) => rest; // eslint-disable-line @typescript-eslint/no-unused-vars
 
-const statKeysOf = (props: Record<string, unknown>): string[] =>
-  Array.isArray(props.items) ? props.items.flatMap((i) => (isObject(i) && i.source === "live" && isLiveStatKey(i.stat) ? [i.stat] : [])) : [];
+/** The figures of an Outcome numbers block are `OutcomeNumber` blocks in its `items` slot; their own props say what they show. */
+const figuresOf = (props: Record<string, unknown>): (Block & { props: Record<string, unknown> })[] => (Array.isArray(props.items) ? props.items.filter((i): i is Block & { props: Record<string, unknown> } => isBlock(i)) : []);
+
+const statKeysOf = (props: Record<string, unknown>): string[] => figuresOf(props).flatMap((i) => (i.props.source === "live" && isLiveStatKey(i.props.stat) ? [i.props.stat] : []));
 
 /** Whether a page has anything to resolve, so a page with only typed blocks costs nothing. */
 export function needsLiveData(data: unknown): { stats: string[]; schedule: boolean; comingUp: ComingUpOptions[] } {
@@ -92,13 +94,15 @@ export async function resolveLiveBlocks(data: unknown, loaders: LiveLoaders, now
       return {
         ...props,
         items: props.items.map((item) => {
-          if (!isObject(item)) return item;
-          const plain = withoutLive(item);
-          const figure = item.source === "live" && isLiveStatKey(item.stat) ? stats?.[item.stat] : undefined;
-          return figure ? { ...plain, live: { value: figure.value, caption: figure.caption } } : plain;
+          if (!isBlock(item)) return item;
+          const plain = withoutLive(item.props);
+          const figure = plain.source === "live" && isLiveStatKey(plain.stat) ? stats?.[plain.stat] : undefined;
+          return { ...item, props: figure ? { ...plain, live: { value: figure.value, caption: figure.caption, note: props.showLiveNote !== false } } : plain };
         }),
       };
     }
+    // A figure outside its block has nothing to show live: the block hands the figure to its items.
+    if (block.type === "OutcomeNumber") return props;
     if (block.type === "ComingUp") {
       const options = comingUpOptions(props);
       const snapshot = isLive(props) ? comingUp.get(comingUpKey(options)) : null;

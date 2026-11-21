@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from "vitest";
 
 vi.hoisted(() => {
   const g = globalThis as Record<string, unknown>;
@@ -20,7 +20,26 @@ import { editorConfig } from "@/components/landing/editor-config";
 import { ITEM_BLOCKS, SLOT_ALLOW } from "@/components/landing/config";
 import { normalizeLandingData } from "@/lib/landing/data";
 
-afterEach(cleanup);
+// Puck starts a 500 ms timer when the editor mounts (it shows its loader after that). A test that ends sooner leaves it pending, and it
+// fires after the file's jsdom is gone ("window is not defined", an unhandled error that fails the run), so the timers it starts are
+// cleared when the editor is unmounted. Nothing here depends on them.
+const loaderTimers = new Set<unknown>();
+const realSetTimeout = globalThis.setTimeout;
+beforeAll(() => {
+  globalThis.setTimeout = ((handler: TimerHandler, ms?: number, ...args: unknown[]) => {
+    const timer = realSetTimeout(handler as () => void, ms, ...args);
+    if (ms === 500) loaderTimers.add(timer);
+    return timer;
+  }) as typeof setTimeout;
+});
+afterAll(() => {
+  globalThis.setTimeout = realSetTimeout;
+});
+afterEach(() => {
+  cleanup();
+  for (const timer of loaderTimers) clearTimeout(timer as never);
+  loaderTimers.clear();
+});
 
 /**
  * The real Puck editor (in jsdom, without its iframe) with the editor config: what a drag on the canvas does to the
@@ -82,6 +101,24 @@ describe("the real Puck editor with an items slot", () => {
     expect(kids.every((k) => typeof k.props.id === "string" && (k.props.id as string).startsWith("Step-"))).toBe(true);
   });
 
+  it.each([
+    ["List", "ListItem", "ul", (id: string, text: string) => ({ id, text, icon: "✓" }), "text"],
+    ["Faq", "FaqItem", "div", (id: string, question: string) => ({ id, question, answer: "" }), "question"],
+    ["ButtonRow", "RowButton", "ul", (id: string, label: string) => ({ id, label, href: "", look: "solid", color: "plum", shape: "pill" }), "label"],
+    ["OutcomeNumbers", "OutcomeNumber", "dl", (id: string, label: string) => ({ id, source: "manual", stat: "hours_30d", value: "1", label, note: "" }), "label"],
+  ] as const)("reorders the items of a %s as dragging one does, and the canvas follows", async (parent, itemType, _tag, props, key) => {
+    const list: Node[] = [{ type: itemType, props: props("a1", "Alpha") }, { type: itemType, props: props("a2", "Beta") }];
+    const { container } = mount({ content: [{ type: parent, props: { id: "p1", items: list } }], root: { props: {} } } as unknown as Data);
+    await screen.findAllByText("Alpha");
+    const zone = container.querySelector('[data-puck-dropzone="p1:items"]')!;
+    expect(zone).not.toBeNull();
+    const order = () => [...container.querySelectorAll('[data-puck-dropzone="p1:items"] > *')].map((el) => ["Alpha", "Beta"].find((name) => el.textContent?.includes(name)));
+    await waitFor(() => expect(order()).toEqual(["Alpha", "Beta"]));
+    act(() => dispatch!({ type: "move", sourceZone: "p1:items", sourceIndex: 1, destinationZone: "p1:items", destinationIndex: 0 }));
+    await waitFor(() => expect(order()).toEqual(["Beta", "Alpha"]));
+    expect(((latest?.content[0] as unknown as Node).props.items as Node[]).map((i) => i.props[key])).toEqual(["Beta", "Alpha"]);
+  });
+
   it("limits each list to its own item type, and keeps the items out of sections and columns", () => {
     for (const [parent, slots] of Object.entries(SLOT_ALLOW)) {
       expect(editorConfig.components[parent].fields?.items, parent).toMatchObject({ type: "slot", allow: slots!.items });
@@ -111,5 +148,20 @@ describe("a page saved before items became child blocks", () => {
     expect(await screen.findAllByText("First")).not.toHaveLength(0);
     expect(labels(container)[0]).toBe("Mon");
     expect(labels(container)).toContain("Tue");
+  });
+
+  it("opens a page saved with plain lists for Buttons, the Schedule panel's rows and Outcome numbers, too", async () => {
+    const older = {
+      content: [
+        { type: "ButtonRow", props: { id: "b1", align: "left", gap: "medium", items: [{ label: "Join us", href: "/join", look: "solid", color: "plum", shape: "pill" }] } },
+        { type: "SchedulePanel", props: { id: "sp1", title: "Today", source: "manual", rows: [{ time: "9:00 am", title: "Morning pages", status: "", state: "open", host: "" }] } },
+        { type: "OutcomeNumbers", props: { id: "o1", items: [{ source: "manual", value: "50+", label: "books", note: "" }] } },
+      ],
+      root: { props: {} },
+    };
+    mount(normalizeLandingData(older) as unknown as Data);
+    expect((await screen.findAllByText("Join us")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Morning pages").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("50+").length).toBeGreaterThan(0);
   });
 });

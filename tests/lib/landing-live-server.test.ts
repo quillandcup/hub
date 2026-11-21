@@ -28,7 +28,7 @@ const stay = { id: "att_1", memberId: "mbr_1", prickleId: prickle.id, joinTime: 
 const data = {
   content: [
     { type: "AnnouncementStrip", props: { id: "s", source: "live", text: "typed", buttonLabel: "Drop in", href: "/join", tone: "gold" } },
-    { type: "OutcomeNumbers", props: { id: "o", items: [{ source: "live", stat: "prickles_30d", value: "typed" }] } },
+    { type: "OutcomeNumbers", props: { id: "o", items: [{ type: "OutcomeNumber", props: { id: "o1", source: "live", stat: "prickles_30d", value: "typed" } }] } },
   ],
   root: { props: {} },
 };
@@ -47,10 +47,10 @@ describe("live data on the server", () => {
     mocks.repos = createInMemoryRepos(new InMemoryDataset({ prickleTypes: [type], prickles: [prickle], attendance: [stay] } as never));
     const before = JSON.stringify(data);
 
-    const out = (await withLiveData(data)) as { content: { props: Record<string, unknown> & { items?: Record<string, unknown>[] } }[] };
+    const out = (await withLiveData(data)) as { content: { props: Record<string, unknown> & { items?: { props: Record<string, unknown> }[] } }[] };
 
     expect(out.content[0].props.live).toEqual({ text: "Your next prickle starts in 20 minutes" });
-    expect(out.content[1].props.items![0].live).toEqual({ value: "1", caption: expect.stringContaining("prickles") });
+    expect(out.content[1].props.items![0].props.live).toEqual({ value: "1", caption: expect.stringContaining("prickles"), note: true });
     expect(JSON.stringify(data)).toBe(before);
     fake.clock.advance(15 * 60_000);
     expect(((await withLiveData(data)) as typeof out).content[0].props.live).toEqual({ text: "Your next prickle starts in 5 minutes" });
@@ -60,10 +60,10 @@ describe("live data on the server", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.repos = new Proxy({}, { get: () => { throw new Error("connection refused for Ada Example"); } });
 
-    const out = (await withLiveData(data)) as { content: { props: Record<string, unknown> & { items?: Record<string, unknown>[] } }[] };
+    const out = (await withLiveData(data)) as { content: { props: Record<string, unknown> & { items?: { props: Record<string, unknown> }[] } }[] };
 
     expect(out.content[0].props).not.toHaveProperty("live");
-    expect(out.content[1].props.items![0]).not.toHaveProperty("live");
+    expect(out.content[1].props.items![0].props).not.toHaveProperty("live");
     expect(log.mock.calls.map((c) => c[0]).sort()).toEqual(["landing_live_schedule_failed", "landing_live_stats_failed"]);
     expect(JSON.stringify(log.mock.calls)).not.toContain("Ada Example");
     log.mockRestore();

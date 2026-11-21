@@ -178,7 +178,7 @@ describe("live blocks on the pages", () => {
   const liveDoc = {
     content: [
       { type: "Heading", props: { id: "h", text: "Live page", level: "h1", align: "center" } },
-      { type: "OutcomeNumbers", props: { id: "o", items: [{ source: "live", stat: "prickles_30d", value: "typed 7", label: "", note: "" }, { source: "manual", value: "50+", label: "books", note: "" }] } },
+      { type: "OutcomeNumbers", props: { id: "o", items: [{ type: "OutcomeNumber", props: { id: "o1", source: "live", stat: "prickles_30d", value: "typed 7", label: "", note: "" } }, { type: "OutcomeNumber", props: { id: "o2", source: "manual", value: "50+", label: "books", note: "" } }] } },
     ],
     root: {},
   };

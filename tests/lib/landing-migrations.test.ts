@@ -187,10 +187,63 @@ describe("items as child blocks (step 2)", () => {
     const out = normalizeLandingData({ content: [already, empty, none], root: {} }) as unknown as { content: N[] };
     expect(out.content).toEqual([already, empty, none]);
   });
+});
 
-  it("does not touch Outcome numbers, whose items stay a plain list of figures", () => {
-    const figures = [{ value: "50+", label: "books", note: "", source: "manual" }];
-    const out = normalizeLandingData({ content: [{ type: "OutcomeNumbers", props: { id: "o", items: figures } }], root: {} }) as unknown as { content: N[] };
-    expect(out.content[0].props.items).toEqual(figures);
+// Step 3: Buttons, List, Testimonials, FAQ, Card grid, Link list, Outcome numbers and the Schedule panel's rows became child blocks too.
+describe("items as child blocks (step 3)", () => {
+  type N = { type: string; props: Record<string, unknown> };
+  const legacy: Record<string, { item: string; items: Record<string, unknown>[]; extra?: Record<string, unknown> }> = {
+    ButtonRow: { item: "RowButton", items: [{ label: "Join", href: "/join", look: "solid", color: "plum", shape: "pill" }, { label: "More", href: "", look: "outline", color: "light", shape: "rect" }] },
+    List: { item: "ListItem", items: [{ text: "One", icon: "🌱" }, { text: "Two", icon: "✓" }] },
+    Testimonials: { item: "Testimonial", items: [{ quote: "Lovely", name: "Ada Example", detail: "Member" }] },
+    Faq: { item: "FaqItem", items: [{ question: "Why?", answer: "Because." }, { question: "How?", answer: "" }] },
+    CardGrid: { item: "GridCard", items: [{ alt: "", title: "Card", price: "", buttonLabel: "", href: "", imageAssetId: "media_AAAAAAAAAAA1" }], extra: { columns: "3" } },
+    OutcomeNumbers: { item: "OutcomeNumber", items: [{ source: "live", stat: "hours_30d", value: "50+", label: "", note: "" }, { source: "manual", value: "100s", label: "of Finishers", note: "" }] },
+  };
+  const page = (type: string) => ({ type, props: { id: `${type}-1`, ...legacy[type].extra, items: legacy[type].items } });
+  const kids = (n: N) => n.props.items as N[];
+
+  it.each(Object.keys(legacy))("%s: a plain list becomes child blocks of the right type, with the same props in the same order", (type) => {
+    const out = normalizeLandingData({ content: [page(type)], root: {} }) as unknown as { content: N[]; schemaVersion: number };
+    const items = kids(out.content[0]);
+    expect(items.map((i) => i.type)).toEqual(legacy[type].items.map(() => legacy[type].item));
+    items.forEach((i, idx) => expect(i.props).toEqual({ ...legacy[type].items[idx], id: `${legacy[type].item}-${type}-1-${idx + 1}` }));
+    expect(out.schemaVersion).toBe(LANDING_SCHEMA_VERSION);
+  });
+
+  it("moves a Link list's style and colour onto each link, and keeps a link that had its own", () => {
+    const out = normalizeLandingData({ content: [{ type: "LinkList", props: { id: "l", look: "outline", color: "brown", items: [{ label: "A", href: "/a" }, { label: "B", href: "/b", look: "solid" }] } }], root: {} }) as unknown as { content: N[] };
+    const list = out.content[0];
+    expect(list.props).not.toHaveProperty("look");
+    expect(list.props).not.toHaveProperty("color");
+    expect(kids(list).map((k) => [k.type, k.props.label, k.props.look, k.props.color])).toEqual([["LinkItem", "A", "outline", "brown"], ["LinkItem", "B", "solid", "brown"]]);
+    const bare = normalizeLandingData({ content: [{ type: "LinkList", props: { id: "l2", items: [{ label: "A", href: "/a" }] } }], root: {} }) as unknown as { content: N[] };
+    expect(kids(bare.content[0])[0].props).toMatchObject({ look: "solid", color: "plum" });
+  });
+
+  it("moves a Schedule panel's rows into its items slot, and leaves one that has items already", () => {
+    const rows = [{ time: "9:00 am", title: "Morning", status: "Live", state: "live", host: "" }, { time: "10:00 am", title: "Focus", status: "", state: "open", host: "" }];
+    const out = normalizeLandingData({ content: [{ type: "SchedulePanel", props: { id: "sp", title: "Today", source: "live", rows } }], root: {} }) as unknown as { content: N[] };
+    const panel = out.content[0];
+    expect(panel.props).not.toHaveProperty("rows");
+    expect(panel.props.title).toBe("Today");
+    expect(kids(panel).map((k) => [k.type, k.props.title, k.props.id])).toEqual([["ScheduleRow", "Morning", "ScheduleRow-sp-1"], ["ScheduleRow", "Focus", "ScheduleRow-sp-2"]]);
+    const done = { type: "SchedulePanel", props: { id: "sp2", rows: [], items: [{ type: "ScheduleRow", props: { id: "r1", time: "", title: "Kept", status: "", state: "open", host: "" } }] } };
+    const kept = normalizeLandingData({ content: [done], root: {} }) as unknown as { content: N[] };
+    expect(kids(kept.content[0]).map((k) => k.props.title)).toEqual(["Kept"]);
+    const none = normalizeLandingData({ content: [{ type: "SchedulePanel", props: { id: "sp3", rows: [] } }], root: {} }) as unknown as { content: N[] };
+    expect(none.content[0].props.items).toEqual([]);
+  });
+
+  it("is idempotent, reaches blocks nested in a Section, and leaves empty lists and blocks already made of items alone", () => {
+    const doc = { content: [{ type: "Section", props: { id: "s", content: [...Object.keys(legacy).map(page), { type: "LinkList", props: { id: "ll", look: "solid", color: "plum", items: [{ label: "A", href: "/a" }] } }, { type: "SchedulePanel", props: { id: "sp", rows: [{ time: "", title: "T", status: "", state: "open", host: "" }] } }] } }], root: {} };
+    const once = normalizeLandingData(doc);
+    expect(normalizeLandingData(once)).toEqual(once);
+    expect(normalizeLandingData({ ...(once as object), schemaVersion: 2 })).toEqual(once);
+    const section = (once as unknown as { content: N[] }).content[0];
+    expect((section.props.content as N[]).every((b) => (b.props.items as N[]).every((i) => typeof i.type === "string"))).toBe(true);
+    const already = { type: "Faq", props: { id: "f", items: [{ type: "FaqItem", props: { id: "x", question: "Q", answer: "" } }] } };
+    const empty = { type: "List", props: { id: "e", items: [] } };
+    expect((normalizeLandingData({ content: [already, empty], root: {} }) as unknown as { content: N[] }).content).toEqual([already, empty]);
   });
 });

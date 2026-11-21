@@ -11,13 +11,18 @@ import {
   CtaBanner,
   Divider,
   Faq,
+  FaqItem,
+  GridCard,
   Heading,
   Hero,
   Image,
+  LinkItem,
   LinkList,
   List,
+  ListItem,
   OptInFormBlock,
   RichText,
+  RowButton,
   Section,
   Spacer,
   Split,
@@ -25,6 +30,7 @@ import {
   Stats,
   Step,
   Steps,
+  Testimonial,
   Testimonials,
   Video,
 } from "./blocks";
@@ -36,9 +42,11 @@ import {
   FinisherCard,
   FinisherCards,
   JourneyMap,
+  OutcomeNumber,
   OutcomeNumbers,
   PlanPhase,
   PlanPhases,
+  ScheduleRowItem,
   SchedulePanel,
   Timeline,
   TimelineMoment,
@@ -196,6 +204,7 @@ export function rootConfigFor(frame: FrameContext): Config["root"] {
 /** A child block as it is stored in a parent's slot: `{ type, props }`. Puck gives it an id when the parent is added. */
 const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { ...props } });
 const FINISHER_DEFAULT = { alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" };
+const GRID_CARD_DEFAULT = { alt: "", icon: "", title: "A title", description: "A line about it.", price: "", buttonLabel: "", href: "" };
 const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
 
 export const BLOCK_DEFAULTS = {
@@ -204,15 +213,15 @@ export const BLOCK_DEFAULTS = {
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
   Button: { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill", align: "center", full: false },
-  ButtonRow: { items: [{ label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill" }, { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" }], align: "left", gap: "medium" },
+  ButtonRow: { items: [kid("RowButton", { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill" }), kid("RowButton", { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" })], align: "left", gap: "medium" },
   Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
-  List: { items: [{ text: "First thing", icon: "✓" }, { text: "Second thing", icon: "✓" }], align: "left" },
-  Testimonials: { items: [{ quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }] },
-  Faq: { items: [{ question: "A question?", answer: "The answer." }] },
+  List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
+  Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
+  Faq: { items: [kid("FaqItem", { question: "A question?", answer: "The answer." }), kid("FaqItem", { question: "Another question?", answer: "Another answer." })] },
   Countdown: { targetAt: "", heading: "Starts in", whenExpired: "message", expiredMessage: "It has started." },
-  CardGrid: { columns: "3", items: [{ alt: "", title: "A title", price: "$20", buttonLabel: "Buy now", href: "" }] },
-  LinkList: { items: [{ label: "A link", href: "" }], look: "inherit", color: "plum" },
+  CardGrid: { columns: "3", items: [kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT)] },
+  LinkList: { items: [kid("LinkItem", { label: "A link", href: "", look: "inherit", color: "plum" }), kid("LinkItem", { label: "Another link", href: "", look: "inherit", color: "plum" })] },
   Divider: { look: "short" },
   Spacer: { size: "medium" },
   Video: { url: "", title: "" },
@@ -235,18 +244,18 @@ export const BLOCK_DEFAULTS = {
     rowNote: "",
     footer: "",
     emptyText: "No sessions are coming up just yet. Check back soon.",
-    rows: [
-      { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "" },
-      { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" },
-      { time: "12:30 pm", title: "Lunch hour", status: "Camera optional", state: "open", host: "" },
+    items: [
+      kid("ScheduleRow", { time: "9:00 am", title: "Morning pages", status: "Live", state: "live", host: "" }),
+      kid("ScheduleRow", { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon", host: "" }),
+      kid("ScheduleRow", { time: "12:30 pm", title: "Lunch hour", status: "Camera optional", state: "open", host: "" }),
     ],
   },
   OutcomeNumbers: {
     padding: "medium",
     showLiveNote: true,
     items: [
-      { source: "manual", stat: "hours_30d", value: "50+", label: "books published by members", note: "" },
-      { source: "manual", stat: "hours_30d", value: "100s", label: "of Finishers", note: "" },
+      kid("OutcomeNumber", { source: "manual", stat: "hours_30d", value: "50+", label: "books published by members", note: "" }),
+      kid("OutcomeNumber", { source: "manual", stat: "hours_30d", value: "100s", label: "of Finishers", note: "" }),
     ],
   },
   FinisherCards: { items: [kid("FinisherCard", FINISHER_DEFAULT), kid("FinisherCard", FINISHER_DEFAULT), kid("FinisherCard", FINISHER_DEFAULT)], more: { label: "", href: "" } },
@@ -274,6 +283,14 @@ export const BLOCK_DEFAULTS = {
   WeekDay: { label: "Day", emoji: "", text: "", note: "" },
   FinishLineCard: FINISH_LINE_DEFAULT,
   PlanPhase: { title: "New phase", text: "" },
+  RowButton: { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" },
+  ListItem: { text: "New item", icon: "✓" },
+  Testimonial: { quote: "", name: "", detail: "" },
+  FaqItem: { question: "A question?", answer: "" },
+  GridCard: { ...GRID_CARD_DEFAULT, title: "New card" },
+  LinkItem: { label: "A link", href: "", look: "inherit", color: "plum" },
+  ScheduleRow: { time: "", title: "New session", status: "", state: "open", host: "" },
+  OutcomeNumber: { source: "manual", stat: "hours_30d", value: "0", label: "", note: "" },
   JourneyMap: {
     stages: [
       { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
@@ -334,6 +351,14 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   WeekDay: "Week day",
   FinishLineCard: "Finish-line card",
   PlanPhase: "Plan phase",
+  RowButton: "Row button",
+  ListItem: "List item",
+  Testimonial: "Testimonial",
+  FaqItem: "Question",
+  GridCard: "Card",
+  LinkItem: "Link",
+  ScheduleRow: "Session",
+  OutcomeNumber: "Outcome number",
 };
 
 const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
@@ -376,6 +401,14 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   WeekDay: WeekDay as never,
   FinishLineCard: FinishLineCard as never,
   PlanPhase: PlanPhase as never,
+  RowButton: RowButton as never,
+  ListItem: ListItem as never,
+  Testimonial: Testimonial as never,
+  FaqItem: FaqItem as never,
+  GridCard: GridCard as never,
+  LinkItem: LinkItem as never,
+  ScheduleRow: ScheduleRowItem as never,
+  OutcomeNumber: OutcomeNumber as never,
 };
 
 type BlockName = keyof typeof BLOCK_DEFAULTS;
@@ -394,6 +427,14 @@ export const SLOT_ALLOW: Partial<Record<BlockName, Record<string, BlockName[]>>>
   WeekStrip: { items: ["WeekDay"] },
   FinishLineCards: { items: ["FinishLineCard"] },
   PlanPhases: { items: ["PlanPhase"] },
+  ButtonRow: { items: ["RowButton"] },
+  List: { items: ["ListItem"] },
+  Testimonials: { items: ["Testimonial"] },
+  Faq: { items: ["FaqItem"] },
+  CardGrid: { items: ["GridCard"] },
+  LinkList: { items: ["LinkItem"] },
+  SchedulePanel: { items: ["ScheduleRow"] },
+  OutcomeNumbers: { items: ["OutcomeNumber"] },
 };
 
 /** The item block types: they are in the palette under "Parts of a block" and only make sense inside their parent. */

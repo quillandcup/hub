@@ -105,7 +105,7 @@ describe("checks before publishing", () => {
 
   it("stops a button with no link and a card button with no link, and warns about vague link text", () => {
     expect(errors(page(title, { type: "Button", props: { label: "Join", href: "javascript:x" } }))).toEqual([expect.stringContaining("no link")]);
-    expect(errors(page(title, { type: "CardGrid", props: { items: [{ title: "Book", buttonLabel: "Buy", href: "" }] } }))).toEqual([expect.stringContaining("button has no link")]);
+    expect(errors(page(title, { type: "CardGrid", props: { items: [{ type: "GridCard", props: { id: "c1", title: "Book", buttonLabel: "Buy", href: "" } }] } }))).toEqual([expect.stringContaining("button has no link")]);
     const warnings = checkLandingPage(page(title, { type: "Button", props: { label: "Click here", href: "https://x.example" } })).filter((i) => i.severity === "warning");
     expect(warnings).toHaveLength(1);
   });
@@ -120,7 +120,7 @@ describe("checks before publishing", () => {
   });
 
   it("stops a link-list link with no address and warns about vague link text", () => {
-    const found = checkLandingPage(page(title, { type: "LinkList", props: { items: [{ label: "Shop", href: "javascript:x" }, { label: "here", href: "https://x.example" }] } }));
+    const found = checkLandingPage(page(title, { type: "LinkList", props: { items: [{ type: "LinkItem", props: { id: "l1", label: "Shop", href: "javascript:x" } }, { type: "LinkItem", props: { id: "l2", label: "here", href: "https://x.example" } }] } }));
     expect(found.filter((i) => i.severity === "error").map((i) => i.message)).toEqual([expect.stringContaining("Shop")]);
     expect(found.filter((i) => i.severity === "warning")).toHaveLength(1);
   });
