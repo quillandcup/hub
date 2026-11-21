@@ -1,4 +1,4 @@
-// env-vars.config.ts
+// config/env-vars.ts
 //
 // Single source of truth for every environment variable this project uses outside of
 // local dev (see .env.example for the local .env.local template). Declares, per var:
@@ -20,11 +20,11 @@
 //   .env.preview  Vercel Preview overrides (e.g. its own Supabase project)
 //   .env.prod     Vercel Production overrides, plus CI/ops credentials (GitHub, Vault)
 // A var set in .env.preview/.env.prod overrides .env.shared for that target. Shared config
-// that's also fine to publish goes in app.config.ts instead (committed, not an env var).
+// that's also fine to publish goes in config/app.ts instead (committed, not an env var).
 // This file is just the schema: name, secrecy, and destinations. SOPS-encrypting the value
 // files so they can be committed is a planned follow-up, tracked separately.
 
-import { CRON_HEARTBEATS } from "./lib/cron-heartbeats";
+import { CRON_HEARTBEATS } from "../lib/cron-heartbeats";
 
 /**
  * A Vercel environment the sync manages. Vercel's "development" target (read only by
@@ -51,7 +51,7 @@ export type Destination =
 
 export interface EnvVarSpec {
   readonly name: string;
-  /** Section heading this var is grouped under in env-vars.config.ts and every .env* file. */
+  /** Section heading this var is grouped under in config/env-vars.ts and every .env* file. */
   readonly group: string;
   readonly description: string;
   /**

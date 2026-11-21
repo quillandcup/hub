@@ -13,7 +13,7 @@
 
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import appConfig from "../app.config";
+import appConfig from "../config/app";
 import { orgSettingsBody, parseSentryConfig, planOrgSettings, type OrgSettingChange } from "../lib/sentry-config";
 import { outboundFetch } from "@/lib/http/outbound";
 

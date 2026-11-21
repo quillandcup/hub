@@ -14,7 +14,7 @@ vi.mock("@/lib/slack", async () => ({
   postToSlackChannel: (p: any) => postToSlackChannel(p),
 }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(async () => {}) }));
-// The window logic is under test here, not the real start day (app.config.ts changelogDigestStartsOn), so move it far back.
+// The window logic is under test here, not the real start day (config/app.ts changelogDigestStartsOn), so move it far back.
 vi.mock("@/lib/config", async () => ({ ...(await vi.importActual<typeof import("@/lib/config")>("@/lib/config")), CHANGELOG_DIGEST_STARTS_ON: "2026-01-01" }));
 // The in-app channel builds its own repositories over the service-role client: the same in-memory ones here.
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));

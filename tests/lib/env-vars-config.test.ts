@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ENV_VARS } from "@/env-vars.config";
+import { ENV_VARS } from "@/config/env-vars";
 
-describe("env-vars.config.ts", () => {
+describe("config/env-vars.ts", () => {
   it("never makes a NEXT_PUBLIC_* var a secret", () => {
     // The production build runs in CI, where a Vercel Secret reads as "[SENSITIVE]", and
     // Next.js inlines NEXT_PUBLIC_* values into the client bundle at build time.

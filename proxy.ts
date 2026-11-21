@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
-import appConfig from './app.config'
+import appConfig from './config/app'
 import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, reportOnlyCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {

@@ -5,7 +5,7 @@ a session log, a compromised laptop, etc.), or routine rotation hygiene. Written
 real incident on 2026-09-25 where `.env.prod` was accidentally dumped in full, in plaintext,
 into 16 local Claude Code session transcripts going back to late August.
 
-See `env-vars.config.ts` at the repo root for the full list of vars, which are secrets, and
+See `config/env-vars.ts` at the repo root for the full list of vars, which are secrets, and
 where each one is synced. See `docs/INTEGRATION_LINKS.md` for dashboard links to every
 integrated service (this doc only covers rotation-specific steps, not general account
 management).
@@ -176,7 +176,7 @@ Vercel's copy alone, and exits non-zero so the gap stays visible). To fill one i
    Sensitive one shipped `"[SENSITIVE]"` to every visitor's browser. Runtime-only secrets are
    fine as Secrets (prebuilt deployments get the real value at runtime), and build-only
    secrets like `SENTRY_AUTH_TOKEN` are GitHub secrets passed to the CI build step. Each var's
-   `type` in `env-vars.config.ts` decides this, and `scripts/sync-to-vercel.ts` always passes
+   `type` in `config/env-vars.ts` decides this, and `scripts/sync-to-vercel.ts` always passes
    it explicitly -- never rely on the CLI default (Secret for production/preview since CLI 59).
 3. **Use the project's Vercel CLI (`npx vercel`), which must stay at v59+.** The devDependency
    used to be pinned at `^56.3.2`, which has no `--type` flag; `npx` picked it over the global

@@ -32,7 +32,7 @@ The guards use `lib/staff-mfa.server.ts`: aal2 comes from the verified token (no
 
 ## Turning the requirement on (owner)
 
-It is off in code. In `app.config.ts`, set `staffMfaRequiredFrom` to an ISO instant with an offset, for example `"2027-02-01T00:00:00-05:00"`, and merge the change (it deploys like any code change; no migration). From that instant, staff without a factor are sent to the set-up screen instead of the admin area.
+It is off in code. In `config/app.ts`, set `staffMfaRequiredFrom` to an ISO instant with an offset, for example `"2027-02-01T00:00:00-05:00"`, and merge the change (it deploys like any code change; no migration). From that instant, staff without a factor are sent to the set-up screen instead of the admin area.
 
 Do it in this order, so nobody is locked out:
 

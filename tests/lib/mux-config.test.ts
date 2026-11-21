@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import appConfig from "@/app.config";
+import appConfig from "@/config/app";
 import {
   describeAddress,
   devWebhookAddress,

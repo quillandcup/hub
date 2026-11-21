@@ -1,8 +1,8 @@
-// app.config.ts
+// config/app.ts
 //
 // Organization settings that are the same in every environment (local, preview, production).
 // Values that differ per environment, and all secrets, are env vars instead -- see
-// env-vars.config.ts. Nothing else in the code should hardcode these.
+// config/env-vars.ts. Nothing else in the code should hardcode these.
 //
 // Read by lib/config.ts (app code), next.config.ts, __checks__/config.ts (Checkly), and
 // scripts. SQL can't import this file: `pnpm env:sync:vault` copies the values pg_cron

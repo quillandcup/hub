@@ -1,12 +1,12 @@
 #!/usr/bin/env npx tsx
 // Syncs app runtime env vars to Vercel, reading which vars go where from
-// env-vars.config.ts at the repo root instead of a hardcoded list -- see that file for why.
+// config/env-vars.ts instead of a hardcoded list -- see that file for why.
 //
 // .env.shared + .env.preview -> Vercel Preview
 // .env.shared + .env.prod    -> Vercel Production   (see scripts/env-files.ts)
 
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
-import { ENV_VARS, type EnvVarSpec, type VercelTarget } from "../env-vars.config";
+import { ENV_VARS, type EnvVarSpec, type VercelTarget } from "../config/env-vars";
 import { loadTargetEnv, sourceFilesFor } from "./env-files";
 import { parseSyncArgs, SYNC_USAGE } from "./sync-args";
 
@@ -26,7 +26,7 @@ function syncOne(spec: EnvVarSpec, target: VercelTarget, value: string): void {
   // Ignore failure: fine if it didn't already exist.
   vercel(["env", "rm", name, target, "--yes"], { stdio: "pipe" });
   // Always pass --type explicitly rather than taking the CLI default, which is secret for
-  // production/preview since CLI 59 -- see `type` in env-vars.config.ts for why a secret
+  // production/preview since CLI 59 -- see `type` in config/env-vars.ts for why a secret
   // NEXT_PUBLIC_* var breaks the build. Both types pass the value via stdin.
   const target_arg = target === "preview" ? [name, target, ""] : [name, target];
   const add = vercel(["env", "add", ...target_arg, "--yes", "--type", type], {

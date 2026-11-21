@@ -10,7 +10,7 @@ vi.mock("@/lib/config", async (importOriginal) => ({ ...(await importOriginal<ty
 vi.mock("@/lib/email", () => ({ sendEmail }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
-import appConfig from "../../app.config";
+import appConfig from "../../config/app";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { sendOperationsAlert, sentrySectionSearchUrl } from "@/lib/operations-alerts";
 

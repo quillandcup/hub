@@ -10,7 +10,7 @@ The repo is public, and so are its commit history, pull requests, PR description
 **What to do instead**
 - **Tests and fixtures**: obviously fake data (`member1@example.com`, "Ada Example"). Match the existing fixtures.
 - **Docs and comments**: refer to the config by name, not value ("see `ALERTS_EMAIL` in `.env.prod`"), and describe incidents without naming people.
-- **Config values** that aren't public go in the gitignored env files (`no hardcoded config`, in `CLAUDE.md`), not in `app.config.ts`.
+- **Config values** that aren't public go in the gitignored env files (`no hardcoded config`, in `CLAUDE.md`), not in `config/app.ts`.
 - **A one-off script that needs real names or emails** (a data migration, matching, awarding badges): run it locally against local or production, then delete it. Don't commit a "sanitized" copy. If a script has to stay, it takes its data from a file outside the repo or uses placeholders, like `scripts/seed-member-overrides.ts`. Migrations hold schema and definitions, never inserts for specific real people.
 - **Data the user pastes into a prompt** (a table of members, a spreadsheet, a screenshot): use it for the task, but don't copy it into a file, a test, a commit or a PR. Summarize with counts. If the user says "do not store", that is final.
 - **Production reads** (`verify-against-prod.md`): report counts and shapes, not rows.

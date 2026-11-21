@@ -4,7 +4,7 @@ name: OpenSSF Scorecard
 # dependency update tooling, security policy). Informational, like audit.yml: not a required check and it never
 # blocks a merge. Findings land in the Security tab (code scanning) and the score is published to the OpenSSF
 # API, which only works for a public repository. The `floor` job then fails, and posts to the alerts channel, when the
-# published score is under `scorecard.minScore` in app.config.ts (it is a separate job because Scorecard's publishing
+# published score is under `scorecard.minScore` in config/app.ts (it is a separate job because Scorecard's publishing
 # check rejects `run` steps next to its action). The only secret is the alerts webhook, as in audit.yml.
 on:
   schedule:
@@ -67,7 +67,7 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
-          floor=$(node --no-warnings --input-type=module -e "console.log((await import('./app.config.ts')).default.scorecard.minScore)")
+          floor=$(node --no-warnings --input-type=module -e "console.log((await import('./config/app.ts')).default.scorecard.minScore)")
           for i in 1 2 3 4 5 6; do
             json=$(curl -sf "https://api.scorecard.dev/projects/github.com/$REPO" || true)
             [ "$(echo "$json" | jq -r '.repo.commit // empty')" = "$SHA" ] && break

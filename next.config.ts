@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
-import appConfig from "./app.config";
+import appConfig from "./config/app";
 import { buildCsp, CSP_HEADER, SECURITY_HEADERS } from "./lib/csp";
 import { helpImagesVersion } from "./scripts/help-images-version";
 import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
@@ -80,8 +80,8 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Only used for the source map upload. Slugs from app.config.ts; the auth token is a
-  // GitHub secret passed to CI's production `vercel build` (see env-vars.config.ts).
+  // Only used for the source map upload. Slugs from config/app.ts; the auth token is a
+  // GitHub secret passed to CI's production `vercel build` (see config/env-vars.ts).
   org: appConfig.sentry.org,
   project: appConfig.sentry.project,
 

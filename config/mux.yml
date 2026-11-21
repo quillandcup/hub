@@ -6,7 +6,7 @@
 # once, so they are created by hand and their secrets go in .env.prod).
 
 webhook:
-  # The address is <APP_URL>/api/webhooks/mux, APP_URL from app.config.ts. Creating the webhook
+  # The address is <APP_URL>/api/webhooks/mux, APP_URL from config/app.ts. Creating the webhook
   # prints its signing secret ONCE; it goes in MUX_WEBHOOK_SECRET (docs/MUX_CONFIG.md).
   path: /api/webhooks/mux
 
@@ -15,7 +15,7 @@ webhook:
 # docs/TODO.md, "Mux configuration as code").
 playbackRestriction:
   allowedDomains:
-    - "{appHost}" # production, from app.config.ts
+    - "{appHost}" # production, from config/app.ts
     - "*.vercel.app" # preview deployments (a wildcard covers one subdomain level)
     - localhost
   # Apple devices (AirPlay, native Safari playback) send no Referer.

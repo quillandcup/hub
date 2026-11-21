@@ -21,7 +21,7 @@ import { NONCE_HEADER, buildMetaCsp } from "@/lib/csp";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { eventsNeedConsent as eventsNeedConsentFor } from "@/lib/analytics/consent";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
-import appConfig from "@/app.config";
+import appConfig from "@/config/app";
 import { APP_URL } from "@/lib/config";
 
 // Brand display serif for headings and the wordmark (tailwind `font-display`).

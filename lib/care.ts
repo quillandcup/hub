@@ -20,7 +20,7 @@ import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 // The value sets, labels and guards live in lib/care-values.ts (no imports); re-exported so callers can take everything from here.
 export * from "@/lib/care-values";
 
-/** The settings the status and the period follow from (app.config.ts); tests pass their own. */
+/** The settings the status and the period follow from (config/app.ts); tests pass their own. */
 export type CareSettings = { engagementDays: number; lapseGraceDays: number; quietDays: number };
 
 export const CARE_SETTINGS: CareSettings = {
@@ -263,7 +263,7 @@ export type CareWindow = {
   state: CareWindowState;
 };
 
-/** The settings the windows follow from (app.config.ts). */
+/** The settings the windows follow from (config/app.ts). */
 export type CareWindowSettings = { beforeDays: number; afterFromDays: number; afterToDays: number };
 
 export const CARE_WINDOW_SETTINGS: CareWindowSettings = {

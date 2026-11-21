@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "playwright/test";
-import { appConfig } from "../app.config";
+import { appConfig } from "../config/app";
 
 /**
  * Every scene runs in each size and colour scheme. The sizes include widths either side of the app's sidebar

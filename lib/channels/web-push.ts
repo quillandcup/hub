@@ -14,7 +14,7 @@ import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
  *
  * Behind the browser_notifications feature flag, and a member is only reachable once a device is
  * subscribed, so with the channel on by default for a kind, nobody gets anything until they opt a
- * device in. Needs the VAPID keys (env-vars.config.ts "Web Push"); without them nobody is reachable.
+ * device in. Needs the VAPID keys (config/env-vars.ts "Web Push"); without them nobody is reachable.
  * The address is the member id; send fans out to each of their live subscriptions.
  */
 export const WEB_PUSH_FEATURE = "browser_notifications" as const;

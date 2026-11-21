@@ -6,7 +6,7 @@ Every request the app makes to a server that is not ours says who we are in its 
 HedgieHub/<short commit sha> (+https://<app url>; <support email>)
 ```
 
-Defined once, in `lib/config.ts` (`OUTBOUND_USER_AGENT`), from `app.config.ts` (`userAgentProduct`, `appUrl`, `supportEmail`) and the deployed commit (`dev` when there is none). It follows RFC 9110: `product/version (comment)`, ASCII only, no control characters; the product is a token (so not "Quill & Cup Hub"), the human text sits in the comment. It carries nothing about a member.
+Defined once, in `lib/config.ts` (`OUTBOUND_USER_AGENT`), from `config/app.ts` (`userAgentProduct`, `appUrl`, `supportEmail`) and the deployed commit (`dev` when there is none). It follows RFC 9110: `product/version (comment)`, ASCII only, no control characters; the product is a token (so not "Quill & Cup Hub"), the human text sits in the comment. It carries nothing about a member.
 
 Why: some hosts refuse a request with no User-Agent (Wikimedia answers 403) or ask for a name and a contact so they can reach us instead of blocking us. Node's default (`node`/`undici`) says neither.
 

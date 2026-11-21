@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import appConfig from "@/app.config";
+import appConfig from "@/config/app";
 import { APP_URL, WRITER_PROFILES } from "@/lib/config";
 import {
   BIO_MAX_LENGTH,
@@ -85,7 +85,7 @@ describe("reserved words", () => {
     expect(new Set(list).size).toBe(list.length);
   });
 
-  it("is read from app.config.ts, not repeated in code", () => {
+  it("is read from config/app.ts, not repeated in code", () => {
     expect(WRITER_PROFILES).toBe(appConfig.writerProfiles);
   });
 });
