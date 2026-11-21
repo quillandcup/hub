@@ -76,6 +76,13 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       // Already moved (or changed by the member meanwhile): the guess about the old value is stale, nothing changes.
       expect(await ctx.repo().setPhotoUrlIf(ada, "https://photos.example.test/one.png", "https://ours.example.test/other.webp")).toBe(false);
       expect((await ctx.repo().byId(ada))?.photoUrl).toBe("https://ours.example.test/one.webp");
+
+      // Whatever it was, a member's own change sets it, and null takes it away.
+      await ctx.repo().setPhotoUrl(ada, "https://ours.example.test/newer.webp");
+      expect((await ctx.repo().byId(ada))?.photoUrl).toBe("https://ours.example.test/newer.webp");
+      await ctx.repo().setPhotoUrl(ada, null);
+      expect((await ctx.repo().byId(ada))?.photoUrl).toBeNull();
+      expect((await ctx.repo().byId(gale))?.photoUrl).toBe("https://photos.example.test/two.png");
     });
 
     it("lists members' identities in a stable order, optionally one status", async () => {

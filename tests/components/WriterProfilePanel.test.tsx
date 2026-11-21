@@ -26,7 +26,6 @@ const noPage: actions.MyWriterProfile = {
   publicBio: "",
   nameChosen: true,
   nameChoices: [{ kind: "display", aliasId: null, label: "Ada Example" }],
-  photoAvailable: true,
   suggestedHandle: "ada-example",
   addressPrefix: "hub.example.test/w/",
   pageUrl: null,

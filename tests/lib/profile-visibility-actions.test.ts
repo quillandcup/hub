@@ -21,6 +21,23 @@ vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: async () => state.identity 
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
+const uploaded: string[] = [];
+vi.mock("@/lib/net/safe-fetch", () => ({ fetchImage: vi.fn() }));
+vi.mock("@/lib/supabase/service", () => ({
+  createServiceRoleClient: () => ({
+    storage: {
+      from: () => ({
+        upload: async (path: string) => (uploaded.push(path), { error: null }),
+        remove: async () => ({ error: null }),
+        getPublicUrl: (path: string) => ({ data: { publicUrl: `https://storage.example.test/member-photos/${path}` } }),
+      }),
+    },
+  }),
+}));
+
+import sharp from "sharp";
+import { fetchImage, type FetchImageResult } from "@/lib/net/safe-fetch";
+import { MEMBER_PHOTO } from "@/lib/config";
 
 import { setProfileVisibility } from "@/app/(member)/settings/profileVisibilityActions";
 import { WRITER_PROFILES_NOT_AVAILABLE } from "@/lib/writer-profiles-access";
@@ -39,6 +56,8 @@ beforeEach(() => {
   });
   state.repos = createInMemoryRepos(state.dataset);
   revalidated.length = 0;
+  uploaded.length = 0;
+  vi.mocked(fetchImage).mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -93,12 +112,104 @@ describe("setProfileVisibility", () => {
     expect(await setProfileVisibility("instagram", "public")).toEqual({ success: true });
   });
 
-  it("refuses the globe on a photo that can never be published, such as a Gravatar picture", async () => {
-    state.identity = { memberId: GRACE, isSudo: false };
+  describe("the globe on the photo", () => {
+    const found = async (): Promise<FetchImageResult> => ({ ok: true, bytes: await sharp({ create: { width: 300, height: 300, channels: 3, background: "#48a" } }).jpeg().toBuffer(), contentType: "image/jpeg" });
+    const photoOf = (id: string) => state.dataset.members.find((m) => m.id === id)?.photoUrl;
 
-    expect(await setProfileVisibility("photo", "public")).toEqual({ error: expect.stringContaining("Gravatar") });
-    expect((await state.repos.memberStatus.profileVisibilitiesOf(GRACE)).photo).toBe("community");
-    expect(await setProfileVisibility("photo", "private")).toEqual({ success: true });
+    it("takes a photo that is already ours or on another host as it is, and fetches nothing", async () => {
+      expect(await setProfileVisibility("photo", "public")).toEqual({ success: true });
+      expect(fetchImage).not.toHaveBeenCalled();
+      expect(photoOf(ADA)).toBe("https://photos.example.com/ada.png");
+    });
+
+    it("copies a Gravatar picture once, as the member's consent, and publishes the copy, never the Gravatar address", async () => {
+      state.identity = { memberId: GRACE, isSudo: false };
+      vi.mocked(fetchImage).mockImplementation(found);
+
+      expect(await setProfileVisibility("photo", "public")).toEqual({ success: true });
+
+      expect(fetchImage).toHaveBeenCalledTimes(1);
+      expect(new URL(vi.mocked(fetchImage).mock.calls[0][0] as string).hostname).toBe(MEMBER_PHOTO.gravatarHost);
+      expect(photoOf(GRACE)).toMatch(/^https:\/\/storage\.example\.test\/member-photos\/mbr_AAAAAAAAAAA2\/gravatar-[0-9a-f]{32}\.webp$/);
+      expect((await state.repos.memberStatus.profileOverrideOf(GRACE))?.photo_path).toMatch(/^mbr_AAAAAAAAAAA2\/gravatar-/);
+      expect((await state.repos.memberStatus.profileVisibilitiesOf(GRACE)).photo).toBe("public");
+      expect(uploaded).toHaveLength(1);
+
+      // The public read carries the copy, not a Gravatar address.
+      await state.repos.writerProfiles.setHandle(GRACE, "grace-example", { reserveDays: 1, now: new Date(AT) });
+      await state.repos.writerProfiles.update(GRACE, { isPublic: true });
+      const lookup = await state.repos.writerProfiles.publicByHandle("grace-example");
+      expect(lookup).toMatchObject({ kind: "page", profile: { photoUrl: photoOf(GRACE) } });
+      expect(JSON.stringify(lookup)).not.toContain("gravatar.com");
+    });
+
+    it("does not fetch again once the copy exists", async () => {
+      state.identity = { memberId: GRACE, isSudo: false };
+      vi.mocked(fetchImage).mockImplementation(found);
+      await setProfileVisibility("photo", "public");
+      await setProfileVisibility("photo", "community");
+
+      expect(await setProfileVisibility("photo", "public")).toEqual({ success: true });
+      expect(fetchImage).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the copy when they go back to the house or the lock, and the public page stops using it", async () => {
+      state.identity = { memberId: GRACE, isSudo: false };
+      vi.mocked(fetchImage).mockImplementation(found);
+      await setProfileVisibility("photo", "public");
+      const copy = photoOf(GRACE);
+      await state.repos.writerProfiles.setHandle(GRACE, "grace-example", { reserveDays: 1, now: new Date(AT) });
+      await state.repos.writerProfiles.update(GRACE, { isPublic: true });
+
+      for (const level of ["community", "private"]) {
+        expect(await setProfileVisibility("photo", level)).toEqual({ success: true });
+        expect(photoOf(GRACE)).toBe(copy);
+        expect(uploaded).toHaveLength(1);
+        expect(await state.repos.writerProfiles.publicByHandle("grace-example")).toMatchObject({ kind: "page", profile: { photoUrl: null } });
+      }
+    });
+
+    it("sends a member with no Gravatar to the upload, saves nothing and leaves the level alone", async () => {
+      state.identity = { memberId: GRACE, isSudo: false };
+      vi.mocked(fetchImage).mockResolvedValue({ ok: false, reason: "bad_status", detail: "404", status: 404 });
+
+      expect(await setProfileVisibility("photo", "public")).toEqual({ error: expect.stringMatching(/couldn't find a Gravatar picture.*Upload one above/) });
+
+      expect(uploaded).toEqual([]);
+      expect((await state.repos.memberStatus.profileVisibilitiesOf(GRACE)).photo).toBe("community");
+      expect(photoOf(GRACE)).toContain("gravatar.com");
+    });
+
+    it("says to try again or upload when the copy fails for another reason", async () => {
+      state.identity = { memberId: GRACE, isSudo: false };
+      vi.mocked(fetchImage).mockResolvedValue({ ok: false, reason: "timeout", detail: "slow" });
+
+      expect(await setProfileVisibility("photo", "public")).toEqual({ error: expect.stringMatching(/Try again, or upload a photo/) });
+      expect((await state.repos.memberStatus.profileVisibilitiesOf(GRACE)).photo).toBe("community");
+    });
+
+    it("asks for an upload when there is no photo at all", async () => {
+      state.dataset.members.find((m) => m.id === GRACE)!.photoUrl = null;
+      state.identity = { memberId: GRACE, isSudo: false };
+
+      expect(await setProfileVisibility("photo", "public")).toEqual({ error: expect.stringMatching(/Upload one above/) });
+      expect(fetchImage).not.toHaveBeenCalled();
+    });
+
+    it("does not copy a member's photo for staff acting as them (sudo)", async () => {
+      state.identity = { memberId: GRACE, isSudo: true };
+
+      expect(await setProfileVisibility("photo", "public")).toEqual({ error: expect.stringMatching(/Staff can look/) });
+      expect(fetchImage).not.toHaveBeenCalled();
+      expect(photoOf(GRACE)).toContain("gravatar.com");
+    });
+
+    it("the lock and the house never need a photo or a fetch", async () => {
+      state.identity = { memberId: GRACE, isSudo: false };
+      expect(await setProfileVisibility("photo", "private")).toEqual({ success: true });
+      expect(await setProfileVisibility("photo", "community")).toEqual({ success: true });
+      expect(fetchImage).not.toHaveBeenCalled();
+    });
   });
 
   it("writes nothing when the level is already that one", async () => {

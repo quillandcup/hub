@@ -203,6 +203,8 @@ export interface MemberRepository {
   withPhotos(): Promise<{ id: string; photoUrl: string }[]>;
   /** Points the member's photo at `to`, only while it is still `from`; false when it had changed (or the member is gone). */
   setPhotoUrlIf(id: string, from: string, to: string): Promise<boolean>;
+  /** Sets the member's photo address, whatever it was (the member changed or removed their photo; null shows initials until processing finds one). */
+  setPhotoUrl(id: string, to: string | null): Promise<void>;
 }
 
 const IDENTITY_COLUMNS = "id, name, display_name, email";
@@ -627,6 +629,11 @@ export class SupabaseMemberRepository implements MemberRepository {
     return (data ?? []).length > 0;
   }
 
+  async setPhotoUrl(id: string, to: string | null) {
+    const { error } = await this.db.from("members").update({ photo_url: to }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
   async setExternalIds(id: string, ids: ExternalIds): Promise<void> {
     const patch: Update<"members"> = {};
     if (ids.kajabiId !== undefined) patch.kajabi_id = ids.kajabiId;
@@ -925,5 +932,10 @@ export class InMemoryMemberRepository implements MemberRepository {
     if (!m || m.photoUrl !== from) return false;
     m.photoUrl = to;
     return true;
+  }
+
+  async setPhotoUrl(id: string, to: string | null) {
+    const m = this.find(id);
+    if (m) m.photoUrl = to;
   }
 }

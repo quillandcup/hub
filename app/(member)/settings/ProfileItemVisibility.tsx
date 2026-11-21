@@ -35,11 +35,10 @@ export function describeProfileItem(item: ProfileItem, visibility: Visibility, n
  * off, or writer profiles are not open to this member, or the page uses a separate public bio instead. Null when the
  * level needs no note.
  */
-export function webNote(item: ProfileItem, visibility: Visibility, page: WebPageState, extra: { separateBio?: boolean; photoPublishable?: boolean } = {}): string | null {
+export function webNote(item: ProfileItem, visibility: Visibility, page: WebPageState, extra: { separateBio?: boolean } = {}): string | null {
   if (visibility !== "public" || !isWebItem(item)) return null;
   if (!page.available) return "Other members can see it. It is not on the web, because writer profiles are not open to you yet.";
   if (item === "bio" && extra.separateBio) return "Your writer profile uses your separate public bio instead.";
-  if (item === "photo" && extra.photoPublishable === false) return "No photo can be shown on the web. A Gravatar picture is never published, because its address carries a code made from your email.";
   if (!page.on) return "Other members already see this. It goes on the web once your writer profile is on.";
   return null;
 }
@@ -56,7 +55,6 @@ export default function ProfileItemVisibility({
   onChange,
   disabled,
   separateBio,
-  photoPublishable,
 }: {
   item: ProfileItem;
   visibility: Visibility;
@@ -65,13 +63,12 @@ export default function ProfileItemVisibility({
   disabled?: boolean;
   /** The bio has a separate public bio, so the page does not use the member bio: no globe to offer on it. */
   separateBio?: boolean;
-  photoPublishable?: boolean;
 }) {
   const offered = item === "bio" && separateBio ? levelsFor(item, { webPageAvailable: false }) : levelsFor(item, { webPageAvailable: page.available });
   // A level the member already has but cannot pick any more (the globe, once pages on the web are closed to them) still shows;
   // a click moves on to the first level they can pick.
   const levels = offered;
-  const note = webNote(item, visibility, page, { separateBio, photoPublishable });
+  const note = webNote(item, visibility, page, { separateBio });
   return (
     <span className="inline-flex flex-col items-end">
       <VisibilityControl

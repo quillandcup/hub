@@ -53,7 +53,7 @@ type MemberRow = {
   twitter_url: string | null;
 };
 
-type OverrideRow = { bio: string | null; facebook_url: string | null; twitter_url: string | null };
+type OverrideRow = { bio: string | null; facebook_url: string | null; twitter_url: string | null; photo_path?: string | null };
 
 /** The caller's own (RLS-scoped) session: member_profile_overrides and member_ask_me_about go through it. */
 function makeUserClient({
@@ -536,9 +536,18 @@ describe("getProfileSettings", () => {
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       askMeAbout: ["worldbuilding"],
       visibilities: { bio: "community", photo: "community", instagram: "community", facebook: "community", x: "community", ask_me_about: "community" },
+      photo: { canChange: true, name: "", source: "none", url: null },
       syncPending: true,
       showInRoster: true,
     });
+  });
+
+  it("says where the photo comes from, and that staff looking as the member cannot change it", async () => {
+    setup({ override: { bio: null, facebook_url: null, twitter_url: null, photo_path: "member-1/gravatar-abc.webp" } });
+    expect(await getProfileSettings()).toMatchObject({ photo: { source: "gravatar_copy", canChange: true } });
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true });
+    expect(await getProfileSettings()).toMatchObject({ photo: { canChange: false } });
   });
 
   it("is not pending once Silver matches Bronze + overrides", async () => {

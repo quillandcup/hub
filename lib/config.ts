@@ -92,6 +92,9 @@ export function postalAddress(): string {
 /** The public site writer profiles link back to, no trailing slash (config/app.ts `siteUrl`). */
 export const SITE_URL = appConfig.siteUrl.replace(/\/+$/, "");
 
+/** A member's own profile photo: the largest upload, the one host a Gravatar photo is copied from (config/app.ts `memberPhoto`). */
+export const MEMBER_PHOTO = appConfig.memberPhoto;
+
 /** Writer profiles: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (config/app.ts `writerProfiles`). */
 export const WRITER_PROFILES = appConfig.writerProfiles;
 

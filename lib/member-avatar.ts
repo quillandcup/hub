@@ -7,10 +7,10 @@ const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-
  * See MemberAvatar.tsx for the initials fallback, triggered by the Gravatar
  * `d=404` param 404-ing and the <img> onError handler.
  */
-function gravatarUrl(email: string): string {
+export function gravatarUrl(email: string, size = 200): string {
   // d=404 means 404 if the address has no Gravatar account (onError → initials).
   const hash = createHash("md5").update(email.toLowerCase().trim()).digest("hex");
-  return `https://www.gravatar.com/avatar/${hash}?d=404&s=200`;
+  return `https://www.gravatar.com/avatar/${hash}?d=404&s=${size}`;
 }
 
 export function toKajabiPhotoUrl(

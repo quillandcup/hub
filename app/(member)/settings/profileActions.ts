@@ -22,6 +22,7 @@ import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parse
 import { normalizeTopics } from "@/lib/ask-me-about";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import type { ProfileVisibilities } from "@/lib/profile-visibility";
+import { photoSource, type PhotoSource } from "@/lib/members/photo";
 
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 /**
@@ -67,6 +68,8 @@ export interface ProfileSettings {
   askMeAbout: string[];
   /** Who can see each item: private, community or public (`lib/profile-visibility.ts`); community until the member changes one. */
   visibilities: ProfileVisibilities;
+  /** The photo the member has now and where it comes from; `canChange` is false while staff look as the member (sudo). */
+  photo: { name: string; url: string | null; source: PhotoSource; canChange: boolean };
   /** A saved change hasn't reached the profile yet (member processing still running). */
   syncPending: boolean;
   /** Listed in other members' "Who's coming" on upcoming prickles they committed to or added to their calendar (no member_roster_opt_outs row). */
@@ -162,8 +165,13 @@ async function loadKajabiProfileSnapshot(
 /** The member's own columns, as `{ data, error }` like the other loaders here (a failed read is an error, not "no member"). */
 async function loadMember(ctx: Ctx) {
   try {
-    const profile = await createRepos(ctx.service).members.profile(ctx.effectiveIdentity.memberId);
+    const [profile, member] = await Promise.all([
+      createRepos(ctx.service).members.profile(ctx.effectiveIdentity.memberId),
+      createRepos(ctx.service).members.byId(ctx.effectiveIdentity.memberId),
+    ]);
     const data = profile && {
+      photo_url: member?.photoUrl ?? null,
+      shown_name: member?.displayName?.trim() || member?.name || "",
       email: profile.email,
       kajabi_id: profile.kajabiId,
       bio: profile.bio,
@@ -267,6 +275,7 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     details: toDetails(effective),
     askMeAbout: askRow?.topics ?? [],
     visibilities: { ...(levels ?? { bio: "community", photo: "community", instagram: "community", facebook: "community", x: "community" }), ask_me_about: askRow?.visibility ?? "community" },
+    photo: { name: member.shown_name, url: member.photo_url, source: photoSource(member.photo_url, override?.photo_path), canChange: !ctx.effectiveIdentity.isSudo },
     syncPending,
     showInRoster: !optOut,
   };

@@ -127,7 +127,6 @@ describe("getMyWriterProfile", () => {
       publicBio: "",
       nameChosen: true,
       nameChoices: [{ kind: "display", aliasId: null, label: "Ada Example" }, { kind: "account", aliasId: null, label: "Ada Legalname" }],
-      photoAvailable: true,
       suggestedHandle: "ada-example",
       pageUrl: null,
     });
@@ -156,7 +155,7 @@ describe("getMyWriterProfile", () => {
     state.identity = { memberId: GRACE, isSudo: false };
     state.dataset.members.find((m) => m.id === GRACE)!.photoUrl = "https://secure.gravatar.com/avatar/0123456789abcdef";
 
-    expect(await getMyWriterProfile()).toMatchObject({ useAccountName: false, photoAvailable: false, nameChosen: false, nameChoices: [{ kind: "account", aliasId: null, label: "Grace Example" }], suggestedHandle: "" });
+    expect(await getMyWriterProfile()).toMatchObject({ useAccountName: false, nameChosen: false, nameChoices: [{ kind: "account", aliasId: null, label: "Grace Example" }], suggestedHandle: "" });
   });
 
   it("shows the effective member's page, so sudo sees what the member sees", async () => {
