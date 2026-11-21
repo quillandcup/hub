@@ -22,9 +22,14 @@ const loaders = (over: Partial<LiveLoaders> = {}): LiveLoaders => ({
 });
 
 const block = (type: string, props: Record<string, unknown>) => ({ type, props: { id: `${type}-1`, ...props } });
-const outcome = (items: Record<string, unknown>[], props: Record<string, unknown> = {}) => block("OutcomeNumbers", { padding: "medium", items, ...props });
+let figureCount = 0;
+/** The figures of an Outcome numbers block are `OutcomeNumber` blocks in its `items` slot. */
+const figure = (props: Record<string, unknown>) => ({ type: "OutcomeNumber", props: { id: `OutcomeNumber-${figureCount++}`, ...props } });
+const outcome = (items: Record<string, unknown>[], props: Record<string, unknown> = {}) => block("OutcomeNumbers", { padding: "medium", items: items.map(figure), ...props });
 const page = (...content: unknown[]) => ({ content, root: { props: {} } });
 type Block = { type: string; props: Record<string, unknown> & { items?: Record<string, unknown>[] } };
+/** The props of the nth figure of a resolved Outcome numbers block. */
+const itemProps = (b: Block, n: number) => (b.props.items![n] as unknown as Block).props;
 const resolved = async (data: unknown, l: LiveLoaders = loaders()) => ((await resolveLiveBlocks(data, l, NOW)) as { content: Block[] }).content;
 
 afterEach(() => vi.restoreAllMocks());
@@ -40,7 +45,7 @@ describe("what a page needs", () => {
 
   it("needs nothing from a page of typed blocks, and loads nothing", async () => {
     const l = loaders();
-    const data = page(outcome([{ source: "manual", value: "50+", label: "books", note: "" }]), block("SchedulePanel", { source: "manual", rows: [] }), block("AnnouncementStrip", { text: "Hi" }), block("Heading", { text: "x" }));
+    const data = page(outcome([{ source: "manual", value: "50+", label: "books", note: "" }]), block("SchedulePanel", { source: "manual", items: [] }), block("AnnouncementStrip", { text: "Hi" }), block("Heading", { text: "x" }));
     expect(needsLiveData(data)).toEqual({ stats: [], schedule: false, comingUp: [] });
     expect(await resolveLiveBlocks(data, l, NOW)).toEqual(expect.objectContaining({ content: expect.any(Array) }));
     expect(l.stats).not.toHaveBeenCalled();
@@ -63,8 +68,28 @@ describe("what a page needs", () => {
 describe("resolveLiveBlocks", () => {
   it("puts the figure on live outcome items only, and leaves the typed value as the fallback", async () => {
     const [out] = await resolved(page(outcome([{ source: "live", stat: "hours_30d", value: "typed", label: "", note: "" }, { source: "manual", stat: "hours_30d", value: "50+", label: "books", note: "" }])));
-    expect(out.props.items![0]).toMatchObject({ value: "typed", live: { value: "890+", caption: "caption of hours_30d" } });
-    expect(out.props.items![1]).not.toHaveProperty("live");
+    expect(itemProps(out, 0)).toMatchObject({ value: "typed", live: { value: "890+", caption: "caption of hours_30d", note: true } });
+    expect(itemProps(out, 1)).not.toHaveProperty("live");
+    expect((out.props.items![0] as unknown as Block).type).toBe("OutcomeNumber");
+  });
+
+  it("hands each figure the block's switch for the small live note, which the figure cannot see", async () => {
+    const [off] = await resolved(page(outcome([{ source: "live", stat: "hours_30d", value: "1" }], { showLiveNote: false })));
+    expect(itemProps(off, 0).live).toMatchObject({ note: false });
+  });
+
+  it("drops a live figure planted on a figure that has no block around it, and ignores items that are not blocks", async () => {
+    const stray = figure({ source: "manual", value: "1", live: { value: "9,999,999", caption: "made up", note: true } });
+    const [alone, odd] = await resolved(page(stray, block("OutcomeNumbers", { items: [{ source: "live", stat: "hours_30d", value: "1" }, "junk", null] })));
+    expect(alone.props).not.toHaveProperty("live");
+    expect(odd.props.items).toEqual([{ source: "live", stat: "hours_30d", value: "1" }, "junk", null]);
+  });
+
+  it("leaves the typed sessions of a typed schedule panel as the blocks they are", async () => {
+    const typed = [{ type: "ScheduleRow", props: { id: "r1", time: "9:00 am", title: "Typed", status: "", state: "open", host: "" } }];
+    const [panel] = await resolved(page(block("SchedulePanel", { source: "manual", items: typed })));
+    expect(panel.props.items).toEqual(typed);
+    expect(panel.props).not.toHaveProperty("live");
   });
 
   it("fills the schedule panel with rows for its own options, and the strip with its line", async () => {
@@ -77,7 +102,7 @@ describe("resolveLiveBlocks", () => {
     const data = page(block("Section", { content: [block("Columns", { col1: [outcome([{ source: "live", stat: "hours_30d", value: "1" }])], col2: [block("Heading", { text: "Hello" })] })] }));
     const [section] = await resolved(data);
     const columns = (section.props.content as Block[])[0];
-    expect(((columns.props.col1 as Block[])[0].props.items![0] as Record<string, unknown>).live).toBeTruthy();
+    expect(itemProps((columns.props.col1 as Block[])[0], 0).live).toBeTruthy();
     expect((columns.props.col2 as Block[])[0]).toEqual({ type: "Heading", props: { id: "Heading-1", text: "Hello" } });
   });
 
@@ -160,7 +185,7 @@ describe("when a load fails", () => {
   it("lets the figures through when only the schedule fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const [numbers, panel] = await resolved(page(outcome([{ source: "live", stat: "hours_30d", value: "typed" }]), block("SchedulePanel", { source: "live", rows: [] })), loaders({ schedule: async () => Promise.reject(new Error("x")) }));
-    expect(numbers.props.items![0]).toHaveProperty("live");
+    expect(itemProps(numbers, 0)).toHaveProperty("live");
     expect(panel.props).not.toHaveProperty("live");
   });
 

@@ -14,9 +14,9 @@ vi.hoisted(() => {
 import { readFileSync } from "node:fs";
 import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { AnnouncementStrip, ComingUp, FinishLineCard, FinishLineCards, FinisherCard, FinisherCards, JourneyMap, OutcomeNumbers, PlanPhase, PlanPhases, SchedulePanel, Timeline, TimelineMoment, WeekDay, WeekStrip } from "@/components/landing/homepage-blocks";
+import { AnnouncementStrip, ComingUp, FinishLineCard, FinishLineCards, FinisherCard, FinisherCards, JourneyMap, OutcomeNumber, OutcomeNumbers, PlanPhase, PlanPhases, ScheduleRowItem, SchedulePanel, Timeline, TimelineMoment, WeekDay, WeekStrip } from "@/components/landing/homepage-blocks";
 import { itemsSlot } from "./landing-items-slot";
-import { Button, CardGrid, CtaBanner, Divider, Faq, Heading, Hero, Image, LinkList, List, RichText, Section, Spacer, Split, Stat, Stats, Step, Steps, Testimonials, Video } from "@/components/landing/blocks";
+import { Button, CardGrid, CtaBanner, Divider, Faq, FaqItem, GridCard, Heading, Hero, Image, LinkItem, LinkList, List, ListItem, RichText, Section, Spacer, Split, Stat, Stats, Step, Steps, Testimonial, Testimonials, Video } from "@/components/landing/blocks";
 import { BLOCK_DEFAULTS, PageFrame } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage } from "@/lib/landing/a11y";
@@ -98,16 +98,19 @@ describe("Button and link list", () => {
   it("lists only links that have a label and a safe address", () => {
     render(
       <LinkList
-        look="outline"
-        color="plum"
-        items={[
-          { label: "Shop", href: "https://example.com/shop" },
-          { label: "Broken", href: "javascript:x" },
-          { label: "", href: "https://example.com" },
-        ]}
+        items={itemsSlot(LinkItem, [
+          { label: "Shop", href: "https://example.com/shop", look: "outline", color: "plum" },
+          { label: "Broken", href: "javascript:x", look: "outline", color: "plum" },
+          { label: "", href: "https://example.com", look: "outline", color: "plum" },
+        ])}
       />,
     );
     expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("shows a link with no address as a disabled placeholder while editing, so it can still be found", () => {
+    const { container } = render(<LinkList editing items={itemsSlot(LinkItem, [{ label: "", href: "", look: "solid", color: "plum", editing: true }])} />);
+    expect(container.querySelector("li [aria-disabled='true']")).toHaveTextContent("Link");
   });
 });
 
@@ -136,14 +139,15 @@ describe("images", () => {
 
 describe("lists of things", () => {
   it("shows list items with their marker", () => {
-    render(<List items={[{ text: "One", icon: "🌱" }, { text: "Two", icon: "" }]} align="left" />);
+    render(<List items={itemsSlot(ListItem, [{ text: "One", icon: "🌱" }, { text: "Two", icon: "" }, { text: "", icon: "x" }])} align="left" />);
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("🌱")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("✓")).toBeInTheDocument();
   });
 
   it("shows testimonials with who said them", () => {
-    render(<Testimonials items={[{ quote: "Loved it", name: "Ada Example", detail: "Member since 2024" }]} />);
+    render(<Testimonials items={itemsSlot(Testimonial, [{ quote: "Loved it", name: "Ada Example", detail: "Member since 2024" }, { quote: "", name: "No quote, skipped", detail: "" }])} />);
+    expect(screen.queryByText("No quote, skipped")).toBeNull();
     expect(screen.getByText(/Loved it/)).toBeInTheDocument();
     expect(screen.getByText("Ada Example")).toBeInTheDocument();
     const card = screen.getByText(/Loved it/).closest("figure")!;
@@ -153,13 +157,13 @@ describe("lists of things", () => {
   });
 
   it("answers questions with native disclosure elements", () => {
-    const { container } = render(<Faq items={[{ question: "Is it free?", answer: "Yes.\nReally." }]} />);
+    const { container } = render(<Faq items={itemsSlot(FaqItem, [{ question: "Is it free?", answer: "Yes.\nReally." }])} />);
     expect(container.querySelector("details summary")).toHaveTextContent("Is it free?");
     expect(screen.getByText("Really.")).toBeInTheDocument();
   });
 
   it("shows a card's icon (hidden from screen readers) and description", () => {
-    const { container } = render(<CardGrid columns="3" items={[{ alt: "", icon: "🤝", title: "Community", description: "Kind company.", price: "", buttonLabel: "", href: "" }]} />);
+    const { container } = render(<CardGrid columns="3" items={itemsSlot(GridCard, [{ alt: "", icon: "🤝", title: "Community", description: "Kind company.", price: "", buttonLabel: "", href: "" }])} />);
     expect(container.querySelector('[aria-hidden="true"]')).toHaveTextContent("🤝");
     expect(screen.getByText("Kind company.")).toBeInTheDocument();
   });
@@ -168,10 +172,10 @@ describe("lists of things", () => {
     const { container } = render(
       <CardGrid
         columns="4"
-        items={[
+        items={itemsSlot(GridCard, [
           { alt: "Cover", imageAssetId: "media_AAAAAAAAAAA1", title: "Book one", price: "$12", buttonLabel: "Buy now", href: "https://example.com/1" },
           { alt: "", title: "Book two", price: "$15", buttonLabel: "Buy now", href: "" },
-        ]}
+        ])}
       />,
     );
     expect(container.querySelector("ul")!.className).toContain("@columns:grid-cols-4");
@@ -492,9 +496,10 @@ describe("SchedulePanel", () => {
     { time: "10:00 am", title: "Focus hour", status: "In 42 min", state: "soon" as const, host: "" },
     { time: "", title: "", status: "skipped", state: "open" as const, host: "" },
   ];
+  const typed = (list: typeof rows) => itemsSlot(ScheduleRowItem, list);
 
   it("lists each session with its time, status chip and host line, and pulses only the live one", () => {
-    const { container } = render(<SchedulePanel title="Writing right now" zoneLabel="Zone note" rows={rows} />);
+    const { container } = render(<SchedulePanel title="Writing right now" zoneLabel="Zone note" items={typed(rows)} />);
     expect(screen.getByRole("region", { name: "Writing right now" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("Live").className).toContain("bg-emerald-700");
@@ -505,45 +510,56 @@ describe("SchedulePanel", () => {
     expect(container.firstElementChild!.className).toContain("landing-light");
   });
 
-  it("puts no chip on an ordinary row (the same chip on most rows says nothing), unless the owner types a label, then in mist colours", () => {
+  it("puts no chip on an ordinary row (the same chip on most rows says nothing), unless the owner types a label for live rows, then in mist colours", () => {
     const open = [{ time: "Fri 4:00 am", title: "Night owls", status: "", state: "open" as const, host: "" }];
-    const { container } = render(<SchedulePanel title="x" zoneLabel="" rows={open} />);
+    const { container } = render(<SchedulePanel title="x" zoneLabel="" items={typed(open)} />);
     expect(container.querySelector("li span.rounded-full")).toBeNull();
     expect(screen.queryByText("Open")).toBeNull();
     cleanup();
-    render(<SchedulePanel title="x" zoneLabel="" rows={open} openLabel="Drop in" />);
+    render(<SchedulePanel title="x" zoneLabel="" source="live" live={{ rows: open, zoneLabel: "" }} items={typed([])} openLabel="Drop in" />);
     expect(screen.getByText("Drop in").className).toContain("bg-mist-100");
     expect(screen.getByText("Drop in").className).toContain("text-mist-900");
   });
 
   it("shows the footer once under the whole list, and nothing without one", () => {
-    const rows = [{ time: "7:00 pm", title: "Progress Prickle", status: "", state: "open" as const, host: "" }, { time: "8:30 pm", title: "Heads Down", status: "", state: "open" as const, host: "" }];
-    render(<SchedulePanel title="x" zoneLabel="" rows={rows} footer="Camera optional. Everyone is welcome." />);
+    const two = [{ time: "7:00 pm", title: "Progress Prickle", status: "", state: "open" as const, host: "" }, { time: "8:30 pm", title: "Heads Down", status: "", state: "open" as const, host: "" }];
+    render(<SchedulePanel title="x" zoneLabel="" items={typed(two)} footer="Camera optional. Everyone is welcome." />);
     expect(screen.getAllByText("Camera optional. Everyone is welcome.")).toHaveLength(1);
     cleanup();
-    render(<SchedulePanel title="x" zoneLabel="" rows={rows} />);
+    render(<SchedulePanel title="x" zoneLabel="" items={typed(two)} />);
     expect(screen.queryByText(/Camera optional/)).toBeNull();
   });
 
   it("keeps the time on one line", () => {
-    render(<SchedulePanel title="x" zoneLabel="" rows={[{ time: "Fri 4:00 am", title: "Night owls", status: "", state: "open", host: "" }]} />);
+    render(<SchedulePanel title="x" zoneLabel="" items={typed([{ time: "Fri 4:00 am", title: "Night owls", status: "", state: "open", host: "" }])} />);
     const cell = screen.getByText("Fri 4:00 am");
     expect(cell.className).toContain("whitespace-nowrap");
     expect(cell.className).toContain("min-w-[5.5rem]");
   });
 
-  it("shows the row note only under rows without a host line, never a count", () => {
-    render(<SchedulePanel title="x" zoneLabel="" rows={rows.slice(0, 2)} rowNote="Camera optional" />);
+  it("shows the row note under live rows without a host line, never a count, and a typed session only its own line", () => {
+    render(<SchedulePanel title="x" zoneLabel="" source="live" live={{ rows: rows.slice(0, 2), zoneLabel: "" }} items={typed([])} rowNote="Camera optional" />);
     expect(screen.getAllByText("Camera optional")).toHaveLength(1);
     expect(screen.getByText("Hosted by Sarah")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/joining|be the first/i);
     cleanup();
-    render(<SchedulePanel title="x" zoneLabel="" rows={rows.slice(0, 2)} />);
+    render(<SchedulePanel title="x" zoneLabel="" items={typed(rows.slice(0, 2))} rowNote="Camera optional" />);
     expect(screen.queryByText("Camera optional")).toBeNull();
   });
 
-  it("shows nothing without a session", () => {
-    expect(render(<SchedulePanel title="x" zoneLabel="" rows={[]} />).container).toBeEmptyDOMElement();
+  it("is not drawn on the public page without a session (its slot is empty), but stays a place to drop into while editing", () => {
+    const empty = render(<SchedulePanel title="x" zoneLabel="" items={typed([])} />);
+    expect(empty.container.querySelector("section")!.className).toContain("[&:not(:has(li))]:hidden");
+    expect(empty.container.querySelector("ul")!.className).toContain("empty:hidden");
+    cleanup();
+    const editing = render(<SchedulePanel title="x" zoneLabel="" editing items={typed([])} />);
+    expect(editing.container.querySelector("section")!.className).not.toContain(":has(li)");
+    expect(editing.container.querySelector("ul")!.className).not.toContain("empty:hidden");
+  });
+
+  it("caps the typed sessions at six", () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ time: "", title: `S${i}`, status: "", state: "open" as const, host: "" }));
+    expect(render(<SchedulePanel title="x" zoneLabel="" items={typed(many)} />).container.querySelector("ul")!.className).toContain("[&>:nth-child(n+7)]:hidden");
   });
 });
 
@@ -556,7 +572,7 @@ describe("OutcomeNumbers", () => {
   ];
 
   it("sets every colour itself: a white band with a gold stripe, plum numbers and dark ink labels", () => {
-    const { container } = render(<OutcomeNumbers items={items} />);
+    const { container } = render(<OutcomeNumbers items={itemsSlot(OutcomeNumber, items)} />);
     const band = container.firstElementChild!;
     for (const cls of ["bg-white", "border-gold", "text-ink", "landing-light"]) expect(band.className).toContain(cls);
     expect(screen.getByText("50+").className).toContain("text-plum-900");
@@ -567,11 +583,15 @@ describe("OutcomeNumbers", () => {
     expect(container.querySelectorAll("dd")).toHaveLength(3);
   });
 
-  it("caps at four and hides when empty", () => {
-    const five = render(<OutcomeNumbers items={Array.from({ length: 6 }, (_, i) => ({ value: String(i + 1), label: `L${i}`, note: "" }))} />);
-    expect(five.container.querySelectorAll("dd")).toHaveLength(4);
-    five.unmount();
-    expect(render(<OutcomeNumbers items={[]} />).container).toBeEmptyDOMElement();
+  it("caps at four, and hides the band when it has no figure on the public page", () => {
+    const six = render(<OutcomeNumbers items={itemsSlot(OutcomeNumber, Array.from({ length: 6 }, (_, i) => ({ value: String(i + 1), label: `L${i}`, note: "" })))} />);
+    expect(six.container.querySelector("dl")!.className).toContain("[&>:nth-child(n+5)]:hidden");
+    six.unmount();
+    const none = render(<OutcomeNumbers items={itemsSlot(OutcomeNumber, [])} />);
+    expect(none.container.firstElementChild!.className).toContain("[&:not(:has(dd))]:hidden");
+    expect(none.container.querySelector("dl")!.className).toContain("empty:hidden");
+    none.unmount();
+    expect(render(<OutcomeNumbers editing items={itemsSlot(OutcomeNumber, [])} />).container.firstElementChild!.className).not.toContain(":has(dd)");
   });
 });
 
