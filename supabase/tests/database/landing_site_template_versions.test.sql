@@ -1,4 +1,4 @@
--- pgTAP tests for 20270878 (docs/product/LANDING_PAGES.md, "Site template"): the version kept at each publish of the site design.
+-- pgTAP tests for 20270910 (docs/product/LANDING_PAGES.md, "Site template"): the version kept at each publish of the site design.
 -- Admin only (no anon, no member), insert-only for admins, written by the publish function in the same step as the publish, and
 -- brought back into the draft only (never the published copy). Restoring and resetting are one audit entry each, without either
 -- document. Runs in one transaction that is rolled back; assertions are scoped to this test's own fixture ids.
