@@ -57,6 +57,7 @@ export default defineConfig({
       include: [
         'app/**/*.{ts,tsx}',
         'lib/**/*.{ts,tsx}',
+        'content/**/*.{ts,tsx}',
         'components/**/*.{ts,tsx}',
         'emails/**/*.{ts,tsx}',
         'scripts/**/*.ts',

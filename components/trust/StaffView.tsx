@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import type { ComplianceStatus } from "@/lib/compliance";
+import type { ComplianceStatus } from "@/content/compliance";
 import { RichText, StatusLegend, TrustAside, TrustCard, TrustSection } from "@/components/trust/Trust";
 
 /**
  * The staff side of a trust page (`/admin/security`, `/admin/compliance`, `/admin/privacy`): the same rows
  * members read, with how each works, where it is enforced, when it was last checked and what is still open.
  * One component, so the three staff pages look and behave alike. The repo is public, so what a row carries
- * is public-safe by design (see `lib/security.ts`).
+ * is public-safe by design (see `content/security.ts`).
  */
 export interface StaffRow {
   id: string;

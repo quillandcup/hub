@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { renderServerPage } from "@/tests/helpers/server-page";
-import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, complianceItemId } from "@/lib/compliance";
+import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, complianceItemId } from "@/content/compliance";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { COMPLIANCE_GROUPS } from "@/lib/compliance";
+import { COMPLIANCE_GROUPS } from "@/content/compliance";
 import { PRIVACY_GROUPS } from "@/lib/privacy-promises";
-import { SECURITY_ITEMS } from "@/lib/security";
+import { SECURITY_ITEMS } from "@/content/security";
 
 const ROOT = resolve(__dirname, "../..");
 

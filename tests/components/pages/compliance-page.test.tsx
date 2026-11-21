@@ -9,7 +9,7 @@ import {
   COMPLIANCE_STATUSES,
   COMPLIANCE_EFFECTIVE,
   complianceItemId,
-} from "@/lib/compliance";
+} from "@/content/compliance";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));

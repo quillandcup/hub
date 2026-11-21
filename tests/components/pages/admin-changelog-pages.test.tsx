@@ -10,7 +10,7 @@ vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() 
 
 import AdminChangelogPage from "@/app/(admin)/admin/changelog/page";
 import AdminChangelogEntryPage, { generateMetadata, generateStaticParams } from "@/app/(admin)/admin/changelog/[slug]/page";
-import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { listProductChangelog } from "@/lib/changelog";
 
 const listProps = (searchParams: Record<string, string> = {}) => ({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) });

@@ -1,7 +1,7 @@
 import { APP_URL, CHANGELOG_DIGEST_STARTS_ON, ORG_TIMEZONE, SLACK_CHANGELOG_CHANNEL_ID } from "@/lib/config";
 import type { OutboundMessage } from "@/lib/channels";
 import { slackBlocks } from "@/lib/channels/slack";
-import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/content/changelog";
 import { changelogEntryPath, listProductChangelog } from "@/lib/changelog";
 import type { Repos } from "@/lib/data/repos";
 import { chunk } from "@/lib/supabase/paginate";

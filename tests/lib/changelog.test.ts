@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/content/changelog";
 import {
   changelogEntryPath,
   changelogSince,

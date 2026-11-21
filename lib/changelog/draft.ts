@@ -1,5 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
-import type { ChangelogEntry } from "@/lib/changelog/entries";
+import type { ChangelogEntry } from "@/content/changelog";
 
 /**
  * The input side of the changelog drafter (`pnpm changelog:draft`). It works in two small steps so a run stays cheap:
@@ -20,7 +20,7 @@ export interface MergedPr {
 export type PrKind = "member-visible" | "engineering" | "skip";
 
 const DOC_OR_TEST = /^(docs\/|tests\/|supabase\/tests\/|.*\.md$|\.claude\/)/;
-const CHANGELOG_FILE = /^(lib\/changelog\/|public\/changelog\/|demo\/scenes\/)/;
+const CHANGELOG_FILE = /^(content\/changelog\.ts|lib\/changelog\/|public\/changelog\/|demo\/scenes\/)/;
 const ADMIN_PATH = /(^|\/)(admin|\(admin\))(\/|$)/;
 const MEMBER_SURFACE = /^(app\/\(member\)\/|app\/\(public\)\/|components\/|emails\/|lib\/notifications\/)/;
 

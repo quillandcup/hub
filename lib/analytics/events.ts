@@ -311,7 +311,7 @@ export const EVENTS = {
   /** A help article (help/<slug>.md) was opened. `slug` is the file name, chosen by us, never typed by a member. */
   help_article_viewed: { slug: text(60) },
 
-  /** A changelog entry (lib/changelog/entries.ts) was opened. `slug` is chosen by us, never typed by a member. */
+  /** A changelog entry (content/changelog.ts) was opened. `slug` is chosen by us, never typed by a member. */
   changelog_entry_viewed: { slug: text(60) },
 
   // The media library picker (components/media/MediaPicker.tsx). `surface` is where it was opened,

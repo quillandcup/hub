@@ -52,7 +52,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 | `repo_distributed` [SUGGESTED] | Met | git. |
 | `version_unique` [MUST] | Partly | We deploy continuously; each deploy is a commit SHA and the `production` tag marks what is live (`docs/DEPLOYMENT.md`). There are no numbered releases (`package.json` stays at 0.1.0). |
 | `version_semver`, `version_tags` [SUGGESTED] | Not met | No versions. The `production` tag moves rather than naming releases. |
-| `release_notes` [MUST, N/A allowed for continuously delivered sites] | Partly | The changelog (`lib/changelog/entries.ts`, `docs/CHANGELOG_PROCESS.md`) is the human-readable record; it is per feature, not per release. |
+| `release_notes` [MUST, N/A allowed for continuously delivered sites] | Partly | The changelog (`content/changelog.ts`, `docs/CHANGELOG_PROCESS.md`) is the human-readable record; it is per feature, not per release. |
 | `release_notes_vulns` [MUST, N/A allowed] | Partly | Security fixes are not called out in the changelog; they appear in pull requests and, for reports, in advisories. |
 
 ### Reporting

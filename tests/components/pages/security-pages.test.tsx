@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import { COMPLIANCE_STATUSES } from "@/lib/compliance";
-import { SECURITY_EFFECTIVE, SECURITY_ITEMS } from "@/lib/security";
+import { COMPLIANCE_STATUSES } from "@/content/compliance";
+import { SECURITY_EFFECTIVE, SECURITY_ITEMS } from "@/content/security";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));

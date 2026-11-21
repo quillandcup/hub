@@ -8,7 +8,7 @@ import {
   parseGrouping,
   type MergedPr,
 } from "@/lib/changelog/draft";
-import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { LIVE_FLAGS } from "@/lib/changelog/live-flags";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 

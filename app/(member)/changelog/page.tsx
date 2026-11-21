@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { CHANGELOG_CATEGORIES } from "@/lib/changelog/entries";
+import { CHANGELOG_CATEGORIES } from "@/content/changelog";
 import { changelogEntryPath, filterByCategory, listProductChangelog, parseCategoryFilter, searchChangelog } from "@/lib/changelog";
 import ChangelogFilters from "@/components/changelog/ChangelogFilters";
 

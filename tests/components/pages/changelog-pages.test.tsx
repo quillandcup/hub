@@ -9,7 +9,7 @@ vi.mock("@/components/changelog/ChangelogEntryViewed", () => ({ default: () => n
 
 import ChangelogPage from "@/app/(member)/changelog/page";
 import ChangelogEntryPage, { generateMetadata, generateStaticParams } from "@/app/(member)/changelog/[slug]/page";
-import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { listProductChangelog } from "@/lib/changelog";
 
 const USER = { id: "user-1", email: "member1@example.com" };

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/content/changelog";
 import { findAnyChangelogEntry, listChangelog } from "@/lib/changelog";
 import ChangelogMarkdown from "@/components/changelog/ChangelogMarkdown";
 

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
-import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { listProductChangelog } from "@/lib/changelog";
 
 // The weekly route on the in-memory repositories, with auth, Slack and the heartbeat faked.

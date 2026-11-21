@@ -48,7 +48,7 @@ export const AREA_FLOORS: Record<string, Record<"lines" | "statements" | "functi
   components: { lines: 88, statements: 86, functions: 84, branches: 82 },
   "app/api": { lines: 82, statements: 79, functions: 85, branches: 71 },
 };
-const SOURCE = /^((app|lib|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
+const SOURCE = /^((app|lib|content|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
 const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 

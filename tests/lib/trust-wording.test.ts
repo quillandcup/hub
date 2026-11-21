@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { privacyMemberText } from "@/lib/privacy";
-import { COMPLIANCE_GROUPS, COMPLIANCE_STATUSES } from "@/lib/compliance";
-import { SECURITY_ITEMS } from "@/lib/security";
+import { privacyMemberText } from "@/content/privacy";
+import { COMPLIANCE_GROUPS, COMPLIANCE_STATUSES } from "@/content/compliance";
+import { SECURITY_ITEMS } from "@/content/security";
 
 /**
  * Wording on the Privacy, Compliance and Security pages that was checked against the code and the production flags

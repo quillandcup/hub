@@ -14,8 +14,8 @@ describe("isDocsOnly", () => {
   });
 
   it("treats the member help articles as code, because the app reads them at build time", () => {
-    expect(isDocsOnly(["app/(member)/help/articles/join-a-prickle.md"])).toBe(false);
-    expect(isDocsOnly(["docs/TODO.md", "app/(member)/help/articles/join-a-prickle.md"])).toBe(false);
+    expect(isDocsOnly(["content/help/join-a-prickle.md"])).toBe(false);
+    expect(isDocsOnly(["docs/TODO.md", "content/help/join-a-prickle.md"])).toBe(false);
     expect(isDocsOnly(["docs/help/notes.md"])).toBe(true);
   });
 

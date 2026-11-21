@@ -1,6 +1,6 @@
 /**
  * Text with a little structure (bold words and links), for the trust pages whose member-facing content lives in
- * a typed list (`lib/privacy.ts`). The page renders it (`RichText` in `components/trust/Trust.tsx`) and the staff
+ * a typed list (`content/privacy.ts`). The page renders it (`RichText` in `components/trust/Trust.tsx`) and the staff
  * page reads the same value as plain words, so a sentence is written once.
  */
 export type RichPart = string | { strong: string } | { link: string; text: string };

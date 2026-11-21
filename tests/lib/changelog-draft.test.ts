@@ -11,7 +11,7 @@ import {
   trimBody,
   type MergedPr,
 } from "@/lib/changelog/draft";
-import type { ChangelogEntry } from "@/lib/changelog/entries";
+import type { ChangelogEntry } from "@/content/changelog";
 
 const pr = (number: number, files: string[], over: Partial<MergedPr> = {}): MergedPr => ({
   number,
@@ -27,7 +27,7 @@ const options = { flagKeys: ["chat_videos", "hosting"], liveFlags: [] as string[
 describe("classifyPr", () => {
   it("skips docs, tests, demo and changelog-only changes", () => {
     expect(classifyPr({ files: ["docs/TODO.md", "tests/lib/a.test.ts"] })).toBe("skip");
-    expect(classifyPr({ files: ["lib/changelog/entries.ts", "public/changelog/x/a.webp", "tests/demo/scenes/a.spec.ts"] })).toBe("skip");
+    expect(classifyPr({ files: ["content/changelog.ts", "public/changelog/x/a.webp", "tests/demo/scenes/a.spec.ts"] })).toBe("skip");
   });
 
   it("calls a change under a member-facing path member-visible, but not an admin screen", () => {

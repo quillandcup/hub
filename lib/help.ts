@@ -28,7 +28,7 @@ export function helpImageObjectPath(scene: string, file: string, version: string
  */
 export const HELP_ORDER = ["join-a-prickle", "plan-your-month", "share-a-lesson-video-in-chat", "become-a-host", "start-a-pup", "run-a-prickle"];
 
-const HELP_DIR = path.join(process.cwd(), "app", "(member)", "help", "articles");
+const HELP_DIR = path.join(process.cwd(), "content", "help");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export interface HelpArticle {
