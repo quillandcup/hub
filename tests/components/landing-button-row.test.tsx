@@ -89,14 +89,14 @@ describe("ButtonRow accessibility checks", () => {
 });
 
 describe("Homepage starter opening", () => {
-  it("has the two buttons in one ButtonRow, primary solid and secondary outline, both light", () => {
+  it("has the two buttons in one ButtonRow, primary follows the site and secondary is outline, both light", () => {
     const content = starterData("home").content as { type: string; props: Record<string, unknown> }[];
     const section = content[1];
     const columns = (section.props.content as { props: Record<string, unknown> }[])[0];
     const row = (columns.props.col1 as { type: string; props: Record<string, unknown> }[]).find((b) => b.type === "ButtonRow")!;
     expect(row.props.align).toBe("left");
     expect(row.props.items).toEqual([
-      { label: "Start your first prickle", href: "", look: "solid", color: "light", shape: "pill" },
+      { label: "Start your first prickle", href: "", look: "inherit", color: "light", shape: "pill" },
       { label: "Drop in now", href: "", look: "outline", color: "light", shape: "pill" },
     ]);
   });

@@ -37,7 +37,7 @@ function TextLink({ label, href, className = "", tone = "default" }: { label?: s
 function LinkButton({ label, href, color = "plum", full = false }: { label?: string; href?: string; color?: "plum" | "light"; full?: boolean }) {
   if (!label) return null;
   const target = safeHref(href);
-  const classes = buttonClasses("solid", color, "pill", full);
+  const classes = buttonClasses("inherit", color, "pill", full);
   return target ? (
     <a href={target} className={classes}>
       {label}

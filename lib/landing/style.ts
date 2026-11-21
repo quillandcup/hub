@@ -26,6 +26,15 @@ export const BUTTON_SIZES = [
   { value: "medium", label: "Medium" },
   { value: "large", label: "Large" },
 ] as const;
+export const BUTTON_STYLES = [
+  { value: "solid", label: "Solid (filled)" },
+  { value: "outline", label: "Outline" },
+] as const;
+export const BUTTON_TEXTS = [
+  { value: "auto", label: "Automatic (readable on the primary colour)" },
+  { value: "light", label: "White" },
+  { value: "dark", label: "Dark" },
+] as const;
 export const BUTTON_RADII = [
   { value: "pill", label: "Pill" },
   { value: "rounded", label: "Rounded" },
@@ -54,6 +63,8 @@ export type StyleTokens = {
   primary: Values<typeof PRIMARY_COLORS>;
   buttonSize: Values<typeof BUTTON_SIZES>;
   buttonRadius: Values<typeof BUTTON_RADII>;
+  buttonStyle: Values<typeof BUTTON_STYLES>;
+  buttonText: Values<typeof BUTTON_TEXTS>;
   fontFamily: Values<typeof FONT_FAMILIES>;
   fontWeight: Values<typeof FONT_WEIGHTS>;
   lineHeight: Values<typeof LINE_HEIGHTS>;
@@ -61,13 +72,15 @@ export type StyleTokens = {
 export type StyleKey = keyof StyleTokens;
 
 /** What a page looks like when nothing is chosen: the look before the style guide existed. */
-export const STYLE_DEFAULTS: StyleTokens = { pageBackground: "default", primary: "plum", buttonSize: "medium", buttonRadius: "pill", fontFamily: "default", fontWeight: "normal", lineHeight: "normal" };
+export const STYLE_DEFAULTS: StyleTokens = { pageBackground: "default", primary: "plum", buttonSize: "medium", buttonRadius: "pill", buttonStyle: "solid", buttonText: "auto", fontFamily: "default", fontWeight: "normal", lineHeight: "normal" };
 
 const LISTS: Record<StyleKey, readonly { value: string }[]> = {
   pageBackground: PAGE_BACKGROUNDS,
   primary: PRIMARY_COLORS,
   buttonSize: BUTTON_SIZES,
   buttonRadius: BUTTON_RADII,
+  buttonStyle: BUTTON_STYLES,
+  buttonText: BUTTON_TEXTS,
   fontFamily: FONT_FAMILIES,
   fontWeight: FONT_WEIGHTS,
   lineHeight: LINE_HEIGHTS,
@@ -109,6 +122,8 @@ export function styleClasses(style: StyleTokens): string {
   if (style.primary !== "plum") classes.push(`lp-primary-${style.primary}`);
   if (style.buttonSize !== "medium") classes.push(`lp-btn-size-${style.buttonSize}`);
   if (style.buttonRadius !== "pill") classes.push(`lp-btn-radius-${style.buttonRadius}`);
+  if (style.buttonStyle !== "solid") classes.push(`lp-btn-style-${style.buttonStyle}`);
+  if (style.buttonText !== "auto") classes.push(`lp-btn-text-${style.buttonText}`);
   if (style.fontFamily !== "default") classes.push(`lp-font-${style.fontFamily}`);
   if (style.fontWeight !== "normal") classes.push(`lp-weight-${style.fontWeight}`);
   if (style.lineHeight !== "normal") classes.push(`lp-leading-${style.lineHeight}`);

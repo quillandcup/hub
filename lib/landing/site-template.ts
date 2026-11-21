@@ -1,4 +1,5 @@
 import { safeHref } from "./data";
+import { buttonStyleProblems } from "./button-contrast";
 import { normalizeStyle, STYLE_DEFAULTS, type StyleTokens } from "./style";
 
 /**
@@ -45,9 +46,9 @@ export const SIGN_IN_HREF = "/login";
 export type HeaderItem =
   | { id: string; type: "logo"; show: ItemShow; logoAssetId: string; alt: string; href: string }
   | { id: string; type: "menu"; show: ItemShow; links: SiteLink[] }
-  | { id: string; type: "cta"; show: ItemShow; label: string; href: string; look: "solid" | "outline" }
+  | { id: string; type: "cta"; show: ItemShow; label: string; href: string; look: "inherit" | "solid" | "outline" }
   | { id: string; type: "social"; show: ItemShow; links: SiteSocialLink[] }
-  | { id: string; type: "signin"; show: ItemShow; label: string; look: "link" | "solid" | "outline" };
+  | { id: string; type: "signin"; show: ItemShow; label: string; look: "link" | "inherit" | "solid" | "outline" };
 export type HeaderItemType = HeaderItem["type"];
 export const HEADER_ITEM_TYPES: { value: HeaderItemType; label: string; hint: string }[] = [
   { value: "logo", label: "Logo", hint: "Your logo, linking to a page." },
@@ -98,11 +99,11 @@ function item(raw: unknown, index: number): HeaderItem | null {
     case "menu":
       return { id, type: "menu", show, links: links(o.links) };
     case "cta":
-      return { id, type: "cta", show, label: text(o.label, 60), href: safeHref(o.href), look: oneOf(["solid", "outline"] as const, o.look, "solid") };
+      return { id, type: "cta", show, label: text(o.label, 60), href: safeHref(o.href), look: oneOf(["inherit", "solid", "outline"] as const, o.look, "inherit") };
     case "social":
       return { id, type: "social", show, links: social(o.links) };
     case "signin":
-      return { id, type: "signin", show, label: text(o.label, 60), look: oneOf(["link", "solid", "outline"] as const, o.look, "link") };
+      return { id, type: "signin", show, label: text(o.label, 60), look: oneOf(["link", "inherit", "solid", "outline"] as const, o.look, "link") };
     default:
       return null;
   }
@@ -140,7 +141,7 @@ export function newHeaderItem(type: HeaderItemType): HeaderItem {
     case "menu":
       return { id, type, show: "both", links: [{ label: "Home", href: "/" }] };
     case "cta":
-      return { id, type, show: "both", label: "Join us", href: "", look: "solid" };
+      return { id, type, show: "both", label: "Join us", href: "", look: "inherit" };
     case "social":
       return { id, type, show: "both", links: [{ network: "instagram", href: "" }] };
     case "signin":
@@ -160,5 +161,7 @@ export function siteTemplateIssues(site: SiteTemplate): string[] {
   }
   if (site.footer.links.some((l) => !l.label || !l.href)) issues.push("Every footer link needs a label and a link.");
   if (site.footer.social.some((l) => !l.href)) issues.push("Every footer social link needs a link.");
+  // The site's button style is what every button that doesn't choose its own look is drawn with, so it has to be readable.
+  issues.push(...buttonStyleProblems(site.style));
   return [...new Set(issues)];
 }

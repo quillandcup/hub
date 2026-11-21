@@ -37,7 +37,7 @@ describe("normalizeSiteTemplate", () => {
     expect(site.header.align).toBe("spread");
     expect(site.header.mobileMenu).toBe("fold");
     expect(site.header.items).toHaveLength(SITE_ITEMS_MAX);
-    expect(site.header.items[0]).toMatchObject({ type: "cta", href: "", look: "solid", show: "both" });
+    expect(site.header.items[0]).toMatchObject({ type: "cta", href: "", look: "inherit", show: "both" });
     expect(site.header.items[1]).toMatchObject({ type: "menu", links: expect.any(Array) });
     expect((site.header.items[1] as { links: { href: string }[] }).links).toHaveLength(SITE_LINKS_MAX);
     expect((site.header.items[1] as { links: { href: string }[] }).links[0].href).toBe("");
