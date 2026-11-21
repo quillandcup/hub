@@ -26,7 +26,7 @@ ALTER TABLE public.member_milestones
 ALTER TABLE public.member_milestones VALIDATE CONSTRAINT member_milestones_visibility_needs_confirmed;
 
 -- Backfill: a profile consent is "other members can see it"; the homepage consent folds into the testimonial one.
-UPDATE public.member_milestones SET visibility = 'community' WHERE consent_profile AND status = 'confirmed' AND visibility = 'private';
+UPDATE public.member_milestones SET visibility = CASE WHEN consent_profile THEN 'community' ELSE 'private' END WHERE consent_profile AND status = 'confirmed' AND visibility = 'private';
 UPDATE public.member_milestones SET consent_testimonial = true WHERE consent_homepage AND NOT consent_testimonial;
 
 -- A member confirms a milestone (answering a proposal, or "Actually, it is me" after a decline): it starts at 'community',
