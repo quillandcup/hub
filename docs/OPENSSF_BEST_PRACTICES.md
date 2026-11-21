@@ -160,7 +160,7 @@ Gold also requires Silver.
 ## What is worth doing even without the badge
 Ordered by value for effort; each is, or should become, an entry in `docs/TODO.md`.
 
-1. Work through the ZAP warnings recorded in `docs/TODO.md` (`X-Powered-By`, Subresource Integrity, Cross-Origin-Embedder-Policy, CSP fallbacks); the gitleaks, OSV and ZAP first results are triaged.
+1. Re-run the ZAP baseline after the next deploy and check the warnings left are only the informational ones (`config/zap-baseline.tsv` lists what is accepted and why); the gitleaks, OSV and ZAP first results are triaged.
 2. Take the lint warnings to zero, rule by rule, then make the rules errors (`warnings_fixed`, `warnings_strict`).
 3. Run the Observatory and securityheaders checks and enforce the CSP for scripts and styles (`hardening`, `hardened_site`).
 4. Publish the combined coverage figure in the CI report, and raise the `app/api` floor.
