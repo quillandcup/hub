@@ -511,9 +511,13 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
   const name = recordName(row);
   const quoted = name ? ` “${name}”` : "";
   const text = (change: FieldChange | undefined) => (typeof change?.old === "string" && change.old ? ` “${formatValue(change.old)}”` : "");
-  // The header and footer shared by every website page: only publishing is an entry (the draft is autosaved), never the content.
+  // The header and footer shared by every website page: publishing, bringing a version back and throwing the draft away are entries
+  // (the draft is autosaved, so typing is not), never the content.
   if (row.entity_type === "landing_site_template") {
-    if (row.event_type === "update" || row.event_type === "insert") return fields.published_at?.new ? "published the site design (the header and footer shared by every website page)" : null;
+    if (row.event_type !== "update" && row.event_type !== "insert") return null;
+    if (fields.published_at?.new) return "published the site design (the header and footer shared by every website page)";
+    if (fields.restored_at?.new) return "brought back an earlier version of the site design into its draft";
+    if (fields.draft_reset_at?.new) return "threw away the draft of the site design and went back to the published one";
     return null;
   }
   const isTemplate = row.entity_type === "landing_page_template";

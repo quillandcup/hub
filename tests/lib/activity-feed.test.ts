@@ -711,6 +711,8 @@ describe("the page builder in the Activity Log", () => {
     const site = (data: ActivityFeedRow["data"]) => row({ entity_type: "landing_site_template", event_type: "update", description: "", data });
     expect(describeRow(site({ published_at: { old: null, new: "2026-10-05" }, published_data: { old: "[redacted]", new: "[redacted]" } }))).toBe("published the site design (the header and footer shared by every website page)");
     expect(describeRow(site({ draft_data: { old: "secret header", new: "secret footer" } }))).not.toMatch(/secret/);
+    expect(describeRow(site({ restored_at: { old: null, new: "2026-10-05" }, restored_from_version_id: { old: null, new: "lpstv_AAAAAAAAAAA1" } }))).toBe("brought back an earlier version of the site design into its draft");
+    expect(describeRow(site({ draft_reset_at: { old: null, new: "2026-10-05" } }))).toBe("threw away the draft of the site design and went back to the published one");
   });
 
   it("never repeats a typed search text, description, note or page content, even if the row carried them", () => {
