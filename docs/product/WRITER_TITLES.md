@@ -25,6 +25,7 @@ A course completion can prompt the question but is never the proof. People also 
 
 ## Rules
 
+- **Going back a stage, or Hibernating, never cancels a milestone.** A milestone says what the writer did (decided 2026-11-21); the project-stage prompt only ever asks forward, once (`docs/product/FINISHERS.md`, "The project-stage prompt").
 - **The feature is "writer profiles".** Every member can have a public page, and nobody has to earn it. Never call the pages "author pages".
 - **Titles never gate features.** A writer with no milestone has the whole page. The milestones are things to celebrate on it, shown as a path with the next step in view, never as a gap.
 - **Opt-in, per milestone and per use.** A milestone is shown only where the writer chose: the lock (only them), the house (other members, the default once they confirm) or the globe (their writer profile on the web). The one marketing consent, "Share my story to inspire other writers", is separate and off until they tick it. Entries added by staff stay hidden until the writer confirms.
@@ -35,6 +36,5 @@ A course completion can prompt the question but is never the proof. People also 
 ## Still open
 
 - The name of the stamp for milestone 2 (the first is "THE END"). Candidates: FINAL DRAFT, POLISHED, THE LAST WORD. Keep it as one string in config so renaming is one change. Ask a few Finishers what they call the day they finish revising.
-- Whether going back a project stage, or Hibernating, cancels or only pauses a milestone.
 
 Related: the plan and the other decisions are in `docs/TODO.md`, "Writer profiles: public author pages, Finishers, three-level visibility".

@@ -415,6 +415,72 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect((await repo.shownToMembers(id(ada))).map((m) => m.kind)).toEqual(["the_end"]);
     });
 
+    it("records a milestone answered from a project stage prompt: confirmed with source project_stage, and the member can take it back", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      const { result, milestone } = await repo.addOwn(
+        { ...ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01" }, { projectId, bookId: null, title: null }), source: "project_stage" },
+        NOW,
+      );
+      expect(result).toBe("added");
+      expect(milestone).toMatchObject({ source: "project_stage", status: "confirmed", projectId, bookId: null, title: null, achievedOn: "2026-05-01" });
+      expect(await repo.takeBack(milestone.id, id(bo), NOW)).toBe(false);
+      expect(await repo.takeBack(milestone.id, id(ada), NOW)).toBe(true);
+      expect(await repo.ofMember(id(ada))).toEqual([]);
+    });
+
+    it("remembers a 'not yet' as a declined row for the project, once, and the member can still say yes later", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      const notYet = { memberId: id(ada), kind: "the_end" as const, projectId, createdBy: ctx.staffUserId };
+      expect(await repo.recordNotYet(notYet, NOW)).toBe("recorded");
+      expect(await repo.recordNotYet(notYet, NOW)).toBe("exists");
+      const [row] = await repo.ofMember(id(ada));
+      expect(row).toMatchObject({ kind: "the_end", status: "declined", source: "project_stage", projectId, visibility: "private", consentTestimonial: false, confirmedAt: null });
+      expect(await repo.ofMember(id(bo))).toEqual([]);
+      // The other kind is its own question.
+      expect(await repo.recordNotYet({ ...notYet, kind: "publish_ready" }, NOW)).toBe("recorded");
+      // The card's "Actually, it is me" brings the same row back.
+      expect(await repo.answer(row.id, id(ada), confirmed(), NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada))).find((m) => m.id === row.id)).toMatchObject({ status: "confirmed", source: "project_stage" });
+      // The card's own add finds the existing row instead of adding a second.
+      expect((await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW)).result).toBe("exists");
+    });
+
+    it("does not record a 'not yet' where the work already has a milestone of that kind, and the backfill never proposes over one", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW);
+      expect(await repo.recordNotYet({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW)).toBe("exists");
+      expect(await repo.ofMember(id(ada))).toHaveLength(1);
+
+      const other = await ctx.addProject(id(ada));
+      await repo.recordNotYet({ memberId: id(ada), kind: "the_end", projectId: other, createdBy: ctx.staffUserId }, NOW);
+      await ctx.addBook(id(ada), other);
+      await repo.proposeFromBooks();
+      // The "not yet" row keeps the work from being proposed THE END again; publish-ready is still proposed.
+      const forOther = (await repo.ofMember(id(ada))).filter((m) => m.projectId === other);
+      expect(forOther.map((m) => [m.kind, m.status, m.source]).sort()).toEqual([
+        ["publish_ready", "proposed", "staff"],
+        ["the_end", "declined", "project_stage"],
+      ]);
+    });
+
+    it("says which kinds a project was already asked about, in any status and taken-back ones too", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      expect(await repo.askedKinds(id(ada), projectId)).toEqual([]);
+      await repo.recordNotYet({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW);
+      expect(await repo.askedKinds(id(ada), projectId)).toEqual(["the_end"]);
+      const own = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW);
+      expect((await repo.askedKinds(id(ada), projectId)).sort()).toEqual(["publish_ready", "the_end"]);
+      await repo.takeBack(own.milestone.id, id(ada), NOW);
+      expect((await repo.askedKinds(id(ada), projectId)).sort()).toEqual(["publish_ready", "the_end"]);
+      // Another project, or another member, has its own answers.
+      expect(await repo.askedKinds(id(ada), await ctx.addProject(id(ada)))).toEqual([]);
+      expect(await repo.askedKinds(id(bo), projectId)).toEqual([]);
+    });
+
     it("lists, for the badges of every member, only confirmed live milestones at community or public (kind and date, no ids)", async () => {
       const repo = ctx.repo();
       const shown = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05-01" }, { projectId: null, bookId: null, title: "A Shown Fake Work" }), NOW);

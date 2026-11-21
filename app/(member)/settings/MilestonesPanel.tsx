@@ -38,8 +38,8 @@ const PRIMARY = "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-pl
 const SECONDARY = "px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50";
 const NOTE = "mt-1 text-sm text-slate-600 dark:text-slate-400";
 
-type FormResult = { success: true } | { error: string };
-type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; shareStory: boolean };
+export type FormResult = { success: true } | { error: string };
+export type FormInput = { achievedOn: string | null; storyBefore: string; storyAfter: string; shareStory: boolean };
 
 /** What the member's writer profile is, as far as the globe's note needs to know (as `WebPageState` for profile items). */
 export type MilestoneWebState = { available: boolean; on: boolean };
@@ -68,7 +68,7 @@ function ShareStoryTick({ id, checked, onChange, disabled }: { id: string; check
  * the member ticks it). It confirms a proposal, changes a confirmed answer, or adds a new milestone for a work; `run` does the
  * saving. `lead` is extra fields above the form.
  */
-function MilestoneForm({
+export function MilestoneForm({
   idPrefix,
   initial,
   lead,
@@ -306,7 +306,7 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
             <button type="button" onClick={() => setEditing(true)} disabled={readOnly} className={SECONDARY}>
               Change
             </button>
-            {milestone.source === "member" ? (
+            {milestone.source === "member" || milestone.source === "project_stage" ? (
               <button type="button" onClick={() => takeBack(milestone)} disabled={pending || readOnly} className={SECONDARY}>
                 Take it back
               </button>

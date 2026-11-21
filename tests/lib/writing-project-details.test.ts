@@ -253,7 +253,7 @@ describe("setProjectVisibility and updateProjectPhase", () => {
   });
 
   it("changes the phase, refusing one that can't be set by hand", async () => {
-    expect(await updateProjectPhase(PROJECT, "revising")).toEqual({ success: true });
+    expect(await updateProjectPhase(PROJECT, "revising")).toMatchObject({ success: true });
     expect(dataset.writingProjects.find((p) => p.id === PROJECT)?.phase).toBe("revising");
 
     expect(await updateProjectPhase(PROJECT, "published" as never)).toEqual({ error: "Invalid phase" });

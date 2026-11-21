@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ReturnToTabLink } from "@/components/ReturnToTab";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getProject, getArchivedGoals } from "../actions";
-import ProjectDetailClient from "./ProjectDetailClient";
+import ProjectDetailView from "./ProjectDetailView";
 
 export async function generateMetadata({
   params,
@@ -58,7 +58,7 @@ export default async function ProjectDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <ProjectDetailClient key={`${result.project.phase}:${result.project.visibility}`} project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
+        <ProjectDetailView viewKey={`${result.project.phase}:${result.project.visibility}`} project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
       </main>
     </div>
   );

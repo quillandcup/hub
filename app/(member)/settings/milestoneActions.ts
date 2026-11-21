@@ -1,8 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createRepos, type Repos } from "@/lib/data/repos";
+import { createRepos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -11,20 +10,8 @@ import { hasStory, parseMilestoneAnswer, parseMilestoneSelfAdd, type MilestoneAn
 import { parseWork } from "@/lib/finishers-works";
 import { isVisibility } from "@/lib/writing-visibility";
 import { WRITER_PROFILES_NOT_AVAILABLE, memberHasWriterProfiles } from "@/lib/writer-profiles-access";
-import { writerProfilePath } from "@/lib/writer-profile";
+import { revalidateMilestoneSurfaces } from "@/lib/milestone-revalidate";
 import { actionOutcome, withAction } from "@/lib/analytics/server";
-
-/**
- * Everything that shows a member's milestones is read again after a change: their card, the profile other members see, and the
- * writer profile on the web (rendered on demand, so withdrawing a level or the share tick takes effect on the next read of
- * those pages; the revalidation is for any cached copy: docs/product/FINISHERS.md, "Where it shows").
- */
-async function revalidateMilestoneSurfaces(repos: Repos, memberId: string) {
-  revalidatePath("/settings/profile");
-  revalidatePath(`/members/${memberId}`);
-  const page = await repos.writerProfiles.ofMember(memberId).catch(() => null);
-  if (page) revalidatePath(writerProfilePath(page.handle));
-}
 
 /**
  * A member answers a milestone staff or a course proposed (docs/product/FINISHERS.md): "yes, this is me" with an optional date,
