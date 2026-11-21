@@ -13,7 +13,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 
 | Level | Result |
 |---|---|
-| Passing | Blocked by one MUST we can't meet without relicensing (`floss_license`). Apart from that: a handful of gaps (release identifiers and notes, lint warnings not at zero, a few unverified items); the rest is met or N/A. |
+| Passing | Blocked by one MUST we can't meet without relicensing (`floss_license`). Apart from that: a few gaps (release identifiers and notes, lint warnings not at zero, a few unverified items); the rest is met or N/A. |
 | Silver | Roughly half met. Gaps: no DCO or CLA, no signed releases, no reproducible build, a roadmap that is a backlog and not a one-year plan, bus factor of one developer. |
 | Gold | Not reachable as a solo project: two unassociated contributors, review of at least half the changes by someone else, reproducible builds. Several other items are met or close. |
 
@@ -24,7 +24,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 |---|---|---|
 | `homepage_url` [MUST] | Met | Public repository and `README.md`; the production site is public. |
 | `description_good` [MUST] | Met | `README.md` opens with what the software is for. |
-| `interact` [MUST] | Partly | `.github/CONTRIBUTING.md` explains feedback and contributing, but `README.md` doesn't link to it yet (fixed in the PR that added this page). |
+| `interact` [MUST] | Met | `README.md` links `.github/CONTRIBUTING.md` (feedback, what we accept), `.github/SUPPORT.md` is where members ask for help, and `.github/SECURITY.md` is for security reports. |
 | `contribution` [MUST] | Met | `.github/CONTRIBUTING.md`. It says outside code is not accepted for now. |
 | `contribution_requirements` [SHOULD] | Met | `.github/CONTRIBUTING.md` and `.claude/rules/`. |
 | `floss_license` [MUST] | **Not met** | Proprietary, all rights reserved. The blocker for the badge. |
@@ -58,7 +58,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 ### Reporting
 | Criterion | Status | Evidence or gap |
 |---|---|---|
-| `report_process`, `report_tracker`, `report_archive` | Met | GitHub issues are on; `.github/CONTRIBUTING.md`. |
+| `report_process`, `report_tracker`, `report_archive` | Met | GitHub issues are on; `.github/CONTRIBUTING.md`, `.github/SUPPORT.md`. |
 | `report_responses` [MUST], `enhancement_responses` [SHOULD] | Unverified | Almost no issue activity so far, so there is little to respond to. |
 | `vulnerability_report_process`, `vulnerability_report_private` [MUST] | Met | `.github/SECURITY.md`; private vulnerability reporting is enabled on the repository. |
 | `vulnerability_report_response` [MUST, N/A allowed] | N/A | No reports in the last 6 months. `.github/GOVERNANCE.md` commits to acknowledging within 14 days. |
@@ -90,7 +90,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 |---|---|---|
 | `static_analysis`, `static_analysis_common_vulnerabilities`, `static_analysis_often` | Met | CodeQL on every pull request (a required check) plus ESLint. |
 | `static_analysis_fixed` [MUST] | Met | CodeQL is required to merge. |
-| `dynamic_analysis` [SUGGESTED] | Partly | A passive ZAP baseline runs weekly against production; there is no active scan. Its findings are not triaged yet. |
+| `dynamic_analysis` [SUGGESTED] | Partly | A passive ZAP baseline runs weekly against production; there is no active scan. The first results (no failures, 10 warning types) are triaged in `docs/TODO.md`. |
 | `dynamic_analysis_unsafe` | N/A | Memory-safe language. |
 | `dynamic_analysis_enable_assertions` [SUGGESTED] | Unverified | |
 | `dynamic_analysis_fixed` [MUST] | Met | The first ZAP baseline (2026-11-20) had no failures and 10 warnings; the worthwhile ones are tracked in `docs/TODO.md` and the CSP ones are being fixed. |
@@ -160,7 +160,7 @@ Gold also requires Silver.
 ## What is worth doing even without the badge
 Ordered by value for effort; each is, or should become, an entry in `docs/TODO.md`.
 
-1. Work through the ZAP warnings recorded in `docs/TODO.md` (the gitleaks, OSV and ZAP first results are triaged).
+1. Work through the ZAP warnings recorded in `docs/TODO.md` (`X-Powered-By`, Subresource Integrity, Cross-Origin-Embedder-Policy, CSP fallbacks); the gitleaks, OSV and ZAP first results are triaged.
 2. Take the lint warnings to zero, rule by rule, then make the rules errors (`warnings_fixed`, `warnings_strict`).
 3. Run the Observatory and securityheaders checks and enforce the CSP for scripts and styles (`hardening`, `hardened_site`).
 4. Publish the combined coverage figure in the CI report, and raise the `app/api` floor.
