@@ -61,6 +61,11 @@ rulesets:
               integration_id: 15368
             - context: Check migrations
               integration_id: 15368
+            # Fails a pull request on NEW identical functions or duplicated branches, and on a new unused
+            # file or dependency (knip-baseline.json). It runs on every pull request, with no path filter, so
+            # it always reports. Trial run 2026-11-21: it failed as intended on a throwaway PR.
+            - context: Code quality gate
+              integration_id: 15368
             # The code scanning result (new alerts in the PR's changes), posted by the GitHub
             # Advanced Security app (57789), not an Actions job: the Analyze jobs only run the scan.
             - context: CodeQL

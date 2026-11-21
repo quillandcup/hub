@@ -15,7 +15,7 @@ A long session pays for its whole history on every tool call. A fresh subagent s
 
 **How**
 - Use `isolation: "worktree"` so the agent has its own branch and checkout; give it the branch name to create from `origin/main`.
-- The brief is all the agent has. Say: the goal and why; the real cases in plain words (fake names only, per `public-repo-hygiene.md`); the files to read first; the constraints that bite (these rules, no production writes, no merging); what to build, numbered; the tests required; and how to ship: PR, watch CI per `pr-watch.md` and confirm all five required checks are listed and passing, never skip or loosen a check.
+- The brief is all the agent has. Say: the goal and why; the real cases in plain words (fake names only, per `public-repo-hygiene.md`); the files to read first; the constraints that bite (these rules, no production writes, no merging); what to build, numbered; the tests required; and how to ship: PR, watch CI per `pr-watch.md` and confirm all the required checks in `config/github.yml` are listed and passing, never skip or loosen a check.
 - Ask for a short report: the PR URL, what changed, design choices it made, what it deferred, what surprised it.
 - Don't run the same work yourself while it runs, and don't start several agents for one thing.
 
