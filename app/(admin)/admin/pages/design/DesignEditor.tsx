@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import LifecycleButton from "@/components/LifecycleButton";
 import MediaPicker from "@/components/media/MediaPicker";
+import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 import { FaviconField, StyleFields } from "@/components/landing/style-fields";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
@@ -21,8 +22,9 @@ import {
   type SiteSocialLink,
   type SiteTemplate,
 } from "@/lib/landing/site-template";
+import type { SiteVersionSummary } from "@/lib/landing/site-versions";
 import { styleClasses } from "@/lib/landing/style";
-import { publishSiteTemplate, resetSiteDraft, saveSiteDraft } from "./actions";
+import { publishSiteTemplate, resetSiteDraft, restoreSiteVersion, saveSiteDraft } from "./actions";
 
 const INPUT = "mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 const BUTTON = "rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50";
@@ -172,12 +174,47 @@ function ItemFields({ item, onChange }: { item: HeaderItem; onChange: (next: Hea
   }
 }
 
+/** The versions kept at each publish, newest first. Bringing one back asks first (the registry's confirmation) and only changes the draft. */
+function SiteVersionList({ versions, disabled, onRestore }: { versions: SiteVersionSummary[]; disabled: boolean; onRestore: (id: string) => void }) {
+  if (versions.length === 0) return <p className="text-sm">Each time you publish the site design, that version is kept here. Nothing has been published yet.</p>;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm">Bringing a version back puts it in your draft. It doesn&apos;t go live until you publish the site design.</p>
+      <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+        {versions.map((v, i) => (
+          <li key={v.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+            <span className="min-w-0">
+              {i === 0 ? "Latest publish" : "Published"}
+              <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
+                By {v.by}, {new Date(v.createdAt).toLocaleString()}
+              </time>
+            </span>
+            <LifecycleButton action="restore" noun="version" disabled={disabled} className={SECONDARY} onRun={() => onRestore(v.id)} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * The site-wide Design view: the header and footer every website page shares (docs/product/LANDING_PAGES.md, "Site template").
  * Edits autosave to a draft; nothing changes for a visitor until "Publish site design", which puts the draft on every
  * published website page at once. The preview below the form is the draft, laid out at the width of this panel.
  */
-export default function DesignEditor({ initial, publishedAt: initialPublishedAt, hasPublished, unpublished }: { initial: SiteTemplate; publishedAt: string | null; hasPublished: boolean; unpublished: boolean }) {
+export default function DesignEditor({
+  initial,
+  publishedAt: initialPublishedAt,
+  hasPublished,
+  unpublished,
+  versions: initialVersions = [],
+}: {
+  initial: SiteTemplate;
+  publishedAt: string | null;
+  hasPublished: boolean;
+  unpublished: boolean;
+  versions?: SiteVersionSummary[];
+}) {
   const [site, setSite] = useState(initial);
   const [save, setSave] = useState<SaveState>("saved");
   const [publishedAt, setPublishedAt] = useState(initialPublishedAt);
@@ -185,6 +222,8 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
   const [dirty, setDirty] = useState(unpublished);
   const [message, setMessage] = useState<string | null>(null);
   const [issues, setIssues] = useState<string[]>([]);
+  const [versions, setVersions] = useState(initialVersions);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [pending, start] = useTransition();
   const latest = useRef(site);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -236,6 +275,7 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
       setPublished(true);
       setDirty(false);
       setPublishedAt(result.publishedAt ?? null);
+      if (result.versions) setVersions(result.versions);
       setSave("saved");
       setMessage("Published. Every published website page now shows this header, footer and style.");
     });
@@ -253,6 +293,22 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
     });
   }
 
+  /** Brings a version into the draft (never publishes). The editor takes the restored document, and says whether it still differs from what is live. */
+  function restore(versionId: string) {
+    setMessage(null);
+    start(async () => {
+      const result = await restoreSiteVersion(versionId);
+      if (result.error || !result.site) return setMessage(result.error ?? "Couldn't bring that version back.");
+      if (timer.current) clearTimeout(timer.current);
+      first.current = true;
+      setSite(result.site);
+      setDirty(result.unpublished ?? true);
+      setSave("saved");
+      setHistoryOpen(false);
+      setMessage("Brought back into your draft. Visitors see it only after you publish the site design.");
+    });
+  }
+
   const addable = HEADER_ITEM_TYPES.filter(() => site.header.items.length < SITE_ITEMS_MAX);
 
   return (
@@ -266,12 +322,16 @@ export default function DesignEditor({ initial, publishedAt: initialPublishedAt,
           <span role="status" className="text-sm text-slate-600 dark:text-slate-400">
             {save === "saving" ? "Saving…" : save === "unsaved" ? "Unsaved changes" : save === "error" ? "Couldn't save. Trying again on your next change." : dirty ? "Draft saved, not published" : "Saved"}
           </span>
+          <LifecycleButton action="history" noun="site design" onRun={() => setHistoryOpen(true)} className={SECONDARY} />
           {published && (
             <LifecycleButton action="reset" noun="site design" onRun={reset} disabled={pending || !dirty} className={SECONDARY} />
           )}
           <LifecycleButton action="publish" noun="site design" label="Publish site design" onRun={publish} disabled={pending} className={PRIMARY} />
         </div>
       </div>
+      <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title="Version history" maxWidth="lg">
+        <SiteVersionList versions={versions} disabled={pending} onRestore={restore} />
+      </Modal>
       {message && (
         <div role="alert" className="rounded border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
           <p>{message}</p>

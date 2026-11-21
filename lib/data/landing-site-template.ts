@@ -7,6 +7,11 @@ import { must } from "./query";
 
 export type LandingSiteTemplateRow = Row<"landing_site_template">;
 
+/** One kept publish of the site design, without its document: who published it (a user id, never sent to the browser) and when. */
+export type LandingSiteTemplateVersion = Omit<Row<"landing_site_template_versions">, "data">;
+
+const VERSION_COLUMNS = "id, template_id, published_by, created_at";
+
 /** The site template for the editor: the draft being worked on, the published copy (null before the first publish) and when. */
 export interface LandingSiteTemplateState {
   draft: SiteTemplate;
@@ -30,10 +35,14 @@ export interface LandingSiteTemplateRepository {
   published(): Promise<SiteTemplate | null>;
   /** Replaces the draft (autosave; nothing goes live). Creates the row on the first save. */
   saveDraft(data: SiteTemplate, updatedBy: string | null): Promise<void>;
-  /** Makes the draft the published copy, for every website page at once. False when there is no draft to publish. */
+  /** Makes the draft the published copy, for every website page at once, and keeps a version, in one step. False when there is no draft to publish. */
   publish(updatedBy: string | null): Promise<boolean>;
-  /** Throws the draft away: copies the published copy back into it. False when nothing was ever published. */
+  /** Throws the draft away: copies the published copy back into it (one audit entry). False when nothing was ever published. */
   resetDraftToPublished(updatedBy: string | null): Promise<boolean>;
+  /** The versions kept at publish, newest first (without their documents). */
+  versions(limit?: number): Promise<LandingSiteTemplateVersion[]>;
+  /** Puts a version's document into the draft (one audit entry). It does not publish. False when the version is gone. */
+  restoreVersion(versionId: string, updatedBy: string | null): Promise<boolean>;
 }
 
 const toState = (row: LandingSiteTemplateRow | null): LandingSiteTemplateState => ({
@@ -64,17 +73,28 @@ export class SupabaseLandingSiteTemplateRepository implements LandingSiteTemplat
   }
 
   async publish(updatedBy: string | null): Promise<boolean> {
-    const row = await this.row();
-    if (!row) return false;
-    const now = new Date().toISOString();
-    must(await this.db.from("landing_site_template").update({ published_data: row.draft_data, published_at: now, published_by: updatedBy, updated_by: updatedBy, updated_at: now }).eq("id", row.id));
-    return true;
+    // The publish and its version are one database function, so a published copy never lacks its version. It stamps the signed-in admin.
+    const { data, error } = await this.db.rpc("publish_landing_site_template");
+    if (error) throw new Error(error.message);
+    return data === true;
   }
 
   async resetDraftToPublished(updatedBy: string | null): Promise<boolean> {
     const row = await this.row();
     if (!row?.published_data) return false;
-    must(await this.db.from("landing_site_template").update({ draft_data: row.published_data, updated_by: updatedBy, updated_at: new Date().toISOString() }).eq("id", row.id));
+    const now = new Date().toISOString();
+    must(await this.db.from("landing_site_template").update({ draft_data: row.published_data, draft_reset_at: now, updated_by: updatedBy, updated_at: now }).eq("id", row.id));
+    return true;
+  }
+
+  async versions(limit = 20): Promise<LandingSiteTemplateVersion[]> {
+    return must(await this.db.from("landing_site_template_versions").select(VERSION_COLUMNS).order("created_at", { ascending: false }).order("id").limit(limit)) ?? [];
+  }
+
+  async restoreVersion(versionId: string): Promise<boolean> {
+    const { error } = await this.db.rpc("restore_landing_site_template_version", { p_version_id: versionId });
+    if (error?.message === "not_found") return false;
+    if (error) throw new Error(error.message);
     return true;
   }
 }
@@ -98,7 +118,7 @@ export class InMemoryLandingSiteTemplateRepository implements LandingSiteTemplat
     const now = new Date().toISOString();
     const row = this.row();
     if (row) Object.assign(row, { draft_data: asJson(structuredClone(data)), updated_by: updatedBy, updated_at: now });
-    else this.data.landingSiteTemplates.push({ id: newId("lpst"), singleton: true, draft_data: asJson(structuredClone(data)), published_data: null, published_at: null, published_by: null, created_at: now, updated_at: now, updated_by: updatedBy });
+    else this.data.landingSiteTemplates.push({ id: newId("lpst"), singleton: true, draft_data: asJson(structuredClone(data)), published_data: null, published_at: null, published_by: null, restored_from_version_id: null, restored_at: null, draft_reset_at: null, created_at: now, updated_at: now, updated_by: updatedBy });
   }
 
   async publish(updatedBy: string | null): Promise<boolean> {
@@ -106,13 +126,32 @@ export class InMemoryLandingSiteTemplateRepository implements LandingSiteTemplat
     if (!row) return false;
     const now = new Date().toISOString();
     Object.assign(row, { published_data: structuredClone(row.draft_data), published_at: now, published_by: updatedBy, updated_by: updatedBy, updated_at: now });
+    this.data.landingSiteTemplateVersions.push({ id: newId("lpstv"), template_id: row.id, data: structuredClone(row.draft_data), published_by: updatedBy, created_at: now });
     return true;
   }
 
   async resetDraftToPublished(updatedBy: string | null): Promise<boolean> {
     const row = this.row();
     if (!row?.published_data) return false;
-    Object.assign(row, { draft_data: structuredClone(row.published_data), updated_by: updatedBy, updated_at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    Object.assign(row, { draft_data: structuredClone(row.published_data), draft_reset_at: now, updated_by: updatedBy, updated_at: now });
+    return true;
+  }
+
+  async versions(limit = 20): Promise<LandingSiteTemplateVersion[]> {
+    return this.data.landingSiteTemplateVersions
+      .map((v, order) => ({ v, order }))
+      .sort((a, b) => b.v.created_at.localeCompare(a.v.created_at) || b.order - a.order) // newest first; same-millisecond publishes keep their order
+      .slice(0, limit)
+      .map(({ v }) => ({ id: v.id, template_id: v.template_id, published_by: v.published_by, created_at: v.created_at }));
+  }
+
+  async restoreVersion(versionId: string, updatedBy: string | null): Promise<boolean> {
+    const version = this.data.landingSiteTemplateVersions.find((v) => v.id === versionId);
+    const row = version ? this.data.landingSiteTemplates.find((t) => t.id === version.template_id) : undefined;
+    if (!version || !row) return false;
+    const now = new Date().toISOString();
+    Object.assign(row, { draft_data: structuredClone(version.data), restored_from_version_id: version.id, restored_at: now, updated_by: updatedBy, updated_at: now });
     return true;
   }
 }
