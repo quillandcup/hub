@@ -94,7 +94,7 @@ describe("gateProblems", () => {
     };
     const [p] = gateProblems({ ...clean, knip: more });
     expect(p).toContain("package.json:9");
-    expect(p).toContain("knip.json");
+    expect(p).toContain("config/knip.json");
   });
 
   it("explains a stale baseline entry", () => {

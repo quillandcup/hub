@@ -14,7 +14,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 
 - `app/(member)/`, `app/(admin)/admin/`, `app/api/` (process, import, reconcile, webhooks, internal), `app/actions/`
 - `lib/` (domain logic), `lib/data/` (repositories, the only place that queries tables), `components/`, `emails/`
-- `config/` (app.ts and env-vars.ts, the config-as-code YAML for GitHub, Sentry, Slack, Vercel and Mux, Sentry init, vitest, squawk, a PostCSS plugin), `supabase/migrations/`, `supabase/tests/database/` (pgTAP), `tests/` (`lib`, `api`, `components`), `docs/`
+- `config/` (app.ts and env-vars.ts, the config-as-code YAML for GitHub, Sentry, Slack, Vercel and Mux, Sentry init, vitest, eslint, tailwind, squawk, knip, jscpd, osv-scanner, gitleaks, a PostCSS plugin), `supabase/migrations/`, `supabase/tests/database/` (pgTAP), `tests/` (`lib`, `api`, `components`), `docs/`
 - Data layers: Bronze (raw imports) → Local (app-owned) → Silver (reprocessable from Bronze + Local) → Gold (on demand)
 
 ## Universal rules

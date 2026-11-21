@@ -3,7 +3,7 @@ name: OSV scan
 # Known vulnerabilities in the lockfile from the OSV database, which covers more than the npm advisories that
 # `pnpm audit` (audit.yml) reads. Results go to the Security tab. Not a required check. The scheduled and manual runs fail on a
 # vulnerability and post to the alerts channel; a pull request only reports (fail-on-vuln is off there), for the same reason audit.yml doesn't block: an advisory with
-# no patched version would stop every PR. A finding with no fix that is accepted on purpose is listed in osv-scanner.toml,
+# no patched version would stop every PR. A finding with no fix that is accepted on purpose is listed in config/osv-scanner.toml,
 # with a reason and an expiry date, and does not fail the run until it expires. Dependabot raises the fix PRs.
 # The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL), as in audit.yml.
 on:
@@ -12,7 +12,7 @@ on:
   pull_request:
     paths:
       - pnpm-lock.yaml
-      - osv-scanner.toml
+      - config/osv-scanner.toml
       - .github/workflows/osv-scan.yml
   workflow_dispatch:
 
@@ -30,6 +30,7 @@ jobs:
     with:
       scan-args: |-
         --lockfile=pnpm-lock.yaml
+        --config=config/osv-scanner.toml
       fail-on-vuln: ${{ github.event_name != 'pull_request' }}
 
   # Scheduled and manual runs fail on a vulnerability (fail-on-vuln above); pull requests only report, so a lockfile
