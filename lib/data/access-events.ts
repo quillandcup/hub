@@ -77,6 +77,7 @@ export class InMemoryAccessEventRepository implements AccessEventRepository {
       created_at: new Date().toISOString(),
       device: null,
       ga_client_id: null,
+      ga_tag_state: null,
       ip_address: null,
       region: null,
       session_id: null,

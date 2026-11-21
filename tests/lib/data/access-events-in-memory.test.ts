@@ -3,6 +3,15 @@ import { InMemoryAccessEventRepository } from "@/lib/data/access-events";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 describe("InMemoryAccessEventRepository", () => {
+  it("keeps the Google tag state a visit reports, and NULL when it reports none", async () => {
+    const data = new InMemoryDataset();
+    const repo = new InMemoryAccessEventRepository(data);
+    const user_id = "00000000-0000-4000-8000-000000000001";
+    await repo.record({ user_id, path: "/a", is_page: true, ga_tag_state: "not_loaded" });
+    await repo.record({ user_id, path: "/b", is_page: true });
+    expect(data.accessEvents.map((e) => e.ga_tag_state)).toEqual(["not_loaded", null]);
+  });
+
   it("records visits with the database's defaults for what is not given", async () => {
     const data = new InMemoryDataset();
     const repo = new InMemoryAccessEventRepository(data);
