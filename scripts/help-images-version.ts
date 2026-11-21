@@ -34,7 +34,7 @@ export const HELP_IMAGE_INPUTS = [
   "package.json",
   "pnpm-lock.yaml",
   "postcss.config.mjs",
-  "tailwind.config.ts",
+  "config/tailwind.ts",
 ];
 
 /** A set's folder name: twelve characters of a commit sha. */

@@ -4,7 +4,7 @@
 //   tsx scripts/quality-gate.ts [--base origin/main]      (pnpm quality:gate)
 //
 // 1. ESLint: `sonarjs/no-identical-functions` and `sonarjs/no-all-duplicated-branches` (the rules
-//    in eslint.quality.config.mjs) fail when they fire on a line the change ADDED. The same finding
+//    in config/eslint-quality.mjs) fail when they fire on a line the change ADDED. The same finding
 //    on an untouched line is the old backlog and does not fail. Same notion of "added lines" as
 //    the coverage gate (scripts/added-lines.ts).
 // 2. knip: an unused file or an unused / unlisted dependency (also binaries, unresolved imports)
@@ -121,7 +121,7 @@ function addedLines(base: string): Map<string, Set<number>> {
 
 function eslintOn(files: string[]): EslintFileResult[] {
   if (files.length === 0) return [];
-  const r = run("pnpm", ["exec", "eslint", "-c", "eslint.quality.config.mjs", "--no-warn-ignored", "-f", "json", ...files]);
+  const r = run("pnpm", ["exec", "eslint", "-c", "config/eslint-quality.mjs", "--no-warn-ignored", "-f", "json", ...files]);
   // ESLint exits 1 for errors; the quality rules are warnings, so anything but JSON is a tooling failure.
   try {
     return JSON.parse(r.stdout) as EslintFileResult[];

@@ -4,7 +4,7 @@ import type { PresetName } from "@/lib/media/presets";
 import { mediaSrc } from "@/lib/media/url";
 
 /**
- * The page builder's look: the Quill & Cup theme tokens only (tailwind.config.ts), chosen from a short list, never a
+ * The page builder's look: the Quill & Cup theme tokens only (config/tailwind.ts), chosen from a short list, never a
  * free colour. Each background carries the text colour that is readable on it, so a block placed on a dark section
  * flips to light text by itself and no combination can fail contrast. Full class strings, so Tailwind finds them.
  */

@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import config from "@/tailwind.config";
+import config from "@/config/tailwind";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import AllPricklesCalendar from "@/app/(member)/my-prickles/AllPricklesCalendar";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
