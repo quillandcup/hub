@@ -23,10 +23,10 @@ import { createHash } from "node:crypto";
  * sets it to the picked set. See docs/product/DEMO_AND_HELP.md.
  */
 export const HELP_IMAGE_INPUTS = [
-  "app",
-  "components",
-  "lib",
-  "content",
+  "src/app",
+  "src/components",
+  "src/lib",
+  "src/content",
   "tests/demo",
   "public",
   "supabase/migrations",

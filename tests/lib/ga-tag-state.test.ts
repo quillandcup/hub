@@ -10,7 +10,7 @@ import {
 
 const GA_ID = "G-TEST123";
 
-/** What app/layout.tsx pushes: gtag() pushes its `arguments` object. */
+/** What src/app/layout.tsx pushes: gtag() pushes its `arguments` object. */
 function command(...args: unknown[]) {
   return (function (..._a: unknown[]) {
     // eslint-disable-next-line prefer-rest-params

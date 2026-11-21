@@ -1,5 +1,5 @@
 /**
- * proxy.ts -> lib/supabase/middleware.ts: the access_events row written for every
+ * src/proxy.ts -> src/lib/supabase/middleware.ts: the access_events row written for every
  * signed-in request, including the browser (user agent) and GA browser ID it came from.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

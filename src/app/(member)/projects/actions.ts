@@ -1,0 +1,1637 @@
+"use server";
+
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { createRepos } from "@/lib/data/repos";
+import { BookExistsError } from "@/lib/data/books";
+import { dismissCheckout, recentPresentPrickles } from "@/lib/prickle-checkin-dms";
+import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
+import { createClient } from "@/lib/supabase/server";
+import type { ProjectPatch } from "@/lib/data/writing";
+import { getCurrentUser } from "@/lib/auth";
+import { isVisibility, lessVisible, type Visibility } from "@/lib/writing-visibility";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { revalidatePath } from "next/cache";
+import { cleanEditions } from "@/lib/book-editions";
+import { validateBookInput } from "@/lib/bookValidation";
+import { cleanGenres } from "@/lib/book-genres";
+import { resolvePenName } from "@/lib/book-pen-name";
+import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
+import { celebrateNewBook } from "@/lib/slack";
+import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
+import {
+  WRITING_MEASURES,
+  PROJECT_PHASES,
+  MANUALLY_SETTABLE_PHASES,
+  computeCumulativeTotal,
+  entriesAsDeltas,
+  computeCumulativeSeries,
+  computeGoalProgress,
+  computeHabitGoalProgress,
+  derivePrickleHabitEntries,
+  type WritingMeasure,
+  type EntryMode,
+  type HabitPeriod,
+  type PrickleAttendanceRow,
+  type ProjectPhase,
+} from "@/lib/writing-projects";
+import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
+import { getUserTimezonePreference } from "@/lib/timezone";
+import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { checkoutAnswered, offersCheckins } from "@/lib/prickle-checkins";
+import {
+  formatPrickleLabel,
+  localDateOf,
+  sortPrickleOptions,
+  type PrickleOption,
+} from "@/lib/prickle-writing";
+
+import { withAction } from "@/lib/analytics/server";
+import { getServiceRepos } from "@/lib/data/server";
+const PHASES = PROJECT_PHASES;
+type Phase = ProjectPhase;
+
+/** Measures a starting balance can be recorded against -- excludes 'prickles', which is always
+ * computed live from attendance and never manually logged or carried over (see
+ * writing_project_starting_balances' CHECK constraint). */
+const STARTING_BALANCE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles") as Exclude<
+  WritingMeasure,
+  "prickles"
+>[];
+
+const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
+
+export interface WritingProjectRow {
+  id: string;
+  title: string;
+  phase: Phase;
+  createdAt: string;
+  showOnProfile: boolean;
+  /** Who can see it: private, community (signed-in members) or public. `showOnProfile` is the same thing as on/off. */
+  visibility: Visibility;
+  coverUrl: string | null;
+  description: string | null;
+  /** How much the member already had before tracking here, by measure -- offsets totalsByMeasure and the chart, not goal progress. */
+  startingBalances: Partial<Record<WritingMeasure, number>>;
+  totalsByMeasure: Partial<Record<WritingMeasure, number>>;
+  goals: GoalRow[];
+  /** The linked Bookshelf entry once this project has been published, else null. */
+  book: MyBookRow | null;
+}
+
+export interface EntryRow {
+  id: string;
+  projectId: string;
+  entryDate: string;
+  measure: WritingMeasure;
+  mode: EntryMode;
+  amount: number;
+  note: string | null;
+  tags: string[];
+  createdAt: string;
+  prickleId: string | null;
+  /** e.g. "Tue, Oct 1 · 9:00 AM · Morning Sprint with Jo" when prickleId is set. */
+  prickleLabel: string | null;
+}
+
+interface GoalRowBase {
+  id: string;
+  projectId: string;
+  measure: WritingMeasure;
+  isStarred: boolean;
+  title: string | null;
+  description: string | null;
+  showOnProfile: boolean;
+  visibility: Visibility;
+}
+
+export interface TargetGoalRow extends GoalRowBase {
+  kind: "target";
+  targetAmount: number;
+  startDate: string | null;
+  endDate: string | null;
+  current: number;
+  percent: number;
+  includesStartingBalance: boolean;
+  /** The starting balance the goal's start date leaves out of `current`; null when none is. */
+  excludedStartingBalance: number | null;
+  /** The project's all-time total for this measure (starting balance included); null for prickles. */
+  projectTotal: number | null;
+  parTarget: number | null;
+  onPace: boolean | null;
+  status: "active" | "achieved" | "ended";
+}
+
+export interface HabitGoalRow extends GoalRowBase {
+  kind: "habit";
+  habitPeriod: HabitPeriod;
+  habitThreshold: number | null;
+  currentStreak: number;
+  longestStreak: number;
+  typicalStreak: number;
+  hitRatePercent: number;
+}
+
+export type GoalRow = TargetGoalRow | HabitGoalRow;
+
+type IdentityContext =
+  | { error: string }
+  | {
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      effectiveIdentity: NonNullable<Awaited<ReturnType<typeof getEffectiveIdentity>>>;
+    };
+
+async function requireIdentity(): Promise<IdentityContext> {
+  const supabase = await createClient();
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const effectiveIdentity = await getEffectiveIdentity(user);
+  if (!effectiveIdentity) return { error: "No member record" };
+
+  return { supabase, effectiveIdentity };
+}
+
+/** All of the acting member's projects, each with a per-measure cumulative total and its goals' live progress. */
+/**
+ * This member's attendance at writing-purpose prickles, reduced to local calendar dates --
+ * the raw material derivePrickleHabitEntries counts. purpose='writing' is
+ * enforced here, at the query, not in app code downstream (see Writing-only scope in the plan).
+ */
+export async function getMyPrickleAttendance(): Promise<PrickleAttendanceRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  return fetchWritingPrickleAttendance(supabase, effectiveIdentity.memberId, await viewerTimeZone());
+}
+
+async function fetchWritingPrickleAttendance(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  timeZone: string
+): Promise<PrickleAttendanceRow[]> {
+  const attended = await createRepos(supabase).attendance.forMemberWithPrickles(memberId, { purpose: "writing" });
+
+  return attended.flatMap((record) => {
+    if (!record.prickle) return [];
+    return [
+      {
+        prickleId: record.prickle.id,
+        localDate: new Intl.DateTimeFormat("en-CA", {
+          timeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(record.prickle.startTime)),
+      },
+    ];
+  });
+}
+
+export async function getMyProjects(): Promise<WritingProjectRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projects, entries, goals, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummaries(memberId),
+    writing.entries(memberId),
+    writing.projectGoals(memberId),
+    writing.startingBalances(memberId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
+
+  return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
+}
+
+/** The member's hibernating projects (a past phase), with their totals (goals aren't loaded: the list is read-only). */
+export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projects, entries, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummaries(memberId, { past: true }),
+    writing.entries(memberId),
+    writing.startingBalances(memberId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
+
+  return buildProjectRows(projects, entries, [], startingBalances, attendance, books);
+}
+
+export async function getProject(
+  projectId: string
+): Promise<{ project: WritingProjectRow; entries: EntryRow[] } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projectRow, entryRows, goalRows, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummary(memberId, projectId),
+    writing.projectEntriesWithPrickles(memberId, projectId),
+    writing.projectGoals(memberId, projectId),
+    writing.startingBalances(memberId, projectId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
+
+  if (!projectRow) return { error: "Project not found" };
+
+  const [project] = buildProjectRows([projectRow], entryRows.map(({ prickle: _, ...e }) => e), goalRows as RawGoal[], startingBalances, attendance, books);
+  const timeZone = await viewerTimeZone();
+  const entries: EntryRow[] = entryRows.map(({ prickle, ...e }) =>
+    toEntryRow({ ...e, prickle: prickle && { id: prickle.id, start_time: prickle.start_time, host: prickle.host, prickle_types: prickle.type } }, timeZone)
+  );
+
+  return { project, entries };
+}
+
+interface RawProject {
+  id: string;
+  title: string;
+  phase: string;
+  created_at: string;
+  show_on_profile: boolean;
+  visibility: Visibility;
+  cover_url: string | null;
+  description: string | null;
+}
+
+interface RawStartingBalance {
+  project_id: string;
+  measure: string;
+  amount: number;
+}
+
+interface RawEntry {
+  id: string;
+  project_id: string;
+  entry_date: string;
+  measure: string;
+  mode: string;
+  amount: number;
+  note: string | null;
+  tags: string[] | null;
+  created_at: string;
+  prickle_id?: string | null;
+  prickle?: RawEmbeddedPrickle | RawEmbeddedPrickle[] | null;
+}
+
+interface RawEmbeddedPrickle {
+  id: string;
+  start_time: string;
+  host: { name: string | null; display_name: string | null } | { name: string | null; display_name: string | null }[] | null;
+  prickle_types: { name: string | null } | { name: string | null }[] | null;
+}
+
+/** Embeds the entry's prickle with what formatPrickleLabel needs. */
+const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name, display_name), prickle_types:type_id(name))";
+
+function one<T>(ref: T | T[] | null | undefined): T | null {
+  return (Array.isArray(ref) ? ref[0] : ref) ?? null;
+}
+
+function hostDisplayName(host: { name: string | null; display_name: string | null } | null): string | null {
+  return host?.name ? getMemberDisplayName({ name: host.name, display_name: host.display_name }) : null;
+}
+
+function labelForPrickle(p: RawEmbeddedPrickle, timeZone: string): string {
+  return formatPrickleLabel(
+    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: hostDisplayName(one(p.host)) },
+    timeZone
+  );
+}
+
+async function viewerTimeZone(): Promise<string> {
+  const tzPref = await getUserTimezonePreference();
+  return tzPref === "browser" ? ORG_TIMEZONE : tzPref;
+}
+
+interface RawGoal {
+  id: string;
+  project_id: string;
+  goal_type: string;
+  measure: string;
+  target_amount: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  habit_period: string | null;
+  habit_threshold: number | null;
+  is_starred: boolean;
+  title: string | null;
+  description: string | null;
+  show_on_profile: boolean;
+  visibility: Visibility;
+}
+
+const GOAL_SELECT_COLUMNS =
+  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, visibility";
+
+function singleRelation<T>(rel: T | T[] | null | undefined): T | null {
+  return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
+}
+
+function buildGoalRow(
+  g: RawGoal,
+  projectEntries: RawEntry[],
+  now: Date,
+  attendance: PrickleAttendanceRow[],
+  startingBalances: RawStartingBalance[] = []
+): GoalRow {
+  const measureEntries =
+    g.measure === "prickles"
+      ? derivePrickleHabitEntries(attendance).map((e) => ({ entryDate: e.entryDate, amount: e.amount, createdAt: e.entryDate, mode: "delta" as EntryMode }))
+      : projectEntries
+          .filter((e) => e.measure === g.measure)
+          .map((e) => ({ entryDate: e.entry_date, amount: e.amount, createdAt: e.created_at, mode: e.mode as EntryMode }));
+
+  const base = {
+    id: g.id,
+    projectId: g.project_id,
+    measure: g.measure as WritingMeasure,
+    isStarred: g.is_starred,
+    title: g.title,
+    description: g.description,
+    showOnProfile: g.show_on_profile,
+    visibility: g.visibility,
+  };
+
+  if (g.goal_type === "habit") {
+    const progress = computeHabitGoalProgress({
+      entries: entriesAsDeltas(
+        measureEntries,
+        startingBalances.find((b) => b.project_id === g.project_id && b.measure === g.measure)?.amount
+      ),
+      period: (g.habit_period as HabitPeriod) ?? "week",
+      threshold: g.habit_threshold,
+      now,
+    });
+    return {
+      ...base,
+      kind: "habit",
+      habitPeriod: (g.habit_period as HabitPeriod) ?? "week",
+      habitThreshold: g.habit_threshold,
+      ...progress,
+    };
+  }
+
+  const startingBalance = startingBalances.find((b) => b.project_id === g.project_id && b.measure === g.measure)?.amount;
+  const progress = computeGoalProgress({
+    entries: measureEntries,
+    targetAmount: g.target_amount ?? 0,
+    startDate: g.start_date,
+    endDate: g.end_date,
+    now,
+    startingBalance,
+  });
+  // All-time count for the project, shown beside a goal that only counts its own window.
+  const projectTotal =
+    g.measure === "prickles"
+      ? null
+      : computeCumulativeTotal(measureEntries, startingBalance);
+  return {
+    ...base,
+    projectTotal,
+    kind: "target",
+    targetAmount: g.target_amount ?? 0,
+    startDate: g.start_date,
+    endDate: g.end_date,
+    ...progress,
+  };
+}
+
+function buildProjectRows(
+  projects: RawProject[],
+  entries: RawEntry[],
+  goals: RawGoal[],
+  startingBalances: RawStartingBalance[],
+  attendance: PrickleAttendanceRow[],
+  books: MyBookRow[]
+): WritingProjectRow[] {
+  const now = new Date();
+
+  return projects.map((project) => {
+    const projectEntries = entries.filter((e) => e.project_id === project.id);
+
+    const projectStartingBalances: Partial<Record<WritingMeasure, number>> = {};
+    for (const sb of startingBalances) {
+      if (sb.project_id === project.id) projectStartingBalances[sb.measure as WritingMeasure] = sb.amount;
+    }
+
+    const totalsByMeasure: Partial<Record<WritingMeasure, number>> = {};
+    for (const measure of WRITING_MEASURES) {
+      const measureEntries = projectEntries.filter((e) => e.measure === measure);
+      const startingBalance = projectStartingBalances[measure];
+      if (measureEntries.length === 0 && startingBalance === undefined) continue;
+      totalsByMeasure[measure] = computeCumulativeTotal(
+        measureEntries.map((e) => ({
+          entryDate: e.entry_date,
+          createdAt: e.created_at,
+          mode: e.mode as EntryMode,
+          amount: e.amount,
+        })),
+        startingBalance
+      );
+    }
+
+    const projectGoals = goals
+      .filter((g) => g.project_id === project.id)
+      .map((g) => buildGoalRow(g, projectEntries, now, attendance, startingBalances));
+
+    return {
+      id: project.id,
+      title: project.title,
+      phase: project.phase as Phase,
+      createdAt: project.created_at,
+      showOnProfile: project.show_on_profile,
+      visibility: project.visibility,
+      coverUrl: project.cover_url,
+      description: project.description,
+      startingBalances: projectStartingBalances,
+      totalsByMeasure,
+      goals: projectGoals,
+      book: books.find((b) => b.projectId === project.id) ?? null,
+    };
+  });
+}
+
+function toEntryRow(e: RawEntry, timeZone: string): EntryRow {
+  const prickle = one(e.prickle);
+  return {
+    id: e.id,
+    projectId: e.project_id,
+    entryDate: e.entry_date,
+    measure: e.measure as WritingMeasure,
+    mode: e.mode as EntryMode,
+    amount: e.amount,
+    note: e.note,
+    tags: e.tags ?? [],
+    createdAt: e.created_at,
+    prickleId: e.prickle_id ?? null,
+    prickleLabel: prickle ? labelForPrickle(prickle, timeZone) : null,
+  };
+}
+
+async function createProjectImpl(
+  title: string,
+  phase: Phase = "drafting"
+): Promise<{ success: true; id: string } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const trimmed = title.trim();
+  if (!trimmed) return { error: "Title is required" };
+  if (!PHASES.includes(phase)) return { error: "Invalid phase" };
+
+  let id: string;
+  try {
+    id = await createRepos(supabase).writing.createProject(effectiveIdentity.memberId, trimmed, phase);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to create project") };
+  }
+
+  revalidatePath("/projects", "layout");
+  return { success: true, id };
+}
+
+async function updateProjectDetailsImpl(
+  projectId: string,
+  fields: { title: string; description: string }
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const trimmedTitle = fields.title.trim();
+  if (!trimmedTitle) return { error: "Title is required" };
+
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, {
+    title: trimmedTitle,
+    description: fields.description.trim() || null,
+  });
+  if (failure) return failure;
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
+/** Sets or clears (coverUrl: null) a project's pre-publish cover. The upload itself happens via
+ * /api/bookshelf/cover (the same route/bucket/spec member_books covers use); this just saves the
+ * resulting URL, same upload-then-save-URL split BookFormModal already uses. */
+async function updateProjectCoverImpl(
+  projectId: string,
+  coverUrl: string | null
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const repos = createRepos(supabase);
+  let patch: ProjectPatch = { cover_url: null, cover_asset_id: null };
+  if (coverUrl !== null) {
+    const cover = await resolveBookCover(repos.media, effectiveIdentity.memberId, coverUrl);
+    if ("error" in cover) return cover;
+    patch = { cover_url: cover.url, cover_asset_id: cover.assetId };
+  }
+  const previous = await repos.writing.coverAssetOf(effectiveIdentity.memberId, projectId).catch(() => null);
+
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, patch);
+  if (failure) return failure;
+  await releaseReplacedCover(repos.media, effectiveIdentity.memberId, previous, patch.cover_asset_id ?? null);
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
+/** Replaces a project's starting balances -- how much the member already had before tracking
+ * here, per measure. A measure omitted or set to 0/blank clears its row entirely. */
+async function setStartingBalancesImpl(
+  projectId: string,
+  balances: Partial<Record<Exclude<WritingMeasure, "prickles">, number>>
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  const isSet = (m: (typeof STARTING_BALANCE_MEASURES)[number]) => (balances[m] ?? 0) > 0;
+  const toSet = STARTING_BALANCE_MEASURES.filter(isSet);
+  const toClear = STARTING_BALANCE_MEASURES.filter((m) => !isSet(m));
+
+  try {
+    await createRepos(supabase).writing.replaceStartingBalances(
+      effectiveIdentity.memberId,
+      projectId,
+      toSet.map((measure) => ({ measure, amount: balances[measure]! })),
+      toClear
+    );
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save starting balances") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
+async function setProjectVisibilityImpl(
+  projectId: string,
+  visibility: Visibility
+): Promise<{ success: true } | { error: string }> {
+  if (!isVisibility(visibility)) return { error: "Choose private, community or public" };
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  // The database lowers the project's goals to the new level; the member's goals never end up above their project.
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { visibility });
+  if (failure) return failure;
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+/** The most projects one reorder may name (a member has a handful; this only stops a runaway request). */
+const MAX_REORDER = 500;
+
+/**
+ * Saves the order the member put their active projects in (the dashboard's starred goals follow it). One database
+ * statement; ids that aren't theirs are ignored there, and the hibernating projects keep their place.
+ */
+async function reorderMyProjectsImpl(orderedIds: string[]): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (!Array.isArray(orderedIds) || orderedIds.length > MAX_REORDER || orderedIds.some((id) => typeof id !== "string" || !id)) {
+    return { error: "Invalid project order" };
+  }
+
+  try {
+    await createRepos(supabase).writing.reorderProjects(effectiveIdentity.memberId, orderedIds);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save the order") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Saves the order the member put one project's goals in (the dashboard's starred goals follow it within the project).
+ * One database statement; ids that aren't that project's live, unarchived goals of theirs are ignored there.
+ */
+async function reorderMyGoalsImpl(projectId: string, orderedIds: string[]): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (typeof projectId !== "string" || !projectId || !Array.isArray(orderedIds) || orderedIds.length > MAX_REORDER || orderedIds.some((id) => typeof id !== "string" || !id)) {
+    return { error: "Invalid goal order" };
+  }
+
+  try {
+    await createRepos(supabase).writing.reorderGoals(effectiveIdentity.memberId, projectId, orderedIds);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save the order") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Deletes a project, with its goals and entries. A soft delete: nothing shows it to the member or
+ * anyone else and it counts toward nothing, but the row stays until they ask us to remove it
+ * (/privacy). A book published from it stays on the bookshelf.
+ */
+async function deleteProjectImpl(projectId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  try {
+    await writing.deleteProject(effectiveIdentity.memberId, projectId);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to delete project") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Manual phase change (Planning/Drafting/Revising/Complete/Hibernating). 'published' is
+ * excluded here -- it can only be reached via publishProject, which links a Bookshelf entry in
+ * the same step (see the comment there).
+ */
+async function updateProjectPhaseImpl(
+  projectId: string,
+  phase: (typeof MANUALLY_SETTABLE_PHASES)[number]
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (!MANUALLY_SETTABLE_PHASES.includes(phase)) return { error: "Invalid phase" };
+
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase });
+  if (failure) return failure;
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
+export interface LogProgressInput {
+  projectId: string;
+  entryDate: string;
+  measure: WritingMeasure;
+  mode: EntryMode;
+  amount: number;
+  note?: string;
+  tags?: string[];
+  prickleId?: string;
+}
+
+async function assertOwnsProject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  projectId: string
+): Promise<string | null> {
+  const owns = await createRepos(supabase).writing.ownsProject(memberId, projectId).catch(() => false);
+  return owns ? null : "Project not found";
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+/** Saves fields of the member's project; returns the failure to hand back, or null when it saved. */
+async function saveProject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  projectId: string,
+  patch: ProjectPatch
+): Promise<{ error: string } | null> {
+  try {
+    await createRepos(supabase).writing.updateProject(memberId, projectId, patch);
+    return null;
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save project") };
+  }
+}
+
+/**
+ * Marks a project published in the same step as collecting its Bookshelf details -- the
+ * "Publish" action on the Projects UI. A project can never end up phase='published' without a
+ * linked member_books row: there's no other way to set this phase (see PHASES/the plan doc).
+ */
+async function publishProjectImpl(
+  projectId: string,
+  book: BookInput
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  const validationError = validateBookInput(book);
+  if (validationError) return { error: validationError };
+
+  const pen = await resolvePenName(supabase, effectiveIdentity.memberId, book.penName);
+  if ("error" in pen) return pen;
+
+  const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, book.coverUrl);
+  if ("error" in cover) return cover;
+
+  const editions = cleanEditions(book.editions);
+  try {
+    await createRepos(supabase).books.add({
+      member_id: effectiveIdentity.memberId,
+      project_id: projectId,
+      title: book.title.trim(),
+      description: book.description?.trim() || null,
+      cover_url: cover.url,
+      cover_asset_id: cover.assetId,
+      published_date: book.publishedDate,
+      editions,
+      genres: cleanGenres(book.genres),
+      pen_name: pen.penName,
+    });
+  } catch (error) {
+    if (error instanceof BookExistsError) return { error: "This project has already been published." };
+    return { error: errorMessage(error, "Failed to publish") };
+  }
+
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase: "published" });
+  if (failure) return failure;
+
+  // Fire-and-forget: a Slack outage must never block the publish from succeeding.
+  celebrateNewBook({
+    title: book.title.trim(),
+    memberId: effectiveIdentity.memberId,
+    memberName: effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName,
+    purchaseUrl: editions[0].purchase_url,
+  }).catch((err) => console.error("New book Slack notification failed:", err));
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/bookshelf");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+function validateEntryInput(input: {
+  projectId?: string;
+  entryDate?: string;
+  measure?: string;
+  mode?: string;
+  amount?: number;
+}): string | null {
+  if (!input.projectId) return "projectId is required";
+  if (!input.entryDate) return "entryDate is required";
+  if (!input.measure || !WRITING_MEASURES.includes(input.measure as WritingMeasure)) {
+    return "measure must be one of: " + WRITING_MEASURES.join(", ");
+  }
+  if (input.mode !== "delta" && input.mode !== "set_total") return "mode must be 'delta' or 'set_total'";
+  if (input.amount === undefined || Number.isNaN(input.amount)) return "amount is required";
+  return null;
+}
+
+function normalizeTags(tags: string[] | undefined): string[] {
+  if (!tags) return [];
+  return [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+}
+
+async function logProgressImpl(
+  input: LogProgressInput
+): Promise<{ success: true; id: string } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const validationError = validateEntryInput(input);
+  if (validationError) return { error: validationError };
+
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, input.projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  let entryId: string;
+  try {
+    entryId = await createRepos(supabase).writing.addEntry({
+      projectId: input.projectId,
+      memberId: effectiveIdentity.memberId,
+      entryDate: input.entryDate,
+      measure: input.measure,
+      mode: input.mode as "delta" | "set_total",
+      amount: input.amount,
+      note: input.note?.trim() || null,
+      tags: normalizeTags(input.tags),
+      prickleId: input.prickleId ?? null,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to log progress" };
+  }
+  const data = { id: entryId };
+
+  // Phase 1, item 11: every progress entry is also an engagement signal -- see the identical
+  // insert in src/app/api/webhooks/slack/interactions/route.ts's writing_quick_log flow, which
+  // is a different entry point into the same writing_progress_entries table. Best-effort: a
+  // failure here must never fail the entry that was already successfully saved.
+  await createRepos(supabase)
+    .activities.record({
+      memberId: effectiveIdentity.memberId,
+      type: "writing_progress_logged",
+      category: "writing",
+      title: "Logged writing progress",
+      relatedId: data.id,
+      engagementValue: 5,
+      occurredAt: new Date().toISOString(),
+      source: "writing_progress",
+    })
+    .catch((activityError) => console.error("logProgress: failed to insert member_activities row", activityError));
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${input.projectId}`);
+  revalidatePath("/dashboard");
+  if (input.prickleId) {
+    revalidatePath(`/prickles/${input.prickleId}`);
+    revalidatePath("/my-prickles", "layout");
+  }
+  return { success: true, id: data.id };
+}
+
+export type UpdateEntryInput = Partial<
+  Pick<LogProgressInput, "entryDate" | "measure" | "mode" | "amount" | "note" | "tags">
+> & {
+  /** null detaches the entry from its prickle. */
+  prickleId?: string | null;
+};
+
+async function updateEntryImpl(
+  entryId: string,
+  patch: UpdateEntryInput
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.findEntry(entryId).catch(() => null);
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Entry not found" };
+  }
+
+  const validationError = validateEntryInput({
+    projectId: existing.project_id,
+    entryDate: patch.entryDate,
+    measure: patch.measure,
+    mode: patch.mode,
+    amount: patch.amount,
+  });
+  if (validationError) return { error: validationError };
+
+  try {
+    await writing.updateEntry(effectiveIdentity.memberId, entryId, {
+      entryDate: patch.entryDate,
+      measure: patch.measure,
+      mode: patch.mode,
+      amount: patch.amount,
+      note: patch.note === undefined ? undefined : patch.note.trim() || null,
+      tags: patch.tags === undefined ? undefined : normalizeTags(patch.tags),
+      prickleId: patch.prickleId,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update entry" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  for (const id of new Set([existing.prickle_id, patch.prickleId])) {
+    if (id) revalidatePath(`/prickles/${id}`);
+  }
+  return { success: true };
+}
+
+async function deleteEntryImpl(entryId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.findEntry(entryId).catch(() => null);
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Entry not found" };
+  }
+
+  try {
+    await writing.deleteEntry(effectiveIdentity.memberId, entryId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to delete entry" };
+  }
+
+  // Phase 1, item 11: don't let a deleted (e.g. bogus) entry permanently inflate engagement.
+  // Best-effort: the entry itself is already gone, so a failure here must not turn this into
+  // an error response.
+  await createRepos(supabase)
+    .activities.removeFor("writing_progress", entryId)
+    .catch((activityDeleteError) => console.error("deleteEntry: failed to delete member_activities row", activityDeleteError));
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  if (existing.prickle_id) revalidatePath(`/prickles/${existing.prickle_id}`);
+  return { success: true };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Every prickle on a calendar date (the viewer's timezone), for the "During which prickle?"
+ * picker -- the ones the member attended first. Not only attended ones: attendance is imported
+ * after the meeting ends and some Zoom names never match, so the member can still link a
+ * prickle we have no attendance record for.
+ */
+export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+  const timeZone = await viewerTimeZone();
+
+  // A UTC window wide enough for any timezone offset, narrowed to the local date below.
+  const dayStartUtc = new Date(`${date}T00:00:00Z`).getTime();
+  const repos = createRepos(supabase);
+  const prickles = await repos.prickles.startingBetween({
+    from: new Date(dayStartUtc - DAY_MS).toISOString(),
+    to: new Date(dayStartUtc + 2 * DAY_MS).toISOString(),
+  });
+
+  const onDate = prickles.filter((p) => localDateOf(p.startTime, timeZone) === date);
+  if (onDate.length === 0) return [];
+
+  const attendedIds = await repos.attendance.attendedAmong(
+    effectiveIdentity.memberId,
+    onDate.map((p) => p.id)
+  );
+
+  return sortPrickleOptions(
+    onDate.map((p) => ({
+      id: p.id,
+      label: formatPrickleLabel({ startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null }, timeZone),
+      startTime: p.startTime,
+      attended: attendedIds.has(p.id),
+    }))
+  );
+}
+
+export interface PrickleEntryRow extends EntryRow {
+  projectTitle: string;
+}
+
+/** The acting member's progress entries linked to one prickle, for the prickle page. */
+export async function getMyEntriesForPrickle(prickleId: string): Promise<PrickleEntryRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const repos = createRepos(supabase);
+  const [entries, prickle, timeZone] = await Promise.all([
+    repos.writing.prickleEntries(effectiveIdentity.memberId, prickleId),
+    repos.prickles.byId(prickleId),
+    viewerTimeZone(),
+  ]);
+
+  // Every entry here is linked to this one prickle, so its label is the same for all of them.
+  const embedded: RawEmbeddedPrickle | null = prickle
+    ? {
+        id: prickle.id,
+        start_time: prickle.startTime,
+        host: prickle.host ? { name: prickle.host.name, display_name: prickle.host.displayName } : null,
+        prickle_types: prickle.type ? { name: prickle.type.name } : null,
+      }
+    : null;
+  return entries.map(({ project_title, ...e }) => ({ ...toEntryRow({ ...e, prickle: embedded }, timeZone), projectTitle: project_title }));
+}
+
+const UNLOGGED_LOOKBACK_DAYS = 14;
+
+/**
+ * Writing prickles the acting member attended in the last two weeks (or, from live presence,
+ * was in the room for in the last few hours, before the attendance import) with no progress entry
+ * linked, no finished check-out and no dismissal -- the dashboard's "How did it go?" prompt.
+ * Newest first.
+ */
+export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+  const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
+
+  const repos = createRepos(supabase);
+  const [attendance, present, linked, dismissed, timeZone] = await Promise.all([
+    repos.attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
+      purpose: "writing",
+      prickleStartedSince: since,
+    }),
+    // Prickles that just ended and are not in the attendance yet; best effort, the DM covers them too.
+    recentPresentPrickles(repos, effectiveIdentity.memberId, new Date(), getServiceRepos()).catch((error) => {
+      console.error("Could not read live presence for the unlogged prickles:", error instanceof Error ? error.message : error);
+      return [];
+    }),
+    repos.writing.prickleIdsLoggedSince(effectiveIdentity.memberId, since),
+    repos.prickleActivity.dismissedSince("checkout", effectiveIdentity.memberId, since),
+    viewerTimeZone(),
+  ]);
+
+  // Pop-Up Prickles are paused (offersCheckins); `present` is already filtered, the attendance is not.
+  const attended = attendance.filter((a) => a.prickle && offersCheckins(a.prickle));
+
+  // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
+  const attendedIds = [...attended.map((a) => a.prickleId), ...present.map((p) => p.id)];
+  const checkins = await repos.prickleActivity.checkinsAmong(effectiveIdentity.memberId, attendedIds);
+  const checkedOutIds = [...checkins].filter(([, c]) => checkoutAnswered(c)).map(([prickleId]) => prickleId);
+  const linkedIds = new Set([
+    ...linked,
+    ...dismissed,
+    ...checkedOutIds,
+  ]);
+  const byId = new Map<string, PrickleOption>();
+  for (const p of [...attended.map((a) => a.prickle), ...present]) {
+    if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
+    const label = formatPrickleLabel(
+      { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null },
+      timeZone
+    );
+    byId.set(p.id, { id: p.id, label, startTime: p.startTime, attended: true });
+  }
+  return [...byId.values()].sort((a, b) => b.startTime.localeCompare(a.startTime));
+}
+
+/**
+ * Hides a prickle from the dashboard's "What did you write?" prompt for good -- for sessions the
+ * member won't log (forgot to track, not a writing session for them, untracked work).
+ */
+async function dismissUnloggedPrickleImpl(prickleId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+  if (typeof prickleId !== "string" || !prickleId) return { error: "Invalid prickle" };
+
+  // Also closes the in-app check-out notification and stops the Slack check-out DM (dismissCheckout).
+  if (await dismissCheckout(createRepos(supabase), effectiveIdentity.memberId, prickleId)) {
+    return { error: "Couldn't dismiss that prickle — please try again." };
+  }
+  closeCheckinDmsAfterResponse({ memberId: effectiveIdentity.memberId, prickleId, halves: ["checkout"] });
+
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export interface CreateGoalInput {
+  projectId: string;
+  measure: WritingMeasure;
+  goalType: "target" | "habit";
+  // target
+  targetAmount?: number;
+  startDate?: string | null;
+  endDate?: string | null;
+  // habit
+  habitPeriod?: HabitPeriod;
+  habitThreshold?: number | null;
+  title?: string | null;
+  description?: string | null;
+  showOnProfile?: boolean;
+  isStarred?: boolean;
+}
+
+const GOAL_TITLE_MAX = 200;
+const GOAL_DESCRIPTION_MAX = 2000;
+
+type GoalDetails = { title?: string | null; description?: string | null; show_on_profile?: boolean; is_starred?: boolean };
+
+/** Trims/validates the optional title, description, profile and dashboard flags; only fields present in the input are returned. */
+function buildGoalDetails(
+  input: Pick<CreateGoalInput, "title" | "description" | "showOnProfile" | "isStarred">
+): GoalDetails | { error: string } {
+  const details: GoalDetails = {};
+  if (input.title !== undefined) {
+    const title = input.title?.trim() || null;
+    if (title && title.length > GOAL_TITLE_MAX) return { error: `Title must be ${GOAL_TITLE_MAX} characters or fewer` };
+    details.title = title;
+  }
+  if (input.description !== undefined) {
+    const description = input.description?.trim() || null;
+    if (description && description.length > GOAL_DESCRIPTION_MAX) {
+      return { error: `Description must be ${GOAL_DESCRIPTION_MAX} characters or fewer` };
+    }
+    details.description = description;
+  }
+  if (input.showOnProfile !== undefined) details.show_on_profile = !!input.showOnProfile;
+  if (input.isStarred !== undefined) details.is_starred = !!input.isStarred;
+  return details;
+}
+
+interface GoalFieldValues {
+  goal_type: "target" | "habit";
+  measure: WritingMeasure;
+  target_amount: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  habit_period: HabitPeriod | null;
+  habit_threshold: number | null;
+}
+
+/** Shared validation + field-shaping for both createGoal and updateGoal. */
+function buildGoalFields(
+  goalType: "target" | "habit",
+  measure: WritingMeasure,
+  fields: Pick<CreateGoalInput, "targetAmount" | "startDate" | "endDate" | "habitPeriod" | "habitThreshold">
+): GoalFieldValues | { error: string } {
+  const base = { goal_type: goalType, measure };
+
+  if (goalType === "habit") {
+    if (!fields.habitPeriod || !HABIT_PERIODS.includes(fields.habitPeriod)) {
+      return { error: "habitPeriod must be one of: " + HABIT_PERIODS.join(", ") };
+    }
+    return {
+      ...base,
+      habit_period: fields.habitPeriod,
+      habit_threshold: fields.habitThreshold || null,
+      target_amount: null,
+      start_date: null,
+      end_date: null,
+    };
+  }
+
+  if (!fields.targetAmount || fields.targetAmount <= 0) return { error: "targetAmount must be greater than 0" };
+  return {
+    ...base,
+    target_amount: fields.targetAmount,
+    start_date: fields.startDate || null,
+    end_date: fields.endDate || null,
+    habit_period: null,
+    habit_threshold: null,
+  };
+}
+
+/**
+ * A goal on the profile shows its project's title and progress, so a goal is never more visible than its project (the
+ * database lowers a goal that would be). Showing a goal therefore raises its project to the goal's level first.
+ */
+async function shareProjectForGoal(
+  writing: ReturnType<typeof createRepos>["writing"],
+  memberId: string,
+  projectId: string,
+  visibility: Visibility | boolean | undefined
+) {
+  if (visibility === undefined || visibility === false || visibility === "private") return;
+  const wanted: Visibility = visibility === true ? "community" : visibility;
+  const current = await writing.projectVisibility(memberId, projectId);
+  if (current !== null && lessVisible(current, wanted) === current && current !== wanted) {
+    await writing.updateProject(memberId, projectId, { visibility: wanted });
+  }
+}
+
+async function createGoalImpl(
+  input: CreateGoalInput
+): Promise<{ success: true; id: string } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (!input.projectId) return { error: "projectId is required" };
+  if (!WRITING_MEASURES.includes(input.measure)) return { error: "Invalid measure" };
+
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, input.projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  const fields = buildGoalFields(input.goalType, input.measure, input);
+  if ("error" in fields) return fields;
+  const details = buildGoalDetails(input);
+  if ("error" in details) return details;
+
+  let id: string;
+  try {
+    const writing = createRepos(supabase).writing;
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, input.projectId, details.show_on_profile);
+    id = await writing.createGoal({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to create goal" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${input.projectId}`);
+  revalidatePath("/dashboard");
+  return { success: true, id };
+}
+
+export type UpdateGoalInput = Partial<
+  Pick<
+    CreateGoalInput,
+    "measure"
+    | "goalType"
+    | "targetAmount"
+    | "startDate"
+    | "endDate"
+    | "habitPeriod"
+    | "habitThreshold"
+    | "title"
+    | "description"
+    | "showOnProfile"
+    | "isStarred"
+  >
+>;
+
+async function updateGoalImpl(
+  goalId: string,
+  patch: UpdateGoalInput
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Goal not found" };
+  }
+
+  const goalType = patch.goalType ?? (existing.goal_type as "target" | "habit");
+  const measure = patch.measure ?? (existing.measure as WritingMeasure);
+  if (!WRITING_MEASURES.includes(measure)) return { error: "Invalid measure" };
+
+  const fields = buildGoalFields(goalType, measure, {
+    targetAmount: patch.targetAmount !== undefined ? patch.targetAmount : existing.target_amount ?? undefined,
+    startDate: patch.startDate !== undefined ? patch.startDate : existing.start_date,
+    endDate: patch.endDate !== undefined ? patch.endDate : existing.end_date,
+    habitPeriod: patch.habitPeriod ?? (existing.habit_period as HabitPeriod | null) ?? undefined,
+    habitThreshold: patch.habitThreshold !== undefined ? patch.habitThreshold : existing.habit_threshold,
+  });
+  if ("error" in fields) return fields;
+  const details = buildGoalDetails(patch);
+  if ("error" in details) return details;
+
+  try {
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, details.show_on_profile);
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { ...fields, ...details });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+async function deleteGoalImpl(goalId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Goal not found" };
+  }
+
+  try {
+    await writing.deleteGoal(effectiveIdentity.memberId, goalId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to delete goal" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * General "mark as done" -- available on any goal, any measure, met or not. Unlike deleteGoal
+ * (hard delete, for genuine mistakes), this preserves the goal and its final computed
+ * streak/progress forever, just removed from the active lists.
+ */
+async function archiveGoalImpl(goalId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Goal not found" };
+  }
+
+  try {
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { archived_at: new Date().toISOString(), is_starred: false });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to archive goal" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/** Archived goals for one project, any measure -- read-only display in the "Past goals" section. */
+export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const [goalRows, entryRows, attendance, startingBalances] = await Promise.all([
+    createRepos(supabase).writing.archivedGoals(effectiveIdentity.memberId, projectId).catch(() => []),
+    createRepos(supabase).writing.entries(effectiveIdentity.memberId, { projectIds: [projectId] }),
+    getMyPrickleAttendance(),
+    createRepos(supabase).writing.startingBalances(effectiveIdentity.memberId, projectId),
+  ]);
+
+  const now = new Date();
+  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows, now, attendance, startingBalances));
+}
+
+async function toggleGoalStarImpl(
+  goalId: string,
+  isStarred: boolean
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  try {
+    await createRepos(supabase).writing.updateGoal(effectiveIdentity.memberId, goalId, { is_starred: isStarred });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+async function setGoalVisibilityImpl(
+  goalId: string,
+  visibility: Visibility
+): Promise<{ success: true } | { error: string }> {
+  if (!isVisibility(visibility)) return { error: "Choose private, community or public" };
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  try {
+    const writing = createRepos(supabase).writing;
+    const existing = await writing.goalForEdit(goalId);
+    if (!existing || existing.member_id !== effectiveIdentity.memberId) return { error: "Goal not found" };
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, visibility);
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { visibility });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+/** Starred goals for the acting member, across all their projects -- used by the dashboard widget. */
+export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: string })[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const goals = await createRepos(supabase).writing.starredGoals(effectiveIdentity.memberId).catch(() => []);
+
+  if (goals.length === 0) return [];
+
+  const projectIds = [...new Set(goals.map((g) => g.project_id))];
+  const [entries, attendance, startingBalances] = await Promise.all([
+    createRepos(supabase).writing.entries(effectiveIdentity.memberId, { projectIds }),
+    getMyPrickleAttendance(),
+    createRepos(supabase).writing.startingBalances(effectiveIdentity.memberId),
+  ]);
+
+  const now = new Date();
+
+  return (goals as unknown as (RawGoal & { project_title: string })[]).map((g) => {
+    const projectEntries = entries.filter((e) => e.project_id === g.project_id);
+    return { ...buildGoalRow(g, projectEntries, now, attendance, startingBalances), projectTitle: g.project_title };
+  });
+}
+
+/** Cumulative-total series for a project's measure, for the project detail page's chart. */
+export async function getProjectSeries(
+  projectId: string,
+  measure: WritingMeasure
+): Promise<{ entryDate: string; total: number }[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { writing } = createRepos(supabase);
+  const [entries, projectBalances] = await Promise.all([
+    writing.seriesEntries(effectiveIdentity.memberId, projectId, measure),
+    writing.startingBalances(effectiveIdentity.memberId, projectId),
+  ]);
+  const startingBalanceAmount = projectBalances.find((b) => b.measure === measure)?.amount ?? null;
+
+  const series = computeCumulativeSeries(
+    entries.map((e) => ({
+      entryDate: e.entry_date,
+      createdAt: e.created_at,
+      mode: e.mode as EntryMode,
+      amount: e.amount,
+    })),
+    startingBalanceAmount ?? 0
+  );
+
+  return series;
+}
+
+export interface ProfileWritingProject {
+  id: string;
+  title: string;
+  /** The project's largest total (starting balance included), or null if nothing's logged yet. */
+  headline: { measure: WritingMeasure; total: number } | null;
+}
+
+export type ProfileWritingGoal = GoalRow & { projectTitle: string };
+
+/**
+ * A member's "Show on profile" projects and goals, for their profile page. Read through the
+ * get_profile_writing function: the writing tables are owner-only, so reading them as the viewer
+ * would show nothing on anyone else's profile.
+ */
+export async function getProfileWriting(
+  memberId: string
+): Promise<{ projects: ProfileWritingProject[]; goals: ProfileWritingGoal[] }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_profile_writing", { p_member_id: memberId });
+  if (error) console.error("getProfileWriting: get_profile_writing failed", error);
+
+  const payload = (data ?? null) as {
+    projects: { id: string; title: string }[];
+    goals: (Omit<RawGoal, "is_starred" | "show_on_profile" | "visibility"> & { project_title: string })[];
+    entries: RawEntry[];
+    starting_balances: RawStartingBalance[];
+  } | null;
+  if (!payload) return { projects: [], goals: [] };
+
+  const now = new Date();
+  const entriesFor = (projectId: string) => payload.entries.filter((e) => e.project_id === projectId);
+
+  const projects = payload.projects.map((project) => {
+    const projectEntries = entriesFor(project.id);
+    let headline: ProfileWritingProject["headline"] = null;
+    for (const measure of WRITING_MEASURES) {
+      const measureEntries = projectEntries.filter((e) => e.measure === measure);
+      const startingBalance = payload.starting_balances.find(
+        (b) => b.project_id === project.id && b.measure === measure
+      )?.amount;
+      if (measureEntries.length === 0 && startingBalance === undefined) continue;
+      const total = computeCumulativeTotal(
+        measureEntries.map((e) => ({
+          entryDate: e.entry_date,
+          createdAt: e.created_at,
+          mode: e.mode as EntryMode,
+          amount: e.amount,
+        })),
+        startingBalance
+      );
+      if (!headline || total > headline.total) headline = { measure, total };
+    }
+    return { id: project.id, title: project.title, headline };
+  });
+
+  // Prickles-measure goals count attendance, which any member can already read.
+  let attendance: PrickleAttendanceRow[] = [];
+  if (payload.goals.some((g) => g.measure === "prickles")) {
+    const tzPref = await getUserTimezonePreference();
+    attendance = await fetchWritingPrickleAttendance(supabase, memberId, tzPref === "browser" ? ORG_TIMEZONE : tzPref);
+  }
+
+  const goals = payload.goals.map((g) => ({
+    ...buildGoalRow({ ...g, is_starred: false, show_on_profile: true, visibility: "community" }, entriesFor(g.project_id), now, attendance, payload.starting_balances),
+    projectTitle: g.project_title,
+  }));
+
+  return { projects, goals };
+}
+
+// Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
+export async function createProject(...args: Parameters<typeof createProjectImpl>): ReturnType<typeof createProjectImpl> {
+  return withAction("project_created", () => createProjectImpl(...args));
+}
+
+export async function deleteProject(...args: Parameters<typeof deleteProjectImpl>): ReturnType<typeof deleteProjectImpl> {
+  return withAction("project_deleted", () => deleteProjectImpl(...args));
+}
+
+export async function publishProject(...args: Parameters<typeof publishProjectImpl>): ReturnType<typeof publishProjectImpl> {
+  return withAction("project_published", () => publishProjectImpl(...args));
+}
+
+export async function logProgress(...args: Parameters<typeof logProgressImpl>): ReturnType<typeof logProgressImpl> {
+  return withAction("progress_logged", () => logProgressImpl(...args));
+}
+
+export async function createGoal(...args: Parameters<typeof createGoalImpl>): ReturnType<typeof createGoalImpl> {
+  return withAction("goal_created", () => createGoalImpl(...args));
+}
+
+export async function dismissUnloggedPrickle(...args: Parameters<typeof dismissUnloggedPrickleImpl>): ReturnType<typeof dismissUnloggedPrickleImpl> {
+  return withAction("unlogged_prickle_dismissed", () => dismissUnloggedPrickleImpl(...args));
+}
+
+export async function updateProjectDetails(...args: Parameters<typeof updateProjectDetailsImpl>): ReturnType<typeof updateProjectDetailsImpl> {
+  return withAction("project_details_saved", () => updateProjectDetailsImpl(...args));
+}
+
+export async function updateProjectCover(...args: Parameters<typeof updateProjectCoverImpl>): ReturnType<typeof updateProjectCoverImpl> {
+  return withAction("project_cover_changed", () => updateProjectCoverImpl(...args));
+}
+
+export async function setStartingBalances(...args: Parameters<typeof setStartingBalancesImpl>): ReturnType<typeof setStartingBalancesImpl> {
+  return withAction("starting_balances_saved", () => setStartingBalancesImpl(...args));
+}
+
+export async function reorderMyGoals(...args: Parameters<typeof reorderMyGoalsImpl>): ReturnType<typeof reorderMyGoalsImpl> {
+  return withAction("goals_reordered", () => reorderMyGoalsImpl(...args));
+}
+
+export async function reorderMyProjects(...args: Parameters<typeof reorderMyProjectsImpl>): ReturnType<typeof reorderMyProjectsImpl> {
+  return withAction("projects_reordered", () => reorderMyProjectsImpl(...args));
+}
+
+export async function setProjectVisibility(...args: Parameters<typeof setProjectVisibilityImpl>): ReturnType<typeof setProjectVisibilityImpl> {
+  return withAction("project_visibility_changed", () => setProjectVisibilityImpl(...args));
+}
+
+export async function updateProjectPhase(...args: Parameters<typeof updateProjectPhaseImpl>): ReturnType<typeof updateProjectPhaseImpl> {
+  return withAction("project_phase_changed", () => updateProjectPhaseImpl(...args));
+}
+
+export async function updateEntry(...args: Parameters<typeof updateEntryImpl>): ReturnType<typeof updateEntryImpl> {
+  return withAction("progress_entry_edited", () => updateEntryImpl(...args));
+}
+
+export async function deleteEntry(...args: Parameters<typeof deleteEntryImpl>): ReturnType<typeof deleteEntryImpl> {
+  return withAction("progress_entry_deleted", () => deleteEntryImpl(...args));
+}
+
+export async function updateGoal(...args: Parameters<typeof updateGoalImpl>): ReturnType<typeof updateGoalImpl> {
+  return withAction("goal_edited", () => updateGoalImpl(...args));
+}
+
+export async function deleteGoal(...args: Parameters<typeof deleteGoalImpl>): ReturnType<typeof deleteGoalImpl> {
+  return withAction("goal_deleted", () => deleteGoalImpl(...args));
+}
+
+export async function archiveGoal(...args: Parameters<typeof archiveGoalImpl>): ReturnType<typeof archiveGoalImpl> {
+  return withAction("goal_archived", () => archiveGoalImpl(...args));
+}
+
+export async function toggleGoalStar(...args: Parameters<typeof toggleGoalStarImpl>): ReturnType<typeof toggleGoalStarImpl> {
+  return withAction("goal_star_toggled", () => toggleGoalStarImpl(...args));
+}
+
+export async function setGoalVisibility(...args: Parameters<typeof setGoalVisibilityImpl>): ReturnType<typeof setGoalVisibilityImpl> {
+  return withAction("goal_visibility_changed", () => setGoalVisibilityImpl(...args));
+}

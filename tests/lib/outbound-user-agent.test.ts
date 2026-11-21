@@ -119,7 +119,7 @@ describe("SDK clients carry our identity", () => {
   });
 
   it("web-push is given the header on both send paths", () => {
-    const source = fs.readFileSync(path.resolve(__dirname, "../../lib/channels/web-push.ts"), "utf8");
+    const source = fs.readFileSync(path.resolve(__dirname, "../../src/lib/channels/web-push.ts"), "utf8");
     expect(source.match(/headers: \{ "User-Agent": OUTBOUND_USER_AGENT \}/g)).toHaveLength(2);
   });
 });
@@ -138,15 +138,15 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-const files = ["app", "lib", "components", "scripts"]
+const files = ["src/app", "src/lib", "src/components", "scripts"]
   .flatMap((dir) => sourceFiles(path.join(root, dir)))
   .map((file) => ({ file: path.relative(root, file), source: fs.readFileSync(file, "utf8") }));
 
 /** Files that may call raw `fetch(` / build an SDK client themselves, each with the reason. Only ever shrinks. */
 const ALLOWED_RAW_FETCH: Record<string, string> = {
-  "lib/http/outbound.ts": "the wrapper itself",
-  "lib/analytics/client.ts": "browser code calling our own tracking route",
-  "app/api/health/route.ts": "calls our own Supabase project (the database check), not a third party",
+  "src/lib/http/outbound.ts": "the wrapper itself",
+  "src/lib/analytics/client.ts": "browser code calling our own tracking route",
+  "src/app/api/health/route.ts": "calls our own Supabase project (the database check), not a third party",
   "scripts/kajabi-course-content.ts": "runs inside a logged-in Kajabi browser page (page.evaluate), where the browser sets its own User-Agent",
 };
 
@@ -174,12 +174,12 @@ describe("outbound requests are identified", () => {
     for (const file of Object.keys(ALLOWED_RAW_FETCH)) {
       const found = files.find((f) => f.file === file);
       expect(found, `${file} is gone: remove it from ALLOWED_RAW_FETCH`).toBeTruthy();
-      expect(/(?<![.\w])fetch\(/.test(found!.source) || file === "lib/http/outbound.ts", `${file} no longer calls fetch: remove it`).toBe(true);
+      expect(/(?<![.\w])fetch\(/.test(found!.source) || file === "src/lib/http/outbound.ts", `${file} no longer calls fetch: remove it`).toBe(true);
     }
   });
 
   it("Slack clients are built only by createSlackClient", () => {
-    const offenders = files.filter(({ file, source }) => file !== "lib/slack-client.ts" && /new WebClient\(/.test(source)).map((f) => f.file);
+    const offenders = files.filter(({ file, source }) => file !== "src/lib/slack-client.ts" && /new WebClient\(/.test(source)).map((f) => f.file);
     expect(offenders).toEqual([]);
   });
 

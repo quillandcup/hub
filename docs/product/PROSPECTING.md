@@ -8,14 +8,14 @@ Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic 
 
 ```
  discover ──► normalize + dedupe ──► score (rules) ──► [AI read, optional] ──► human review ──► Ania reaches out
- (paste today)   lib/prospecting/        lib/prospecting/    scripts/assess-prospects.ts   /admin/outreach/prospects    from her own account
-                 candidates.ts, import   rules.ts, score.ts  lib/prospecting/assessment.ts
+ (paste today)   src/lib/prospecting/        src/lib/prospecting/    scripts/assess-prospects.ts   /admin/outreach/prospects    from her own account
+                 candidates.ts, import   rules.ts, score.ts  src/lib/prospecting/assessment.ts
 ```
 
-- **Table** `outreach_prospects` (admin only; `ProspectRepository` in `lib/data/prospects.ts`). One row per Instagram handle. Re-adding a handle changes nothing, so a reviewed prospect is never overwritten and a source can be re-run.
-- **Discovery: sources and paste.** Sources (`lib/prospecting/sources/`) only *find* profiles; `runSource` scores them with the same rules, drops anything under `MIN_SCORE_TO_KEEP`, skips people already in the Hub and stores the rest, so every source hits the same filters. Today: **Bluesky** (`bluesky-search`: public API, no account or review; searches bios for what writers say, then fetches follower counts), run from the "Search Bluesky now" button. Add a source by implementing `ProspectSource` and listing it in `searchForProspectsImpl`. Paste still works for anything else (Instagram today).
+- **Table** `outreach_prospects` (admin only; `ProspectRepository` in `src/lib/data/prospects.ts`). One row per Instagram handle. Re-adding a handle changes nothing, so a reviewed prospect is never overwritten and a source can be re-run.
+- **Discovery: sources and paste.** Sources (`src/lib/prospecting/sources/`) only *find* profiles; `runSource` scores them with the same rules, drops anything under `MIN_SCORE_TO_KEEP`, skips people already in the Hub and stores the rest, so every source hits the same filters. Today: **Bluesky** (`bluesky-search`: public API, no account or review; searches bios for what writers say, then fetches follower counts), run from the "Search Bluesky now" button. Add a source by implementing `ProspectSource` and listing it in `searchForProspectsImpl`. Paste still works for anything else (Instagram today).
 - **Paste.** On `/admin/outreach/prospects`, one prospect per line: the @handle or profile link, then anything copied from the profile (bio, "2.3k followers", #hashtags, a link). Handles that belong to a member or lead already in the Hub (`members.instagram_url`) are skipped.
-- **Scoring: rules, not AI.** `lib/prospecting/rules.ts` is a list of weighted patterns over the bio and hashtags plus a follower range. `scoreProspect` is deterministic and returns the reasons, which the review page shows. Changing who we look for is a change to that one file; `ProspectRepository.rescore` re-applies it to everyone.
+- **Scoring: rules, not AI.** `src/lib/prospecting/rules.ts` is a list of weighted patterns over the bio and hashtags plus a follower range. `scoreProspect` is deterministic and returns the reasons, which the review page shows. Changing who we look for is a change to that one file; `ProspectRepository.rescore` re-applies it to everyone.
 - **Review.** To review → Shortlisted → Contacted, or Rejected (with an optional reason, which is the best data we will have for tuning the rules). Whether a prospect later joined is derived by matching the handle to members, never stored (`.claude/rules/business-facts.md`, "Business Facts").
 - **AI read, on demand and advisory.** `pnpm prospects:assess [env-file] [--limit=20] [--apply]` runs the Claude Code CLI headless (`claude -p`, no tools, empty temp directory) over prospects without an assessment and stores a fit (`strong`/`maybe`/`weak`), a one-line summary and a draft opener. It uses the Claude subscription logged in on the machine that runs it. The page shows it beside the rules' score. Nothing is sent to anyone and no status changes.
 
@@ -31,7 +31,7 @@ Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic 
 
 **3. People first, then a bot.** The reviewer is always a person, and so is the sender. Cold outreach to strangers drafted by an AI carries real brand risk if it goes out unreviewed (TODO.md already says so). The bot's job is to shrink the haystack and write a first draft.
 
-**4. Privacy.** The table stores what a person chose to publish on their profile (handle, bio, hashtags, public link), nothing private, and only admins can read it. It is not a member record: nothing is shared with anyone, and if a prospect asks to be removed the row is deleted. Before any automated discovery: decide the retention (rejected prospects probably expire), and whether the privacy policy needs a line about it, especially for prospects in GDPR countries (`lib/gdpr-countries.ts`).
+**4. Privacy.** The table stores what a person chose to publish on their profile (handle, bio, hashtags, public link), nothing private, and only admins can read it. It is not a member record: nothing is shared with anyone, and if a prospect asks to be removed the row is deleted. Before any automated discovery: decide the retention (rejected prospects probably expire), and whether the privacy policy needs a line about it, especially for prospects in GDPR countries (`src/lib/gdpr-countries.ts`).
 
 **5. Using a Claude subscription.** A Claude subscription signs in the Claude Code CLI, so a script that shells out to `claude -p` on your own machine works (checked: it answers on the subscription). It cannot be used from the deployed app: the Hub on Vercel would need an Anthropic API key (billed per token), and putting a personal subscription login on a server for an automated product is not what the subscription is for. So: the discovery and scoring parts run anywhere, and the AI read is a local, run-it-yourself step (or a scheduled `launchd` job on the Mac, if you want it nightly). If it later needs to run unattended in the cloud, that is an API key, a `ProspectAssessor` behind the same `parseAssessment` shape, and a monthly cost that is small at 20-50 profiles a day.
 
@@ -48,15 +48,15 @@ To start the Meta route: create a Meta developer app, link it to the Instagram p
 
 ## What is not built yet
 
-- Runs by themselves: sources run when someone presses the button. A nightly job needs a pg_cron job and a cron heartbeat (see `app/api/internal/member-reminders`).
+- Runs by themselves: sources run when someone presses the button. A nightly job needs a pg_cron job and a cron heartbeat (see `src/app/api/internal/member-reminders`).
 - More sources: Substack and writing-community directories need a look at their terms; Reddit's API needs approved OAuth.
 - Going from "contacted" to the existing Outreach queue: today a prospect who signs up shows up there through Kajabi's "Instagram Handle" field, as before. Logging a prospect touch (so the daily 25 includes prospects) needs a decision on whether prospects become `members` rows; see the questions.
 - Learning from outcomes: rejections (with reasons), replies and sign-ups are the training signal for the rules and for Phase 4's scoring. Nothing reads them yet.
-- Analytics: `prospects_imported` and `prospect_reviewed` outcomes are recorded; a funnel (found → shortlisted → contacted → joined) is not defined in `lib/analytics/funnels.ts`.
+- Analytics: `prospects_imported` and `prospect_reviewed` outcomes are recorded; a funnel (found → shortlisted → contacted → joined) is not defined in `src/lib/analytics/funnels.ts`.
 
 ## Questions for Ania
 
-Answers go into `lib/prospecting/rules.ts` (the first guess there is mine, not hers). Short answers or examples are fine; screenshots of three great fits and three bad ones would be better than any description.
+Answers go into `src/lib/prospecting/rules.ts` (the first guess there is mine, not hers). Short answers or examples are fine; screenshots of three great fits and three bad ones would be better than any description.
 
 **Who is an ideal Hedgie?**
 0. Quill & Cup is women only and says so publicly. Which cues do you use to tell that a writer is a woman (pronouns, "mom of", "women writers", a name, photos, the accounts she follows), and which would you trust enough to count? The rules use only what she says about herself in her bio, as a small boost, never a filter and never a name or photo.

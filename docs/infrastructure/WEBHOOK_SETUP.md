@@ -51,7 +51,7 @@ Example endpoints:
 
 ### Setup
 
-Nothing to do by hand. The nightly `/api/reconcile/calendar` cron (production only) opens the push channel with the service account, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token and `<APP_URL>/api/webhooks/calendar` as the address, and renews it when under 3 days remain (`lib/google-calendar/watch.ts`). The channel is requested for 7 days; the real expiry Google returns is kept in `calendar_watch_channels` (service role only), which is how the old channel is stopped when it is replaced (Google has no call that lists channels). The new channel is opened before the old one is stopped, so no edit falls in a gap.
+Nothing to do by hand. The nightly `/api/reconcile/calendar` cron (production only) opens the push channel with the service account, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token and `<APP_URL>/api/webhooks/calendar` as the address, and renews it when under 3 days remain (`src/lib/google-calendar/watch.ts`). The channel is requested for 7 days; the real expiry Google returns is kept in `calendar_watch_channels` (service role only), which is how the old channel is stopped when it is replaced (Google has no call that lists channels). The new channel is opened before the old one is stopped, so no edit falls in a gap.
 
 - The service account needs access to the calendar (the same as the import).
 - If opening the channel fails, the reconcile still syncs but returns 500 and skips its Checkly heartbeat, so it alerts. The nightly sync stays the guaranteed path.
@@ -209,7 +209,7 @@ Resend reports what happened to each email (sent, delivered, opened, clicked, bo
 - **200 with `stored: false`**: the event type isn't one we keep.
 - **Events in Bronze but nothing on the timeline**: the recipient matched no member (their address isn't a member's, and the email had no member tag). The events are kept and projected on the next run after the member exists.
 - **500**: a database error; Resend retries, and the retry is a no-op for what was already stored.
-- **The nightly import fails**: see the Vercel logs for `/api/reconcile/email`. A 401 or 403 from Resend's list endpoint means `RESEND_API_KEY` is still Sending access. It has no Checkly heartbeat for now (`lib/cron-heartbeats.ts`, `unmonitored`).
+- **The nightly import fails**: see the Vercel logs for `/api/reconcile/email`. A 401 or 403 from Resend's list endpoint means `RESEND_API_KEY` is still Sending access. It has no Checkly heartbeat for now (`src/lib/cron-heartbeats.ts`, `unmonitored`).
 
 ## Local Testing with a tunnel
 
@@ -244,7 +244,7 @@ Every webhook route verifies its caller itself, whether or not a tunnel or proxy
 - **Slack:** HMAC-SHA256 over `v0:{timestamp}:{body}` with `SLACK_SIGNING_SECRET`, within a 5-minute window.
 - **Zoom:** HMAC-SHA256 in `X-Zm-Signature` with `ZOOM_WEBHOOK_SECRET_TOKEN`.
 
-**A missing secret rejects the request on deployed builds** (production and preview), instead of switching verification off (`webhookSecretRequired()` in `lib/webhook-auth.ts`). Local `next dev` and tests skip verification when a secret is unset, so webhooks can be tried without configuring each vendor.
+**A missing secret rejects the request on deployed builds** (production and preview), instead of switching verification off (`webhookSecretRequired()` in `src/lib/webhook-auth.ts`). Local `next dev` and tests skip verification when a secret is unset, so webhooks can be tried without configuring each vendor.
 
 Zoom's check, for reference:
 
@@ -343,7 +343,7 @@ External System → Webhook Handler → Bronze UPSERT → Silver Processing
 
 1. User updates calendar event in Google Calendar
 2. Google sends webhook to `/api/webhooks/calendar`
-3. Handler returns 200 OK immediately and runs `syncCalendarChanges` (`lib/google-calendar/incremental-sync.ts`) in `after()`
+3. Handler returns 200 OK immediately and runs `syncCalendarChanges` (`src/lib/google-calendar/incremental-sync.ts`) in `after()`
 4. The sync claims the calendar (`calendar_sync_state`); a notification that arrives while one is running just notes "run once more", so a burst of edits is one sync plus one rerun
 5. It asks Google only for events changed since the last sync (`events.list` with `updatedMin` and `showDeleted`, inside the 90-days-back / 90-forward window the nightly reconcile keeps), not the whole window; and, separately, for events *cancelled* since then with no date window at all, because a deletion can be of any event (a past prickle taken off the calendar), and the windowed listing never returns those
 6. Changed events are UPSERTed to `bronze.calendar_events` by Google id (Hub ids and links stay); cancelled ones, and ones that became all-day, are deleted

@@ -2,9 +2,9 @@ import { afterEach, beforeEach } from 'vitest'
 import { setClock, resetClock, type Clock } from '@/lib/clock'
 
 /**
- * A virtual clock for code that uses lib/clock. sleep() moves time forward
+ * A virtual clock for code that uses src/lib/clock. sleep() moves time forward
  * and resolves right away, so pauses cost nothing; advance() jumps ahead to
- * reach a deadline. Only lib/clock is affected: Date, setTimeout and the HTTP
+ * reach a deadline. Only src/lib/clock is affected: Date, setTimeout and the HTTP
  * client's timers stay real, so in-flight Supabase requests aren't disturbed.
  */
 export class FakeClock implements Clock {

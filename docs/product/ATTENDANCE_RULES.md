@@ -16,7 +16,7 @@ This document defines all the rules and time thresholds used in the attendance t
 
 **Purpose**: Split Zoom meetings into segments (scheduled prickles + Pop-Up Prickles) based on overlapping calendar events.
 
-**Location**: `app/api/process/attendance/route.ts` → `splitMeetingIntoSegments()`
+**Location**: `src/app/api/process/attendance/route.ts` → `splitMeetingIntoSegments()`
 
 **Threshold**: **20 minutes** (1200000 ms)
 
@@ -77,7 +77,7 @@ replaces. A date-only `toDate` ("2026-11-04") names that whole UTC day, in the i
 
 **Purpose**: Prevent double-counting people who show up early/late for scheduled prickles as also attending adjacent PUPs.
 
-**Location**: `app/api/process/attendance/route.ts` → attendance record creation loop. The same rule is applied to live presence by `staysOf` / `countedPrickleIds` in `lib/zoom-presence.ts` (check-out messages, the drop-in check-in, the Dashboard's "in the room" tie and card), see `CHECKIN_DELIVERY.md`. It applies to every prickle, scheduled or not, not only to unscheduled meetings.
+**Location**: `src/app/api/process/attendance/route.ts` → attendance record creation loop. The same rule is applied to live presence by `staysOf` / `countedPrickleIds` in `src/lib/zoom-presence.ts` (check-out messages, the drop-in check-in, the Dashboard's "in the room" tie and card), see `CHECKIN_DELIVERY.md`. It applies to every prickle, scheduled or not, not only to unscheduled meetings.
 
 **Threshold**: **15 minutes**
 
@@ -165,8 +165,8 @@ For each PUP attendance intersection:
 
 | Threshold | Purpose | Value | Location |
 |-----------|---------|-------|----------|
-| Meeting segmentation | Determine when to create PUPs vs extend scheduled prickles | **20 minutes** | `app/api/process/attendance/route.ts` |
-| PUP attendance filtering | Prevent double-counting early/late arrivals | **15 minutes** | `app/api/process/attendance/route.ts` |
+| Meeting segmentation | Determine when to create PUPs vs extend scheduled prickles | **20 minutes** | `src/app/api/process/attendance/route.ts` |
+| PUP attendance filtering | Prevent double-counting early/late arrivals | **15 minutes** | `src/app/api/process/attendance/route.ts` |
 | Host late warning | Flag late hosts | **5 minutes** | Calendar & prickle details pages |
 | Zero-duration | Filter invalid prickles | **0 minutes** | Calendar display |
 

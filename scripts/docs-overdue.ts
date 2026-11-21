@@ -14,8 +14,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { clock } from "../lib/clock";
-import { ORG_TIMEZONE } from "../lib/config";
+import { clock } from "../src/lib/clock";
+import { ORG_TIMEZONE } from "../src/lib/config";
 
 export type Cadence = "quarterly" | "yearly";
 

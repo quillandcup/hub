@@ -1,6 +1,6 @@
 ## confirmations
 
-**RULE**: Ask before something that can't be taken back or that other people will see, with `components/ConfirmDialog.tsx`: `<ConfirmDialog>` when the action is async or can fail, `useConfirm()` where a handler used to say `if (!confirm(...)) return;` (`const { ask, dialog } = useConfirm()`, `if (!(await ask({ title, body, confirmLabel }))) return;`, render `{dialog}` once). Never the browser's `confirm`: `tests/lib/confirm-dialog.test.ts` fails on a new one. Files that predate this are in its shrink-only baseline; convert one as you touch it and lower its entry (`docs/TODO.md`, "Move the browser confirms onto ConfirmDialog").
+**RULE**: Ask before something that can't be taken back or that other people will see, with `src/components/ConfirmDialog.tsx`: `<ConfirmDialog>` when the action is async or can fail, `useConfirm()` where a handler used to say `if (!confirm(...)) return;` (`const { ask, dialog } = useConfirm()`, `if (!(await ask({ title, body, confirmLabel }))) return;`, render `{dialog}` once). Never the browser's `confirm`: `tests/lib/confirm-dialog.test.ts` fails on a new one. Files that predate this are in its shrink-only baseline; convert one as you touch it and lower its entry (`docs/TODO.md`, "Move the browser confirms onto ConfirmDialog").
 
 **When to ask**
 - Ask for: deleting, discarding or replacing work (reset to published, bring a version back), taking something off the public site, anything that messages or affects many people, anything with no undo.

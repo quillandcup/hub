@@ -13,12 +13,12 @@ immediately (providers retry aggressively on non-2xx/slow responses), then do th
 actual work asynchronously (fire-and-forget or `setTimeout`). All cron endpoints are
 thin `GET` wrappers — Vercel Cron only issues `GET` requests — that call the same
 `trigger*` functions used elsewhere, authenticated via `CRON_SECRET` in
-`lib/supabase/api-auth.ts`. See `../infrastructure/INTEGRATION_LINKS.md` for webhook URLs/secrets and
+`src/lib/supabase/api-auth.ts`. See `../infrastructure/INTEGRATION_LINKS.md` for webhook URLs/secrets and
 `MEDALLION_ARCHITECTURE.md` for the layer model these flows populate.
 
 Downstream Silver reprocessing dependencies (which Bronze/Local change triggers which
 Silver table, and the required order) are declared centrally in
-`lib/processing/trigger.ts`'s `SILVER_DEPENDENCIES` map — that map is the source of
+`src/lib/processing/trigger.ts`'s `SILVER_DEPENDENCIES` map — that map is the source of
 truth for the reprocessing steps shown below.
 
 ---

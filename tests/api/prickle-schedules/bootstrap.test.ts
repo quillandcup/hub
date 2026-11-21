@@ -5,7 +5,7 @@ import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for POST /api/prickle-schedules/bootstrap
- * (bootstrapMonthFromCalendar in lib/prickle-schedules.ts).
+ * (bootstrapMonthFromCalendar in src/lib/prickle-schedules.ts).
  */
 describe('Prickle Schedules Bootstrap API', () => {
   const supabase = getTestSupabaseAdminClient()

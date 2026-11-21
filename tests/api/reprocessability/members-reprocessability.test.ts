@@ -468,7 +468,7 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
  * helper used everywhere else in this file — see tests/lib/bronze-pagination.test.ts for
  * a test that seeds past the row cap and proves that helper retrieves every row (seeding
  * that many rows through this full API route isn't viable here: it would also blow up an
- * unrelated `.in()` query in lib/kajabi/membership-history.ts's Stripe trial lookup with
+ * unrelated `.in()` query in src/lib/kajabi/membership-history.ts's Stripe trial lookup with
  * a "URI too long" error, since that list's length scales with total stripe_customers
  * row count regardless of this fix). This test instead confirms, at a realistic scale,
  * that the email -> stripe_customer_id mapping is still wired up correctly end-to-end.
@@ -576,7 +576,7 @@ describe('Members stripe_customer_id with two customers on one email', () => {
 /**
  * Member tenure fields (first_joined_at, most_recent_joined_at,
  * total_active_months) computed during reprocessing — see
- * lib/member-tenure.ts. Covers a real cancel/resubscribe gap and a hiatus
+ * src/lib/member-tenure.ts. Covers a real cancel/resubscribe gap and a hiatus
  * (member_hiatus_history) excluding time from the total and resetting
  * most_recent_joined_at once it ends.
  */
@@ -949,7 +949,7 @@ describe('Legacy join-date overrides during reprocessing', () => {
  * Leads captured via our Kajabi forms (e.g. the Ideal Hedgie opt-in) answer
  * an Instagram Handle custom field on the Contact (Kajabi custom field
  * `custom_1` for this site — see INSTAGRAM_CUSTOM_FIELD_HANDLE and
- * resolveInstagramUrl in lib/kajabi/profile-fields.ts), and it's what members
+ * resolveInstagramUrl in src/lib/kajabi/profile-fields.ts), and it's what members
  * edit from Settings > Profile. The customer `socials.instagram` only exists
  * if they filled in Kajabi's member-directory profile, so the custom field
  * wins and socials.instagram is only the fallback.

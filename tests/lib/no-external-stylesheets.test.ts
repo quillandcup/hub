@@ -21,7 +21,7 @@ function walk(dir: string, out: string[] = []): string[] {
 
 describe("stylesheets that fetch from another site", () => {
   it("the app imports Puck's no-external stylesheet, never puck.css", () => {
-    const offenders = ["app", "components"]
+    const offenders = ["src/app", "src/components"]
       .flatMap((dir) => walk(join(ROOT, dir)))
       .filter((file) => /@puckeditor\/core\/(puck\.css|dist\/index\.css)/.test(readFileSync(file, "utf8")))
       .map((file) => file.replace(`${ROOT}/`, ""));
@@ -34,7 +34,7 @@ describe("stylesheets that fetch from another site", () => {
   });
 
   it("no app stylesheet imports another site", () => {
-    const offenders = ["app", "components"]
+    const offenders = ["src/app", "src/components"]
       .flatMap((dir) => walk(join(ROOT, dir)))
       .filter((file) => file.endsWith(".css") && /@import\s+(url\()?["']?https?:/.test(readFileSync(file, "utf8")))
       .map((file) => file.replace(`${ROOT}/`, ""));

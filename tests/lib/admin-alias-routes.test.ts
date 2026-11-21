@@ -5,7 +5,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { ambiguousZoomName } from "@/tests/helpers/zoom-fixtures";
 
 // The admin routes that create name aliases (the names attendance is matched by) refuse a name that
-// belongs to another member (lib/name-alias-conflict.ts) instead of taking it over.
+// belongs to another member (src/lib/name-alias-conflict.ts) instead of taking it over.
 
 // `after` only runs inside a request; here it runs at once so the reprocess it schedules can be asserted.
 vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));

@@ -1,9 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "app/**/{page,layout,route,loading,error,global-error,not-found,default,template}.{ts,tsx}",
-    "app/{manifest,sitemap,robots,icon,apple-icon,opengraph-image,twitter-image}.{ts,tsx}",
-    "proxy.ts",
+    "src/app/**/{page,layout,route,loading,error,global-error,not-found,default,template}.{ts,tsx}",
+    "src/app/{manifest,sitemap,robots,icon,apple-icon,opengraph-image,twitter-image}.{ts,tsx}",
+    "src/proxy.ts",
     "instrumentation*.ts",
     "next.config.ts",
     "config/app.ts",
@@ -15,20 +15,20 @@
     "tests/demo/*.ts",
     "tests/demo/scenes/**/*.ts",
     "tests/demo/video/*.ts",
-    "emails/**/*.tsx",
+    "src/emails/**/*.tsx",
     "tests/**/*.{ts,tsx}"
   ],
   "project": [
-    "app/**/*.{ts,tsx}",
-    "components/**/*.{ts,tsx}",
-    "lib/**/*.{ts,tsx}",
-    "content/**/*.{ts,tsx}",
-    "emails/**/*.{ts,tsx}",
+    "src/app/**/*.{ts,tsx}",
+    "src/components/**/*.{ts,tsx}",
+    "src/lib/**/*.{ts,tsx}",
+    "src/content/**/*.{ts,tsx}",
+    "src/emails/**/*.{ts,tsx}",
     "scripts/**/*.ts",
     "tests/**/*.{ts,tsx}",
     "*.{ts,mts,mjs}"
   ],
-  "ignore": ["lib/data/database.types.ts", "supabase/**", ".next/**", ".next-demo/**", "tests/demo/.stack/**"],
+  "ignore": ["src/lib/data/database.types.ts", "supabase/**", ".next/**", ".next-demo/**", "tests/demo/.stack/**"],
   "ignoreBinaries": ["supabase", "ffmpeg", "ffprobe", "say", "xattr"],
   "ignoreExportsUsedInFile": true
 }

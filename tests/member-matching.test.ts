@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from './helpers/supabase'
-import { fetchAllRows } from '../lib/supabase/paginate'
-import { matchAttendeeToMember, normalizeName, type Member, type MemberAlias, type MatchResult } from '../lib/member-matching'
+import { fetchAllRows } from '../src/lib/supabase/paginate'
+import { matchAttendeeToMember, normalizeName, type Member, type MemberAlias, type MatchResult } from '../src/lib/member-matching'
 
 /**
  * Tests for centralized member matching library

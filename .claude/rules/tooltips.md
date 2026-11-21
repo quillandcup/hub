@@ -1,14 +1,14 @@
 ---
 paths:
-  - "app/**/*.tsx"
-  - "components/**"
+  - "src/app/**/*.tsx"
+  - "src/components/**"
   - "tests/lib/tooltips.test.ts"
   - "tests/lib/tooltip-native-title.test.ts"
 ---
 
 ## tooltips
 
-**RULE**: A hint on anything (an icon button, a toggle, a link, a disabled action that says why, a badge, a chart cell, a timestamp) is `<Tooltip content="...">` from `components/Tooltip.tsx`, wrapped around that one control. Not a native `title="..."` (a small grey browser box that looks different from every other tooltip, never shows on a touch screen, can't be styled and is not reliably read by screen readers), and not a hand-rolled hover box. `tests/lib/tooltip-native-title.test.ts` fails on any native `title` on a DOM element in `app` or `components` (there is no baseline: every file is clean); `tests/lib/tooltips.test.ts` fails on a hand-rolled hidden box and on `role="tooltip"` outside `Tooltip` and `InfoTip`. `<iframe title>` (it names the frame), `<svg><title>`, a page `<title>` and a component's own `title` prop (a modal's heading) are not tooltips and are fine.
+**RULE**: A hint on anything (an icon button, a toggle, a link, a disabled action that says why, a badge, a chart cell, a timestamp) is `<Tooltip content="...">` from `src/components/Tooltip.tsx`, wrapped around that one control. Not a native `title="..."` (a small grey browser box that looks different from every other tooltip, never shows on a touch screen, can't be styled and is not reliably read by screen readers), and not a hand-rolled hover box. `tests/lib/tooltip-native-title.test.ts` fails on any native `title` on a DOM element in `app` or `components` (there is no baseline: every file is clean); `tests/lib/tooltips.test.ts` fails on a hand-rolled hidden box and on `role="tooltip"` outside `Tooltip` and `InfoTip`. `<iframe title>` (it names the frame), `<svg><title>`, a page `<title>` and a component's own `title` prop (a modal's heading) are not tooltips and are fine.
 
 - **One look**: dark rounded box, white text (`dark:bg-slate-700` in dark mode), drawn on `<body>` at `z-overlay-top` so no scrolling card or modal clips it. Never build another.
 - **What it guarantees** (don't undo it): hover only on a device that hovers (the `(hover: hover)` query, checked when the pointer arrives) never from a touch tap or iOS sticky hover (a finger or pen shows it only on a long press of about 500ms without moving more than 8px; that press swallows the click and context menu that follow, so long-pressing a star doesn't toggle it, and the control gets `select-none` and no touch callout where there is no hover; moving, scrolling, lifting early or a cancelled pointer cancel it, a drag taking it down; it stays about 2.5s, or goes on a touch elsewhere); keyboard `:focus-visible` shows it, a click or tap focus doesn't; a short delay before it shows on hover; Escape hides it; it stays up while the pointer is over the tip (WCAG 1.4.13); it is linked to the control with `aria-describedby` while shown; it adds no wrapper element, so the layout around the control doesn't change; its position is kept inside the window and flips above near the bottom edge.

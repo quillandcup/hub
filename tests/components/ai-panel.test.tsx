@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@puckeditor/core", () => ({ useGetPuck: () => () => undefined }));
-vi.mock("../../app/(admin)/admin/pages/actions", () => ({ generateLandingBlocks: vi.fn(), reviseLandingBlocks: vi.fn() }));
+vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({ generateLandingBlocks: vi.fn(), reviseLandingBlocks: vi.fn() }));
 
 import { AiPanelView, aiPlugin } from "@/app/(admin)/admin/pages/[slug]/AiPanel";
 

@@ -1,0 +1,275 @@
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, after, type NextRequest } from 'next/server'
+import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
+import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
+import { getAalFromAccessToken, getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
+import { COMMUNITY_MANAGER_HOME, mayOpenAdminPath } from '@/lib/staff-access'
+import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
+import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
+import { PAGE_VIEW_PATH } from '@/lib/page-views'
+import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, isRememberableVisit, safeNextPath } from '@/lib/safe-next'
+import { coursePreviewRewrite, lessonPreviewRewrite } from '@/lib/courses/preview-path'
+import { CURRENT_PATH_HEADER, GATES, gateHref } from '@/lib/gates'
+import { blocksStaff, hasVerifiedTotp, isStaffMfaEnforced, staffMfaState } from '@/lib/staff-mfa'
+import { clock } from '@/lib/clock'
+import { requestLocation } from '@/lib/request-location'
+import { userAgentForStorage } from '@/lib/device-label'
+import { deviceForStorage } from '@/lib/device'
+import { GA_COOKIE_NAME, gaClientIdFromCookie } from '@/lib/analytics-identity'
+import type { Database } from '@/lib/data/database.types'
+
+/**
+ * The address being asked for (path and query, without Next's internal `_rsc` marker), for CURRENT_PATH_HEADER.
+ * A server page that decides a visitor must pass a gate (src/lib/gates.server.ts) reads it to say where to come back to.
+ */
+function askedFor(request: NextRequest): string {
+  const search = new URLSearchParams(request.nextUrl.search)
+  search.delete('_rsc')
+  const query = search.toString()
+  return `${request.nextUrl.pathname}${query ? `?${query}` : ''}`
+}
+
+/**
+ * Continues to the page, with the address being asked for added to the request headers (the documented way to hand something
+ * from the proxy to Server Components: `NextResponse.next({ request: { headers } })`). The headers are copied from the request
+ * at this moment, so cookies a token refresh just set on it (see setAll below) go along.
+ */
+function continueWithPath(request: NextRequest, extraHeaders: Record<string, string> = {}): NextResponse {
+  const headers = new Headers(request.headers)
+  headers.set(CURRENT_PATH_HEADER, askedFor(request))
+  for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
+  return NextResponse.next({ request: { headers } })
+}
+
+/**
+ * `requestHeaders` are added to the request Server Components see (src/proxy.ts uses it to hand over the script nonce,
+ * src/lib/csp.ts, so Next can put it on its own scripts).
+ */
+export async function updateSession(request: NextRequest, requestHeaders: Record<string, string> = {}) {
+  let supabaseResponse = continueWithPath(request, requestHeaders)
+
+  // GoTrue records auth.sessions.user_agent/ip from whatever hit its own
+  // endpoint — since this refresh call originates from our server, not the
+  // browser, forward the real request's headers so Active Sessions shows
+  // the member's actual device/location rather than Vercel's runtime.
+  const userAgent = request.headers.get('user-agent')
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
+      cookies: {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = continueWithPath(request, requestHeaders)
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+      global: {
+        headers: {
+          ...(userAgent ? { 'User-Agent': userAgent } : {}),
+          ...(clientIp ? { 'X-Forwarded-For': clientIp } : {}),
+        },
+      },
+    }
+  )
+
+  // getUser() here is load-bearing beyond the redirect below: it's what makes
+  // @supabase/ssr refresh an expiring access token and persist the new cookie
+  // via the setAll handler above. Server Components can read cookies but
+  // can't write them, so if this middleware didn't do it, tokens would never
+  // get refreshed-and-persisted and sessions would degrade over time. The
+  // /login redirect further down is a secondary fast-path only -- the real
+  // gate is each protected layout's own recheck via getCurrentUser()
+  // (src/lib/auth.ts). That recheck verifies the JWT locally with getClaims(), so
+  // this is also the one place per request that asks Supabase Auth whether
+  // the session is still live: when it isn't, getUser() clears the auth
+  // cookies through setAll() above, on the request forwarded downstream too.
+  let user = null
+  let sessionId: string | null = null
+  // The role the custom access token hook put in the token (see
+  // getAppRoleFromAccessToken); only admin and community_manager open any admin path (src/lib/staff-access.ts).
+  let roleClaim: string | null | undefined = undefined
+  // The session's assurance level claim: aal2 once it has passed a TOTP challenge (src/lib/staff-mfa.ts).
+  let aalClaim: string | null = null
+  let authCheckTimedOut = false
+  try {
+    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
+    user = data.user
+    if (user) {
+      // getSession() reads the already-parsed cookie session (no extra
+      // network round trip) — getUser() above is what verified this token
+      // (after refreshing it if it had expired), so its claims are trusted
+      // as much as the user it returned.
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (accessToken) {
+        sessionId = getSessionIdFromAccessToken(accessToken)
+        roleClaim = getAppRoleFromAccessToken(accessToken)
+        aalClaim = getAalFromAccessToken(accessToken)
+      }
+    }
+  } catch {
+    // Supabase unreachable or too slow to respond within our short budget --
+    // NOT the same thing as "no session". Don't force the /login redirect
+    // below on this: src/app/(member)/layout.tsx and src/app/(admin)/layout.tsx each
+    // independently re-run their own auth check (getCurrentUser()) right after
+    // and will redirect correctly if the session really is gone. Treating a
+    // timeout as "logged out" here was kicking users with perfectly valid
+    // sessions to /login on ordinary Supabase latency blips.
+    authCheckTimedOut = true
+  }
+
+  const { pathname } = request.nextUrl
+
+  // Log access events for signed-in users (login/session history, admin-only
+  // view). Every request counts as activity (is_page false) so sessions stay
+  // alive, but none is a page view here: Next strips its flight/prefetch
+  // headers before the proxy runs, so a Link prefetch and a real navigation
+  // look the same. Page views come from the browser instead
+  // (src/components/PageViewTracker.tsx -> src/app/api/track/page-view).
+  const isPrefetch =
+    request.headers.get('next-router-prefetch') === '1' ||
+    request.headers.get('purpose') === 'prefetch' ||
+    request.headers.get('sec-purpose')?.includes('prefetch')
+  // Vercel's injected analytics/speed-insights scripts aren't visits either,
+  // and the tracker's own reports would double-count.
+  const isPlatformInternal = pathname.startsWith('/_vercel/') || pathname === PAGE_VIEW_PATH
+  if (user && !isPrefetch && !isPlatformInternal) {
+    const userId = user.id
+    const eventSessionId = sessionId
+    // Sudo: record which member this admin was viewing as, so visits made as
+    // a member aren't mistaken for the member's own. Header value is
+    // "<admin id>:<member id>" and only comes back for a validly signed
+    // cookie that belongs to this user.
+    const actingAsMemberId =
+      actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, userId)?.split(':')[1] ?? null
+    // GA's anonymous browser ID, linking this browser's signed-out visits to the user.
+    const gaClientId = gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value)
+    // Where this request came from (the connection's IP and the place it appears to be).
+    const location = requestLocation(request.headers)
+    after(async () => {
+      try {
+        await new SupabaseAccessEventRepository(supabase).record({
+          user_id: userId,
+          path: pathname,
+          is_page: false,
+          session_id: eventSessionId,
+          acting_as_member_id: actingAsMemberId,
+          user_agent: userAgentForStorage(userAgent),
+          device: deviceForStorage(userAgent),
+          ...location,
+          ga_client_id: gaClientId,
+        })
+      } catch {
+        // Best-effort logging — never break the request over this.
+      }
+    })
+  }
+
+  // Public routes — no auth required
+  // /privacy is the public privacy policy; /compliance is the public list of standards we follow; /security says how we protect the Hub.
+  // /unsubscribe and /verify-email are authorized by the signed token in their link
+  // (src/lib/email-unsubscribe.ts, src/lib/email-verification.ts).
+  // /p/<slug> is a published landing page (docs/product/LANDING_PAGES.md): the route itself 404s anything that isn't published.
+  // /w/<handle> is a writer profile (docs/product/WRITER_PROFILES.md), and /w/sitemap/<n>.xml lists them: the route itself 404s a page
+  // that is off or missing, and shows only the fields the member chose.
+  // API routes handle their own auth via requireAdmin/createApiAuth
+  const isPublic =
+    pathname === '/login' ||
+    pathname === '/unsubscribe' ||
+    pathname === '/verify-email' ||
+    pathname === '/privacy' ||
+    pathname === '/compliance' ||
+    pathname === '/security' ||
+    pathname.startsWith('/p/') ||
+    pathname.startsWith('/w/') ||
+    pathname === '/robots.txt' ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/')
+
+  if (!user && !isPublic && !authCheckTimedOut) {
+    const url = request.nextUrl.clone()
+    // A signed-out visitor to a lesson or course address is shown a public preview instead (title,
+    // picture and teaser, so a shared link looks good). The page behind the rewrite sends them to
+    // /login unless the lesson or course is public, so nothing is shown that wasn't before.
+    const previewPath = lessonPreviewRewrite(pathname) ?? coursePreviewRewrite(pathname)
+    let response: NextResponse
+    if (previewPath) {
+      url.pathname = previewPath
+      response = NextResponse.rewrite(url)
+    } else {
+      url.pathname = '/login'
+      url.search = ''
+      response = NextResponse.redirect(url)
+    }
+    // Remember where they were headed so every sign-in path can bring them back (src/lib/safe-next.ts).
+    // Only a real page navigation counts (isRememberableVisit): the cookie is one slot per browser, so a background request from
+    // another open tab would overwrite the page they clicked a link to.
+    const nextPath = safeNextPath(`${pathname}${request.nextUrl.search}`)
+    if (nextPath && isRememberableVisit(request.method, request.headers, nextPath)) {
+      response.cookies.set(NEXT_PATH_COOKIE, nextPath, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: request.nextUrl.protocol === 'https:',
+        path: '/',
+        maxAge: NEXT_PATH_COOKIE_MAX_AGE_SECONDS,
+      })
+    }
+    return response
+  }
+
+  // Admin area: optimistic role check so a signed-in non-admin is sent to
+  // /no-access (see src/lib/admin-paths.ts for why not /dashboard)
+  // before any admin page/layout renders (including RSC fetches on client
+  // navigation, which skip the layout). This is the pre-filter only -- the
+  // secure check is requireAdminPage() (src/lib/admin-auth.ts) in the admin layout
+  // and every admin page. See "Admin route protection" in .claude/rules/admin-route-protection.md.
+  if (user && isAdminPath(pathname)) {
+    // The role comes from the `app_role` claim that the custom access token
+    // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)
+    // puts in every token -- no user_profiles read. A missing claim counts as
+    // not-admin. The claim can be up to one access-token lifetime stale
+    // (auth.jwt_expiry), which is fine for a pre-filter: requireAdminPage()
+    // re-reads user_profiles. Sudo doesn't matter: the sudo cookie only
+    // changes the *effective member*, not the signed-in user.
+    // An admin previewing a lower role is checked as that role (src/lib/staff-preview.ts), but sent to its home
+    // instead of /no-access, which has no way out of the preview.
+    const checkedAs = effectiveStaffRole(roleClaim, request.cookies.get(STAFF_PREVIEW_COOKIE)?.value)
+    const previewing = roleClaim === 'admin' && checkedAs !== 'admin'
+    if (!mayOpenAdminPath(checkedAs, pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = previewing ? COMMUNITY_MANAGER_HOME : ADMIN_NO_ACCESS_PATH
+      url.search = ''
+      const redirectResponse = NextResponse.redirect(url)
+      // Keep any session cookies getUser() just refreshed.
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+      return redirectResponse
+    }
+    // Staff who have a second step but haven't passed it, or must set one up, go to /mfa and come back
+    // (src/lib/staff-mfa.ts). getUser() above is what returned `user.factors`, so a factor removed in the dashboard counts now.
+    const mfa = staffMfaState({
+      aal: aalClaim,
+      hasFactor: hasVerifiedTotp(user.factors),
+      enforced: isStaffMfaEnforced(clock.now()),
+    })
+    if (blocksStaff(mfa)) {
+      const url = request.nextUrl.clone()
+      const gate = new URL(gateHref(GATES.staffMfa, askedFor(request)), request.nextUrl.origin)
+      url.pathname = gate.pathname
+      url.search = gate.search
+      const redirectResponse = NextResponse.redirect(url)
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+      return redirectResponse
+    }
+  }
+
+  return supabaseResponse
+}

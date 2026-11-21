@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
-// The goal actions in app/(member)/projects/actions.ts, over the in-memory writing repository.
+// The goal actions in src/app/(member)/projects/actions.ts, over the in-memory writing repository.
 // RLS enforcement itself is out of scope here (the db contract covers the repository). Project
 // ownership is still checked straight against writing_projects, so the Supabase fake answers only that.
 

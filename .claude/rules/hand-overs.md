@@ -1,8 +1,8 @@
 ---
 paths:
-  - "lib/care*.ts"
-  - "lib/data/care*.ts"
-  - "app/**/care/**"
+  - "src/lib/care*.ts"
+  - "src/lib/data/care*.ts"
+  - "src/app/**/care/**"
   - "supabase/migrations/*care*"
 ---
 

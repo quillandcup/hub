@@ -10,7 +10,7 @@
 #
 # Settings > Security & Privacy. Organization-wide, so every project inherits them (a project's own
 # switches show as locked). Server-side scrubbing covers errors, traces and logs; Session Replay masking
-# is client-side (instrumentation-client.ts), and replay retention is set by Sentry's plan, not here.
+# is client-side (src/instrumentation-client.ts), and replay retention is set by Sentry's plan, not here.
 organization:
   # Strip passwords, credit card numbers and other sensitive values from events on Sentry's servers.
   dataScrubber: true
@@ -42,7 +42,7 @@ alerts:
     tag: { key: logger, value: csp }
     moreThan: { count: 100, interval: 1h }
     frequencyMinutes: 60
-  # The daily health check (app/api/internal/csp-health) sends one Sentry event per failing check, tagged
+  # The daily health check (src/app/api/internal/csp-health) sends one Sentry event per failing check, tagged
   # csp_health_check=<check> (a plain custom tag, so it is indexed whatever the SDK does with Sentry's own logger
   # field; the three rules above filter on logger=csp and never match these). Every event of an issue is evaluated,
   # the first emails at once, and frequencyMinutes 1440 keeps a problem that lasts days to one email a day per issue.

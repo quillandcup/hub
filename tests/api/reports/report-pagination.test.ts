@@ -118,7 +118,7 @@ describe('Report Route Pagination', () => {
       const fs = await import('fs/promises')
       const path = await import('path')
       const content = await fs.readFile(
-        path.join(process.cwd(), 'app/api/reports/name-matching/route.ts'), 'utf-8'
+        path.join(process.cwd(), 'src/app/api/reports/name-matching/route.ts'), 'utf-8'
       )
       // Zoom attendees, members and prickle_attendance go through their repositories, which paginate (tests/api/data/)
       expect(content).toContain('zoom.attendeesForMatching(')
@@ -209,7 +209,7 @@ describe('Report Route Pagination', () => {
       const fs = await import('fs/promises')
       const path = await import('path')
       const content = await fs.readFile(
-        path.join(process.cwd(), 'app/api/reports/unmatched-slack-users/route.ts'), 'utf-8'
+        path.join(process.cwd(), 'src/app/api/reports/unmatched-slack-users/route.ts'), 'utf-8'
       )
       // The repository pages through the metadata view (its contract covers 1000+ rows)
       expect(content).toContain('slackMessages.messageCountsByUser()')
@@ -229,7 +229,7 @@ describe('Report Route Pagination', () => {
       const fs = await import('fs/promises')
       const path = await import('path')
       const content = await fs.readFile(
-        path.join(process.cwd(), 'app/api/members/network/route.ts'), 'utf-8'
+        path.join(process.cwd(), 'src/app/api/members/network/route.ts'), 'utf-8'
       )
       // Members and prickle_attendance go through their repositories, which paginate
       // (tests/api/data/)

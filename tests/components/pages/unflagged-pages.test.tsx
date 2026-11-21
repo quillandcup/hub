@@ -3,7 +3,7 @@
  * Streaks, Prickle Picker and Wheel of Wonder used to sit behind feature flags. They're now on for
  * everyone, so a signed-in member with NO feature previews must get the page, not a redirect. The
  * fake Supabase client has no feature_flags / user_feature_previews / segment rows, so a re-added
- * gate via lib/features.server would see an empty flag set and redirect -- which these tests catch.
+ * gate via src/lib/features.server would see an empty flag set and redirect -- which these tests catch.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
@@ -149,7 +149,7 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  // The admin wheel page guards itself with requireAdminPage() (lib/admin-auth.ts, run for real here
+  // The admin wheel page guards itself with requireAdminPage() (src/lib/admin-auth.ts, run for real here
   // against the fake user_profiles rows) rather than relying on the admin layout.
   it("admin Wheel of Wonder still renders for an admin in sudo mode", async () => {
     signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: true });

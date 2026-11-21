@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The secure admin checks behind proxy.ts's optimistic /admin pre-filter (lib/admin-auth.ts):
+ * The secure admin checks behind src/proxy.ts's optimistic /admin pre-filter (src/lib/admin-auth.ts):
  * requireAdminPage() in the admin layout and every admin page, requireAdminAction() in every
  * admin server action. Signed-in non-admins end at /no-access.
  */
@@ -27,7 +27,7 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const preview = vi.hoisted(() => ({ role: null as string | null }));
 vi.mock("@/lib/staff-preview.server", () => ({ getStaffPreviewRole: async () => preview.role }));
-// The second sign-in step (lib/staff-mfa.ts); its own states are tested in tests/lib/staff-mfa.test.ts.
+// The second sign-in step (src/lib/staff-mfa.ts); its own states are tested in tests/lib/staff-mfa.test.ts.
 const mfa = vi.hoisted(() => ({ state: "ok" as "ok" | "challenge" | "enrol" | "suggest" }));
 vi.mock("@/lib/staff-mfa.server", () => ({ getStaffMfaState: async () => mfa.state }));
 vi.mock("@/lib/gates.server", async () => {
@@ -315,7 +315,7 @@ describe("requireStaffAction", () => {
   });
 });
 
-describe("the second sign-in step (lib/staff-mfa.ts)", () => {
+describe("the second sign-in step (src/lib/staff-mfa.ts)", () => {
   const MFA_GATE = "/mfa?staff=required&next=%2Fadmin%2Fmembers";
   const staffPage = async () => {
     await requireStaffPage();
@@ -399,15 +399,15 @@ describe("merge-fix dismiss actions", () => {
 // Conformance: these catch a new admin page / admin action added without its check. (Source
 // scans, unlike the behavioural tests above, because the point is "every file", not one flow.)
 const repoRoot = path.resolve(__dirname, "../../..");
-const adminRoot = path.join(repoRoot, "app/(admin)");
+const adminRoot = path.join(repoRoot, "src/app/(admin)");
 const adminFiles = (fs.readdirSync(adminRoot, { recursive: true }) as string[]).map((f) =>
-  path.join("app/(admin)", f)
+  path.join("src/app/(admin)", f)
 );
 const read = (file: string) => fs.readFileSync(path.join(repoRoot, file), "utf8");
 
-// The route a page file serves: "app/(admin)/admin/members/[id]/slack/page.tsx" → "/admin/members/x/slack".
+// The route a page file serves: "src/app/(admin)/admin/members/[id]/slack/page.tsx" → "/admin/members/x/slack".
 const routeOf = (file: string) =>
-  file.replace("app/(admin)", "").replace(/\/page\.tsx$/, "").replace(/\[[^\]]+\]/g, "x") || "/";
+  file.replace("src/app/(admin)", "").replace(/\/page\.tsx$/, "").replace(/\[[^\]]+\]/g, "x") || "/";
 
 describe("every admin page calls requireAdminPage(), or requireStaffPage() when a community manager may open it", () => {
   // Layouts don't re-run on client navigation and don't stop a page segment from rendering.
@@ -418,7 +418,7 @@ describe("every admin page calls requireAdminPage(), or requireStaffPage() when 
   });
 
   it.each(pages)("%s", (file) => {
-    // Admin-only unless lib/staff-access.ts lists the route: a page can't open to a community manager
+    // Admin-only unless src/lib/staff-access.ts lists the route: a page can't open to a community manager
     // without the allowlist (proxy and sidebar) agreeing, nor be listed there without its page check.
     const open = isCommunityManagerPath(routeOf(file));
     expect(read(file)).toMatch(open ? /await requireStaffPage\(\)/ : /await requireAdminPage\(\)/);
@@ -427,13 +427,13 @@ describe("every admin page calls requireAdminPage(), or requireStaffPage() when 
 
 describe("every admin server action calls requireAdminAction(), or requireStaffAction() where a community manager may write", () => {
   // Server actions are directly callable POST endpoints: the page's guard doesn't cover them.
-  // Admin-only action modules outside app/(admin) are listed explicitly.
-  const ADMIN_ACTION_FILES_ELSEWHERE = ["app/actions/sudo.ts"];
+  // Admin-only action modules outside src/app/(admin) are listed explicitly.
+  const ADMIN_ACTION_FILES_ELSEWHERE = ["src/app/actions/sudo.ts"];
   // Exported actions that are deliberately not admin-only, with the reason.
   const NOT_ADMIN_ONLY: Record<string, string> = {
     // Only clears the caller's own sudo cookies; must keep working even if the role was revoked.
-    "app/actions/sudo.ts#exitSudo": "clears own cookies",
-    "app/actions/sudo.ts#exitSudoToAdmin": "clears own cookies, then opens /admin (which checks the role itself)",
+    "src/app/actions/sudo.ts#exitSudo": "clears own cookies",
+    "src/app/actions/sudo.ts#exitSudoToAdmin": "clears own cookies, then opens /admin (which checks the role itself)",
   };
   const actionFiles = [
     ...adminFiles.filter((f) => /\.tsx?$/.test(f) && /^\s*["']use server["']/m.test(read(f))),
@@ -451,17 +451,17 @@ describe("every admin server action calls requireAdminAction(), or requireStaffA
   it("finds the admin actions", () => {
     expect(actions.map(([id]) => id)).toEqual(
       expect.arrayContaining([
-        "app/(admin)/admin/hygiene/merge-fix/actions.ts#dismissGroup",
-        "app/(admin)/admin/hygiene/merge-fix/actions.ts#undismissGroup",
-        "app/actions/sudo.ts#startSudo",
+        "src/app/(admin)/admin/hygiene/merge-fix/actions.ts#dismissGroup",
+        "src/app/(admin)/admin/hygiene/merge-fix/actions.ts#undismissGroup",
+        "src/app/actions/sudo.ts#startSudo",
       ])
     );
   });
 
   // Action modules a community manager may call, each export opening with requireStaffAction() and then asking for
-  // its staff feature (lib/staff-access.ts), with the reason. Everything else stays admin-only.
+  // its staff feature (src/lib/staff-access.ts), with the reason. Everything else stays admin-only.
   const STAFF_ACTION_FILES: Record<string, string> = {
-    "app/(admin)/admin/care/actions.ts": "the community manager writes Hedgie Care (feature care.write)",
+    "src/app/(admin)/admin/care/actions.ts": "the community manager writes Hedgie Care (feature care.write)",
   };
 
   it.each(actions.filter(([id]) => !(id in NOT_ADMIN_ONLY)))("%s", (id, body) => {

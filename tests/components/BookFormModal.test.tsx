@@ -17,7 +17,7 @@ vi.mock("@/app/(member)/projects/actions", () => ({
   publishProject: vi.fn(),
 }));
 
-// Copy lives in components/books/BookFormModal.tsx -- a distinctive fragment is enough to
+// Copy lives in src/components/books/BookFormModal.tsx -- a distinctive fragment is enough to
 // confirm the right block renders without asserting on the full verbatim text here.
 const DISCLAIMER_FRAGMENT = /substantially written as part of your Quill/;
 

@@ -71,7 +71,7 @@ describe('requireAdmin', () => {
     expect(result.forbidden).toBe(false)
   })
 
-  describe('second sign-in step (lib/staff-mfa.ts)', () => {
+  describe('second sign-in step (src/lib/staff-mfa.ts)', () => {
     const totp = [{ factor_type: 'totp', status: 'verified' }]
     const adminAt = (mfa: { aal?: string; factors?: unknown[] }) =>
       vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, 'admin', undefined, mfa) as any)

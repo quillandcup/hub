@@ -55,7 +55,7 @@ describe("MilestonesPanel (per work)", () => {
     expect(screen.getByRole("link", { name: "Go to the Bookshelf" })).toHaveAttribute("href", "/bookshelf");
   });
 
-  it("lists each work with its own rows and states, titles from lib/finishers.ts", () => {
+  it("lists each work with its own rows and states, titles from src/lib/finishers.ts", () => {
     render(
       <MilestonesPanel
         milestones={[milestone({ status: "confirmed", source: "member", achievedOn: "2026-05-01", confirmedAt: "2026-11-21" }), milestone({ id: "mlst_2", kind: "publish_ready" })]}

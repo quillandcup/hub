@@ -21,8 +21,8 @@ const DOC_PATTERNS = [
   /^\.claude\/rules\/[^/]+\.mdc$/, // agent rules written as .mdc
 ];
 
-// Read at build time by the /help pages (lib/help.ts), so a change to one ships like code, not like docs.
-const READ_BY_THE_APP = /^content\/help\//;
+// Read at build time by the /help pages (src/lib/help.ts), so a change to one ships like code, not like docs.
+const READ_BY_THE_APP = /^src\/content\/help\//;
 
 export function isDocsOnly(files: string[]): boolean {
   return (

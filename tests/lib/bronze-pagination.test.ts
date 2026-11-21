@@ -1,9 +1,9 @@
 /**
  * Regression test for the Supabase default row-cap on Bronze-schema reads.
  *
- * fetchAllBronzeRows (lib/supabase/bronze-pagination.ts) is the shared helper behind
- * every Bronze-table read in app/api/process/members/route.ts and
- * lib/kajabi/membership-history.ts. A prior audit found that route.ts fetched
+ * fetchAllBronzeRows (src/lib/supabase/bronze-pagination.ts) is the shared helper behind
+ * every Bronze-table read in src/app/api/process/members/route.ts and
+ * src/lib/kajabi/membership-history.ts. A prior audit found that route.ts fetched
  * bronze.stripe_customers with a single unguarded `.select()` instead of this helper —
  * capped at the project's max-rows setting (1000 in production; 5000 locally per
  * supabase/config.toml's [api] block) — silently dropping rows past that cap from the
@@ -13,7 +13,7 @@
  * every one of them, including rows past the cutoff. It seeds into bronze.kajabi_contacts
  * rather than bronze.stripe_customers: fetchAllBronzeRows itself doesn't care which
  * Bronze table it's paginating, but stripe_customers rows are also consumed by
- * lib/kajabi/membership-history.ts to build an `.in(...)` filter over stripe_subscriptions
+ * src/lib/kajabi/membership-history.ts to build an `.in(...)` filter over stripe_subscriptions
  * whose URL length scales with total row count — since Vitest runs test files in
  * parallel against the same local Supabase instance, thousands of extra stripe_customers
  * rows here would intermittently break every *other* concurrently-running test that

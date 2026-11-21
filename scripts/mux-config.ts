@@ -20,7 +20,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import appConfig from "../config/app";
-import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, restrictionEnvAdvice, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress, looksLikeTunnel, sameAddress } from "../lib/mux-config";
+import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, restrictionEnvAdvice, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress, looksLikeTunnel, sameAddress } from "../src/lib/mux-config";
 import { outboundFetch } from "@/lib/http/outbound";
 
 const API = "https://api.mux.com";

@@ -54,7 +54,7 @@ reprocessed.
 | `type_id` | FK `prickle_types`, `ON DELETE CASCADE` |
 | `day_of_week` | 0=Sun..6=Sat, same convention as `prickle_schedules.day_of_week` |
 | `start_time_local` | `TIME`, wall-clock time in `timezone` |
-| `timezone` | Always the schedule's timezone, `America/New_York` (`SCHEDULE_TIMEZONE` in `lib/commitments.ts`): prickles repeat at a fixed New York wall-clock time across DST. The commitment's dates are local to it. The app shows slots in the member's own timezone (`slotInTimeZone`). Before migration `20260928000200` it was the member's timezone; that migration converted existing rows |
+| `timezone` | Always the schedule's timezone, `America/New_York` (`SCHEDULE_TIMEZONE` in `src/lib/commitments.ts`): prickles repeat at a fixed New York wall-clock time across DST. The commitment's dates are local to it. The app shows slots in the member's own timezone (`slotInTimeZone`). Before migration `20260928000200` it was the member's timezone; that migration converted existing rows |
 | | UNIQUE `(commitment_id, type_id, day_of_week, start_time_local, timezone)` |
 
 Design choices:
@@ -130,13 +130,13 @@ rule and the RPC's rollback.
   - One row of weekly dots per slot (kept, missed, pending, upcoming, or no session), with that
     slot's kept count.
   - A two-step cancel for active commitments.
-- **Upcoming / Dashboard** (`lib/upcoming-prickles.ts`): an upcoming prickle matching **any** slot
+- **Upcoming / Dashboard** (`src/lib/upcoming-prickles.ts`): an upcoming prickle matching **any** slot
   of an active commitment gets the commitment ranking tier (just below hosting) and the 📌 badge.
   The tooltip depends on how many sessions a week the commitment has:
   - One: "Week 2 of 4 · 1 kept so far".
   - Several: "Week 2 of 4 · 5 sessions kept so far".
 
-### Progress: kept vs. missed (`lib/commitments.ts`, pure)
+### Progress: kept vs. missed (`src/lib/commitments.ts`, pure)
 
 For every slot × week of the window:
 
@@ -165,7 +165,7 @@ For every slot × week of the window:
    `slotIndex` and 1-based `week`.
 
 Data fetching happens in `getMyCommitments`
-(`app/(member)/my-prickles/commitment-actions.ts`):
+(`src/app/(member)/my-prickles/commitment-actions.ts`):
 
 - One query for the member's commitments with their slots embedded.
 - One paginated query for prickles of the relevant types across the union window
@@ -208,14 +208,14 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 
 | Piece | Where | Notes |
 |---|---|---|
-| Notifications | `lib/notifications/` `createNotifier` | Honors each member's per-kind, per-channel settings (`notification_preferences`, `/settings/notifications`). Channels are Slack (via `sendSlackDM`, honoring `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID`), in-app, and email (via `sendEmail`, honoring `EMAIL_TEST_MODE` / `EMAIL_DEV_ADDRESS`; opt-in for now). Commitment nudges should be new kinds here, not their own opt-out columns |
-| Member → Slack user resolution | `lib/slack-member-ids.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
-| Check-in DM job | `app/api/internal/prickle-checkins/route.ts` | Polled every 5 min by **Supabase pg_cron + pg_net** (job `send-prickle-checkins`, `20261003130000_rename_nudges_to_prickle_checkins.sql`). It was put on pg_cron when the project was on Vercel's Hobby plan, whose cron runs at most once a day; the project is on Pro now, which allows every minute, so Vercel Cron could run it, but pg_cron works and stays. Auth via `CRON_INTERNAL_SECRET`. Goes to active members, with or without a writing goal, for prickles on their calendar feed (hosting, an active commitment, or added by hand), using the feed's own loader (`loadCalendarFeedPrickleIds`). Asks the check-in's "coming in" questions (feelings, need) |
-| Check-out DM | `sendCheckoutDMs` in `lib/prickle-checkin-dms.ts`, run by the same 5-minute cron as the check-ins. Live presence from the Zoom participant webhooks (`bronze.zoom_participant_events`, `lib/zoom-presence.ts`) makes it due 5 minutes after the prickle ends, or 10 minutes after an early leaver leaves; attendance (imported only after the Zoom meeting ends) is the backstop, up to 6 hours after the prickle | Asks how it went and how they feel now, then a static-select progress quick-log per goal. Handled in `app/api/webhooks/slack/interactions/route.ts`: check-in answers (`prickle_checkin_answer`) save to `prickle_checkins`, the same row as the prickle page's check-in; the quick-log (`writing_quick_log`) writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
+| Notifications | `src/lib/notifications/` `createNotifier` | Honors each member's per-kind, per-channel settings (`notification_preferences`, `/settings/notifications`). Channels are Slack (via `sendSlackDM`, honoring `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID`), in-app, and email (via `sendEmail`, honoring `EMAIL_TEST_MODE` / `EMAIL_DEV_ADDRESS`; opt-in for now). Commitment nudges should be new kinds here, not their own opt-out columns |
+| Member → Slack user resolution | `src/lib/slack-member-ids.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
+| Check-in DM job | `src/app/api/internal/prickle-checkins/route.ts` | Polled every 5 min by **Supabase pg_cron + pg_net** (job `send-prickle-checkins`, `20261003130000_rename_nudges_to_prickle_checkins.sql`). It was put on pg_cron when the project was on Vercel's Hobby plan, whose cron runs at most once a day; the project is on Pro now, which allows every minute, so Vercel Cron could run it, but pg_cron works and stays. Auth via `CRON_INTERNAL_SECRET`. Goes to active members, with or without a writing goal, for prickles on their calendar feed (hosting, an active commitment, or added by hand), using the feed's own loader (`loadCalendarFeedPrickleIds`). Asks the check-in's "coming in" questions (feelings, need) |
+| Check-out DM | `sendCheckoutDMs` in `src/lib/prickle-checkin-dms.ts`, run by the same 5-minute cron as the check-ins. Live presence from the Zoom participant webhooks (`bronze.zoom_participant_events`, `src/lib/zoom-presence.ts`) makes it due 5 minutes after the prickle ends, or 10 minutes after an early leaver leaves; attendance (imported only after the Zoom meeting ends) is the backstop, up to 6 hours after the prickle | Asks how it went and how they feel now, then a static-select progress quick-log per goal. Handled in `src/app/api/webhooks/slack/interactions/route.ts`: check-in answers (`prickle_checkin_answer`) save to `prickle_checkins`, the same row as the prickle page's check-in; the quick-log (`writing_quick_log`) writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
 | Dedup log | `prickle_checkin_dm_log`, UNIQUE `(prickle_id, member_id, kind)` | Insert-first, send only if the insert landed. Keyed on a `prickles.id` FK with `ON DELETE CASCADE`, so a calendar reprocess can wipe it and allow a resend |
-| In-app progress logging | `components/writing/LogProgressModal.tsx` (accepts `prickleId`), `app/(member)/projects/` `logProgress` | |
+| In-app progress logging | `src/components/writing/LogProgressModal.tsx` (accepts `prickleId`), `src/app/(member)/projects/` `logProgress` | |
 | Email | **None for app messages.** Resend is only configured as Supabase Auth's SMTP (invites, magic links, in `supabase/config.toml`); React Email templates exist for those auth emails only | Sending app email would need a Resend API key and a sender module |
-| In-app notifications | The "In the Hub" channel (`lib/channels/in-app.ts`, `in_app_notifications`): a bell in the member header, a `/notifications` inbox, and a banner while time-sensitive, sent through `createNotifier` like Slack. Behind the `in_app_notifications` flag | Check-ins and check-outs use it today |
+| In-app notifications | The "In the Hub" channel (`src/lib/channels/in-app.ts`, `in_app_notifications`): a bell in the member header, a `/notifications` inbox, and a banner while time-sensitive, sent through `createNotifier` like Slack. Behind the `in_app_notifications` flag | Check-ins and check-outs use it today |
 
 ### Channels, in recommended order
 
@@ -249,13 +249,13 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 
 ### Implementation sketch
 
-**New route `app/api/internal/nudges/commitments/route.ts`.** Poll it from the existing pg_cron job,
+**New route `src/app/api/internal/nudges/commitments/route.ts`.** Poll it from the existing pg_cron job,
 either by adding a second `cron.schedule` or by folding it into the current route. On each tick:
 
 1. Load active commitments where `end_date >= today - 1`. This set is small, but still paginate.
 2. For prickles starting in the 15–30 minute window, match them to commitment occurrences
    (any slot) with `computeCommitmentProgress`, the same way `computeCommitmentSignals` in
-   `lib/upcoming-prickles.ts` already does. That's the same matching the progress view uses, so
+   `src/lib/upcoming-prickles.ts` already does. That's the same matching the progress view uses, so
    "what we nudged about" and "what counts as kept" never disagree.
 3. For each match, claim the send, then send the DM.
 
@@ -296,11 +296,11 @@ CREATE TABLE commitment_nudge_log (
 - **Per commitment**: add a `nudges_enabled BOOLEAN NOT NULL DEFAULT true` column, set with a
   checkbox on the commitment form ("Remind me before each session"). Committing is itself the
   opt-in, so the default is on.
-- **Global**: commitment nudges are notification kinds (`lib/notifications/registry.ts`), so
+- **Global**: commitment nudges are notification kinds (`src/lib/notifications/registry.ts`), so
   members turn them off, or pick their channels, on `/settings/notifications` like any other
   notification. No separate preference column.
 - **In the message**: every DM gets a "Stop these reminders" button, handled in
-  `app/api/webhooks/slack/interactions/route.ts`. It sets `nudges_enabled = false` on that
+  `src/app/api/webhooks/slack/interactions/route.ts`. It sets `nudges_enabled = false` on that
   commitment. Pausing the commitment is a separate action from muting its reminders.
 - Cancelled and completed commitments never nudge.
 
@@ -332,7 +332,7 @@ Commitments are the explicit case. The same pipeline generalizes by swapping in 
 - Define an interface: an intent source yields `(member_id, slot, confidence, source)` for an
   upcoming occurrence. Commitments yield confidence 1.0. A heuristic source yields "attended this
   slot 3 of the last 4 weeks" with confidence of about 0.75, using the same slot matching as
-  `lib/commitments.ts` over `prickle_attendance`. Today `lib/prickle-checkin-dms.ts` takes its intent
+  `src/lib/commitments.ts` over `prickle_attendance`. Today `src/lib/prickle-checkin-dms.ts` takes its intent
   from the member's calendar feed (hosting, commitments, hand-added prickles), so it already
   consumes the explicit sources.
 - Generalize the dedup log to `(member_id, occurrence_key, kind)`, where `occurrence_key` is
@@ -444,7 +444,7 @@ because they use the same matching.
    admins read everything, but there's no UI yet.
 8. **Nudge channel and tone.** Slack DM first, is that agreed? Is a "missed you" message welcome, or
    too much pressure? What should the default nudge lead time be (20 minutes today)?
-9. **Rewards.** Should kept commitments feed badges or streaks (`lib/badges.ts`, `lib/streaks.ts`),
+9. **Rewards.** Should kept commitments feed badges or streaks (`src/lib/badges.ts`, `src/lib/streaks.ts`),
    or engagement scoring beyond the +3 on creation? Should cancellations be logged as activity?
 10. **Renewal.** *Partly answered:* a "Renew your commitment?" prompt at the end (Part 3). Should we
     also auto-renew by default with an opt-out?

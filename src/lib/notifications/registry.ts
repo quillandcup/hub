@@ -1,0 +1,224 @@
+import { CHANNELS, isChannelId, type ChannelId } from "@/lib/channels/catalog";
+import type { FeatureKey } from "@/lib/features";
+
+/**
+ * What the app can notify a member about (kinds), on top of the shared delivery channels
+ * (src/lib/channels/). Client-safe: the settings page renders its grid from these lists. Senders go
+ * through `createNotifier` (src/lib/notifications/notify.ts), which honors each member's
+ * notification_preferences.
+ *
+ * Adding a kind: add it here with its default channels, then send it with createNotifier. Adding a
+ * channel happens in src/lib/channels/ and shows up here automatically. Neither needs a migration:
+ * notification_preferences stores only a member's overrides of these defaults, keyed by these ids.
+ */
+
+/**
+ * Changing a kind's defaultChannels later (e.g. turning email on for everyone) is safe: a stored
+ * notification_preferences row means the member chose, even when the choice matched the default at
+ * the time (setNotificationChannel always stores it), and a missing row means they never chose.
+ * So only members with no row for that kind and channel see the new default; nobody's explicit
+ * opt-in or opt-out is touched.
+ */
+
+/** Every channel can carry notifications today; narrow this if one ever can't. */
+export const NOTIFICATION_CHANNELS = CHANNELS;
+export type NotificationChannelId = ChannelId;
+export const isNotificationChannel = isChannelId;
+
+export interface NotificationKindDef {
+  id: string;
+  /** Settings-page grouping heading. */
+  category: string;
+  label: string;
+  /** What it is and when it comes, as a sentence that also works after "You're getting emails about <label>." (the unsubscribe page) as well as under the label in settings. */
+  description: string;
+  /** Channels it goes to for a member who hasn't changed this kind's settings. */
+  defaultChannels: readonly NotificationChannelId[];
+  /**
+   * Instead of `defaultChannels`, for a member in their first 90 days (`isNewcomer`) who hasn't
+   * chosen: a kind can start on for new members only. It is a default like any other (a stored
+   * choice wins), and it stops applying when the window ends.
+   */
+  newcomerDefaultChannels?: readonly NotificationChannelId[];
+  /** A feature preview this kind belongs to: members without it don't see the kind in settings or search. */
+  feature?: FeatureKey;
+  /** For staff only: shown in settings and search only to members who are admins (the kind goes only to staff). */
+  staffOnly?: boolean;
+}
+
+export const NOTIFICATION_KINDS = [
+  {
+    id: "prickle_checkin",
+    category: "Prickles",
+    label: "Prickle check-ins",
+    description: "Sent about 20 minutes before each writing prickle on your calendar: how you're feeling coming in and what you need from it.",
+    defaultChannels: ["slack", "in_app", "web_push"],
+  },
+  {
+    id: "prickle_checkout",
+    category: "Prickles",
+    label: "Prickle check-outs",
+    description: "Sent a few minutes before each writing prickle you are in ends: did you get what you came for, how you feel now, and a quick progress log for your goals if you have any.",
+    defaultChannels: ["slack", "in_app", "web_push"],
+  },
+  {
+    id: "intro_nudge",
+    category: "Getting started",
+    label: "Introduction reminders",
+    description:
+      "For your first 90 days, a weekly reminder to introduce yourself in #start-here on Slack, until you have.",
+    defaultChannels: ["slack", "in_app"],
+  },
+  {
+    id: "prickle_nudge",
+    category: "Getting started",
+    label: "Prickle reminders",
+    description:
+      "A reminder to put a prickle on your calendar when you don't have one coming up and haven't been to one in a while. It comes less often the longer you go without attending.",
+    // Off until members opt in, except for new members, who get it from the start; widening that later
+    // is safe (see the note on defaultChannels above).
+    defaultChannels: [],
+    newcomerDefaultChannels: ["slack", "in_app"],
+  },
+  {
+    id: "big_sister_match",
+    category: "Big Sisters",
+    label: "Big Sister introductions",
+    description:
+      "Sent when a new member is matched with a big sister: to the new member, who their big sister is, and to the big sister, who they're looking after.",
+    defaultChannels: ["slack", "in_app", "web_push"],
+    feature: "big_sisters",
+  },
+  {
+    id: "changelog_digest",
+    category: "News about the Hub",
+    label: "What's new in the Hub",
+    description:
+      "A short note, at most once a week, when we have added or improved something. Nothing is sent in quiet weeks. The full list is on the What's new page.",
+    defaultChannels: ["slack", "in_app"],
+  },
+  // Hub chat. Off for everyone until they turn on "Hub chat is my main place" (Settings -> Notifications), which writes
+  // their choices for these three kinds: a bridged conversation is a real Slack one, and Slack already tells them.
+  {
+    id: "chat_dm",
+    category: "Chat",
+    label: "Direct messages",
+    description: "Sent when someone sends you a direct message in Hub Chat and you haven't read the conversation yet. A burst of messages is one notification, and it never contains the message itself.",
+    defaultChannels: [],
+    feature: "chat_notifications",
+  },
+  {
+    id: "chat_mention",
+    category: "Chat",
+    label: "Mentions in channels",
+    description: "Sent when someone mentions you (or the whole channel) in a Hub Chat channel and you haven't read the conversation yet. One notification per conversation until you read it, with a link to the conversation.",
+    defaultChannels: [],
+    feature: "chat_notifications",
+  },
+  {
+    id: "chat_channel_message",
+    category: "Chat",
+    label: "Messages in channels you follow",
+    description: "Sent for new messages in a channel you have set to notify you about every message (the bell on the conversation), until you read it. Channels notify you only when you are mentioned unless you change that.",
+    defaultChannels: [],
+    feature: "chat_notifications",
+  },
+  // Lesson comments (docs/product/COURSES.md, "Lesson comments"): shown in settings only to members who have comments on.
+  {
+    id: "lesson_comment_reply",
+    category: "Courses",
+    label: "Replies to your comments",
+    description: "Sent when someone replies to a comment you wrote under a course lesson, with a link to the reply. The reply itself isn't in the message.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
+    id: "lesson_comment_instructor_reply",
+    category: "Courses",
+    label: "Instructor replies",
+    description: "Sent when an instructor answers your question, or replies in a lesson thread you follow. Turn it off to keep other members' replies but not the instructors'.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
+    id: "lesson_comment_activity",
+    category: "Courses",
+    label: "New comments on lessons you follow",
+    description: "A note at most once a day, only on days when a lesson you follow has new comments. You follow a lesson by commenting on it or with the Follow button under its comments.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
+    id: "lesson_comment_moderation",
+    category: "Courses",
+    label: "Comments waiting for review",
+    description: "For staff: a note at most once a day, while lesson comments that were reported or held for review are waiting for a look.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+    staffOnly: true,
+  },
+] as const satisfies readonly NotificationKindDef[];
+
+/** The chat kinds, which the "Hub chat is my main place" switch turns on and off together. */
+export const CHAT_NOTIFICATION_KINDS = ["chat_dm", "chat_mention", "chat_channel_message"] as const satisfies readonly string[];
+export type ChatNotificationKindId = (typeof CHAT_NOTIFICATION_KINDS)[number];
+
+/**
+ * "Hub chat is my main place" (Settings -> Notifications): the member wants Hub chat to tell them about direct messages, mentions
+ * and followed channels, so it is on when any channel is on for any of the three chat kinds. The kinds are off by default
+ * (Slack already tells them about the same conversations); the switch writes ordinary per-kind choices, and the grid below it
+ * can still fine-tune them.
+ */
+export function chatIsMainPlace(channelsByKind: Readonly<Record<string, readonly string[] | undefined>>): boolean {
+  return CHAT_NOTIFICATION_KINDS.some((kind) => (channelsByKind[kind]?.length ?? 0) > 0);
+}
+
+export type NotificationKindId = (typeof NOTIFICATION_KINDS)[number]["id"];
+
+export function isNotificationKind(id: unknown): id is NotificationKindId {
+  return NOTIFICATION_KINDS.some((k) => k.id === id);
+}
+
+export function notificationKind(id: NotificationKindId): NotificationKindDef {
+  return NOTIFICATION_KINDS.find((k) => k.id === id)!;
+}
+
+/** One stored override: this kind on this channel is on or off for the member. */
+export interface NotificationPreferenceRow {
+  kind: string;
+  channel: string;
+  enabled: boolean;
+}
+
+export interface DefaultsContext {
+  /** The member is in their first 90 days (`isNewcomer`), so a kind's `newcomerDefaultChannels` apply. */
+  newcomer?: boolean;
+}
+
+/**
+ * The channels a kind goes to for one member: the kind's defaults, with that member's stored
+ * overrides applied. Overrides for unknown kinds/channels (e.g. a channel since removed) are ignored.
+ */
+export function effectiveChannels(
+  kind: NotificationKindId,
+  overrides: readonly NotificationPreferenceRow[],
+  { newcomer = false }: DefaultsContext = {}
+): NotificationChannelId[] {
+  const def = notificationKind(kind);
+  const defaults = new Set<string>((newcomer && def.newcomerDefaultChannels) || def.defaultChannels);
+  return NOTIFICATION_CHANNELS.map((c) => c.id).filter((channel) => {
+    const override = overrides.find((o) => o.kind === kind && o.channel === channel);
+    return override ? override.enabled : defaults.has(channel);
+  });
+}
+
+/** Every kind's effective channels for one member, as the settings grid shows them. */
+export function effectiveSettings(
+  overrides: readonly NotificationPreferenceRow[],
+  context: DefaultsContext = {}
+): Record<NotificationKindId, NotificationChannelId[]> {
+  return Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k.id, effectiveChannels(k.id, overrides, context)])) as Record<
+    NotificationKindId,
+    NotificationChannelId[]
+  >;
+}

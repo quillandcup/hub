@@ -1,0 +1,435 @@
+export type WritingMeasure = "prickles" | "words" | "time_minutes" | "pages" | "chapters" | "scenes" | "lines";
+export type EntryMode = "delta" | "set_total";
+
+export const PROJECT_PHASES = [
+  "planning",
+  "outlining",
+  "drafting",
+  "first_read_through",
+  "revising",
+  "developmental_edit",
+  "beta_readers",
+  "line_copy_edit",
+  "final_read_through",
+  "final_beta_read",
+  "publishing",
+  "complete",
+  "published",
+  "hibernating",
+] as const;
+export type ProjectPhase = (typeof PROJECT_PHASES)[number];
+
+/**
+ * Phases a member can pick manually from a project's phase selector. 'published' is excluded --
+ * it can only be reached via the Publish flow (publishProject), which links a Bookshelf entry in
+ * the same step. See the comment on publishProject in src/app/(member)/projects/actions.ts.
+ */
+export const MANUALLY_SETTABLE_PHASES = PROJECT_PHASES.filter((p) => p !== "published") as Exclude<
+  ProjectPhase,
+  "published"
+>[];
+
+export const PHASE_LABELS: Record<ProjectPhase, string> = {
+  planning: "Planning",
+  outlining: "Outlining",
+  drafting: "Drafting",
+  first_read_through: "First read-through",
+  revising: "Revising",
+  developmental_edit: "Developmental edit",
+  beta_readers: "Beta readers",
+  line_copy_edit: "Line & copy edit",
+  final_read_through: "Final read-through",
+  final_beta_read: "Final beta read",
+  publishing: "Publishing",
+  complete: "Complete",
+  published: "Published",
+  hibernating: "Hibernating",
+};
+
+export const WRITING_MEASURES: WritingMeasure[] = [
+  "prickles",
+  "words",
+  "time_minutes",
+  "pages",
+  "chapters",
+  "scenes",
+  "lines",
+];
+
+export const MEASURE_LABELS: Record<WritingMeasure, string> = {
+  prickles: "Prickles attended",
+  words: "Words",
+  time_minutes: "Time (minutes)",
+  pages: "Pages",
+  chapters: "Chapters",
+  scenes: "Scenes",
+  lines: "Lines",
+};
+
+/**
+ * An example amount for the goal form's number fields, so the placeholder fits the chosen measure
+ * (50,000 reads fine for words, not for prickles attended). `target` is a total to reach; `habit`
+ * is what to log in one period (a day, week or month).
+ */
+export const GOAL_EXAMPLES: Record<"target" | "habit", Record<WritingMeasure, string>> = {
+  target: { prickles: "20", words: "50000", time_minutes: "3000", pages: "300", chapters: "30", scenes: "60", lines: "2000" },
+  habit: { prickles: "2", words: "500", time_minutes: "60", pages: "2", chapters: "1", scenes: "2", lines: "50" },
+};
+
+/**
+ * The prickle check-out's progress question, by measure: a fill-in-the-blank number (web modal
+ * and Slack DM alike), worded for what's being counted. 'prickles' is intentionally absent -- that
+ * measure is computed live from prickle_attendance (see derivePrickleHabitEntries below), never
+ * manually logged, so there's nothing to ask for it.
+ */
+const PROGRESS_VERBS: Partial<Record<WritingMeasure, string>> = {
+  words: "How many words did you write",
+  time_minutes: "How many minutes did you spend",
+  pages: "How many pages did you write",
+  chapters: "How many chapters did you finish",
+  scenes: "How many scenes did you write",
+  lines: "How many lines did you write",
+};
+
+/** Measures the check-out can ask about (everything except 'prickles'). */
+export const PROGRESS_QUESTION_MEASURES = Object.keys(PROGRESS_VERBS) as WritingMeasure[];
+
+/** e.g. "How many words did you write on The Hedgehog's Journey during Monday Progress Prickle with Jenn P?" */
+export function progressQuestion(measure: WritingMeasure, projectTitle: string, prickleTitle: string): string {
+  return `${PROGRESS_VERBS[measure] ?? "How much did you get done"} on ${projectTitle} during ${prickleTitle}?`;
+}
+
+/**
+ * The measure a project's check-out question asks about: its first active goal's, skipping
+ * 'prickles' (counted from attendance, nothing to ask). Without one, the measure the member
+ * has logged most recently on it, else time_minutes -- the fastest to estimate right after a
+ * session and the universal fallback.
+ */
+export function progressMeasureFor(goalMeasures: WritingMeasure[], recentlyLogged: WritingMeasure[]): WritingMeasure {
+  return (
+    goalMeasures.find((m) => PROGRESS_VERBS[m]) ?? recentlyLogged.find((m) => PROGRESS_VERBS[m]) ?? "time_minutes"
+  );
+}
+
+export interface ProgressEntryInput {
+  entryDate: string; // YYYY-MM-DD
+  createdAt: string; // ISO timestamp, tiebreaker for same-day entries
+  mode: EntryMode;
+  amount: number;
+}
+
+/**
+ * Replays entries in (entryDate, createdAt) order -- not insertion order -- so a backdated entry
+ * recomputes the total correctly. A 'set_total' entry resets the running total to `amount` as of
+ * that entry; a 'delta' entry adds `amount` to whatever the running total was at that point. The
+ * replay starts from the project's starting balance, so a set total is the whole total, balance included.
+ */
+export function computeCumulativeTotal(entries: ProgressEntryInput[], startingBalance = 0): number {
+  const sorted = [...entries].sort(compareByDateThenCreatedAt);
+  let running = startingBalance;
+  for (const entry of sorted) {
+    running = entry.mode === "set_total" ? entry.amount : running + entry.amount;
+  }
+  return running;
+}
+
+/**
+ * What each entry added to the running total: a 'delta' adds its amount, a 'set_total' adds the
+ * difference between its amount and the total before it (negative if the total went down). Habit
+ * goals sum these per period, so setting a running total of 56,000 counts what was written since
+ * the last total, not 56,000 words. `startingBalance` seeds the total a first set_total replaces.
+ */
+export function entriesAsDeltas(
+  entries: ProgressEntryInput[],
+  startingBalance = 0
+): { entryDate: string; amount: number }[] {
+  const sorted = [...entries].sort(compareByDateThenCreatedAt);
+  let running = startingBalance;
+  return sorted.map((entry) => {
+    const next = entry.mode === "set_total" ? entry.amount : running + entry.amount;
+    const amount = next - running;
+    running = next;
+    return { entryDate: entry.entryDate, amount };
+  });
+}
+
+/**
+ * Same replay as computeCumulativeTotal, but returns the running total as of each date
+ * (chronological order) -- for a cumulative chart. Multiple entries on the same date collapse
+ * into a single point holding that day's final total, since a per-date chart axis can't
+ * usefully distinguish same-day points anyway.
+ */
+export function computeCumulativeSeries(
+  entries: ProgressEntryInput[],
+  startingBalance = 0
+): { entryDate: string; total: number }[] {
+  const sorted = [...entries].sort(compareByDateThenCreatedAt);
+  let running = startingBalance;
+  const byDate = new Map<string, number>();
+  for (const entry of sorted) {
+    running = entry.mode === "set_total" ? entry.amount : running + entry.amount;
+    byDate.set(entry.entryDate, running);
+  }
+  return [...byDate.entries()].map(([entryDate, total]) => ({ entryDate, total }));
+}
+
+/**
+ * Offsets a computed total (or chart point) by a project's starting balance for that measure --
+ * how much a member already had before they started tracking here. Kept as its own tested
+ * function so this rule lives in one place: it applies to displayed totals and the chart, but
+ * to a goal only when the goal has no start date (see computeGoalProgress): a goal with a window
+ * measures progress made within it, not a project's all-time total. Habit goals never include it.
+ */
+export function applyStartingBalance(total: number, startingBalance: number | undefined): number {
+  return total + (startingBalance ?? 0);
+}
+
+function compareByDateThenCreatedAt(a: ProgressEntryInput, b: ProgressEntryInput): number {
+  if (a.entryDate !== b.entryDate) return a.entryDate < b.entryDate ? -1 : 1;
+  return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+}
+
+export interface GoalProgressInput {
+  entries: ProgressEntryInput[]; // already filtered to this goal's measure (and project, if scoped)
+  targetAmount: number;
+  startDate: string | null; // YYYY-MM-DD
+  endDate: string | null; // YYYY-MM-DD
+  now: Date;
+  /** The project's starting balance for this measure; counts toward the goal only when it has no start date. */
+  startingBalance?: number;
+}
+
+export interface GoalProgress {
+  current: number;
+  target: number;
+  percent: number; // 0-100+, current/target
+  /** True when `current` includes the project's starting balance (a goal with no start date). */
+  includesStartingBalance: boolean;
+  /** The project's starting balance when the goal's start date leaves it out of `current`; null otherwise. */
+  excludedStartingBalance: number | null;
+  /** Pace needed-to-date to finish on time, or null if the goal has no end date (nothing to pace against). */
+  parTarget: number | null;
+  /** True if current >= parTarget; null when parTarget is null. */
+  onPace: boolean | null;
+  /** achieved: reached the target. ended: past its end date without reaching it. Else active. */
+  status: "active" | "achieved" | "ended";
+}
+
+/**
+ * Only counts entries within [startDate, endDate] (inclusive, either bound optional) -- a goal
+ * measures progress made toward it, not a project's all-time total. parTarget is target_amount
+ * scaled by elapsed/total days in the window, clamped to [0, target_amount]. A goal with no start
+ * date covers the project's whole history, so the starting balance counts toward it.
+ */
+export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
+  const { entries, targetAmount, startDate, endDate, now, startingBalance } = input;
+
+  // Deltas come from replaying every entry, not just the window's, so a set total inside the window
+  // counts what it added to the running total, not the whole total.
+  const deltas = entriesAsDeltas(entries, startingBalance);
+  const inWindow = deltas.filter(
+    (e) => (!startDate || e.entryDate >= startDate) && (!endDate || e.entryDate <= endDate)
+  );
+  const includesStartingBalance = !startDate && !!startingBalance;
+  const windowTotal = inWindow.reduce((sum, e) => sum + e.amount, 0);
+  const current = includesStartingBalance ? windowTotal + (startingBalance ?? 0) : windowTotal;
+  const percent = targetAmount > 0 ? (current / targetAmount) * 100 : 0;
+
+  let parTarget: number | null = null;
+  if (endDate && startDate) {
+    const totalDays = daysBetween(startDate, endDate);
+    const elapsedDays = daysBetween(startDate, isoDate(now));
+    const fraction = totalDays <= 0 ? 1 : Math.min(1, Math.max(0, elapsedDays / totalDays));
+    parTarget = targetAmount * fraction;
+  }
+
+  const status =
+    targetAmount > 0 && current >= targetAmount
+      ? "achieved"
+      : endDate && isoDate(now) > endDate
+        ? "ended"
+        : "active";
+
+  return {
+    current,
+    target: targetAmount,
+    percent,
+    includesStartingBalance,
+    excludedStartingBalance: startDate && startingBalance ? startingBalance : null,
+    parTarget,
+    onPace: parTarget === null ? null : current >= parTarget,
+    status,
+  };
+}
+
+/**
+ * A target goal whose end date passed before it reached its target. Shown only under "Past goals" on the
+ * project page: on the project list, dashboard and profile it would sit next to the project as a standing miss.
+ */
+export function isMissedGoal(goal: { kind: string; status?: string }): boolean {
+  return goal.kind === "target" && goal.status === "ended";
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const from = new Date(`${fromIso}T00:00:00Z`).getTime();
+  const to = new Date(`${toIso}T00:00:00Z`).getTime();
+  return Math.round((to - from) / (24 * 60 * 60 * 1000));
+}
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export interface PrickleAttendanceRow {
+  prickleId: string;
+  localDate: string; // YYYY-MM-DD, already resolved to the member's local calendar date
+}
+
+/**
+ * A prickles-measure goal's entries: distinct prickles attended per local date -- output feeds
+ * directly into computeHabitGoalProgress unchanged. Every writing prickle counts; purpose
+ * filtering happens upstream, at the query that produces `attendance` (see
+ * getMyPrickleAttendance). A member who left and rejoined has several rows for one prickle
+ * (see .claude/rules/attendance-table.md), and that's still one prickle.
+ */
+export function derivePrickleHabitEntries(attendance: PrickleAttendanceRow[]): { entryDate: string; amount: number }[] {
+  const pricklesByDate = new Map<string, Set<string>>();
+  for (const row of attendance) {
+    const ids = pricklesByDate.get(row.localDate) ?? new Set<string>();
+    ids.add(row.prickleId);
+    pricklesByDate.set(row.localDate, ids);
+  }
+
+  return [...pricklesByDate.entries()].map(([entryDate, ids]) => ({ entryDate, amount: ids.size }));
+}
+
+export type HabitPeriod = "day" | "week" | "month";
+
+export interface HabitProgressInput {
+  entries: { entryDate: string; amount: number }[]; // already filtered to this goal's measure (and project, if scoped)
+  period: HabitPeriod;
+  /** null means "logged something counts" -- any activity in the period is a hit. */
+  threshold: number | null;
+  now: Date;
+}
+
+export interface HabitProgress {
+  currentStreak: number;
+  longestStreak: number;
+  /** Average length of completed hit-runs (mirrors TrackBear's "typical streak length"). */
+  typicalStreak: number;
+  /** Hit periods / periods tracked (from the first-ever entry's period through the current period), 0-100. */
+  hitRatePercent: number;
+}
+
+/** Monday-start week index / day index / month index -- an integer that increments by exactly 1 per period, so consecutive periods differ by 1 regardless of period type. */
+function periodIndex(entryDateIso: string, period: HabitPeriod): number {
+  const [y, m, d] = entryDateIso.split("-").map(Number);
+  const utcMs = Date.UTC(y, m - 1, d);
+  if (period === "month") return y * 12 + (m - 1);
+  if (period === "day") return Math.floor(utcMs / (24 * 60 * 60 * 1000));
+
+  // week: normalize to that week's Monday before indexing, so any day in the
+  // same ISO week maps to the same index.
+  const date = new Date(utcMs);
+  const dayOfWeek = date.getUTCDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  date.setUTCDate(date.getUTCDate() - daysToMonday);
+  return Math.floor(date.getTime() / (7 * 24 * 60 * 60 * 1000));
+}
+
+/**
+ * A period is a "hit" if its total logged amount meets the threshold (or, with no threshold, if
+ * anything was logged at all). Per-period totals sum every entry's `amount` at face value
+ * -- callers pass set_total entries through `entriesAsDeltas` first, so a set total counts only
+ * what it added to the running total, not the whole total.
+ */
+export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgress {
+  const { entries, period, threshold, now } = input;
+  const empty: HabitProgress = { currentStreak: 0, longestStreak: 0, typicalStreak: 0, hitRatePercent: 0 };
+  if (entries.length === 0) return empty;
+
+  const totalsByPeriod = new Map<number, number>();
+  for (const e of entries) {
+    const idx = periodIndex(e.entryDate, period);
+    totalsByPeriod.set(idx, (totalsByPeriod.get(idx) ?? 0) + e.amount);
+  }
+
+  const hitPeriods = [...totalsByPeriod.entries()]
+    .filter(([, total]) => (threshold == null ? true : total >= threshold))
+    .map(([idx]) => idx)
+    .sort((a, b) => a - b);
+  if (hitPeriods.length === 0) return empty;
+
+  const runs: number[] = [];
+  let runLength = 1;
+  for (let i = 1; i < hitPeriods.length; i++) {
+    if (hitPeriods[i] === hitPeriods[i - 1] + 1) {
+      runLength++;
+    } else {
+      runs.push(runLength);
+      runLength = 1;
+    }
+  }
+  runs.push(runLength);
+
+  const longestStreak = Math.max(...runs);
+  const typicalStreak = runs.reduce((a, b) => a + b, 0) / runs.length;
+
+  const currentPeriod = periodIndex(isoDate(now), period);
+  const lastHitPeriod = hitPeriods[hitPeriods.length - 1];
+  // The current period isn't over yet, so being one period behind (haven't logged
+  // this period yet, but did last period) doesn't break the streak -- same grace
+  // window as src/lib/streaks.ts's attendance-streak logic.
+  const currentStreak = lastHitPeriod >= currentPeriod - 1 ? runs[runs.length - 1] : 0;
+
+  const firstPeriod = Math.min(...totalsByPeriod.keys());
+  const periodsTracked = currentPeriod - firstPeriod + 1;
+  const hitRatePercent = (hitPeriods.length / periodsTracked) * 100;
+
+  return { currentStreak, longestStreak, typicalStreak, hitRatePercent };
+}
+
+/**
+ * Phases a project leaves the main list in. Only "hibernating": a finished or published project stays
+ * with the ongoing ones, since members like to see it there (and they mark a completed one published
+ * from that list). My Writing lists the hibernating ones apart, under "Hibernating"; changing the
+ * status brings one back.
+ */
+export const PAST_PHASES = ["hibernating"] as const satisfies readonly ProjectPhase[];
+
+export function isPastPhase(phase: string): boolean {
+  return (PAST_PHASES as readonly string[]).includes(phase);
+}
+
+/**
+ * The order of a member's projects: the ones they never placed first (newest first, so a new project is at the top as it
+ * always was), then the placed ones by `sort_position`. The database sorts the same way (`projectSummaries`).
+ */
+export function compareProjectOrder(
+  a: { id: string; created_at: string; sort_position?: number | null },
+  b: { id: string; created_at: string; sort_position?: number | null }
+): number {
+  const pa = a.sort_position ?? null;
+  const pb = b.sort_position ?? null;
+  if (pa !== pb) {
+    if (pa === null) return -1;
+    if (pb === null) return 1;
+    return pa - pb;
+  }
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
+  return a.id === b.id ? 0 : a.id < b.id ? 1 : -1;
+}
+
+/**
+ * The order of a project's goals: the ones the member placed by `sort_position`, then the ones never placed (their order
+ * before this existed, by id, which the caller applies as the tie-break). The database sorts the same way (`projectGoals`).
+ */
+export function compareGoalOrder(a: number | null | undefined, b: number | null | undefined): number {
+  const pa = a ?? null;
+  const pb = b ?? null;
+  if (pa === pb) return 0;
+  if (pa === null) return 1;
+  if (pb === null) return -1;
+  return pa - pb;
+}

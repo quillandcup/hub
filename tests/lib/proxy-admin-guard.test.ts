@@ -1,5 +1,5 @@
 /**
- * proxy.ts → lib/supabase/middleware.ts: the optimistic /admin pre-filter.
+ * src/proxy.ts → src/lib/supabase/middleware.ts: the optimistic /admin pre-filter.
  * Anonymous → /login (existing behaviour), signed-in non-admin → /no-access,
  * admin (sudo or not) → through. The secure check behind it is
  * requireAdminPage() (tests/components/pages/admin-auth.test.tsx).
@@ -237,7 +237,7 @@ describe("isAdminPath", () => {
   });
 });
 
-describe("proxy second sign-in step for staff (lib/staff-mfa.ts)", () => {
+describe("proxy second sign-in step for staff (src/lib/staff-mfa.ts)", () => {
   const TOTP = [{ factor_type: "totp", status: "verified" }];
 
   /** Sign in as `role` with an access token at level `aal`, an account that has `factors`, and the requirement on or off. */

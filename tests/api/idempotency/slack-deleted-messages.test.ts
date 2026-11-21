@@ -8,7 +8,7 @@ import { useFakeClock } from '../../helpers/fake-clock'
  * and only those. The Hub keeps Slack messages for good while Slack's API
  * stops returning them after about 90 days, so a message that has merely aged
  * out of Slack's history must never be marked deleted. Slack is mocked, the
- * local DB is real. Rules: lib/slack-deletions.ts.
+ * local DB is real. Rules: src/lib/slack-deletions.ts.
  */
 const suffix = Date.now()
 const channelId = `TEST_DELETED_CHAN_${suffix}`

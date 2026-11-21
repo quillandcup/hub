@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseAddedLines } from "./added-lines";
+import { addedLinesDiffArgs, parseAddedLines } from "./added-lines";
 
 /** The rules config/eslint-quality.mjs turns on; any other message in the JSON is not a quality finding. */
 export const QUALITY_RULES = [
@@ -82,7 +82,7 @@ export function renderNewCode(findings: Finding[], base: string): string {
 /** Reads the ESLint JSON and the diff against `base`, returns the findings on added lines. */
 export function newCodeFindings(eslintPath: string, base: string, root = process.cwd()): Finding[] {
   const results = JSON.parse(readFileSync(eslintPath, "utf8")) as EslintFileResult[];
-  const diff = spawnSync("git", ["diff", "-U0", "--no-color", "--diff-filter=AM", `${base}...HEAD`], {
+  const diff = spawnSync("git", addedLinesDiffArgs(base), {
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
   });

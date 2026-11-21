@@ -8,7 +8,7 @@ Every request the app makes to a server that is not ours says who we are in its 
 HedgieHub/<short commit sha> (+https://<app url>; <support email>)
 ```
 
-Defined once, in `lib/config.ts` (`OUTBOUND_USER_AGENT`), from `config/app.ts` (`userAgentProduct`, `appUrl`, `supportEmail`) and the deployed commit (`dev` when there is none). It follows RFC 9110: `product/version (comment)`, ASCII only, no control characters; the product is a token (so not "Quill & Cup Hub"), the human text sits in the comment. It carries nothing about a member.
+Defined once, in `src/lib/config.ts` (`OUTBOUND_USER_AGENT`), from `config/app.ts` (`userAgentProduct`, `appUrl`, `supportEmail`) and the deployed commit (`dev` when there is none). It follows RFC 9110: `product/version (comment)`, ASCII only, no control characters; the product is a token (so not "Quill & Cup Hub"), the human text sits in the comment. It carries nothing about a member.
 
 Why: some hosts refuse a request with no User-Agent (Wikimedia answers 403) or ask for a name and a contact so they can reach us instead of blocking us. Node's default (`node`/`undici`) says neither.
 
@@ -16,9 +16,9 @@ Why: some hosts refuse a request with no User-Agent (Wikimedia answers 403) or a
 
 | Client | How |
 | --- | --- |
-| Raw `fetch` to an external host (Resend, Kajabi, Zoom, Google Photos, TrackBear, Mux stills, course media, Checkly heartbeats, scripts) | `outboundFetch` / `outboundHeaders` (`lib/http/outbound.ts`) |
-| Picture and cover downloads (`lib/net/safe-fetch.ts`) | `DEFAULT_USER_AGENT` is the same constant; the `userAgent` option still overrides |
-| Slack (`@slack/web-api`) | `createSlackClient` (`lib/slack-client.ts`) calls `addAppMetadata`, which puts `HedgieHub/<sha>` in front of the SDK's own clause |
+| Raw `fetch` to an external host (Resend, Kajabi, Zoom, Google Photos, TrackBear, Mux stills, course media, Checkly heartbeats, scripts) | `outboundFetch` / `outboundHeaders` (`src/lib/http/outbound.ts`) |
+| Picture and cover downloads (`src/lib/net/safe-fetch.ts`) | `DEFAULT_USER_AGENT` is the same constant; the `userAgent` option still overrides |
+| Slack (`@slack/web-api`) | `createSlackClient` (`src/lib/slack-client.ts`) calls `addAppMetadata`, which puts `HedgieHub/<sha>` in front of the SDK's own clause |
 | Stripe | `appInfo` (Stripe adds it to its own clause) |
 | Google Calendar (`@googleapis/calendar`) | `userAgentDirectives`, next to `google-api-nodejs-client` |
 | Mux (`@mux/ts`) | `defaultHeaders["User-Agent"]`: ours, then the SDK's `Mux/JS <version>` (the option replaces the SDK's value, so its clause is re-added) |

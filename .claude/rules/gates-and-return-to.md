@@ -1,10 +1,10 @@
 ---
 paths:
-  - "lib/gates*.ts"
-  - "components/GateExit.tsx"
-  - "proxy.ts"
-  - "lib/supabase/middleware.ts"
-  - "lib/safe-next.ts"
+  - "src/lib/gates*.ts"
+  - "src/components/GateExit.tsx"
+  - "src/proxy.ts"
+  - "src/lib/supabase/middleware.ts"
+  - "src/lib/safe-next.ts"
   - "tests/lib/gates.test.ts"
 ---
 
@@ -12,13 +12,13 @@ paths:
 
 A **gate** is a system-mandated detour between a visitor and the page they asked for: sign-in, connect Slack before chat opens, and any new "you must do X first" interstitial or redirect. Because a gate stands in the way, it owes the visitor two things: **they end up where they were going once they have done it**, and **they can decline and still get somewhere useful**. Don't hand-roll a gate redirect with a hardcoded landing page.
 
-**The standard** (`lib/gates.ts`, `lib/gates.server.ts`, `components/GateExit.tsx`; the pattern is Laravel's `redirect()->intended()`, Devise's `stored_location_for` and Auth.js's `callbackUrl`):
-1. **Declare it** in `GATES` (`lib/gates.ts`): its page, the query that identifies it, why it stops the visitor, and where "Not now" goes (`declineTo`, never itself gated). `tests/lib/gates.test.ts` checks every entry.
-2. **Capture the destination at the moment of interception.** In the proxy (before anything renders) that is the `hub_next` cookie, as for sign-in (`lib/supabase/middleware.ts`). In a server page or layout, call `redirectToGate(GATES.x)`: it reads the address the proxy forwarded (`x-hub-path`, `currentPath()`) and puts it on the redirect as `?next=`, because Server Components can't set cookies. Each gate captures its own interception, so a chain of gates (sign in, then connect Slack, then the page) needs no shared state.
+**The standard** (`src/lib/gates.ts`, `src/lib/gates.server.ts`, `src/components/GateExit.tsx`; the pattern is Laravel's `redirect()->intended()`, Devise's `stored_location_for` and Auth.js's `callbackUrl`):
+1. **Declare it** in `GATES` (`src/lib/gates.ts`): its page, the query that identifies it, why it stops the visitor, and where "Not now" goes (`declineTo`, never itself gated). `tests/lib/gates.test.ts` checks every entry.
+2. **Capture the destination at the moment of interception.** In the proxy (before anything renders) that is the `hub_next` cookie, as for sign-in (`src/lib/supabase/middleware.ts`). In a server page or layout, call `redirectToGate(GATES.x)`: it reads the address the proxy forwarded (`x-hub-path`, `currentPath()`) and puts it on the redirect as `?next=`, because Server Components can't set cookies. Each gate captures its own interception, so a chain of gates (sign in, then connect Slack, then the page) needs no shared state.
 3. **Carry it through every step**, including trips off the site. The gate page passes `next` to the next step (the Slack connect link: `/api/oauth/slack/start?next=`, remembered with `storeNextPath` across Slack's approval page).
 4. **Finishing goes to the destination**, not a hardcoded page: `takeNextPath(fallback)` or `afterGate(gate, next, fallback)`. A failed or declined step goes back to the gate page with what happened and **forgets the destination** (`clearNextPath`), so a later sign-in doesn't send them somewhere they gave up on.
 5. **The gate page shows the way out**: `<GateExit gate={GATES.x} />`, "Not now, go to <where>", on every page that serves the gate and in every state it can be in (connect, reconnect). A gate that truly can't be skipped says so and offers Sign out instead; add it to the standard rather than leaving the visitor stuck. It also says **why** it stopped them (`gate.reason`).
-6. **One validator**: every destination goes through `safeNextPath` (same-origin relative paths only, no `//`, backslashes or control characters, never the sign-in pages), as OWASP's guidance on unvalidated redirects and Rails' open-redirect protection both ask. Only remember a real page navigation (`isRememberableVisit`, `lib/safe-next.ts`: a GET the browser made to show a page; not a form post or server action, not Next's RSC fetches or either kind of prefetch, not a background `fetch`, not the bare `/`), as Devise does, because the sign-in cookie is one slot per browser and the last write wins: a background request from another open tab, a tab signed out a moment before, once overwrote the page a Slack link had asked for. Never a gate's own page, so nothing loops.
+6. **One validator**: every destination goes through `safeNextPath` (same-origin relative paths only, no `//`, backslashes or control characters, never the sign-in pages), as OWASP's guidance on unvalidated redirects and Rails' open-redirect protection both ask. Only remember a real page navigation (`isRememberableVisit`, `src/lib/safe-next.ts`: a GET the browser made to show a page; not a form post or server action, not Next's RSC fetches or either kind of prefetch, not a background `fetch`, not the bare `/`), as Devise does, because the sign-in cookie is one slot per browser and the last write wins: a background request from another open tab, a tab signed out a moment before, once overwrote the page a Slack link had asked for. Never a gate's own page, so nothing loops.
 
 **Tests:** a new gate goes in `GATES` (the registry test then checks it carries and hands back the destination and has a safe, ungated exit), its page renders `<GateExit>` (a source guard in the same test fails if no page serving `GATES.<key>` does), and its steps get tests like `tests/components/SlackConnectPanel.test.tsx` and `tests/lib/slack-connect-return-to.test.ts`. No `redirect("<gate path>?<params>")` outside `redirectToGate` (the guard test fails on it).
 

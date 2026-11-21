@@ -54,7 +54,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 | `repo_distributed` [SUGGESTED] | Met | git. |
 | `version_unique` [MUST] | Partly | We deploy continuously; each deploy is a commit SHA and the `production` tag marks what is live (`docs/infrastructure/DEPLOYMENT.md`). There are no numbered releases (`package.json` stays at 0.1.0). |
 | `version_semver`, `version_tags` [SUGGESTED] | Not met | No versions. The `production` tag moves rather than naming releases. |
-| `release_notes` [MUST, N/A allowed for continuously delivered sites] | Partly | The changelog (`content/changelog.ts`, `docs/runbooks/CHANGELOG_PROCESS.md`) is the human-readable record; it is per feature, not per release. |
+| `release_notes` [MUST, N/A allowed for continuously delivered sites] | Partly | The changelog (`src/content/changelog.ts`, `docs/runbooks/CHANGELOG_PROCESS.md`) is the human-readable record; it is per feature, not per release. |
 | `release_notes_vulns` [MUST, N/A allowed] | Partly | Security fixes are not called out in the changelog; they appear in pull requests and, for reports, in advisories. |
 
 ### Reporting
@@ -120,7 +120,7 @@ Silver also requires every Passing criterion, and promotes several SHOULD or SUG
 | `automated_integration_testing` [MUST] | Met | CI on every push and pull request, with a pass/fail report. |
 | `test_policy_mandated` [MUST] | Met | `.claude/rules/tests-with-every-change.md`. |
 | `regression_tests_added50` [MUST] | Unverified | The rule is "bug fixes start with a failing test"; the 6-month share isn't measured. |
-| `test_statement_coverage80` [MUST] | Partly | Floors are 92% statements for `lib`, 86% for `components`, 79% for `app/api`, and new lines must reach 80%. The combined number isn't published. |
+| `test_statement_coverage80` [MUST] | Partly | Floors are 92% statements for `lib`, 86% for `components`, 79% for `src/app/api`, and new lines must reach 80%. The combined number isn't published. |
 | `coding_standards`, `coding_standards_enforced` [MUST] | Met | `.claude/rules/`, ESLint and TypeScript in CI. |
 | `external_dependencies`, `updateable_reused_components` [MUST] | Met | `package.json`, `pnpm-lock.yaml`, Dependabot. |
 | `interfaces_current` [SHOULD] | Unverified | |
@@ -155,7 +155,7 @@ Gold also requires Silver.
 | `dynamic_analysis` [MUST] | Partly | As at Passing. |
 | `build_reproducible` [MUST] | Not met | See `build_repeatable`. |
 | `test_statement_coverage90` [MUST] | Not met | Floors are 79 to 92% by area; the combined figure is unmeasured. |
-| `test_branch_coverage80` [MUST] | Partly | Floors are 85% for `lib`, 82% for `components` and 71% for `app/api`. |
+| `test_branch_coverage80` [MUST] | Partly | Floors are 85% for `lib`, 82% for `components` and 71% for `src/app/api`. |
 | `security_review` [MUST] | Partly | `docs/trust/THREAT_MODEL.md` (2026-11-17) is our own review, not an independent one. |
 | `hardened_site` [MUST] | Unverified | Headers are set; Observatory and securityheaders grades haven't been run (`docs/TODO.md`). |
 
@@ -165,7 +165,7 @@ Ordered by value for effort; each is, or should become, an entry in `docs/TODO.m
 1. Re-run the ZAP baseline after the next deploy and check the warnings left are only the informational ones (`config/zap-baseline.tsv` lists what is accepted and why); the gitleaks, OSV and ZAP first results are triaged.
 2. Take the lint warnings to zero, rule by rule, then make the rules errors (`warnings_fixed`, `warnings_strict`).
 3. Run the Observatory and securityheaders checks and enforce the CSP for scripts and styles (`hardening`, `hardened_site`).
-4. Publish the combined coverage figure in the CI report, and raise the `app/api` floor.
+4. Publish the combined coverage figure in the CI report, and raise the `src/app/api` floor.
 5. Write a one-year roadmap from the backlog (`documentation_roadmap`).
 6. Add per-file license headers (`copyright_per_file`, `license_per_file`), if we ever want them; this is cosmetic while the repository is proprietary.
 7. Property-based tests on the sanitizers and importers (also lifts the Scorecard Fuzzing check).

@@ -45,7 +45,7 @@ The Vercel CLI is a project dependency: run it as `node_modules/.bin/vercel` (or
 
 5. **Sign in.** The app only has magic-link sign-in, and the local stack has public signups off (`enable_signup = false` in `supabase/config.toml`), so create the user first: in Studio, Authentication, Users, "Invite User" (`docs/runbooks/INVITING_USERS.md`, which also says how to give the user a role). Then enter the email on `/login`, click "Send Magic Link", and open the link from Mailpit.
 
-6. **Optional: sample data.** `pnpm seed:local -- --profile <name>` loads a typed seed profile into the local database only (it refuses any other database); `--clear` removes it again. The profiles are in `lib/data/profiles/`.
+6. **Optional: sample data.** `pnpm seed:local -- --profile <name>` loads a typed seed profile into the local database only (it refuses any other database); `--clear` removes it again. The profiles are in `src/lib/data/profiles/`.
 
 ### Checking your change
 
@@ -58,7 +58,7 @@ pnpm test:pgtap     # SQL and RLS tests, needs the local stack
 pnpm test:smoke
 ```
 
-After a migration, run `pnpm types:gen` and commit `lib/data/database.types.ts`; `pnpm check:migrations` checks the numbering. The workflow for pull requests and CI is in `.claude/rules/ship-via-pr.md` and `.claude/rules/pr-watch.md`.
+After a migration, run `pnpm types:gen` and commit `src/lib/data/database.types.ts`; `pnpm check:migrations` checks the numbering. The workflow for pull requests and CI is in `.claude/rules/ship-via-pr.md` and `.claude/rules/pr-watch.md`.
 
 ### Day to day
 

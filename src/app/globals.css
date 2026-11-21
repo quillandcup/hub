@@ -1,0 +1,357 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Quill & Cup brand color (tailwind `canvas`) and Cup Gray. */
+  --background: #f4f2f3;
+  --foreground: #4d4d4d;
+}
+
+/* next-themes sets .dark on <html> (tailwind darkMode: "class"), including for "system". */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+/* Landing page colours (src/components/landing, docs/product/LANDING_PAGES.md): semantic tokens as "r g b" channels, so Tailwind can add opacity.
+   The page follows the theme; `.landing-light` is a band that stays light in dark mode (a white or cream band), so it sets the light values again.
+   page: the page behind everything. card: a white panel (header, boxed section). tile: a testimonial or product card.
+   ink / ink-muted: text and its quieter form. accent: a line or bar. accent-ink: accent text (a price, an outline button). warm: the brown outline. */
+:root,
+.landing-light {
+  --lp-page: 244 242 243; /* canvas */
+  --lp-card: 255 255 255;
+  --lp-tile: 244 236 232; /* cream */
+  --lp-ink: 15 23 42; /* slate-900 */
+  --lp-ink-muted: 139 62 100; /* plum-700 */
+  --lp-accent: 166 77 121; /* plum-600 */
+  --lp-accent-ink: 139 62 100; /* plum-700 */
+  --lp-warm: 142 88 61; /* brown */
+}
+.dark {
+  --lp-page: 2 6 23; /* slate-950, as the app's dark pages */
+  --lp-card: 15 23 42; /* slate-900 */
+  --lp-tile: 15 23 42;
+  --lp-ink: 241 245 249; /* slate-100 */
+  --lp-ink-muted: 203 213 225; /* slate-300 */
+  --lp-accent: 182 90 136; /* plum-500 */
+  --lp-accent-ink: 220 164 192; /* plum-300 */
+  --lp-warm: 193 157 133; /* beige */
+}
+.dark .landing-light {
+  --lp-page: 244 242 243;
+  --lp-card: 255 255 255;
+  --lp-tile: 244 236 232;
+  --lp-ink: 15 23 42;
+  --lp-ink-muted: 139 62 100;
+  --lp-accent: 166 77 121;
+  --lp-accent-ink: 139 62 100;
+  --lp-warm: 142 88 61;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  /* Page titles in the brand serif; smaller headings stay in the UI sans for density. */
+  h1 {
+    @apply font-display;
+  }
+}
+
+/* The skin's glass (`--media-popover`) is white at 10%: over a bright frame its white text has almost no contrast, and it looks different over every frame
+   (a pill that moves from the card's picture to the player's darkened one visibly changes colour). A dark, nearly opaque glass instead, for everything
+   the skin draws with it (its fullscreen pill, menus and the "Open lesson" link below), at one place so they change together. White on it is well over 4.5:1
+   on any frame. A viewer who asked for less transparency or more contrast keeps the skin's own
+   solid colours (its rules for those, which this does not override). */
+@media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) and (forced-colors: none) {
+  .media-skin {
+    --media-popover: oklch(0% 0 0 / 0.78);
+  }
+}
+
+/* A link drawn over the lesson player's frame (ChatVideo's "Open lesson"). It sits inside the skin, so it uses the same tokens as the skin's own
+   screen controls (the fullscreen button's glass pill below 32rem): a contrast change to those lands here too. Icon only where the skin is that
+   narrow, so it keeps clear of the big play button; it is the top-left corner because the fullscreen pill takes the top-right. */
+.lesson-open-link {
+  position: absolute;
+  top: calc(var(--media-spacing) * 2);
+  left: calc(var(--media-spacing) * 2);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--media-spacing) * 1.5);
+  height: var(--media-control-size);
+  padding-inline: calc(var(--media-spacing) * 3);
+  border-radius: var(--media-control-radius);
+  background-color: var(--media-popover);
+  color: var(--media-popover-foreground);
+  box-shadow: 0 0 0 1px var(--media-surface-border, var(--media-border)), var(--media-shadow-surface);
+  -webkit-backdrop-filter: var(--media-backdrop-filter-surface);
+  backdrop-filter: var(--media-backdrop-filter-surface);
+  text-shadow: var(--media-text-shadow-dialog);
+  /* Set here, not inherited: the skin's container sets its own font and `-webkit-font-smoothing: auto` (heavier white-on-dark text) while the page is
+     `antialiased`, so an inherited label changed weight when the player took the card's place. */
+  font-family: var(--media-font-family, "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  outline: 2px solid transparent;
+  /* Hover and the move to icon-only are the only changes it animates, and the second as one motion (padding, gap and label together). */
+  transition-property: background-color, color, outline-offset, padding-inline, gap;
+  transition-duration: var(--media-duration);
+}
+.lesson-open-link:hover,
+.lesson-open-link:focus-visible {
+  background-color: var(--media-accent);
+  color: var(--media-accent-foreground);
+}
+.lesson-open-link:focus-visible {
+  outline-offset: 2px;
+  outline-color: var(--media-ring);
+}
+.lesson-open-link-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.lesson-open-link-label {
+  display: inline-block;
+  max-width: 8rem;
+  overflow: hidden;
+  opacity: 1;
+  transition-property: max-width, opacity;
+  transition-duration: var(--media-duration);
+}
+/* Icon only: playing (YouTube's "Watch on YouTube" becomes its logo once the video starts; paused or ended, the label comes back) and wherever the skin
+   itself is narrow, so it keeps clear of the big play button. The label stays in the page for screen readers; it is only collapsed. */
+.media-container:has(.media-play-button[data-started]:not([data-paused]):not([data-ended])) .lesson-open-link {
+  gap: 0;
+  padding-inline: calc((var(--media-control-size) - 1rem) / 2);
+}
+.media-container:has(.media-play-button[data-started]:not([data-paused]):not([data-ended])) .lesson-open-link-label {
+  max-width: 0;
+  opacity: 0;
+}
+@container media-root (width < 32rem) {
+  .lesson-open-link {
+    gap: 0;
+    padding-inline: calc((var(--media-control-size) - 1rem) / 2);
+  }
+  .lesson-open-link-label {
+    max-width: 0;
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Native dropdowns draw their arrow flush against the right edge; draw our own with breathing room.
+   Unlayered and after the utilities so it wins over a select's own px-* padding. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.25rem;
+}
+
+/* "Allow animations" off (Settings > Preferences, or the device's reduce-motion): no keyframe
+   animation or transition; a spinner or skeleton just sits still. GIFs are frozen by
+   src/components/AnimationsController. */
+/* A moving custom emoji with no still (see src/components/EmojiImage): its :name: text stands in for it. */
+html[data-animations="off"] img[data-no-still] {
+  display: none;
+}
+html[data-animations="off"] [data-emoji-fallback] {
+  display: inline;
+}
+html[data-animations="off"] *,
+html[data-animations="off"] *::before,
+html[data-animations="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+/* The page builder's style guide (src/lib/landing/style.ts, docs/product/LANDING_PAGES.md, "Settings"): a page's frame carries the classes of its chosen
+   tokens, and the defaults carry none. The page colours are fixed light colours, so the frame is also `landing-light` (dark mode doesn't
+   turn the text light on them). The primary colour sets the accent tokens, in a light and a dark mode value like the base ones. */
+.lp-bg-white.landing-light { --lp-page: 255 255 255; }
+.lp-bg-cream.landing-light { --lp-page: 244 236 232; }
+.lp-bg-blush.landing-light { --lp-page: 234 218 218; }
+.lp-bg-mist.landing-light { --lp-page: 199 223 223; }
+.lp-primary-brown { --lp-accent: 142 88 61; --lp-accent-ink: 142 88 61; }
+.lp-primary-teal { --lp-accent: 67 114 115; --lp-accent-ink: 56 93 94; }
+.lp-primary-charcoal { --lp-accent: 77 77 77; --lp-accent-ink: 77 77 77; }
+.dark .lp-primary-brown { --lp-accent: 193 157 133; --lp-accent-ink: 193 157 133; }
+.dark .lp-primary-teal { --lp-accent: 116 168 169; --lp-accent-ink: 163 200 200; }
+.dark .lp-primary-charcoal { --lp-accent: 203 213 225; --lp-accent-ink: 203 213 225; }
+.dark .lp-primary-brown.landing-light { --lp-accent: 142 88 61; --lp-accent-ink: 142 88 61; }
+.dark .lp-primary-teal.landing-light { --lp-accent: 67 114 115; --lp-accent-ink: 56 93 94; }
+.dark .lp-primary-charcoal.landing-light { --lp-accent: 77 77 77; --lp-accent-ink: 77 77 77; }
+/* Solid buttons in the primary colour follow it; a button in another colour (light, brown) is that colour on purpose. */
+.lp-primary-brown .lp-btn-primary, .lp-primary-teal .lp-btn-primary, .lp-primary-charcoal .lp-btn-primary { background-color: rgb(var(--lp-accent)); }
+.lp-primary-brown .lp-btn-primary:hover, .lp-primary-teal .lp-btn-primary:hover, .lp-primary-charcoal .lp-btn-primary:hover { filter: brightness(0.9); }
+/* The text on a solid button in the primary colour is `--lp-on-accent` (white, or dark ink on the pale fills of dark mode), which the
+   style guide's button text colour sets too (`lp-btn-text-light`, `lp-btn-text-dark`). `src/lib/landing/button-contrast.ts` holds the same colours for the publish check. */
+.lp-btn-primary.lp-btn { color: rgb(var(--lp-on-accent, 255 255 255)); }
+.dark :is(.lp-primary-brown, .lp-primary-teal, .lp-primary-charcoal):not(.landing-light):not(.lp-btn-text-light):not(.lp-btn-text-dark) { --lp-on-accent: 15 23 42; }
+.lp-btn-text-light { --lp-on-accent: 255 255 255; }
+.lp-btn-text-dark { --lp-on-accent: 15 23 42; }
+/* The site's button style: a button that takes it (`lp-btn-inherit`) is solid by default and an outline when the site says so,
+   in the same colour its outline would be (`lp-btn-c-*`). A button that chose solid or outline itself has no `lp-btn-inherit`. The
+   outline is drawn inside the button (an outline, so the focus ring, a shadow, still shows), so it is the size of a solid one. */
+.lp-btn-style-outline .lp-btn-inherit.lp-btn { background-color: transparent; outline: 2px solid currentColor; outline-offset: -2px; filter: none; }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-plum { color: rgb(var(--lp-accent-ink)); }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-light { color: rgb(244 236 232); }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-brown { color: rgb(var(--lp-warm)); }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn:hover { background-color: rgb(var(--lp-accent) / 0.1); filter: none; }
+.lp-btn-style-outline .lp-btn-inherit.lp-btn-c-light:hover { background-color: rgb(255 255 255 / 0.1); }
+/* Button size and corners apply to every button the builder draws (`lp-btn`); the defaults add nothing, so a button keeps its own shape. */
+.lp-btn-size-small .lp-btn { padding: 0.5rem 1rem; font-size: 0.875rem; }
+.lp-btn-size-large .lp-btn { padding: 1rem 2rem; font-size: 1.125rem; }
+.lp-btn-radius-rounded .lp-btn { border-radius: 0.5rem; }
+.lp-btn-radius-square .lp-btn { border-radius: 0; }
+.lp-font-modern { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.lp-font-serif { font-family: var(--font-display), Georgia, serif; }
+.lp-font-classic { font-family: Georgia, "Times New Roman", serif; }
+.lp-weight-medium { font-weight: 500; }
+.lp-leading-tight { line-height: 1.35; }
+.lp-leading-relaxed { line-height: 1.75; }
+/* Landing page sections with "Fade in" on (src/components/landing): only for visitors who haven't asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-fade-in {
+    animation: landing-fade-in 0.7s ease-out both;
+  }
+}
+/* The pulsing dot of the homepage's announcement strip and "live" chip: same rule, motion only when the visitor allows it. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-pulse {
+    animation: landing-pulse 1.2s ease-in-out infinite;
+  }
+}
+@keyframes landing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+/* The Journey map's panel when a stage is chosen: a plain fade (no movement, no height change), only when motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-panel-fade {
+    animation: landing-panel-fade 0.25s ease-out both;
+  }
+}
+@keyframes landing-panel-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The page builder editor (src/app/(admin)/admin/pages/[slug]): Puck's chrome follows the theme plum, and the app's dark mode.
+   Puck declares its semantic tokens (surface, text, interactive...) on :root, already resolved, so overriding the
+   palette alone changes nothing: they are declared again here so they resolve against the palette below. */
+.landing-editor {
+  --puck-color-azure-01: theme("colors.plum.950");
+  --puck-color-azure-02: theme("colors.plum.900");
+  --puck-color-azure-03: theme("colors.plum.800");
+  --puck-color-azure-04: theme("colors.plum.700");
+  --puck-color-azure-05: theme("colors.plum.600");
+  --puck-color-azure-06: theme("colors.plum.400");
+  --puck-color-azure-07: theme("colors.plum.300");
+  --puck-color-azure-08: theme("colors.plum.200");
+  --puck-color-azure-09: theme("colors.plum.100");
+  --puck-color-azure-10: theme("colors.plum.50");
+  --puck-color-azure-11: theme("colors.plum.50");
+  --puck-color-azure-12: theme("colors.plum.50");
+}
+/* Dark: the greys, white and black swap ends, and the plum runs light to dark. */
+.dark .landing-editor {
+  --puck-color-black: #ffffff;
+  --puck-color-white: #101014;
+  --puck-color-grey-01: #fafafa;
+  --puck-color-grey-02: #f5f5f5;
+  --puck-color-grey-03: #efefef;
+  --puck-color-grey-04: #dcdcdc;
+  --puck-color-grey-05: #c3c3c3;
+  --puck-color-grey-06: #ababab;
+  --puck-color-grey-07: #949494;
+  --puck-color-grey-08: #767676;
+  --puck-color-grey-09: #404040;
+  --puck-color-grey-10: #292929;
+  --puck-color-grey-11: #181818;
+  --puck-color-grey-12: #14141a;
+  --puck-color-azure-01: theme("colors.plum.50");
+  --puck-color-azure-02: theme("colors.plum.100");
+  --puck-color-azure-03: theme("colors.plum.200");
+  --puck-color-azure-04: theme("colors.plum.300");
+  --puck-color-azure-05: theme("colors.plum.400");
+  --puck-color-azure-06: theme("colors.plum.600");
+  --puck-color-azure-07: theme("colors.plum.700");
+  --puck-color-azure-08: theme("colors.plum.800");
+  --puck-color-azure-09: theme("colors.plum.900");
+  --puck-color-azure-10: theme("colors.plum.950");
+  --puck-color-azure-11: theme("colors.plum.950");
+  --puck-color-azure-12: theme("colors.plum.950");
+}
+.landing-editor {
+  --puck-color-surface: var(--puck-color-white);
+  --puck-color-surface-muted: var(--puck-color-grey-11);
+  --puck-color-surface-subtle: var(--puck-color-grey-12);
+  --puck-color-surface-inverse: var(--puck-color-grey-01);
+  --puck-color-border: var(--puck-color-grey-09);
+  --puck-color-border-hover: var(--puck-color-grey-05);
+  --puck-color-border-muted: var(--puck-color-grey-10);
+  --puck-color-border-inverse: var(--puck-color-grey-05);
+  --puck-color-text: var(--puck-color-black);
+  --puck-color-text-secondary: var(--puck-color-grey-04);
+  --puck-color-text-muted: var(--puck-color-grey-05);
+  --puck-color-text-subtle: var(--puck-color-grey-07);
+  --puck-color-text-inverse: var(--puck-color-white);
+  --puck-color-interactive: var(--puck-color-azure-04);
+  --puck-color-interactive-hover: var(--puck-color-azure-03);
+  --puck-color-interactive-active: var(--puck-color-azure-02);
+  --puck-color-interactive-subtle: var(--puck-color-azure-10);
+  --puck-color-interactive-soft: var(--puck-color-azure-11);
+  --puck-color-interactive-soft-hover: var(--puck-color-azure-12);
+  --puck-color-interactive-neutral-hover: var(--puck-color-grey-10);
+  --puck-color-interactive-inverse-hover: var(--puck-color-azure-06);
+  --puck-color-interactive-inverse-active: var(--puck-color-azure-07);
+  --puck-color-focus-ring: var(--puck-color-azure-05);
+  --puck-color-selection-bg: color-mix(in srgb, var(--puck-color-azure-09) 30%, transparent);
+  --puck-color-selection-border: var(--puck-color-azure-08);
+  --puck-color-line-placeholder: var(--puck-color-azure-06);
+  --puck-color-bg-disabled: var(--puck-color-grey-07);
+  --puck-color-text-disabled: var(--puck-color-grey-03);
+  --puck-color-overlay-backdrop: rgb(0 0 0 / 75%);
+}

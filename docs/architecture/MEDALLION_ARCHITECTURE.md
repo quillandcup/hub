@@ -83,7 +83,7 @@ graph TB
     LocalIgnored -->|Read: ignored_slack_users, skip| ProcessSlack
     ProcessSlack -->|DELETE by date range + INSERT| SilverActivities
 
-    %% Auto-triggers (lib/processing/trigger.ts SILVER_DEPENDENCIES)
+    %% Auto-triggers (src/lib/processing/trigger.ts SILVER_DEPENDENCIES)
     ProcessMembers -.->|"after() background trigger<br/>last 90 days"| ProcessAttendance
     ProcessCalendar -.->|special-case cascade:<br/>new prickle UUIDs orphan attendance| ProcessAttendance
 
@@ -226,7 +226,7 @@ graph LR
     style Slack fill:#DDA0DD
 ```
 
-This mirrors `SILVER_DEPENDENCIES` in `lib/processing/trigger.ts`, which is the
+This mirrors `SILVER_DEPENDENCIES` in `src/lib/processing/trigger.ts`, which is the
 source of truth for both processing order and which Bronze/Local table changes
 trigger which Silver reprocessing. Three things worth calling out:
 

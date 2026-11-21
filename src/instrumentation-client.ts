@@ -1,0 +1,35 @@
+import * as Sentry from "@sentry/nextjs";
+import { scrubBreadcrumb, scrubEvent } from "@/lib/sentry-scrub";
+import { IGNORED_BROWSER_ERRORS } from "@/lib/sentry-ignored-errors";
+
+Sentry.init({
+  // From config/env-vars.ts. NEXT_PUBLIC_ so the browser bundle can read it too; unset
+  // (e.g. local dev without it in .env.local) disables Sentry.
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  // Addresses that are credentials (calendar feed, sign-in links) never leave in an event (src/lib/sentry-scrub.ts).
+  beforeSend: scrubEvent,
+  beforeSendTransaction: scrubEvent,
+  beforeBreadcrumb: scrubBreadcrumb,
+  // production / preview, so events from each environment stay apart (the DSN is shared).
+  environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+
+  // Small member platform, not high traffic — capture all errors but keep
+  // performance trace volume modest to control event usage.
+  tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.2,
+
+  // Errors from visitors' own browser extensions, not ours (see the list for why each is there).
+  ignoreErrors: IGNORED_BROWSER_ERRORS,
+
+  // Session Replay keeps the last moments in memory and uploads them only when an error happens
+  // (full repro context for the reports that matter). Recording ordinary sessions, a small sample,
+  // is started by src/components/SessionReplay.tsx and only where usage statistics are allowed.
+  // Text, form fields and media are masked unless said otherwise (Sentry's defaults, kept on purpose).
+  // Only the app's own navigation and tab labels are unmasked, with data-sentry-unmask, so a recording
+  // shows where someone went without showing what members wrote or who they are.
+  integrations: [Sentry.replayIntegration()],
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 1.0,
+});
+
+// Hook into App Router navigation transitions for client-side tracing.
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

@@ -1,5 +1,5 @@
 /**
- * The opt-in relay (app/api/landing/opt-in) and its Kajabi destination. Kajabi is a mocked endpoint (a stubbed fetch):
+ * The opt-in relay (src/app/api/landing/opt-in) and its Kajabi destination. Kajabi is a mocked endpoint (a stubbed fetch):
  * no test here reaches the real API, and every name and address is made up.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

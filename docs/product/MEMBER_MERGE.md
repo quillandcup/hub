@@ -42,7 +42,7 @@ All three flows call the same API endpoint: `POST /api/admin/members/merge`.
 | `bronze.kajabi_contacts` | matched by `kajabi_id` at runtime | Covered by the `kajabi_id` transfer above |
 | `bronze.stripe_customers` | matched by `stripe_customer_id` at runtime | Covered by the `stripe_customer_id` transfer above |
 
-Every other table that references `members` is **not moved**: it cascades on delete and its rows go with the secondary. The list is `NOT_MOVED` in `lib/member-merge-coverage.ts` and the gap is tracked in `docs/TODO.md` ("Member merge drops most of a member's data").
+Every other table that references `members` is **not moved**: it cascades on delete and its rows go with the secondary. The list is `NOT_MOVED` in `src/lib/member-merge-coverage.ts` and the gap is tracked in `docs/TODO.md` ("Member merge drops most of a member's data").
 
 ## What the Dialog Shows
 
@@ -52,7 +52,7 @@ How it works:
 
 - `GET /api/admin/members/[id]/owned-data` (admin only; 400 for a bad id, 404 for an unknown member) returns `{ entries: [{ table, label, count, fate }] }`, `fate` being `moved` or `lost`.
 - The counts come from `MemberRepository.ownedRowCounts`, which calls the admin-only SQL function `member_owned_row_counts(p_member_id)`. It finds the tables from the foreign keys to `members` in `pg_constraint` (single-column keys in `public`), so a new table is counted without a code change. Zero counts, `member_directory` and the derived stats (`member_metrics`, `member_engagement`) are left out. The in-memory twin counts only name and email aliases.
-- `lib/member-merge-coverage.ts` holds the classification (`MOVED`, `DERIVED`, `NOT_MOVED`) and a short label per table (a table without one shows its own name; a table nobody classified is reported as lost). The route reads it and `tests/lib/member-merge-coverage.test.ts` checks it against the generated types, so a new table that references `members` fails the test until it is classified, and the dialog cannot drift from the guard. When a table starts being moved by the merge, move its name from `NOT_MOVED` to `MOVED` there.
+- `src/lib/member-merge-coverage.ts` holds the classification (`MOVED`, `DERIVED`, `NOT_MOVED`) and a short label per table (a table without one shows its own name; a table nobody classified is reported as lost). The route reads it and `tests/lib/member-merge-coverage.test.ts` checks it against the generated types, so a new table that references `members` fails the test until it is classified, and the dialog cannot drift from the guard. When a table starts being moved by the merge, move its name from `NOT_MOVED` to `MOVED` there.
 
 ## External ID Conflicts
 
@@ -73,7 +73,7 @@ The one thing a reimport **cannot** recover is a discarded external ID conflict 
 
 ## Duplicate Detection (`detectDuplicates`)
 
-The Merge & Fix page uses `lib/member-duplicates.ts` to detect candidates:
+The Merge & Fix page uses `src/lib/member-duplicates.ts` to detect candidates:
 
 - **Same name** — normalized (lowercase, collapsed whitespace) name matches
 - **Same email** — case-insensitive email matches
@@ -82,7 +82,7 @@ A pair is only reported once even if it matches on both criteria. The function i
 
 ## Operation Order
 
-The merge API (`app/api/admin/members/merge/route.ts`) runs in this order to avoid FK constraint violations:
+The merge API (`src/app/api/admin/members/merge/route.ts`) runs in this order to avoid FK constraint violations:
 
 1. Parallel: transfer the simple `member_id` / `host` / `host_id` / `default_host_id` FKs, event attendances, badges, Big Sister records, and the Zoom name candidates
 2. Sequential: handle `member_name_aliases` (requires reading existing aliases first to detect conflicts)

@@ -17,7 +17,7 @@ This replaces the old Google Sheet. Staff run it at `/admin/mentorship`; members
 
 By hand: **pick a big sister for each new member** (with recommendations), and nothing else. Everything else comes from the data:
 
-- **When it started and how they arrived** come from the sign-up, not a typed date (`lib/arrivals.ts`): a membership subscription created in Kajabi (a trial only if Stripe shows one, otherwise a direct sign-up) or the start of a cohort for someone enrolled in a program that includes membership. It only counts if they weren't a member the day before: a renewal, a plan change, a hiatus ending or a program joined while already a member isn't an arrival. Time away does make them new. This uses the same membership timeline as a member's status page (Kajabi stints, hiatuses, programs that include membership, gift/direct-Stripe overrides).
+- **When it started and how they arrived** come from the sign-up, not a typed date (`src/lib/arrivals.ts`): a membership subscription created in Kajabi (a trial only if Stripe shows one, otherwise a direct sign-up) or the start of a cohort for someone enrolled in a program that includes membership. It only counts if they weren't a member the day before: a renewal, a plan change, a hiatus ending or a program joined while already a member isn't an arrival. Time away does make them new. This uses the same membership timeline as a member's status page (Kajabi stints, hiatuses, programs that include membership, gift/direct-Stripe overrides).
 - **A trial's end** comes from the Stripe subscription's `trial_start` / `trial_end` in our imported Bronze data (no call to Stripe's API). A trial is never assumed: many offers have none (a returning member's link, a stretch when trials were off).
 - **Whether a trial converted** is derived from membership history (below), never stored.
 - **Why a trial didn't continue** is written by the **big sister**, who knows. Staff can edit it too.
@@ -43,7 +43,7 @@ Rules:
 
 ## Conversion (trials only)
 
-A trial has an outcome; a direct sign-up or program arrival has nothing to convert (`no_trial`) and is left out of the rate. `lib/mentorship.ts` `deriveOutcome` reads the new member's `members.first_joined_at` / `most_recent_joined_at` (the first billed membership; a trial cancelled before billing never sets it) against `started_on`:
+A trial has an outcome; a direct sign-up or program arrival has nothing to convert (`no_trial`) and is left out of the rate. `src/lib/mentorship.ts` `deriveOutcome` reads the new member's `members.first_joined_at` / `most_recent_joined_at` (the first billed membership; a trial cancelled before billing never sets it) against `started_on`:
 
 - **Converted**: a membership began between 7 days before the start and `CONVERSION_WINDOW_DAYS` (90) after. A returning member's old `first_joined_at` is ignored in favor of `most_recent_joined_at`. "Current member" is `members.status` of `active` or `on_hiatus` today.
 - **In trial**: no such membership yet and the trial hasn't ended plus `BILLING_GRACE_DAYS` (3). So a 7-day trial is called about 10 days in, a month-long one about 33.
@@ -55,7 +55,7 @@ Stats count only decided trials in the rate. Rows imported from the old sheet ar
 
 All member-facing reads go through `my_mentorships(member_id)` (SECURITY DEFINER; a member gets only their own matches, an admin any member's so sudo works). A match shows for exactly 30 days (`MENTORSHIP_DAYS`).
 
-- **Dashboard card** (`components/member/BigSisterCards.tsx`): "Your Big Sister" for a new member, "Your new member(s)" for a big sister, with a Slack DM link (Hub Chat can't start a DM yet; see `docs/TODO.md` "Big Sisters: message in the Hub") and a link to `/big-sisters`.
+- **Dashboard card** (`src/components/member/BigSisterCards.tsx`): "Your Big Sister" for a new member, "Your new member(s)" for a big sister, with a Slack DM link (Hub Chat can't start a DM yet; see `docs/TODO.md` "Big Sisters: message in the Hub") and a link to `/big-sisters`.
 - **`/big-sisters`**: the same cards, how it works, and the volunteer card. **The Big Sister badge on a profile links here** (`badgeHref`), so anyone viewing a big sister's profile or the chat profile panel sees it.
 - **The reason a trial didn't continue**: when a big sister's trial member hasn't become a member (outcome derived server-side; the page gets only "ask why", never their dates or status), the card shows a box: "*Name* didn't stay after their trial. What do you think happened?" It saves through `set_mentorship_note`, which lets only that match's big sister (or an admin) write that one column. It stays open until 60 days after the start (`NOTE_WINDOW_DAYS`), so a month-long trial's big sister can still answer. Read-only in sudo. A new member sees none of this.
 - **Introduction** when staff make a match: a `big_sister_match` notification to both (Slack, in the Hub and browser push by default; email opt-in like every kind). Nothing is sent for a match whose 30 days are already up, and the import script never sends.
@@ -67,7 +67,7 @@ All member-facing reads go through `my_mentorships(member_id)` (SECURITY DEFINER
 
 ## Volunteer pool
 
-Like hosts, members volunteer themselves: `big_sister_volunteers` (one row per member; `deleted_at` NULL = volunteering, so stepping off keeps history). A member does it on `/big-sisters` (optional note only staff see), read-only in sudo. **The same rule as hosting**: a full month since they first joined, enforced by reusing `getHostEligibility` (`lib/big-sister-volunteers.ts`). The pool isn't a public list: members read only their own row, admins read all.
+Like hosts, members volunteer themselves: `big_sister_volunteers` (one row per member; `deleted_at` NULL = volunteering, so stepping off keeps history). A member does it on `/big-sisters` (optional note only staff see), read-only in sudo. **The same rule as hosting**: a full month since they first joined, enforced by reusing `getHostEligibility` (`src/lib/big-sister-volunteers.ts`). The pool isn't a public list: members read only their own row, admins read all.
 
 Staff see it at `/admin/mentorship/volunteers` (add or remove anyone) and in the Matches form as one-click picks. `rankVolunteers` orders them by fewest new members inside their 30 days, then longest since their last match (never matched first, then earliest volunteer). Volunteering doesn't gate matching: staff can match any member, and nothing is matched automatically.
 

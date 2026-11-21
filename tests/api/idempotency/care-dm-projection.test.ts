@@ -7,7 +7,7 @@ import { createRunMembers, createRunUser, deleteRunMembers, type PeopleMember } 
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
 /**
- * Hedgie Care fills in who spoke last from the Slack DMs a staff member tracks (lib/care-dm.ts). Against the real database:
+ * Hedgie Care fills in who spoke last from the Slack DMs a staff member tracks (src/lib/care-dm.ts). Against the real database:
  * running it again changes nothing (idempotent), it can be rebuilt from Bronze at any time, it writes no audit rows (the two
  * message-time columns are left out of the audit trigger), it reads only metadata, and it never reads a DM that is not the
  * staff member's.

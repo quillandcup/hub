@@ -1,9 +1,9 @@
 ---
 paths:
-  - "app/api/**"
-  - "lib/data/**"
-  - "lib/supabase/**"
-  - "app/actions/**"
+  - "src/app/api/**"
+  - "src/lib/data/**"
+  - "src/lib/supabase/**"
+  - "src/app/actions/**"
 ---
 
 ### Database Query Limits

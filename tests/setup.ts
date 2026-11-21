@@ -1,13 +1,13 @@
 import { beforeAll, afterAll, vi } from 'vitest'
 
-// The bot's token lives in Vault (lib/slack-bot-token.ts). Tests that exercise a Slack send give the bot one by
+// The bot's token lives in Vault (src/lib/slack-bot-token.ts). Tests that exercise a Slack send give the bot one by
 // setting SLACK_BOT_TOKEN, which only this stand-in reads; the real lookup is tested in tests/lib/slack-bot-token.test.ts.
 vi.mock('@/lib/slack-bot-token', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/slack-bot-token')>()),
   getSlackBotToken: async () => process.env.SLACK_BOT_TOKEN || undefined,
 }))
 
-// Some routes (e.g. app/api/webhooks/slack/route.ts) construct their own
+// Some routes (e.g. src/app/api/webhooks/slack/route.ts) construct their own
 // Supabase client from process.env directly instead of using the test helpers
 // in tests/helpers/supabase.ts, so point them at the local stack too. These
 // are the well-known local Supabase CLI demo keys, safe to hardcode.

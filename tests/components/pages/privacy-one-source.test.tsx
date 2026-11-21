@@ -37,7 +37,7 @@ describe("the Privacy page and its staff view read one list", () => {
     for (const row of ROWS) {
       for (const id of row.reads) {
         const unit = units.get(id)!;
-        expect(unit, `${row.id} reads "${id}", which is not in content/privacy.ts`).toBeDefined();
+        expect(unit, `${row.id} reads "${id}", which is not in src/content/privacy.ts`).toBeDefined();
         for (const shown of unit.shown) expect(page, `"${shown.slice(0, 50)}..." (${id}) is not on /privacy`).toContain(flat(shown));
       }
     }

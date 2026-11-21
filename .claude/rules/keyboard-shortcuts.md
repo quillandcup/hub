@@ -1,20 +1,20 @@
 ---
 paths:
-  - "components/**"
-  - "lib/hooks/**"
-  - "lib/shortcuts.ts"
-  - "lib/keyboard.ts"
-  - "app/**/*.tsx"
+  - "src/components/**"
+  - "src/lib/hooks/**"
+  - "src/lib/shortcuts.ts"
+  - "src/lib/keyboard.ts"
+  - "src/app/**/*.tsx"
 ---
 
 ## keyboard-shortcuts
 
-The `?` panel (`components/shortcuts/`) lists the shortcuts from the registry in `lib/shortcuts.ts`. The registry only describes: the handlers live in their components, so the tests are what keep the two together.
+The `?` panel (`src/components/shortcuts/`) lists the shortcuts from the registry in `src/lib/shortcuts.ts`. The registry only describes: the handlers live in their components, so the tests are what keep the two together.
 
 **A new or changed keyboard shortcut**
-- Register it in `lib/shortcuts.ts` (a page-scoped group also calls `useRegisterShortcuts("<group>")` in its component), or, for a set owned by one component, export a constant next to it that the registry reads, as `TableKeyboardNav` and `CalendarKeyboardNav` do. Change the entry in the same commit as the handler.
-- Show the key with `Kbd` (`components/Kbd.tsx`), and declare it with `aria-keyshortcuts` where it sits on a button.
-- A single-key or page-wide shortcut stays out of the way while the member types, holds a modifier or has a dialog, menu or open list on screen: use `isTypingTarget`, `hasCommandModifier` and `isOverlayOpen` from `lib/keyboard.ts`. Row and list keys come from `TableKeyboardNav` and `useComboboxKeys` (`reuse-ui-components.md`), never a hand-written handler.
+- Register it in `src/lib/shortcuts.ts` (a page-scoped group also calls `useRegisterShortcuts("<group>")` in its component), or, for a set owned by one component, export a constant next to it that the registry reads, as `TableKeyboardNav` and `CalendarKeyboardNav` do. Change the entry in the same commit as the handler.
+- Show the key with `Kbd` (`src/components/Kbd.tsx`), and declare it with `aria-keyshortcuts` where it sits on a button.
+- A single-key or page-wide shortcut stays out of the way while the member types, holds a modifier or has a dialog, menu or open list on screen: use `isTypingTarget`, `hasCommandModifier` and `isOverlayOpen` from `src/lib/keyboard.ts`. Row and list keys come from `TableKeyboardNav` and `useComboboxKeys` (`reuse-ui-components.md`), never a hand-written handler.
 - Pin it with a test: a hand-written registry entry needs a driver in `tests/components/ShortcutDrivers.test.tsx` (renders the real component, presses the registered keys, asserts the handler responds; a missing driver or a changed key fails). Table and calendar entries are already tied to their constants in `tests/lib/shortcuts.test.ts`.
 
 **Guards**

@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
-// Prickles and attendance go through their repositories (lib/data/); this test has none of its own, so
+// Prickles and attendance go through their repositories (src/lib/data/); this test has none of its own, so
 // it gets the in-memory twins over a dataset each test fills.
 let dataset = new InMemoryDataset();
 vi.mock("@/lib/data/repos", async () => {

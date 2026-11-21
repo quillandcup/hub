@@ -64,7 +64,7 @@ if (!url || !key) {
 async function main() {
   console.log(`Target: ${new URL(url!).host}`);
   if (testOnly) {
-    // lib/email.ts redirects to EMAIL_DEV_ADDRESS unless EMAIL_TEST_MODE=false: keep it on.
+    // src/lib/email.ts redirects to EMAIL_DEV_ADDRESS unless EMAIL_TEST_MODE=false: keep it on.
     process.env.EMAIL_TEST_MODE = "true";
     const mail = await renderLaunchEmail("12345678");
     await sendEmail({ to: "(test mode: goes to EMAIL_DEV_ADDRESS)", ...mail });

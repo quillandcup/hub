@@ -1,0 +1,79 @@
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createDirectClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
+import { createRepos } from "@/lib/data/repos";
+import { NextRequest } from "next/server";
+import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
+import { getCurrentUser, type AuthUser } from "@/lib/auth";
+import { secretsMatch } from "@/lib/webhook-auth";
+import { staffMfaStateFor } from "@/lib/staff-mfa.server";
+import { blocksStaff } from "@/lib/staff-mfa";
+
+/**
+ * Creates a Supabase client for API routes.
+ *
+ * Supports three auth modes:
+ * - Service role key in Authorization header: used by integration tests,
+ *   returns a service role client that bypasses RLS
+ * - Vercel Cron secret in Authorization header: used by scheduled cron
+ *   invocations, returns a service role client that bypasses RLS
+ * - Cookie-based: normal browser sessions
+ *
+ * Returns null for `user` if auth fails (caller should return 401).
+ */
+export async function createApiAuth(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const cronSecret = process.env.CRON_SECRET;
+  // Exact `Bearer <secret>` only, compared in constant time (never a substring match).
+  const isServiceRole = !!serviceRoleKey && secretsMatch(`Bearer ${serviceRoleKey}`, authHeader);
+  const isCron = !!cronSecret && !!serviceRoleKey && secretsMatch(`Bearer ${cronSecret}`, authHeader);
+
+  if (isServiceRole || isCron) {
+    const supabase = createDirectClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+    return { supabase, user: { id: isCron ? "cron" : "service-role" } as const };
+  }
+
+  const supabase = await createClient();
+  let user: AuthUser | null = null;
+  try {
+    // Verified JWT claims (local signature check against cached JWKS), not a
+    // per-request getUser() round trip to Supabase Auth -- see src/lib/auth.ts.
+    // The timeout still guards the occasional JWKS refresh fetch.
+    user = await withTimeout(getCurrentUser(), AUTH_CHECK_TIMEOUT_MS);
+  } catch {
+    // Supabase unreachable or too slow — fall through to the documented
+    // "return null for user, caller returns 401" contract instead of
+    // crashing the function with an uncaught rejection.
+  }
+
+  return { supabase, user };
+}
+
+/**
+ * Verifies that the request is from an authenticated admin user.
+ *
+ * Returns an object with:
+ * - supabase: the client
+ * - user: the authenticated user (or null if no session)
+ * - forbidden: true if user is not admin, false otherwise
+ *
+ * Service-role key in Authorization header bypasses role check (used by tests).
+ * Vercel Cron secret in Authorization header also bypasses role check.
+ */
+export async function requireAdmin(request: NextRequest) {
+  const auth = await createApiAuth(request);
+  if (!auth.user) return { ...auth, forbidden: true as const };
+  // Service-role key (tests) or cron secret (Vercel Cron) bypasses role check
+  if (auth.user.id === "service-role" || auth.user.id === "cron") {
+    return { ...auth, forbidden: false as const };
+  }
+  if (!(await createRepos(auth.supabase).profiles.isAdmin(auth.user.id))) return { ...auth, forbidden: true as const };
+  // An admin who hasn't passed (or set up) the second sign-in step gets what a non-admin gets (src/lib/staff-mfa.ts).
+  if (blocksStaff(await staffMfaStateFor(auth.supabase))) return { ...auth, forbidden: true as const };
+  return { ...auth, forbidden: false as const };
+}

@@ -23,22 +23,22 @@ const layer = (file: string, pattern: RegExp): string => {
 };
 
 const things = {
-  chatToolbar: ["components/chat/MessageActions.tsx", /absolute -top-3 right-2 z-([\w-]+)/],
-  dayDivider: ["components/chat/MessageList.tsx", /<div className="sticky top-0 z-([\w-]+)/],
-  newMessagesBar: ["components/chat/NewMessagesBanner.tsx", /sticky top-12 z-([\w-]+)/],
-  appHeader: ["components/AppHeader.tsx", /<header[^>]*relative z-([\w-]+)/],
-  contentDropdown: ["components/chat/MessageBox.tsx", /absolute bottom-full left-0 z-([\w-]+) mb-1 max-h-56/],
-  pickerList: ["components/EntitySearch.tsx", /fixed z-([\w-]+) bg-white dark:bg-slate-800 border/],
-  railOpen: ["components/MemberNavigation.tsx", /railOpen \? "z-([\w-]+)" : "z-[\w-]+"/],
-  railClosed: ["components/MemberNavigation.tsx", /railOpen \? "z-[\w-]+" : "z-([\w-]+)"/],
-  adminRailOpen: ["app/(admin)/admin/AdminNavigation.tsx", /railOpen \? "z-([\w-]+)" : "z-[\w-]+"/],
-  mobileDrawer: ["components/MemberNavigation.tsx", /lg:hidden fixed inset-y-0 left-0 z-([\w-]+)/],
-  modal: ["components/Modal.tsx", /fixed inset-0 bg-black\/50 flex items-center justify-center z-([\w-]+)/],
-  cornerWidget: ["components/FeedbackWidget.tsx", /fixed right-4 top-16 z-([\w-]+)/],
-  searchPalette: ["components/search/SearchPalette.tsx", /fixed inset-0 z-([\w-]+)/],
-  tourHighlight: ["components/onboarding/OnboardingSpotlight.tsx", /className="fixed z-([\w-]+) pointer-events-none/],
-  tourPopup: ["components/onboarding/OnboardingSpotlight.tsx", /className="fixed z-([\w-]+) rounded-lg border/],
-  actionMenu: ["components/ActionMenu.tsx", /fixed z-([\w-]+) w-56/],
+  chatToolbar: ["src/components/chat/MessageActions.tsx", /absolute -top-3 right-2 z-([\w-]+)/],
+  dayDivider: ["src/components/chat/MessageList.tsx", /<div className="sticky top-0 z-([\w-]+)/],
+  newMessagesBar: ["src/components/chat/NewMessagesBanner.tsx", /sticky top-12 z-([\w-]+)/],
+  appHeader: ["src/components/AppHeader.tsx", /<header[^>]*relative z-([\w-]+)/],
+  contentDropdown: ["src/components/chat/MessageBox.tsx", /absolute bottom-full left-0 z-([\w-]+) mb-1 max-h-56/],
+  pickerList: ["src/components/EntitySearch.tsx", /fixed z-([\w-]+) bg-white dark:bg-slate-800 border/],
+  railOpen: ["src/components/MemberNavigation.tsx", /railOpen \? "z-([\w-]+)" : "z-[\w-]+"/],
+  railClosed: ["src/components/MemberNavigation.tsx", /railOpen \? "z-[\w-]+" : "z-([\w-]+)"/],
+  adminRailOpen: ["src/app/(admin)/admin/AdminNavigation.tsx", /railOpen \? "z-([\w-]+)" : "z-[\w-]+"/],
+  mobileDrawer: ["src/components/MemberNavigation.tsx", /lg:hidden fixed inset-y-0 left-0 z-([\w-]+)/],
+  modal: ["src/components/Modal.tsx", /fixed inset-0 bg-black\/50 flex items-center justify-center z-([\w-]+)/],
+  cornerWidget: ["src/components/FeedbackWidget.tsx", /fixed right-4 top-16 z-([\w-]+)/],
+  searchPalette: ["src/components/search/SearchPalette.tsx", /fixed inset-0 z-([\w-]+)/],
+  tourHighlight: ["src/components/onboarding/OnboardingSpotlight.tsx", /className="fixed z-([\w-]+) pointer-events-none/],
+  tourPopup: ["src/components/onboarding/OnboardingSpotlight.tsx", /className="fixed z-([\w-]+) rounded-lg border/],
+  actionMenu: ["src/components/ActionMenu.tsx", /fixed z-([\w-]+) w-56/],
 } as const;
 type Thing = keyof typeof things;
 const value = (t: Thing) => Number(zIndex[layer(things[t][0], things[t][1])]);

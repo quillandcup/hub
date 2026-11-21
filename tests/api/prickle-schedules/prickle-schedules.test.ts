@@ -5,7 +5,7 @@ import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the admin prickle-schedules CRUD API
- * (app/api/prickle-schedules/route.ts, [id]/route.ts).
+ * (src/app/api/prickle-schedules/route.ts, [id]/route.ts).
  */
 describe('Prickle Schedules API', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -261,7 +261,7 @@ describe('Prickle Schedules API', () => {
   describe('host_eligibility on GET', () => {
     // Independent re-implementation of the rule (one calendar month from the tenure
     // start, clamped to month end) on org-local (America/New_York) dates, so the test
-    // doesn't just echo lib/host-eligibility.ts back at itself.
+    // doesn't just echo src/lib/host-eligibility.ts back at itself.
     function orgToday(): string {
       return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/New_York',

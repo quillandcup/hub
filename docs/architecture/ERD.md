@@ -17,7 +17,7 @@ populates the Bronze layer.
 
 Solid lines (`--`) are enforced foreign keys. Dashed lines (`..`) are either a natural-key
 value match with **no enforced FK** (e.g. `zoom_meeting_uuid`), or a Bronze/Local →
-Silver "processed into" relationship from the ETL logic in `lib/processing/trigger.ts`
+Silver "processed into" relationship from the ETL logic in `src/lib/processing/trigger.ts`
 and the `/api/process/*` routes — not a database constraint.
 
 ```mermaid
@@ -507,5 +507,5 @@ erDiagram
 - **`prickles.type` (free text) coexists with `prickles.type_id` (FK).** `type` was superseded by `type_id` + `prickle_types` in `20260405070000` but never dropped. Current processing code only writes `type_id`.
 - **`member_email_aliases` vs `member_name_aliases` are two different tables**, not a rename — `member_email_aliases` dedupes Kajabi contacts by email during member processing; `member_name_aliases` maps Zoom/Slack display names to a member for attendance/activity matching. Both are Local, both are hand-maintained (plus some auto-inserts from `reprocess_members_atomic` on email change).
 - **No table is named `attendance` anymore** — it was renamed to `prickle_attendance` in `20260422000001`. the attendance-design rules in `.claude/rules/attendance-table.md` still apply verbatim to `prickle_attendance`.
-- **`prickle_types.purpose` and `.solo_task_friendly` are independent, not redundant.** `purpose` is the type's theme (Monthly Goal Review is `work`); `solo_task_friendly` is whether a member can quietly bring an unrelated task there instead. They diverge in both directions: Sprint Prickle is `writing`-purpose but not friendly (it's an active word-war), while a hypothetical open co-working session could be `work`-purpose and friendly. Used by the Prickle Picker (`lib/prickle-picker.ts`).
-- **`prickle_host_vibes` has no RLS restricting writes to the tagging member** — it uses the same permissive `authenticated`-role policy as every other table here. Authorization (a host can only tag her own `(type, host)` pairs) is enforced in the server action (`app/(member)/prickle-picker/actions.ts`'s `saveHostVibe`) by deriving `host_id` from `getEffectiveIdentity` rather than accepting it as input.
+- **`prickle_types.purpose` and `.solo_task_friendly` are independent, not redundant.** `purpose` is the type's theme (Monthly Goal Review is `work`); `solo_task_friendly` is whether a member can quietly bring an unrelated task there instead. They diverge in both directions: Sprint Prickle is `writing`-purpose but not friendly (it's an active word-war), while a hypothetical open co-working session could be `work`-purpose and friendly. Used by the Prickle Picker (`src/lib/prickle-picker.ts`).
+- **`prickle_host_vibes` has no RLS restricting writes to the tagging member** — it uses the same permissive `authenticated`-role policy as every other table here. Authorization (a host can only tag her own `(type, host)` pairs) is enforced in the server action (`src/app/(member)/prickle-picker/actions.ts`'s `saveHostVibe`) by deriving `host_id` from `getEffectiveIdentity` rather than accepting it as input.

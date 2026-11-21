@@ -19,10 +19,10 @@
 
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../lib/data/database.types";
-import { createRepos } from "../lib/data/repos";
-import { storeImage } from "../lib/media/library";
-import { bookCoverUrlFor } from "../lib/bookCover";
+import type { Database } from "../src/lib/data/database.types";
+import { createRepos } from "../src/lib/data/repos";
+import { storeImage } from "../src/lib/media/library";
+import { bookCoverUrlFor } from "../src/lib/bookCover";
 import { loadLayeredEnv } from "./load-layered-env";
 import { parseBookSpec } from "./import-storefront-books-spec";
 import { outboundFetch } from "@/lib/http/outbound";

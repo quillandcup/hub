@@ -198,7 +198,7 @@ describe("adoptMemberPhotos", () => {
 });
 
 describe("member processing keeps an adopted photo", () => {
-  // What /api/process/members does for each member (app/api/process/members/route.ts, STEP 5.6), without the database.
+  // What /api/process/members does for each member (src/app/api/process/members/route.ts, STEP 5.6), without the database.
   const kajabiFields = { bio: null, instagram_url: null, facebook_url: null, twitter_url: null };
   const reprocess = (fromSources: string, override: { photo_path?: string | null } | null) => {
     const member = { ...kajabiFields, photo_url: fromSources as string | null };

@@ -28,7 +28,7 @@ new ApiCheck('mux-webhook-rejects-unsigned', {
 if (muxCheck) {
   const streamUrl = `https://stream.mux.com/${muxCheck.playbackId}.m3u8`
 
-  // A signed token minted the way lib/mux.ts does gets the stream manifest.
+  // A signed token minted the way src/lib/mux.ts does gets the stream manifest.
   new ApiCheck('mux-signed-stream', {
     name: 'Mux signed playback returns a manifest',
     activated: true,

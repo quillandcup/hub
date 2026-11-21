@@ -9,7 +9,7 @@ import {
   Text,
   Hr,
 } from "react-email";
-import { SUPPORT_EMAIL } from "../../lib/config";
+import { SUPPORT_EMAIL } from "../../src/lib/config";
 
 const colors = {
   bg: "#faf8f5",

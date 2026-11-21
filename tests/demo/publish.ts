@@ -1,6 +1,6 @@
 /**
  * Uploads the captured screenshots the help articles use to the private help-images bucket, so the deployed
- * /help pages can show them (lib/help.ts, app/(member)/help/images). Desktop in light mode is the published set.
+ * /help pages can show them (src/lib/help.ts, src/app/(member)/help/images). Desktop in light mode is the published set.
  * Each set lives in its own folder, named by the main commit it was captured at, and a build shows the newest set
  * captured at or before it (scripts/help-images-version.ts, docs/product/DEMO_AND_HELP.md).
  *
@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadTargetEnv } from "../../scripts/env-files";
 import { SET_ID, helpImagesVersion } from "../../scripts/help-images-version";
-import { HELP_IMAGES_BUCKET, isHelpImagePath, listHelpArticles } from "../../lib/help";
+import { HELP_IMAGES_BUCKET, isHelpImagePath, listHelpArticles } from "../../src/lib/help";
 import { loadDemoEnv } from "./env";
 
 export const PUBLISHED_PROJECT = "desktop-light";

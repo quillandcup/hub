@@ -3,8 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Hints on a control go through `Tooltip` (components/Tooltip.tsx; a native `title` is guarded by tooltip-native-title.test.ts).
- * Definitions and popovers go through `InfoTip` (components/InfoTip.tsx), which hides with display:none and
+ * Hints on a control go through `Tooltip` (src/components/Tooltip.tsx; a native `title` is guarded by tooltip-native-title.test.ts).
+ * Definitions and popovers go through `InfoTip` (src/components/InfoTip.tsx), which hides with display:none and
  * stays inside the viewport on a phone. A hand-rolled hover box hidden with `opacity-0`/`invisible` is
  * still laid out: a 16rem box hanging off an icon near the right edge widened the admin member page on a
  * phone, so the whole page scrolled sideways into blank space. This fails on
@@ -12,10 +12,10 @@ import { describe, expect, it } from "vitest";
  *   2. `role="tooltip"` outside InfoTip,
  * in app and components, unless the file is listed with a reason. A stale entry fails too.
  */
-const TOOLTIP_COMPONENTS = ["components/InfoTip.tsx", "components/Tooltip.tsx"];
+const TOOLTIP_COMPONENTS = ["src/components/InfoTip.tsx", "src/components/Tooltip.tsx"];
 const ALLOWED_TOOLTIP_ROLE: Record<string, string> = {
-  "components/chat/ReactionBar.tsx": "hover card of a reaction chip: display:none until shown, anchored to the chip it names",
-  "components/ReasonBadges.tsx": "rendered only while shown (state), centred above a small badge; nothing laid out at rest",
+  "src/components/chat/ReactionBar.tsx": "hover card of a reaction chip: display:none until shown, anchored to the chip it names",
+  "src/components/ReasonBadges.tsx": "rendered only while shown (state), centred above a small badge; nothing laid out at rest",
 };
 const ALLOWED_HIDDEN_BOX: Record<string, string> = {};
 
@@ -41,7 +41,7 @@ export function hiddenBoxes(source: string): boolean {
 }
 
 describe("tooltips", () => {
-  const files = ["app", "components"]
+  const files = ["src/app", "src/components"]
     .flatMap((dir) => sourceFiles(path.join(root, dir)))
     .map((file) => [path.relative(root, file), fs.readFileSync(file, "utf8")] as const);
 
@@ -57,7 +57,7 @@ describe("tooltips", () => {
       .filter(([file, src]) => !TOOLTIP_COMPONENTS.includes(file) && hiddenBoxes(src))
       .map(([file]) => file)
       .filter((file) => !(file in ALLOWED_HIDDEN_BOX));
-    expect(offenders, "use components/InfoTip.tsx (display:none, phone-safe) instead of a hand-rolled hover box").toEqual([]);
+    expect(offenders, "use src/components/InfoTip.tsx (display:none, phone-safe) instead of a hand-rolled hover box").toEqual([]);
     for (const file of Object.keys(ALLOWED_HIDDEN_BOX)) {
       expect(files.find(([f]) => f === file)?.[1] && hiddenBoxes(files.find(([f]) => f === file)![1]), `stale: ${file}`).toBe(true);
     }
@@ -66,7 +66,7 @@ describe("tooltips", () => {
   it('has no role="tooltip" outside Tooltip and InfoTip unless listed', () => {
     const withRole = files.filter(([, src]) => src.includes('role="tooltip"')).map(([file]) => file);
     const offenders = withRole.filter((file) => !TOOLTIP_COMPONENTS.includes(file) && !(file in ALLOWED_TOOLTIP_ROLE));
-    expect(offenders, "use components/Tooltip.tsx (a hint on a control) or components/InfoTip.tsx (a definition)").toEqual([]);
+    expect(offenders, "use src/components/Tooltip.tsx (a hint on a control) or src/components/InfoTip.tsx (a definition)").toEqual([]);
     for (const file of Object.keys(ALLOWED_TOOLTIP_ROLE)) expect(withRole, `stale: ${file}`).toContain(file);
   });
 });

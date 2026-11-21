@@ -6,7 +6,7 @@ import { apiFetch } from '../../helpers/api-fetch'
  * member_hiatus_history must actually stick after reprocessing — this is
  * the hiatus-specific half of the fix for the bug where a manually-set
  * 'on_hiatus' status got silently reverted to the Kajabi-derived value on
- * every nightly sync (see app/api/process/members/route.ts and Step 4a of
+ * every nightly sync (see src/app/api/process/members/route.ts and Step 4a of
  * reprocess_members_atomic). Also covers hiatus taking precedence over an
  * active gift override on the same member.
  */

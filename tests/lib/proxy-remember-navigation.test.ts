@@ -1,5 +1,5 @@
 /**
- * The proxy's `hub_next` cookie, "where they were headed" (lib/safe-next.ts), is one slot per browser and the last write wins. A
+ * The proxy's `hub_next` cookie, "where they were headed" (src/lib/safe-next.ts), is one slot per browser and the last write wins. A
  * real sign-in went wrong because of that: a visitor signed out in one tab and clicked a Slack link to a chat message in another,
  * and a background request from the first tab, a plain `GET /` a second later, overwrote the remembered message, so the magic link
  * took them to the dashboard. Only a real page navigation may write it.

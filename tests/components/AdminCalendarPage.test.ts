@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 const src = fs.readFileSync(
-  path.join(process.cwd(), 'app/(admin)/admin/calendar/page.tsx'),
+  path.join(process.cwd(), 'src/app/(admin)/admin/calendar/page.tsx'),
   'utf-8'
 );
 

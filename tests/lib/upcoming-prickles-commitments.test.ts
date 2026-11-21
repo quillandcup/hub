@@ -47,7 +47,7 @@ describe("computeCommitmentSignals", () => {
     ])
   })
 
-  it("uses lib/commitments tolerance matching: a drifted prickle within the tolerance still counts", () => {
+  it("uses src/lib/commitments tolerance matching: a drifted prickle within the tolerance still counts", () => {
     const drifted = [slot("drift", "2026-09-28T13:40:00Z"), slot("farOff", "2026-10-05T15:30:00Z")]
     const signals = computeCommitmentSignals([commitment], drifted, new Set(), NOW)
     expect([...signals.keys()]).toEqual(["drift"])

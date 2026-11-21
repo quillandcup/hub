@@ -3,7 +3,7 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { ProgressSessionExpiredError, runProgressCapture } from '@/lib/kajabi/progress-run'
 
 /**
- * `courses:content --progress` (lib/kajabi/progress-run.ts) is idempotent (Bronze pattern: UPSERT on the natural
+ * `courses:content --progress` (src/lib/kajabi/progress-run.ts) is idempotent (Bronze pattern: UPSERT on the natural
  * key, soft-delete what a full snapshot no longer lists):
  * 1. First capture writes the roster to kajabi_product_progress and each student's lessons to kajabi_lesson_progress
  * 2. Capturing the same data again writes nothing

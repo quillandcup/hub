@@ -1,6 +1,6 @@
 -- The visible activity nests: Hedgie Care's "Activity during this plan" list is a subset of the community manager's Activity tab,
 -- which is a subset of an admin's (all activity). A plain row-id comparison on one seeded member with a plan window.
---   * the plan list is computed here by the rule the repository runs (ActivityRepository.planActivity, lib/care-activity.ts):
+--   * the plan list is computed here by the rule the repository runs (ActivityRepository.planActivity, src/lib/care-activity.ts):
 --     the member's own participation and the Resend email rows inside the window (start included, end excluded: closed_at, or now
 --     while open), and this plan's care rows (source 'care', related_id the plan) at any time;
 --   * her feed is get_activity_feed with a member as a community manager; the admin feed the same call as an admin;

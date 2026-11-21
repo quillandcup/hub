@@ -55,7 +55,7 @@ export async function seed(now: Date = new Date()) {
     if (profileError) throw new Error(`user_profiles ${p.key}: ${profileError.message}`);
   }
 
-  // The community comes from the typed profile (lib/data/profiles/community.ts) through the same loader `pnpm seed:local` uses:
+  // The community comes from the typed profile (src/lib/data/profiles/community.ts) through the same loader `pnpm seed:local` uses:
   // its members (staff are members too, so the member pages open for the admin; bios, join dates, accounts linked), badges,
   // notifications and Big Sister matches. Prickles and attendance are left out on purpose: the demo derives them from the Bronze
   // calendar and Zoom rows below with the app's own processing, the way production does.

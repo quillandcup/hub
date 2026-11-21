@@ -13,7 +13,7 @@ function sourceFiles(dir: string): string[] {
 
 describe("data-track names in the source", () => {
   const root = path.resolve(__dirname, "../..");
-  const found = ["app", "components"].flatMap((dir) =>
+  const found = ["src/app", "src/components"].flatMap((dir) =>
     sourceFiles(path.join(root, dir)).flatMap((file) =>
       [...fs.readFileSync(file, "utf8").matchAll(/data-track="([^"]*)"/g)].map((m) => ({ file: path.relative(root, file), name: m[1] }))
     )

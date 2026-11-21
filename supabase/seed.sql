@@ -74,7 +74,7 @@ UPDATE prickle_types SET listed_in_events = true
 
 -- first_joined_at / most_recent_joined_at / total_active_months are normally
 -- computed by /api/process/members from real Kajabi purchase history (see
--- lib/member-tenure.ts) — these seed members have no Bronze Kajabi data at
+-- src/lib/member-tenure.ts) — these seed members have no Bronze Kajabi data at
 -- all, so that pipeline never touches them and those fields would otherwise
 -- stay NULL forever (which is what made /admin/hedgieversaries show empty
 -- despite having "active" members). Values below are hand-set,

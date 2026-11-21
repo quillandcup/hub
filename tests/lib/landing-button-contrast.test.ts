@@ -65,8 +65,8 @@ describe("buttonStyleProblems: the site's own buttons", () => {
   });
 });
 
-describe("the colours match app/globals.css", () => {
-  const css = readFileSync("app/globals.css", "utf8");
+describe("the colours match src/app/globals.css", () => {
+  const css = readFileSync("src/app/globals.css", "utf8");
   const triple = (value: string) => value.trim().split(/\s+/).map(Number);
 
   it("has the page and primary colours the check assumes", () => {

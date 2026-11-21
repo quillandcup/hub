@@ -66,7 +66,7 @@ describe("next.config headers", () => {
 
   it("covers each prefix the proxy matcher excludes", async () => {
     const sources = (await rules()).map((r) => r.source).join(" ");
-    const { config } = await import("../../proxy");
+    const { config } = await import("../../src/proxy");
     const excluded = (config.matcher[0].match(/\(\?!([^)]*)\)/)?.[1] ?? "").split("|");
     for (const prefix of ["_next/static", "_next/image", "favicon.ico", "monitoring"]) {
       expect(excluded.some((e) => e.startsWith(prefix))).toBe(true);

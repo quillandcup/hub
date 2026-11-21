@@ -136,6 +136,9 @@ export function serverActionExportOffenders(files: Files): string[] {
   return offenders;
 }
 
+/** Where an `@/` import points, from the repo root: src/, except the root folders `paths` in tsconfig.json also maps. */
+const atRoot = (spec: string): string => (/^@\/(config|scripts|tests)\//.test(spec) ? spec.slice(2) : `src/${spec.slice(2)}`);
+
 export function boundary(files: Files) {
   const imports = new Map([...files].map(([f, text]) => [f, importsOf(text)]));
   const isClient = (f: string) => /^\s*["']use client["']/.test(files.get(f)!);
@@ -143,7 +146,7 @@ export function boundary(files: Files) {
   const directlyServerOnly = (f: string) => imports.get(f)!.some((i) => SERVER_ONLY_PACKAGES.test(i.spec));
 
   function resolve(from: string, spec: string): string | null {
-    const base = spec.startsWith("@/") ? spec.slice(2) : spec.startsWith(".") ? path.join(path.dirname(from), spec) : null;
+    const base = spec.startsWith("@/") ? atRoot(spec) : spec.startsWith(".") ? path.join(path.dirname(from), spec) : null;
     if (!base) return null;
     return [".tsx", ".ts", "/index.tsx", "/index.ts"].map((ext) => base + ext).find((f) => files.has(f)) ?? null;
   }

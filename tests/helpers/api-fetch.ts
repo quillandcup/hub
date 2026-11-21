@@ -25,12 +25,12 @@ type RouteModule = Record<string, unknown>
 type RouteHandler = (request: NextRequest, context: { params: Promise<Record<string, string | string[]>> }) => Promise<Response> | Response
 
 // Every API route module, loaded lazily so a test only imports the routes it calls.
-const routeLoaders = import.meta.glob('/app/api/**/route.ts') as Record<string, () => Promise<RouteModule>>
+const routeLoaders = import.meta.glob('/src/app/api/**/route.ts') as Record<string, () => Promise<RouteModule>>
 
 type RouteEntry = { segments: string[]; load: () => Promise<RouteModule> }
 
 const routes: RouteEntry[] = Object.entries(routeLoaders).map(([file, load]) => ({
-  segments: file.replace(/^\/app\/api\//, '').replace(/\/?route\.ts$/, '').split('/').filter(Boolean),
+  segments: file.replace(/^\/src\/app\/api\//, '').replace(/\/?route\.ts$/, '').split('/').filter(Boolean),
   load,
 }))
 
@@ -73,7 +73,7 @@ function matchRoute(pathSegments: string[]): { entry: RouteEntry; params: Record
 /**
  * Drop-in for `fetch(`${getTestApiBaseUrl()}/api/...`, init)` that calls the route handler in
  * this process instead of over HTTP, so Vitest counts the route's coverage. The proxy is skipped:
- * it leaves /api/* public and routes authenticate themselves (see lib/supabase/middleware.ts).
+ * it leaves /api/* public and routes authenticate themselves (see src/lib/supabase/middleware.ts).
  */
 export async function apiFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
   const url = new URL(input.toString(), 'http://localhost:3000')

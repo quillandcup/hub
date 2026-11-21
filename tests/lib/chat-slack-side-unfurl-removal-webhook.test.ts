@@ -5,7 +5,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { hubMessageMetadata } from "@/lib/chat/slack-post";
 
 /**
- * The webhook's wiring of lib/chat/slack-side-unfurl-removal.ts: the author of a message written in the Hub removes Slack's link preview
+ * The webhook's wiring of src/lib/chat/slack-side-unfurl-removal.ts: the author of a message written in the Hub removes Slack's link preview
  * inside Slack, Slack sends the message again with an attachment fewer, and the Hub hides its own preview of that link (the same mark as
  * its X). Runs over the in-memory repositories; the function itself is covered in chat-slack-side-unfurl-removal.test.ts.
  */

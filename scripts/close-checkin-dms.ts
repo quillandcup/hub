@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 // Collapses the check-in and check-out DMs that are still open in people's inboxes although the
-// check-in is done on the site (lib/prickle-checkin-dm-cleanup.ts). Run once after the Submit button ships.
+// check-in is done on the site (src/lib/prickle-checkin-dm-cleanup.ts). Run once after the Submit button ships.
 //
 //   pnpm checkin-dms:close                 dry run: counts only (default)
 //   pnpm checkin-dms:close --apply         collapse them
@@ -34,7 +34,7 @@ async function main() {
   }
   const token = await getSlackBotToken();
   if (!token) {
-    console.error("No Slack bot token found (SLACK_BOT_TOKEN, or the stored one: lib/slack-bot-token.ts).");
+    console.error("No Slack bot token found (SLACK_BOT_TOKEN, or the stored one: src/lib/slack-bot-token.ts).");
     process.exit(1);
   }
 

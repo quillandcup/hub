@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
-// Hibernating projects and deleting a project (app/(member)/projects/actions.ts), over the in-memory
+// Hibernating projects and deleting a project (src/app/(member)/projects/actions.ts), over the in-memory
 // writing repository. The Supabase fake answers only the lookups the identity check and the
 // attendance and bookshelf reads make.
 

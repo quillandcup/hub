@@ -46,8 +46,8 @@ const mist = {
 export default {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   darkMode: "class",
   theme: {
@@ -56,7 +56,7 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
         plum,
-        // Semantic colours for the landing pages (values per mode in app/globals.css): change one there and every page follows.
+        // Semantic colours for the landing pages (values per mode in src/app/globals.css): change one there and every page follows.
         page: "rgb(var(--lp-page) / <alpha-value>)",
         card: "rgb(var(--lp-card) / <alpha-value>)",
         tile: "rgb(var(--lp-tile) / <alpha-value>)",
@@ -107,7 +107,7 @@ export default {
       },
       fontFamily: {
         // Brand serif. Silver South (the licensed brand font) isn't web-licensed here yet, so
-        // this is its Google Fonts stand-in, Playfair Display, loaded in app/layout.tsx.
+        // this is its Google Fonts stand-in, Playfair Display, loaded in src/app/layout.tsx.
         display: ["var(--font-display)", "Georgia", "serif"],
       },
     },
@@ -115,7 +115,7 @@ export default {
   plugins: [
     typography,
     containerQueries,
-    // Only devices with a mouse or trackpad: keyboard-shortcut hints (`components/Kbd.tsx`) never show on a phone or tablet.
+    // Only devices with a mouse or trackpad: keyboard-shortcut hints (`src/components/Kbd.tsx`) never show on a phone or tablet.
     plugin(({ addVariant }) => addVariant("fine-pointer", "@media (hover: hover) and (pointer: fine)")),
   ],
 } satisfies Config;

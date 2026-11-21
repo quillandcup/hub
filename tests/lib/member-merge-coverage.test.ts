@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { DERIVED, MERGE_TABLE_LABELS, MOVED, NOT_MOVED } from "@/lib/member-merge-coverage";
 
-// Every table that references `members` must be classified in lib/member-merge-coverage.ts (the merge dialog
+// Every table that references `members` must be classified in src/lib/member-merge-coverage.ts (the merge dialog
 // reads the same lists), and a new one fails until someone decides: move it in the merge, or add it to NOT_MOVED
 // with a TODO.
 
 /** The public tables whose generated type lists a foreign key to `members`. */
 function tablesReferencingMembers(): string[] {
-  const lines = readFileSync("lib/data/database.types.ts", "utf8").split("\n");
+  const lines = readFileSync("src/lib/data/database.types.ts", "utf8").split("\n");
   const publicAt = lines.indexOf("  public: {");
   const start = lines.findIndex((l, i) => i > publicAt && l === "    Tables: {");
   const end = lines.findIndex((l, i) => i > start && l === "    Views: {");

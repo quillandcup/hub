@@ -1,5 +1,5 @@
 /**
- * The connect-Slack gate's trip through Slack (lib/gates.ts): `/api/oauth/slack/start?next=` remembers where the visitor was
+ * The connect-Slack gate's trip through Slack (src/lib/gates.ts): `/api/oauth/slack/start?next=` remembers where the visitor was
  * headed, the callback sends them there once the connection works, and forgets it on any other outcome.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";

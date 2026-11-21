@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Page wiring for the admin member detail (app/(admin)/admin/members/[id]/MemberDetailPage.tsx):
+ * Page wiring for the admin member detail (src/app/(admin)/admin/members/[id]/MemberDetailPage.tsx):
  * the data each tab gets. MemberDetails (the tabbed client UI) is stubbed to print the Slack
  * activity it is handed, so these tests are about what the page loads and resolves.
  */

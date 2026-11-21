@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Every Supabase client the app builds is typed with the generated `Database`
- * (lib/data/database.types.ts), so a misspelled column, a nullable value passed where the table
+ * (src/lib/data/database.types.ts), so a misspelled column, a nullable value passed where the table
  * says NOT NULL, or an RPC that no migration creates fails `pnpm typecheck` instead of failing in
  * production. An untyped client (`SupabaseClient<any>`) hides all of that, and a union of typed and
  * untyped clients breaks every query on it, so a client is created typed or not at all.
@@ -24,19 +24,19 @@ const FACTORY_CALL = /\b(createClient|createServerClient|createBrowserClient|cre
 const IMPORTS_FACTORY = /import\s*\{[^}]*\b(createClient|createServerClient|createBrowserClient)\b[^}]*\}\s*from\s*["']@supabase\/(supabase-js|ssr)["']/;
 
 describe("Supabase clients are typed", () => {
-  const files = ["app", "lib", "components"]
+  const files = ["src/app", "src/lib", "src/components"]
     .flatMap((dir) => sourceFiles(path.join(root, dir)))
     .map((file) => ({ file: path.relative(root, file), source: fs.readFileSync(file, "utf8") }))
     .filter(({ source }) => IMPORTS_FACTORY.test(source));
 
   it("finds the files that build clients", () => {
-    expect(files.map((f) => f.file)).toEqual(expect.arrayContaining(["lib/supabase/server.ts", "lib/supabase/service.ts", "lib/supabase/client.ts"]));
+    expect(files.map((f) => f.file)).toEqual(expect.arrayContaining(["src/lib/supabase/server.ts", "src/lib/supabase/service.ts", "src/lib/supabase/client.ts"]));
   });
 
   it("passes the generated Database type to every client it creates", () => {
     const untyped = files.flatMap(({ file, source }) =>
       [...source.matchAll(FACTORY_CALL)]
-        // `createClient()` with no arguments is our own wrapper (lib/supabase/server.ts), not a Supabase factory.
+        // `createClient()` with no arguments is our own wrapper (src/lib/supabase/server.ts), not a Supabase factory.
         .filter((m) => !(m[0].endsWith("()") && !source.includes(`import { ${m[1]} }`)))
         .filter((m) => !m[2] && /\(\s*[^)\s]/.test(source.slice(m.index!, m.index! + m[0].length + 40)))
         .map(() => file),

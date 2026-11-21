@@ -17,7 +17,7 @@ import { FEATURE_PREVIEWS } from "@/lib/features";
  * (default: 2 days ago) and the production deployments from GitHub, and writes the titles-only grouping prompt to
  * tests/demo/out/changelog-draft/. With `--run` it calls the Claude Code CLI (not a dependency of the app) twice: a small model
  * groups the pull requests into stories, then a larger one drafts only the member-visible stories into drafts.md. A pull
- * request that names a feature flag not in `LIVE_FLAGS` (lib/changelog/live-flags.ts, or `--live-flags`) is held back until
+ * request that names a feature flag not in `LIVE_FLAGS` (src/lib/changelog/live-flags.ts, or `--live-flags`) is held back until
  * the flag is on for everyone. The job never reads the production database.
  * Nothing is added to the changelog: a person reviews the draft. docs/runbooks/CHANGELOG_PROCESS.md, "Drafting entries".
  */

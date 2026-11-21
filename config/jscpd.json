@@ -15,7 +15,7 @@
     "docs/**",
     "public/**",
     "supabase/migrations/**",
-    "lib/data/database.types.ts",
+    "src/lib/data/database.types.ts",
     "tests/fixtures/**",
     "tests/fixtures/subscription-snapshots/**",
     "tests/demo/.stack/**",

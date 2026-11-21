@@ -27,18 +27,18 @@ const options = { flagKeys: ["chat_videos", "hosting"], liveFlags: [] as string[
 describe("classifyPr", () => {
   it("skips docs, tests, demo and changelog-only changes", () => {
     expect(classifyPr({ files: ["docs/TODO.md", "tests/lib/a.test.ts"] })).toBe("skip");
-    expect(classifyPr({ files: ["content/changelog.ts", "public/changelog/x/a.webp", "tests/demo/scenes/a.spec.ts"] })).toBe("skip");
+    expect(classifyPr({ files: ["src/content/changelog.ts", "public/changelog/x/a.webp", "tests/demo/scenes/a.spec.ts"] })).toBe("skip");
   });
 
   it("calls a change under a member-facing path member-visible, but not an admin screen", () => {
-    expect(classifyPr({ files: ["components/chat/Sidebar.tsx", "tests/a.test.tsx"] })).toBe("member-visible");
-    expect(classifyPr({ files: ["app/(member)/settings/page.tsx"] })).toBe("member-visible");
-    expect(classifyPr({ files: ["components/admin/Table.tsx"] })).toBe("engineering");
-    expect(classifyPr({ files: ["app/(admin)/admin/users/page.tsx"] })).toBe("engineering");
+    expect(classifyPr({ files: ["src/components/chat/Sidebar.tsx", "tests/a.test.tsx"] })).toBe("member-visible");
+    expect(classifyPr({ files: ["src/app/(member)/settings/page.tsx"] })).toBe("member-visible");
+    expect(classifyPr({ files: ["src/components/admin/Table.tsx"] })).toBe("engineering");
+    expect(classifyPr({ files: ["src/app/(admin)/admin/users/page.tsx"] })).toBe("engineering");
   });
 
   it("calls other code engineering, and a change with no files engineering", () => {
-    expect(classifyPr({ files: ["lib/data/members.ts"] })).toBe("engineering");
+    expect(classifyPr({ files: ["src/lib/data/members.ts"] })).toBe("engineering");
     expect(classifyPr({ files: [] })).toBe("engineering");
   });
 });
@@ -75,7 +75,7 @@ describe("buildDraftInput", () => {
   ] as ChangelogEntry[];
 
   it("keeps PRs that could matter oldest first with their live day, and entries inside the window", () => {
-    const input = buildDraftInput("2026-11-01", [pr(3, ["components/A.tsx"]), pr(1, ["docs/a.md"]), pr(2, ["lib/x.ts"])], entries, options);
+    const input = buildDraftInput("2026-11-01", [pr(3, ["src/components/A.tsx"]), pr(1, ["docs/a.md"]), pr(2, ["src/lib/x.ts"])], entries, options);
     expect(input.prs.map((p) => [p.number, p.kind, p.liveOn])).toEqual([
       [2, "engineering", "2026-11-02"],
       [3, "member-visible", "2026-11-03"],
@@ -84,7 +84,7 @@ describe("buildDraftInput", () => {
   });
 
   it("holds back a PR that names a flag not on for everyone, and lets it through once it is", () => {
-    const flagged = pr(2, ["components/A.tsx"], { body: "behind `chat_videos`" });
+    const flagged = pr(2, ["src/components/A.tsx"], { body: "behind `chat_videos`" });
     expect(buildDraftInput("2026-11-01", [flagged], entries, options).held).toEqual([{ number: 2, title: "Change 2", flags: ["chat_videos"] }]);
     const live = buildDraftInput("2026-11-01", [flagged], entries, { ...options, liveFlags: ["chat_videos"] });
     expect(live.held).toEqual([]);
@@ -92,14 +92,14 @@ describe("buildDraftInput", () => {
   });
 
   it("has no live day for a PR that is not deployed yet", () => {
-    const input = buildDraftInput("2026-11-01", [pr(2, ["lib/x.ts"])], entries, { ...options, deployTimes: [] });
+    const input = buildDraftInput("2026-11-01", [pr(2, ["src/lib/x.ts"])], entries, { ...options, deployTimes: [] });
     expect(input.prs[0].liveOn).toBeNull();
   });
 });
 
 describe("prompts", () => {
   const entries = [{ slug: "new", date: "2026-11-02", audience: "product", title: "New thing" }] as ChangelogEntry[];
-  const input = buildDraftInput("2026-11-01", [pr(3, ["a/1.ts", "a/2.ts", "a/3.ts", "a/4.ts"], { body: "x".repeat(2000) }), pr(2, ["components/B.tsx"])], entries, options);
+  const input = buildDraftInput("2026-11-01", [pr(3, ["a/1.ts", "a/2.ts", "a/3.ts", "a/4.ts"], { body: "x".repeat(2000) }), pr(2, ["src/components/B.tsx"])], entries, options);
 
   it("the grouping prompt has titles and a few files but no bodies", () => {
     const prompt = buildGroupPrompt(input);

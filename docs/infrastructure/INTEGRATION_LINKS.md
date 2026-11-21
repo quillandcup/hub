@@ -76,7 +76,7 @@ Alert destinations are configured per system and environment:
 | System | Where it's configured | Status |
 |---|---|---|
 | Checkly (uptime, SSL, cron heartbeats) | Code: `config/checkly/__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
-| Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/infrastructure/SLACK_OPERATIONS_ALERTS.md`) | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
+| Hub app (failed Slack DMs, ambiguous member matches) | `src/lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/infrastructure/SLACK_OPERATIONS_ALERTS.md`) | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
 | Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/infrastructure/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
@@ -267,7 +267,7 @@ that should persist (dashboard edits get overwritten on the next `checkly deploy
 
 ### Adding a scheduled job (heartbeat monitor)
 
-1. Add the job to `CRON_HEARTBEATS` in `lib/cron-heartbeats.ts` (route, scheduler, period, grace,
+1. Add the job to `CRON_HEARTBEATS` in `src/lib/cron-heartbeats.ts` (route, scheduler, period, grace,
    env var name) and wrap the route's response in `withCronHeartbeat("<job>", ...)`. The monitor
    (`config/checkly/__checks__/cron-heartbeats.check.ts`) and the env var declaration (`config/env-vars.ts`)
    are generated from that list, so there's nothing to add there.
@@ -319,4 +319,4 @@ GA4 property measurement ID `G-M3GTTL7SX8` (`NEXT_PUBLIC_GA_ID`). Account `a1908
 property `p555427327`.
 
 Consent Mode v2 gates EU/UK visitors behind an accept/decline banner
-(`components/ConsentBanner.tsx`) before firing; everyone else gets GA with no prompt.
+(`src/components/ConsentBanner.tsx`) before firing; everyone else gets GA with no prompt.

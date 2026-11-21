@@ -21,9 +21,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { buildAssessmentPrompt, parseAssessment } from "../lib/prospecting/assessment";
-import { createRepos } from "../lib/data/repos";
-import type { Database } from "../lib/data/database.types";
+import { buildAssessmentPrompt, parseAssessment } from "../src/lib/prospecting/assessment";
+import { createRepos } from "../src/lib/data/repos";
+import type { Database } from "../src/lib/data/database.types";
 
 const DEFAULT_CRITERIA =
   "People writing, or wanting to write, a book (fiction, memoir, poetry) who would benefit from a friendly community that writes together on video. " +

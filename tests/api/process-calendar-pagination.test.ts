@@ -99,7 +99,7 @@ describe('Calendar Processing Pagination', () => {
 
       const routePath = path.join(
         process.cwd(),
-        'app/api/process/calendar/route.ts'
+        'src/app/api/process/calendar/route.ts'
       )
 
       const routeContent = await fs.readFile(routePath, 'utf-8')
@@ -116,7 +116,7 @@ describe('Calendar Processing Pagination', () => {
       const fs = await import('fs/promises')
       const path = await import('path')
 
-      const repoContent = await fs.readFile(path.join(process.cwd(), 'lib/data/unmatched-events.ts'), 'utf-8')
+      const repoContent = await fs.readFile(path.join(process.cwd(), 'src/lib/data/unmatched-events.ts'), 'utf-8')
 
       expect(repoContent).toContain('chunk(')
       expect(repoContent).toContain('ID_CHUNK')

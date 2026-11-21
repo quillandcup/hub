@@ -1,5 +1,5 @@
 /**
- * proxy.ts → lib/supabase/middleware.ts: a landing page address (/p/<slug>) is open to a signed-out visitor, while the
+ * src/proxy.ts → src/lib/supabase/middleware.ts: a landing page address (/p/<slug>) is open to a signed-out visitor, while the
  * editor's addresses (/admin/pages...) and every other page stay behind sign-in.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

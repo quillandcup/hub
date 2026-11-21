@@ -22,9 +22,9 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../lib/data/database.types";
-import { createRepos } from "../lib/data/repos";
-import { adoptLegacyCovers } from "../lib/media/adopt-covers";
+import type { Database } from "../src/lib/data/database.types";
+import { createRepos } from "../src/lib/data/repos";
+import { adoptLegacyCovers } from "../src/lib/media/adopt-covers";
 import { loadLayeredEnv } from "./load-layered-env";
 import { ADOPT_USAGE, parseAdoptArgs } from "./adopt-book-covers-args";
 

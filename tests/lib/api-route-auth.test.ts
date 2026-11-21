@@ -3,11 +3,11 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 /**
- * Guard: every route handler under app/api authenticates itself.
+ * Guard: every route handler under src/app/api authenticates itself.
  *
- * The proxy treats all of /api/ as public (lib/supabase/middleware.ts), so a route that forgets
+ * The proxy treats all of /api/ as public (src/lib/supabase/middleware.ts), so a route that forgets
  * to check its caller is open to the internet, and nothing else fails when one does. This test
- * lists each app/api route file with the credential step it contains and fails when a route has
+ * lists each src/app/api route file with the credential step it contains and fails when a route has
  * none, unless the route is in PUBLIC_ROUTES with the reason. A new route must either contain one
  * of the recognised steps below or be added there on purpose, in review.
  *
@@ -16,11 +16,11 @@ import { join, relative } from "node:path";
  * See docs/trust/THREAT_MODEL.md, A01.
  */
 
-const API_DIR = join(process.cwd(), "app/api");
+const API_DIR = join(process.cwd(), "src/app/api");
 
 /** The recognised credential kinds, each the helper names that are the check. */
 const CREDENTIAL_KINDS: Record<string, RegExp> = {
-  // A signed-in staff account: refused for anyone else (the cron and service keys also pass, see lib/supabase/api-auth.ts).
+  // A signed-in staff account: refused for anyone else (the cron and service keys also pass, see src/lib/supabase/api-auth.ts).
   admin: /\b(requireAdmin|requireAdminAction|requireAdminPage|requireStaffAction)\(/,
   // A signed-in member session.
   session: /\b(getCurrentUser|getCoursesCaller|getEffectiveIdentity|chatCaller|postingCaller|dmCaller|createApiAuth)\(/,
@@ -38,8 +38,8 @@ const CREDENTIAL_KINDS: Record<string, RegExp> = {
 
 /** Routes with no recognised credential step. Shrink-only: each needs a reason it is safe. */
 const PUBLIC_ROUTES: Record<string, string> = {
-  "app/api/health/route.ts": "Uptime check; returns only up/down and timings, no data (lib/supabase/middleware.ts isPublic).",
-  "app/api/landing/opt-in/route.ts": "Public sign-up form on a published landing page: honeypot, two rate-limit buckets, and the target is looked up in the published page.",
+  "src/app/api/health/route.ts": "Uptime check; returns only up/down and timings, no data (src/lib/supabase/middleware.ts isPublic).",
+  "src/app/api/landing/opt-in/route.ts": "Public sign-up form on a published landing page: honeypot, two rate-limit buckets, and the target is looked up in the published page.",
 };
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];

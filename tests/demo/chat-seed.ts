@@ -16,7 +16,7 @@ import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
  * member and, with no Slack to send it to, stays pending until the recording marks it sent (slack-stand-in.ts).
  */
 
-/** A member's name, from the community profile (lib/data/profiles/community.ts) by the key its people go by ("member", "host"), so renaming someone there renames them in the chat. */
+/** A member's name, from the community profile (src/lib/data/profiles/community.ts) by the key its people go by ("member", "host"), so renaming someone there renames them in the chat. */
 export function who(key: string): string {
   const person = COMMUNITY.people.find((p) => p.key === key);
   if (!person) throw new Error(`The community profile has no person "${key}"`);

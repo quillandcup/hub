@@ -16,7 +16,7 @@ import {
 // Helpers — synthetic data only, no real member/host names.
 // ---------------------------------------------------------------------------
 
-// purpose + solo-task-friendliness are independent axes (see lib/prickle-picker.ts):
+// purpose + solo-task-friendliness are independent axes (see src/lib/prickle-picker.ts):
 // Progress-like writing slots are open protected time; Sprint is writing-purpose
 // but an active word-war, not friendly; Monthly Goal Review is work-purpose but a
 // structured workshop, not friendly either.

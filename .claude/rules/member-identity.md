@@ -1,14 +1,14 @@
 ---
 paths:
-  - "app/(member)/**"
-  - "lib/sudo*.ts"
-  - "lib/auth.ts"
-  - "app/actions/sudo.ts"
+  - "src/app/(member)/**"
+  - "src/lib/sudo*.ts"
+  - "src/lib/auth.ts"
+  - "src/app/actions/sudo.ts"
 ---
 
 ### Member Identity Resolution
 
-**RULE**: Member-facing pages (`app/(member)/`) must use `getEffectiveIdentity` to resolve the current member, not `supabase.auth.getUser()` alone.
+**RULE**: Member-facing pages (`src/app/(member)/`) must use `getEffectiveIdentity` to resolve the current member, not `supabase.auth.getUser()` alone.
 
 **Why**: Admins can use sudo mode to browse as a specific member. `getEffectiveIdentity` returns the *effective* member identity — the sudo'd member when active, the real user's member record otherwise. Pages that skip this and use the raw auth user ID will show the admin's own data during sudo, breaking the sudo experience.
 
@@ -55,4 +55,4 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 **`EffectiveIdentity` fields**: `memberId`, `memberName`, `memberEmail`, `isSudo: boolean`
 
-**Auth lookups in server code**: Use `getCurrentUser()` from `lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.
+**Auth lookups in server code**: Use `getCurrentUser()` from `src/lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `src/lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `src/app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.

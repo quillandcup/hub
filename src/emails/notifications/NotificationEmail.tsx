@@ -1,0 +1,92 @@
+import * as React from "react";
+import { Button, Text } from "react-email";
+import {
+  EmailLayout,
+  EmailHeading,
+  EmailBody,
+  EmailDivider,
+  colors,
+  fonts,
+} from "../../../supabase/emails/layout";
+
+/** What the app handed the email channel (OutboundMessage), as a template sees it. */
+export interface NotificationEmailProps {
+  /** The message text; also the subject unless `title` is set. */
+  text: string;
+  /** A short subject and heading, when `text` is too long for either (the text then becomes the body). */
+  title?: string;
+  /** Where to act on it in the Hub. */
+  url?: string;
+  /** A short extra line with a link, under the explanation. */
+  note?: { text: string; url: string };
+  footerLinks?: { label: string; url: string }[];
+  /** Our mailing address for the footer (src/lib/config.ts `postalAddress()`, added by `renderNotificationEmail`). */
+  postalAddress: string;
+}
+
+/**
+ * The shared frame of a notification email: the message as the heading, a short explanation, and a
+ * button into the Hub. A kind's template (one file per kind in this folder) supplies the wording.
+ */
+export function NotificationEmail({
+  text,
+  title,
+  url,
+  note,
+  footerLinks,
+  postalAddress,
+  intro,
+  buttonLabel,
+}: NotificationEmailProps & {
+  /** One or two sentences under the heading (after the message text, when it has a `title`). */
+  intro: string;
+  buttonLabel: string;
+}) {
+  return (
+    <EmailLayout preview={text} footerLinks={footerLinks} postalAddress={postalAddress}>
+      <EmailHeading>{title ?? text}</EmailHeading>
+
+      <EmailBody>{title && intro !== text ? `${text} ${intro}` : intro}</EmailBody>
+
+      {note && (
+        <Text style={{ fontSize: "14px", color: colors.mutedText, margin: "0 0 16px" }}>
+          <a href={note.url} style={{ color: colors.accent }}>
+            {note.text}
+          </a>
+        </Text>
+      )}
+
+      {url && (
+        <>
+          <Button
+            href={url}
+            style={{
+              display: "block",
+              width: "fit-content",
+              margin: "32px auto",
+              backgroundColor: colors.headingText,
+              color: "#ffffff",
+              padding: "14px 36px",
+              borderRadius: "4px",
+              fontSize: "15px",
+              fontFamily: fonts.serif,
+              letterSpacing: "0.03em",
+              textDecoration: "none",
+            }}
+          >
+            {buttonLabel}
+          </Button>
+
+          <EmailDivider />
+
+          <Text style={{ fontSize: "13px", color: colors.mutedText, textAlign: "center", margin: "0" }}>
+            Button not working? Copy and paste this link into your browser:{" "}
+            <a href={url} style={{ color: colors.accent, wordBreak: "break-all" }}>
+              {url}
+            </a>
+          </Text>
+        </>
+      )}
+    </EmailLayout>
+  );
+}

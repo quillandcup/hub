@@ -3,15 +3,15 @@
 > **Status:** living. **Last reviewed:** 2026-11-06. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 A check-in is a few taps before and after a prickle, answered on the site (the check-in /
-check-out modal, Log Progress, Find a Prickle) or in the Slack DMs. Code: `lib/prickle-checkins.ts`
-(questions and keys), `lib/prickle-checkin-dms.ts` (Slack), `components/writing/CheckinFields.tsx`
+check-out modal, Log Progress, Find a Prickle) or in the Slack DMs. Code: `src/lib/prickle-checkins.ts`
+(questions and keys), `src/lib/prickle-checkin-dms.ts` (Slack), `src/components/writing/CheckinFields.tsx`
 (inputs). Table: `prickle_checkins`, reshaped by migration `20261220000000`. When and where the
 offers and messages appear (timings, channels, who gets what): `CHECKIN_DELIVERY.md`.
 
 Slack DMs save every answer as it is picked, and end with **Submit** (closes the offer everywhere,
 like a skip, but keeps the answers, and collapses the message to "Checked in. Thanks!") and **Skip**.
 DMs sent before Submit existed are collapsed by `pnpm checkin-dms:close` (dry run by default,
-`--apply` to write; `lib/prickle-checkin-dm-cleanup.ts`) for every check-in already answered on the
+`--apply` to write; `src/lib/prickle-checkin-dm-cleanup.ts`) for every check-in already answered on the
 site. The DM log keeps no message timestamps, so it reads each member's DM history.
 
 ## Start from the decisions
@@ -201,7 +201,7 @@ seeking permission. What we found:
 ### Suggestions for words not on the wheel
 
 People often reach for words the wheel doesn't have. `EMOTION_SUGGESTIONS` in
-`lib/prickle-checkins.ts` maps common ones to their closest wheel words, best first, and the search
+`src/lib/prickle-checkins.ts` maps common ones to their closest wheel words, best first, and the search
 shows them after any direct matches, labeled with why ("Frustrated · for “stuck” · Mad"):
 
 | Typed | Suggested |

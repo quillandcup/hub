@@ -4,7 +4,7 @@
 // Values that differ per environment, and all secrets, are env vars instead -- see
 // config/env-vars.ts. Nothing else in the code should hardcode these.
 //
-// Read by lib/config.ts (app code), next.config.ts, config/checkly/__checks__/config.ts (Checkly), and
+// Read by src/lib/config.ts (app code), next.config.ts, config/checkly/__checks__/config.ts (Checkly), and
 // scripts. SQL can't import this file: `pnpm env:sync:vault` copies the values pg_cron
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
@@ -15,7 +15,7 @@ export const appConfig = {
 
   /**
    * The issuer on the two-step sign-in QR code: authenticator apps show it beside the account, and Authy searches
-   * Google Images for a logo from it (components/mfa/MfaPanel.tsx). The bare domain brings up our own logo, though a
+   * Google Images for a logo from it (src/components/mfa/MfaPanel.tsx). The bare domain brings up our own logo, though a
    * blurry copy (tried in Authy: "Hedgie Hub" gave LEGO, "Quill & Cup Hedgie Hub" a stock hedgehog, "Quill & Cup" a
    * small wordmark). A sharper result needs Google to rank a better copy of the logo: docs/TODO.md, "Sharper logo in
    * authenticator apps". Re-test before changing it.
@@ -23,7 +23,7 @@ export const appConfig = {
   mfaIssuer: "quillandcup.com",
 
   /**
-   * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
+   * The product token in the User-Agent every outbound request sends (src/lib/config.ts `OUTBOUND_USER_AGENT`,
    * docs/infrastructure/OUTBOUND_REQUESTS.md). An HTTP token: letters, digits and `-._` only, no spaces, so it is not `appName`.
    */
   userAgentProduct: "HedgieHub",
@@ -51,7 +51,7 @@ export const appConfig = {
 
   /**
    * When staff (admins and community managers) must sign in with a second step (a TOTP code from an authenticator app,
-   * lib/staff-mfa.ts, docs/trust/STAFF_MFA.md). `null` = not required yet: staff without it see a banner that points them to
+   * src/lib/staff-mfa.ts, docs/trust/STAFF_MFA.md). `null` = not required yet: staff without it see a banner that points them to
    * Settings, and staff who have set it up are still asked for the code. To require it for everyone, set an ISO 8601
    * instant with an offset, for example "2027-02-01T00:00:00-05:00"; from then on staff without it are sent to the
    * set-up screen instead of the admin area. Set it a week or two ahead, after every admin has enrolled. A value that
@@ -60,7 +60,7 @@ export const appConfig = {
   staffMfaRequiredFrom: null as string | null,
 
   /**
-   * Hedgie Care (the community manager's reach-outs, lib/care.ts, docs/product/HEDGIE_CARE.md). These are starting points
+   * Hedgie Care (the community manager's reach-outs, src/lib/care.ts, docs/product/HEDGIE_CARE.md). These are starting points
    * for her to confirm, not settled numbers; change them here, never in code.
    *
    * `careEngagementDays`: how long one engagement (one reach-out period) lasts. The period ends on the org-timezone
@@ -85,7 +85,7 @@ export const appConfig = {
   supportEmail: "support@quillandcup.com",
 
   /**
-   * Sender of member notification emails (lib/email.ts). The domain must be verified in Resend.
+   * Sender of member notification emails (src/lib/email.ts). The domain must be verified in Resend.
    * Supabase Auth emails use the same address, declared separately in supabase/config.toml
    * (`[remotes.prod.auth.email.smtp]`), which can't read this file.
    */
@@ -130,7 +130,7 @@ export const appConfig = {
   /**
    * Whether the Bookshelf is open to people who aren't signed in. While false, a book's cover is readable by
    * signed-in members only. When true, the shelf-size version of any image a book uses as its cover is served
-   * to everyone (app/api/media/[id]/[preset]/route.ts); it does not make the Bookshelf page public, which is a
+   * to everyone (src/app/api/media/[id]/[preset]/route.ts); it does not make the Bookshelf page public, which is a
    * change to that page and to who may reach it.
    */
   bookshelfPublic: false,
@@ -149,7 +149,7 @@ export const appConfig = {
 
   /**
    * The daily check that the nonce-based Content-Security-Policy is not breaking browsers
-   * (app/api/internal/csp-health, lib/csp-health.ts, docs/infrastructure/CSP_ALERTS.md). Measured 2026-11-20 on production over 30
+   * (src/app/api/internal/csp-health, src/lib/csp-health.ts, docs/infrastructure/CSP_ALERTS.md). Measured 2026-11-20 on production over 30
    * days: no member loaded pages without running our scripts (0 of 91 active), about 13 of 91 never get the Google
    * cookie in any browser (steady), and every browser was far above the minimums below.
    * - `windowHours`, `historyDays`: the window checked, and how far back a member's own `_ga` history reaches.
@@ -177,20 +177,20 @@ export const appConfig = {
   scorecard: { minScore: 7 },
 
   /**
-   * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own
+   * Content-Security-Policy (src/lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own
    * and Supabase storage that pictures may load from. Member photos, book covers and Slack link previews can come from
    * anywhere, so the reports will name hosts missing here; Slack app pictures go through our own proxy
    * (/api/chat/unfurl-image) and need nothing listed.
    */
   /**
    * Hosts where Kajabi keeps member photos (the Kajabi CDN, going away when Kajabi is retired). `pnpm photos:adopt`
-   * copies the photos found there into our own storage (lib/members/adopt-photos.ts). Names only, no scheme.
+   * copies the photos found there into our own storage (src/lib/members/adopt-photos.ts). Names only, no scheme.
    */
   kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
 
   /**
    * The public address of the Kajabi site, where its landing pages live today. A link in an imported page that is a
-   * Kajabi path (`/resource_redirect/...`) is resolved against it (lib/landing/kajabi-import.ts); retire it with Kajabi.
+   * Kajabi path (`/resource_redirect/...`) is resolved against it (src/lib/landing/kajabi-import.ts); retire it with Kajabi.
    */
   kajabiSiteUrl: "https://www.quillandcup.com",
 
@@ -198,7 +198,7 @@ export const appConfig = {
   siteUrl: "https://www.quillandcup.com",
 
   /**
-   * Writer profiles (lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
+   * Writer profiles (src/lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
    * `handleMinLength`, `handleMaxLength`: the length of a handle (letters, digits and single hyphens).
    * `handleReservationDays`: how long a handle a member gave up stays theirs alone; until then nobody else can take it, and
    * its old address redirects to the new one until someone takes it afterwards.
@@ -210,7 +210,7 @@ export const appConfig = {
    * Compared with hyphens left out, so "quill-and-cup" is held by "quillandcup".
    */
   /**
-   * A member's own profile photo (lib/members/photo.ts, docs/product/WRITER_PROFILES.md, "The photo").
+   * A member's own profile photo (src/lib/members/photo.ts, docs/product/WRITER_PROFILES.md, "The photo").
    * `maxUploadBytes`: the largest file a member can upload (JPEG, PNG or WebP); it is re-encoded to a small WebP.
    * `gravatarHost`: the only host a Gravatar photo is ever fetched from, once, when a member chooses the globe for it.
    */
@@ -249,7 +249,7 @@ export const appConfig = {
   kajabiAdminOfferUrl: "https://app.kajabi.com/admin/offers/{offerId}/edit",
 
   /**
-   * The Claude API, used only by "Build with AI" on the landing page builder (lib/landing/ai.ts): the admin's own
+   * The Claude API, used only by "Build with AI" on the landing page builder (src/lib/landing/ai.ts): the admin's own
    * description of a page goes in, a draft comes out. Nothing a member wrote is ever sent (docs/product/LANDING_PAGES.md).
    */
   anthropic: { apiUrl: "https://api.anthropic.com", apiVersion: "2023-06-01", landingPageModel: "claude-sonnet-5-5" },

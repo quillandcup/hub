@@ -2,6 +2,14 @@
 // (scripts/coverage-report.ts) and the code-quality report (scripts/quality-new-code.ts), so
 // both mean the same thing by "new code".
 
+/**
+ * The `git diff` that lists a change's added lines. `-M` follows renames, so a file that only moved (such as the move into
+ * src/) adds no lines, and one that moved and was edited adds only the edited ones; `R` keeps those files in the diff.
+ */
+export function addedLinesDiffArgs(base: string): string[] {
+  return ["diff", "-U0", "--no-color", "-M", "--diff-filter=AMR", `${base}...HEAD`];
+}
+
 /** Added line numbers per file from `git diff -U0` output. */
 export function parseAddedLines(diff: string): Map<string, Set<number>> {
   const added = new Map<string, Set<number>>();
