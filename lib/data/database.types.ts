@@ -8983,13 +8983,6 @@ export type Database = {
         }
         Returns: Json
       }
-      restore_landing_page_template_version: {
-        Args: { p_version_id: string }
-        Returns: {
-          saved_id: string
-          saved_version: number
-        }[]
-      }
       restore_landing_page_version: {
         Args: { p_version_id: string }
         Returns: undefined
@@ -9021,19 +9014,6 @@ export type Database = {
       revoke_user_sessions: {
         Args: { target_user_id: string }
         Returns: undefined
-      }
-      save_landing_page_template: {
-        Args: {
-          p_data: Json
-          p_description: string
-          p_name: string
-          p_note?: string
-          p_template_id?: string
-        }
-        Returns: {
-          saved_id: string
-          saved_version: number
-        }[]
       }
       schedule_host: {
         Args: { "": Database["public"]["Tables"]["prickle_schedules"]["Row"] }
