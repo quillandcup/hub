@@ -317,6 +317,23 @@ Pages built before this are converted when they are opened; the starter homepage
 - **Detail.** "Writer profiles" in \`docs/TODO.md\`.`,
   },
   {
+    slug: "page-builder-templates",
+    date: "2026-11-20",
+    audience: "staff",
+    category: "new",
+    title: "Page builder: save a page as a template and start new pages from it",
+    summary: "When a page works well, save it as a template and start the next page, or start over on an existing one, from a copy of it. Templates are never on the public site.",
+    body: `In the admin Pages list, the **Templates** tab holds your templates next to Website and Landing.
+
+- **Save a page as a template.** Open the page's History and choose **Save as template**. Make a new template from the page, or replace an existing template's draft with it (you are asked first, and the old draft stays in the template's History). You can publish the template in the same step. The page itself is not changed.
+- **A template is a page.** It has its own draft that saves as you type, a published copy, and **Reset to published**. Publishing it checks the page the way a page is checked, but as warnings only, so a template can keep placeholders and empty links. A template is only ever opened by staff in the editor; it has no public address.
+- **Every version is kept.** Each publish keeps a version that cannot be changed or deleted. History shows who saved it and when, with a short note: type one in the Publish box ("What changed?"), or the Hub writes one, such as "Saved from the page ..." or "Replaced by the template ...". **Bring back** puts a version into the draft, and nothing goes live until you publish.
+- **Start a new page from a template.** In New page, **Start from** lists the published templates for the kind of page you are making. The page gets a copy of the template's published version, never its unpublished draft.
+- **Start over an existing page.** In the page's History, **Start over from a template** replaces its draft after you confirm. The draft it had is kept in History as "Your draft before it was replaced", so Bring back undoes it. The published page, its title and its address are not touched.
+- **Move a page as a file.** History also exports a page's draft or published copy as JSON, and imports a file back. Import shows what would change first, and keeps the old draft in History too.
+- **Activity Log.** Creating, publishing, taking down, renaming, deleting, bringing back and replacing the draft of a template show up in the Activity Log in plain sentences, without the page's contents.`,
+  },
+  {
     slug: "landing-page-templates",
     date: "2026-11-20",
     audience: "engineering",
