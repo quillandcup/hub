@@ -119,13 +119,42 @@ describe("updateProjectPhase: what it asks after the status saved", () => {
     expect(await move("drafting", "complete")).toEqual({ success: true, milestonePrompt: expect.objectContaining({ kinds: ["the_end"], offerPublish: false }) });
   });
 
-  it("does not ask again once the member said 'not yet', when the project moves forward and back", async () => {
+  it("does not ask again in the same stage group after 'not yet', as the project moves forward and back", async () => {
     expect(kindsAsked(await move("drafting", "first_read_through"))).toEqual(["the_end"]);
     expect(await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" })).toEqual({ success: true, saved: true });
     expect(await move("first_read_through", "drafting")).toEqual({ success: true });
+    // Revising is in the same group as First read-through, where it was put off: not asked again.
     expect(await move("drafting", "revising")).toEqual({ success: true });
-    // The publish-ready question is its own: it is still asked when the project jumps to Publishing.
-    expect(kindsAsked(await move("drafting", "publishing"))).toEqual(["publish_ready"]);
+    expect(await move("revising", "line_copy_edit")).toEqual({ success: true });
+  });
+
+  it("asks THE END again at Publishing after a 'not yet' at First read-through, together with publish-ready", async () => {
+    await move("drafting", "first_read_through");
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    expect(kindsAsked(await move("first_read_through", "publishing"))).toEqual(["the_end", "publish_ready"]);
+  });
+
+  it("asks only once in each group: a second 'not yet' at Publishing waits for Complete, and one at Complete is the last", async () => {
+    await move("drafting", "first_read_through");
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    expect(kindsAsked(await move("first_read_through", "publishing"))).toEqual(["the_end", "publish_ready"]);
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    await answerStageMilestone({ projectId: PROJECT, kind: "publish_ready", answer: "not_yet" });
+    // Still Publishing: the same group, nothing more; the publish-ready question has no later stage that means it.
+    expect(await move("publishing", "publishing")).toEqual({ success: true });
+    expect(kindsAsked(await move("publishing", "complete"))).toEqual(["the_end"]);
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    expect(await move("complete", "complete")).toEqual({ success: true });
+    expect(data.memberMilestoneSnoozes.map((r) => [r.kind, r.stage_group]).sort()).toEqual([["publish_ready", 2], ["the_end", 3]]);
+  });
+
+  it("never asks again after 'Not for this work', whatever the stage", async () => {
+    await move("drafting", "first_read_through");
+    expect(await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_for_this_work" })).toEqual({ success: true, saved: true });
+    expect(kindsAsked(await move("first_read_through", "publishing"))).toEqual(["publish_ready"]);
+    expect(await move("publishing", "complete")).toEqual({ success: true, milestonePrompt: expect.objectContaining({ kinds: [], offerPublish: true }) });
+    expect(await mine()).toEqual([expect.objectContaining({ kind: "the_end", status: "declined", source: "project_stage" })]);
+    expect(data.memberMilestoneSnoozes).toEqual([]);
   });
 
   it("does not ask when the project already has the milestone, in any status", async () => {
@@ -209,8 +238,8 @@ describe("answerStageMilestone", () => {
     expect(data.memberMilestones).toEqual([]);
   });
 
-  it("lets the member still say 'I wrote THE END' on the card after a 'not yet': the declined row is confirmed in place, and a second add shows it", async () => {
-    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+  it("lets the member still say 'I wrote THE END' after 'Not for this work': the declined row is confirmed in place, and a second add shows it", async () => {
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_for_this_work" });
     const [declined] = await mine();
     expect(declined).toMatchObject({ status: "declined", source: "project_stage" });
 
@@ -229,10 +258,28 @@ describe("answerStageMilestone", () => {
     expect((await mine()).map((m) => m.consentTestimonial)).toEqual([false, false]);
   });
 
-  it("records 'not yet' as a declined row that is private and carries no consent", async () => {
+  it("records 'not yet' as a snooze with the project's stage group, and no milestone", async () => {
+    setPhase("publishing");
     expect(await answerStageMilestone({ projectId: PROJECT, kind: "publish_ready", answer: "not_yet" })).toEqual({ success: true, saved: true });
-    expect(await mine()).toEqual([expect.objectContaining({ kind: "publish_ready", status: "declined", source: "project_stage", projectId: PROJECT, visibility: "private", consentTestimonial: false })]);
+    expect(await mine()).toEqual([]);
+    expect(await repos.milestones.snoozesOf(ADA, PROJECT)).toEqual([{ kind: "publish_ready", stageGroup: 2 }]);
+    expect(await repos.milestones.counts()).toEqual({ proposed: 0, confirmed: 0, declined: 0 });
     expect(recorded).toEqual([{ action: "milestone_stage_answered", outcome: { ok: true, detail: "not_yet" } }]);
+  });
+
+  it("records 'Not for this work' as a declined row that is private and carries no consent", async () => {
+    expect(await answerStageMilestone({ projectId: PROJECT, kind: "publish_ready", answer: "not_for_this_work" })).toEqual({ success: true, saved: true });
+    expect(await mine()).toEqual([expect.objectContaining({ kind: "publish_ready", status: "declined", source: "project_stage", projectId: PROJECT, visibility: "private", consentTestimonial: false })]);
+    expect(await repos.milestones.snoozesOf(ADA, PROJECT)).toEqual([]);
+    expect(recorded).toEqual([{ action: "milestone_stage_answered", outcome: { ok: true, detail: "not_for_this_work" } }]);
+  });
+
+  it("lets the staff backfill propose a kind the member said 'not yet' to, but not one they said 'Not for this work' to", async () => {
+    data.memberBooks.push({ id: "book_AAAAAAAAAAA2", member_id: ADA, title: "A Book", published_date: "2026-01-01", cover_asset_id: null, project_id: PROJECT });
+    await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    await answerStageMilestone({ projectId: PROJECT, kind: "publish_ready", answer: "not_for_this_work" });
+    await repos.milestones.proposeFromBooks();
+    expect((await mine()).map((m) => [m.kind, m.status, m.source]).sort()).toEqual([["publish_ready", "declined", "project_stage"], ["the_end", "proposed", "staff"]]);
   });
 
   it("says it was already there, and writes nothing, when the project has that milestone", async () => {
@@ -240,16 +287,20 @@ describe("answerStageMilestone", () => {
     recorded.length = 0;
     expect(await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "yes", storyAfter: "Different" })).toEqual({ success: true, saved: false });
     expect(await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" })).toEqual({ success: true, saved: false });
+    expect(await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_for_this_work" })).toEqual({ success: true, saved: false });
     expect(await mine()).toHaveLength(1);
+    expect(data.memberMilestoneSnoozes).toEqual([]);
     expect((await mine())[0].storyAfter).toBeNull();
-    expect(recorded.map((r) => r.outcome)).toEqual([{ ok: true, detail: "already_there" }, { ok: true, detail: "already_there" }]);
+    expect(recorded.map((r) => r.outcome)).toEqual([{ ok: true, detail: "already_there" }, { ok: true, detail: "already_there" }, { ok: true, detail: "already_there" }]);
   });
 
   it("writes nothing for a project that is not the member's, or does not exist", async () => {
     expect(await answerStageMilestone({ projectId: BO_PROJECT, kind: "the_end", answer: "yes" })).toEqual({ error: "We couldn't find that project." });
     expect(await answerStageMilestone({ projectId: "wprj_ZZZZZZZZZZZZ", kind: "the_end", answer: "not_yet" })).toEqual({ error: "We couldn't find that project." });
+    expect(await answerStageMilestone({ projectId: BO_PROJECT, kind: "the_end", answer: "not_for_this_work" })).toEqual({ error: "We couldn't find that project." });
     expect(await answerStageMilestone({ projectId: "", kind: "the_end", answer: "yes" })).toEqual({ error: "We couldn't find that project." });
     expect(data.memberMilestones).toEqual([]);
+    expect(data.memberMilestoneSnoozes).toEqual([]);
   });
 
   it("refuses a kind that is not a milestone, a date still ahead, and a story that is too long", async () => {
@@ -277,10 +328,10 @@ describe("answerStageMilestone", () => {
     expect(revalidatePath).toHaveBeenCalledWith(`/members/${ADA}`);
   });
 
-  it("tells the member to try again when saving fails, without leaking the reason", async () => {
-    vi.spyOn(repos.milestones, "recordNotYet").mockRejectedValue(new Error("secret db detail"));
+  it.each([["not_yet", "snooze"], ["not_for_this_work", "recordNotForThisWork"]] as const)("tells the member to try again when saving '%s' fails, without leaking the reason", async (answer, method) => {
+    vi.spyOn(repos.milestones, method).mockRejectedValue(new Error("secret db detail"));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const result = await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "not_yet" });
+    const result = await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer });
     expect(result).toEqual({ error: "We couldn't save that. Please try again in a moment." });
     spy.mockRestore();
   });

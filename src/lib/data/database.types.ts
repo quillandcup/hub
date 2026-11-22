@@ -5147,6 +5147,51 @@ export type Database = {
           },
         ]
       }
+      member_milestone_snoozes: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          member_id: string
+          project_id: string
+          stage_group: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          member_id: string
+          project_id: string
+          stage_group: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          member_id?: string
+          project_id?: string
+          stage_group?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_milestone_snoozes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_milestone_snoozes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "writing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_milestones: {
         Row: {
           achieved_on: string | null
