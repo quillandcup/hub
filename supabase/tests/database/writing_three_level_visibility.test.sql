@@ -7,11 +7,12 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(25);
+SELECT plan(30);
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAc9A1', 'Visibility Writer', 'visibility-writer@example.test', now(), 'active'),
-  ('mbr_AAAAAAAAc9A2', 'Visibility Viewer', 'visibility-viewer@example.test', now(), 'active');
+  ('mbr_AAAAAAAAc9A2', 'Visibility Viewer', 'visibility-viewer@example.test', now(), 'active'),
+  ('mbr_AAAAAAAAc9A3', 'Order Writer', 'order-writer@example.test', now(), 'active');
 
 -- Projects: how a new row's two columns settle ------------------------------------------------------------------
 INSERT INTO public.writing_projects (id, member_id, title) VALUES
@@ -127,6 +128,53 @@ SELECT ok(NOT has_function_privilege('anon', 'public.writing_visibility_rank(tex
 SELECT is(public.writing_visibility_rank('private') < public.writing_visibility_rank('community')
   AND public.writing_visibility_rank('community') < public.writing_visibility_rank('public'), true,
   'private < community < public');
+
+-- The profile lists projects and goals in the member's own order, whichever plan the database picks ------------------
+-- Creation order, title order and the member's placement all differ here, so the order that wins is the product one:
+-- projects never placed first (newest first), goals by their project in that order, then the placed ones before the
+-- ones never placed. (This used to come from jsonb_agg with no ORDER BY, so a different join strategy swapped it.)
+INSERT INTO public.writing_projects (id, member_id, title, created_at) VALUES
+  ('prj_AAAAAAAAc921', 'mbr_AAAAAAAAc9A3', 'Apple project', now() - interval '2 days'),
+  ('prj_AAAAAAAAc922', 'mbr_AAAAAAAAc9A3', 'Zebra project', now() - interval '1 day');
+INSERT INTO public.writing_goals (id, member_id, project_id, goal_type, measure, target_amount, title, sort_position, visibility) VALUES
+  ('00000000-0000-4000-a000-00000000c931', 'mbr_AAAAAAAAc9A3', 'prj_AAAAAAAAc921', 'target', 'words', 100, 'Alpha goal never placed', NULL, 'community'),
+  ('00000000-0000-4000-a000-00000000c932', 'mbr_AAAAAAAAc9A3', 'prj_AAAAAAAAc921', 'target', 'words', 100, 'Zulu goal placed first', 1, 'community'),
+  ('00000000-0000-4000-a000-00000000c933', 'mbr_AAAAAAAAc9A3', 'prj_AAAAAAAAc922', 'target', 'words', 100, 'Mid goal in the newer project', NULL, 'community');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub": "00000000-0000-4000-a000-00000000c999", "email": "visibility-viewer@example.test", "role": "authenticated"}', true);
+INSERT INTO profile_result SELECT 'order_default', public.get_profile_writing('mbr_AAAAAAAAc9A3');
+SET LOCAL enable_hashjoin = off;
+SET LOCAL enable_mergejoin = off;
+INSERT INTO profile_result SELECT 'order_nestloop', public.get_profile_writing('mbr_AAAAAAAAc9A3');
+RESET enable_hashjoin;
+SET LOCAL enable_nestloop = off;
+SET LOCAL enable_mergejoin = off;
+INSERT INTO profile_result SELECT 'order_hashjoin', public.get_profile_writing('mbr_AAAAAAAAc9A3');
+RESET enable_nestloop;
+RESET enable_mergejoin;
+RESET ROLE;
+
+SELECT is(
+  (SELECT jsonb_path_query_array(result, '$.projects[*].title') FROM profile_result WHERE label = 'order_default'),
+  '["Zebra project", "Apple project"]'::jsonb, 'projects never placed are listed newest first');
+SELECT is(
+  (SELECT jsonb_path_query_array(result, '$.goals[*].title') FROM profile_result WHERE label = 'order_default'),
+  '["Mid goal in the newer project", "Zulu goal placed first", "Alpha goal never placed"]'::jsonb,
+  'goals follow their project''s place, then the member''s own placement, with unplaced goals last');
+SELECT is(
+  (SELECT jsonb_path_query_array(result, '$.goals[*].title') FROM profile_result WHERE label = 'order_nestloop'),
+  (SELECT jsonb_path_query_array(result, '$.goals[*].title') FROM profile_result WHERE label = 'order_default'),
+  'the goal order is the same when the planner joins with nested loops');
+SELECT is(
+  (SELECT jsonb_path_query_array(result, '$.goals[*].title') FROM profile_result WHERE label = 'order_hashjoin'),
+  (SELECT jsonb_path_query_array(result, '$.goals[*].title') FROM profile_result WHERE label = 'order_default'),
+  'the goal order is the same when the planner joins with hash joins');
+SELECT is(
+  (SELECT jsonb_path_query_array(result, '$.projects[*].title') FROM profile_result WHERE label = 'order_nestloop'),
+  (SELECT jsonb_path_query_array(result, '$.projects[*].title') FROM profile_result WHERE label = 'order_default'),
+  'the project order is the same under another plan');
 
 SELECT * FROM finish(true);
 ROLLBACK;
