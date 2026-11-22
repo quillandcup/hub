@@ -56,10 +56,12 @@ beforeEach(() => {
   useFakeSupabase({ user_profiles: userProfiles });
 });
 
+/** The row header of one permission: its accessible name starts with the permission's own name. */
+const rowHeaderOf = (permission: string) => screen.getByRole("rowheader", { name: (name) => name.split(" ")[0] === permission });
+
 /** The row of one permission: its row header and the marks in the role columns. */
 function rowOf(permission: string) {
-  const header = screen.getByRole("rowheader", { name: new RegExp(`^${permission.replace(/\./g, "\\.")}(\\s|$)`) });
-  return header.closest("tr") as HTMLElement;
+  return rowHeaderOf(permission).closest("tr") as HTMLElement;
 }
 const marksOf = (permission: string) => within(rowOf(permission)).getAllByRole("cell").map((cell) => cell.textContent);
 
@@ -84,8 +86,7 @@ describe("Roles page content, generated from the registry", () => {
 
   it("shows every permission with its description, and a column and a summary for every role", () => {
     for (const permission of ALL_PERMISSIONS) {
-      const header = screen.getByRole("rowheader", { name: new RegExp(`^${permission.replace(/\./g, "\\.")}(\\s|$)`) });
-      expect(header).toHaveTextContent(PERMISSIONS[permission]);
+      expect(rowHeaderOf(permission)).toHaveTextContent(PERMISSIONS[permission]);
     }
     const columns = screen.getAllByRole("columnheader").map((h) => h.textContent);
     expect(columns).toEqual(["Permission", ...STAFF_ROLES.map((r) => ROLE_LABELS[r])]);
