@@ -10,6 +10,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { FEATURE_PREVIEWS } from "@/lib/features";
+import { ROLE_CHANGE_REFUSALS, changeableRoles, roleChangeRefusal } from "@/lib/permissions";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { describeStoredDevice, type DeviceInfo } from "@/lib/device-label";
@@ -207,6 +208,8 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /** The roles the person using this page holds (from the API), which decide which roles they may give or take away. */
+  const [viewerRoles, setViewerRoles] = useState<HubRole[] | null>(null);
 
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
@@ -227,6 +230,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load users");
       setUsers(data.users);
+      setViewerRoles(data.viewerRoles ?? null);
       setAllMembers(data.allMembers ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load users");
@@ -242,6 +246,23 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setEditRoles(new Set(rolesHeld(user)));
     setEditFeatures(new Set(user.features));
     setEditMemberId(user.memberId);
+  }
+
+  /** The roles the viewer holds: from the API, else from their own row in the list; none known means nothing may be changed. */
+  const actorRoles: HubRole[] = viewerRoles ?? (() => {
+    const me = users.find((u) => u.id === currentUserId);
+    return me ? rolesHeld(me) : [];
+  })();
+  const adminCount = users.filter((u) => rolesHeld(u).includes("admin")).length;
+  /** What the viewer may do with this person's roles: the roles they may flip, and why not when none. */
+  function roleRights(user: AppUser) {
+    const target = rolesHeld(user);
+    const otherAdmins = adminCount - (target.includes("admin") ? 1 : 0);
+    const self = user.id === currentUserId;
+    const changeable = changeableRoles({ actor: actorRoles, target, self, otherAdmins });
+    const whyNot = changeable.length === 0 ? roleChangeRefusal({ actor: actorRoles, target, next: target.includes("community_manager") ? target.filter((r) => r !== "community_manager") : [...target, "community_manager"], self, otherAdmins }) : null;
+    const mayDelete = roleChangeRefusal({ actor: actorRoles, target, next: [], self: false, otherAdmins }) === null;
+    return { changeable, whyNot, mayDelete };
   }
 
   function toggleRole(role: HubRole) {
@@ -640,14 +661,22 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         {isEditing ? (
                           <fieldset className="flex flex-col gap-1">
                             <legend className="sr-only">Roles</legend>
-                            {ASSIGNABLE_ROLES.map((role) => (
-                              <label key={role} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                                <input type="checkbox" checked={editRoles.has(role)} onChange={() => toggleRole(role)} className="rounded" />
-                                {ROLE_LABELS[role]}
-                              </label>
-                            ))}
+                            {ASSIGNABLE_ROLES.map((role) => {
+                              const rights = roleRights(user);
+                              const allowed = rights.changeable.includes(role);
+                              return (
+                                <label key={role} className={`flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 ${allowed ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+                                  <input type="checkbox" checked={editRoles.has(role)} disabled={!allowed} onChange={() => toggleRole(role)} className="rounded" />
+                                  {ROLE_LABELS[role]}
+                                </label>
+                              );
+                            })}
                             <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {editRoles.size === 0 ? "No role: a member." : "They may do whatever any of their roles allows."}
+                              {roleRights(user).changeable.length === 0
+                                ? (roleRights(user).whyNot ?? ROLE_CHANGE_REFUSALS.notManager)
+                                : editRoles.size === 0
+                                  ? "No role: a member."
+                                  : "They may do whatever any of their roles allows."}
                             </span>
                           </fieldset>
                         ) : (
@@ -762,7 +791,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                       : "Resend Invite"}
                                 </button>
                               )}
-                              {!isCurrentUser && (
+                              {!isCurrentUser && roleRights(user).mayDelete && (
                                 confirmDeleteId === user.id ? (
                                   <>
                                     <button

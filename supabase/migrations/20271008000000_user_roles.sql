@@ -17,6 +17,10 @@ set lock_timeout = '5s';
 --     what they could and nothing widens (is_admin() is still only the admin role).
 --   * The access token hook adds an app_roles array and keeps app_role (the primary role).
 --   * set_user_roles(): the one call that replaces a user's set, as the person who calls it, so the Activity Log names them.
+--   * Who may change roles (enforced by a trigger on user_roles, so the function, a direct write and the old column all obey it):
+--     an actor may give or take away only roles strictly BELOW their own highest role (an admin may manage any); nobody below
+--     admin may change a person who holds admin or assistant (the same as "only below their own"); nobody removes their own
+--     admin role, and the last admin can't be removed. The service role and a session without a user (migrations, jobs) are exempt.
 --   * Audit: user_roles rows are audited as 'user_role'; a change to only user_profiles.role is no longer audited on its
 --     own, since the user_roles rows are the intent.
 --
@@ -405,10 +409,11 @@ AS $function$
 DECLARE
   v_roles text[];
 BEGIN
-  -- Who may: the same people the app lets manage users (admin, assistant) and the service role (tests, jobs).
+  -- Who may change what is decided row by row by the enforce_user_role_changes trigger (admin: any; assistant: only roles below
+  -- assistant, on people below assistant); the service role (tests, jobs) is exempt.
   IF NOT (auth.role() = 'service_role'
           OR public.user_has_any_role(auth.uid(), ARRAY['admin', 'assistant'])) THEN
-    RAISE EXCEPTION 'Only staff who manage users can change roles' USING ERRCODE = '42501';
+    RAISE EXCEPTION 'Only admins and assistants can change roles' USING ERRCODE = '42501';
   END IF;
 
   SELECT COALESCE(array_agg(DISTINCT r), '{}') INTO v_roles FROM unnest(p_roles) AS r WHERE r <> 'member';
@@ -430,7 +435,90 @@ REVOKE ALL ON FUNCTION public.set_user_roles(uuid, text[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.set_user_roles(uuid, text[]) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.set_user_roles(uuid, text[]) IS
-  'Replaces a user''s staff roles (member = none). Admin, assistant or the service role only. The user_roles trigger writes the Activity Log entries as the caller and keeps user_profiles.role at the primary role.';
+  'Replaces a user''s staff roles (member = none). Admin, assistant (only roles below assistant, on people below assistant) or the service role. The user_roles triggers enforce who may change what, write the Activity Log entries as the caller and keep user_profiles.role at the primary role.';
+
+-- The lowest rank (highest role) a user holds, from user_roles or the old column; null for a member.
+CREATE FUNCTION public.top_role_rank(p_user uuid)
+RETURNS integer
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = ''
+AS $function$
+  SELECT min(public.staff_role_rank(r.role))
+  FROM (
+    SELECT role FROM public.user_roles WHERE user_id = p_user
+    UNION
+    SELECT role FROM public.user_profiles WHERE id = p_user
+  ) AS r;
+$function$;
+
+REVOKE ALL ON FUNCTION public.top_role_rank(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.top_role_rank(uuid) TO service_role;
+
+COMMENT ON FUNCTION public.top_role_rank(uuid) IS
+  'The highest staff role a user holds as its rank (1 = admin), null for a member. Not callable by clients.';
+
+-- Who may give or take away a role. An actor changes only roles strictly below their own highest role, and only on people
+-- strictly below it (an admin changes any); nobody removes their own admin role; the last admin stays. A session with no user
+-- (migrations, jobs) and the service role are exempt, and so is deleting an account (the roles go with it).
+CREATE FUNCTION public.enforce_user_role_changes()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_actor uuid := auth.uid();
+  v_target uuid := COALESCE(NEW.user_id, OLD.user_id);
+  v_role text := COALESCE(NEW.role, OLD.role);
+  v_actor_rank integer;
+  v_target_rank integer;
+BEGIN
+  IF v_actor IS NULL OR auth.role() = 'service_role' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE id = v_target) THEN
+    RETURN OLD;
+  END IF;
+
+  v_actor_rank := public.top_role_rank(v_actor);
+  IF v_actor_rank IS NULL OR v_actor_rank > public.staff_role_rank('assistant') THEN
+    RAISE EXCEPTION 'Only admins and assistants can change roles' USING ERRCODE = '42501';
+  END IF;
+
+  IF v_actor_rank > public.staff_role_rank('admin') THEN
+    v_target_rank := public.top_role_rank(v_target);
+    IF v_target_rank IS NOT NULL AND v_target_rank <= v_actor_rank THEN
+      RAISE EXCEPTION 'An assistant can''t change the roles of an admin or another assistant' USING ERRCODE = '42501';
+    END IF;
+    IF public.staff_role_rank(v_role) <= v_actor_rank THEN
+      RAISE EXCEPTION 'An assistant can only give or take away the community manager and conversion specialist roles' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+
+  IF TG_OP = 'DELETE' AND v_role = 'admin' THEN
+    IF v_target = v_actor THEN
+      RAISE EXCEPTION 'You can''t remove your own admin role; ask another admin' USING ERRCODE = '42501';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM public.user_roles WHERE role = 'admin' AND user_id <> v_target
+      UNION ALL
+      SELECT 1 FROM public.user_profiles WHERE role = 'admin' AND id <> v_target
+    ) THEN
+      RAISE EXCEPTION 'You can''t remove the last admin' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.enforce_user_role_changes() FROM PUBLIC, anon, authenticated;
+
+CREATE TRIGGER enforce_user_role_changes
+  BEFORE INSERT OR DELETE ON public.user_roles
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_user_role_changes();
 
 ------------------------------------------------------------------------------------------------
 -- Audit: user_roles rows are the intent; a change of only user_profiles.role is their echo

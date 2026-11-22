@@ -22,6 +22,9 @@ export type ProfileRoleRow = Pick<UserProfile, "id" | "email" | "role">;
 
 const ID_CHUNK = 100;
 
+/** `setRoles` was refused by the rules on who may change which role (`roleChangeRefusal` in src/lib/permissions.ts); the message says why. */
+export class RoleChangeRefused extends Error {}
+
 /** Groups (user id, role) pairs into each user's staff roles, highest priority first; non-staff roles are dropped. */
 function rolesByUser(pairs: Iterable<readonly [string, string]>): Map<string, StaffRole[]> {
   const raw = new Map<string, string[]>();
@@ -161,7 +164,8 @@ export class SupabaseProfileRepository implements ProfileRepository {
 
   async setRoles(userId: string, roles: readonly string[]) {
     const { error } = await this.db.rpc("set_user_roles", { p_user: userId, p_roles: [...roles] });
-    if (error) throw new Error(error.message);
+    // 42501 is the database refusing on purpose (who may change which role): say so, so a route can answer 403.
+    if (error) throw error.code === "42501" ? new RoleChangeRefused(error.message) : new Error(error.message);
   }
 
   async byIds(userIds: string[]) {

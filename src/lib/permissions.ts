@@ -252,3 +252,56 @@ export function staffHome(input: RoleInput): string {
   if (role === CONVERSION_SPECIALIST_ROLE) return "/admin/pages";
   return "/admin";
 }
+
+/**
+ * Who may change whose roles. An actor gives or takes away only roles strictly BELOW their own highest role, and only on people
+ * strictly below it; an admin may manage any. Nobody removes their own admin role, and the last admin stays. The database enforces
+ * the same rules (`enforce_user_role_changes()` on `user_roles`, which is the authority); this is the one copy in code, for the
+ * Users page (to disable what the actor can't do) and the route (for a clear refusal before the call).
+ */
+export const ROLE_CHANGE_REFUSALS = {
+  notManager: "Only admins and assistants can change roles.",
+  assistantOnAdmin: "An assistant can't change the roles of an admin or another assistant.",
+  assistantRoles: "An assistant can only give or take away the community manager and conversion specialist roles.",
+  ownAdmin: "You can't remove your own admin role; ask another admin.",
+  lastAdmin: "You can't remove the last admin.",
+} as const;
+
+export function roleChangeRefusal(input: {
+  /** The roles the person making the change holds. */
+  actor: RoleInput;
+  /** The person's roles now, and the set they would hold. */
+  target: RoleInput;
+  next: RoleInput;
+  /** Whether the person is changing their own roles. */
+  self: boolean;
+  /** How many admins there are besides the person whose roles change. */
+  otherAdmins: number;
+}): string | null {
+  const actorRoles = staffRolesIn(input.actor);
+  const actorRank = actorRoles.length ? STAFF_ROLES.indexOf(actorRoles[0]) + 1 : Infinity;
+  const before = staffRolesIn(input.target);
+  const after = staffRolesIn(input.next);
+  const changed = STAFF_ROLES.filter((role) => before.includes(role) !== after.includes(role));
+  if (changed.length === 0) return null;
+  if (actorRank > STAFF_ROLES.indexOf(ASSISTANT_ROLE) + 1) return ROLE_CHANGE_REFUSALS.notManager;
+  if (actorRank > 1) {
+    const targetRank = before.length ? STAFF_ROLES.indexOf(before[0]) + 1 : Infinity;
+    if (targetRank <= actorRank) return ROLE_CHANGE_REFUSALS.assistantOnAdmin;
+    if (changed.some((role) => STAFF_ROLES.indexOf(role) + 1 <= actorRank)) return ROLE_CHANGE_REFUSALS.assistantRoles;
+  }
+  if (changed.includes(ADMIN_ROLE) && before.includes(ADMIN_ROLE)) {
+    if (input.self) return ROLE_CHANGE_REFUSALS.ownAdmin;
+    if (input.otherAdmins === 0) return ROLE_CHANGE_REFUSALS.lastAdmin;
+  }
+  return null;
+}
+
+/** The roles whose checkbox the actor may flip for this person (each tested alone), so the Users page disables the rest. */
+export function changeableRoles(input: { actor: RoleInput; target: RoleInput; self: boolean; otherAdmins: number }): StaffRole[] {
+  const held = staffRolesIn(input.target);
+  return STAFF_ROLES.filter((role) => {
+    const next = held.includes(role) ? held.filter((r) => r !== role) : [...held, role];
+    return roleChangeRefusal({ ...input, next }) === null;
+  });
+}

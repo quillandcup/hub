@@ -97,6 +97,14 @@ export default function RolesClient({ matrix }: { matrix: PermissionMatrix }) {
         several roles and may do whatever any of them allows (the union): the admin implies everything, and what is withheld
         from the assistant stays withheld unless another role they hold grants it. Roles are given on the Users page.
       </p>
+      <section aria-label="Who can give which role" className="mb-6 text-sm text-slate-600 dark:text-slate-300">
+        <h2 className="mb-1 text-base font-semibold text-slate-900 dark:text-slate-100">Who can give which role</h2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>An admin can give or take away any role. They can&apos;t remove their own admin role (another admin does that), and the last admin can&apos;t be removed.</li>
+          <li>An assistant can give or take away only Community Manager and Conversion Specialist, and only for people who hold neither Admin nor Assistant.</li>
+          <li>Nobody else can change roles. The database enforces this too, not only this page.</li>
+        </ul>
+      </section>
 
       <div className="@container mb-6">
         <ul className="grid gap-3 @cards:grid-cols-2 @columns:grid-cols-4" aria-label="Roles">

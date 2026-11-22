@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom/vitest'
 import UsersClient from '@/app/(admin)/admin/users/UsersClient'
@@ -26,13 +26,16 @@ const USERS = [
   { ...base, id: 'u3', email: 'old@example.test', role: 'assistant' }, // an older response with only `role`
 ]
 
+let viewerRoles: string[] | undefined = ['admin']
+
 const fetchMock = vi.fn((url: string, init?: RequestInit) => {
   void url
   void init
-  return Promise.resolve({ ok: true, json: () => Promise.resolve({ users: USERS, allMembers: [], success: true }) } as Response)
+  return Promise.resolve({ ok: true, json: () => Promise.resolve({ users: USERS, viewerRoles, allMembers: [], success: true }) } as Response)
 })
 
 beforeEach(() => {
+  viewerRoles = ['admin']
   fetchMock.mockClear()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -98,5 +101,61 @@ describe('UsersClient roles', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
     const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')!
     expect(JSON.parse(patch[1]!.body as string).roles).toEqual([])
+  })
+
+  describe('who may change which role', () => {
+    const ADMINS = [
+      { ...base, id: 'a1', email: 'boss@example.test', role: 'admin', roles: ['admin'] },
+      { ...base, id: 'a2', email: 'boss2@example.test', role: 'admin', roles: ['admin'] },
+      { ...base, id: 's1', email: 'helper@example.test', role: 'assistant', roles: ['assistant'] },
+      { ...base, id: 'm1', email: 'plain@example.test' },
+    ]
+
+    async function openEditor(email: string, as: string[], me = 'me') {
+      viewerRoles = as
+      fetchMock.mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ users: ADMINS, viewerRoles, allMembers: [] }) } as Response))
+      const user = userEvent.setup()
+      render(<UsersClient currentUserId={me} />)
+      await screen.findByText('All Users (4)')
+      await user.click(within(rowOf(email)).getByRole('button', { name: /edit/i }))
+      return within(screen.getByRole('group', { name: 'Roles' }))
+    }
+
+    it('lets an assistant flip only community manager and conversion specialist on a member', async () => {
+      const roles = await openEditor('plain@example.test', ['assistant'])
+      expect(roles.getByRole('checkbox', { name: 'Community Manager' })).toBeEnabled()
+      expect(roles.getByRole('checkbox', { name: 'Conversion Specialist' })).toBeEnabled()
+      expect(roles.getByRole('checkbox', { name: 'Admin' })).toBeDisabled()
+      expect(roles.getByRole('checkbox', { name: 'Assistant' })).toBeDisabled()
+    })
+
+    it('disables every box, and says why, for an assistant looking at an admin or another assistant', async () => {
+      let roles = await openEditor('boss@example.test', ['assistant'])
+      for (const name of ['Admin', 'Assistant', 'Community Manager', 'Conversion Specialist']) expect(roles.getByRole('checkbox', { name })).toBeDisabled()
+      expect(screen.getByText("An assistant can't change the roles of an admin or another assistant.")).toBeInTheDocument()
+      cleanup()
+      roles = await openEditor('helper@example.test', ['assistant'])
+      expect(roles.getByRole('checkbox', { name: 'Community Manager' })).toBeDisabled()
+    })
+
+    it('hides Delete for what an assistant may not remove, and keeps it for a member', async () => {
+      viewerRoles = ['assistant']
+      fetchMock.mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ users: ADMINS, viewerRoles, allMembers: [] }) } as Response))
+      render(<UsersClient currentUserId="me" />)
+      await screen.findByText('All Users (4)')
+      expect(within(rowOf('boss@example.test')).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+      expect(within(rowOf('helper@example.test')).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+      expect(within(rowOf('plain@example.test')).getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    })
+
+    it("lets an admin flip everything on someone else, but not their own admin box", async () => {
+      let roles = await openEditor('boss2@example.test', ['admin'], 'a1')
+      expect(roles.getByRole('checkbox', { name: 'Admin' })).toBeEnabled()
+      expect(roles.getByRole('checkbox', { name: 'Assistant' })).toBeEnabled()
+      cleanup()
+      roles = await openEditor('boss@example.test', ['admin'], 'a1')
+      expect(roles.getByRole('checkbox', { name: 'Admin' })).toBeDisabled()
+      expect(roles.getByRole('checkbox', { name: 'Assistant' })).toBeEnabled()
+    })
   })
 })

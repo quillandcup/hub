@@ -113,7 +113,11 @@ export async function GET(request: NextRequest) {
 
   users.sort((a, b) => a.email.localeCompare(b.email));
 
-  return NextResponse.json({ users, allMembers: allMembers ?? [] });
+  // The roles of the person asking, so the page can offer only the role changes they may make (`roleChangeRefusal`).
+  const scripted = auth.user.id === "service-role" || auth.user.id === "cron";
+  const viewerRoles = scripted ? ["admin"] : (rolesByUser.get(auth.user.id) ?? []);
+
+  return NextResponse.json({ users, viewerRoles, allMembers: allMembers ?? [] });
 }
 
 export async function POST(request: NextRequest) {
