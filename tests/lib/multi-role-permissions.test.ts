@@ -137,7 +137,7 @@ describe("where a person lands, and which pages open", () => {
 
 describe("the priority order is the same in SQL", () => {
   it("lists the roles in the migration's staff_role_rank() in the order of STAFF_ROLES", () => {
-    const sql = readFileSync("supabase/migrations/20271008000000_user_roles.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20271028000000_user_roles.sql", "utf8");
     const match = /FUNCTION public\.staff_role_rank[\s\S]*?array_position\(ARRAY\[([^\]]+)\]/.exec(sql);
     expect(match).not.toBeNull();
     const ranked = match![1].split(",").map((s) => s.trim().replace(/'/g, ""));
