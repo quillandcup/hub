@@ -8,7 +8,6 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import ProjectsClient from "@/app/(member)/projects/ProjectsClient";
 import type { WritingProjectRow } from "@/app/(member)/projects/actions";
-import { MilestonesPointer } from "@/app/(member)/settings/MilestonesPointer";
 import * as actions from "@/app/(member)/settings/milestoneActions";
 import {
   MILESTONES_INTRO,
@@ -196,15 +195,5 @@ describe("My Writing's Projects tab", () => {
   it("is look-only in sudo", () => {
     render(<ProjectsClient initialProjects={[]} works={[]} readOnly />);
     expect(screen.getByRole("button", { name: "Add a work that is not listed here" })).toBeDisabled();
-  });
-});
-
-describe("Settings, Profile", () => {
-  it("only points to the milestones in My Writing, with no section of its own", () => {
-    render(<MilestonesPointer />);
-    expect(screen.getByTestId("milestones-pointer")).toHaveTextContent("Your milestones are with your projects in My Writing.");
-    expect(screen.getByRole("link", { name: "My Writing" })).toHaveAttribute("href", "/projects");
-    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

@@ -114,19 +114,19 @@ INSERT INTO public.member_books (member_id, title, cover_url, published_date) VA
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a1", "email": "ms-alice@example.test", "role": "authenticated"}', true);
-SELECT throws_ok($$SELECT public.propose_milestones_from_books()$$, '42501', NULL, 'a member cannot run the backfill');
+SELECT throws_ok($$SELECT public.propose_milestones_for_books()$$, '42501', NULL, 'a member cannot run the backfill');
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a4", "email": "ms-dana@example.test", "role": "authenticated"}', true);
-INSERT INTO result SELECT 'first_run', to_jsonb(public.propose_milestones_from_books());
-INSERT INTO result SELECT 'second_run', to_jsonb(public.propose_milestones_from_books());
+INSERT INTO result SELECT 'first_run', to_jsonb(r) FROM public.propose_milestones_for_books() r;
+INSERT INTO result SELECT 'second_run', to_jsonb(r) FROM public.propose_milestones_for_books() r;
 RESET ROLE;
 
 SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id LIKE 'mbr_Bundfin%' AND source = 'staff' AND status = 'proposed'), 2400, 'every one of 1200 members with a book gets both milestones as proposals');
-SELECT ok((SELECT (value)::int >= 2400 FROM result WHERE label = 'first_run'), 'the run reports at least the rows it added for them');
-SELECT is((SELECT value FROM result WHERE label = 'second_run'), '0'::jsonb, 'a second run adds nothing');
+SELECT ok((SELECT (value ->> 'proposals')::int >= 2400 FROM result WHERE label = 'first_run'), 'the run reports at least the rows it added for them');
+SELECT is((SELECT value FROM result WHERE label = 'second_run'), '{"books": 0, "members": 0, "proposals": 0}'::jsonb, 'a second run adds nothing');
 SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_msNoBook0001'), 0, 'a member whose only book was deleted gets nothing');
 SELECT is(
   (SELECT string_agg(kind || ':' || status, ',' ORDER BY kind) FROM public.member_milestones WHERE member_id = 'mbr_msAlice00001' AND deleted_at IS NULL),
-  'publish_ready:proposed,the_end:confirmed', 'Alice keeps her answer and only the missing kind is proposed');
+  'publish_ready:proposed,the_end:confirmed,the_end:proposed', 'Alice keeps her answer, and her book (a different work from the unlinked answer) is proposed both kinds');
 
 -- The Activity Log: a proposal is an entry naming the milestone; the stories are redacted.
 SELECT is(
@@ -191,7 +191,7 @@ SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-000000
 UPDATE public.member_milestones SET deleted_at = now() WHERE member_id = 'mbr_msAlice00001';
 RESET ROLE;
 SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_msErin000001' AND deleted_at IS NOT NULL), 1, 'a member takes back their own milestone (a soft delete: the row stays)');
-SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_msAlice00001' AND kind = 'the_end' AND deleted_at IS NULL), 1, 'and cannot take back someone else''s');
+SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_msAlice00001' AND kind = 'the_end' AND status = 'confirmed' AND deleted_at IS NULL), 1, 'and cannot take back someone else''s');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a5", "email": "ms-erin@example.test", "role": "authenticated"}', true);
@@ -242,15 +242,15 @@ SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'member_milestone' AND changes::text LIKE '%Erin story words%'), 0,
   'the words the member wrote never reach the Activity Log');
 
--- Backfill after a self-add: Erin has the_end of her own, so only publish_ready is proposed for her (and Gus, who has a book, gets both).
+-- Backfill after a self-add: Erin's own the_end is on her project, her book is another work, so the book gets both kinds (as does Gus's).
 INSERT INTO public.member_books (member_id, title, cover_url, published_date) VALUES ('mbr_msErin000001', 'Erin Fake Book', 'https://example.test/c.png', '2026-01-01');
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a4", "email": "ms-dana@example.test", "role": "authenticated"}', true);
-SELECT lives_ok($$SELECT public.propose_milestones_from_books()$$, 'the staff backfill runs after members added their own');
+SELECT lives_ok($$SELECT public.propose_milestones_for_books()$$, 'the staff backfill runs after members added their own');
 RESET ROLE;
 SELECT is(
   (SELECT string_agg(kind || ':' || source || ':' || status, ',' ORDER BY kind) FROM public.member_milestones WHERE member_id = 'mbr_msErin000001' AND deleted_at IS NULL),
-  'publish_ready:staff:proposed,the_end:member:confirmed', 'the backfill skips a kind the member added themselves and proposes only the other');
+  'publish_ready:staff:proposed,the_end:member:confirmed,the_end:staff:proposed', 'the backfill leaves what the member added alone and proposes both kinds for her book, a different work from her project');
 
 -- Removal: a member's milestones go with them.
 CREATE TEMP TABLE removed(r jsonb) ON COMMIT DROP;

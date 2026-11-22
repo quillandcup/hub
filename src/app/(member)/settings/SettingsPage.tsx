@@ -11,7 +11,6 @@ import { SessionsPanel } from "./SessionsPanel";
 import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
-import { MilestonesPointer } from "./MilestonesPointer";
 import { WhosComingSetting } from "./WhosComingSetting";
 import { PreviewsPanel } from "./PreviewsPanel";
 import BlockedPreviewsList from "@/components/chat/BlockedPreviewsList";
@@ -139,12 +138,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
               {
                 id: "profile",
                 label: SETTINGS_TAB_LABELS.profile,
-                content: (
-                  <>
-                    <ProfilePanel />
-                    <MilestonesPointer />
-                  </>
-                ),
+                content: <ProfilePanel />,
               },
               {
                 id: "identity",

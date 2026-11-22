@@ -90,9 +90,9 @@ RESET ROLE;
 -- A month or a year that overlaps the join day counts: the rule is in the app (one function), which reads these two columns.
 SELECT is((SELECT achieved_on + interval '1 month' - interval '1 day' FROM public.member_milestones WHERE id = 'mlst_apMonth0001')::date::text, '2026-05-31', 'the last day of a stored month is computed from its first day');
 
--- All three are SECURITY DEFINER with a pinned search path, and the old readers stay for the contract step.
+-- All three are SECURITY DEFINER with a pinned search path, and the older readers (and the old backfill) are dropped.
 SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('member_works_dated', 'member_works_dated_to_members', 'member_works_dated_on_web') AND pronamespace = 'public'::regnamespace AND prosecdef AND proconfig @> ARRAY['search_path=""']), 3, 'all three pin an empty search path');
-SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('member_works_shown', 'member_works_shown_to_members', 'member_works_shown_on_web') AND pronamespace = 'public'::regnamespace), 3, 'the older readers are still there until their contract step');
+SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('member_works_shown', 'member_works_shown_to_members', 'member_works_shown_on_web', 'milestones_shown_to_members', 'propose_milestones_from_books') AND pronamespace = 'public'::regnamespace), 0, 'the older readers and the old backfill are dropped');
 
 SELECT * FROM finish(true);
 ROLLBACK;

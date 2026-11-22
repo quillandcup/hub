@@ -10,7 +10,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(32);
+SELECT plan(31);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f6a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pw-pia@example.test'),
@@ -112,11 +112,6 @@ SELECT is(
   'Pia''s own milestone for book two stays hers: only publish-ready was proposed there');
 SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_pwPia0000001' AND book_id = 'book_pwPia00002'), 2, 'one row per kind for that book');
 
--- The old per-member backfill is still there until the contract step and still runs for admins.
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f6a4", "email": "pw-rae@example.test", "role": "authenticated"}', true);
-SELECT lives_ok($$SELECT public.propose_milestones_from_books()$$, 'the old backfill function still runs for an admin');
-RESET ROLE;
 
 -- RLS is unchanged: a member reads only their own, nothing for a visitor.
 SET LOCAL ROLE authenticated;
