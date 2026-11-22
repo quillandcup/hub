@@ -1,6 +1,6 @@
 # Chat core and the Slack adapter
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Chat is a conversation product: messages, channels, threads, reactions, files, rich text, link previews, drafts, search, unread counts, notifications. Slack is where the Quill & Cup conversations also live, and today the two are welded together (about 100 files in `src/lib/chat` and `src/components/chat` mention Slack). The split is **in place**, in steps, so that chat core can be reused by another app later (a thread attached to a building or a work order, a second community) and so that "what is chat and what is Slack" is a line in the code, not a feeling. Behavior for members does not change. The pattern is the one of [Page blocks](PAGE_BLOCKS.md): a port owned by the host, an adapter under `src/modules/`, a composition root that lists what is installed, lint and a test that keep the line.
 
@@ -11,27 +11,31 @@ Chat is a conversation product: messages, channels, threads, reactions, files, r
 | The port: `ChatTransport` (what core asks a transport for), `ChatInboundSink` (what a transport reports to core) | `src/lib/chat/transport.ts` |
 | The registry core reads (`chatTransport()`, `NO_TRANSPORT` when none is installed) | `src/lib/chat/transports.ts` |
 | The composition root: the one list of installed transports | `src/modules/chat-transport.ts` |
-| The Slack adapter (`slackTransport`) | `src/modules/chat/slack/index.ts`; the Slack code it delegates to is still in `src/lib/chat/slack-*.ts`, `gap-fill.ts` and `src/lib/slack-*.ts` (see "What remains") |
+| Core's outbox: `deliverChatMessage` records what a transport answers, `retryUnsentChatMessages` is the nightly retry and expiry | `src/lib/chat/delivery.ts` |
+| Where chat files live and their size cap (neutral names; the bucket keeps its original name) | `src/lib/chat/file-limits.ts` |
+| The Slack adapter (`slackTransport`) and its outbound code: post, edit, react, upload, unfurl removal, read markers, escaping, rich-text blocks, membership | `src/modules/chat/slack/` (`index.ts` is the port implementation) |
+| Slack code still outside the adapter's folder (the inbound side: DM pulls, gap-fill, the webhook, lesson links) and the `src/lib/slack-*.ts` libraries | `src/lib/chat/slack-*.ts`, `gap-fill.ts`, `src/app/api/webhooks/slack`, `src/lib/slack-*.ts` (see "What remains") |
 | The boundary: lint rule and baseline | `config/eslint.mjs`, `config/chat-core-baseline.json`, `tests/lib/chat-core-boundary.test.ts` |
 
 ## What core is, what the adapter is
 
-Classification of the chat code at the time of the first step (counts are files):
+Classification of the chat code at the first step (counts are files; step 2 moved 9 outbound files and split one, and shrank the mixed class to 8):
 
 | Class | Files | What |
 |---|---|---|
 | Core | about 117 of the 150 in `src/lib/chat`, `src/components/chat`, `src/app/(member)/chat`, `src/app/api/chat`, `src/app/api/process/chat`, `src/lib/data/chat*.ts` | messages and channels, reactions, drafts, files and staging, rich text and smart typography, link previews and their blocks, hub links, emoji, search, unread, notifications, rendering, the whole UI |
 | Slack adapter | 13 in `src/lib/chat` (`slack-*.ts` and `gap-fill.ts`), the 21 `src/lib/slack-*.ts` libraries (shared with sign-in and the Slack notifier), the Slack webhook and the `slack-dms` reconcile route | Slack ids, tokens and authors; posting, editing, deleting and reacting in Slack; mrkdwn escaping and blocks; unfurl removal; channel membership; read-marker sync; DM pulls; gap-fill from Slack; lesson links pasted in Slack |
-| Mixed | 20, the baseline | a core file that names a Slack thing: the files bucket (`SLACK_FILES_BUCKET`, a storage name) in 8 files, Slack avatar photos and file downloads, the as-member membership calls, the nightly projection, the Slack emoji short-code map |
+| Mixed | 8 now (20 at the first step), the baseline | a core file that still names a Slack thing: Slack avatar photos and author names, file downloads with Slack tokens, the Slack connection check for access, the Slack permalink, the emoji short-code map, the gap-fill call on the conversation page, the nightly projection |
 
 ## The port
 
 `ChatTransport` is what core asks of a transport. Every method is safe to call when the transport has nothing to do (message not delivered yet, member not connected, not production): it answers `"skipped"`, `false` or `{ ok: true }` and does not throw for a normal refusal.
 
-- **Outbound:** `deliver` (send a stored message, then record how it went on the message), `retryUnsent` (the nightly outbox, which also expires what is too old), `syncReaction`, `editMessage`, `deleteMessage`, `deleteFile`, `removePreview` (stop one link preview showing in the transport), `keepFileCopies`.
+- **Outbound:** `send` (send one stored message and answer a `SendOutcome`: `sent` with the transport's reference and how it went out, `skipped`, or `failed`), `syncReaction`, `editMessage`, `deleteMessage`, `deleteFile`, `removePreview` (stop one link preview showing in the transport), `keepFileCopies`, `updateAppMessage` (replace a message the app itself posted, for the check-in DM controls).
+- **Who is in a conversation:** `externalIdsFor` (the transport's ids for members, for mentions and invites), `addToConversation` and `removeFromConversation`, each answering a `MembershipChange` (`result`, and `reconnect` when the member's own link failed and the transport acted for them). Who may do what stays in core (`membership-actions.ts`); how it is done, as the member or as the app, is the transport's.
 - **State:** `writesEnabled` (may this deployment write to the real system), `isConnected` (may this member write through the transport), `pushRead`, `pushUnread`, `pullRead` (read markers, both ways).
 - **Conversations:** `pullDirectConversations` and `openDirectConversation` (direct conversations written outside the Hub).
-- **Delivery status** is `DeliveryResult` (`sent`, `skipped`, `failed`); a failed one stays retryable and core shows "didn't send" with a Retry.
+- **Delivery status is core's.** A transport never writes it: `deliverChatMessage` (`src/lib/chat/delivery.ts`) calls `send` and records the outcome on the message (the reference and `via` for a sent one, failed for a failure, nothing for `skipped`; a sent message without a reference stays pending until the transport's own event links it). `retryUnsentChatMessages` (nightly) expires what is too old and sends again what is due, through the same function. A failed message is retryable and core shows "didn't send" with a Retry.
 
 `ChatInboundSink` is what a transport reports to core: a message, an edit, a deletion, a reaction, each with the transport's own references (`channelRef`, `ref`, `authorRef`), never its shape. Core owns what they mean (Bronze to Silver, author matching, de-duplication); the transport owns decoding and verifying its events. Today the Slack webhook and gap-fill still write to the data layer directly; moving them behind the sink is step 3.
 
@@ -56,8 +60,8 @@ Slack ids and tokens (the member's own token or the bot's), the choice between t
 
 Steps, each its own pull request and green on its own:
 
-1. **The port, the registry, the Slack adapter facade, the lint rule and the baseline** (this step). The chat actions, search and the nightly outbox call the port.
-2. **Move the outbound Slack code** (`slack-post`, `slack-edit`, `slack-react`, `slack-upload`, `slack-unfurl-removal`, `slack-read`, `slack-escape`, `rich-blocks`' mrkdwn blocks) into `src/modules/chat/slack`, make `deliver` return a result that core records, add membership and the DM controls to the port, and neutralize the files bucket name.
-3. **Move the inbound Slack code** (`gap-fill`, `slack-dm-events`, `slack-dms`, `slack-side-unfurl-removal`, `slack-lesson-links`, the Slack webhook, the author and photo mapping, the nightly projection) behind `ChatInboundSink`.
+1. **The port, the registry, the Slack adapter facade, the lint rule and the baseline.** Done.
+2. **The outbound Slack code moved into `src/modules/chat/slack`, the outbox recorded by core, membership and the DM controls on the port, neutral file constants.** Done. Slack's rich-text block builder moved; the reading half (`blocksToBody` in `src/lib/chat/rich-blocks.ts`) stays in core's loader until step 3. The Slack code still outside the folder may import the adapter's helpers (`CHAT_SLACK_SIDE_FILES` in `config/eslint.mjs`); core may not.
+3. **Move the inbound Slack code** (`gap-fill`, `slack-dm-events`, `slack-dms`, `slack-side-unfurl-removal`, `slack-lesson-links`, the Slack webhook, the author and photo mapping, `blocksToBody`, the nightly projection) behind `ChatInboundSink`, which nothing calls yet.
 
-The baseline entries and the follow-ups are in `docs/TODO.md`, "Chat core and Slack adapter: next steps". Not verified against a live Slack workspace: step 1 changes only which code calls the Slack functions, not what they do, and the existing chat tests (which mock the Slack functions) still pass.
+The baseline entries and the follow-ups are in `docs/TODO.md`, "Chat core and Slack adapter: next steps". Not verified against a live Slack workspace: steps 1 and 2 change which code calls the Slack functions and who records a delivery, not the Slack calls themselves, and the existing chat tests (which mock Slack) pass.

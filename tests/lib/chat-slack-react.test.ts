@@ -29,7 +29,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos.current,
 }));
 
-import { syncReactionToSlack } from "@/lib/chat/slack-react";
+import { syncReactionToSlack } from "@/modules/chat/slack/react";
 
 const MESSAGE_ID = "msg_AAAAAAAAAAA1";
 const CHANNEL_ID = "chn_AAAAAAAAAAA1";

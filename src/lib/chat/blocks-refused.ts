@@ -4,7 +4,7 @@ import type { Repos } from "@/lib/data/repos";
 
 /**
  * Slack refused the rich-text blocks of a message (`invalid_blocks`) and the message was sent as plain text instead
- * (src/lib/chat/slack-post.ts, slack-edit.ts, slack-upload.ts). The member got their message without its list or underline,
+ * (src/modules/chat/slack/post.ts, slack-edit.ts, slack-upload.ts). The member got their message without its list or underline,
  * and the cause is our conversion, not anything they did, so this tells us: a Sentry event with the message id and Slack's
  * error, and an alert in the staff channel (without the id, which is a Hub id; rate limited like the others). Never throws
  * into the send path.

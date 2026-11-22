@@ -12,13 +12,14 @@ import { notifyChatMessage, resolveChatNotifications } from "@/lib/chat/notifica
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import type { Json } from "@/lib/data/database.types";
 import { chatTransport } from "@/lib/chat/transports";
+import { deliverChatMessage } from "@/lib/chat/delivery";
 import type { PreviewRemoval } from "@/lib/chat/transport";
 import { isId } from "@/lib/ids";
 import { ownDraftFiles } from "@/lib/chat/draft-files";
 import type { DraftFile } from "@/lib/data/chat-drafts";
 import { PENDING_FILE_PREFIX, parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 import { clock } from "@/lib/clock";
 import {
   buildMessageViews,
@@ -66,7 +67,7 @@ export async function saveChatDraft(channelId: string, threadRootId: string | nu
     const still = new Set(kept.map((f) => f.path));
     const removed = (before?.files ?? []).map((f) => f.path).filter((path) => !still.has(path) && isOwnStagingPath(memberId, path));
     if (removed.length > 0) {
-      const { error } = await createServiceRoleClient().storage.from(SLACK_FILES_BUCKET).remove(removed);
+      const { error } = await createServiceRoleClient().storage.from(CHAT_FILES_BUCKET).remove(removed);
       if (error) console.error("removing a draft's staged files failed:", error.message);
     }
   } catch (e) {
@@ -338,7 +339,7 @@ export async function prepareChatUploads(files: { name: string; size: number }[]
   if (files.some((f) => typeof f?.name !== "string" || !f.name || !(f.size >= 0) || f.size > MAX_CHAT_FILE_BYTES)) {
     return { ok: false, error: `Files can be up to ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB each.` };
   }
-  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const bucket = createServiceRoleClient().storage.from(CHAT_FILES_BUCKET);
   const uploads: { path: string; token: string }[] = [];
   for (const f of files) {
     const path = newStagingPath(caller.identity.memberId, f.name, clock.now(), crypto.randomUUID());
@@ -358,7 +359,7 @@ export async function prepareChatUploads(files: { name: string; size: number }[]
  */
 async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promise<Record<string, unknown>[] | null> {
   if (!Array.isArray(uploads) || uploads.length > MAX_CHAT_FILES) return null;
-  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const bucket = createServiceRoleClient().storage.from(CHAT_FILES_BUCKET);
   const files: Record<string, unknown>[] = [];
   for (const u of uploads) {
     if (typeof u?.path !== "string" || typeof u.name !== "string" || !u.name || !isOwnStagingPath(memberId, u.path)) return null;
@@ -474,7 +475,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   if (hubOnly) return { ok: true, id: messageId };
   after(async () => {
     try {
-      await chatTransport().deliver(createServiceRoleClient(), messageId);
+      await deliverChatMessage(createServiceRoleClient(), messageId);
     } catch (error) {
       console.error("sendChatMessageToSlack threw for %s:", messageId, error);
     }
@@ -568,7 +569,7 @@ async function retryChatMessageImpl(messageId: string): Promise<SendChatResult> 
   if (!(await chatTransport().isConnected(service, caller.identity.memberId))) {
     return { ok: false, error: "Connect Slack in Settings, then retry: your messages are posted as you." };
   }
-  const result = await chatTransport().deliver(service, messageId);
+  const result = await deliverChatMessage(service, messageId);
   return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
 }
 
@@ -619,7 +620,7 @@ async function editChatMessageImpl(messageId: string, body: string, uploads: Sta
     existingIds = parseChatFiles(current?.files).map((f) => f.id);
     if (existingIds.length + staged.length > MAX_CHAT_FILES) return { ok: false, error: `A message can have up to ${MAX_CHAT_FILES} files.` };
     for (const f of staged) {
-      const { data } = await service.storage.from(SLACK_FILES_BUCKET).download(f.staged as string);
+      const { data } = await service.storage.from(CHAT_FILES_BUCKET).download(f.staged as string);
       if (!data) return { ok: false, error: "Couldn't read an uploaded file. Try again." };
       bytes.push({ staged: f.staged as string, file: Buffer.from(await data.arrayBuffer()), filename: f.name as string });
     }

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import type { ChatFile } from "@/lib/chat/files";
-import { keepCopies } from "@/lib/chat/slack-upload";
+import { keepCopies } from "@/modules/chat/slack/upload";
 
 /**
  * Files added to a message that is already in Slack, bytes in hand: the permanent copies are kept under the Slack file ids. Looks up

@@ -5,7 +5,7 @@ const { writesEnabled, projectChatMessage, markRemoved } = vi.hoisted(() => ({
   projectChatMessage: vi.fn(async () => true),
   markRemoved: vi.fn(async () => 0),
 }));
-vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
+vi.mock("@/modules/chat/slack/post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
 vi.mock("@/lib/chat-projection", () => ({ projectChatMessage: (...a: unknown[]) => projectChatMessage(...(a as [])) }));
 vi.mock("@/lib/slack-reactions", () => ({ markRemovedSlackReactions: (...a: unknown[]) => markRemoved(...(a as [])) }));
 

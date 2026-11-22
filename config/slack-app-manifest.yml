@@ -29,7 +29,7 @@ oauth_config:
       - channels:join
       - channels:write.invites
       # Removing people (conversations.kick) from the Hub's members page: public and private channels. Adding
-      # them needs only the .invites scopes. src/lib/chat/slack-membership.ts
+      # them needs only the .invites scopes. src/modules/chat/slack/membership.ts
       - channels:manage
       - groups:write
       - groups:history
@@ -50,7 +50,7 @@ oauth_config:
       - files:read
       # Feedback widget notifications, and Hub chat posts (chat:write.customize lets the bot post under
       # the member's name and photo; metadata.message:read returns our post's metadata on its event, so
-      # the Hub can tell it is its own: src/lib/chat/slack-post.ts)
+      # the Hub can tell it is its own: src/modules/chat/slack/post.ts)
       - chat:write
       - chat:write.customize
       - metadata.message:read
@@ -66,7 +66,7 @@ oauth_config:
     user:
       - chat:write
       - reactions:write
-      # Read state shared with Slack (src/lib/chat/slack-read.ts): read each conversation's last_read,
+      # Read state shared with Slack (src/modules/chat/slack/read.ts): read each conversation's last_read,
       # and move the marker when the member reads in the Hub.
       - channels:read
       - groups:read
@@ -74,7 +74,7 @@ oauth_config:
       - channels:write
       - groups:write
       - mpim:write
-      # Files the member sends from the Hub post as them (src/lib/chat/slack-upload.ts).
+      # Files the member sends from the Hub post as them (src/modules/chat/slack/upload.ts).
       - files:write
       # Hub direct messages through Slack (SLACK_DM_SCOPES, src/lib/slack-connect.ts): list, read and post in the member's own DMs.
       - im:read

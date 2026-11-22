@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DraftFile } from "@/lib/data/chat-drafts";
 import { isOwnStagingPath } from "@/lib/chat/staging";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 
 /** A draft's file as the composer shows it: where it is staged, and a link to preview it when it is an image. */
 export type DraftFileView = DraftFile & { url: string | null };
@@ -18,7 +18,7 @@ export async function withPreviewUrls(service: SupabaseClient, memberId: string,
   const wanted = files.filter((f) => f.mimetype.startsWith("image/") && isOwnStagingPath(memberId, f.path));
   const urls = new Map<string, string>();
   if (wanted.length > 0) {
-    const { data, error } = await service.storage.from(SLACK_FILES_BUCKET).createSignedUrls(
+    const { data, error } = await service.storage.from(CHAT_FILES_BUCKET).createSignedUrls(
       wanted.map((f) => f.path),
       PREVIEW_SECONDS,
     );

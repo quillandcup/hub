@@ -1,7 +1,8 @@
-import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
+import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/modules/chat/slack/rich-blocks";
 import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
 import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SendOutcome } from "@/lib/chat/transport";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import { asJson } from "@/lib/data/json";
@@ -30,7 +31,7 @@ export interface FileSendContext {
   connection: { token: string } | null;
   authorMemberId: string;
   escape: (text: string) => string;
-  fail: (reason: string, error?: unknown) => Promise<"failed">;
+  fail: (reason: string, error?: unknown) => Promise<SendOutcome>;
 }
 
 const TS_LOOKUP_ATTEMPTS = 4;
@@ -67,7 +68,7 @@ export async function lookupFileMessageTs(botToken: string, fileId: string, slac
   return null;
 }
 
-export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent" | "failed"> {
+export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<SendOutcome> {
   const { supabase, messageId, slackChannelId, files } = ctx;
   const chat = createRepos(supabase).chat;
   const botToken = await getSlackBotToken();
@@ -154,18 +155,12 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
         console.error("keeping the staged paths of message %s failed:", messageId, (storeError as Error).message);
       }
     }
-    return "sent";
+    return { status: "sent" };
   }
 
-  const [{ error }] = await Promise.all([
-    supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: ts }),
-    // A failed update of posted_via was never looked at; it still isn't.
-    postedVia ? chat.setPostedVia(messageId, postedVia).catch(() => undefined) : null,
-  ]);
-  if (error) console.error("chat_mark_message_sent failed for %s:", messageId, error.message);
-
   if (bytes.size > 0) await keepCopies(supabase, ctx.files, files, bytes, slackChannelId, ts);
-  return "sent";
+  // Core records the ts and how it went out (src/lib/chat/delivery.ts).
+  return { status: "sent", ref: ts, ...(postedVia ? { via: postedVia } : {}) };
 }
 
 /** The bytes are already in hand: save them as the permanent copies (so the Hub never asks Slack for its own upload) and drop the staged ones. */

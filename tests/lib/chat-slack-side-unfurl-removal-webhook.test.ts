@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { createHmac } from "crypto";
 import { InMemoryDataset } from "@/lib/data/in-memory";
-import { hubMessageMetadata } from "@/lib/chat/slack-post";
+import { hubMessageMetadata } from "@/modules/chat/slack/post";
 
 /**
  * The webhook's wiring of src/lib/chat/slack-side-unfurl-removal.ts: the author of a message written in the Hub removes Slack's link preview

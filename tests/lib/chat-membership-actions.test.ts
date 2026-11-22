@@ -25,7 +25,7 @@ vi.mock("@/lib/analytics/server", () => ({
 }));
 vi.mock("@/lib/chat/caller", () => ({ postingCaller: m.postingCaller, chatCaller: m.chatCaller }));
 vi.mock("@/lib/chat/load", () => ({ loadChannelForMember: m.loadChannelForMember }));
-vi.mock("@/lib/chat/slack-membership", () => ({
+vi.mock("@/modules/chat/slack/membership", () => ({
   inviteToSlackChannel: m.invite,
   kickFromSlackChannel: m.kick,
   leaveSlackChannelAsMember: m.leave,

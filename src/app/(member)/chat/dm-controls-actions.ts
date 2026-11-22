@@ -5,8 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { postingCaller } from "@/lib/chat/caller";
 import { withAction } from "@/lib/analytics/server";
-import { createSlackClient } from "@/lib/slack-client";
-import { getSlackBotToken } from "@/lib/slack-bot-token";
+import { chatTransport } from "@/lib/chat/transports";
 import type { DmControlPress } from "@/lib/chat/dm-controls";
 import { pressDmControl, type DmControlResult } from "@/lib/chat/dm-controls-press";
 
@@ -23,11 +22,7 @@ async function pressDmControlImpl(press: DmControlPress): Promise<DmControlResul
       viewer: createRepos(await createClient()),
       service: createRepos(createServiceRoleClient()),
       memberId: caller.identity.memberId,
-      updateSlack: async (channel, ts, message) => {
-        const token = await getSlackBotToken();
-        if (!token) throw new Error("no Slack bot token");
-        await createSlackClient(token).chat.update({ channel, ts, ...message });
-      },
+      updateSlack: (channel, ts, message) => chatTransport().updateAppMessage({ channelRef: channel, ref: ts, message: message as Record<string, unknown> }),
     },
     press
   );

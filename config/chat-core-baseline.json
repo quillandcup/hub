@@ -2,24 +2,12 @@
   "comment": "Chat core files that still import Slack code. Shrink-only: tests/lib/chat-core-boundary.test.ts fails on a file that is not listed and on an entry whose file no longer violates. Each entry says what the Slack import is and what moves it (docs/architecture/CHAT_MODULE.md, docs/TODO.md 'Chat core and Slack adapter: next steps').",
   "files": {
     "src/app/(member)/chat/[id]/page.tsx": "Calls the Slack gap-fill (catchUpChannel). Moves behind a transport 'catch up' method with the inbound step.",
-    "src/app/(member)/chat/actions.ts": "Names the files bucket (SLACK_FILES_BUCKET) to remove and download message files. The bucket is core storage with a Slack-era name: a neutral constant in core.",
-    "src/app/(member)/chat/dm-controls-actions.ts": "Creates a Slack client with the bot token to mute or close a Slack conversation. Becomes a port method with the membership and DM step.",
-    "src/app/(member)/chat/membership-actions.ts": "Invites, kicks, leaves and joins Slack channels with user and bot tokens (the as-member result carries retryWithBot and deadToken). Becomes the port's membership methods in step 2.",
-    "src/app/(member)/chat/mention-actions.ts": "Maps member ids to Slack user ids for mentions (slackUserIdsFor). Becomes a port 'external ids for members' method in step 2.",
-    "src/app/api/chat/files/[messageId]/[fileId]/route.ts": "Names the files bucket (SLACK_FILES_BUCKET). Same neutral constant as actions.ts.",
-    "src/app/api/chat/files/[messageId]/zip/route.ts": "Names the files bucket (SLACK_FILES_BUCKET). Same neutral constant as actions.ts.",
     "src/app/api/process/chat/route.ts": "The nightly Bronze-to-Silver run: Slack user matching and lesson links pasted in Slack. Splits into core's projection and the adapter's inbound step (step 3).",
-    "src/components/chat/Composer.tsx": "Names the files bucket (SLACK_FILES_BUCKET) for staged uploads. Same neutral constant as actions.ts.",
     "src/lib/chat/access.ts": "Reads the Slack connection status to decide who may chat. Becomes transport.isConnected plus a core access rule.",
     "src/lib/chat/avatar-copy.ts": "Copies Slack profile photos into the avatar bucket (SLACK_AVATAR_BUCKET). Moves to the adapter with the author mapping (step 3).",
-    "src/lib/chat/draft-files.ts": "Names the files bucket (SLACK_FILES_BUCKET). Same neutral constant as actions.ts.",
     "src/lib/chat/emoji.ts": "Reads Slack's emoji short-code map (SLACK_EMOJI_MAP) for the shared emoji catalog. The map is the emoji standard's names; moves to a core emoji data file.",
-    "src/lib/chat/file-cleanup.ts": "Names the files bucket (SLACK_FILES_BUCKET). Same neutral constant as actions.ts.",
     "src/lib/chat/file-token.ts": "Picks the Slack token that may download a file and copies it from Slack (ensureSlackFileCopied). Becomes a transport 'fetch file bytes' method (step 3).",
     "src/lib/chat/load.ts": "Builds a Slack permalink for a message (formatSlackPermalink). Becomes a transport 'permalink' method.",
-    "src/lib/chat/names.ts": "Builds Slack author photo URLs (slackPhotoUrl). Moves to the adapter's author mapping (step 3).",
-    "src/lib/chat/rich-blocks.ts": "Escapes text for Slack mrkdwn when building Slack blocks (escapeForSlack). The block builder is Slack formatting: moves to the adapter with the outbound step (step 2).",
-    "src/lib/chat/upload-client.ts": "Names the files bucket (SLACK_FILES_BUCKET) for browser uploads. Same neutral constant as actions.ts.",
-    "src/lib/chat/staging.ts": "Uses the files bucket and Slack's file size cap (MAX_SLACK_FILE_BYTES). Core gets its own neutral names for both."
+    "src/lib/chat/names.ts": "Builds Slack author photo URLs (slackPhotoUrl). Moves to the adapter's author mapping (step 3)."
   }
 }

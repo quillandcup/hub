@@ -2,7 +2,7 @@ import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**
