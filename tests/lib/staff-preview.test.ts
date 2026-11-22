@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { effectiveStaffRole, parsePreviewRole } from "@/lib/staff-preview";
+import { PREVIEWABLE_ROLES, PREVIEW_ROLE_LABELS, effectiveStaffRole, parsePreviewRole } from "@/lib/staff-preview";
+import { STAFF_ROLES } from "@/lib/permissions";
 
 describe("parsePreviewRole", () => {
   it("accepts a previewable role and nothing else", () => {
     expect(parsePreviewRole("community_manager")).toBe("community_manager");
     expect(parsePreviewRole("conversion_specialist")).toBe("conversion_specialist");
-    for (const value of ["admin", "assistant", "member", "", null, undefined]) expect(parsePreviewRole(value)).toBeNull();
+    expect(parsePreviewRole("assistant")).toBe("assistant");
+    for (const value of ["admin", "member", "", null, undefined]) expect(parsePreviewRole(value)).toBeNull();
   });
 });
 
@@ -25,5 +27,12 @@ describe("effectiveStaffRole", () => {
     expect(effectiveStaffRole("conversion_specialist", "community_manager")).toBe("conversion_specialist");
     expect(effectiveStaffRole(null, "community_manager")).toBeNull();
     expect(effectiveStaffRole(undefined, "community_manager")).toBeUndefined();
+  });
+});
+
+describe("PREVIEWABLE_ROLES", () => {
+  it("is every staff role below the admin, each with a label, so a new role needs no UI change", () => {
+    expect([...PREVIEWABLE_ROLES]).toEqual(STAFF_ROLES.filter((role) => role !== "admin"));
+    for (const role of PREVIEWABLE_ROLES) expect(PREVIEW_ROLE_LABELS[role].length).toBeGreaterThan(3);
   });
 });

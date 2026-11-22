@@ -127,6 +127,14 @@ export const CONVERSION_SPECIALIST_ROLE = "conversion_specialist";
 export const STAFF_ROLES = [ADMIN_ROLE, ASSISTANT_ROLE, COMMUNITY_MANAGER_ROLE, CONVERSION_SPECIALIST_ROLE] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
+/** What each role is called on screen (the Users page, the preview banner and picker). */
+export const ROLE_LABELS: Record<StaffRole, string> = {
+  admin: "Admin",
+  assistant: "Assistant",
+  community_manager: "Community Manager",
+  conversion_specialist: "Conversion Specialist",
+};
+
 export function isStaffRole(role: string | null | undefined): role is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(role ?? "");
 }

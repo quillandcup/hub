@@ -8,7 +8,8 @@ import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { secretsMatch } from "@/lib/webhook-auth";
 import { staffMfaStateFor } from "@/lib/staff-mfa.server";
 import { blocksStaff } from "@/lib/staff-mfa";
-import { can, type Permission } from "@/lib/permissions";
+import type { Permission } from "@/lib/permissions";
+import { decideStaff } from "@/lib/staff-guard";
 
 /**
  * Creates a Supabase client for API routes.
@@ -79,9 +80,13 @@ export async function requireApiPermission(request: NextRequest, permission: Per
   if (auth.user.id === "service-role" || auth.user.id === "cron") {
     return { ...auth, forbidden: false as const };
   }
+  // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: `forbidden` (a 403 in the
+  // route). Staff who haven't passed (or set up) the second sign-in step get what a non-staff user gets (src/lib/staff-mfa.ts).
   const profile = await createRepos(auth.supabase).profiles.byId(auth.user.id).catch(() => null);
-  if (!can(profile, permission)) return { ...auth, forbidden: true as const };
-  // Staff who haven't passed (or set up) the second sign-in step get what a non-staff user gets (src/lib/staff-mfa.ts).
-  if (blocksStaff(await staffMfaStateFor(auth.supabase))) return { ...auth, forbidden: true as const };
-  return { ...auth, forbidden: false as const };
+  const decision = await decideStaff({
+    realRole: profile?.role,
+    permission,
+    mfaBlocked: async () => blocksStaff(await staffMfaStateFor(auth.supabase)),
+  });
+  return { ...auth, forbidden: !decision.ok };
 }

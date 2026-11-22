@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { startOnboarding } from '@/app/actions/onboarding'
 import SignOutButton from './SignOutButton'
 import SudoModal from './SudoModal'
-import { startRolePreview } from '@/app/actions/staff-preview'
-import { PREVIEWABLE_ROLES, PREVIEW_ROLE_LABELS } from '@/lib/staff-preview'
+import PreviewAsModal from './PreviewAsModal'
 
 interface UserMenuProps {
   userEmail: string
@@ -15,7 +14,7 @@ interface UserMenuProps {
   isSudo?: boolean
   /** Show "Take the tour" (not during sudo). */
   canStartOnboarding?: boolean
-  /** Show "Preview as <role>" for each previewable role (a real admin, not during sudo or a preview). */
+  /** Show "Preview as..." (a real admin, not during sudo or a preview). Was: (a real admin, not during sudo or a preview). */
   canPreviewRole?: boolean
 }
 
@@ -30,6 +29,7 @@ export default function UserMenu({
   const [isOpen, setIsOpen] = useState(false)
   const [isStartingTour, startTourTransition] = useTransition()
   const [isSudoModalOpen, setIsSudoModalOpen] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   // This menu lives in the layout, so its state survives sudo's navigation. Close
   // the modal when sudo starts, or it pops back open the moment sudo is exited.
   const [prevIsSudo, setPrevIsSudo] = useState(isSudo)
@@ -131,22 +131,25 @@ export default function UserMenu({
               </button>
             )}
 
-            {canPreviewRole && !isSudo && PREVIEWABLE_ROLES.map((role) => (
-              <form key={role} action={startRolePreview.bind(null, role)}>
-                <button
-                  type="submit"
-                  data-track="user-menu-role-preview"
-                  className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                  Preview as {PREVIEW_ROLE_LABELS[role]}
-                </button>
-              </form>
-            ))}
+            {canPreviewRole && !isSudo && (
+              <button
+                type="button"
+                onClick={() => { setIsOpen(false); setIsPreviewOpen(true) }}
+                data-track="user-menu-preview-as"
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                Preview as...
+              </button>
+            )}
 
             <SignOutButton onSignOut={() => setIsOpen(false)} />
           </div>
         )}
       </div>
+
+      {canPreviewRole && !isSudo && (
+        <PreviewAsModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} />
+      )}
 
       {isAdmin && !isSudo && (
         <SudoModal

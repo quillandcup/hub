@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { ADMIN_NO_ACCESS_PATH } from "@/lib/admin-paths";
-import { ADMIN_ROLE, can, isStaffRole, staffHome, type Permission, type StaffRole } from "@/lib/permissions";
+import { isStaffRole, staffHome, type Permission, type StaffRole } from "@/lib/permissions";
+import { decideStaff } from "@/lib/staff-guard";
 import { getStaffPreviewRole } from "@/lib/staff-preview.server";
 import { getStaffMfaState } from "@/lib/staff-mfa.server";
 import { blocksStaff } from "@/lib/staff-mfa";
@@ -18,21 +19,13 @@ export type { StaffRole };
 /** `role` is the one to check against (the previewed role for an admin previewing); `realRole` is who they are. */
 export type StaffUser = AuthUser & { role: StaffRole; realRole: StaffRole };
 
-/** Staff who must pass (or set up) their second sign-in step are sent to /mfa, then back (src/lib/staff-mfa.ts). */
-async function requireStaffMfaPage(): Promise<void> {
-  if (blocksStaff(await getStaffMfaState())) await redirectToGate(GATES.staffMfa);
-}
+const mfaBlocked = async () => blocksStaff(await getStaffMfaState());
 
 /** The signed-in user's staff role, read from `user_profiles` (never the token claim), or null. One read per request. */
 const staffRoleOf = cache(async (userId: string): Promise<StaffRole | null> => {
   const profile = await createRepos(await createClient()).profiles.byId(userId).catch(() => null);
   return isStaffRole(profile?.role) ? profile.role : null;
 });
-
-/** A real admin looking at the area as a lower role is that role; everyone else is who they are. */
-async function effectiveRole(realRole: StaffRole): Promise<StaffRole> {
-  return (realRole === ADMIN_ROLE && (await getStaffPreviewRole())) || realRole;
-}
 
 /**
  * Secure permission check for admin-area server components (the Data Access Layer check the Next.js auth
@@ -58,13 +51,14 @@ export const requirePermission = cache(async (permission: Permission): Promise<S
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const realRole = await staffRoleOf(user.id);
-  if (!realRole) redirect(ADMIN_NO_ACCESS_PATH);
-  const role = await effectiveRole(realRole);
-  if (!can({ role }, permission)) redirect(role === realRole ? ADMIN_NO_ACCESS_PATH : staffHome(role));
-  await requireStaffMfaPage();
-
-  return { ...user, role, realRole };
+  // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: a redirect.
+  const decision = await decideStaff({ realRole: await staffRoleOf(user.id), previewRole: await getStaffPreviewRole(), permission, mfaBlocked });
+  if (!decision.ok) {
+    if (decision.reason === "mfa") return await redirectToGate(GATES.staffMfa);
+    // A previewing admin goes to the previewed role's home: /no-access has no banner to leave the preview from.
+    redirect(decision.reason === "forbidden" && decision.previewing ? staffHome(decision.role) : ADMIN_NO_ACCESS_PATH);
+  }
+  return { ...user, role: decision.role, realRole: decision.realRole };
 });
 
 export type ActionAuth =
@@ -89,11 +83,9 @@ export async function requireActionPermission(permission: Permission): Promise<A
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Not authenticated" };
 
+  // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: `{ ok: false, error }`.
   const supabase = await createClient();
-  const realRole = await staffRoleOf(user.id);
-  if (!realRole) return { ok: false, error: "Not authorized" };
-  const role = await effectiveRole(realRole);
-  if (!can({ role }, permission)) return { ok: false, error: "Not authorized" };
-  if (blocksStaff(await getStaffMfaState())) return { ok: false, error: MFA_REQUIRED_ERROR };
-  return { ok: true, user, supabase, role, realRole };
+  const decision = await decideStaff({ realRole: await staffRoleOf(user.id), previewRole: await getStaffPreviewRole(), permission, mfaBlocked });
+  if (!decision.ok) return { ok: false, error: decision.reason === "mfa" ? MFA_REQUIRED_ERROR : "Not authorized" };
+  return { ok: true, user, supabase, role: decision.role, realRole: decision.realRole };
 }

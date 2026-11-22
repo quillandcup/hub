@@ -20,7 +20,7 @@ A session is `aal1` after a link or code sign-in and `aal2` once it has also pas
 "Staff" is anyone with a staff role (admin, assistant, community manager, conversion specialist; `src/lib/permissions.ts`). Four places hold it, and a new admin entry point needs the same check (`.claude/rules/admin-route-protection.md`):
 
 - the proxy (`src/lib/supabase/middleware.ts`): the token's `aal` claim and `user.factors` from the `getUser()` it already runs, so a factor removed in the dashboard counts at once;
-- `requirePermission(...)` (`src/lib/admin-auth.ts`): redirect through the `staffMfa` gate (`src/lib/gates.ts`) to `/mfa?next=<where they were going>`;
+- `requirePermission(...)` (`src/lib/admin-auth.ts`; all three guards share the decision in `src/lib/staff-guard.ts`): redirect through the `staffMfa` gate (`src/lib/gates.ts`) to `/mfa?next=<where they were going>`;
 - `requireActionPermission(...)`: return `{ ok: false, error: MFA_REQUIRED_ERROR }`;
 - `requireApiPermission(...)` (`src/lib/supabase/api-auth.ts`, staff API routes): `forbidden`.
 

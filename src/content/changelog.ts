@@ -97,7 +97,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Media.** They can pick from the media library when they build a page.
 - **Not for them.** The member list and member pages, staff notes, contact details, merges, overrides, signing in as a member, the activity log, the changelog and the data tools.
 
-To check what they see, an admin opens the user menu and chooses **Preview as Conversion Specialist**; **Exit preview** in the banner goes back. The preview shows the pages and buttons the role has, while data is still read with your own access.`,
+To check what they see, an admin opens the user menu, chooses **Preview as...**, picks **Conversion Specialist** and presses **Start preview**; **Exit preview** in the banner goes back. The preview shows the pages and buttons the role has, while data is still read with your own access.`,
   },
   {
     slug: "project-stage-milestone-prompt",

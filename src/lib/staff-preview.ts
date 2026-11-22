@@ -1,4 +1,4 @@
-import { COMMUNITY_MANAGER_ROLE, CONVERSION_SPECIALIST_ROLE } from "@/lib/permissions";
+import { ADMIN_ROLE, ROLE_LABELS, STAFF_ROLES, type StaffRole } from "@/lib/permissions";
 
 /**
  * "Preview as <role>": an admin looks at the admin area the way a lower staff role would, to check
@@ -11,15 +11,12 @@ import { COMMUNITY_MANAGER_ROLE, CONVERSION_SPECIALIST_ROLE } from "@/lib/permis
  */
 export const STAFF_PREVIEW_COOKIE = "staff_preview_role";
 
-/** Roles an admin can preview (each is a role in src/lib/permissions.ts, checked as that role's permissions). */
-export const PREVIEWABLE_ROLES = [COMMUNITY_MANAGER_ROLE, CONVERSION_SPECIALIST_ROLE] as const;
+/** Roles an admin can preview: every staff role below the admin (src/lib/permissions.ts), so a new role appears without a UI change. */
+export const PREVIEWABLE_ROLES = STAFF_ROLES.filter((role) => role !== ADMIN_ROLE) as Exclude<StaffRole, typeof ADMIN_ROLE>[];
 export type PreviewableRole = (typeof PREVIEWABLE_ROLES)[number];
 
 /** What the banner and the user menu call each previewable role. */
-export const PREVIEW_ROLE_LABELS: Record<PreviewableRole, string> = {
-  community_manager: "Community Manager",
-  conversion_specialist: "Conversion Specialist",
-};
+export const PREVIEW_ROLE_LABELS: Record<PreviewableRole, string> = ROLE_LABELS;
 
 export function parsePreviewRole(value: string | null | undefined): PreviewableRole | null {
   return (PREVIEWABLE_ROLES as readonly string[]).includes(value ?? "") ? (value as PreviewableRole) : null;
