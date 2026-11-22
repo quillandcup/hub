@@ -1,0 +1,33 @@
+# URLs for `pnpm check:redirects` (scripts/check-root-redirects.ts). One per line: <path and query> <expected outcome>.
+# The expected outcome is one of:
+#   kajabi  307 to the same path and query on the Kajabi site (config/app.ts kajabiSiteUrl)
+#   hub     307 to the same path and query on the app host (appUrl): a signed-in Hub path
+#   login   307 to the Hub login (appUrl + /login), query kept
+#   serve   the root host answers itself (200), no redirect
+# The slugs and ids are made up. Lines starting with # and blank lines are ignored.
+/login login
+/login?utm_source=email login
+/library kajabi
+/library/categories/example kajabi
+/products/example-course kajabi
+/products/example-course?utm_source=instagram&utm_medium=social kajabi
+/products/example-course/categories/123/posts/456 kajabi
+/offers/ExAmPlE/checkout kajabi
+/offers/ExAmPlE/checkout?coupon=EXAMPLE20 kajabi
+/offers/ExAmPlE kajabi
+/offers/ExAmPlE?coupon=EXAMPLE20&utm_source=instagram kajabi
+/pages/example-landing-page kajabi
+/pages/example-landing-page?utm_source=instagram&utm_medium=social kajabi
+/blog kajabi
+/blog/example-post kajabi
+/blog/example-post/ kajabi
+/resource_redirect/landing_pages/123 kajabi
+/forms/example kajabi
+/waitlist kajabi
+/waitlist?email=reader%40example.com&note=a%20b kajabi
+/dashboard hub
+/dashboard?utm_source=email hub
+/admin hub
+/ serve
+/privacy serve
+/robots.txt serve

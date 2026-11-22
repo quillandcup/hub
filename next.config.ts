@@ -40,6 +40,10 @@ const PROXY_SKIPPED_SOURCES = [
 const nextConfig: NextConfig = {
   // Don't announce the framework in an `X-Powered-By: Next.js` header on every response (a ZAP baseline finding; it only helps someone aiming at a known version).
   poweredByHeader: false,
+  // Next would otherwise 308 "/products/x/" to "/products/x" before src/proxy.ts runs, which would change the address of every old Kajabi link
+  // that ends in a slash on its way to Kajabi (a permanent redirect with the slash lost). The proxy drops the slash itself for Hub pages
+  // (src/proxy.ts), so the Hub's behavior stays the same.
+  skipTrailingSlashRedirect: true,
   // Pairs this build with the help screenshot set captured from the same source (scripts/help-images-version.ts).
   // Derived from git at build time, not configuration: "local" outside CI.
   env: {

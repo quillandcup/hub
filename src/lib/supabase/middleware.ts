@@ -44,6 +44,15 @@ function continueWithPath(request: NextRequest, extraHeaders: Record<string, str
 }
 
 /**
+ * For a request on the public site's root host (src/lib/root-routing.ts): no session is read or refreshed, because the session
+ * cookie belongs to the app host and nobody is signed in here, and no sign-in redirect applies. Otherwise the same as
+ * updateSession: the page gets the address being asked for and `requestHeaders`.
+ */
+export function continueSignedOut(request: NextRequest, requestHeaders: Record<string, string> = {}): NextResponse {
+  return continueWithPath(request, requestHeaders)
+}
+
+/**
  * `requestHeaders` are added to the request Server Components see (src/proxy.ts uses it to hand over the script nonce,
  * src/lib/csp.ts, so Next can put it on its own scripts).
  */

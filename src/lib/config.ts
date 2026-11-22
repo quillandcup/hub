@@ -337,9 +337,8 @@ export const KAJABI_LOGIN_URL: string = appConfig.kajabiLoginUrl;
 /** Where the homepage's "Join" link goes (config/app.ts `joinUrl`). */
 export const JOIN_URL: string = appConfig.joinUrl;
 
-/** The hosts that serve the Hub's public site and the app, and the Kajabi site (src/lib/root-routing.ts decides per host). */
+/** The hosts that serve the Hub's public site and the app (src/lib/root-routing.ts decides per host). */
 export const ROOT_HOST = new URL(SITE_URL).host;
 export const APP_HOST = new URL(APP_URL).host;
-export const KAJABI_HOST = new URL(appConfig.kajabiSiteUrl).host;
 /** Other hosts of the public site that redirect to `SITE_URL` (config/app.ts `siteAliasHosts`). */
 export const SITE_ALIAS_HOSTS: readonly string[] = appConfig.siteAliasHosts;

@@ -1,9 +1,26 @@
-import { type NextRequest } from 'next/server'
-import { updateSession } from './lib/supabase/middleware'
+import { NextResponse, type NextRequest } from 'next/server'
+import { continueSignedOut, updateSession } from './lib/supabase/middleware'
+import { decideRoute } from './lib/root-routing'
 import appConfig from '../config/app'
 import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, reportOnlyCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {
+  // Host first (src/lib/root-routing.ts): www goes to the root host, the root host sends what the Hub doesn't serve to Kajabi and
+  // signed-in paths to the app host. The app host and previews get "pass" and everything below runs as before.
+  const route = decideRoute({
+    host: request.headers.get('host') ?? '',
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    search: request.nextUrl.search,
+  })
+  if (route.action === 'redirect') return NextResponse.redirect(route.location, route.status)
+  // next.config.ts sets skipTrailingSlashRedirect so that Next doesn't 308 "/products/x/" to "/products/x" before this proxy can send it to
+  // Kajabi with its slash intact. For everything the Hub serves, this keeps what Next did itself: a trailing slash is dropped (308).
+  if (request.nextUrl.pathname.length > 1 && request.nextUrl.pathname.endsWith('/')) {
+    // Built from text: setting pathname on a clone of nextUrl puts the slash back.
+    const { origin, pathname, search } = request.nextUrl
+    return NextResponse.redirect(new URL(`${pathname.replace(/\/+$/, '') || '/'}${search}`, origin), 308)
+  }
   // One report-only policy with a fresh nonce per request (reportOnlyCsp in src/lib/csp.ts): scripts and styles, pictures, and
   // connection, frame, media and font sources. Next reads the nonce from the request's policy header and puts it on its own scripts
   // and styles; the same policy goes out on the response, and violations go to Sentry (docs/TODO.md, "CSP for scripts and styles").
@@ -21,7 +38,8 @@ export async function proxy(request: NextRequest) {
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     dev: process.env.NODE_ENV === 'development',
   })
-  const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_REPORT_ONLY_HEADER]: policy })
+  const headers = { [NONCE_HEADER]: nonce, [CSP_REPORT_ONLY_HEADER]: policy }
+  const response = route.host === 'root' ? continueSignedOut(request, headers) : await updateSession(request, headers)
   response.headers.set(CSP_REPORT_ONLY_HEADER, policy)
   return response
 }
