@@ -41,19 +41,19 @@ describe("nothing in the app reads user_profiles.role", () => {
   });
 
   it("reads a profile through the repository, which selects its columns by name", () => {
-    const profiles = readFileSync(join(SRC, "lib/data/profiles.ts"), "utf8");
+    const profiles = readFileSync(join(SRC, "lib", "data", "profiles.ts"), "utf8");
     const selected = [...profiles.matchAll(/from\("user_profiles"\)\s*\.select\(([^)]*)\)/g)].map((m) => m[1]);
     expect(selected.length).toBeGreaterThan(0);
     for (const columns of selected) expect(columns, columns).not.toMatch(/\brole\b|\*/);
   });
 
   it("types a profile without the column, so a read of `profile.role` does not compile", () => {
-    const profiles = readFileSync(join(SRC, "lib/data/profiles.ts"), "utf8");
+    const profiles = readFileSync(join(SRC, "lib", "data", "profiles.ts"), "utf8");
     expect(profiles).toMatch(/export type UserProfile = Omit<Row<"user_profiles">, "role">;/);
   });
 
   it("keeps no single-role reader of the old token claim", () => {
-    const claims = readFileSync(join(SRC, "lib/supabase/session-claims.ts"), "utf8");
+    const claims = readFileSync(join(SRC, "lib", "supabase", "session-claims.ts"), "utf8");
     expect(claims).not.toMatch(/export function getAppRoleFromAccessToken/);
   });
 });

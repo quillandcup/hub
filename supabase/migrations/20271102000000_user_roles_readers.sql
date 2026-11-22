@@ -71,7 +71,7 @@ WITH
           AND (NOT p_sudo_only OR a.acting_as_member_id IS NOT NULL)
           AND (NOT p_audit_only OR (a.actor_kind <> 'member' OR a.acting_as_member_id IS NOT NULL))
           AND (NOT p_hide_system OR a.actor_kind <> 'system')
-          AND NOT (a.entity_type = 'care_engagement' AND a.action = 'update' AND a.changes #>> '{ended_how,new}' = 'renewed')
+          AND NOT (a.entity_type = 'care_engagement' AND a.action = 'update' AND COALESCE(a.changes #>> '{ended_how,new}', '') = 'renewed')
         ORDER BY a.occurred_at DESC, a.id DESC
         LIMIT p_offset + p_limit
     ),
