@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
-import { WRITER_PROFILES } from "@/lib/config";
+import { SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
 
 const ADA = "mbr_AAAAAAAAAAA1";
@@ -156,6 +156,13 @@ describe("getMyWriterProfile", () => {
     state.dataset.members.find((m) => m.id === GRACE)!.photoUrl = "https://secure.gravatar.com/avatar/0123456789abcdef";
 
     expect(await getMyWriterProfile()).toMatchObject({ useAccountName: false, nameChosen: false, nameChoices: [{ kind: "account", aliasId: null, label: "Grace Example" }], suggestedHandle: "" });
+  });
+
+  it("shows the address on the public site (the root host), not the app's", async () => {
+    await state.repos.writerProfiles.setHandle(GRACE, "grace-example", { reserveDays: 1, now: new Date() });
+    state.identity = { memberId: GRACE, isSudo: false };
+
+    expect(await getMyWriterProfile()).toMatchObject({ addressPrefix: `${new URL(SITE_URL).host}/w/`, pageUrl: `${SITE_URL}/w/grace-example` });
   });
 
   it("shows the effective member's page, so sudo sees what the member sees", async () => {

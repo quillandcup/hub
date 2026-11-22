@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "@/config/app";
-import { APP_URL, WRITER_PROFILES } from "@/lib/config";
+import { SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import {
   BIO_MAX_LENGTH,
   HANDLE_PROBLEM_MESSAGES,
@@ -105,9 +105,9 @@ describe("normalizeHandle and addresses", () => {
     expect(normalizeHandle("  Ada-Example ")).toBe("ada-example");
   });
 
-  it("builds the page address from the app URL and the /w path", () => {
+  it("builds the page address from the public site URL and the /w path", () => {
     expect(writerProfilePath("ada-example")).toBe("/w/ada-example");
-    expect(writerProfileUrl("ada-example")).toBe(`${APP_URL}/w/ada-example`);
+    expect(writerProfileUrl("ada-example")).toBe(`${SITE_URL}/w/ada-example`);
   });
 });
 

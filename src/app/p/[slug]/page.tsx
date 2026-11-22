@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { APP_URL, SITE_URL } from "@/lib/config";
+import { SITE_URL } from "@/lib/config";
 import { HOME_SLUG, publicLandingElement, landingPageMetadata, loadPublishedLandingPage } from "@/lib/landing/public-page";
 import { isRootHost } from "@/lib/root-routing";
 
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
   const page = await loadPublishedLandingPage(slug);
   if (!page) return { title: "Not found", robots: { index: false } };
-  return landingPageMetadata(page, page.slug === HOME_SLUG ? `${SITE_URL}/` : `${APP_URL}/p/${page.slug}`, APP_URL);
+  return landingPageMetadata(page, page.slug === HOME_SLUG ? `${SITE_URL}/` : `${SITE_URL}/p/${page.slug}`, SITE_URL);
 }
 
 export default async function PublicLandingPage({ params }: Params) {

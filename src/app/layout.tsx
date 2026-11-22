@@ -22,7 +22,8 @@ import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { eventsNeedConsent as eventsNeedConsentFor } from "@/lib/analytics/consent";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
 import appConfig from "@/config/app";
-import { APP_URL } from "@/lib/config";
+import { APP_URL, SITE_URL } from "@/lib/config";
+import { isRootHost } from "@/lib/root-routing";
 
 // Brand display serif for headings and the wordmark (tailwind `font-display`).
 const displayFont = Playfair_Display({
@@ -33,26 +34,32 @@ const displayFont = Playfair_Display({
   preload: false,
 });
 
-export const metadata: Metadata = {
-  // Resolves the relative og:image URL (src/app/opengraph-image.png) to an absolute one for link unfurls.
-  metadataBase: new URL(APP_URL),
-  title: {
-    default: DEFAULT_TITLE,
-    template: TITLE_TEMPLATE,
-  },
-  description:
-    "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
-  // No og:site_name: its "&" is escaped to "&amp;", which Slack's iPhone app shows literally.
-  // Slack falls back to the domain.
-  openGraph: { type: "website" },
-  twitter: { card: "summary_large_image" },
-  icons: {
-    icon: '/icon.png',
-    apple: '/billiebot.png',
-  },
-  // Lets the Hub open full-screen from the home screen, which iOS requires for web push.
-  appleWebApp: { capable: true, title: appConfig.appName },
-};
+/**
+ * The head every page starts from. `metadataBase` resolves the relative og:image URL (src/app/opengraph-image.jpg) to an absolute
+ * one for link unfurls, and it is the host the page was asked for: the public site's root host (the homepage, writer profiles,
+ * landing pages) uses `siteUrl`, everything else the app's own `appUrl`, so a link unfurl never points at the other host.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase: new URL(isRootHost((await headers()).get("host")) ? SITE_URL : APP_URL),
+    title: {
+      default: DEFAULT_TITLE,
+      template: TITLE_TEMPLATE,
+    },
+    description:
+      "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
+    // No og:site_name: its "&" is escaped to "&amp;", which Slack's iPhone app shows literally.
+    // Slack falls back to the domain.
+    openGraph: { type: "website" },
+    twitter: { card: "summary_large_image" },
+    icons: {
+      icon: '/icon.png',
+      apple: '/billiebot.png',
+    },
+    // Lets the Hub open full-screen from the home screen, which iOS requires for web push.
+    appleWebApp: { capable: true, title: appConfig.appName },
+  };
+}
 
 export default async function RootLayout({
   children,

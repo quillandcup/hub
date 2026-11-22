@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
 import { renderServerPage, resetServerPageMocks, signInAs, ADMIN_USER } from "@/tests/helpers/server-page";
-import { APP_URL } from "@/lib/config";
+import { SITE_URL } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { normalizeSiteTemplate } from "@/lib/landing/site-template";
@@ -129,8 +129,8 @@ describe("/p/[slug]", () => {
     const metadata = await generateMetadata(params("meta"));
     expect(metadata.title).toBe("Search title");
     expect(metadata.description).toBe("About this page");
-    expect(metadata.alternates?.canonical).toBe(`${APP_URL}/p/meta`);
-    expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${APP_URL}/p/meta` });
+    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/p/meta`);
+    expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${SITE_URL}/p/meta` });
   });
 
   it("shows the site's published favicon, the page's own over it, and none when the page says none", async () => {

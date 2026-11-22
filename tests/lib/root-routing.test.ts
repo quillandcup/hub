@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_ROUTING,
+  PUBLIC_PAGE_SEGMENTS,
+  ROOT_SERVED_SEGMENTS,
   decideRoute,
   firstSegment,
   isRootHost,
@@ -32,6 +34,37 @@ describe("hosts other than the root host are left alone", () => {
 
   it("does not send an unknown path on the app host to Kajabi (it stays a normal 404)", () => {
     expect(decideRoute({ host: new URL(APP_URL).host, method: "GET", pathname: "/library", search: "" }).action).toBe("pass");
+  });
+});
+
+describe("public pages have one address, the root host's", () => {
+  const appHost = new URL(APP_URL).host;
+
+  it("sends writer profiles, landing pages and their sitemaps from the app host to the same path and query on the root host (307)", () => {
+    for (const path of ["/w/ada-example", "/w/sitemap/0.xml", "/p/spring-challenge", "/p/spring-challenge/", "/w", "/p"]) {
+      expect(decideRoute({ host: appHost, method: "GET", pathname: path, search: "?utm_source=x" }), path).toEqual({
+        action: "redirect",
+        location: `${SITE_URL}${path}?utm_source=x`,
+        status: 307,
+      });
+    }
+  });
+
+  it("leaves previews and localhost serving them, so they can be tried", () => {
+    for (const host of ["hub-git-branch-example.vercel.app", "localhost:3000"]) {
+      expect(decideRoute({ host, method: "GET", pathname: "/w/ada-example", search: "" })).toEqual({ action: "pass", host: "app" });
+    }
+  });
+
+  it("does not move the pages members also read inside the Hub, nor look-alike paths", () => {
+    for (const path of ["/privacy", "/security", "/compliance", "/writer-profile/preview", "/projects", "/prickles", "/wx", "/pages"]) {
+      expect(decideRoute({ host: appHost, method: "GET", pathname: path, search: "" }).action, path).toBe("pass");
+    }
+  });
+
+  it("serves them on the root host, and only names pages the root host serves", () => {
+    expect(decideRoute(root("/w/ada-example"))).toEqual({ action: "pass", host: "root" });
+    expect(PUBLIC_PAGE_SEGMENTS.every((s) => ROOT_SERVED_SEGMENTS.includes(s))).toBe(true);
   });
 });
 

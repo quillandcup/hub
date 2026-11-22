@@ -99,8 +99,23 @@ describe("app host and previews", () => {
     expect(getUser).toHaveBeenCalled();
   });
 
-  it("serves the public pages signed out", async () => {
+  it("serves the public policy pages signed out", async () => {
     expect((await call(APP_HOST, "/privacy")).headers.get("location")).toBeNull();
+  });
+
+  it("sends writer profiles, landing pages and their sitemaps to the root host, even signed out", async () => {
+    for (const p of ["/w/ada-example", "/p/spring?a=1", "/w/sitemap/0.xml"]) {
+      const res = await call(APP_HOST, p);
+      expect(res.status, p).toBe(307);
+      expect(res.headers.get("location"), p).toBe(`${SITE_URL}${p}`);
+    }
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("does not send them anywhere from a preview or localhost", async () => {
+    for (const host of ["hub-git-example.vercel.app", "localhost:3000"]) {
+      expect((await call(host, "/w/ada-example")).headers.get("location"), host).toBeNull();
+    }
   });
 
   it("drops a trailing slash with 308 as Next did before skipTrailingSlashRedirect was set", async () => {

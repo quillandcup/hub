@@ -1,6 +1,6 @@
 # Writer profiles
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 A member can opt in to a page of their own on the open web, at an address they choose: `/w/<handle>`. Anyone can open it without signing in, and search engines list it. It is the writer's home on the web. This document is the foundation: who a page is for, the handle, the name, and which items of the profile a member opens to the internet, and how a visitor is served. It shows no writing, goals, books or awards yet; those need the three-level visibility control and come in later packages (see `docs/TODO.md`, "Writer profiles: public author pages, Finishers, three-level visibility").
 
@@ -31,7 +31,7 @@ Only these, and only what the member chose. The page shows an item only when **a
 - **The social links** (Instagram, Facebook, X), each only when its level is the globe, and only over `https`. They are links, drawn with `MemberSocialLinks`, and listed as `sameAs` in the page's structured data.
 - **Who sees what, reviewed once.** When the member switches the page on, a short summary lists what is public (the name, the photo, bio and links that have something in them, the milestones and the Published books), each with its lock, house or globe, so the defaults are looked at together (`WriterProfileReview`, `docs/product/FINISHERS.md`).
 - **The milestones,** each one only when its own level is the globe (a "Milestones" strip: the title it earns, the work, the day and the story the member wrote; `member_milestones.visibility`, `member_works_shown_on_web`; a confirmed milestone starts at the globe, and Published comes from the live Bookshelf books at the globe, so a page is good enough the day it is switched on). The levels, the one marketing consent and the caching are in `docs/product/FINISHERS.md`, "Where it shows".
-- **A footer link** back to Quill & Cup (`appConfig.siteUrl`).
+- **A footer link** back to Quill & Cup (`appConfig.siteUrl`, the same site the pages are served from).
 
 Nothing else from the member record is read into the page: not the email, status, id, birthday, "Ask me about" topics, writing, goals, prickles or awards (a milestone shows only its title, the work, the day and the story at the globe).
 
@@ -39,9 +39,9 @@ Nothing else from the member record is read into the page: not the email, status
 
 | Path | Who | What |
 |---|---|---|
-| `/w/<handle>` | anyone | the page; indexed (`index, follow`), canonical URL, Open Graph and Twitter card, JSON-LD `Person` |
+| `/w/<handle>` | anyone, on the root host (`siteUrl`); the app host sends it there with a 307 (`src/lib/root-routing.ts`), so every page has one address, and the canonical URL, the sitemap and the address shown in Settings all use `siteUrl` | the page; indexed (`index, follow`), canonical URL, Open Graph and Twitter card, JSON-LD `Person` |
 | `/w/sitemap/<n>.xml` | anyone | the public pages, up to `sitemapPageSize` (10,000; the protocol allows 50,000) addresses per file (`src/app/w/sitemap.ts`, `generateSitemaps`); a file is read in batches of 1000 rows (`fetchRowWindow`, `src/lib/supabase/paginate.ts`), since one query returns at most 1000 |
-| `/robots.txt` | anyone | allows crawling, keeps `/api/` and `/admin/` out, lists the sitemap files (`src/app/robots.ts`) |
+| `/robots.txt` | anyone | allows crawling, keeps `/api/` and `/admin/` out, and on the public site's root host lists the sitemap files (`src/app/robots.ts`); the app host lists none |
 | `/writer-profile/preview` | the signed-in member (sudo shows the member's) | "View as a visitor": the same page as a visitor gets, whether or not it is on, with a banner; never indexed |
 | Settings, Profile, "Your writer profile on the web" | the member, when the flag is on for them | switch, address, name, preview link; the items the page shows are chosen one by one above it |
 

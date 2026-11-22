@@ -1,6 +1,6 @@
 import { requireAdminPage } from "@/lib/admin-auth";
 import { Tabs } from "@/components/Tabs";
-import { APP_URL } from "@/lib/config";
+import { SITE_URL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
 import { siteVersionSummaries } from "@/lib/landing/site-versions";
 import { createClient } from "@/lib/supabase/server";
@@ -44,9 +44,9 @@ export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
         basePath="/admin/pages"
         pageTitle={{ section: PAGES_SECTION }}
         tabs={[
-          { id: "website", label: `${PAGES_TAB_LABELS.website} (${website.length})`, title: PAGES_TAB_LABELS.website, content: <PagesTable pages={website} publicBase={APP_URL} pageType="website" /> },
-          { id: "landing", label: `${PAGES_TAB_LABELS.landing} (${landing.length})`, title: PAGES_TAB_LABELS.landing, content: <PagesTable pages={landing} publicBase={APP_URL} pageType="landing" /> },
-          { id: "templates", label: `${PAGES_TAB_LABELS.templates} (${templates.length})`, title: PAGES_TAB_LABELS.templates, content: <PagesTable pages={templates} publicBase={APP_URL} kind="template" /> },
+          { id: "website", label: `${PAGES_TAB_LABELS.website} (${website.length})`, title: PAGES_TAB_LABELS.website, content: <PagesTable pages={website} publicBase={SITE_URL} pageType="website" /> },
+          { id: "landing", label: `${PAGES_TAB_LABELS.landing} (${landing.length})`, title: PAGES_TAB_LABELS.landing, content: <PagesTable pages={landing} publicBase={SITE_URL} pageType="landing" /> },
+          { id: "templates", label: `${PAGES_TAB_LABELS.templates} (${templates.length})`, title: PAGES_TAB_LABELS.templates, content: <PagesTable pages={templates} publicBase={SITE_URL} kind="template" /> },
           {
             id: "design",
             label: PAGES_TAB_LABELS.design,
