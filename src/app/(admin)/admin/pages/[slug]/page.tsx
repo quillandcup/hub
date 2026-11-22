@@ -43,7 +43,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
       }}
       site={(await repos.landingSiteTemplate.state()).draft}
       data={normalizeLandingData(page.draft_data)}
-      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
+      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" ? v.kind : v.kind === "before_replace" || v.kind === "before_starter" ? "before_replace" : "published" }))}
       replaceChoices={[
         // Only a published template is offered, and what is copied is its published copy. A template is never offered to itself.
         ...templates.filter((t) => t.id !== page.id).map((t) => ({ key: t.id, label: t.title, description: "A template you published.", group: "template" as const })),

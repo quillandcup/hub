@@ -58,7 +58,7 @@ export type EditorPage = {
   pageType?: "website" | "landing";
 };
 /** One version in History: who made it (a display name, never a user id), what it is, and the note (what changed, or what replaced the draft it kept). */
-export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null };
+export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_replace"; by?: string; note?: string | null };
 
 type SaveState = "saved" | "unsaved" | "saving" | "error";
 
@@ -563,7 +563,7 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
             return importLandingDraftJson(page.id, text, { dryRun: true });
           }}
           onApply={async (text) => {
-            // Same as a starter: the draft kept in History is the one on screen, and autosave can't write it back over the import.
+            // Same as a template replacement: the draft kept in History is the one on screen, and autosave can't write it back over the import.
             if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
             const result = await importLandingDraftJson(page.id, text);
             if (result.error) return result.error;
@@ -664,7 +664,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
             <span className="min-w-0">
               {v.title}
               <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
-                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before it was replaced" : "Published"} by {v.by ?? "Someone"}, {new Date(v.createdAt).toLocaleString()}
+                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_replace" ? "Your draft before it was replaced" : "Published"} by {v.by ?? "Someone"}, {new Date(v.createdAt).toLocaleString()}
               </time>
               {v.note && <span className="block text-xs">“{v.note}”</span>}
             </span>
