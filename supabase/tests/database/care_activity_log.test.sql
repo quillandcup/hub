@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(22);
+SELECT plan(21);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000ae01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cal-manager@example.test'),
@@ -79,6 +79,10 @@ VALUES ('mbr_CareLogAAAA1', 'slack_message', 'communication', 'Posted in #writin
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000ae02", "email": "cal-admin@example.test", "role": "authenticated"}', true);
+-- The audit log folds one person's updates to a row within one transaction into a single entry, and this file is one
+-- transaction: the manager's edit above and her close of the old plan on renewal are one entry here (two in production,
+-- where they happen minutes apart). An edit by someone else is an entry of its own, which is the edit the feed must keep.
+SELECT lives_ok($$UPDATE public.care_engagements SET next_step = 'secret later step', follow_up_on = current_date + 5 WHERE member_id = 'mbr_CareLogAAAA1' AND closed_at IS NULL$$, 'an admin edits the renewed plan');
 SELECT is(
   (SELECT count(*)::int FROM public.get_activity_feed(p_member_id := 'mbr_CareLogAAAA1', p_from := now() - interval '1 day', p_limit := 100) WHERE source = 'care'),
   0, 'the feed lists no care row of the timeline: the audit rows say the same events');

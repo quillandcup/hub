@@ -4,7 +4,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(10);
+SELECT plan(9);
 
 SELECT ok(NOT has_function_privilege('anon', 'chat_add_message_files(text, jsonb)', 'EXECUTE'), 'anon cannot add files');
 SELECT ok(has_function_privilege('authenticated', 'chat_add_message_files(text, jsonb)', 'EXECUTE'), 'authenticated can');
@@ -65,7 +65,7 @@ SELECT is((SELECT files FROM chat_message_contents WHERE message_id = 'msg_AAAAA
 SELECT is((SELECT files::text FROM chat_message_contents WHERE message_id = 'msg_AAAAAAAAfbd5') || (SELECT has_files::text FROM chat_messages WHERE id = 'msg_AAAAAAAAfbd5'), '[{"id": "F9"}]true', 'a message without files gets its first, and is marked as having files');
 SELECT is(
   (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('others', 'notice', 'deleted', 'empty')),
-  'chat_edit: bad_files,chat_edit: not_yours,chat_edit: not_yours,chat_edit: not_yours',
+  'chat_edit: not_yours,chat_edit: bad_files,chat_edit: not_yours,chat_edit: not_yours',  -- deleted, empty, notice, others (by label)
   'someone else''s, a Slack notice, a deleted message and an empty list are refused'
 );
 SELECT is((SELECT count(*)::int FROM chat_message_contents WHERE message_id IN ('msg_AAAAAAAAfbd2', 'msg_AAAAAAAAfbd3', 'msg_AAAAAAAAfbd4') AND files IS NULL), 3, 'the refused messages are untouched');
