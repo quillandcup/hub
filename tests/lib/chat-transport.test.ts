@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ChatInboundSink, ChatTransport, DeliveryResult } from "@/lib/chat/transport";
+import type { ChatTransport, DeliveryResult } from "@/lib/chat/transport";
 import { NO_TRANSPORT, createChatTransportRegistry } from "@/lib/chat/transports";
 
 const m = vi.hoisted(() => ({
   chatSlackWritesEnabled: vi.fn(() => true),
   postChatMessageToSlack: vi.fn(),
+  catchUpChannel: vi.fn(),
   slackUserIdsByMember: vi.fn(),
   join: vi.fn(),
   invite: vi.fn(),
@@ -33,7 +34,8 @@ const m = vi.hoisted(() => ({
 vi.mock("@/modules/chat/slack/post", () => ({ chatSlackWritesEnabled: m.chatSlackWritesEnabled, postChatMessageToSlack: m.postChatMessageToSlack }));
 vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: m.syncReactionToSlack }));
 vi.mock("@/modules/chat/slack/read", () => ({ pullReadFromSlack: m.pullReadFromSlack, pushReadToSlack: m.pushReadToSlack, pushUnreadToSlack: m.pushUnreadToSlack }));
-vi.mock("@/lib/chat/slack-dms", () => ({ openSlackDm: m.openSlackDm, pullMemberDms: m.pullMemberDms }));
+vi.mock("@/modules/chat/slack/dms", () => ({ openSlackDm: m.openSlackDm, pullMemberDms: m.pullMemberDms }));
+vi.mock("@/modules/chat/slack/gap-fill", () => ({ catchUpChannel: m.catchUpChannel }));
 vi.mock("@/modules/chat/slack/unfurl-removal", () => ({ removeSlackUnfurl: m.removeSlackUnfurl }));
 vi.mock("@/modules/chat/slack/edit", () => ({
   deleteChatFileInSlack: m.deleteChatFileInSlack,
@@ -119,6 +121,7 @@ describe("the transport registry", () => {
     await expect(t.keepFileCopies(db, { messageId: "msg-1", sent: [], staged: [], bytes: new Map() })).resolves.toBeUndefined();
     expect(await t.pushRead(db, { memberId: "member-1", channelId: "c", through: "t" })).toBe(false);
     expect(await t.pushUnread(db, { memberId: "member-1", channelId: "c", messageId: "m", marker: "t" })).toBe(false);
+    await expect(t.catchUp(db, { channelRef: "room-1" })).resolves.toBeUndefined();
     expect(await t.pullRead(db, "member-1")).toBe(false);
     expect(await t.pullDirectConversations(db, "member-1")).toBeNull();
     expect(await t.openDirectConversation(db, "member-1", "member-2")).toEqual({ ok: false, reason: "not_connected" });
@@ -174,25 +177,6 @@ describe("chat core against a fake transport (no Slack registered)", () => {
     expect(await t.isConnected(db, "member-unlinked")).toBe(false);
     expect(await t.editMessage(db, { messageId: "msg-1", memberId: "member-1", body: "" })).toEqual({ ok: false, error: "Nothing to change.", code: "empty" });
     expect(await t.openDirectConversation(db, "member-1", "member-2")).toEqual({ ok: true, channelId: "chan-fake" });
-  });
-});
-
-describe("what a transport reports to core", () => {
-  it("is four events with the transport's own references, never a Slack shape", async () => {
-    const seen: string[] = [];
-    const sink: ChatInboundSink = {
-      message: async (e) => void seen.push(`message ${e.transport}:${e.ref} in ${e.channelRef}`),
-      edit: async (e) => void seen.push(`edit ${e.ref}`),
-      delete: async (e) => void seen.push(`delete ${e.ref}`),
-      reaction: async (e) => void seen.push(`reaction ${e.emoji} ${e.active ? "on" : "off"} ${e.ref}`),
-    };
-    const at = "2026-11-21T12:00:00Z";
-    await sink.message({ transport: "fake", channelRef: "room-1", ref: "m-1", authorRef: null, body: "hello", threadRef: null, sentAt: at });
-    await sink.edit({ transport: "fake", channelRef: "room-1", ref: "m-1", body: "hello there" });
-    await sink.reaction({ transport: "fake", channelRef: "room-1", ref: "m-1", authorRef: "u-1", emoji: "tada", active: true });
-    await sink.reaction({ transport: "fake", channelRef: "room-1", ref: "m-1", authorRef: "u-1", emoji: "tada", active: false });
-    await sink.delete({ transport: "fake", channelRef: "room-1", ref: "m-1" });
-    expect(seen).toEqual(["message fake:m-1 in room-1", "edit m-1", "reaction tada on m-1", "reaction tada off m-1", "delete m-1"]);
   });
 });
 
@@ -265,6 +249,12 @@ describe("the Slack adapter satisfies the port", () => {
       expect(out.result.ok).toBe(false);
       expect(!out.result.ok && out.result.error).toMatch(/Reconnect Slack in Settings to do this as yourself\.$/);
     });
+  });
+
+  it("catches a conversation up from Slack when it is opened", async () => {
+    m.catchUpChannel.mockResolvedValue({ claimed: true });
+    await expect(slackTransport.catchUp(db, { channelRef: "C1" })).resolves.toBeUndefined();
+    expect(m.catchUpChannel).toHaveBeenCalledWith(db, { channelId: "C1", source: "open" });
   });
 
   it("updates a message the app posted, as the app, and refuses without a bot token", async () => {

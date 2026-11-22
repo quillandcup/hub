@@ -5,7 +5,8 @@ import { getSlackBotToken } from "@/lib/slack-bot-token";
 import { chatSlackWritesEnabled, postChatMessageToSlack } from "./post";
 import { syncReactionToSlack } from "./react";
 import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack } from "./read";
-import { openSlackDm, pullMemberDms } from "@/lib/chat/slack-dms";
+import { openSlackDm, pullMemberDms } from "./dms";
+import { catchUpChannel } from "./gap-fill";
 import { removeSlackUnfurl } from "./unfurl-removal";
 import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "./edit";
 import { addToSlackConversation, removeFromSlackConversation, slackIdsForMembers } from "./conversation";
@@ -15,7 +16,7 @@ import { keepSlackFileCopies } from "./files";
  * The Slack transport: implements the chat port (`src/lib/chat/transport.ts`). It owns Slack ids and tokens, mrkdwn escaping and
  * blocks, the user and bot token choice, and Slack's rate limits; core sees none of that. It never records delivery status: `send`
  * answers how it went and core writes it (`src/lib/chat/delivery.ts`). The outbound Slack code is in this folder; the inbound code
- * (`src/lib/chat/slack-dms.ts`, `gap-fill.ts`, the webhook) still sits outside and moves in the next step
+ * (`src/modules/chat/slack/dms.ts`, `gap-fill.ts`, the webhook) still sits outside and moves in the next step
  * (docs/architecture/CHAT_MODULE.md). Registered in `src/modules/chat-transport.ts`.
  */
 
@@ -47,6 +48,7 @@ export const slackTransport: ChatTransport = {
     if (!token) throw new Error("no Slack bot token");
     await createSlackClient(token).chat.update({ channel: channelRef, ts: ref, ...message } as Parameters<ReturnType<typeof createSlackClient>["chat"]["update"]>[0]);
   },
+  catchUp: (db, { channelRef }) => catchUpChannel(db, { channelId: channelRef, source: "open" }).then(() => undefined),
   pullDirectConversations: (db, memberId) => pullMemberDms(db, memberId),
   openDirectConversation: async (db, memberId, otherMemberId) => openResult(await openSlackDm(db, memberId, otherMemberId)),
 };

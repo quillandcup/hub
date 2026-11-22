@@ -1,7 +1,6 @@
 {
   "comment": "Chat core files that still import Slack code. Shrink-only: tests/lib/chat-core-boundary.test.ts fails on a file that is not listed and on an entry whose file no longer violates. Each entry says what the Slack import is and what moves it (docs/architecture/CHAT_MODULE.md, docs/TODO.md 'Chat core and Slack adapter: next steps').",
   "files": {
-    "src/app/(member)/chat/[id]/page.tsx": "Calls the Slack gap-fill (catchUpChannel). Moves behind a transport 'catch up' method with the inbound step.",
     "src/app/api/process/chat/route.ts": "The nightly Bronze-to-Silver run: Slack user matching and lesson links pasted in Slack. Splits into core's projection and the adapter's inbound step (step 3).",
     "src/lib/chat/access.ts": "Reads the Slack connection status to decide who may chat. Becomes transport.isConnected plus a core access rule.",
     "src/lib/chat/avatar-copy.ts": "Copies Slack profile photos into the avatar bucket (SLACK_AVATAR_BUCKET). Moves to the adapter with the author mapping (step 3).",

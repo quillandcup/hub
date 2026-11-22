@@ -55,7 +55,7 @@ vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) =>
 const afterCallbacks: (() => unknown)[] = [];
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => void afterCallbacks.push(cb) }));
 const catchUpChannel = vi.fn(async () => ({ claimed: false, messages: 0, reactions: 0 }));
-vi.mock("@/lib/chat/gap-fill", () => ({ catchUpChannel: (...a: unknown[]) => catchUpChannel(...(a as [])) }));
+vi.mock("@/modules/chat/slack/gap-fill", () => ({ catchUpChannel: (...a: unknown[]) => catchUpChannel(...(a as [])) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 // Whether the member has chat notifications (the control for what notifies them about a conversation).
 let chatNotificationsOn = false;

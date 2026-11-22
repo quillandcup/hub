@@ -1,4 +1,4 @@
-import { rewriteInSlack, shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
+import { rewriteInSlack, shareRecentLessonLinks } from "@/modules/chat/slack/lesson-links";
 import { createRepos } from "@/lib/data/repos";
 import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} daily windows`
     );
 
-    // Lesson addresses pasted into Slack that the webhook did not turn into the shared-video card (src/lib/chat/slack-lesson-links.ts).
+    // Lesson addresses pasted into Slack that the webhook did not turn into the shared-video card (src/modules/chat/slack/lesson-links.ts).
     const lessonLinks = await shareRecentLessonLinks(createRepos(supabase), rewriteInSlack(supabase));
     if (lessonLinks.shared > 0) console.log(`Lesson links in Slack messages shared as videos: ${lessonLinks.shared} of ${lessonLinks.looked} candidates`);
 

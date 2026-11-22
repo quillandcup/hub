@@ -23,7 +23,7 @@ import {
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 import { clock } from '@/lib/clock';
-import { hideHubPreviewsRemovedInSlack } from '@/lib/chat/slack-side-unfurl-removal';
+import { hideHubPreviewsRemovedInSlack } from '@/modules/chat/slack/side-unfurl-removal';
 import { createServiceRoleClient } from '@/lib/supabase/service';
 import {
   copySlackFiles,
