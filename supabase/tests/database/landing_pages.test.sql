@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(34);
+SELECT plan(33);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pages-member@example.test'),
@@ -165,7 +165,6 @@ SELECT is((SELECT value FROM result WHERE label = 'kept_version_kind'), '"before
 SELECT is((SELECT value FROM result WHERE label = 'before_import_restored'), '"Kept before"'::jsonb, 'a draft kept before an import can be brought back');
 SELECT is((SELECT value FROM result WHERE label = 'replace_version_kind'), '"before_replace"'::jsonb, 'the draft kept before a template or import replaces it is a before_replace version');
 SELECT is((SELECT value FROM result WHERE label = 'replace_audit'), '1'::jsonb, 'replacing the draft is one audit entry, without the page''s content');
-SELECT lives_ok($$INSERT INTO public.landing_page_versions (page_id, title, data, kind) VALUES ('lpg_PagesTest0002', 'Old name', '{"content": [], "root": {}}', 'before_starter')$$, 'the old kind name is still accepted until it is removed (code live during the deploy still writes it)');
 SELECT is((SELECT value FROM result WHERE label = 'service_reads_published'), '1'::jsonb, 'the server reads a published page with the service role');
 
 SELECT * FROM finish(true);

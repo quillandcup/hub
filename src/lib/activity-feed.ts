@@ -530,7 +530,7 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
     if (fields.status?.new === "published" || (fields.published_at?.new && fields.status?.new !== "draft")) return `published the ${noun}${quoted}`;
     if (fields.status?.new === "draft") return `took the ${noun}${quoted} down`;
     if (fields.restored_at?.new) return `brought back an earlier version of the ${noun}${quoted} into its draft`;
-    // `starter_applied_at` is the column's old name: Activity Log rows written before the rename still carry it.
+    // `starter_applied_at` is the old name of `replaced_at` (the column is gone): old Activity Log rows still carry it.
     if (fields.replaced_at?.new || fields.starter_applied_at?.new) return `replaced the draft of the ${noun}${quoted} with a template or an imported file`;
     if (fields.imported_at?.new) return `imported a Kajabi page into the draft of${quoted || " a page"}`;
     if (fields.title) return `renamed the ${noun}${text(fields.title)} to “${formatValue(fields.title.new)}”`;

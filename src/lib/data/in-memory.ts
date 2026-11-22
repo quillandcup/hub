@@ -304,7 +304,7 @@ export class InMemoryDataset implements PeopleTables {
   /** The raw usage events (`analytics_events`). */
   analyticsEvents: Row<"analytics_events">[];
   /** Landing pages and the version kept at each publish (LandingPageRepository). */
-  landingPages: Omit<Row<"landing_pages">, "starter_applied_at">[];
+  landingPages: Row<"landing_pages">[];
   landingPageVersions: Row<"landing_page_versions">[];
   /** The one row of the site template shared by website pages (LandingSiteTemplateRepository). */
   landingSiteTemplates: Row<"landing_site_template">[];
