@@ -92,10 +92,10 @@ describe("PATCH roles", () => {
     expect(await rolesOf(ADMIN)).toEqual(["admin"]);
   });
 
-  it("accepts the single `role` the same way", async () => {
+  it("ignores a lone `role`: roles are set only as a list", async () => {
     actor = ASSISTANT;
-    expect((await patch(MEMBER, { role: "admin" })).status).toBe(403);
-    expect((await patch(MEMBER, { role: "community_manager" })).status).toBe(200);
+    expect((await patch(MEMBER, { role: "admin" })).status).toBe(200);
+    expect(await rolesOf(MEMBER)).toEqual([]);
   });
 });
 

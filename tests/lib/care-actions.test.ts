@@ -1262,7 +1262,7 @@ describe("getCareMessages", () => {
   it("works for an admin previewing as a community manager (who has the feature), and refuses an id that is not a member's", async () => {
     signInAs(ADMIN_USER);
     preview.role = "community_manager";
-    expect(can({ role: "community_manager" }, "care.write")).toBe(true);
+    expect(can({ roles: ["community_manager"] }, "care.write")).toBe(true);
     expect(await getCareMessages(ADA)).toMatchObject({ page: expect.anything() });
     await expect(getCareMessages("not-a-member")).resolves.toEqual({ error: "That member isn't available." });
     await expect(getCareMessages("care_AAAAAAAAAAA1")).resolves.toEqual({ error: "That member isn't available." });

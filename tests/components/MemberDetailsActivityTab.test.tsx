@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { STAFF_FEATURES, staffFeaturesFor, type StaffFeature } from "@/lib/staff-access";
 
-const COMMUNITY_MANAGER_FEATURES = staffFeaturesFor("community_manager");
+const COMMUNITY_MANAGER_FEATURES = staffFeaturesFor({ roles: ["community_manager"] });
 import MemberDetails from "@/app/(admin)/admin/members/[id]/MemberDetails";
 
 vi.mock("next/link", () => ({

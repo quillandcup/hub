@@ -30,10 +30,8 @@ function makeSupabaseMock(user: any, role: string | null, lookupError?: string, 
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: role ? { role } : null,
-        error: lookupError ? { message: lookupError } : null,
-      }),
+      // The roles are read from user_roles as a list (awaited straight after the filter).
+      then: (resolve: (v: unknown) => unknown) => resolve({ data: role ? [{ role }] : [], error: lookupError ? { message: lookupError } : null }),
     }),
   }
 }

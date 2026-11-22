@@ -61,7 +61,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
 }));
 vi.mock("@/app/(admin)/admin/members/[id]/MergeButton", () => ({ default: () => null }));
 const staff = vi.hoisted(() => ({ role: "admin" }));
-vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role })) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role, roles: [staff.role] })) }));
 vi.mock("@/app/actions/sudo", () => ({ startSudo: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "UTC") }));
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));

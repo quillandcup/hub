@@ -66,11 +66,14 @@ function request(path: string, cookies: Record<string, string> = {}) {
   return req;
 }
 
-/** Sign in with a token whose `app_role` claim is `appRole` (NO_CLAIM leaves it out). */
+/** Sign in with a token whose `app_roles` claim holds the role `appRole` (null: none; NO_CLAIM leaves the claim out; anything else is passed as is). */
 function signIn(user: { id: string } | null, appRole: unknown = NO_CLAIM) {
   state.user = user;
   state.tokenClaims = user ? { sub: user.id, role: "authenticated", session_id: "s1" } : null;
-  if (user && appRole !== NO_CLAIM) state.tokenClaims = { ...state.tokenClaims, app_role: appRole };
+  if (user && appRole !== NO_CLAIM) {
+    const roles = appRole === null ? [] : typeof appRole === "string" ? [appRole] : appRole;
+    state.tokenClaims = { ...state.tokenClaims, app_roles: roles };
+  }
 }
 
 /** Location path of a redirect, or null when the request passes through. */

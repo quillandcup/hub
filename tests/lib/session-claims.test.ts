@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getAppRoleFromAccessToken, getAppRolesFromAccessToken, getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
+import { getAppRolesFromAccessToken, getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
 
 function makeJwt(payload: Record<string, unknown>): string {
   const base64url = (obj: Record<string, unknown>) =>
@@ -38,36 +38,6 @@ describe("getSessionIdFromAccessToken", () => {
   });
 });
 
-describe("getAppRoleFromAccessToken", () => {
-  it("returns the app_role claim added by the custom access token hook", () => {
-    expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", role: "authenticated", app_role: "admin" }))).toBe("admin");
-    expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", app_role: "member" }))).toBe("member");
-  });
-
-  it("returns null when the hook found no user_profiles row", () => {
-    expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", app_role: null }))).toBeNull();
-  });
-
-  it("returns undefined when the claim is absent", () => {
-    expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", role: "authenticated" }))).toBeUndefined();
-  });
-
-  it("never reads the reserved role claim as the app role", () => {
-    expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", role: "admin" }))).toBeUndefined();
-  });
-
-  it("returns undefined for a malformed token or a non-string claim", () => {
-    expect(getAppRoleFromAccessToken("not-a-jwt")).toBeUndefined();
-    expect(getAppRoleFromAccessToken("")).toBeUndefined();
-    expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", app_role: 1 }))).toBeUndefined();
-  });
-
-  it("still reads the claim when the payload has non-ASCII characters", () => {
-    const token = makeJwt({ sub: "u", email: "zo\u00eb@example.com", app_role: "admin" });
-    expect(getAppRoleFromAccessToken(token)).toBe("admin");
-  });
-});
-
 describe("getAppRolesFromAccessToken", () => {
   it("returns the app_roles array of the custom access token hook, highest priority first", () => {
     expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: ["conversion_specialist", "community_manager"], app_role: "community_manager" }))).toEqual([
@@ -81,10 +51,9 @@ describe("getAppRolesFromAccessToken", () => {
     expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: ["member", "owner", 3, "admin"] }))).toEqual(["admin"]);
   });
 
-  it("falls back to the single app_role for a token minted before the array existed", () => {
-    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: "assistant" }))).toEqual(["assistant"]);
-    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: "member" }))).toEqual([]);
-    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: null }))).toEqual([]);
+  it("does not read the single app_role: a token without the array has no usable claim", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: "assistant" }))).toBeUndefined();
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: null }))).toBeUndefined();
   });
 
   it("returns undefined when there is no usable claim, never reading the reserved role claim", () => {
@@ -93,7 +62,7 @@ describe("getAppRolesFromAccessToken", () => {
     expect(getAppRolesFromAccessToken("not-a-jwt")).toBeUndefined();
   });
 
-  it("treats a non-array app_roles as absent and uses app_role", () => {
-    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: "admin", app_role: "assistant" }))).toEqual(["assistant"]);
+  it("treats a non-array app_roles as absent", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: "admin", app_role: "assistant" }))).toBeUndefined();
   });
 });

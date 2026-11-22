@@ -5,20 +5,30 @@ import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { escapeLike } from "./query";
 
-/** A signed-in user's profile row (one per Supabase Auth user): their role and time zone settings. Not a member record. */
-export type UserProfile = Row<"user_profiles">;
+/**
+ * A signed-in user's profile row (one per Supabase Auth user): their time zone and display settings. Not a member record, and
+ * deliberately without `role`: a person's roles are in `user_roles` (`rolesOf`), never read from the old column, so a read of
+ * `profile.role` does not typecheck.
+ */
+export type UserProfile = Omit<Row<"user_profiles">, "role">;
 
-/** A profile as the in-memory dataset keeps it: the id and email, and whatever else a test names. */
-export type UserProfileSeed = Pick<UserProfile, "id" | "email"> & Partial<Omit<UserProfile, "id" | "email">>;
+/** The columns a profile read selects: all of them but the old `role` column (see {@link UserProfile}). */
+const PROFILE_COLUMNS = "id, email, created_at, updated_at, timezone_preference, nav_mode, secondary_timezone, analytics_opt_out_at";
 
 /**
- * What the activity log's staff filter needs: the id, the email, the primary role (what `user_profiles.role` holds) and
- * every staff role the person holds (a person can hold several; what they may do is the union).
+ * A profile as the in-memory dataset keeps it: the id and email, and whatever else a test names. `role` is seed shorthand for
+ * one `user_roles` row, as the database's sync trigger treats a profile written with a role; the twin reads it as a role held.
  */
-export type StaffProfile = Pick<UserProfile, "id" | "email" | "role"> & { roles: StaffRole[] };
+export type UserProfileSeed = Pick<UserProfile, "id" | "email"> & Partial<Omit<UserProfile, "id" | "email">> & { role?: string };
 
-/** The profile fields a role lookup needs. */
-export type ProfileRoleRow = Pick<UserProfile, "id" | "email" | "role">;
+/**
+ * What the activity log's staff filter needs: the id, the email and every staff role the person holds, highest priority first
+ * (a person can hold several; what they may do is the union).
+ */
+export type StaffProfile = Pick<UserProfile, "id" | "email"> & { roles: StaffRole[] };
+
+/** Who a sign-in email belongs to. */
+export type ProfileIdentity = Pick<UserProfile, "id" | "email">;
 
 const ID_CHUNK = 100;
 
@@ -38,23 +48,23 @@ function rolesByUser(pairs: Iterable<readonly [string, string]>): Map<string, St
 }
 
 /** The profiles as staff entries, by email then id, each with the roles it holds. */
-function withRoles(profiles: readonly ProfileRoleRow[], held: ReadonlyMap<string, StaffRole[]>): StaffProfile[] {
+function withRoles(profiles: readonly ProfileIdentity[], held: ReadonlyMap<string, StaffRole[]>): StaffProfile[] {
   return [...profiles]
     .sort((a, b) => (a.email < b.email ? -1 : a.email > b.email ? 1 : a.id < b.id ? -1 : 1))
-    .map(({ id, email, role }) => ({ id, email, role, roles: held.get(id) ?? [] }));
+    .map(({ id, email }) => ({ id, email, roles: held.get(id) ?? [] }));
 }
 
 /**
  * The profile of each Supabase Auth user (`user_profiles`, keyed by the auth user id): the roles, and the time zone
- * settings. A user holds a set of staff roles (`user_roles`; a member holds none) and `user_profiles.role` keeps the
- * highest-priority one until the contract step drops it, so every read of "who holds this role" counts both places.
+ * settings. A user holds a set of staff roles (`user_roles`; a member holds none), and every read of "who holds this role"
+ * is a read of that table. The old `user_profiles.role` column is still written (by triggers) until it is dropped, and never read.
  * Every method throws on a database error, except {@link isAdmin}, which authorizes and so answers "no" when it can't tell.
  */
 export interface ProfileRepository {
   /** One user's profile, or null when they have none. */
   byId(userId: string): Promise<UserProfile | null>;
   /**
-   * Whether this user is an admin, read from the profile (never from the token's role claim, which
+   * Whether this user is an admin, read from `user_roles` (never from the token's role claim, which
    * can be up to an hour stale). A missing profile or a failed lookup is "no", never an error:
    * callers use this to decide access, and unknown must not mean admin.
    */
@@ -69,7 +79,7 @@ export interface ProfileRepository {
   rolesOf(userId: string): Promise<StaffRole[]>;
   /** The staff roles of every user who holds any (users holding none are left out). Paginated. */
   allRoles(): Promise<Map<string, StaffRole[]>>;
-  /** Replaces the user's staff roles (an empty list makes them a member), keeping `user_profiles.role` at the primary one. */
+  /** Replaces the user's staff roles (an empty list makes them a member). */
   setRoles(userId: string, roles: readonly string[]): Promise<void>;
   /** These users' profiles (users without one are left out). Chunked. */
   byIds(userIds: string[]): Promise<UserProfile[]>;
@@ -78,7 +88,7 @@ export interface ProfileRepository {
   /** Sets one role as the user's only role (`member` for none): `setRoles` with one entry. */
   setRole(userId: string, role: string): Promise<void>;
   /** The one profile whose sign-in email is this address (any case), or null when none or several match. */
-  uniqueByEmail(email: string): Promise<ProfileRoleRow | null>;
+  uniqueByEmail(email: string): Promise<ProfileIdentity | null>;
   /** Saves the user's time zone preference ("browser" until one is detected). */
   setTimezonePreference(userId: string, timezone: string): Promise<void>;
   /** Saves how the user's sidebar behaves (pinned open, pinned closed, auto-hide). */
@@ -95,51 +105,38 @@ export class SupabaseProfileRepository implements ProfileRepository {
   constructor(private readonly db: Db) {}
 
   async byId(userId: string) {
-    const { data, error } = await this.db.from("user_profiles").select("*").eq("id", userId).maybeSingle();
+    const { data, error } = await this.db.from("user_profiles").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }
 
   async uniqueByEmail(email: string) {
-    const { data, error } = await this.db.from("user_profiles").select("id, email, role").ilike("email", escapeLike(email)).limit(2);
+    const { data, error } = await this.db.from("user_profiles").select("id, email").ilike("email", escapeLike(email)).limit(2);
     if (error) throw new Error(error.message);
     return data?.length === 1 ? data[0] : null;
   }
 
   async isAdmin(userId: string) {
-    // Holding admin in either place counts; a failed lookup is "no".
-    const [fromRoles, fromColumn] = await Promise.all([
-      this.db.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
-      this.db.from("user_profiles").select("role").eq("id", userId).maybeSingle(),
-    ]);
-    return (!fromRoles.error && fromRoles.data?.role === "admin") || (!fromColumn.error && fromColumn.data?.role === "admin");
+    // A failed lookup is "no".
+    const { data, error } = await this.db.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
+    return !error && data?.role === "admin";
   }
 
   async rolesOf(userId: string) {
-    const [fromRoles, fromColumn] = await Promise.all([
-      this.db.from("user_roles").select("role").eq("user_id", userId),
-      this.db.from("user_profiles").select("role").eq("id", userId).maybeSingle(),
-    ]);
-    if (fromRoles.error) throw new Error(fromRoles.error.message);
-    if (fromColumn.error) throw new Error(fromColumn.error.message);
-    return staffRolesIn([...(fromRoles.data ?? []).map((r) => r.role), fromColumn.data?.role ?? null]);
+    const { data, error } = await this.db.from("user_roles").select("role").eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return staffRolesIn((data ?? []).map((r) => r.role));
   }
 
   async allRoles() {
-    const [rows, profiles] = await Promise.all([
-      fetchAllRows<{ user_id: string; role: string }>((from, to) => this.db.from("user_roles").select("user_id, role").order("id").range(from, to)),
-      fetchAllRows<{ id: string; role: string }>((from, to) => this.db.from("user_profiles").select("id, role").neq("role", "member").order("id").range(from, to)),
-    ]);
-    return rolesByUser([...rows.map((r) => [r.user_id, r.role] as const), ...profiles.map((p) => [p.id, p.role] as const)]);
+    const rows = await fetchAllRows<{ user_id: string; role: string }>((from, to) => this.db.from("user_roles").select("user_id, role").order("id").range(from, to));
+    return rolesByUser(rows.map((r) => [r.user_id, r.role] as const));
   }
 
-  /** The ids of everyone who holds any of these roles, in `user_roles` or in the old column. */
+  /** The ids of everyone who holds any of these roles. */
   private async idsHolding(roles: readonly string[]): Promise<string[]> {
-    const [fromRoles, fromColumn] = await Promise.all([
-      fetchAllRows<{ user_id: string }>((from, to) => this.db.from("user_roles").select("user_id").in("role", [...roles]).order("id").range(from, to)),
-      fetchAllRows<{ id: string }>((from, to) => this.db.from("user_profiles").select("id").in("role", [...roles]).order("id").range(from, to)),
-    ]);
-    return [...new Set([...fromRoles.map((r) => r.user_id), ...fromColumn.map((r) => r.id)])];
+    const rows = await fetchAllRows<{ user_id: string }>((from, to) => this.db.from("user_roles").select("user_id").in("role", [...roles]).order("id").range(from, to));
+    return [...new Set(rows.map((r) => r.user_id))];
   }
 
   /** The people holding any of these roles, by email then id, each with every staff role they hold. */
@@ -171,7 +168,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async byIds(userIds: string[]) {
     const rows: UserProfile[] = [];
     for (const part of chunk([...new Set(userIds)], ID_CHUNK)) {
-      const { data, error } = await this.db.from("user_profiles").select("*").in("id", part);
+      const { data, error } = await this.db.from("user_profiles").select(PROFILE_COLUMNS).in("id", part);
       if (error) throw new Error(error.message);
       rows.push(...(data ?? []));
     }
@@ -181,7 +178,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async all() {
     return fetchAllRows<UserProfile>(
       (from, to) =>
-        this.db.from("user_profiles").select("*").order("id").range(from, to)
+        this.db.from("user_profiles").select(PROFILE_COLUMNS).order("id").range(from, to)
     );
   }
 
@@ -220,8 +217,11 @@ export class SupabaseProfileRepository implements ProfileRepository {
 export class InMemoryProfileRepository implements ProfileRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
-  private full(p: UserProfileSeed): UserProfile {
-    return { role: "member", created_at: null, updated_at: null, timezone_preference: null, nav_mode: null, secondary_timezone: null, analytics_opt_out_at: null, ...p };
+  /** The profile as the repository returns it: the seed with its defaults, and without the seed's `role` shorthand. */
+  private full(seed: UserProfileSeed): UserProfile {
+    const { role: _role, ...p } = seed;
+    void _role;
+    return { created_at: null, updated_at: null, timezone_preference: null, nav_mode: null, secondary_timezone: null, analytics_opt_out_at: null, ...p };
   }
 
   async byId(userId: string) {
@@ -231,10 +231,10 @@ export class InMemoryProfileRepository implements ProfileRepository {
 
   async uniqueByEmail(email: string) {
     const matches = this.data.userProfiles.filter((p) => p.email.toLowerCase() === email.toLowerCase());
-    return matches.length === 1 ? { id: matches[0].id, email: matches[0].email, role: this.full(matches[0]).role } : null;
+    return matches.length === 1 ? { id: matches[0].id, email: matches[0].email } : null;
   }
 
-  /** What each user holds: their `user_roles` rows and the old column, the way the database reads them. */
+  /** What each user holds: their `user_roles` rows, plus a seed's `role` shorthand (the database's sync trigger makes that a row). */
   private held() {
     return rolesByUser([
       ...this.data.userRoles.map((r) => [r.user_id, r.role] as const),

@@ -33,29 +33,9 @@ export function getSessionIdFromAccessToken(token: string): string | null {
 }
 
 /**
- * The `app_role` claim added by the custom access token hook
- * (supabase/migrations/20260926000900_add_role_to_access_token.sql):
- *
- * - a string (`"admin"`, `"member"`, ...) — `user_profiles.role` when the token was minted
- * - `null` — the hook ran and found no `user_profiles` row (not an admin)
- * - `undefined` — no claim (the hook isn't enabled, or its lookup failed);
- *   the proxy treats this as not-admin
- *
- * Only as fresh as the token (up to auth.jwt_expiry old), so it's for the
- * proxy's optimistic check only — never for authorization.
- */
-export function getAppRoleFromAccessToken(token: string): string | null | undefined {
-  const claims = decodeAccessTokenClaims(token);
-  if (!claims || !("app_role" in claims)) return undefined;
-  const role = claims.app_role;
-  if (role === null || typeof role === "string") return role;
-  return undefined;
-}
-
-/**
  * The staff roles the token's claims say the user holds, highest priority first: the `app_roles` array that the
- * custom access token hook adds (supabase/migrations/20271028000000_user_roles.sql), or, for a token minted before
- * that, the single `app_role`.
+ * custom access token hook adds (supabase/migrations/20271028000000_user_roles.sql). The hook still adds `app_role` (the primary
+ * role) too, but nothing reads it.
  *
  * - an array (possibly empty) -- the roles held when the token was minted (anything that isn't a staff role is dropped)
  * - `undefined` -- no usable claim (the hook isn't enabled, or its lookup failed): the proxy treats this as no role
@@ -64,9 +44,8 @@ export function getAppRoleFromAccessToken(token: string): string | null | undefi
  */
 export function getAppRolesFromAccessToken(token: string): StaffRole[] | undefined {
   const claims = decodeAccessTokenClaims(token);
-  if (claims && Array.isArray(claims.app_roles)) return staffRolesIn(claims.app_roles.filter((r): r is string => typeof r === "string"));
-  const role = getAppRoleFromAccessToken(token);
-  return role === undefined ? undefined : staffRolesIn(role);
+  if (!claims || !Array.isArray(claims.app_roles)) return undefined;
+  return staffRolesIn(claims.app_roles.filter((r): r is string => typeof r === "string"));
 }
 
 /**

@@ -25,7 +25,7 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
     it("reads a user's profile, and nothing for someone without one", async () => {
       const ids = await ctx.seed([{ key: "a", email: email("ada"), role: "assistant", timezone: "America/Chicago", secondary: "Europe/London" }]);
 
-      expect(await ctx.repo().byId(ids.a)).toMatchObject({ id: ids.a, role: "assistant", timezone_preference: "America/Chicago", secondary_timezone: "Europe/London" });
+      expect(await ctx.repo().byId(ids.a)).toMatchObject({ id: ids.a, timezone_preference: "America/Chicago", secondary_timezone: "Europe/London" });
       expect(await ctx.repo().byId(NONE)).toBeNull();
     });
 
@@ -33,7 +33,7 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
       const mine = email("findxme");
       const ids = await ctx.seed([{ key: "a", email: mine, role: "assistant" }, { key: "b", email: email("other") }]);
 
-      expect(await ctx.repo().uniqueByEmail(mine.toUpperCase())).toEqual({ id: ids.a, email: mine, role: "assistant" });
+      expect(await ctx.repo().uniqueByEmail(mine.toUpperCase())).toEqual({ id: ids.a, email: mine });
       expect(await ctx.repo().uniqueByEmail(email("nobody"))).toBeNull();
       expect(await ctx.repo().uniqueByEmail("%@example.test")).toBeNull(); // LIKE wildcards match only themselves
       expect(await ctx.repo().uniqueByEmail(mine.replace("findxme", "find_me"))).toBeNull(); // an underscore is not a wildcard either
@@ -62,8 +62,8 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
 
       const ours = (await ctx.repo().staff()).filter((p) => p.email.startsWith(tag));
       expect(ours).toEqual([
-        { id: ids.a, email: `${tag}-a@example.test`, role: "assistant", roles: ["assistant"] },
-        { id: ids.z, email: `${tag}-z@example.test`, role: "admin", roles: ["admin"] },
+        { id: ids.a, email: `${tag}-a@example.test`, roles: ["assistant"] },
+        { id: ids.z, email: `${tag}-z@example.test`, roles: ["admin"] },
       ]);
 
       const admins = await ctx.repo().adminIds();
@@ -82,8 +82,8 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
 
       const ours = (await ctx.repo().byRoles(["admin", "community_manager"])).filter((p) => p.email.startsWith(tag));
       expect(ours).toEqual([
-        { id: ids.a, email: `${tag}-a@example.test`, role: "admin", roles: ["admin"] },
-        { id: ids.c, email: `${tag}-c@example.test`, role: "community_manager", roles: ["community_manager"] },
+        { id: ids.a, email: `${tag}-a@example.test`, roles: ["admin"] },
+        { id: ids.c, email: `${tag}-c@example.test`, roles: ["community_manager"] },
       ]);
       expect((await ctx.repo().byRoles(["community_manager"])).filter((p) => p.email.startsWith(tag)).map((p) => p.id)).toEqual([ids.c]);
       expect(await ctx.repo().byRoles([])).toEqual([]);
@@ -108,7 +108,7 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
       await ctx.repo().setRole(ids.a, "admin");
       await ctx.repo().setTimezonePreference(ids.a, "Asia/Tokyo");
       await ctx.repo().setSecondaryTimezone(ids.a, "Europe/Paris");
-      expect(await ctx.repo().byId(ids.a)).toMatchObject({ role: "admin", timezone_preference: "Asia/Tokyo", secondary_timezone: "Europe/Paris" });
+      expect(await ctx.repo().byId(ids.a)).toMatchObject({ timezone_preference: "Asia/Tokyo", secondary_timezone: "Europe/Paris" });
       expect(await ctx.repo().isAdmin(ids.a)).toBe(true);
 
       await ctx.repo().setSecondaryTimezone(ids.a, null);
@@ -126,22 +126,19 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
 
       await repo.setRoles(ids.p, ["conversion_specialist", "community_manager"]);
       expect(await repo.rolesOf(ids.p)).toEqual(["community_manager", "conversion_specialist"]);
-      expect((await repo.byId(ids.p))?.role).toBe("community_manager");
       expect((await repo.allRoles()).get(ids.p)).toEqual(["community_manager", "conversion_specialist"]);
       expect(await repo.isAdmin(ids.p)).toBe(false);
       const holders = (await repo.byRoles(["conversion_specialist"])).filter((p) => p.email.startsWith(tag));
-      expect(holders).toEqual([{ id: ids.p, email: `${tag}-p@example.test`, role: "community_manager", roles: ["community_manager", "conversion_specialist"] }]);
+      expect(holders).toEqual([{ id: ids.p, email: `${tag}-p@example.test`, roles: ["community_manager", "conversion_specialist"] }]);
 
       await repo.setRoles(ids.p, ["assistant", "admin", "admin"]);
       expect(await repo.rolesOf(ids.p)).toEqual(["admin", "assistant"]);
-      expect((await repo.byId(ids.p))?.role).toBe("admin");
       expect(await repo.isAdmin(ids.p)).toBe(true);
       expect(await repo.adminIds()).toContain(ids.p);
       expect((await repo.staff()).filter((p) => p.email.startsWith(tag)).map((p) => p.id)).toEqual([ids.p]);
 
       await repo.setRoles(ids.p, []);
       expect(await repo.rolesOf(ids.p)).toEqual([]);
-      expect((await repo.byId(ids.p))?.role).toBe("member");
       expect(await repo.adminIds()).not.toContain(ids.p);
       expect((await repo.allRoles()).has(ids.p)).toBe(false);
 

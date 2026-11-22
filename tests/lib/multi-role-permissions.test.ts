@@ -37,10 +37,10 @@ describe("the roles a person holds", () => {
     expect(primaryRole(["assistant", "admin"])).toBe("admin");
   });
 
-  it("reads an actor's roles from `roles` and `role` together", () => {
-    expect(rolesOf({ role: "conversion_specialist", roles: ["community_manager"] })).toEqual(["community_manager", "conversion_specialist"]);
-    expect(rolesOf({ role: "admin" })).toEqual(["admin"]);
+  it("reads an actor's roles from `roles` only, and ignores a lone `role`", () => {
+    expect(rolesOf({ roles: ["conversion_specialist", "community_manager"] })).toEqual(["community_manager", "conversion_specialist"]);
     expect(rolesOf({ roles: ["assistant"] })).toEqual(["assistant"]);
+    expect(rolesOf({ role: "admin", roles: [] } as never)).toEqual([]);
     expect(rolesOf(null)).toEqual([]);
   });
 });
@@ -57,11 +57,8 @@ describe("can() with several roles is the union", () => {
     expect(can({ roles: ["community_manager", "conversion_specialist"] }, "member.sudo")).toBe(false);
   });
 
-  it("gives a single role the same answer as before (`roles` of one is `role`)", () => {
-    for (const role of STAFF_ROLES) {
-      expect(new Set(holds([role]))).toEqual(new Set(ROLE_PERMISSIONS[role]));
-      for (const permission of ALL_PERMISSIONS) expect(can({ role }, permission), `${role} ${permission}`).toBe(can({ roles: [role] }, permission));
-    }
+  it("gives a single role exactly the permissions of its bundle", () => {
+    for (const role of STAFF_ROLES) expect(new Set(holds([role])), role).toEqual(new Set(ROLE_PERMISSIONS[role]));
   });
 
   it("lets the admin imply everything, whatever else is held", () => {
@@ -85,10 +82,6 @@ describe("can() with several roles is the union", () => {
     expect(can(null, "staff.access")).toBe(false);
   });
 
-  it("reads `role` and `roles` together on one actor", () => {
-    expect(can({ role: "conversion_specialist", roles: ["community_manager"] }, "care.write")).toBe(true);
-    expect(can({ role: "conversion_specialist", roles: ["community_manager"] }, "pages.edit")).toBe(true);
-  });
 });
 
 describe("where a person lands, and which pages open", () => {
@@ -130,8 +123,8 @@ describe("where a person lands, and which pages open", () => {
   it("finds the staff features of any role held", () => {
     expect(staffCan({ roles: ["conversion_specialist", "community_manager"] }, "care.write")).toBe(true);
     expect(staffCan({ roles: ["conversion_specialist"] }, "care.write")).toBe(false);
-    expect(staffCan("community_manager", "care.write")).toBe(true);
-    expect(staffFeaturesFor({ roles: ["conversion_specialist", "community_manager"] })).toEqual(staffFeaturesFor("community_manager"));
+    expect(staffCan({ roles: ["community_manager"] }, "care.write")).toBe(true);
+    expect(staffFeaturesFor({ roles: ["conversion_specialist", "community_manager"] })).toEqual(staffFeaturesFor({ roles: ["community_manager"] }));
   });
 });
 

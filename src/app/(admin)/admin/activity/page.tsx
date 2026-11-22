@@ -60,7 +60,7 @@ export default async function ActivityLogPage({
     id: p.id,
     name: nameByUserId.get(p.id) ?? p.email,
     email: p.email,
-    role: p.role,
+    roles: p.roles,
   }));
 
   // The actor filter can also be a non-staff user (clicked from a member's row).

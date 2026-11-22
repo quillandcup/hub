@@ -26,14 +26,14 @@ export async function PATCH(
   const parsed = await request.json().catch(() => undefined);
   if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const body = parsed;
-  const { role, features, memberId } = body;
+  const { features, memberId } = body;
 
   const supabase = getServiceClient();
 
-  // Roles: a person can hold several (`roles`); `role` (one) is still accepted. The change goes through the signed-in
+  // Roles: a person can hold several (`roles`, the whole set). The change goes through the signed-in
   // person's own client, so the Activity Log names who assigned it (the service role would be recorded as the system).
   // A refused or failed assignment is an error here, not a silent success.
-  const roles: unknown = body.roles ?? (role === undefined ? undefined : [role]);
+  const roles: unknown = body.roles;
   if (roles !== undefined) {
     if (!Array.isArray(roles) || roles.some((r) => typeof r !== "string")) return NextResponse.json({ error: "roles must be a list of role names" }, { status: 400 });
     // Who may change which role: an actor changes only roles below their own highest, on people below it (an admin: any); nobody
