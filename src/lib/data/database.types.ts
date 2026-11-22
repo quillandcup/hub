@@ -9375,6 +9375,7 @@ export type Database = {
         Args: { p_course_id: string }
         Returns: undefined
       }
+      top_role_rank: { Args: { p_user: string }; Returns: number }
       upsert_ambiguous_zoom_name: {
         Args: {
           p_candidate_member_ids: string[]
