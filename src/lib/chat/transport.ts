@@ -1,0 +1,85 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * The port between chat core and a transport (docs/architecture/CHAT_MODULE.md). Core (messages, channels, reactions, files, rich text,
+ * previews, unread, notifications) asks a transport for everything that has to happen outside the Hub: delivering a message, changing or
+ * removing one, reacting, keeping read state in step, pulling conversations the Hub did not write, opening a direct conversation.
+ * Slack is the one transport today (`src/modules/chat/slack`); a vendor thread or a second community's chat would be another.
+ *
+ * Core depends on this file alone: no transport's ids, tokens, formatting or client. Every method must be safe to call when its
+ * transport has nothing to do (message not delivered yet, member not connected, not production): it answers "skipped", `false` or
+ * `{ ok: true }`, and does not throw for a normal refusal. Methods take the service-role client because they read and record delivery
+ * state (`chat_messages` sync status) through the repositories; none of them returns a transport's own id to the caller.
+ */
+
+/** What delivering one stored message came to: `skipped` is "nothing to do or not allowed here", `failed` leaves it retryable. */
+export type DeliveryResult = "sent" | "skipped" | "failed";
+
+/** The outcome of changing a message already delivered. `error` is plain words for the author; `code` is for logs and alerts only. */
+export type TransportWriteResult = { ok: true; fileIds?: string[] } | { ok: false; error: string; code?: string };
+
+/** What removing one link preview from a delivered message came to. */
+export type PreviewRemoval = "updated" | "not_needed" | "failed";
+
+/** Opening a conversation with another member through the transport (the Hub shows it as a direct conversation). */
+export type OpenConversationResult =
+  | { ok: true; channelId: string }
+  | { ok: false; reason: "not_production" | "not_connected" | "unknown_person" | "refused" };
+
+export interface EditMessageArgs {
+  messageId: string;
+  memberId: string;
+  body: string;
+  dropPreviews?: boolean;
+  keepFileIds?: string[];
+  addFiles?: { existingIds: string[]; uploads: { file: Buffer; filename: string }[] };
+}
+
+export interface ChatTransport {
+  /** A short stable name ("slack"), for logs and for telling transports apart. */
+  readonly id: string;
+
+  /** Whether this deployment may write to the real external system (production only for Slack). Reads and pulls are separate. */
+  writesEnabled(): boolean;
+  /** Whether the member has a working link to the transport, which is what lets them write through it. */
+  isConnected(db: SupabaseClient, memberId: string): Promise<boolean>;
+
+  /** Outbound: deliver a stored message, then record how it went on the message. */
+  deliver(db: SupabaseClient, messageId: string): Promise<DeliveryResult>;
+  /** Deliver again what is still pending or failed (the nightly run), and expire what is too old to retry. */
+  retryUnsent(db: SupabaseClient): Promise<{ sent: number; failed: number; expired: number }>;
+  /** Mirror one member's reaction. Returns whether the transport now agrees. */
+  syncReaction(db: SupabaseClient, opts: { messageId: string; memberId: string; emoji: string; active: boolean }): Promise<boolean>;
+  editMessage(db: SupabaseClient, opts: EditMessageArgs): Promise<TransportWriteResult>;
+  deleteMessage(db: SupabaseClient, opts: { messageId: string; memberId: string }): Promise<TransportWriteResult>;
+  deleteFile(db: SupabaseClient, opts: { messageId: string; memberId: string; fileId: string }): Promise<TransportWriteResult>;
+  /** Stop a delivered message from showing one link preview in the transport. */
+  removePreview(db: SupabaseClient, opts: { messageId: string; memberId: string; key: string }): Promise<PreviewRemoval>;
+  /** Files added to a delivered message, already in hand: keep them as the permanent copies so the Hub never asks the transport for its own upload. */
+  keepFileCopies(
+    db: SupabaseClient,
+    opts: { messageId: string; sent: unknown[]; staged: unknown[]; bytes: Map<string, Buffer> }
+  ): Promise<void>;
+
+  /** Read state, both ways. Each returns whether the transport was updated or checked. */
+  pushRead(db: SupabaseClient, opts: { memberId: string; channelId: string; through: string }): Promise<boolean>;
+  pushUnread(db: SupabaseClient, opts: { memberId: string; channelId: string; messageId: string; marker: string }): Promise<boolean>;
+  pullRead(db: SupabaseClient, memberId: string, opts?: { exceptChannelId?: string | null }): Promise<boolean>;
+
+  /** Pull the member's direct conversations that were written outside the Hub. Resolves when done; the result is for the nightly run's report. */
+  pullDirectConversations(db: SupabaseClient, memberId: string): Promise<unknown>;
+  openDirectConversation(db: SupabaseClient, memberId: string, otherMemberId: string): Promise<OpenConversationResult>;
+}
+
+/**
+ * What a transport reports to core when something happens on its side (a message written there, an edit, a deletion, a reaction). Core
+ * owns the meaning (Bronze to Silver, author matching, de-duplication); the transport owns decoding its events and verifying them. The
+ * inbound paths still run through the Slack webhook and gap-fill code and move behind this in a later step (docs/TODO.md, "Chat core and
+ * Slack adapter: next steps").
+ */
+export interface ChatInboundSink {
+  message(event: { transport: string; channelRef: string; ref: string; authorRef: string | null; body: string; threadRef: string | null; sentAt: string }): Promise<void>;
+  edit(event: { transport: string; channelRef: string; ref: string; body: string }): Promise<void>;
+  delete(event: { transport: string; channelRef: string; ref: string }): Promise<void>;
+  reaction(event: { transport: string; channelRef: string; ref: string; authorRef: string; emoji: string; active: boolean }): Promise<void>;
+}

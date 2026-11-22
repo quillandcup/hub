@@ -1,6 +1,8 @@
 # Slack-Bridged Chat: Design
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+
+Code layout: chat core calls Slack only through a transport port, with Slack as the adapter behind it (`docs/architecture/CHAT_MODULE.md`).
 
 Status: **design agreed; groundwork, the chat_* mirror, the read-only chat UI, search, Realtime and unread state are built; the two-way bridge (phase 3) is next.** Written 2026-09-29 from a design walkthrough. Member-facing summary of the privacy model: `src/app/(member)/privacy/page.tsx` (on for every member since 2026-10-30; it was behind the `message_privacy` flag until everything it says was true).
 
