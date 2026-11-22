@@ -30,7 +30,7 @@ describe("who may read the messages of a care plan", () => {
   it("is admins and community managers only: the action checks the staff role and the care feature, then the audit entry, before it reads", () => {
     const source = read("src/app/(admin)/admin/care/actions.ts");
     const action = source.slice(source.indexOf("export async function getCareMessages"));
-    const order = ['requireActionPermission("care.member_activity.read")', 'staffCan(auth.role, "care.write")', "logMessagesRead(memberId)", "loadCareMessages("].map((needle) => action.indexOf(needle));
+    const order = ['requireActionPermission("care.member_activity.read")', 'staffCan(auth, "care.write")', "logMessagesRead(memberId)", "loadCareMessages("].map((needle) => action.indexOf(needle));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });

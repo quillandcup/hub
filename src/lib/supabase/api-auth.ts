@@ -69,7 +69,7 @@ export async function createApiAuth(request: NextRequest) {
  * - user: the authenticated user (or null if no session)
  * - forbidden: true if the user's role lacks the permission, false otherwise
  *
- * Reads `user_profiles.role`, never the token claim. A "view as role" preview doesn't apply to routes (it is
+ * Reads the roles from the database (`user_roles`, with `user_profiles.role`), never the token claim. A "view as role" preview doesn't apply to routes (it is
  * UI and routing only). Service-role key in Authorization header bypasses the role check (used by tests).
  * Vercel Cron secret in Authorization header also bypasses the role check.
  */
@@ -82,9 +82,9 @@ export async function requireApiPermission(request: NextRequest, permission: Per
   }
   // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: `forbidden` (a 403 in the
   // route). Staff who haven't passed (or set up) the second sign-in step get what a non-staff user gets (src/lib/staff-mfa.ts).
-  const profile = await createRepos(auth.supabase).profiles.byId(auth.user.id).catch(() => null);
+  const realRoles = await createRepos(auth.supabase).profiles.rolesOf(auth.user.id).catch(() => []);
   const decision = await decideStaff({
-    realRole: profile?.role,
+    realRoles,
     permission,
     mfaBlocked: async () => blocksStaff(await staffMfaStateFor(auth.supabase)),
   });

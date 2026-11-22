@@ -156,6 +156,68 @@ describe('Admin Users API', () => {
     expect(profile?.role).toBe('admin')
   })
 
+  describe('PATCH roles — a person can hold several', () => {
+    const patchRoles = (roles: unknown) =>
+      apiFetch(`${base}/api/admin/users/${testUserId}`, {
+        method: 'PATCH',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roles }),
+      })
+
+    const stored = async () => {
+      const [{ data: held }, { data: profile }] = await Promise.all([
+        supabase.from('user_roles').select('role').eq('user_id', testUserId),
+        supabase.from('user_profiles').select('role').eq('id', testUserId).single(),
+      ])
+      return { roles: (held ?? []).map((r) => r.role).sort(), column: profile?.role }
+    }
+
+    it('stores each role and keeps the old column at the highest priority one', async () => {
+      const res = await patchRoles(['conversion_specialist', 'community_manager'])
+      expect(res.ok).toBe(true)
+      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'], column: 'community_manager' })
+    })
+
+    it('GET lists every role held, and the primary one as `role`', async () => {
+      await patchRoles(['conversion_specialist', 'community_manager'])
+      const res = await apiFetch(`${base}/api/admin/users`, { headers: getTestAuthHeaders() })
+      const found = (await res.json()).users.find((u: any) => u.id === testUserId)
+      expect(found.roles).toEqual(['community_manager', 'conversion_specialist'])
+      expect(found.role).toBe('community_manager')
+    })
+
+    it('replaces the set, and an empty list makes the person a member', async () => {
+      await patchRoles(['assistant', 'community_manager'])
+      expect(await stored()).toEqual({ roles: ['assistant', 'community_manager'], column: 'assistant' })
+      await patchRoles(['community_manager'])
+      expect(await stored()).toEqual({ roles: ['community_manager'], column: 'community_manager' })
+      const res = await patchRoles([])
+      expect(res.ok).toBe(true)
+      expect(await stored()).toEqual({ roles: [], column: 'member' })
+    })
+
+    it('refuses an unknown role and a malformed list, and changes nothing', async () => {
+      await patchRoles(['community_manager'])
+      expect((await patchRoles(['superuser'])).status).toBe(400)
+      expect((await patchRoles('admin')).status).toBe(400)
+      expect((await patchRoles([7])).status).toBe(400)
+      expect(await stored()).toEqual({ roles: ['community_manager'], column: 'community_manager' })
+      await patchRoles([])
+    })
+
+    it('still accepts a single `role`, which becomes the only role', async () => {
+      await patchRoles(['community_manager', 'conversion_specialist'])
+      const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
+        method: 'PATCH',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'assistant' }),
+      })
+      expect(res.ok).toBe(true)
+      expect(await stored()).toEqual({ roles: ['assistant'], column: 'assistant' })
+      await patchRoles([])
+    })
+  })
+
   it('PATCH updates feature flags (add)', async () => {
     const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',

@@ -1,4 +1,4 @@
-import { ADMIN_LIKE_ROLES, can, isStaffRole, type Permission } from "@/lib/permissions";
+import { can, hasAdminLikeRole, staffRolesIn, type Permission, type RoleInput } from "@/lib/permissions";
 
 /**
  * Where a signed-in non-admin lands when they try to open the admin area.
@@ -77,11 +77,11 @@ export function permissionForAdminPath(pathname: string): Permission | undefined
 }
 
 /**
- * Whether a signed-in user with this role may open the admin path. Optimistic: `role` may come from the
- * access token's `app_role` claim, up to an hour old. A missing or unknown role is "no".
+ * Whether a signed-in user holding these roles (one, or several: the union decides) may open the admin path.
+ * Optimistic: the roles may come from the access token's `app_roles` claim, up to an hour old. No staff role is "no".
  */
-export function mayOpenAdminPath(role: string | null | undefined, pathname: string): boolean {
-  if (!isStaffRole(role)) return false;
+export function mayOpenAdminPath(roles: RoleInput, pathname: string): boolean {
+  if (staffRolesIn(roles).length === 0) return false;
   const needed = permissionForAdminPath(pathname);
-  return needed ? can({ role }, needed) : (ADMIN_LIKE_ROLES as readonly string[]).includes(role);
+  return needed ? can({ roles: staffRolesIn(roles) }, needed) : hasAdminLikeRole(roles);
 }

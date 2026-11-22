@@ -28,11 +28,21 @@ export async function PATCH(
 
   const supabase = getServiceClient();
 
-  const tasks: PromiseLike<unknown>[] = [];
-
-  if (role !== undefined) {
-    tasks.push(createRepos(supabase).profiles.setRole(id, role).catch((error) => console.error("Updating the role failed:", error)));
+  // Roles: a person can hold several (`roles`); `role` (one) is still accepted. The change goes through the signed-in
+  // person's own client, so the Activity Log names who assigned it (the service role would be recorded as the system).
+  // A refused or failed assignment is an error here, not a silent success.
+  const roles: unknown = body.roles ?? (role === undefined ? undefined : [role]);
+  if (roles !== undefined) {
+    if (!Array.isArray(roles) || roles.some((r) => typeof r !== "string")) return NextResponse.json({ error: "roles must be a list of role names" }, { status: 400 });
+    try {
+      await createRepos(auth.supabase).profiles.setRoles(id, roles as string[]);
+    } catch (error) {
+      console.error("Updating the roles failed:", error);
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Updating the roles failed" }, { status: 400 });
+    }
   }
+
+  const tasks: PromiseLike<unknown>[] = [];
 
   if (features !== undefined) {
     tasks.push(

@@ -84,6 +84,10 @@ describe("Roles page content, generated from the registry", () => {
     await renderServerPage(RolesPage, {});
   });
 
+  it("says a person can hold several roles and may do the union", () => {
+    expect(screen.getByText(/A person can hold several roles and may do whatever any of them allows/)).toBeInTheDocument();
+  });
+
   it("shows every permission with its description, and a column and a summary for every role", () => {
     for (const permission of ALL_PERMISSIONS) {
       expect(rowHeaderOf(permission)).toHaveTextContent(PERMISSIONS[permission]);

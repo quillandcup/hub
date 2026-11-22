@@ -206,17 +206,48 @@ export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
   ],
 };
 
-/** Anyone with a `role` (a signed-in staff member, a `StaffUser`, an action's `auth`). */
-export type Actor = { role?: string | null } | null | undefined;
+/**
+ * Anyone with a role, or several (a signed-in staff member, a `StaffUser`, an action's `auth`). A person can hold
+ * several roles and what they may do is the union; `role` is kept for single-role callers and counts as one more role held.
+ */
+export type Actor = { role?: string | null; roles?: readonly string[] | null } | null | undefined;
 
-/** Whether the actor's role holds the permission. An unknown role, a member or nobody holds none. */
-export function can(actor: Actor, permission: Permission): boolean {
-  const role = actor?.role;
-  return isStaffRole(role) && ROLE_PERMISSIONS[role].includes(permission);
+/** A set of roles as callers have it: one role, a list, or nothing. */
+export type RoleInput = string | readonly (string | null | undefined)[] | null | undefined;
+
+/**
+ * The staff roles in a set of roles, deduplicated, highest priority first. Priority is the order of `STAFF_ROLES`
+ * (admin, assistant, community manager, conversion specialist), the same order `staff_role_rank()` has in SQL, so the
+ * first one is the primary role that `user_profiles.role` holds. Anything else (`member`, unknown values) is dropped.
+ */
+export function staffRolesIn(input: RoleInput): StaffRole[] {
+  const list = typeof input === "string" ? [input] : (input ?? []);
+  return STAFF_ROLES.filter((role) => list.includes(role));
 }
 
-/** Where a staff role lands when it opens the admin area, and where it is sent from a page it may not open while previewed. */
-export function staffHome(role: string | null | undefined): string {
+/** The roles an actor holds: its `roles` and its `role`, as staff roles by priority. */
+export function rolesOf(actor: Actor): StaffRole[] {
+  return staffRolesIn([...(actor?.roles ?? []), ...(actor?.role ? [actor.role] : [])]);
+}
+
+/** The highest-priority staff role in the set, or null when there is none: what `user_profiles.role` and `app_role` carry. */
+export function primaryRole(input: RoleInput): StaffRole | null {
+  return staffRolesIn(input)[0] ?? null;
+}
+
+/** Whether any of the actor's roles holds the permission (the union). An unknown role, a member or nobody holds none. */
+export function can(actor: Actor, permission: Permission): boolean {
+  return rolesOf(actor).some((role) => ROLE_PERMISSIONS[role].includes(permission));
+}
+
+/** Whether any of these roles opens the whole staff area, unlisted pages included (the admin and the assistant). */
+export function hasAdminLikeRole(input: RoleInput): boolean {
+  return staffRolesIn(input).some((role) => (ADMIN_LIKE_ROLES as readonly string[]).includes(role));
+}
+
+/** Where a person lands when they open the admin area, and where they are sent from a page they may not open while previewing: their primary role's home. */
+export function staffHome(input: RoleInput): string {
+  const role = primaryRole(input);
   if (role === COMMUNITY_MANAGER_ROLE) return "/admin/at-risk";
   if (role === CONVERSION_SPECIALIST_ROLE) return "/admin/pages";
   return "/admin";

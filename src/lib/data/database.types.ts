@@ -7179,6 +7179,38 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_text_tracks: {
         Row: {
           created_at: string
@@ -9245,6 +9277,10 @@ export type Database = {
         Args: { p_mentorship_id: string; p_note: string }
         Returns: boolean
       }
+      set_user_roles: {
+        Args: { p_roles: string[]; p_user: string }
+        Returns: undefined
+      }
       set_writer_handle: {
         Args: {
           p_handle: string
@@ -9330,6 +9366,7 @@ export type Database = {
         Returns: undefined
       }
       staff_member_ids: { Args: never; Returns: string[] }
+      staff_role_rank: { Args: { p_role: string }; Returns: number }
       sync_event_badge_awards: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -9346,6 +9383,10 @@ export type Database = {
           p_zoom_name: string
         }
         Returns: string
+      }
+      user_has_any_role: {
+        Args: { p_roles: string[]; p_user: string }
+        Returns: boolean
       }
       valid_ask_me_about_topics: {
         Args: { topics: string[] }

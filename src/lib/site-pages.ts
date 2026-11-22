@@ -1,6 +1,6 @@
 import type { FeatureKey } from "@/lib/features";
 import { mayOpenAdminPath } from "@/lib/admin-paths";
-import { can, type Permission } from "@/lib/permissions";
+import { can, staffRolesIn, type Permission, type RoleInput } from "@/lib/permissions";
 import { SETTINGS_TAB_IDS, SETTINGS_TAB_LABELS, SETTINGS_TITLE } from "@/app/(member)/settings/tabs";
 import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TAB_LABELS, MY_PRICKLES_TITLE } from "@/app/(member)/my-prickles/tabs";
 import { SETTINGS_SECTIONS } from "@/app/(member)/settings/sections";
@@ -205,12 +205,12 @@ export const pageEnabled = (page: SitePage, features: readonly FeatureKey[]) => 
  * from the page's permission in src/lib/admin-paths.ts), so the sidebar never lists a page the role is refused.
  * No role given means no filtering (the search palette filters for itself).
  */
-export const pageAllowed = (page: SitePage, role: string | undefined) => page.audience !== "admin" || role === undefined || (page.navPermission ? can({ role }, page.navPermission) : mayOpenAdminPath(role, page.href));
+export const pageAllowed = (page: SitePage, roles: RoleInput) => page.audience !== "admin" || roles === undefined || (page.navPermission ? can({ roles: staffRolesIn(roles) }, page.navPermission) : mayOpenAdminPath(roles, page.href));
 
 /** The sidebar's groups for one audience, each with its visible links in registry order. */
-export function navGroups(audience: "member" | "admin", features: readonly FeatureKey[], role?: string) {
+export function navGroups(audience: "member" | "admin", features: readonly FeatureKey[], roles?: RoleInput) {
   const groups = audience === "member" ? MEMBER_NAV_GROUPS.map((name) => ({ name, collapsible: false })) : ADMIN_NAV_GROUPS.map((g) => ({ name: g.name, collapsible: !!g.collapsible }));
   return groups
-    .map((g) => ({ ...g, items: SITE_PAGES.filter((p) => p.audience === audience && p.nav && p.section === g.name && pageEnabled(p, features) && pageAllowed(p, role)) }))
+    .map((g) => ({ ...g, items: SITE_PAGES.filter((p) => p.audience === audience && p.nav && p.section === g.name && pageEnabled(p, features) && pageAllowed(p, roles)) }))
     .filter((g) => g.items.length > 0);
 }

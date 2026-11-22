@@ -62,8 +62,8 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
 
       const ours = (await ctx.repo().staff()).filter((p) => p.email.startsWith(tag));
       expect(ours).toEqual([
-        { id: ids.a, email: `${tag}-a@example.test`, role: "assistant" },
-        { id: ids.z, email: `${tag}-z@example.test`, role: "admin" },
+        { id: ids.a, email: `${tag}-a@example.test`, role: "assistant", roles: ["assistant"] },
+        { id: ids.z, email: `${tag}-z@example.test`, role: "admin", roles: ["admin"] },
       ]);
 
       const admins = await ctx.repo().adminIds();
@@ -82,8 +82,8 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
 
       const ours = (await ctx.repo().byRoles(["admin", "community_manager"])).filter((p) => p.email.startsWith(tag));
       expect(ours).toEqual([
-        { id: ids.a, email: `${tag}-a@example.test`, role: "admin" },
-        { id: ids.c, email: `${tag}-c@example.test`, role: "community_manager" },
+        { id: ids.a, email: `${tag}-a@example.test`, role: "admin", roles: ["admin"] },
+        { id: ids.c, email: `${tag}-c@example.test`, role: "community_manager", roles: ["community_manager"] },
       ]);
       expect((await ctx.repo().byRoles(["community_manager"])).filter((p) => p.email.startsWith(tag)).map((p) => p.id)).toEqual([ids.c]);
       expect(await ctx.repo().byRoles([])).toEqual([]);
@@ -113,6 +113,42 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
 
       await ctx.repo().setSecondaryTimezone(ids.a, null);
       expect((await ctx.repo().byId(ids.a))?.secondary_timezone).toBeNull();
+    });
+
+    it("holds several roles: the union is read, the primary role is the highest priority, and the set can be replaced", async () => {
+      const tag = ctx.unique("multi").replace(/\s+/g, "-").toLowerCase();
+      const ids = await ctx.seed([
+        { key: "p", email: `${tag}-p@example.test` },
+        { key: "q", email: `${tag}-q@example.test` },
+      ]);
+      const repo = ctx.repo();
+      expect(await repo.rolesOf(ids.p)).toEqual([]);
+
+      await repo.setRoles(ids.p, ["conversion_specialist", "community_manager"]);
+      expect(await repo.rolesOf(ids.p)).toEqual(["community_manager", "conversion_specialist"]);
+      expect((await repo.byId(ids.p))?.role).toBe("community_manager");
+      expect((await repo.allRoles()).get(ids.p)).toEqual(["community_manager", "conversion_specialist"]);
+      expect(await repo.isAdmin(ids.p)).toBe(false);
+      const holders = (await repo.byRoles(["conversion_specialist"])).filter((p) => p.email.startsWith(tag));
+      expect(holders).toEqual([{ id: ids.p, email: `${tag}-p@example.test`, role: "community_manager", roles: ["community_manager", "conversion_specialist"] }]);
+
+      await repo.setRoles(ids.p, ["assistant", "admin", "admin"]);
+      expect(await repo.rolesOf(ids.p)).toEqual(["admin", "assistant"]);
+      expect((await repo.byId(ids.p))?.role).toBe("admin");
+      expect(await repo.isAdmin(ids.p)).toBe(true);
+      expect(await repo.adminIds()).toContain(ids.p);
+      expect((await repo.staff()).filter((p) => p.email.startsWith(tag)).map((p) => p.id)).toEqual([ids.p]);
+
+      await repo.setRoles(ids.p, []);
+      expect(await repo.rolesOf(ids.p)).toEqual([]);
+      expect((await repo.byId(ids.p))?.role).toBe("member");
+      expect(await repo.adminIds()).not.toContain(ids.p);
+      expect((await repo.allRoles()).has(ids.p)).toBe(false);
+
+      await repo.setRole(ids.q, "community_manager");
+      expect(await repo.rolesOf(ids.q)).toEqual(["community_manager"]);
+      await expect(repo.setRoles(ids.q, ["superuser"])).rejects.toThrow();
+      expect(await repo.rolesOf(ids.q)).toEqual(["community_manager"]);
     });
 
     it("saves the sidebar mode", async () => {

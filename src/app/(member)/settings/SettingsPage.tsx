@@ -10,7 +10,6 @@ import { SecondaryTimezoneSwitcher } from "./SecondaryTimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
-import { isStaffRole } from "@/lib/permissions";
 import { ProfilePanel } from "./ProfilePanel";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { getServiceRepos } from "@/lib/data/server";
@@ -41,15 +40,16 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   if (!user) return null;
 
   const supabase = await createClient();
-  const [profile, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
+  const [profile, staffRoles, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
     createRepos(supabase).profiles.byId(user.id).catch(() => null),
+    createRepos(supabase).profiles.rolesOf(user.id).catch((): string[] => []),
     getEffectiveIdentity(user),
     getHostedVibes(),
     getNotificationSettings(),
     getUserFeaturePreviews(user.id),
   ]);
-  const isAdmin = profile?.role === "admin";
-  const isStaff = isStaffRole(profile?.role);
+  const isAdmin = staffRoles.includes("admin");
+  const isStaff = staffRoles.length > 0;
   // Hosting is behind the hosting preview, and only for hosts.
   const hostingOn = enabledFeatures.includes("hosting") && hostedVibes.length > 0;
 

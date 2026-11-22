@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
+import { getAppRoleFromAccessToken, getAppRolesFromAccessToken, getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
 
 function makeJwt(payload: Record<string, unknown>): string {
   const base64url = (obj: Record<string, unknown>) =>
@@ -65,5 +65,35 @@ describe("getAppRoleFromAccessToken", () => {
   it("still reads the claim when the payload has non-ASCII characters", () => {
     const token = makeJwt({ sub: "u", email: "zo\u00eb@example.com", app_role: "admin" });
     expect(getAppRoleFromAccessToken(token)).toBe("admin");
+  });
+});
+
+describe("getAppRolesFromAccessToken", () => {
+  it("returns the app_roles array of the custom access token hook, highest priority first", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: ["conversion_specialist", "community_manager"], app_role: "community_manager" }))).toEqual([
+      "community_manager",
+      "conversion_specialist",
+    ]);
+  });
+
+  it("returns an empty list for a member, and drops anything that is not a staff role", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: [], app_role: "member" }))).toEqual([]);
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: ["member", "owner", 3, "admin"] }))).toEqual(["admin"]);
+  });
+
+  it("falls back to the single app_role for a token minted before the array existed", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: "assistant" }))).toEqual(["assistant"]);
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: "member" }))).toEqual([]);
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: null }))).toEqual([]);
+  });
+
+  it("returns undefined when there is no usable claim, never reading the reserved role claim", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", role: "admin" }))).toBeUndefined();
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_role: 1 }))).toBeUndefined();
+    expect(getAppRolesFromAccessToken("not-a-jwt")).toBeUndefined();
+  });
+
+  it("treats a non-array app_roles as absent and uses app_role", () => {
+    expect(getAppRolesFromAccessToken(makeJwt({ sub: "u", app_roles: "admin", app_role: "assistant" }))).toEqual(["assistant"]);
   });
 });

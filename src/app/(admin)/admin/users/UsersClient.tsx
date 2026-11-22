@@ -19,6 +19,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import Tooltip from "@/components/Tooltip";
 
 type Role = "admin" | "assistant" | "community_manager" | "conversion_specialist" | "member";
+type HubRole = Exclude<Role, "member">;
 type StaffRole = "owner" | "staff" | "contractor";
 
 interface MemberRecord {
@@ -31,7 +32,10 @@ interface MemberRecord {
 interface AppUser {
   id: string;
   email: string;
+  /** The primary role (the highest priority one held), `member` for none. */
   role: Role;
+  /** Every staff role held (a person can hold several; what they may do is the union). Older responses carry only `role`. */
+  roles?: HubRole[];
   features: string[];
   createdAt: string;
   /** Their latest page view or sign-in. Null when they have never signed in (an invite not accepted, or an account nobody has used). */
@@ -91,6 +95,14 @@ const ROLE_LABELS: Record<Role, string> = {
   member: "Member",
 };
 
+/** The roles a person can be given, in priority order (`member` is holding none of them). */
+const ASSIGNABLE_ROLES: HubRole[] = ["admin", "assistant", "community_manager", "conversion_specialist"];
+
+/** The staff roles this user holds. */
+function rolesHeld(user: AppUser): HubRole[] {
+  return user.roles ?? (user.role === "member" ? [] : [user.role]);
+}
+
 const ROLE_COLORS: Record<Role, string> = {
   admin: "bg-mist-100 text-mist-800 dark:bg-mist-900/30 dark:text-mist-300",
   assistant: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
@@ -123,7 +135,7 @@ const AUDIENCES: { key: Audience; label: string }[] = [
 
 /** Staff: anyone with a staff record or a role above member. Everyone else is a member. */
 function isStaffUser(user: AppUser): boolean {
-  return user.staffId !== null || user.role !== "member";
+  return user.staffId !== null || rolesHeld(user).length > 0;
 }
 
 /** The name a person is known by: their member display name, else the staff name; null when nothing is linked. */
@@ -181,7 +193,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [error, setError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState<Role>("member");
+  const [editRoles, setEditRoles] = useState<Set<HubRole>>(new Set());
   const [editFeatures, setEditFeatures] = useState<Set<string>>(new Set());
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -227,9 +239,18 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
   function startEdit(user: AppUser) {
     setEditingId(user.id);
-    setEditRole(user.role);
+    setEditRoles(new Set(rolesHeld(user)));
     setEditFeatures(new Set(user.features));
     setEditMemberId(user.memberId);
+  }
+
+  function toggleRole(role: HubRole) {
+    setEditRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) next.delete(role);
+      else next.add(role);
+      return next;
+    });
   }
 
   function cancelEdit() {
@@ -240,7 +261,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
-        role: editRole,
+        roles: ASSIGNABLE_ROLES.filter((role) => editRoles.has(role)),
         features: Array.from(editFeatures),
       };
       // Only include memberId if it changed
@@ -617,21 +638,26 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </td>
                       <td className="px-6 py-4">
                         {isEditing ? (
-                          <select
-                            value={editRole}
-                            onChange={(e) => setEditRole(e.target.value as Role)}
-                            className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
-                          >
-                            <option value="admin">Admin</option>
-                            <option value="assistant">Assistant</option>
-                            <option value="community_manager">Community Manager</option>
-                            <option value="conversion_specialist">Conversion Specialist</option>
-                            <option value="member">Member</option>
-                          </select>
+                          <fieldset className="flex flex-col gap-1">
+                            <legend className="sr-only">Roles</legend>
+                            {ASSIGNABLE_ROLES.map((role) => (
+                              <label key={role} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                <input type="checkbox" checked={editRoles.has(role)} onChange={() => toggleRole(role)} className="rounded" />
+                                {ROLE_LABELS[role]}
+                              </label>
+                            ))}
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {editRoles.size === 0 ? "No role: a member." : "They may do whatever any of their roles allows."}
+                            </span>
+                          </fieldset>
                         ) : (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
-                            {ROLE_LABELS[user.role]}
-                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {(rolesHeld(user).length > 0 ? rolesHeld(user) : (["member"] as Role[])).map((role) => (
+                              <span key={role} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[role]}`}>
+                                {ROLE_LABELS[role]}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4">

@@ -93,7 +93,9 @@ export default function RolesClient({ matrix }: { matrix: PermissionMatrix }) {
       <h1 className="mb-1 text-2xl font-bold">Roles</h1>
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">
         Who may do what in the staff area. This page is read-only and is built from the permission registry in the code
-        (<code>src/lib/permissions.ts</code>), so it is always current; roles change through a code change.
+        (<code>src/lib/permissions.ts</code>), so it is always current; roles change through a code change. A person can hold
+        several roles and may do whatever any of them allows (the union): the admin implies everything, and what is withheld
+        from the assistant stays withheld unless another role they hold grants it. Roles are given on the Users page.
       </p>
 
       <div className="@container mb-6">

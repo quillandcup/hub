@@ -26,3 +26,13 @@ export function parsePreviewRole(value: string | null | undefined): PreviewableR
 export function effectiveStaffRole(realRole: string | null | undefined, previewCookie: string | null | undefined): string | null | undefined {
   return realRole === "admin" ? (parsePreviewRole(previewCookie) ?? realRole) : realRole;
 }
+
+/**
+ * The roles to check this request against: for someone holding admin, the previewed role alone when one is chosen
+ * (a preview is single-role: an admin looks at one role at a time), else every role held. Anyone else's cookie is ignored.
+ */
+export function effectiveStaffRoles(realRoles: readonly string[] | null | undefined, previewCookie: string | null | undefined): readonly string[] | null | undefined {
+  if (!realRoles?.includes(ADMIN_ROLE)) return realRoles;
+  const preview = parsePreviewRole(previewCookie);
+  return preview ? [preview] : realRoles;
+}

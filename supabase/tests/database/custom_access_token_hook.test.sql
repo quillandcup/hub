@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(13);
+SELECT plan(16);
 
 -- Fixture users (fixed ids that nothing else uses; rolled back at the end).
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -58,6 +58,15 @@ SELECT is(
 SELECT is(
   (SELECT result -> 'claims' -> 'app_role' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a903'),
   'null'::jsonb, 'no profile row → app_role is JSON null (present, never admin)');
+SELECT is(
+  (SELECT result -> 'claims' -> 'app_roles' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a901'),
+  '["admin"]'::jsonb, 'admin profile → app_roles ["admin"] (a user_roles row from the sync)');
+SELECT is(
+  (SELECT result -> 'claims' -> 'app_roles' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a902'),
+  '[]'::jsonb, 'member profile → app_roles is empty');
+SELECT is(
+  (SELECT result -> 'claims' -> 'app_roles' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a903'),
+  '[]'::jsonb, 'no profile row → app_roles is empty');
 SELECT ok(
   (SELECT bool_and(result -> 'claims' ? 'app_role') FROM hook_result WHERE user_id IS NOT NULL),
   'every token gets the claim, so the proxy can skip its DB read');
@@ -65,7 +74,7 @@ SELECT is(
   (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND result -> 'claims' ->> 'role' = 'authenticated'),
   3, 'the reserved role claim stays "authenticated"');
 SELECT is(
-  (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND (result -> 'claims') - 'app_role' = event -> 'claims'),
+  (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND (result -> 'claims') - 'app_role' - 'app_roles' = event -> 'claims'),
   3, 'no other claim is added, removed or changed');
 SELECT is(
   (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND result - 'claims' = event - 'claims'),

@@ -12,7 +12,7 @@ const tables: Record<string, unknown[]> = {};
 // Minimal chainable stand-in: every builder method returns itself and awaiting it yields the table's rows.
 function builder(table: string) {
   const b: Record<string, unknown> = {};
-  for (const m of ["select", "order", "range", "in", "eq"]) b[m] = () => b;
+  for (const m of ["select", "order", "range", "in", "eq", "neq"]) b[m] = () => b;
   b.maybeSingle = async () => ({ data: (tables[table] ?? [])[0] ?? null, error: null });
   b.then = (resolve: (v: unknown) => unknown) => resolve({ data: tables[table] ?? [], error: null });
   return b;

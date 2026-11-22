@@ -34,7 +34,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
   const now = new Date(clock.now());
   const repos = createRepos(await createClient());
   const service = getServiceRepos();
-  const canWrite = staffCan(staff.role, "care.write");
+  const canWrite = staffCan(staff, "care.write");
   // Her DMs first (docs/product/HEDGIE_CARE.md): a DM is tracked because she holds a care plan with the member (a plan she holds whose
   // DM is not tracked yet is tracked now), and the tracked DMs fill in who spoke last on those plans. The list below reads the
   // result. Only her own plans and DMs are looked at; a failure is logged and the page still opens with what it has.
@@ -90,7 +90,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
     byId,
     scores,
     participation,
-    viewer: { userId: staff.id, isAdmin: staff.role === "admin" },
+    viewer: { userId: staff.id, isAdmin: staff.roles.includes("admin") },
     slackTracked: {
       userId: staff.id,
       memberIds: trackedMembers,
