@@ -5,8 +5,7 @@ import type { InMemoryDataset } from "./in-memory";
 import { asJson } from "./json";
 import { must } from "./query";
 
-/** The row without `starter_applied_at`, the old name of `replaced_at`: it stays in the table until a later change drops it, and nothing reads it. */
-export type LandingPage = Omit<Row<"landing_pages">, "starter_applied_at">;
+export type LandingPage = Row<"landing_pages">;
 /** A page is public once published; a template is a page kept to start others from and is never public (docs/product/LANDING_PAGES.md, "Templates"). */
 export type LandingPageKind = "page" | "template";
 /**

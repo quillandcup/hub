@@ -3964,7 +3964,6 @@ export type Database = {
           seo_title: string | null
           slug: string
           social_image_asset_id: string | null
-          starter_applied_at: string | null
           status: string
           title: string
           updated_at: string
@@ -3990,7 +3989,6 @@ export type Database = {
           seo_title?: string | null
           slug: string
           social_image_asset_id?: string | null
-          starter_applied_at?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -4016,7 +4014,6 @@ export type Database = {
           seo_title?: string | null
           slug?: string
           social_image_asset_id?: string | null
-          starter_applied_at?: string | null
           status?: string
           title?: string
           updated_at?: string
