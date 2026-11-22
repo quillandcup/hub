@@ -17,6 +17,8 @@ export type StartDmResult = { ok: true; channelId: string } | { ok: false; error
 const DM_ERRORS: Record<string, string> = {
   no_member: "You need a member profile to send messages.",
   bad_member: "You can't message that person.",
+  not_active: "They aren't an active member right now, so you can't message them.",
+  other_left: "They've left your conversation, so it can't be reopened from here.",
 };
 
 const SLACK_DM_ERRORS: Record<Exclude<OpenDmResult, { ok: true }>["reason"], string> = {

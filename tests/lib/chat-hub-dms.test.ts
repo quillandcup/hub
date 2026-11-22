@@ -112,6 +112,13 @@ describe("startDirectMessage", () => {
     expect(log).toHaveBeenCalled();
     log.mockRestore();
   });
+
+  it("tells the person when the other one is not active or has left the conversation", async () => {
+    m.rpc.mockResolvedValueOnce({ data: null, error: { message: "chat_dm: not_active" } });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "They aren't an active member right now, so you can't message them." });
+    m.rpc.mockResolvedValueOnce({ data: null, error: { message: "chat_dm: other_left" } });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "They've left your conversation, so it can't be reopened from here." });
+  });
 });
 
 describe("startDirectMessage with the Slack DM bridge on", () => {
