@@ -361,8 +361,8 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
     if (dryRun || summary.identical) return { summary, applied: false };
 
     // The draft as it is now is kept in History first, so the import can be undone with Bring back.
-    if (!(await repo.keepDraftBeforeStarter(pageId, auth.user.id, "Replaced by a JSON import"))) return { error: NOT_FOUND };
-    if (!(await repo.replaceDraftWithStarter(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
+    if (!(await repo.keepDraftBeforeReplace(pageId, auth.user.id, "Replaced by a JSON import"))) return { error: NOT_FOUND };
+    if (!(await repo.replaceDraft(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
     refresh();
     return { summary, applied: true };
   } catch (error) {

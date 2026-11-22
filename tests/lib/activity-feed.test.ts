@@ -691,6 +691,8 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(page("update", { slug: { old: "a", new: "b" } }))).toBe("changed the address of the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { seo_title: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed the search and sharing details of the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the page “Spring & <Summer> sale”");
+    expect(describeRow(page("update", { replaced_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the page “Spring & <Summer> sale” with a template or an imported file");
+    // a row written before the column was renamed
     expect(describeRow(page("update", { starter_applied_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the page “Spring & <Summer> sale” with a template or an imported file");
     expect(describeRow(page("update", { imported_at: { old: null, new: "2026-10-05" } }))).toBe("imported a Kajabi page into the draft of “Spring & <Summer> sale”");
   });
@@ -702,6 +704,8 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(kit("update", { published_at: { old: "2026-10-01", new: "2026-10-05" } }))).toBe("published the template “Launch & <Kit>”");
     expect(describeRow(kit("update", { status: { old: "published", new: "draft" } }))).toBe("took the template “Launch & <Kit>” down");
     expect(describeRow(kit("update", { restored_at: { old: null, new: "2026-10-05" } }))).toBe("brought back an earlier version of the template “Launch & <Kit>” into its draft");
+    expect(describeRow(kit("update", { replaced_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the template “Launch & <Kit>” with a template or an imported file");
+    // a row written before the column was renamed
     expect(describeRow(kit("update", { starter_applied_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the template “Launch & <Kit>” with a template or an imported file");
     expect(describeRow(kit("update", { title: { old: "Old & <name>", new: "New" } }))).toBe("renamed the template “Old & <name>” to “New”");
     expect(describeRow(kit("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");

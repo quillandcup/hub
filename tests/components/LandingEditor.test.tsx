@@ -61,7 +61,7 @@ const data = { content: [heading], root: {} };
 const TEMPLATE_ID = "lpg_TEMPLATEAAA1";
 const TEMPLATES = [{ key: TEMPLATE_ID, label: "Launch kit", description: "A template you published." }];
 
-function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null }[] = []) {
+function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_replace"; by?: string; note?: string | null }[] = []) {
   return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} replaceChoices={TEMPLATES} />);
 }
 
@@ -444,7 +444,7 @@ describe("reset to published", () => {
 describe("history and details", () => {
   it("shows who made each version, when, how it came to be and the note, and says Someone when it can't tell", () => {
     editor({}, [
-      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_starter", by: "Bramble Admin", note: "Replaced by the template “Launch kit”" },
+      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_replace", by: "Bramble Admin", note: "Replaced by the template “Launch kit”" },
       { id: "lpgv_AAAAAAAAAAA1", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", note: null },
     ]);
     fireEvent.click(screen.getByRole("button", { name: "History" }));
@@ -561,7 +561,7 @@ describe("history and details", () => {
     });
 
     it("names a draft kept before starting over in the list", () => {
-      editor({}, [{ id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", kind: "before_starter" }]);
+      editor({}, [{ id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", kind: "before_replace" }]);
       fireEvent.click(screen.getByRole("button", { name: "History" }));
       expect(screen.getByText(/Your draft before it was replaced/, { selector: "time" })).toBeInTheDocument();
     });

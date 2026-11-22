@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(33);
+SELECT plan(34);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pages-member@example.test'),
@@ -116,12 +116,12 @@ INSERT INTO result SELECT 'kept_version_kind', to_jsonb(kind) FROM public.landin
 SELECT public.restore_landing_page_version((SELECT id FROM public.landing_page_versions WHERE page_id = 'lpg_PagesTest0004'));
 INSERT INTO result SELECT 'before_import_restored', to_jsonb(draft_data #>> '{content,0,props,text}') FROM public.landing_pages WHERE id = 'lpg_PagesTest0004';
 
--- Replace with starter: the draft kept before it is a before_starter version, and the replacement (a new draft and a
--- new starter_applied_at) is one audit entry that carries no content.
-INSERT INTO public.landing_page_versions (page_id, title, data, kind) VALUES ('lpg_PagesTest0002', 'Page Two', '{"content": [{"type": "Heading", "props": {"text": "Kept before starter"}}], "root": {}}', 'before_starter');
-INSERT INTO result SELECT 'starter_version_kind', to_jsonb(kind) FROM public.landing_page_versions WHERE page_id = 'lpg_PagesTest0002';
-UPDATE public.landing_pages SET draft_data = '{"content": [{"type": "Heading", "props": {"text": "Zzstarter"}}], "root": {}}', starter_applied_at = now(), updated_at = now() WHERE id = 'lpg_PagesTest0002';
-INSERT INTO result SELECT 'starter_audit', to_jsonb((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page' AND entity_id = 'lpg_PagesTest0002' AND action = 'update' AND changes ? 'starter_applied_at' AND changes::text NOT LIKE '%Zzstarter%'));
+-- Replacing a draft: the draft kept before it is a before_replace version, and the replacement (a new draft and a
+-- new replaced_at) is one audit entry that carries no content.
+INSERT INTO public.landing_page_versions (page_id, title, data, kind) VALUES ('lpg_PagesTest0002', 'Page Two', '{"content": [{"type": "Heading", "props": {"text": "Kept before replace"}}], "root": {}}', 'before_replace');
+INSERT INTO result SELECT 'replace_version_kind', to_jsonb(kind) FROM public.landing_page_versions WHERE page_id = 'lpg_PagesTest0002';
+UPDATE public.landing_pages SET draft_data = '{"content": [{"type": "Heading", "props": {"text": "Zzreplace"}}], "root": {}}', replaced_at = now(), updated_at = now() WHERE id = 'lpg_PagesTest0002';
+INSERT INTO result SELECT 'replace_audit', to_jsonb((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page' AND entity_id = 'lpg_PagesTest0002' AND action = 'update' AND changes ? 'replaced_at' AND changes::text NOT LIKE '%Zzreplace%'));
 RESET ROLE;
 
 -- The server's read of a published page (the service role), and what an update by the service role records.
@@ -163,8 +163,9 @@ SELECT is((SELECT value FROM result WHERE label = 'bad_version_kind_refused'), '
 SELECT is((SELECT value FROM result WHERE label = 'import_audit'), '1'::jsonb, 'an import is one audit entry, without the page''s content');
 SELECT is((SELECT value FROM result WHERE label = 'kept_version_kind'), '"before_import"'::jsonb, 'the draft kept before an import is a before_import version');
 SELECT is((SELECT value FROM result WHERE label = 'before_import_restored'), '"Kept before"'::jsonb, 'a draft kept before an import can be brought back');
-SELECT is((SELECT value FROM result WHERE label = 'starter_version_kind'), '"before_starter"'::jsonb, 'the draft kept before a starter replaces it is a before_starter version');
-SELECT is((SELECT value FROM result WHERE label = 'starter_audit'), '1'::jsonb, 'replacing the draft with a starter is one audit entry, without the page''s content');
+SELECT is((SELECT value FROM result WHERE label = 'replace_version_kind'), '"before_replace"'::jsonb, 'the draft kept before a template or import replaces it is a before_replace version');
+SELECT is((SELECT value FROM result WHERE label = 'replace_audit'), '1'::jsonb, 'replacing the draft is one audit entry, without the page''s content');
+SELECT lives_ok($$INSERT INTO public.landing_page_versions (page_id, title, data, kind) VALUES ('lpg_PagesTest0002', 'Old name', '{"content": [], "root": {}}', 'before_starter')$$, 'the old kind name is still accepted until it is removed (code live during the deploy still writes it)');
 SELECT is((SELECT value FROM result WHERE label = 'service_reads_published'), '1'::jsonb, 'the server reads a published page with the service role');
 
 SELECT * FROM finish(true);

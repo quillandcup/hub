@@ -3957,6 +3957,7 @@ export type Database = {
           page_type: string
           published_at: string | null
           published_data: Json | null
+          replaced_at: string | null
           restored_at: string | null
           restored_from_version_id: string | null
           seo_description: string | null
@@ -3982,6 +3983,7 @@ export type Database = {
           page_type?: string
           published_at?: string | null
           published_data?: Json | null
+          replaced_at?: string | null
           restored_at?: string | null
           restored_from_version_id?: string | null
           seo_description?: string | null
@@ -4007,6 +4009,7 @@ export type Database = {
           page_type?: string
           published_at?: string | null
           published_data?: Json | null
+          replaced_at?: string | null
           restored_at?: string | null
           restored_from_version_id?: string | null
           seo_description?: string | null
