@@ -143,6 +143,45 @@ describe("the role x permission matrix", () => {
   });
 });
 
+// The rule in .claude/rules/permissions-for-resources.md: every permission has a decision for every role.
+// These say which permission or role is the problem, instead of a bare list diff.
+describe("every permission has a decision for every role", () => {
+  const decided = Object.keys(GRANTED);
+
+  it("has a row in the decision table for each permission", () => {
+    const missing = ALL_PERMISSIONS.filter((p) => !decided.includes(p));
+    expect(missing, `no decision in GRANTED (tests/lib/permissions.test.ts) for: ${missing.join(", ")}. Decide each role: [] means admin and assistant only.`).toEqual([]);
+  });
+
+  it("has no row for a permission that does not exist", () => {
+    const unknown = decided.filter((p) => !(p in PERMISSIONS));
+    expect(unknown, `GRANTED names permissions that are not in PERMISSIONS: ${unknown.join(", ")}`).toEqual([]);
+  });
+
+  it("decides only with roles that exist", () => {
+    for (const [permission, roles] of Object.entries(GRANTED)) {
+      for (const role of roles) expect(STAFF_ROLES as readonly string[], `${permission} is granted to unknown role ${role}`).toContain(role);
+    }
+  });
+
+  it("has a bundle for every staff role, holding only permissions that exist and each at most once", () => {
+    expect(Object.keys(ROLE_PERMISSIONS).sort(), "ROLE_PERMISSIONS needs exactly one entry per staff role").toEqual([...STAFF_ROLES].sort());
+    for (const role of STAFF_ROLES) {
+      const bundle = ROLE_PERMISSIONS[role];
+      const unknown = bundle.filter((p) => !(p in PERMISSIONS));
+      expect(unknown, `role ${role} holds unknown permissions: ${unknown.join(", ")}`).toEqual([]);
+      expect(new Set(bundle).size, `role ${role} lists a permission twice`).toBe(bundle.length);
+    }
+  });
+
+  it("describes each permission in a sentence, not a blank or a placeholder", () => {
+    for (const [id, description] of Object.entries(PERMISSIONS)) {
+      expect(description.trim(), `${id} needs a description`).toMatch(/\S{3,}/);
+      expect(description, `${id}: description must not be a TODO placeholder`).not.toMatch(/^(todo|tbd|\?+)/i);
+    }
+  });
+});
+
 describe("the community manager is exactly what the role was before the registry", () => {
   it("opens the same pages and holds the same finer features", () => {
     expect([...ROLE_PERMISSIONS.community_manager].sort()).toEqual(

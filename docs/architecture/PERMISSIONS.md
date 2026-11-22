@@ -36,6 +36,8 @@ The conversion specialist has none of the members area (list, member pages, note
 
 ## Adding a permission
 
+A new kind of resource or operation defines its permissions in the same PR: names `<resource>.<verb>` (`read`, `list`, `create`, `edit`, `publish`, `delete`, `import`, `export`, `bulk`, `manage`; none implies another), a decision for every role, the guard, policies, an Activity Log entry for each mutating one, and tests. The rule, with the reasoning for collections, live updates and pipelines, is `.claude/rules/permissions-for-resources.md`.
+
 1. Add it to `PERMISSIONS` with a description. Name it for the operation, not for a page.
 2. Use it: `requirePermission` on the page (and the path in `ADMIN_PAGE_PERMISSIONS` in `src/lib/admin-paths.ts`, which the proxy and the sidebar read), `requireActionPermission` in each action, `requireApiPermission` in each route, and `can(...)` for a control inside a page. If nothing uses it yet, list it in `RESERVED_PERMISSIONS` and say "no surface yet" in its description; the guard test fails on a stale reserved entry.
 3. Decide each role: add it to the bundles that should hold it (`ROLE_PERMISSIONS`) and write the decision in the table in `tests/lib/permissions.test.ts`. The admin has it automatically.
