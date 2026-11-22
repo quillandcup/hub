@@ -99,6 +99,7 @@ export const PERMISSIONS = {
   "system.dev_tools.use": "Test notifications and developer spikes",
   "system.search.use": "The admin search",
   "system.internal.run": "Internal jobs (digest, CSP health, notifications)",
+  "roles.read": "The Roles page: every permission and which role holds it",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -135,6 +136,14 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
   conversion_specialist: "Conversion Specialist",
 };
 
+/** What each role is for, in a plain sentence (the Roles page). */
+export const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
+  admin: "Runs the Hub: holds every permission, including the ones added later.",
+  assistant: "Works beside the admin with the same access, except what the privacy page promises an assistant never sees.",
+  community_manager: "A semi-volunteer who looks after members: reads the member side and works in Hedgie Care.",
+  conversion_specialist: "Marketing: builds and publishes landing pages and runs outreach, with no view of members.",
+};
+
 export function isStaffRole(role: string | null | undefined): role is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(role ?? "");
 }
@@ -151,6 +160,11 @@ const ADMIN_PERMISSIONS: Permission[] = [...ALL_PERMISSIONS];
  * until that promise is changed on purpose the assistant is kept out of them.
  */
 export const ASSISTANT_WITHHELD: readonly Permission[] = ["care.member_activity.read"];
+
+/** Why each withheld permission is withheld (the Roles page shows it); every entry of `ASSISTANT_WITHHELD` needs one. */
+export const ASSISTANT_WITHHELD_REASONS: Partial<Record<Permission, string>> = {
+  "care.member_activity.read": "The privacy page promises that the text of tracked DMs and activity in Hedgie Care is seen by admins and community managers, never an assistant.",
+};
 
 /**
  * Each role's bundle. Opt-in is the rule: a new permission is in no bundle but the admin's until someone

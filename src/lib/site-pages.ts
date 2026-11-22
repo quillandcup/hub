@@ -165,6 +165,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Import Data", href: "/admin/data/import", section: "Developer", nav: { icon: "📥" }, keywords: ["sync", "kajabi", "zoom"] }),
   admin({ title: "Health Check", href: "/admin/hygiene", section: "System", nav: { icon: "🏥" }, keywords: ["hygiene", "data quality"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
+  admin({ title: "Roles", href: "/admin/roles", section: "System", nav: { icon: "🗝️" }, keywords: ["permissions", "who can", "access", "assistant", "community manager", "conversion specialist"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
   admin({ title: "Finishers", href: "/admin/finishers", section: "Community", nav: { icon: "🏁" }, keywords: ["milestones", "the end", "writer titles", "backfill", "published books"] }),
   admin({ title: "Security", href: "/admin/security", section: "System", nav: { icon: "🛡️" }, keywords: ["rls", "secrets", "webhooks", "open items", "compliance", "privacy"] }),

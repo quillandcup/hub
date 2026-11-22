@@ -15,6 +15,8 @@ Access to the staff area is decided by **permissions**, not by "admin or not". A
 
 ## The roles today
 
+The page **Roles** (`/admin/roles`, permission `roles.read`: admin and assistant) lists every permission and every role with what it holds, marks the reserved permissions and the assistant's withheld one, and filters by permission text or role. It is read-only and generated from the registry (`buildPermissionMatrix` in `src/lib/permission-matrix.ts`), so it can't go stale; the one-line role descriptions come from `ROLE_DESCRIPTIONS` and the reason for a withheld permission from `ASSISTANT_WITHHELD_REASONS`, both in `src/lib/permissions.ts`. A new role needs a description there as well.
+
 | Role | Holds |
 |---|---|
 | `admin` | every permission |
@@ -43,7 +45,7 @@ The conversion specialist has none of the members area (list, member pages, note
 
 ## Adding a role
 
-A value in the `user_profiles.role` check constraint (an expand-only migration, with `is_<role>()` and its policies), an entry in `STAFF_ROLES` and `ROLE_PERMISSIONS`, a `staffHome` if it doesn't start on the dashboard, a label in the Users page and (if it should be previewable) in `PREVIEWABLE_ROLES`. Audit and the staff definition (`audit_row_change()`, `staff_member_ids()`) count the role as staff in the same migration.
+A value in the `user_profiles.role` check constraint (an expand-only migration, with `is_<role>()` and its policies), an entry in `STAFF_ROLES` and `ROLE_PERMISSIONS`, a `staffHome` if it doesn't start on the dashboard, a description in `ROLE_DESCRIPTIONS` (the Roles page), a label in the Users page and (if it should be previewable) in `PREVIEWABLE_ROLES`. Audit and the staff definition (`audit_row_change()`, `staff_member_ids()`) count the role as staff in the same migration.
 
 ## Plans (not built)
 
