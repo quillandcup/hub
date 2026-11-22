@@ -40,7 +40,7 @@ vi.mock("@/lib/data/repos", async () => {
 const notifyPulled = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/chat/notifications", () => ({ notifyPulledMessages: notifyPulled }));
 
-import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS, waitOutRateLimits } from "@/lib/chat/slack-dms";
+import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS, waitOutRateLimits } from "@/modules/chat/slack/dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemorySlackWorkspaceRepository } from "@/lib/data/slack-workspace";
 

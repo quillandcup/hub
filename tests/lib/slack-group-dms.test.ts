@@ -31,7 +31,7 @@ vi.mock("@/lib/data/repos", async () => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(m.dataset as never) };
 });
 
-import { pullMemberDms } from "@/lib/chat/slack-dms";
+import { pullMemberDms } from "@/modules/chat/slack/dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 const service = { rpc: (...args: unknown[]) => m.rpc(...args) } as never;

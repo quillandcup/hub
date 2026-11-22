@@ -9,7 +9,7 @@ import { createRepos } from "@/lib/data/repos";
 import { withPreviewUrls } from "@/lib/chat/draft-files";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { catchUpChannel } from "@/lib/chat/gap-fill";
+import { chatTransport } from "@/lib/chat/transports";
 import { requireChat } from "@/lib/chat/access";
 import { hubLinkCardsFor } from "@/lib/chat/hub-link-flag";
 import { chatDayKey, parseBefore } from "@/lib/chat/format";
@@ -99,7 +99,7 @@ export default async function ChatChannelPage({
     const slackChannelId = channel.slackChannelId;
     after(async () => {
       try {
-        await catchUpChannel(createServiceRoleClient(), { channelId: slackChannelId, source: "open" });
+        await chatTransport().catchUp(createServiceRoleClient(), { channelRef: slackChannelId });
       } catch (error) {
         console.error("catching a conversation up with Slack failed:", error);
       }

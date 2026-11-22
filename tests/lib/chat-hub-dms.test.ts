@@ -49,7 +49,7 @@ vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: m.sendToSlack }));
 vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: m.syncReaction }));
 vi.mock("@/modules/chat/slack/edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
-vi.mock("@/lib/chat/slack-dms", () => ({ openSlackDm: m.openDm, pullMemberDms: vi.fn() }));
+vi.mock("@/modules/chat/slack/dms", () => ({ openSlackDm: m.openDm, pullMemberDms: vi.fn() }));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
 const notifyChat = vi.hoisted(() => vi.fn(async () => ({ sent: [], dryRun: [] })));
 vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessage: notifyChat, resolveChatNotifications: vi.fn() }));

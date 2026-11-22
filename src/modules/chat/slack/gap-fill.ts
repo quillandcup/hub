@@ -8,7 +8,7 @@ import { clock } from "@/lib/clock";
 import { slackChannelType } from "@/lib/slack-capture";
 import { markRemovedSlackReactions } from "@/lib/slack-reactions";
 import { addSlackMessage } from "@/lib/slack-messages";
-import { hideHubPreviewsRemovedInSlack, type IncomingSlackMessage } from "@/lib/chat/slack-side-unfurl-removal";
+import { hideHubPreviewsRemovedInSlack, type IncomingSlackMessage } from "@/modules/chat/slack/side-unfurl-removal";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**

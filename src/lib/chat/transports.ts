@@ -22,6 +22,7 @@ export const NO_TRANSPORT: ChatTransport = {
   updateAppMessage: async () => {
     throw new Error("no chat transport installed");
   },
+  catchUp: async () => {},
   pullDirectConversations: async () => null,
   openDirectConversation: async () => ({ ok: false, reason: "not_connected" }),
 };

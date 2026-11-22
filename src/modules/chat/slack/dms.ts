@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { getSlackConnectionStatus, getSlackUserToken, isDeadTokenError, SLACK_DM_SCOPES } from "@/lib/slack-connect";
-import { fetchThread, storedReplyCounts, storeAndProject } from "@/lib/chat/gap-fill";
+import { fetchThread, storedReplyCounts, storeAndProject } from "@/modules/chat/slack/gap-fill";
 import { isKeptSlackMessage } from "@/lib/slack-messages";
 import { projectChatMessage } from "@/lib/chat-projection";
 import { notifyPulledMessages } from "@/lib/chat/notifications";

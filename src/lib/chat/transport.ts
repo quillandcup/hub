@@ -86,20 +86,30 @@ export interface ChatTransport {
   /** Replace a message the app itself posted (a check-in with controls) with a new body, as the app. Throws when it cannot. */
   updateAppMessage(opts: { channelRef: string; ref: string; message: Record<string, unknown> }): Promise<void>;
 
+  /** Bring one conversation up to date with the transport when the Hub opens it (what the transport holds that the chat doesn't yet). `channelRef` is the transport's reference. */
+  catchUp(db: SupabaseClient, opts: { channelRef: string }): Promise<void>;
+
   /** Pull the member's direct conversations that were written outside the Hub. Resolves when done; the result is for the nightly run's report. */
   pullDirectConversations(db: SupabaseClient, memberId: string): Promise<unknown>;
   openDirectConversation(db: SupabaseClient, memberId: string, otherMemberId: string): Promise<OpenConversationResult>;
 }
 
 /**
- * What a transport reports to core when something happens on its side (a message written there, an edit, a deletion, a reaction). Core
- * owns the meaning (Bronze to Silver, author matching, de-duplication); the transport owns decoding its events and verifying them. The
- * inbound paths still run through the Slack webhook and gap-fill code and move behind this in a later step (docs/TODO.md, "Chat core and
- * Slack adapter: next steps").
+ * What a transport reports to core when something happens on its side: a message written there, an edit, a deletion or a reaction. The
+ * transport decodes and verifies its events and keeps its own raw copy (Slack's Bronze tables); it then asks core to bring the chat in line
+ * (`messageChanged`) and, for a new message, to tell the people who should hear (`messageArrived`). Core owns what that means: the projection
+ * into chat messages and the notifications. References are the transport's own (`channelRef`, `ref`), never its event shape.
  */
+export interface InboundEvent {
+  transport: string;
+  channelRef: string;
+  ref: string;
+  kind: "message" | "edit" | "delete" | "reaction";
+}
+
 export interface ChatInboundSink {
-  message(event: { transport: string; channelRef: string; ref: string; authorRef: string | null; body: string; threadRef: string | null; sentAt: string }): Promise<void>;
-  edit(event: { transport: string; channelRef: string; ref: string; body: string }): Promise<void>;
-  delete(event: { transport: string; channelRef: string; ref: string }): Promise<void>;
-  reaction(event: { transport: string; channelRef: string; ref: string; authorRef: string; emoji: string; active: boolean }): Promise<void>;
+  /** The chat copy of one message is brought in line with what the transport stored. `present` is whether the chat has that message afterwards. Idempotent: the same event twice, or out of order, ends in the same state. */
+  messageChanged(db: SupabaseClient, event: InboundEvent): Promise<{ present: boolean }>;
+  /** A new message is in the chat: notify the people it concerns. Call after the transport's own touch-ups, so nobody is told before the message is final. */
+  messageArrived(db: SupabaseClient, event: Omit<InboundEvent, "kind">): Promise<void>;
 }

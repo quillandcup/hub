@@ -218,7 +218,7 @@ She, and possibly others (admins, a future second community manager), are the ow
 
 ## Slack DMs fill it in (built)
 
-The Slack DM bridge already pulls 1:1 and group DMs each night using a member's own Slack token (`src/lib/chat/slack-dms.ts`, `/api/reconcile/slack-dms`; `docs/product/SLACK_BRIDGED_CHAT.md`, "Slack 1:1 DMs through members' own tokens"). The bot cannot be in a 1:1 DM, which is why it is the member's token. When she has connected her Slack with the DM scopes and `slack_dm_bridge` is on for her, every DM between her and a member reaches Bronze. Hedgie Care's status derivation reads **who wrote and when** in her DM with each member she holds a care plan with, and nothing else. A separate, narrower reader shows the messages themselves inside the member's care plans ("Plan messages", below).
+The Slack DM bridge already pulls 1:1 and group DMs each night using a member's own Slack token (`src/modules/chat/slack/dms.ts`, `/api/reconcile/slack-dms`; `docs/product/SLACK_BRIDGED_CHAT.md`, "Slack 1:1 DMs through members' own tokens"). The bot cannot be in a 1:1 DM, which is why it is the member's token. When she has connected her Slack with the DM scopes and `slack_dm_bridge` is on for her, every DM between her and a member reaches Bronze. Hedgie Care's status derivation reads **who wrote and when** in her DM with each member she holds a care plan with, and nothing else. A separate, narrower reader shows the messages themselves inside the member's care plans ("Plan messages", below).
 
 ### The decisions (the owner's)
 
@@ -238,7 +238,7 @@ On a plan she owns that is open and whose DM is not tracked, the card says why, 
 
 ### What the page says about privacy
 
-The Hub's Slack connection already brings her direct messages in for Hub Chat (`src/lib/chat/slack-dms.ts`), and Hedgie Care adds nothing to that: to fill in who spoke last it reads who wrote and when in her DM with a member she holds a care plan with, and who spoke last shows on the care plan, which everyone who opens Hedgie Care can see. Other staff, admins included, don't see which DMs she has tracked (RLS). The messages themselves are shown only in a plan's **Messages** panel ("Plan messages", below), and `/privacy` ("Messages in a Hedgie Care plan") tells members. **Open fact, still:** the pull reads **all** of a connected member's 1:1 and group DMs, so what Hedgie Care uses is narrower than what is pulled.
+The Hub's Slack connection already brings her direct messages in for Hub Chat (`src/modules/chat/slack/dms.ts`), and Hedgie Care adds nothing to that: to fill in who spoke last it reads who wrote and when in her DM with a member she holds a care plan with, and who spoke last shows on the care plan, which everyone who opens Hedgie Care can see. Other staff, admins included, don't see which DMs she has tracked (RLS). The messages themselves are shown only in a plan's **Messages** panel ("Plan messages", below), and `/privacy` ("Messages in a Hedgie Care plan") tells members. **Open fact, still:** the pull reads **all** of a connected member's 1:1 and group DMs, so what Hedgie Care uses is narrower than what is pulled.
 
 ### Open the DM
 

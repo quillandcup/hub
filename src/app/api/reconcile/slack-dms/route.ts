@@ -3,7 +3,7 @@ import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectCareFromDms } from "@/lib/care-dm";
-import { DMS_STALE_HOURS, pullDmsForCoveredMembers } from "@/lib/chat/slack-dms";
+import { DMS_STALE_HOURS, pullDmsForCoveredMembers } from "@/modules/chat/slack/dms";
 import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { clock } from "@/lib/clock";
 import { NextRequest, NextResponse } from "next/server";

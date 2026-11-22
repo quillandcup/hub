@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
 import { GET } from '@/app/api/reconcile/slack-dms/route'
 
-vi.mock('@/lib/chat/slack-dms', () => ({ pullDmsForCoveredMembers: vi.fn(), DMS_STALE_HOURS: 72 }))
+vi.mock('@/modules/chat/slack/dms', () => ({ pullDmsForCoveredMembers: vi.fn(), DMS_STALE_HOURS: 72 }))
 vi.mock('@/lib/care-dm', () => ({ projectCareFromDms: vi.fn() }))
 vi.mock('@/modules/chat/slack/post', () => ({ chatSlackWritesEnabled: vi.fn(() => true) }))
 vi.mock('@/lib/supabase/api-auth', () => ({ requireApiPermission: vi.fn() }))
@@ -12,13 +12,13 @@ vi.mock('@/lib/supabase/service', () => ({ createServiceRoleClient: vi.fn(() => 
 vi.mock('@/lib/data/repos', () => ({ createRepos: vi.fn(() => repos) }))
 const repos = vi.hoisted(() => ({ care: { name: 'care' }, careDms: { name: 'careDms' } }))
 
-import { pullDmsForCoveredMembers } from '@/lib/chat/slack-dms'
+import { pullDmsForCoveredMembers } from '@/modules/chat/slack/dms'
 import { projectCareFromDms } from '@/lib/care-dm'
 import { chatSlackWritesEnabled } from '@/modules/chat/slack/post'
 import { sendOperationsAlert } from '@/lib/operations-alerts'
 import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
-import { DMS_STALE_HOURS } from '@/lib/chat/slack-dms'
+import { DMS_STALE_HOURS } from '@/modules/chat/slack/dms'
 
 const request = () => new Request('http://localhost:3000/api/reconcile/slack-dms') as unknown as NextRequest
 const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, done: 0, incomplete: 0, stale: 0, errors: [] as string[] }
