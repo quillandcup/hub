@@ -4,8 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
-import { RichHtml } from "@/components/landing/blocks";
+import { Button, LinkItem, RichHtml } from "@/components/landing/blocks";
 import { safeHref } from "@/lib/landing/data";
+import { allowedHtmlHref } from "@/lib/sanitize-urls";
+import { checkLandingPage } from "@/lib/landing/a11y";
 import { IMAGE_ROUTE_PREFIXES } from "@/lib/courses/image-urls";
 
 /**
@@ -366,5 +368,53 @@ describe("link props on landing data (safeHref)", () => {
 
   it("keeps http(s), mailto, paths and anchors", () => {
     for (const ok of ["https://example.test/a", "http://example.test", "mailto:a@example.test", "/courses", "#top"]) expect(safeHref(ok)).toBe(ok);
+  });
+
+  // The same rule as the links in stored HTML: a landing link can never point at /api.
+  const API_AND_ESCAPES = [
+    "/api/members", "/api", "/API/members", "/api?x=1", "/api#x", "/api/../x", "/p/../x", "/%2e%2e/x", "/p/%2E%2e/x", "/p%2fq", "/p%5cq", "/api%2fmembers",
+    "//evil.example", "/\\evil", "\\\\evil", "/p\\q", "/p\u0000q", "javascript:alert(1)",
+  ];
+
+  it.each(API_AND_ESCAPES)("drops %j from a structured link, in every prop, through the save path", (href) => {
+    expect(safeHref(href)).toBe("");
+    const data = sanitizeLandingData({
+      content: [
+        { type: "ButtonRow", props: { id: "a", items: [{ type: "RowButton", props: { id: "b", label: "Go", href } }] } },
+        { type: "Hero", props: { id: "h", primary: { label: "Go", href } } },
+      ],
+      root: {},
+    });
+    const row = data.content[0] as unknown as { props: { items: { props: { href: string } }[] } };
+    const hero = data.content[1] as unknown as { props: { primary: { href: string } } };
+    expect(row.props.items[0].props.href).toBe("");
+    expect(hero.props.primary.href).toBe("");
+  });
+
+  it.each(["/api/members", "/api/../x", "//evil.example", "/\\evil", "javascript:alert(1)", "/%2e%2e/x"])("renders %j as a disabled button, never a link", (href) => {
+    const button = renderToStaticMarkup(createElement(Button, { label: "Go", href } as never));
+    expect(button).not.toContain("href=");
+    expect(button).toContain('aria-disabled="true"');
+    expect(renderToStaticMarkup(createElement(LinkItem, { label: "Go", href } as never))).not.toContain("href=");
+  });
+
+  it("flags a button to /api in the editor's publish check as having no link", () => {
+    const page = { content: [{ type: "Button", props: { id: "a", label: "Members", href: "/api/members" } }], root: {} };
+    expect(checkLandingPage(page).some((i) => i.severity === "error" && i.message.includes("has no link"))).toBe(true);
+    const ok = { content: [{ type: "Button", props: { id: "a", label: "Privacy", href: "/privacy" } }], root: {} };
+    expect(checkLandingPage(ok).some((i) => i.message.includes("has no link"))).toBe(false);
+  });
+
+  it("uses one implementation: safeHref agrees with the HTML link rule on every shape", () => {
+    for (const v of [...API_AND_ESCAPES, "https://example.test/a", "mailto:a@example.test", "/courses", "#top", "/", "/p/spring?x=1#y", "  /privacy  "]) expect(safeHref(v)).toBe(allowedHtmlHref(v));
+  });
+
+  it("keeps every address shape that production and the repo's templates use, unchanged", () => {
+    // Production (2026-11-22): site page paths only (/security, /login, /privacy, /compliance); the repo's defaults use "/" and anchors.
+    for (const ok of ["/", "/security", "/login", "/privacy", "/compliance", "/p/spring", "/courses/intro?x=1", "#faq", "#", "https://example.test/a", "mailto:a@example.test"]) {
+      expect(safeHref(ok)).toBe(ok);
+      const data = sanitizeLandingData({ content: [{ type: "Button", props: { id: "a", href: ok } }], root: {} });
+      expect((data.content[0] as unknown as { props: { href: string } }).props.href).toBe(ok);
+    }
   });
 });
