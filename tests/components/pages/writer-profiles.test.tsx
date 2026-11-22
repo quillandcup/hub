@@ -72,7 +72,7 @@ describe("/w/[handle]", () => {
           kind,
           work: { projectId: null, bookId: null, title },
           createdBy: "11111111-1111-4111-8111-111111111111",
-          answer: { status: "confirmed", achievedOn: extra.achievedOn ?? null, storyBefore: null, storyAfter: extra.storyAfter ?? null, consent_testimonial: false },
+          answer: { status: "confirmed", achievedOn: extra.achievedOn ?? null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: extra.storyAfter ?? null, consent_testimonial: false },
         },
         NOW,
       );
@@ -116,7 +116,7 @@ describe("/w/[handle]", () => {
       const projectWork = { projectId: novel, bookId: null, title: null };
       for (const kind of ["publish_ready", "the_end"] as const) {
         await state.repos.milestones.addOwn(
-          { memberId: ADA, kind, work: projectWork, createdBy: "11111111-1111-4111-8111-111111111111", answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false } },
+          { memberId: ADA, kind, work: projectWork, createdBy: "11111111-1111-4111-8111-111111111111", answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, consent_testimonial: false } },
           NOW,
         );
       }

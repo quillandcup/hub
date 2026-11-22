@@ -35,7 +35,9 @@ interface Step {
   /** The project it is about, by the key given to `project`; or a title for a work that is not listed. */
   project?: string;
   title?: string;
-  achievedOn: string;
+  achievedOn: string | null;
+  /** How exactly the date is known (default: the day); a month or a year holds the first day of the period. */
+  precision?: "day" | "month" | "year";
   visibility: Level;
   before?: string;
   after?: string;
@@ -91,6 +93,7 @@ async function write(db: Db, memberId: string, projects: Project[], steps: Step[
           source: "member",
           confirmed_at: new Date().toISOString(),
           achieved_on: s.achievedOn,
+          achieved_precision: s.precision ?? "day",
           story_before: s.before ?? null,
           story_after: s.after ?? null,
           visibility: s.visibility,
@@ -140,11 +143,11 @@ export async function setupManyWorks(webOn = true) {
       { ...ORCHARD, phase: "published" },
     ],
     [
-      { kind: "the_end", project: "lantern", achievedOn: "2026-09-05", visibility: "public" },
-      { kind: "the_end", project: "paper", achievedOn: "2026-06-21", visibility: "community" },
+      { kind: "the_end", project: "lantern", achievedOn: "2026-09-01", precision: "month", visibility: "public" },
+      { kind: "the_end", project: "paper", achievedOn: "2025-01-01", precision: "year", visibility: "community" },
       { kind: "the_end", project: "tide", achievedOn: "2026-01-30", visibility: "public" },
       { kind: "publish_ready", project: "tide", achievedOn: "2026-10-11", visibility: "community" },
-      { kind: "the_end", project: "mercies", achievedOn: "2025-11-09", visibility: "private" },
+      { kind: "the_end", project: "mercies", achievedOn: null, visibility: "private" },
       { kind: "publish_ready", project: "mercies", achievedOn: "2026-05-17", visibility: "private" },
       { kind: "the_end", title: "Sea Glass Poems", achievedOn: "2026-02-02", visibility: "public", before: "I thought a poem collection could never be finished.", after: "Forty poems, one folder, done." },
       ORCHARD_END,
@@ -152,4 +155,11 @@ export async function setupManyWorks(webOn = true) {
     ],
     [ORCHARD_BOOK],
   );
+}
+
+/** The id of one of the demo writer's projects, by the key it was created with (so a scene can open its page). */
+export async function projectIdOf(key: string): Promise<string> {
+  const memberId = await writerMemberId();
+  const row = await ok("project", admin().from("writing_projects").select("id").eq("member_id", memberId).eq("external_id", `demo-ms-${key}`).single());
+  return row!.id;
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { MilestoneRepository } from "@/lib/data/milestones";
-import { MILESTONE_DEFAULT_VISIBILITY, parseMilestoneAnswer, type MilestoneAnswer } from "@/lib/finishers";
+import { MILESTONE_DEFAULT_VISIBILITY, milestoneBadgeCounts, parseMilestoneAnswer, type MilestoneAnswer } from "@/lib/finishers";
 import { workKey, type WorkRef } from "@/lib/finishers-works";
 
 export type MilestonesContractContext = {
@@ -403,7 +403,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         ["the_end", "A Book", "community"],
         ["publish_ready", "A Second Fake Work", "public"],
       ]);
-      expect(toMembers[0]).toEqual({ kind: "the_end", workTitle: "A Book", achievedOn: "2026-05-01", storyBefore: null, storyAfter: "Done.", visibility: "community" });
+      expect(toMembers[0]).toEqual({ kind: "the_end", workTitle: "A Book", achievedOn: "2026-05-01", achievedPrecision: "day", storyBefore: null, storyAfter: "Done.", visibility: "community" });
       // Nothing private, nothing proposed, and no ids anywhere.
       expect(JSON.stringify(toMembers)).not.toMatch(/Secret words|A Private Fake Work|A Proposed Fake Work|mlst_/);
 
@@ -504,6 +504,41 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(steps.find((s) => s.workTitle === "A Title Only Fake Work")).toMatchObject({ kind: "the_end" });
       expect(steps.filter((s) => s.kind === "published").every((s) => s.visibility === "public" && s.storyAfter === null)).toBe(true);
       expect(JSON.stringify(steps)).not.toMatch(/mlst_|wprj_|book_/);
+    });
+
+    it("stores how exactly a date is known, hands it to every reader, and keeps the first day of the period", async () => {
+      const repo = ctx.repo();
+      const month = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05", achievedPrecision: "month" }, { projectId: null, bookId: null, title: "A Month Fake Work" }), NOW);
+      const year = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2024", achievedPrecision: "year" }, { projectId: null, bookId: null, title: "A Year Fake Work" }), NOW);
+      const none = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "A Dateless Fake Work" }), NOW);
+      expect(month.milestone).toMatchObject({ achievedOn: "2026-05-01", achievedPrecision: "month" });
+      expect(year.milestone).toMatchObject({ achievedOn: "2024-01-01", achievedPrecision: "year" });
+      expect(none.milestone).toMatchObject({ achievedOn: null, achievedPrecision: "day" });
+
+      const dated = (steps: { workTitle: string | null; achievedOn: string | null; achievedPrecision: string }[]) =>
+        Object.fromEntries(steps.map((s) => [s.workTitle, [s.achievedOn, s.achievedPrecision]]));
+      const expected = { "A Month Fake Work": ["2026-05-01", "month"], "A Year Fake Work": ["2024-01-01", "year"], "A Dateless Fake Work": [null, "day"] };
+      expect(dated(await repo.worksShownToMembers(id(ada), null))).toEqual(expected);
+      expect(dated(await repo.worksShownOnWeb(id(ada), null))).toEqual(expected);
+      expect(dated(await repo.shownToMembers(id(ada)))).toEqual(expected);
+      expect((await repo.allShownToMembers()).filter((m) => m.memberId === id(ada)).map((m) => [m.achievedOn, m.achievedPrecision]).sort()).toEqual([
+        [null, "day"],
+        ["2024-01-01", "year"],
+        ["2026-05-01", "month"],
+      ]);
+
+      // Changing the answer changes the precision with the date; a day can go back to the day.
+      expect(await repo.answer(month.milestone.id, id(ada), confirmed({ achievedOn: "2026-05-17", achievedPrecision: "day" }), NOW)).toBe(true);
+      expect((await repo.ofMember(id(ada))).find((m) => m.id === month.milestone.id)).toMatchObject({ achievedOn: "2026-05-17", achievedPrecision: "day" });
+    });
+
+    it("counts a badge for a month or a year that overlaps the join day, through the same rule as the strips", async () => {
+      const repo = ctx.repo();
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { achievedOn: "2026-05", achievedPrecision: "month" }, { projectId: null, bookId: null, title: "A Month Fake Work" }), NOW);
+      const rows = (await repo.allShownToMembers()).filter((m) => m.memberId === id(ada));
+      // Joined on 2026-05-20: May 2026 ends on the 31st, so it counts; joined 2026-06-01 it does not.
+      expect(milestoneBadgeCounts(rows, "2026-05-20").the_end).toBe(1);
+      expect(milestoneBadgeCounts(rows, "2026-06-01").the_end).toBe(0);
     });
 
     it("names a work that is only a project by the project's title when the viewer may see the project, and never otherwise", async () => {

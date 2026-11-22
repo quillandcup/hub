@@ -9,7 +9,7 @@ const STEP_SHOWN: Record<ShownStepKind, string> = { ...MILESTONE_SHOWN, publishe
  * The "Milestones" strip on a member's profile (for members) and on their writer profile (for the web): each work, with the steps
  * it has reached in order (THE END, publish-ready, Published), the title each earns (Finisher, Author, Published Author;
  * docs/product/WRITER_TITLES.md), the day when they gave one, and the story only when they wrote one. Published comes from the
- * Bookshelf and is always at the globe. The rows come from `member_works_shown_to_members` or `member_works_shown_on_web`, which
+ * Bookshelf and is always at the globe. The rows come from `member_works_dated_to_members` or `member_works_dated_on_web`, which
  * already hold back everything the viewer may not see, so this only draws what it is given. Plain text: React escapes it, and
  * line breaks are kept by the style. A work whose name the viewer may not see (a project private to them) is "Another work". Draws nothing when there is nothing to show.
  */
@@ -31,7 +31,7 @@ export default function MilestoneStrip({ steps, headingClassName }: { steps: Sho
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                     {STEP_TITLE[step.kind]} · {STEP_SHOWN[step.kind]}
                   </p>
-                  {step.achievedOn && <p className="text-xs text-slate-600 dark:text-slate-400">{milestoneDateWords(step.achievedOn)}</p>}
+                  {step.achievedOn && <p className="text-xs text-slate-600 dark:text-slate-400">{milestoneDateWords(step.achievedOn, step.achievedPrecision)}</p>}
                   {step.storyBefore && <p className="mt-2 whitespace-pre-line break-words text-sm text-slate-700 dark:text-slate-300">{step.storyBefore}</p>}
                   {step.storyAfter && <p className="mt-2 whitespace-pre-line break-words text-sm text-slate-700 dark:text-slate-300">{step.storyAfter}</p>}
                 </li>

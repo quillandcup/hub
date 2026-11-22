@@ -21,7 +21,7 @@ export default function WriterProfileOnNote({ address, previewPath, onDone }: { 
         </p>
       )}
       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-        Anything marked with the globe icon is on your page: your name, photo, bio, links, milestones and books. To change them, go to Settings, then Profile. For books, use My Writing.
+        Anything marked with the globe icon is on your page: your name, photo, bio, links, milestones and books. To change them, go to Settings, then Profile. For milestones and books, use My Writing.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Link href={previewPath} target="_blank" data-track="settings-writer-profile-on-preview" className="rounded-md bg-plum-600 px-3 py-1.5 text-sm text-white hover:bg-plum-700">

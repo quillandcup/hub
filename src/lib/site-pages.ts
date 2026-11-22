@@ -116,6 +116,9 @@ export const SITE_PAGES: SitePage[] = [
   ...tabPages("/projects", MY_WRITING_TITLE, MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, {
     keywords: { books: ["publish", "published"], awards: ["wins", "prizes"] },
   }),
+  // Milestones are with each project (docs/product/FINISHERS.md): the summary line and the "Other works" section on the Projects tab.
+  member({ title: "Your milestones", href: "/projects#your-milestones", section: `${MY_WRITING_TITLE} · ${MY_WRITING_TAB_LABELS.projects}`, keywords: ["finisher", "author", "the end", "writing milestones", "publish ready", "consent", "share my story", "confirm"] }),
+  member({ title: "Other works", href: "/projects#other-works", section: `${MY_WRITING_TITLE} · ${MY_WRITING_TAB_LABELS.projects}`, keywords: ["milestones", "a work that is not listed here", "add a work", "the end", "books without a project"] }),
   ...tabPages("/my-prickles", MY_PRICKLES_TITLE, MY_PRICKLES_TAB_IDS, MY_PRICKLES_TAB_LABELS, {
     keywords: { all: ["calendar", "schedule"], find: ["picker", "join", "sign up"], commitments: ["recurring", "weekly", "slot"], hosting: ["host"], history: ["attended", "past"] },
   }),

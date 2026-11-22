@@ -320,7 +320,7 @@ describe("setMilestoneVisibility", () => {
   const confirmedId = async () => {
     const repos = createInMemoryRepos(data);
     const { milestone } = await repos.milestones.addOwn(
-      { memberId: ADA, kind: "publish_ready", work: WORK, createdBy: STAFF_USER, answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: "Done.", consent_testimonial: false } },
+      { memberId: ADA, kind: "publish_ready", work: WORK, createdBy: STAFF_USER, answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: "Done.", consent_testimonial: false } },
       new Date("2026-11-20T15:00:00Z"),
     );
     return milestone.id;
@@ -337,7 +337,8 @@ describe("setMilestoneVisibility", () => {
       { action: "milestone_visibility_set", outcome: { ok: true, detail: "private" } },
       { action: "milestone_visibility_set", outcome: { ok: true, detail: "public" } },
     ]);
-    expect(revalidatePath).toHaveBeenCalledWith("/settings/profile");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects/[id]", "page");
     expect(revalidatePath).toHaveBeenCalledWith(`/members/${ADA}`);
   });
 
@@ -405,7 +406,7 @@ describe("setMilestoneVisibility", () => {
 describe("setMilestoneShare", () => {
   const withStory = async (story: string | null) => {
     const { milestone } = await createInMemoryRepos(data).milestones.addOwn(
-      { memberId: ADA, kind: "the_end", work: { projectId: null, bookId: null, title: "Another Fake Novel" }, createdBy: STAFF_USER, answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: story, consent_testimonial: false } },
+      { memberId: ADA, kind: "the_end", work: { projectId: null, bookId: null, title: "Another Fake Novel" }, createdBy: STAFF_USER, answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: story, consent_testimonial: false } },
       new Date("2026-11-20T15:00:00Z"),
     );
     return milestone.id;

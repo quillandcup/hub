@@ -6,6 +6,8 @@ import { getMyProjects, getMyPastProjects } from "./actions";
 import { getMyBooks } from "@/app/(member)/bookshelf/actions";
 import { getMyAwards } from "@/app/(member)/awards/actions";
 import ProjectsClient from "./ProjectsClient";
+import { loadMilestoneContext } from "./milestoneData";
+import { buildWorks } from "@/lib/finishers-works";
 import MyBooksPanel from "./MyBooksPanel";
 import MyAwardsPanel from "./MyAwardsPanel";
 import JourneyMap from "@/components/writing/JourneyMap";
@@ -35,6 +37,13 @@ export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {
   // The Journey tab is behind the writing_journey preview; an old link to it otherwise opens Projects.
   const journeyOn = await effectiveMemberHasFeature("writing_journey", effectiveIdentity, ownFeatures);
   if (tab === "journey" && !journeyOn) redirect("/projects");
+  const ms = await loadMilestoneContext(effectiveIdentity.memberId);
+  const works = buildWorks(
+    [...projects, ...pastProjects].map((p) => ({ id: p.id, title: p.title, phase: p.phase })),
+    ms.books,
+    ms.milestones,
+    ms.firstJoinedAt,
+  );
   const projectTitles = Object.fromEntries([...projects, ...pastProjects].map((p) => [p.id, p.title]));
 
   return (
@@ -62,7 +71,7 @@ export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {
             {
               id: "projects",
               label: MY_WRITING_TAB_LABELS.projects,
-              content: <ProjectsClient initialProjects={projects} pastProjects={pastProjects} />,
+              content: <ProjectsClient initialProjects={projects} pastProjects={pastProjects} works={works} web={ms.web} readOnly={effectiveIdentity.isSudo} />,
             },
             {
               id: "books",

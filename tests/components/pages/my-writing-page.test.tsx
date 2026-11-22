@@ -33,11 +33,18 @@ vi.mock("@/app/(member)/bookshelf/actions", () => ({
   deleteBook: vi.fn(),
 }));
 vi.mock("@/app/(member)/awards/actions", () => ({ getMyAwards: vi.fn() }));
+const milestoneContext = vi.hoisted(() => ({
+  value: { milestones: [] as unknown[], books: [] as unknown[], firstJoinedAt: null as string | null, web: { available: false, on: false } },
+}));
+vi.mock("@/app/(member)/projects/milestoneData", () => ({ loadMilestoneContext: vi.fn(async () => milestoneContext.value) }));
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(), effectiveMemberHasFeature: vi.fn() }));
 
 vi.mock("@/app/(member)/projects/ProjectsClient", () => ({
-  default: ({ initialProjects }: { initialProjects: WritingProjectRow[] }) => (
-    <div data-testid="projects-client">{initialProjects.map((p) => p.title).join(", ")}</div>
+  default: ({ initialProjects, works, readOnly }: { initialProjects: WritingProjectRow[]; works: { key: string; title: string | null; milestones: object }[]; readOnly: boolean }) => (
+    <div data-testid="projects-client" data-read-only={String(readOnly)}>
+      {initialProjects.map((p) => p.title).join(", ")}
+      <span data-testid="works">{works.map((w) => `${w.key}:${w.title}:${Object.keys(w.milestones).join("+")}`).join("|")}</span>
+    </div>
   ),
 }));
 vi.mock("@/app/(member)/projects/MyAwardsPanel", () => ({
@@ -106,6 +113,23 @@ describe("My Writing page", () => {
     expect(within(screen.getByRole("tabpanel")).getByTestId("projects-client")).toHaveTextContent(
       "Lantern Draft Two, Tidepool Stories"
     );
+  });
+
+  it("gives the Projects tab every work of the member: each project and book, with the milestones stored for them", async () => {
+    milestoneContext.value = {
+      milestones: [{ id: "mlst_1", kind: "the_end", projectId: "proj-lantern", bookId: null, title: null, status: "confirmed" }],
+      books: [{ id: "book-lantern", title: "The Lantern Keeper", projectId: "proj-lantern", publishedDate: "2025-06-15" }, { id: "book-solo", title: "Salt and Starlight", projectId: null, publishedDate: "2025-06-15" }],
+      firstJoinedAt: null,
+      web: { available: true, on: true },
+    };
+    try {
+      await renderServerRoute(MyWritingIndex, props());
+      // A project with a book is one work (the project's), with its milestone; a book with no project is a work of its own.
+      expect(screen.getByTestId("works")).toHaveTextContent("proj-lantern:Lantern Draft Two:the_end|proj-tide:Tidepool Stories:|book-solo:Salt and Starlight:");
+      expect(screen.getByTestId("projects-client")).toHaveAttribute("data-read-only", "false");
+    } finally {
+      milestoneContext.value = { milestones: [], books: [], firstJoinedAt: null, web: { available: false, on: false } };
+    }
   });
 
   it("falls back to Projects for an unknown ?tab=", async () => {
