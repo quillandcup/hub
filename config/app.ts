@@ -9,6 +9,9 @@
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
 
+// The Kajabi site (courses, checkout, library) moved to its own subdomain when the root domain came to the Hub.
+const kajabiSiteUrl = "https://courses.quillandcup.com";
+
 export const appConfig = {
   /** The app's name as shown when installed to a home screen (the web app manifest, the iOS title). */
   appName: "Hedgie Hub",
@@ -139,7 +142,7 @@ export const appConfig = {
    * The course the Courses page offers to a member who has none: its name, and the public waitlist
    * page where members sign up for it.
    */
-  featuredCourse: { title: "The Ready Writer", offerUrl: "https://www.quillandcup.com/waitlist" },
+  featuredCourse: { title: "The Ready Writer", offerUrl: `${kajabiSiteUrl}/waitlist` },
 
   /**
    * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
@@ -189,13 +192,34 @@ export const appConfig = {
   kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
 
   /**
-   * The public address of the Kajabi site, where its landing pages live today. A link in an imported page that is a
-   * Kajabi path (`/resource_redirect/...`) is resolved against it (src/lib/landing/kajabi-import.ts); retire it with Kajabi.
+   * The public address of the Kajabi site, where its landing pages, checkout and courses live (a subdomain of the public
+   * site: the root domain is the Hub's, see `siteUrl`). A link in an imported page that is a Kajabi path
+   * (`/resource_redirect/...`) is resolved against it (src/lib/landing/kajabi-import.ts), and the root host sends every
+   * path the Hub doesn't serve to the same path here (src/lib/root-routing.ts). Kajabi's custom domain must be this host.
    */
-  kajabiSiteUrl: "https://www.quillandcup.com",
+  kajabiSiteUrl,
 
-  /** The public site members arrive from, no trailing slash: where the footer of a writer profile links to. */
-  siteUrl: "https://www.quillandcup.com",
+  /** Where a member who still needs Kajabi signs in (a member on hiatus updates billing there). */
+  kajabiLoginUrl: `${kajabiSiteUrl}/login`,
+
+  /**
+   * The public site, no trailing slash: the root domain, the canonical address of public pages (the homepage today),
+   * and where the footer of a writer profile links to. The same deployment answers this host and `appUrl`
+   * (src/lib/root-routing.ts decides per host).
+   */
+  siteUrl: "https://quillandcup.com",
+
+  /**
+   * Other hosts of the public site that redirect (307, same path and query) to `siteUrl`. The apex is canonical today, so
+   * `www` redirects to it; to make `www` canonical instead, swap `siteUrl` and this list (one line each).
+   */
+  siteAliasHosts: ["www.quillandcup.com"],
+
+  /**
+   * Where the homepage's "Join" link goes. Not decided yet: it points at the Kajabi site's front page until the owner
+   * confirms the real address (docs/TODO.md, "Root domain: confirm the Join link").
+   */
+  joinUrl: kajabiSiteUrl,
 
   /**
    * Writer profiles (src/lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
