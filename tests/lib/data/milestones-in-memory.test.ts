@@ -36,6 +36,7 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
     clear: async () => {
       data.writingProjects = [];
       data.memberMilestones = [];
+      data.memberMilestoneSnoozes = [];
       data.memberBooks = [];
     },
   };
@@ -54,14 +55,14 @@ describe("InMemoryMilestoneRepository.addOwn", () => {
   });
 });
 
-describe("InMemoryMilestoneRepository.recordNotYet", () => {
+describe("InMemoryMilestoneRepository.recordNotForThisWork", () => {
   it("refuses a project that is not the member's and a member that does not exist, as the database does", async () => {
     const data = new InMemoryDataset({ members: [{ id: ADA, name: "Ada Example" }, { id: BO, name: "Bo Example" }] });
     const otherProject = await new InMemoryWritingRepository(data).createProject(BO, "A Fake Novel", "drafting");
     const repo = new InMemoryMilestoneRepository(data);
     const createdBy = "11111111-1111-4111-8111-111111111111";
-    await expect(repo.recordNotYet({ memberId: ADA, kind: "the_end", projectId: otherProject, createdBy }, new Date())).rejects.toThrow(/row-level security/);
-    await expect(repo.recordNotYet({ memberId: "mbr_ZZZZZZZZZZZZ", kind: "the_end", projectId: otherProject, createdBy }, new Date())).rejects.toThrow(/foreign key/);
+    await expect(repo.recordNotForThisWork({ memberId: ADA, kind: "the_end", projectId: otherProject, createdBy }, new Date())).rejects.toThrow(/row-level security/);
+    await expect(repo.recordNotForThisWork({ memberId: "mbr_ZZZZZZZZZZZZ", kind: "the_end", projectId: otherProject, createdBy }, new Date())).rejects.toThrow(/foreign key/);
     expect(data.memberMilestones).toEqual([]);
   });
 });

@@ -437,13 +437,13 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       const repo = ctx.repo();
       const projectId = await ctx.addProject(id(ada));
       const notYet = { memberId: id(ada), kind: "the_end" as const, projectId, createdBy: ctx.staffUserId };
-      expect(await repo.recordNotYet(notYet, NOW)).toBe("recorded");
-      expect(await repo.recordNotYet(notYet, NOW)).toBe("exists");
+      expect(await repo.recordNotForThisWork(notYet, NOW)).toBe("recorded");
+      expect(await repo.recordNotForThisWork(notYet, NOW)).toBe("exists");
       const [row] = await repo.ofMember(id(ada));
       expect(row).toMatchObject({ kind: "the_end", status: "declined", source: "project_stage", projectId, visibility: "private", consentTestimonial: false, confirmedAt: null });
       expect(await repo.ofMember(id(bo))).toEqual([]);
       // The other kind is its own question.
-      expect(await repo.recordNotYet({ ...notYet, kind: "publish_ready" }, NOW)).toBe("recorded");
+      expect(await repo.recordNotForThisWork({ ...notYet, kind: "publish_ready" }, NOW)).toBe("recorded");
       // The card's "Actually, it is me" brings the same row back.
       expect(await repo.answer(row.id, id(ada), confirmed(), NOW)).toBe(true);
       expect((await repo.ofMember(id(ada))).find((m) => m.id === row.id)).toMatchObject({ status: "confirmed", source: "project_stage" });
@@ -455,11 +455,11 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       const repo = ctx.repo();
       const projectId = await ctx.addProject(id(ada));
       await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW);
-      expect(await repo.recordNotYet({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW)).toBe("exists");
+      expect(await repo.recordNotForThisWork({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW)).toBe("exists");
       expect(await repo.ofMember(id(ada))).toHaveLength(1);
 
       const other = await ctx.addProject(id(ada));
-      await repo.recordNotYet({ memberId: id(ada), kind: "the_end", projectId: other, createdBy: ctx.staffUserId }, NOW);
+      await repo.recordNotForThisWork({ memberId: id(ada), kind: "the_end", projectId: other, createdBy: ctx.staffUserId }, NOW);
       await ctx.addBook(id(ada), other);
       await repo.proposeFromBooks();
       // The "not yet" row keeps the work from being proposed THE END again; publish-ready is still proposed.
@@ -474,7 +474,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       const repo = ctx.repo();
       const projectId = await ctx.addProject(id(ada));
       expect(await repo.askedKinds(id(ada), projectId)).toEqual([]);
-      await repo.recordNotYet({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW);
+      await repo.recordNotForThisWork({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW);
       expect(await repo.askedKinds(id(ada), projectId)).toEqual(["the_end"]);
       const own = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW);
       expect((await repo.askedKinds(id(ada), projectId)).sort()).toEqual(["publish_ready", "the_end"]);
@@ -483,6 +483,63 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       // Another project, or another member, has its own answers.
       expect(await repo.askedKinds(id(ada), await ctx.addProject(id(ada)))).toEqual([]);
       expect(await repo.askedKinds(id(bo), projectId)).toEqual([]);
+    });
+
+    it("remembers a 'not yet' as a snooze, not as a milestone: it is not counted as declined and the backfill still proposes for the work", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      await ctx.addBook(id(ada), projectId);
+      const before = await repo.counts();
+      expect(await repo.snooze({ memberId: id(ada), kind: "the_end", projectId, stageGroup: 1 }, NOW)).toBe("snoozed");
+      expect(await repo.snoozesOf(id(ada), projectId)).toEqual([{ kind: "the_end", stageGroup: 1 }]);
+      // No milestone row exists, so no count moves (the staff list's declined number included) and nothing is "asked" in the one-row sense.
+      expect(await repo.counts()).toEqual(before);
+      expect(await repo.ofMember(id(ada))).toEqual([]);
+      expect(await repo.askedKinds(id(ada), projectId)).toEqual([]);
+      expect((await repo.page({ limit: 10, offset: 0 })).filter((m) => m.memberId === id(ada))).toEqual([]);
+      // The staff backfill proposes both kinds for that work, as if nothing had been said.
+      expect((await repo.proposeFromBooks()).proposals).toBeGreaterThanOrEqual(2);
+      expect((await repo.ofMember(id(ada))).map((m) => [m.kind, m.status]).sort()).toEqual([["publish_ready", "proposed"], ["the_end", "proposed"]]);
+    });
+
+    it("moves a snooze forward to a later stage group, never back, one per project and kind, and keeps each kind and project apart", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      const other = await ctx.addProject(id(ada));
+      await repo.snooze({ memberId: id(ada), kind: "the_end", projectId, stageGroup: 1 }, NOW);
+      await repo.snooze({ memberId: id(ada), kind: "the_end", projectId, stageGroup: 2 }, NOW);
+      expect(await repo.snoozesOf(id(ada), projectId)).toEqual([{ kind: "the_end", stageGroup: 2 }]);
+      await repo.snooze({ memberId: id(ada), kind: "the_end", projectId, stageGroup: 1 }, NOW);
+      expect(await repo.snoozesOf(id(ada), projectId)).toEqual([{ kind: "the_end", stageGroup: 2 }]);
+      await repo.snooze({ memberId: id(ada), kind: "publish_ready", projectId, stageGroup: 2 }, NOW);
+      expect((await repo.snoozesOf(id(ada), projectId)).map((s) => s.kind).sort()).toEqual(["publish_ready", "the_end"]);
+      expect(await repo.snoozesOf(id(ada), other)).toEqual([]);
+      expect(await repo.snoozesOf(id(bo), projectId)).toEqual([]);
+    });
+
+    it("writes no snooze for a kind the project already has a row for, in any status, and 'not for this work' stays permanent", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      // A declined row (not for this work) is the permanent answer; a later "not yet" changes nothing.
+      expect(await repo.recordNotForThisWork({ memberId: id(ada), kind: "the_end", projectId, createdBy: ctx.staffUserId }, NOW)).toBe("recorded");
+      expect(await repo.snooze({ memberId: id(ada), kind: "the_end", projectId, stageGroup: 1 }, NOW)).toBe("exists");
+      expect(await repo.snoozesOf(id(ada), projectId)).toEqual([]);
+      expect(await repo.askedKinds(id(ada), projectId)).toEqual(["the_end"]);
+      // Nor for one the member added themselves, even after taking it back.
+      const own = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, { projectId, bookId: null, title: null }), NOW);
+      expect(await repo.snooze({ memberId: id(ada), kind: "publish_ready", projectId, stageGroup: 2 }, NOW)).toBe("exists");
+      await repo.takeBack(own.milestone.id, id(ada), NOW);
+      expect(await repo.snooze({ memberId: id(ada), kind: "publish_ready", projectId, stageGroup: 2 }, NOW)).toBe("exists");
+      expect(await repo.snoozesOf(id(ada), projectId)).toEqual([]);
+    });
+
+    it("lets a member who snoozed still say 'Actually, it is me' and add the milestone later", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      await repo.snooze({ memberId: id(ada), kind: "the_end", projectId, stageGroup: 1 }, NOW);
+      const added = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW);
+      expect(added.result).toBe("added");
+      expect(added.milestone.status).toBe("confirmed");
     });
 
     it("lists each work once, with its milestones in order and Published from its live book, and never an id", async () => {

@@ -1,3 +1,4 @@
+import type { Snooze, StageGroup } from "@/lib/milestone-prompts";
 import { MILESTONE_DEFAULT_VISIBILITY, type MilestoneDatePrecision, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
 import { stepsCountedWhileMember, workKey, type WorkRef } from "@/lib/finishers-works";
 import { isShownToMembers, visibilityOf, type Visibility } from "@/lib/writing-visibility";
@@ -159,8 +160,11 @@ export type MilestoneSelfAdd = {
   source?: "member" | "project_stage";
 };
 
-/** What the member says to "not yet" when a project moved forward and we asked (docs/product/FINISHERS.md, "The project-stage prompt"). */
-export type MilestoneNotYet = { memberId: string; kind: MilestoneKind; projectId: string; createdBy: string };
+/** What the member says to "Not for this work" when a project moved forward and we asked (docs/product/FINISHERS.md, "The project-stage prompt"). */
+export type MilestoneNotForThisWork = { memberId: string; kind: MilestoneKind; projectId: string; createdBy: string };
+
+/** What the member says to "Not yet": the kind, the project, and the stage group the project is in now. */
+export type MilestoneSnooze = { memberId: string; kind: MilestoneKind; projectId: string; stageGroup: StageGroup };
 
 /** The sources of a milestone the member made themselves, so they may take it back. */
 const MEMBER_MADE_SOURCES: readonly string[] = ["member", "project_stage"];
@@ -217,16 +221,25 @@ export interface MilestoneRepository {
    */
   addOwn(add: MilestoneSelfAdd, now: Date): Promise<{ result: "added" | "exists"; milestone: Milestone }>;
   /**
-   * "Not yet" to the prompt when a project moved forward: a declined row for that project, source `project_stage`, which is how
-   * the Hub remembers it asked (it does not ask again, and the staff backfill never proposes that kind for the work). "exists"
-   * when the work already has a live milestone of that kind in any status; nothing is written then.
+   * "Not for this work" to the prompt when a project moved forward: a declined row for that project, source `project_stage`, which
+   * is how the Hub remembers never to ask again (and the staff backfill never proposes that kind for the work). "exists" when the
+   * work already has a live milestone of that kind in any status; nothing is written then. ("Not yet" is `snooze`.)
    */
-  recordNotYet(notYet: MilestoneNotYet, now: Date): Promise<"recorded" | "exists">;
+  recordNotForThisWork(notYet: MilestoneNotForThisWork, now: Date): Promise<"recorded" | "exists">;
   /**
    * The kinds the member already has a row for on this project, in any status and taken-back ones too: the prompt asks once per
    * project and kind, and a member who took one back has already answered.
    */
   askedKinds(memberId: string, projectId: string): Promise<MilestoneKind[]>;
+  /**
+   * "Not yet" to the prompt: remembers the stage group the project was in (`stageGroupOf`), so the prompt comes back once the project
+   * reaches a later group and not before. Not a milestone: it is never counted as declined, and the staff backfill still proposes the
+   * kind for the work. "exists" when the project already has a milestone row of that kind (any status): nothing is written then. A
+   * second "not yet" moves the remembered group forward, never back.
+   */
+  snooze(snooze: MilestoneSnooze, now: Date): Promise<"snoozed" | "exists">;
+  /** The kinds the member said "not yet" to on this project, with the stage group each was said in. */
+  snoozesOf(memberId: string, projectId: string): Promise<Snooze[]>;
   /** The member takes back a milestone they made themselves, on the card or from the prompt (a soft delete). False when they have no such live one. */
   takeBack(id: string, memberId: string, now: Date): Promise<boolean>;
   /** The member answers (or changes their answer). False when the member has no such live milestone. */
@@ -413,7 +426,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
     return data !== null;
   }
 
-  async recordNotYet(n: MilestoneNotYet, now: Date) {
+  async recordNotForThisWork(n: MilestoneNotForThisWork, now: Date) {
     const existing = await this.liveOfWork(n.memberId, n.kind, { projectId: n.projectId, bookId: null, title: null });
     if (existing) return "exists";
     const { error } = await this.db.from("member_milestones").insert({
@@ -431,6 +444,54 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       throw new Error(error.message);
     }
     return "recorded";
+  }
+
+  async snooze(n: MilestoneSnooze, now: Date) {
+    // Any row for the project and kind, answered or taken back, means the prompt has nothing left to remind about.
+    if ((await this.askedKinds(n.memberId, n.projectId)).includes(n.kind)) return "exists";
+    const iso = now.toISOString();
+    // Explicit read-then-write (a member may update only the group, so no upsert): a second "not yet" moves the group forward.
+    const move = async () => {
+      const { data, error } = await this.db
+        .from("member_milestone_snoozes")
+        .update({ stage_group: n.stageGroup, updated_at: iso })
+        .eq("member_id", n.memberId)
+        .eq("project_id", n.projectId)
+        .eq("kind", n.kind)
+        .lt("stage_group", n.stageGroup)
+        .select("id");
+      if (error) throw new Error(error.message);
+      return (data ?? []).length > 0;
+    };
+    const { data: existing, error: readError } = await this.db
+      .from("member_milestone_snoozes")
+      .select("id")
+      .eq("member_id", n.memberId)
+      .eq("project_id", n.projectId)
+      .eq("kind", n.kind);
+    if (readError) throw new Error(readError.message);
+    if ((existing ?? []).length > 0) {
+      await move();
+      return "snoozed";
+    }
+    const { error } = await this.db
+      .from("member_milestone_snoozes")
+      .insert({ member_id: n.memberId, project_id: n.projectId, kind: n.kind, stage_group: n.stageGroup, updated_at: iso });
+    if (error) {
+      // Two taps at once: the other one won, and this one only moves it forward.
+      if (error.code === "23505") {
+        await move();
+        return "snoozed";
+      }
+      throw new Error(error.message);
+    }
+    return "snoozed";
+  }
+
+  async snoozesOf(memberId: string, projectId: string) {
+    const { data, error } = await this.db.from("member_milestone_snoozes").select("kind, stage_group").eq("member_id", memberId).eq("project_id", projectId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ kind: r.kind as MilestoneKind, stageGroup: r.stage_group }));
   }
 
   async askedKinds(memberId: string, projectId: string) {
@@ -672,7 +733,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return true;
   }
 
-  async recordNotYet(n: MilestoneNotYet, now: Date) {
+  async recordNotForThisWork(n: MilestoneNotForThisWork, now: Date) {
     if (!this.data.members.some((m) => m.id === n.memberId)) throw new Error("violates foreign key constraint on member_id");
     // What the insert policy checks: the project is the member's own and live.
     if (!this.data.writingProjects.some((p) => p.id === n.projectId && p.member_id === n.memberId && !p.deleted_at)) {
@@ -704,6 +765,38 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       deleted_at: null,
     });
     return "recorded" as const;
+  }
+
+  async snooze(n: MilestoneSnooze, now: Date) {
+    if (!this.data.members.some((m) => m.id === n.memberId)) throw new Error("violates foreign key constraint on member_id");
+    // What the insert policy checks: the project is the member's own and live.
+    if (!this.data.writingProjects.some((p) => p.id === n.projectId && p.member_id === n.memberId && !p.deleted_at)) {
+      throw new Error("new row violates row-level security policy for table member_milestone_snoozes");
+    }
+    if ((await this.askedKinds(n.memberId, n.projectId)).includes(n.kind)) return "exists" as const;
+    const iso = now.toISOString();
+    const row = this.data.memberMilestoneSnoozes.find((r) => r.project_id === n.projectId && r.kind === n.kind);
+    if (row) {
+      if (n.stageGroup > row.stage_group) Object.assign(row, { stage_group: n.stageGroup, updated_at: iso });
+    } else {
+      this.data.memberMilestoneSnoozes.push({
+        id: `msnz_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+        member_id: n.memberId,
+        project_id: n.projectId,
+        kind: n.kind,
+        stage_group: n.stageGroup,
+        created_at: iso,
+        updated_at: iso,
+      });
+    }
+    return "snoozed" as const;
+  }
+
+  async snoozesOf(memberId: string, projectId: string) {
+    return this.data.memberMilestoneSnoozes
+      .filter((r) => r.member_id === memberId && r.project_id === projectId)
+      .sort(byKeyThenId<Row<"member_milestone_snoozes">>((r) => r.kind, (r) => r.id))
+      .map((r) => ({ kind: r.kind as MilestoneKind, stageGroup: r.stage_group }));
   }
 
   async askedKinds(memberId: string, projectId: string) {

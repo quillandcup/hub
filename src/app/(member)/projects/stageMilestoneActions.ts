@@ -6,17 +6,19 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { clock } from "@/lib/clock";
 import { isMilestoneKind, parseMilestoneSelfAdd, type MilestoneAnswerInput } from "@/lib/finishers";
-import { STAGE_PROMPT } from "@/lib/milestone-prompts";
+import { STAGE_PROMPT, stageGroupOf } from "@/lib/milestone-prompts";
 import { revalidateMilestoneSurfaces } from "@/lib/milestone-revalidate";
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 
-type StageAnswerInput = { projectId: string; kind: string; answer: "yes" | "not_yet" } & Omit<MilestoneAnswerInput, "answer">;
+type StageAnswerInput = { projectId: string; kind: string; answer: "yes" | "not_yet" | "not_for_this_work" } & Omit<MilestoneAnswerInput, "answer">;
 
 /**
  * A member answers the prompt that follows a project moving to a stage that means a milestone (docs/product/FINISHERS.md, "The
  * project-stage prompt"). "Yes" records it for that project as `project_stage`, already confirmed (their own action), with the
- * optional date, stories and the share tick (off unless ticked) like the card's form. "Not yet" records a declined row, which is
- * how we remember we asked. Either way, when the project already has a milestone of that kind nothing is written. Never in
+ * optional date, stories and the share tick (off unless ticked) like the milestone form. "Not yet" is a snooze: we remember
+ * the stage group the project is in and ask again once it reaches a later one (never a milestone, never counted as declined).
+ * "Not for this work" records a declined row, which is how we remember never to ask again. Either way, when the project already
+ * has a milestone of that kind nothing is written. Never in
  * sudo: an admin viewing as the member can look, and the database refuses the write too.
  */
 async function answerStageMilestoneImpl(input: StageAnswerInput): Promise<{ success: true; saved: boolean } | { error: string }> {
@@ -41,8 +43,12 @@ async function answerStageMilestoneImpl(input: StageAnswerInput): Promise<{ succ
     if (parsed) {
       const { result } = await repos.milestones.addOwn({ memberId: identity.memberId, kind, answer: parsed.answer, work, createdBy: user.id, source: "project_stage" }, now);
       saved = result === "added";
+    } else if (input.answer === "not_for_this_work") {
+      saved = (await repos.milestones.recordNotForThisWork({ memberId: identity.memberId, kind, projectId: input.projectId, createdBy: user.id }, now)) === "recorded";
     } else {
-      saved = (await repos.milestones.recordNotYet({ memberId: identity.memberId, kind, projectId: input.projectId, createdBy: user.id }, now)) === "recorded";
+      // The stage group the project is in now: the prompt comes back only at a later one.
+      const phase = (await repos.writing.projectSummary(identity.memberId, input.projectId))?.phase ?? null;
+      saved = (await repos.milestones.snooze({ memberId: identity.memberId, kind, projectId: input.projectId, stageGroup: stageGroupOf(phase) }, now)) === "snoozed";
     }
     await revalidateMilestoneSurfaces(repos, identity.memberId);
     return { success: true, saved };
@@ -56,6 +62,6 @@ async function answerStageMilestoneImpl(input: StageAnswerInput): Promise<{ succ
 export async function answerStageMilestone(...args: Parameters<typeof answerStageMilestoneImpl>) {
   return withAction("milestone_stage_answered", () => answerStageMilestoneImpl(...args), (result) => ({
     ...actionOutcome(result),
-    detail: "success" in result ? (!result.saved ? "already_there" : args[0].answer === "yes" ? "confirmed" : "not_yet") : undefined,
+    detail: "success" in result ? (!result.saved ? "already_there" : args[0].answer === "yes" ? "confirmed" : args[0].answer === "not_for_this_work" ? "not_for_this_work" : "not_yet") : undefined,
   }));
 }
