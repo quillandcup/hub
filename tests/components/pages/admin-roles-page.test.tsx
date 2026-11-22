@@ -84,6 +84,17 @@ describe("Roles page content, generated from the registry", () => {
     await renderServerPage(RolesPage, {});
   });
 
+  it("says a person can hold several roles and may do the union", () => {
+    expect(screen.getByText(/A person can hold several roles and may do whatever any of them allows/)).toBeInTheDocument();
+  });
+
+  it("says who can give which role", () => {
+    const section = within(screen.getByRole("region", { name: "Who can give which role" }));
+    expect(section.getByText(/An admin can give or take away any role/)).toBeInTheDocument();
+    expect(section.getByText(/An assistant can give or take away only Community Manager and Conversion Specialist/)).toBeInTheDocument();
+    expect(section.getByText(/Nobody else can change roles/)).toBeInTheDocument();
+  });
+
   it("shows every permission with its description, and a column and a summary for every role", () => {
     for (const permission of ALL_PERMISSIONS) {
       expect(rowHeaderOf(permission)).toHaveTextContent(PERMISSIONS[permission]);

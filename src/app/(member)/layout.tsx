@@ -1,4 +1,3 @@
-import { isStaffRole } from '@/lib/permissions'
 import { BrowserPushAccountGuard } from "@/components/BrowserPushAccountGuard";
 import { createClient } from '@/lib/supabase/server'
 import { createRepos } from '@/lib/data/repos'
@@ -47,8 +46,9 @@ export default async function MemberLayout({
   // Features are resolved for every member, not just admins previewing — a flag can also
   // be on for someone via a global rollout or a segment (see src/lib/features.server.ts), and nav
   // visibility needs to match that.
-  const [profile, enabledFeatures, effectiveIdentity] = await Promise.all([
+  const [profile, staffRoles, enabledFeatures, effectiveIdentity] = await Promise.all([
     createRepos(supabase).profiles.byId(user.id).catch(() => null),
+    createRepos(supabase).profiles.rolesOf(user.id).catch((): string[] => []),
     getUserFeaturePreviews(user.id) as Promise<FeatureKey[]>,
     getEffectiveIdentity(user),
   ])
@@ -56,7 +56,7 @@ export default async function MemberLayout({
   // Admin with no member record and no sudo active → send to admin area
   if (!effectiveIdentity) redirect('/admin')
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = staffRoles.includes('admin')
   const storedTimezone = profile?.timezone_preference ?? 'browser'
   const secondaryTimezone = isValidTimeZone(profile?.secondary_timezone) ? profile.secondary_timezone : null
 
@@ -82,7 +82,7 @@ export default async function MemberLayout({
       <Suspense fallback={null}>
         <PushGuard extras={extras} identity={effectiveIdentity} />
       </Suspense>
-      <MemberNavigation isAdmin={isStaffRole(profile?.role)} isSudo={effectiveIdentity.isSudo} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
+      <MemberNavigation isAdmin={staffRoles.length > 0} isSudo={effectiveIdentity.isSudo} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         {/* Bars above the header, stacked by priority (src/components/announcements/AnnouncementStack.tsx). */}
         <Suspense fallback={null}>

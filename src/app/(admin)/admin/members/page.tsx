@@ -28,7 +28,7 @@ export default async function MembersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const canBulkMerge = staffCan((await requirePermission("members.read")).role, "members.bulk_merge");
+  const canBulkMerge = staffCan(await requirePermission("members.read"), "members.bulk_merge");
   const supabase = await createClient();
   const params = await searchParams;
 

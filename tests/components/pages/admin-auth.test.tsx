@@ -92,7 +92,7 @@ beforeEach(() => {
 describe("requirePermission", () => {
   it("returns the signed-in admin with their role", async () => {
     signInAs(ADMIN_USER, null);
-    await expect(requirePermission("system.users.manage")).resolves.toEqual({ ...ADMIN_USER, role: "admin", realRole: "admin" });
+    await expect(requirePermission("system.users.manage")).resolves.toEqual({ ...ADMIN_USER, role: "admin", roles: ["admin"], realRole: "admin", realRoles: ["admin"] });
     expect(redirect).not.toHaveBeenCalled();
   });
 
@@ -103,18 +103,18 @@ describe("requirePermission", () => {
 
   it("lets the assistant through everything the admin may open", async () => {
     signInAs(ASSISTANT_USER, null);
-    await expect(requirePermission("system.users.manage")).resolves.toEqual({ ...ASSISTANT_USER, role: "assistant", realRole: "assistant" });
+    await expect(requirePermission("system.users.manage")).resolves.toEqual({ ...ASSISTANT_USER, role: "assistant", roles: ["assistant"], realRole: "assistant", realRoles: ["assistant"] });
   });
 
   it("returns a community manager only for what the role holds", async () => {
     signInAs(CM_USER, null);
-    await expect(requirePermission("members.read")).resolves.toEqual({ ...CM_USER, role: "community_manager", realRole: "community_manager" });
+    await expect(requirePermission("members.read")).resolves.toEqual({ ...CM_USER, role: "community_manager", roles: ["community_manager"], realRole: "community_manager", realRoles: ["community_manager"] });
     await expectRedirect(guardedPage, undefined, "/no-access");
   });
 
   it("returns a conversion specialist for the landing pages and outreach, and keeps them out of the members area and the changelog", async () => {
     signInAs(CS_USER, null);
-    await expect(requirePermission("pages.edit")).resolves.toEqual({ ...CS_USER, role: "conversion_specialist", realRole: "conversion_specialist" });
+    await expect(requirePermission("pages.edit")).resolves.toEqual({ ...CS_USER, role: "conversion_specialist", roles: ["conversion_specialist"], realRole: "conversion_specialist", realRoles: ["conversion_specialist"] });
     await expect(requirePermission("outreach.manage")).resolves.toMatchObject({ role: "conversion_specialist" });
     for (const permission of ["members.read", "changelog.read", "member.sudo", "system.users.manage"] as const) {
       await expectRedirect(pageNeeding(permission), undefined, "/no-access");
@@ -147,14 +147,14 @@ describe("previewing a role", () => {
   it("treats an admin previewing the community manager as that role, sending them home from a page the role may not open", async () => {
     preview.role = "community_manager";
     signInAs(ADMIN_USER, null);
-    await expect(requirePermission("members.read")).resolves.toEqual({ ...ADMIN_USER, role: "community_manager", realRole: "admin" });
+    await expect(requirePermission("members.read")).resolves.toEqual({ ...ADMIN_USER, role: "community_manager", roles: ["community_manager"], realRole: "admin", realRoles: ["admin"] });
     await expectRedirect(guardedPage, undefined, "/admin/at-risk");
   });
 
   it("treats an admin previewing the conversion specialist as that role", async () => {
     preview.role = "conversion_specialist";
     signInAs(ADMIN_USER, null);
-    await expect(requirePermission("pages.edit")).resolves.toEqual({ ...ADMIN_USER, role: "conversion_specialist", realRole: "admin" });
+    await expect(requirePermission("pages.edit")).resolves.toEqual({ ...ADMIN_USER, role: "conversion_specialist", roles: ["conversion_specialist"], realRole: "admin", realRoles: ["admin"] });
     await expectRedirect(pageNeeding("members.read"), undefined, "/admin/pages");
     await expectRedirect(pageNeeding("changelog.read"), undefined, "/admin/pages");
     await expect(requireActionPermission("members.write")).resolves.toEqual({ ok: false, error: "Not authorized" });

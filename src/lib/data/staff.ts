@@ -75,9 +75,9 @@ export class InMemoryStaffRepository implements StaffRepository {
 }
 
 /** The staff members of a dataset (the twin of `staff_member_ids()`), for the twins that need to ask the same question. */
-export function staffMemberIdsOf(data: Pick<InMemoryDataset, "staff" | "userProfiles" | "members">): Set<string> {
+export function staffMemberIdsOf(data: Pick<InMemoryDataset, "staff" | "userProfiles" | "members"> & Partial<Pick<InMemoryDataset, "userRoles">>): Set<string> {
   const ids = new Set(data.staff.map((s) => s.member_id).filter((id): id is string => !!id));
-  const staffAccounts = new Set(data.userProfiles.filter((p) => STAFF_ACCOUNT_ROLES.includes(p.role ?? "member")).map((p) => p.id));
+  const staffAccounts = new Set([...data.userProfiles.filter((p) => STAFF_ACCOUNT_ROLES.includes(p.role ?? "member")).map((p) => p.id), ...(data.userRoles ?? []).filter((r) => STAFF_ACCOUNT_ROLES.includes(r.role)).map((r) => r.user_id)]);
   for (const m of data.members) if (m.userId && staffAccounts.has(m.userId)) ids.add(m.id);
   return ids;
 }

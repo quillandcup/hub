@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { ADMIN_NO_ACCESS_PATH } from "@/lib/admin-paths";
-import { isStaffRole, staffHome, type Permission, type StaffRole } from "@/lib/permissions";
+import { staffHome, type Permission, type StaffRole } from "@/lib/permissions";
 import { decideStaff } from "@/lib/staff-guard";
 import { getStaffPreviewRole } from "@/lib/staff-preview.server";
 import { getStaffMfaState } from "@/lib/staff-mfa.server";
@@ -16,15 +16,17 @@ import { GATES } from "@/lib/gates";
 export const MFA_REQUIRED_ERROR = "Two-step sign-in required";
 
 export type { StaffRole };
-/** `role` is the one to check against (the previewed role for an admin previewing); `realRole` is who they are. */
-export type StaffUser = AuthUser & { role: StaffRole; realRole: StaffRole };
+/**
+ * `roles` are the ones to check against (just the previewed role for an admin previewing) and `role` is the primary of
+ * them, the highest priority; `realRoles`/`realRole` are who they are. `can(user, ...)` reads both, so the union decides.
+ */
+export type StaffUser = AuthUser & { role: StaffRole; roles: StaffRole[]; realRole: StaffRole; realRoles: StaffRole[] };
 
 const mfaBlocked = async () => blocksStaff(await getStaffMfaState());
 
-/** The signed-in user's staff role, read from `user_profiles` (never the token claim), or null. One read per request. */
-const staffRoleOf = cache(async (userId: string): Promise<StaffRole | null> => {
-  const profile = await createRepos(await createClient()).profiles.byId(userId).catch(() => null);
-  return isStaffRole(profile?.role) ? profile.role : null;
+/** The signed-in user's staff roles, read from the database (`user_roles` and `user_profiles`, never the token claim); none for a member. One read per request. */
+const staffRolesOf = cache(async (userId: string): Promise<StaffRole[]> => {
+  return createRepos(await createClient()).profiles.rolesOf(userId).catch(() => []);
 });
 
 /**
@@ -35,10 +37,10 @@ const staffRoleOf = cache(async (userId: string): Promise<StaffRole | null> => {
  *   const user = await requirePermission("pages.read");
  *
  * - signed out → redirect("/login")
- * - signed in but not staff (`user_profiles.role`, or no profile row) → redirect("/no-access")
- * - staff whose role lacks the permission → redirect("/no-access"); a real admin previewing a lower role goes
+ * - signed in but not staff (holds no staff role in `user_roles` or `user_profiles.role`, or no profile row) → redirect("/no-access")
+ * - staff none of whose roles holds the permission → redirect("/no-access"); a real admin previewing a lower role goes
  *   to that role's home instead, since /no-access has no banner to leave the preview from
- * - otherwise returns the verified user with the role that let them in
+ * - otherwise returns the verified user with the roles that let them in
  *
  * Why every page and not just the layout: layouts don't re-render on client navigation (partial rendering), and
  * a layout that swaps out `{children}` doesn't stop the page segment from running or reaching the RSC payload.
@@ -52,17 +54,17 @@ export const requirePermission = cache(async (permission: Permission): Promise<S
   if (!user) redirect("/login");
 
   // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: a redirect.
-  const decision = await decideStaff({ realRole: await staffRoleOf(user.id), previewRole: await getStaffPreviewRole(), permission, mfaBlocked });
+  const decision = await decideStaff({ realRoles: await staffRolesOf(user.id), previewRole: await getStaffPreviewRole(), permission, mfaBlocked });
   if (!decision.ok) {
     if (decision.reason === "mfa") return await redirectToGate(GATES.staffMfa);
     // A previewing admin goes to the previewed role's home: /no-access has no banner to leave the preview from.
     redirect(decision.reason === "forbidden" && decision.previewing ? staffHome(decision.role) : ADMIN_NO_ACCESS_PATH);
   }
-  return { ...user, role: decision.role, realRole: decision.realRole };
+  return { ...user, role: decision.role, roles: decision.roles, realRole: decision.realRole, realRoles: decision.realRoles };
 });
 
 export type ActionAuth =
-  | { ok: true; user: AuthUser; supabase: Awaited<ReturnType<typeof createClient>>; role: StaffRole; realRole: StaffRole }
+  | { ok: true; user: AuthUser; supabase: Awaited<ReturnType<typeof createClient>>; role: StaffRole; roles: StaffRole[]; realRole: StaffRole; realRoles: StaffRole[] }
   | { ok: false; error: "Not authenticated" | "Not authorized" | typeof MFA_REQUIRED_ERROR };
 
 /**
@@ -77,7 +79,7 @@ export type ActionAuth =
  * failure can `throw new Error(auth.error)` instead. `role` is the one to check finer features against
  * (`can(auth, ...)`): an admin previewing a lower role is that role here, so what the role may not do is
  * refused while previewing. The returned client is the signed-in user's, so row-level security still decides
- * the data. Reads `user_profiles.role`, never the token claim. Sudo doesn't matter (see above).
+ * the data. Reads the roles from the database, never the token claim. Sudo doesn't matter (see above).
  */
 export async function requireActionPermission(permission: Permission): Promise<ActionAuth> {
   const user = await getCurrentUser();
@@ -85,7 +87,7 @@ export async function requireActionPermission(permission: Permission): Promise<A
 
   // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: `{ ok: false, error }`.
   const supabase = await createClient();
-  const decision = await decideStaff({ realRole: await staffRoleOf(user.id), previewRole: await getStaffPreviewRole(), permission, mfaBlocked });
+  const decision = await decideStaff({ realRoles: await staffRolesOf(user.id), previewRole: await getStaffPreviewRole(), permission, mfaBlocked });
   if (!decision.ok) return { ok: false, error: decision.reason === "mfa" ? MFA_REQUIRED_ERROR : "Not authorized" };
-  return { ok: true, user, supabase, role: decision.role, realRole: decision.realRole };
+  return { ok: true, user, supabase, role: decision.role, roles: decision.roles, realRole: decision.realRole, realRoles: decision.realRoles };
 }

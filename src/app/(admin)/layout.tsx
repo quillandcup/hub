@@ -35,7 +35,7 @@ export default async function AdminLayout({
   const canSearch = can(user, "system.search.use");
   const canSudo = can(user, "member.sudo");
   // A real admin looking at the area as a lower role (src/lib/staff-preview.ts).
-  const previewing = user.role !== user.realRole;
+  const previewing = user.roles.join() !== user.realRoles.join();
 
   // A failed read leaves the page default.
   const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
@@ -51,7 +51,7 @@ export default async function AdminLayout({
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
-      <AdminNavigation role={user.role} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
+      <AdminNavigation roles={user.roles} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         <AnnouncementStack
           items={[

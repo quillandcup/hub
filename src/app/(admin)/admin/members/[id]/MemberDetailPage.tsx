@@ -74,8 +74,8 @@ export default async function MemberDetailPage({
 }) {
   const supabase = await createClient();
 
-  const role = (await requirePermission("members.read")).role;
-  const features = staffFeaturesFor(role);
+  const staff = await requirePermission("members.read");
+  const features = staffFeaturesFor(staff);
   const can = (feature: StaffFeature) => features.includes(feature);
   const user = await getCurrentUser();
 

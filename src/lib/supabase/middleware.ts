@@ -2,10 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
-import { getAalFromAccessToken, getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { getAalFromAccessToken, getAppRolesFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath, mayOpenAdminPath } from '@/lib/admin-paths'
 import { staffHome } from '@/lib/permissions'
-import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
+import { effectiveStaffRoles, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
@@ -95,8 +95,9 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   let user = null
   let sessionId: string | null = null
   // The role the custom access token hook put in the token (see
-  // getAppRoleFromAccessToken); each staff role opens the admin paths its permissions allow (src/lib/admin-paths.ts).
-  let roleClaim: string | null | undefined = undefined
+  // getAppRolesFromAccessToken); a person may hold several, and what they open is the union of what each role's
+  // permissions allow (src/lib/admin-paths.ts).
+  let rolesClaim: readonly string[] | undefined = undefined
   // The session's assurance level claim: aal2 once it has passed a TOTP challenge (src/lib/staff-mfa.ts).
   let aalClaim: string | null = null
   let authCheckTimedOut = false
@@ -112,7 +113,7 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
       const accessToken = sessionData.session?.access_token
       if (accessToken) {
         sessionId = getSessionIdFromAccessToken(accessToken)
-        roleClaim = getAppRoleFromAccessToken(accessToken)
+        rolesClaim = getAppRolesFromAccessToken(accessToken)
         aalClaim = getAalFromAccessToken(accessToken)
       }
     }
@@ -242,8 +243,8 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
     // changes the *effective member*, not the signed-in user.
     // An admin previewing a lower role is checked as that role (src/lib/staff-preview.ts), but sent to its home
     // instead of /no-access, which has no way out of the preview.
-    const checkedAs = effectiveStaffRole(roleClaim, request.cookies.get(STAFF_PREVIEW_COOKIE)?.value)
-    const previewing = roleClaim === 'admin' && checkedAs !== 'admin'
+    const checkedAs = effectiveStaffRoles(rolesClaim, request.cookies.get(STAFF_PREVIEW_COOKIE)?.value)
+    const previewing = !!rolesClaim?.includes('admin') && checkedAs !== rolesClaim
     if (!mayOpenAdminPath(checkedAs, pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = previewing ? staffHome(checkedAs) : ADMIN_NO_ACCESS_PATH

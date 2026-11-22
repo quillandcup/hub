@@ -114,6 +114,19 @@ The page is read-only and always matches the code, so changing a role is still a
     body: "Access to the staff area used to be \"admin or not\", plus a community manager allowlist. It is now a registry of permissions defined in code (`<area>.<action>`), roles as named bundles of them, and one check, `can(actor, permission)`. The guards are `requirePermission` (pages), `requireActionPermission` (server actions) and `requireApiPermission` (route handlers); the proxy and the sidebar read the same page-to-permission table, so a link is offered only where the page would open. The admin holds everything, the assistant is derived from the admin's list, and the community manager and the conversion specialist hold what is listed for them: a new permission is in nobody's bundle but the admin's until it is granted on purpose. Permissions are the application's gate; row-level security still decides what a role's own client reads (`is_<role>()` beside `is_admin()`, never a widened `is_admin()`). Two tests keep it honest: a role-by-permission table written out in full, and a scan that fails on a page, action or staff route without a guard, or a permission nothing uses. Adding a permission or a role: `docs/architecture/PERMISSIONS.md`.",
   },
   {
+    slug: "several-staff-roles",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "new",
+    title: "A person can hold several staff roles; what they may do is the union",
+    summary: "Staff roles are now a set per user instead of one value, so someone can be a conversion specialist and help with community management, and every check answers for all their roles.",
+    body: `Roles live in \`user_roles\` (a user, a role), and \`user_profiles.role\` stays during the expand step, holding the highest-priority role (admin, assistant, community manager, conversion specialist) so everything that still reads it keeps working. The two are kept in step in the database, and \`set_user_roles()\` replaces a person's set as the person who calls it, so the Activity Log names them.
+
+- **Rule.** \`can(actor, permission)\` takes the actor's roles and answers true if any role holds it; the admin implies all, and what is withheld from the assistant stays withheld unless another role held grants it. The roles in effect are \`roles\` (the primary is \`role\`), from the guards, \`decideStaff\` and the proxy's \`app_roles\` claim, which is still only a pre-filter. Previewing stays one role at a time. Nobody can escalate: an actor changes only roles below their own highest (an assistant manages community manager and conversion specialist only), never their own admin role or the last admin, enforced in the database (\`enforce_user_role_changes\`).
+- **Hooks.** \`staffRolesIn\`, \`primaryRole\`, \`rolesOf\` (\`src/lib/permissions.ts\`); \`profiles.rolesOf\` and \`setRoles\`; in SQL \`user_has_any_role()\` behind \`is_admin()\` and the other helpers (none of them widened).
+- **Detail.** \`docs/architecture/PERMISSIONS.md\`, "A person can hold several roles".`,
+  },
+  {
     slug: "conversion-specialist-role",
     date: "2026-11-21",
     audience: "staff",

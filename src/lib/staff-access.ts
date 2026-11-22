@@ -1,4 +1,4 @@
-import { can, type Permission } from "@/lib/permissions";
+import { can, type Actor, type Permission } from "@/lib/permissions";
 
 /**
  * Controls and views inside the pages a staff role opens, each its own permission (src/lib/permissions.ts).
@@ -36,11 +36,15 @@ export const STAFF_FEATURES = [
 ] as const satisfies readonly Permission[];
 export type StaffFeature = (typeof STAFF_FEATURES)[number];
 
-/** The features this role has: all for an admin or assistant, those in its bundle for another staff role, none otherwise. */
-export function staffFeaturesFor(role: string | null | undefined): readonly StaffFeature[] {
-  return STAFF_FEATURES.filter((feature) => can({ role }, feature));
+/** What `staffCan` and `staffFeaturesFor` accept: an actor (`auth`, a `StaffUser`), or a single role name. */
+type StaffSubject = Actor | string;
+const asActor = (subject: StaffSubject): Actor => (typeof subject === "string" ? { role: subject } : subject);
+
+/** The features this person has: the union over their roles (all for an admin or assistant, those in a bundle for another staff role), none otherwise. */
+export function staffFeaturesFor(subject: StaffSubject): readonly StaffFeature[] {
+  return STAFF_FEATURES.filter((feature) => can(asActor(subject), feature));
 }
 
-export function staffCan(role: string | null | undefined, feature: StaffFeature): boolean {
-  return can({ role }, feature);
+export function staffCan(subject: StaffSubject, feature: StaffFeature): boolean {
+  return can(asActor(subject), feature);
 }

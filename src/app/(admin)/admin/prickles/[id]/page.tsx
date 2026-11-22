@@ -52,8 +52,8 @@ export default async function AdminPrickleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   // Every control is a staff feature a community manager has only if granted (src/lib/staff-access.ts).
-  const role = (await requirePermission("prickles.read")).role;
-  const can = (feature: StaffFeature) => staffCan(role, feature);
+  const viewer = await requirePermission("prickles.read");
+  const can = (feature: StaffFeature) => staffCan(viewer, feature);
   const { id } = await params;
   const supabase = await createClient();
 

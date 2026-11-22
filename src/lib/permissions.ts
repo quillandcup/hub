@@ -206,18 +206,102 @@ export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
   ],
 };
 
-/** Anyone with a `role` (a signed-in staff member, a `StaffUser`, an action's `auth`). */
-export type Actor = { role?: string | null } | null | undefined;
+/**
+ * Anyone with a role, or several (a signed-in staff member, a `StaffUser`, an action's `auth`). A person can hold
+ * several roles and what they may do is the union; `role` is kept for single-role callers and counts as one more role held.
+ */
+export type Actor = { role?: string | null; roles?: readonly string[] | null } | null | undefined;
 
-/** Whether the actor's role holds the permission. An unknown role, a member or nobody holds none. */
-export function can(actor: Actor, permission: Permission): boolean {
-  const role = actor?.role;
-  return isStaffRole(role) && ROLE_PERMISSIONS[role].includes(permission);
+/** A set of roles as callers have it: one role, a list, or nothing. */
+export type RoleInput = string | readonly (string | null | undefined)[] | null | undefined;
+
+/**
+ * The staff roles in a set of roles, deduplicated, highest priority first. Priority is the order of `STAFF_ROLES`
+ * (admin, assistant, community manager, conversion specialist), the same order `staff_role_rank()` has in SQL, so the
+ * first one is the primary role that `user_profiles.role` holds. Anything else (`member`, unknown values) is dropped.
+ */
+export function staffRolesIn(input: RoleInput): StaffRole[] {
+  const list = typeof input === "string" ? [input] : (input ?? []);
+  return STAFF_ROLES.filter((role) => list.includes(role));
 }
 
-/** Where a staff role lands when it opens the admin area, and where it is sent from a page it may not open while previewed. */
-export function staffHome(role: string | null | undefined): string {
+/** The roles an actor holds: its `roles` and its `role`, as staff roles by priority. */
+export function rolesOf(actor: Actor): StaffRole[] {
+  return staffRolesIn([...(actor?.roles ?? []), ...(actor?.role ? [actor.role] : [])]);
+}
+
+/** The highest-priority staff role in the set, or null when there is none: what `user_profiles.role` and `app_role` carry. */
+export function primaryRole(input: RoleInput): StaffRole | null {
+  return staffRolesIn(input)[0] ?? null;
+}
+
+/** Whether any of the actor's roles holds the permission (the union). An unknown role, a member or nobody holds none. */
+export function can(actor: Actor, permission: Permission): boolean {
+  return rolesOf(actor).some((role) => ROLE_PERMISSIONS[role].includes(permission));
+}
+
+/** Whether any of these roles opens the whole staff area, unlisted pages included (the admin and the assistant). */
+export function hasAdminLikeRole(input: RoleInput): boolean {
+  return staffRolesIn(input).some((role) => (ADMIN_LIKE_ROLES as readonly string[]).includes(role));
+}
+
+/** Where a person lands when they open the admin area, and where they are sent from a page they may not open while previewing: their primary role's home. */
+export function staffHome(input: RoleInput): string {
+  const role = primaryRole(input);
   if (role === COMMUNITY_MANAGER_ROLE) return "/admin/at-risk";
   if (role === CONVERSION_SPECIALIST_ROLE) return "/admin/pages";
   return "/admin";
+}
+
+/**
+ * Who may change whose roles. An actor gives or takes away only roles strictly BELOW their own highest role, and only on people
+ * strictly below it; an admin may manage any. Nobody removes their own admin role, and the last admin stays. The database enforces
+ * the same rules (`enforce_user_role_changes()` on `user_roles`, which is the authority); this is the one copy in code, for the
+ * Users page (to disable what the actor can't do) and the route (for a clear refusal before the call).
+ */
+export const ROLE_CHANGE_REFUSALS = {
+  notManager: "Only admins and assistants can change roles.",
+  assistantOnAdmin: "An assistant can't change the roles of an admin or another assistant.",
+  assistantRoles: "An assistant can only give or take away the community manager and conversion specialist roles.",
+  ownAdmin: "You can't remove your own admin role; ask another admin.",
+  lastAdmin: "You can't remove the last admin.",
+} as const;
+
+export function roleChangeRefusal(input: {
+  /** The roles the person making the change holds. */
+  actor: RoleInput;
+  /** The person's roles now, and the set they would hold. */
+  target: RoleInput;
+  next: RoleInput;
+  /** Whether the person is changing their own roles. */
+  self: boolean;
+  /** How many admins there are besides the person whose roles change. */
+  otherAdmins: number;
+}): string | null {
+  const actorRoles = staffRolesIn(input.actor);
+  const actorRank = actorRoles.length ? STAFF_ROLES.indexOf(actorRoles[0]) + 1 : Infinity;
+  const before = staffRolesIn(input.target);
+  const after = staffRolesIn(input.next);
+  const changed = STAFF_ROLES.filter((role) => before.includes(role) !== after.includes(role));
+  if (changed.length === 0) return null;
+  if (actorRank > STAFF_ROLES.indexOf(ASSISTANT_ROLE) + 1) return ROLE_CHANGE_REFUSALS.notManager;
+  if (actorRank > 1) {
+    const targetRank = before.length ? STAFF_ROLES.indexOf(before[0]) + 1 : Infinity;
+    if (targetRank <= actorRank) return ROLE_CHANGE_REFUSALS.assistantOnAdmin;
+    if (changed.some((role) => STAFF_ROLES.indexOf(role) + 1 <= actorRank)) return ROLE_CHANGE_REFUSALS.assistantRoles;
+  }
+  if (changed.includes(ADMIN_ROLE) && before.includes(ADMIN_ROLE)) {
+    if (input.self) return ROLE_CHANGE_REFUSALS.ownAdmin;
+    if (input.otherAdmins === 0) return ROLE_CHANGE_REFUSALS.lastAdmin;
+  }
+  return null;
+}
+
+/** The roles whose checkbox the actor may flip for this person (each tested alone), so the Users page disables the rest. */
+export function changeableRoles(input: { actor: RoleInput; target: RoleInput; self: boolean; otherAdmins: number }): StaffRole[] {
+  const held = staffRolesIn(input.target);
+  return STAFF_ROLES.filter((role) => {
+    const next = held.includes(role) ? held.filter((r) => r !== role) : [...held, role];
+    return roleChangeRefusal({ ...input, next }) === null;
+  });
 }

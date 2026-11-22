@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PREVIEWABLE_ROLES, PREVIEW_ROLE_LABELS, effectiveStaffRole, parsePreviewRole } from "@/lib/staff-preview";
+import { PREVIEWABLE_ROLES, PREVIEW_ROLE_LABELS, effectiveStaffRole, effectiveStaffRoles, parsePreviewRole } from "@/lib/staff-preview";
 import { STAFF_ROLES } from "@/lib/permissions";
 
 describe("parsePreviewRole", () => {
@@ -34,5 +34,22 @@ describe("PREVIEWABLE_ROLES", () => {
   it("is every staff role below the admin, each with a label, so a new role needs no UI change", () => {
     expect([...PREVIEWABLE_ROLES]).toEqual(STAFF_ROLES.filter((role) => role !== "admin"));
     for (const role of PREVIEWABLE_ROLES) expect(PREVIEW_ROLE_LABELS[role].length).toBeGreaterThan(3);
+  });
+});
+
+describe("effectiveStaffRoles", () => {
+  it("lowers someone holding admin to the one previewed role", () => {
+    expect(effectiveStaffRoles(["admin", "community_manager"], "conversion_specialist")).toEqual(["conversion_specialist"]);
+  });
+
+  it("keeps every role when nothing valid is previewed, or when the person does not hold admin", () => {
+    expect(effectiveStaffRoles(["admin", "community_manager"], undefined)).toEqual(["admin", "community_manager"]);
+    expect(effectiveStaffRoles(["admin"], "owner")).toEqual(["admin"]);
+    expect(effectiveStaffRoles(["community_manager", "conversion_specialist"], "assistant")).toEqual(["community_manager", "conversion_specialist"]);
+  });
+
+  it("passes no roles through", () => {
+    expect(effectiveStaffRoles(null, "assistant")).toBeNull();
+    expect(effectiveStaffRoles(undefined, "assistant")).toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import { primaryRole } from "@/lib/permissions";
 import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
   const [
     authUsers,
     profiles,
+    rolesByUser,
     previews,
     allStaff,
     allMembers,
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     createRepos(supabase).authUsers.all().catch((error: Error) => error),
     createRepos(supabase).profiles.all(),
+    createRepos(supabase).profiles.allRoles(),
     createRepos(supabase).featureFlags.allPreviews(),
     createRepos(supabase).staff.all(),
     fetchAllMembers(supabase),
@@ -89,7 +92,9 @@ export async function GET(request: NextRequest) {
     return {
       id: u.id,
       email: u.email ?? "",
-      role: profile?.role ?? "member",
+      // The primary role (the highest priority one held), and every role held: a person can hold several.
+      role: primaryRole(rolesByUser.get(u.id)) ?? "member",
+      roles: rolesByUser.get(u.id) ?? [],
       features: featureMap.get(u.id) ?? [],
       createdAt: u.createdAt,
       lastActivityAt: latestOf(lastSeen.get(u.id), u.lastSignInAt),
@@ -108,7 +113,11 @@ export async function GET(request: NextRequest) {
 
   users.sort((a, b) => a.email.localeCompare(b.email));
 
-  return NextResponse.json({ users, allMembers: allMembers ?? [] });
+  // The roles of the person asking, so the page can offer only the role changes they may make (`roleChangeRefusal`).
+  const scripted = auth.user.id === "service-role" || auth.user.id === "cron";
+  const viewerRoles = scripted ? ["admin"] : (rolesByUser.get(auth.user.id) ?? []);
+
+  return NextResponse.json({ users, viewerRoles, allMembers: allMembers ?? [] });
 }
 
 export async function POST(request: NextRequest) {

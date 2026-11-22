@@ -9,6 +9,7 @@ import { milestoneLabel } from "@/lib/finishers";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import { withReferenceNames } from "@/lib/audit-references";
 import { careActivitySentence, careEventOfAudit, careSentence } from "@/lib/care-events";
+import { ROLE_LABELS, isStaffRole } from "@/lib/permissions";
 import { periodNumber } from "@/lib/care";
 import { allTimeStart, describeRange, parseDayRange, rangeInstants, type DayRange } from "@/lib/activity-range";
 
@@ -437,6 +438,7 @@ const ENTITY_LABELS: Record<string, string> = {
   restricted_slack_channel: "restricted Slack channel",
   care_dm_read: "read of a member's care plan messages",
   segment_member: "segment membership",
+  user_role: "role",
   feature_flag: "feature",
   feature_flag_segment: "feature flag segment",
   user_feature_preview: "feature preview",
@@ -608,6 +610,18 @@ function profileVisibilityPhrase(row: ActivityFeedRow, fields: Record<string, { 
   return `changed who can see their ${items.length === 1 ? items[0] : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`}`;
 }
 
+/**
+ * A person given or losing a staff role ("gave ada@example.com the role Community Manager"). The label is the account's sign-in
+ * email and the role one of the fixed names; nothing a person typed. A person can hold several roles, each its own entry.
+ */
+function userRolePhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown }>): string | null {
+  if (row.entity_type !== "user_role" || row.event_type === "update") return null;
+  const raw = row.event_type === "insert" ? fields.role?.new : fields.role?.old;
+  const role = typeof raw === "string" && isStaffRole(raw) ? ROLE_LABELS[raw] : "a role";
+  const who = row.description ? formatValue(row.description) : "a user";
+  return row.event_type === "insert" ? `gave ${who} the role ${role}` : `took the role ${role} away from ${who}`;
+}
+
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
   const profileVisibility = profileVisibilityPhrase(row, fields);
@@ -620,6 +634,8 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   if (writerProfile) return writerProfile;
   const milestone = milestonePhrase(row, fields);
   if (milestone) return milestone;
+  const userRole = userRolePhrase(row, fields);
+  if (userRole) return userRole;
   if (row.entity_type === "event_attendee" && row.event_type !== "update") {
     const who = row.member_name ?? "a member";
     const event = row.description ? ` “${formatValue(row.description)}”` : "";

@@ -1,3 +1,5 @@
+import { staffRolesIn, type StaffRole } from "@/lib/permissions";
+
 // Reads claims off a Supabase Auth JWT access token WITHOUT verifying the
 // signature — this is intentionally not a verification step. Callers
 // (src/lib/supabase/middleware.ts) only call these after supabase.auth.getUser()
@@ -48,6 +50,23 @@ export function getAppRoleFromAccessToken(token: string): string | null | undefi
   const role = claims.app_role;
   if (role === null || typeof role === "string") return role;
   return undefined;
+}
+
+/**
+ * The staff roles the token's claims say the user holds, highest priority first: the `app_roles` array that the
+ * custom access token hook adds (supabase/migrations/20271008000000_user_roles.sql), or, for a token minted before
+ * that, the single `app_role`.
+ *
+ * - an array (possibly empty) -- the roles held when the token was minted (anything that isn't a staff role is dropped)
+ * - `undefined` -- no usable claim (the hook isn't enabled, or its lookup failed): the proxy treats this as no role
+ *
+ * Only as fresh as the token, so it is for the proxy's optimistic check only -- never for authorization.
+ */
+export function getAppRolesFromAccessToken(token: string): StaffRole[] | undefined {
+  const claims = decodeAccessTokenClaims(token);
+  if (claims && Array.isArray(claims.app_roles)) return staffRolesIn(claims.app_roles.filter((r): r is string => typeof r === "string"));
+  const role = getAppRoleFromAccessToken(token);
+  return role === undefined ? undefined : staffRolesIn(role);
 }
 
 /**

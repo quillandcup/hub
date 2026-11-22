@@ -57,7 +57,7 @@ beforeEach(async () => {
   recorded.length = 0;
   vi.mocked(getCurrentUser).mockResolvedValue({ id: STAFF_USER, email: "ada@example.com" });
   vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA));
-  vi.mocked(requireActionPermission).mockResolvedValue({ ok: true, user: { id: STAFF_USER, email: "staff@example.com" }, supabase: {} as never, role: "admin", realRole: "admin" });
+  vi.mocked(requireActionPermission).mockResolvedValue({ ok: true, user: { id: STAFF_USER, email: "staff@example.com" }, supabase: {} as never, role: "admin", roles: ["admin"], realRole: "admin", realRoles: ["admin"] });
   await createInMemoryRepos(data).milestones.propose({ memberId: ADA, kind: "the_end", work: WORK, achievedOn: null, createdBy: STAFF_USER });
 });
 

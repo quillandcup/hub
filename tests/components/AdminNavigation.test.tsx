@@ -12,7 +12,7 @@ vi.mock("@/app/(member)/settings/actions", () => ({ updateNavMode: (mode: string
 
 describe("AdminNavigation", () => {
   it("is unmasked in Session Replay, so recordings show which page was opened", () => {
-    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} />);
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
     expect(sidebar.querySelector("nav")).toHaveAttribute("data-sentry-unmask");
   });
@@ -21,7 +21,7 @@ describe("AdminNavigation", () => {
     render(
       <>
         <MobileMenuButton />
-        <AdminNavigation role="admin" enabledFeatures={[]} />
+        <AdminNavigation roles={["admin"]} enabledFeatures={[]} />
       </>
     );
     // The drawer is aria-hidden until opened, so its close button isn't in the accessibility tree.
@@ -39,7 +39,7 @@ describe("AdminNavigation drawer and keyboard focus", () => {
     render(
       <>
         <MobileMenuButton />
-        <AdminNavigation role="admin" enabledFeatures={[]} />
+        <AdminNavigation roles={["admin"]} enabledFeatures={[]} />
       </>
     );
     const drawer = () => document.querySelector("aside.fixed") as HTMLElement;
@@ -57,7 +57,7 @@ describe("AdminNavigation sidebar mode", () => {
 
   it("is pinned open by default and picks auto-show, collapsed and back, saving each choice", async () => {
     updateNavMode.mockClear();
-    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} />);
     expect(sidebar()).toHaveClass("w-64");
 
     await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
@@ -82,12 +82,12 @@ describe("AdminNavigation sidebar mode", () => {
   });
 
   it("starts in the saved mode", () => {
-    render(<AdminNavigation role="admin" enabledFeatures={[]} navMode="auto" />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} navMode="auto" />);
     expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
   });
 
   it("keeps folded sections folded in auto-hide, with the same rows at rest and open", () => {
-    render(<AdminNavigation role="admin" enabledFeatures={[]} navMode="auto" />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} navMode="auto" />);
     const folds = () => Array.from(sidebar().querySelectorAll("details"));
     const rows = () => sidebar().querySelectorAll("summary, h2, li").length;
 
@@ -106,7 +106,7 @@ describe("AdminNavigation sidebar mode", () => {
   });
 
   it("shows a community manager only the pages they may open, and an admin all of them", () => {
-    const { unmount } = render(<AdminNavigation role="community_manager" enabledFeatures={[]} />);
+    const { unmount } = render(<AdminNavigation roles={["community_manager"]} enabledFeatures={[]} />);
     const hrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
@@ -116,7 +116,7 @@ describe("AdminNavigation sidebar mode", () => {
     expect(hrefs).not.toContain("/admin/outreach");
     unmount();
 
-    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} />);
     const adminHrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
@@ -126,7 +126,7 @@ describe("AdminNavigation sidebar mode", () => {
 
 describe("AdminNavigation by role (the sidebar shows what the role's permissions open)", () => {
   const hrefsFor = (role: string) => {
-    const { unmount } = render(<AdminNavigation role={role} enabledFeatures={["work_queue", "big_sisters", "hedgieversaries", "program_cohorts", "member_overrides"]} />);
+    const { unmount } = render(<AdminNavigation roles={[role]} enabledFeatures={["work_queue", "big_sisters", "hedgieversaries", "program_cohorts", "member_overrides"]} />);
     const hrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
