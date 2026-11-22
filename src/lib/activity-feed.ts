@@ -523,7 +523,7 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
   const isTemplate = row.entity_type === "landing_page_template";
   if (row.entity_type === "landing_page" || isTemplate) {
     const noun = isTemplate ? "template" : "page";
-    if (row.event_type === "insert") return `created the ${noun}${quoted}`;
+    if (row.event_type === "insert") return fields.replaced_at?.new ? `created the ${noun}${quoted} from a JSON file` : `created the ${noun}${quoted}`;
     if (row.event_type === "delete") return `deleted the ${noun}${quoted}`;
     if (row.event_type !== "update") return null;
     if (fields.deleted_at?.new && !fields.deleted_at.old) return `deleted the ${noun}${quoted}`;

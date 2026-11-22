@@ -326,26 +326,36 @@ export type JsonImportSummary = {
 /** `applied` is true when the draft was replaced: never on a dry run, or when the file matches the draft already. */
 export type JsonImportResult = { error?: string; summary?: JsonImportSummary; applied?: boolean };
 
+type Prepared = { ok: true; clean: LandingData; pruned: ReturnType<typeof pruneToKnownBlocks>; removedPictures: number; source?: ImportSource } | { ok: false; error: string };
+
+/** What a file becomes in this library, before anything is written (shared by the editor's import and "new page from a file"). */
+async function prepareJsonImport(repos: ReturnType<typeof createRepos>, text: unknown): Promise<Prepared> {
+  if (typeof text !== "string") return { ok: false, error: "Choose a file or paste the page's JSON first." };
+  const parsed = parseLandingImport(text);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  // The file is untrusted: bring it up to date, keep only blocks and props the builder has, then check its pictures and clean it as a save does.
+  const pruned = pruneToKnownBlocks(normalizeLandingData(parsed.document));
+  const ids = collectAssetIds(pruned.data);
+  const found = await Promise.all(ids.map((id) => repos.media.byId(id)));
+  const missing = new Set(ids.filter((_, i) => !found[i] || found[i]?.deleted_at));
+  let removedPictures = 0;
+  const withPictures = missing.size === 0 ? pruned.data : mapAssetIds(pruned.data, (id) => (missing.has(id) ? (removedPictures++, "") : id));
+  const clean = sanitizeLandingData(stampLandingVersion(withPictures));
+  if (tooBig(clean)) return { ok: false, error: "This page is too large to import." };
+  return { ok: true, clean, pruned, removedPictures, source: parsed.source };
+}
+
 async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun: boolean): Promise<JsonImportResult> {
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (typeof text !== "string") return { error: "Choose a file or paste the page's JSON first." };
-  const parsed = parseLandingImport(text);
-  if (!parsed.ok) return { error: parsed.error };
   const repos = createRepos(auth.supabase);
   const repo = repos.landingPages;
   try {
     const page = await repo.byId(pageId);
     if (!page) return { error: NOT_FOUND };
-
-    // The file is untrusted: bring it up to date, keep only blocks and props the builder has, then check its pictures and clean it as a save does.
-    const pruned = pruneToKnownBlocks(normalizeLandingData(parsed.document));
-    const ids = collectAssetIds(pruned.data);
-    const found = await Promise.all(ids.map((id) => repos.media.byId(id)));
-    const missing = new Set(ids.filter((_, i) => !found[i] || found[i]?.deleted_at));
-    let removedPictures = 0;
-    const withPictures = missing.size === 0 ? pruned.data : mapAssetIds(pruned.data, (id) => (missing.has(id) ? (removedPictures++, "") : id));
-    const clean = sanitizeLandingData(stampLandingVersion(withPictures));
-    if (tooBig(clean)) return { error: "This page is too large to import." };
+    const prepared = await prepareJsonImport(repos, text);
+    if (!prepared.ok) return { error: prepared.error };
+    const { clean, pruned, removedPictures } = prepared;
 
     const current = sanitizeLandingData(stampLandingVersion(page.draft_data));
     const summary: JsonImportSummary = {
@@ -356,7 +366,7 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
       removedPictures,
       issues: checkLandingPage(clean),
       identical: isDeepStrictEqual(clean, current),
-      source: parsed.source,
+      source: prepared.source,
     };
     if (dryRun || summary.identical) return { summary, applied: false };
 
@@ -384,6 +394,55 @@ export async function importLandingDraftJson(pageId: string, text: string, optio
     () => jsonImportImpl(auth, pageId, text, dryRun),
     (r) => ({ ok: !r.error, detail: r.error ? undefined : dryRun ? "preview" : r.applied ? undefined : "unchanged" }),
   );
+}
+
+export type CreateFromJsonResult = { error?: string; slug?: string; summary?: JsonImportSummary };
+
+async function createFromJsonImpl(auth: Auth, input: { text: unknown; title?: string; slug?: string; pageType?: string }, dryRun: boolean): Promise<CreateFromJsonResult> {
+  if (!dryRun && !isLandingPageType(input?.pageType)) return { error: "Choose a website page or a landing page." };
+  try {
+    const prepared = await prepareJsonImport(createRepos(auth.supabase), input?.text);
+    if (!prepared.ok) return { error: prepared.error };
+    const summary: JsonImportSummary = {
+      blocksBefore: 0,
+      blocksAfter: countBlocks(prepared.clean.content),
+      leftOut: prepared.pruned.leftOut,
+      droppedProps: prepared.pruned.droppedProps,
+      removedPictures: prepared.removedPictures,
+      issues: checkLandingPage(prepared.clean),
+      identical: false,
+      source: prepared.source,
+    };
+    if (dryRun) return { summary };
+    // Only now is a page made, in one insert with the cleaned document: a file that fails leaves nothing behind.
+    const title = (input.title ?? "").trim();
+    if (!title) return { error: "Give the page a title." };
+    const slug = (input.slug ?? "").trim() || slugify(title);
+    if (!isValidSlug(slug)) return { error: "The address can use lowercase letters, numbers and dashes." };
+    try {
+      const page = await createRepos(auth.supabase).landingPages.create({ title, slug, data: prepared.clean, createdBy: auth.user.id, pageType: input.pageType as LandingPageType, fromFile: true });
+      refresh();
+      return { slug: page.slug, summary };
+    } catch (error) {
+      if (error instanceof LandingPageSlugTakenError) return { error: "Another page already has that address." };
+      throw error;
+    }
+  } catch (error) {
+    return failed("create from file", error, "Couldn't create the page.");
+  }
+}
+
+/**
+ * Makes a new draft page from a page's JSON (the file the editor exports): "New page" > "Import from a JSON file". The file goes
+ * through the same reading, pruning and cleaning as an import into an existing draft. `dryRun` returns the preview and writes
+ * nothing (no title or kind needed). The kind of page (website or landing) is the admin's choice: the file doesn't carry one.
+ * The Activity Log entry is the page's insert, which says it came from a file.
+ */
+export async function createLandingPageFromJson(input: { text: string; title?: string; slug?: string; pageType?: string }, options?: { dryRun?: boolean }): Promise<CreateFromJsonResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  const dryRun = options?.dryRun === true;
+  return withAction("landing_page_created_from_file", () => createFromJsonImpl(auth, input, dryRun), (r) => ({ ok: !r.error, detail: r.error ? undefined : dryRun ? "preview" : undefined }));
 }
 
 // ---- duplicate and delete --------------------------------------------------------------------------------

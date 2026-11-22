@@ -6,6 +6,9 @@ import type { ReactNode } from "react";
 
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("@/app/(admin)/admin/pages/actions", () => ({ createLandingPage: vi.fn(), createLandingPageFromJson: vi.fn() }));
+
 import NewPageButton from "@/app/(admin)/admin/pages/NewPageButton";
 
 const fetchMock = vi.fn();
