@@ -439,7 +439,7 @@ async function createFromJsonImpl(auth: Auth, input: { text: unknown; title?: st
  * The Activity Log entry is the page's insert, which says it came from a file.
  */
 export async function createLandingPageFromJson(input: { text: string; title?: string; slug?: string; pageType?: string }, options?: { dryRun?: boolean }): Promise<CreateFromJsonResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   const dryRun = options?.dryRun === true;
   return withAction("landing_page_created_from_file", () => createFromJsonImpl(auth, input, dryRun), (r) => ({ ok: !r.error, detail: r.error ? undefined : dryRun ? "preview" : undefined }));
