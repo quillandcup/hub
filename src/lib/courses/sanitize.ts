@@ -1,4 +1,5 @@
 import sanitizeHtml from "sanitize-html";
+import { allowedHtmlImageSrc, safeLinkAttribs } from "@/lib/sanitize-urls";
 
 /**
  * Lesson text from Kajabi's editor, reduced to an allowlist before it's stored (docs/product/COURSES.md:
@@ -24,7 +25,9 @@ export function sanitizeLessonHtml(html: string | null | undefined): string | nu
     allowedSchemesByTag: { img: ["http", "https"] },
     allowProtocolRelative: false,
     transformTags: {
-      a: sanitizeHtml.simpleTransform("a", { target: "_blank", rel: "noopener noreferrer" }, true),
+      a: (tagName, attribs) => ({ tagName, attribs: safeLinkAttribs(attribs) }),
+      // http(s) or our own image routes only (src/lib/sanitize-urls.ts); any other path on this site is dropped.
+      img: (tagName, attribs) => ({ tagName, attribs: { ...attribs, src: allowedHtmlImageSrc(attribs.src) } }),
     },
     // An image whose src was removed (a data: or protocol-relative URL) is just noise.
     exclusiveFilter: (frame) => frame.tag === "img" && !frame.attribs.src,

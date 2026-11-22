@@ -1,4 +1,5 @@
 import sanitizeHtml from "sanitize-html";
+import { safeLinkAttribs } from "@/lib/sanitize-urls";
 import { cleanLinks, mapProps, normalizeLandingData, type LandingData } from "./data";
 
 /**
@@ -13,7 +14,7 @@ export function sanitizeRichText(html: unknown): string {
     allowedAttributes: { a: ["href", "target", "rel"] },
     allowedSchemes: ["http", "https", "mailto"],
     allowProtocolRelative: false,
-    transformTags: { a: sanitizeHtml.simpleTransform("a", { target: "_blank", rel: "noopener noreferrer" }, true) },
+    transformTags: { a: (tagName, attribs) => ({ tagName, attribs: safeLinkAttribs(attribs) }) },
     nonTextTags: ["script", "style", "textarea", "option", "noscript"],
   });
 }
