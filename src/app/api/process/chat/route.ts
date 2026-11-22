@@ -5,7 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
-import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
+import { chatTransport } from "@/lib/chat/transports";
 import { sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
 import { purgeStagedChatFiles } from "@/lib/chat/staging";
 import { clock } from "@/lib/clock";
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     // The outbox: Hub-written messages Slack never took. After the projection, so one whose
     // Slack event did arrive is already linked and isn't posted a second time.
-    const outbox = await retryUnsentChatMessages(supabase).catch((error) => {
+    const outbox = await chatTransport().retryUnsent(supabase).catch((error) => {
       console.error("Error retrying unsent chat messages:", error);
       return { sent: 0, failed: 0, expired: 0 };
     });

@@ -61,7 +61,7 @@ describe("the pages code's imports", () => {
   });
 
   it("never reach into events code or a module's internals", () => {
-    const banned = /^@\/(lib\/events-|lib\/event-|lib\/events\/|lib\/calendar-|lib\/data\/events$|components\/EventArt$|app\/.*\/events\/)|^@\/modules\/(?!(index|editor|server)$).+/;
+    const banned = /^@\/(lib\/events-|lib\/event-|lib\/events\/|lib\/calendar-|lib\/data\/events$|components\/EventArt$|app\/.*\/events\/)|^@\/modules\/(?!(index|editor|server|chat-transport)$).+/;
     const found = pages.flatMap((file) => importsOf(file).filter((spec) => banned.test(spec)).map((spec) => `${file} imports ${spec}`));
     expect(found).toEqual([]);
   });
@@ -75,7 +75,7 @@ describe("the pages code's imports", () => {
 describe("the modules", () => {
   it("are imported by the composition root alone, outside their own folder", () => {
     const outside = [...sourceFiles("src"), ...sourceFiles("scripts")].filter((f) => !f.startsWith("src/modules/"));
-    const found = outside.flatMap((file) => importsOf(file).filter((spec) => /^@\/modules\/(?!(index|editor|server)$)/.test(spec)).map((spec) => `${file} imports ${spec}`));
+    const found = outside.flatMap((file) => importsOf(file).filter((spec) => /^@\/modules\/(?!(index|editor|server|chat-transport)$)/.test(spec)).map((spec) => `${file} imports ${spec}`));
     expect(found).toEqual([]);
   });
 });

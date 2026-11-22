@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "chat-transport-port",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "A transport port between chat and Slack",
+    summary: "Chat now asks a transport port to deliver, change, react to and read-sync messages, and Slack is the adapter registered behind it, so chat core no longer calls Slack code for those jobs.",
+    body: `Chat core (messages, channels, reactions, files, rich text, previews, unread) talks to one interface, \`ChatTransport\` (\`src/lib/chat/transport.ts\`), and gets the installed transport from \`chatTransport()\`. Slack is the adapter (\`src/modules/chat/slack\`), listed in the composition root \`src/modules/chat-transport.ts\`. With no transport installed every call is a no-op and chat stays Hub-only.
+
+- **Rule.** Chat core does not import \`src/lib/slack-*\`, the adapter's files or \`@slack/*\`; lint enforces it. Files that still do are in \`config/chat-core-baseline.json\`, which a test keeps shrink-only.
+- **Hooks.** A new transport implements the port and is added to the root; what it reports back to core is \`ChatInboundSink\`. Behavior for members is unchanged.
+- **Detail.** \`docs/architecture/CHAT_MODULE.md\`.`,
+  },
+  {
     slug: "roles-page",
     date: "2026-11-21",
     audience: "staff",
