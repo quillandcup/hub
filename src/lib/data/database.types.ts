@@ -8889,17 +8889,6 @@ export type Database = {
           mentored_count: number
         }[]
       }
-      milestones_shown_on_web: {
-        Args: { p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_title: string
-        }[]
-      }
       milestones_shown_to_members: {
         Args: { p_member_id: string }
         Returns: {

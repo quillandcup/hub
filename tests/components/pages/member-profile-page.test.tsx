@@ -21,6 +21,7 @@ import {
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import type { HostedPrickleRecord } from "@/lib/hosting-stats";
 import type { HostedScheduleSlot } from "@/lib/prickle-schedule";
+import { ANOTHER_WORK_TITLE } from "@/lib/finishers";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -451,8 +452,8 @@ describe("member profile page: Milestones strip", () => {
     expect(within(works[0]).getByText("May 1, 2026")).toBeInTheDocument();
     expect(within(works[0]).getByText("September 1, 2026")).toBeInTheDocument();
     expect(within(strip).getByText("I finally did it.")).toBeInTheDocument();
-    // A work whose name the viewer may not know has no heading, only its step.
-    expect(within(works[1]).queryByRole("heading")).not.toBeInTheDocument();
+    // A work whose name the viewer may not know is "Another work" (never blank), with only its step.
+    expect(within(works[1]).getByRole("heading", { name: ANOTHER_WORK_TITLE })).toBeInTheDocument();
     expect(within(works[1]).getByText("Author · Manuscript ready to publish")).toBeInTheDocument();
     // A story is plain text, never markup.
     expect(within(strip).getByText("<b>Stuck</b> for years.")).toBeInTheDocument();

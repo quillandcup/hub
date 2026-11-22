@@ -1,6 +1,6 @@
 import { MILESTONE_DEFAULT_VISIBILITY, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
 import { stepsCountedWhileMember, workKey, type WorkRef } from "@/lib/finishers-works";
-import { isShownToMembers, type Visibility } from "@/lib/writing-visibility";
+import { isShownToMembers, visibilityOf, type Visibility } from "@/lib/writing-visibility";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { fetchAllRows } from "@/lib/supabase/paginate";
@@ -49,7 +49,7 @@ export type ShownStepKind = MilestoneKind | "published";
 /**
  * One row of a member's works as the strips read it: `workNo` numbers the works (1, 2, 3...) so rows of the same work can be
  * grouped without an id. `workTitle` is the work's name as the viewer may know it: the book's title or the one the member wrote,
- * null for a project that is not on the Bookshelf (a project's name follows the project's own level).
+ * the project's title when the viewer may see the project itself (its own level), else null and the strip says "Another work".
  */
 export type ShownWorkStep = {
   workNo: number;
@@ -753,18 +753,21 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
   /** The same grouping as `member_works_shown`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
   private works(memberId: string, levels: readonly string[]): ShownWorkStep[] {
     const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null);
-    type Item = ShownWorkStep & { key: string; step: number; createdAt: string };
+    type Item = ShownWorkStep & { key: string; step: number; createdAt: string; titleRank: number };
     const items: Item[] = [];
     for (const m of this.live()) {
       if (m.member_id !== memberId || m.status !== "confirmed" || !levels.includes(m.visibility)) continue;
       const book = m.book_id ? books.find((b) => b.id === m.book_id) : undefined;
+      // The project's title counts only when the viewer may see the project itself: its own level is one this read serves.
+      const project = this.data.writingProjects.find((p) => p.id === (m.project_id ?? book?.project_id) && !p.deleted_at && levels.includes(visibilityOf(p)));
       items.push({
         key: book?.project_id ?? m.project_id ?? m.book_id ?? workKey({ projectId: null, bookId: null, title: m.title }),
         step: m.kind === "the_end" ? 1 : 2,
         createdAt: m.created_at,
+        titleRank: m.title !== null ? 1 : book?.title ? 2 : 3,
         workNo: 0,
         kind: m.kind as MilestoneKind,
-        workTitle: m.title ?? book?.title ?? null,
+        workTitle: m.title ?? book?.title ?? project?.title ?? null,
         achievedOn: m.achieved_on,
         storyBefore: m.story_before,
         storyAfter: m.story_after,
@@ -772,20 +775,20 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       });
     }
     for (const b of books.filter((x) => x.member_id === memberId)) {
-      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, storyBefore: null, storyAfter: null, visibility: "public" });
+      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", titleRank: 2, workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, storyBefore: null, storyAfter: null, visibility: "public" });
     }
     const first = new Map<string, string>();
+    for (const i of items) if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);
+    // The work's name: the first title by rank (the member's own, the book's, the project's), then by age, as the SQL window reads it.
     const title = new Map<string, string | null>();
-    for (const i of items) {
-      if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);
-      // The largest title among the work's rows, as the SQL window's max() reads it.
-      const seen = title.get(i.key) ?? null;
-      if (i.workTitle !== null && (seen === null || i.workTitle > seen)) title.set(i.key, i.workTitle);
+    for (const key of first.keys()) {
+      const named = items.filter((i) => i.key === key && i.workTitle !== null).sort((a, b) => a.titleRank - b.titleRank || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+      title.set(key, named[0]?.workTitle ?? null);
     }
     const order = [...first.keys()].sort((a, b) => (first.get(a)! < first.get(b)! ? -1 : first.get(a)! > first.get(b)! ? 1 : a < b ? -1 : a > b ? 1 : 0));
     return items
       .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key) || a.step - b.step || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
-      .map(({ key, step: _step, createdAt: _createdAt, ...rest }) => ({ ...rest, workNo: order.indexOf(key) + 1, workTitle: title.get(key) ?? null }));
+      .map(({ key, step: _step, createdAt: _createdAt, titleRank: _titleRank, ...rest }) => ({ ...rest, workNo: order.indexOf(key) + 1, workTitle: title.get(key) ?? null }));
   }
 
   async worksShownToMembers(memberId: string, firstJoinedAt: string | null) {

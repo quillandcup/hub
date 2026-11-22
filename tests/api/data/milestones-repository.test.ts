@@ -60,5 +60,8 @@ defineMilestonesContract("SupabaseMilestoneRepository", () => ({
     must(await db.from("member_books").update({ deleted_at: new Date().toISOString() }).eq("member_id", memberId));
   },
   addProject: (memberId) => new SupabaseWritingRepository(db).createProject(memberId, "A Fake Novel", "drafting"),
+  setProjectVisibility: async (projectId, visibility) => {
+    must(await db.from("writing_projects").update({ visibility }).eq("id", projectId));
+  },
   clear,
 }));

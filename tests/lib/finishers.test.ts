@@ -9,7 +9,6 @@ import {
   MILESTONE_SHOWN,
   SHARE_STORY_DEFAULT,
   SHARE_STORY_LABEL,
-  SHARE_STORY_NOTE,
   SHARE_STORY_TIP,
   describeMilestoneLevel,
   hasStory,
@@ -130,9 +129,9 @@ describe("parseMilestoneSelfAdd", () => {
 describe("the share consent and the visibility words", () => {
   it("keeps the agreed consent wording, with the marketing uses in the tip", () => {
     expect(SHARE_STORY_LABEL).toBe("Share my story to inspire other writers.");
-    expect(SHARE_STORY_NOTE).toMatch(/we may feature it on the Quill & Cup website/);
-    expect(SHARE_STORY_NOTE).toMatch(/you can change your mind any time/);
-    expect(SHARE_STORY_TIP).toBe("For marketing: the Finishers section of our website, and testimonials we share.");
+    expect(SHARE_STORY_TIP).toMatch(/we may feature it on the Quill & Cup website/);
+    expect(SHARE_STORY_TIP).toMatch(/you can change your mind any time/);
+    expect(SHARE_STORY_TIP).toMatch(/We.ll only use what you.ve written here/);
   });
 
   it("says something warm for each milestone and never promises sales or exposure", () => {
@@ -141,7 +140,7 @@ describe("the share consent and the visibility words", () => {
       expect(MILESTONE_CELEBRATION[kind].length).toBeGreaterThan(10);
       expect(MILESTONE_SHOWN[kind].length).toBeGreaterThan(5);
     }
-    expect(`${SHARE_STORY_NOTE} ${SHARE_STORY_TIP}`).not.toMatch(/sales|sell|exposure|famous|guarantee/i);
+    expect(SHARE_STORY_TIP).not.toMatch(/sales|sell|exposure|famous|guarantee/i);
   });
 
   it("offers the globe only where writer profiles are open", () => {

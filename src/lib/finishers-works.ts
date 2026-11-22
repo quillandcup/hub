@@ -1,4 +1,4 @@
-import { MILESTONE_TITLES, PUBLISHED_TITLE, reachedWhileMember, type MilestoneKind } from "@/lib/finishers";
+import { reachedWhileMember, type MilestoneKind } from "@/lib/finishers";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
 import type { Milestone, ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
 
@@ -143,18 +143,25 @@ export function groupShownWorks(steps: readonly ShownWorkStep[]): ShownWork[] {
 export const isFeaturedWork = (work: Work): boolean => Object.keys(work.milestones).length > 0 || work.published || isPastDrafting(work.phase);
 
 /**
- * The titles a member has earned, in plain words, from the whole set (docs/product/WRITER_TITLES.md): each work counts once, at
- * its highest rung, only from a milestone they confirmed ("Author" only for a confirmed publish-ready work, never for a
- * manuscript that is not) or from a book on the Bookshelf (Published Author). Null when there is nothing to say.
+ * The line under "Your milestones": how many works there are and where each stands, as plain counts, no title words. Each work counts
+ * once, at the highest step it has reached ("6 works · 1 published · 2 ready to publish · 3 finished"), only from a milestone the
+ * member confirmed or a book on the Bookshelf, so "ready to publish" is never said of a manuscript that is not. This differs on
+ * purpose from the badges, which count every step reached (a work that is published also counts as a Finisher and an Author), so
+ * the line does not use the badge words. One function, so the owner's choice of highest step or all steps is one place to change.
+ * Null when there is nothing to say.
  */
-export function summarizeTitles(works: Work[]): string | null {
+export function summarizeWorks(works: Work[]): string | null {
   const counts = { published: 0, publish_ready: 0, the_end: 0 };
   for (const w of works) {
     if (w.published) counts.published += 1;
     else if (w.milestones.publish_ready?.status === "confirmed") counts.publish_ready += 1;
     else if (w.milestones.the_end?.status === "confirmed") counts.the_end += 1;
   }
-  const part = (title: string, n: number) => (n > 0 ? [`${title} of ${n} ${n === 1 ? "work" : "works"}`] : []);
-  const parts = [...part(PUBLISHED_TITLE, counts.published), ...part(MILESTONE_TITLES.publish_ready, counts.publish_ready), ...part(MILESTONE_TITLES.the_end, counts.the_end)];
-  return parts.length > 0 ? parts.join(" · ") : null;
+  const total = counts.published + counts.publish_ready + counts.the_end;
+  if (total === 0) return null;
+  const parts = [`${total} ${total === 1 ? "work" : "works"}`];
+  if (counts.published > 0) parts.push(`${counts.published} published`);
+  if (counts.publish_ready > 0) parts.push(`${counts.publish_ready} ready to publish`);
+  if (counts.the_end > 0) parts.push(`${counts.the_end} finished`);
+  return parts.join(" · ");
 }

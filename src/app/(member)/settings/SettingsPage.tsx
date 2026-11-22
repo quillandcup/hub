@@ -164,7 +164,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 label: SETTINGS_TAB_LABELS.profile,
                 content: (
                   <>
-                    <ProfilePanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date }))} firstJoinedAt={firstJoinedAt} readOnly={effectiveIdentity?.isSudo ?? false} />
+                    <ProfilePanel />
                     <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date }))} firstJoinedAt={firstJoinedAt} readOnly={effectiveIdentity?.isSudo ?? false} web={milestoneWeb} />
                   </>
                 ),
