@@ -207,10 +207,10 @@ export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
 };
 
 /**
- * Anyone with a role, or several (a signed-in staff member, a `StaffUser`, an action's `auth`). A person can hold
- * several roles and what they may do is the union; `role` is kept for single-role callers and counts as one more role held.
+ * Anyone with roles (a signed-in staff member, a `StaffUser`, an action's `auth`): what they may do is the union of the
+ * roles they hold. A guard's result also carries `role`, the primary one, for display and routing; it is not read here.
  */
-export type Actor = { role?: string | null; roles?: readonly string[] | null } | null | undefined;
+export type Actor = { roles?: readonly (string | null | undefined)[] | null } | null | undefined;
 
 /** A set of roles as callers have it: one role, a list, or nothing. */
 export type RoleInput = string | readonly (string | null | undefined)[] | null | undefined;
@@ -225,9 +225,9 @@ export function staffRolesIn(input: RoleInput): StaffRole[] {
   return STAFF_ROLES.filter((role) => list.includes(role));
 }
 
-/** The roles an actor holds: its `roles` and its `role`, as staff roles by priority. */
+/** The staff roles an actor holds, by priority. */
 export function rolesOf(actor: Actor): StaffRole[] {
-  return staffRolesIn([...(actor?.roles ?? []), ...(actor?.role ? [actor.role] : [])]);
+  return staffRolesIn(actor?.roles);
 }
 
 /** The highest-priority staff role in the set, or null when there is none: what `user_profiles.role` and `app_role` carry. */

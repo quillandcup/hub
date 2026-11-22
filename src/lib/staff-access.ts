@@ -36,15 +36,11 @@ export const STAFF_FEATURES = [
 ] as const satisfies readonly Permission[];
 export type StaffFeature = (typeof STAFF_FEATURES)[number];
 
-/** What `staffCan` and `staffFeaturesFor` accept: an actor (`auth`, a `StaffUser`), or a single role name. */
-type StaffSubject = Actor | string;
-const asActor = (subject: StaffSubject): Actor => (typeof subject === "string" ? { role: subject } : subject);
-
 /** The features this person has: the union over their roles (all for an admin or assistant, those in a bundle for another staff role), none otherwise. */
-export function staffFeaturesFor(subject: StaffSubject): readonly StaffFeature[] {
-  return STAFF_FEATURES.filter((feature) => can(asActor(subject), feature));
+export function staffFeaturesFor(subject: Actor): readonly StaffFeature[] {
+  return STAFF_FEATURES.filter((feature) => can(subject, feature));
 }
 
-export function staffCan(subject: StaffSubject, feature: StaffFeature): boolean {
-  return can(asActor(subject), feature);
+export function staffCan(subject: Actor, feature: StaffFeature): boolean {
+  return can(subject, feature);
 }

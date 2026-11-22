@@ -60,7 +60,8 @@ function feed(rows: ActivityFeedRow[], total = rows.length) {
 beforeEach(() => {
   rpc.mockReset();
   tables.members = [{ id: MEMBER_ID, name: "Fern Quillsby", email: "fern@example.test", user_id: null }];
-  tables.user_profiles = [{ id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test", role: "admin" }];
+  tables.user_profiles = [{ id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test" }];
+  tables.user_roles = [{ user_id: "00000000-0000-4000-a000-0000000000a1", role: "admin" }];
   vi.mocked(requirePermission).mockClear();
 });
 
@@ -84,8 +85,8 @@ describe("/admin/activity", () => {
   it("names a filtered-to actor who isn't staff by their profile's email", async () => {
     const outsider = "00000000-0000-4000-a000-0000000000b2";
     tables.user_profiles = [
-      { id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test", role: "admin" },
-      { id: outsider, email: "outsider@example.test", role: "member" },
+      { id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test" },
+      { id: outsider, email: "outsider@example.test" },
     ];
     feed([base]);
 

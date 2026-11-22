@@ -113,7 +113,7 @@ describe("the role x permission matrix", () => {
   it.each(cases)("%s x %s", (role, permission) => {
     const expected =
       role === "admin" ? true : role === "assistant" ? !ASSISTANT_WITHHELD.includes(permission) : GRANTED[permission].includes(role);
-    expect(can({ role }, permission)).toBe(expected);
+    expect(can({ roles: [role] }, permission)).toBe(expected);
   });
 
   it("gives the admin every permission, and the assistant the admin's list by construction, less what is withheld", () => {
@@ -123,9 +123,9 @@ describe("the role x permission matrix", () => {
 
   it("withholds from the assistant only what the privacy page keeps from it: a member's tracked DMs and plan activity in Hedgie Care", () => {
     expect([...ASSISTANT_WITHHELD]).toEqual(["care.member_activity.read"]);
-    expect(can({ role: "assistant" }, "care.write")).toBe(true);
-    expect(can({ role: "assistant" }, "care.member_activity.read")).toBe(false);
-    expect(can({ role: "community_manager" }, "care.member_activity.read")).toBe(true);
+    expect(can({ roles: ["assistant"] }, "care.write")).toBe(true);
+    expect(can({ roles: ["assistant"] }, "care.member_activity.read")).toBe(false);
+    expect(can({ roles: ["community_manager"] }, "care.member_activity.read")).toBe(true);
   });
 
   it("keeps each limited role's bundle equal to its column in the table", () => {
@@ -137,8 +137,8 @@ describe("the role x permission matrix", () => {
 
   it("gives every limited role the staff area and not the dashboard", () => {
     for (const role of LIMITED) {
-      expect(can({ role }, "staff.access")).toBe(true);
-      expect(can({ role }, "dashboard.read")).toBe(false);
+      expect(can({ roles: [role] }, "staff.access")).toBe(true);
+      expect(can({ roles: [role] }, "dashboard.read")).toBe(false);
     }
   });
 });
@@ -204,7 +204,7 @@ describe("the community manager is exactly what the role was before the registry
 });
 
 describe("the conversion specialist", () => {
-  const specialist = { role: "conversion_specialist" };
+  const specialist = { roles: ["conversion_specialist"] };
 
   it("edits and publishes landing pages, runs outreach, and sends and schedules email and announcements", () => {
     for (const permission of ["pages.read", "pages.edit", "pages.publish", "outreach.manage", "email.send", "email.schedule", "announcements.manage"] as const) {
@@ -241,7 +241,7 @@ describe("the conversion specialist", () => {
 
   it("cannot delete a landing page (the admin and the assistant can)", () => {
     expect(can(specialist, "pages.delete")).toBe(false);
-    expect(can({ role: "admin" }, "pages.delete")).toBe(true);
+    expect(can({ roles: ["admin"] }, "pages.delete")).toBe(true);
   });
 
   it("opens only its own pages in the admin area", () => {
@@ -262,7 +262,7 @@ describe("the conversion specialist", () => {
 describe("can()", () => {
   it.each(["member", "", "Admin", "owner", null, undefined])("grants nothing to the role %s", (role) => {
     expect(isStaffRole(role)).toBe(false);
-    for (const permission of ALL_PERMISSIONS) expect(can({ role }, permission)).toBe(false);
+    for (const permission of ALL_PERMISSIONS) expect(can({ roles: [role] }, permission)).toBe(false);
   });
 
   it("grants nothing to nobody", () => {
@@ -271,8 +271,8 @@ describe("can()", () => {
     expect(can({}, "staff.access")).toBe(false);
   });
 
-  it("accepts anything with a role (a staff user, an action's auth)", () => {
-    const staffUser = { role: "admin", id: "user-1", email: "a@example.test" };
+  it("accepts anything with roles (a staff user, an action's auth)", () => {
+    const staffUser = { role: "admin", roles: ["admin"], id: "user-1", email: "a@example.test" };
     expect(can(staffUser, "members.read")).toBe(true);
   });
 });
@@ -304,14 +304,14 @@ describe("the staff features are permissions", () => {
   });
 
   it("gives an admin every feature, and a community manager only the ones in its bundle", () => {
-    expect(staffFeaturesFor("admin")).toEqual(STAFF_FEATURES);
-    expect(staffCan("admin", "member.sudo")).toBe(true);
-    expect(staffFeaturesFor("community_manager")).toEqual(["member.activity_tab_limited", "care.write"].sort((a, b) => STAFF_FEATURES.indexOf(a as never) - STAFF_FEATURES.indexOf(b as never)));
-    expect(staffCan("community_manager", "member.activity_tab")).toBe(false);
+    expect(staffFeaturesFor({ roles: ["admin"] })).toEqual(STAFF_FEATURES);
+    expect(staffCan({ roles: ["admin"] }, "member.sudo")).toBe(true);
+    expect(staffFeaturesFor({ roles: ["community_manager"] })).toEqual(["member.activity_tab_limited", "care.write"].sort((a, b) => STAFF_FEATURES.indexOf(a as never) - STAFF_FEATURES.indexOf(b as never)));
+    expect(staffCan({ roles: ["community_manager"] }, "member.activity_tab")).toBe(false);
   });
 
   it.each(["member", "conversion_specialist", null, undefined, ""])("gives the role %s no feature", (role) => {
-    expect(staffFeaturesFor(role)).toEqual([]);
+    expect(staffFeaturesFor({ roles: [role] })).toEqual([]);
   });
 });
 

@@ -141,7 +141,7 @@ describe('Admin Users API', () => {
     const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'admin' }),
+      body: JSON.stringify({ roles: ['admin'] }),
     })
 
     expect(res.ok).toBe(true)
@@ -205,7 +205,7 @@ describe('Admin Users API', () => {
       await patchRoles([])
     })
 
-    it('still accepts a single `role`, which becomes the only role', async () => {
+    it('ignores a lone `role`: roles are set only as a list', async () => {
       await patchRoles(['community_manager', 'conversion_specialist'])
       const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
         method: 'PATCH',
@@ -213,7 +213,7 @@ describe('Admin Users API', () => {
         body: JSON.stringify({ role: 'assistant' }),
       })
       expect(res.ok).toBe(true)
-      expect(await stored()).toEqual({ roles: ['assistant'], column: 'assistant' })
+      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'], column: 'community_manager' })
       await patchRoles([])
     })
   })
@@ -275,7 +275,7 @@ describe('Admin Users API', () => {
     const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'member', features: ['member_overrides'] }),
+      body: JSON.stringify({ roles: [], features: ['member_overrides'] }),
     })
 
     expect(res.ok).toBe(true)

@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 const requirePermission = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requirePermission: async () => { await requirePermission(); return { id: "admin", email: "a@example.test", role: "admin" }; } }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: async () => { await requirePermission(); return { id: "admin", email: "a@example.test", role: "admin", roles: ["admin"] }; } }));
 let attendance = new InMemoryAttendanceRepository();
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
