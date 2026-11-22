@@ -1,4 +1,4 @@
--- pgTAP tests for 20270920000000_badge_types_counted.sql: Finisher, Author and Published Author show the real count, so they are the
+-- pgTAP tests for 20271016000000_badge_types_counted.sql: Finisher, Author and Published Author show the real count, so they are the
 -- only badge types with `counted`; a new type is not counted; the old levels stay for the contract step.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 BEGIN;
