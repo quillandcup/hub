@@ -64,6 +64,7 @@ const ADMIN_PAGE_PERMISSIONS: ReadonlyArray<readonly [RegExp, Permission]> = [
   [/^\/admin\/prickle-join(\/|$)/, "prickles.manage"],
   [/^\/admin\/prickles\/[^/]+/, "prickles.read"],
   [/^\/admin\/programs(\/|$)/, "programs.manage"],
+  [/^\/admin\/roles(\/|$)/, "roles.read"],
   [/^\/admin\/search(\/|$)/, "system.search.use"],
   [/^\/admin\/stats(\/|$)/, "analytics.community.read"],
   [/^\/admin\/users(\/|$)/, "system.users.manage"],

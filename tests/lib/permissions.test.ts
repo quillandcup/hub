@@ -90,6 +90,7 @@ const GRANTED: Record<Permission, readonly LimitedRole[]> = {
   "data.pipeline.run": [],
   "data.hygiene.manage": [],
   "system.users.manage": [],
+  "roles.read": [],
   "system.compliance.read": [],
   "system.previews.manage": [],
   "system.feedback.manage": [],

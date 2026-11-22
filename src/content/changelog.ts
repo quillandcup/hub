@@ -62,6 +62,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "roles-page",
+    date: "2026-11-21",
+    audience: "staff",
+    category: "new",
+    title: "A Roles page that shows who can do what in the staff area",
+    summary: "Admins and assistants can now open Roles in the System menu to see every permission and which staff roles hold it.",
+    body: `**Roles** (System menu) lists every permission with a short description, grouped by area, and a column for each role: Admin, Assistant, Community Manager and Conversion Specialist. A check mark means the role has it, a dash means it doesn't, and each mark also has text for screen readers.
+
+- **Summary.** At the top, each role has a sentence on what it is for and how many permissions it holds.
+- **Reserved.** A permission marked Reserved is not used by any page or button yet, so holding it changes nothing today.
+- **Withheld.** The one permission the Assistant is kept from on purpose is marked, with the reason.
+- **Search.** Type a permission word, or a role name to see what that role may do.
+- **On a phone.** The table scrolls sideways and the permission names stay in view.
+
+The page is read-only and always matches the code, so changing a role is still a change to the code.`,
+  },
+  {
     slug: "page-block-registry",
     date: "2026-11-21",
     audience: "engineering",
