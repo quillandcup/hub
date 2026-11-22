@@ -51,6 +51,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 | `tabbed-pages.md`, `ui-layout.md` | tabs are paths, container queries, named z-layers |
 | `resource-ids.md`, `business-facts.md` | id tiers and prefixes, derive don't assume |
 | `admin-route-protection.md` | admin pages/actions, community manager, preview role |
+| `permissions-for-resources.md` | a new resource or operation defines its permissions: verbs, role decisions, guard, RLS, audit, tests |
 | `migrations.md`, `config-as-code.md` | numbering, expand/contract, squawk; Supabase, GitHub, Sentry, Slack manifest as code |
 | `testing-requirements.md` | integration, route, component, pgTAP, fake clock |
 
