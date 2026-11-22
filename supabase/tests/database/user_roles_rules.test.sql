@@ -1,4 +1,4 @@
--- pgTAP tests for who may change whose roles (enforce_user_role_changes on user_roles, 20271008000000_user_roles.sql):
+-- pgTAP tests for who may change whose roles (enforce_user_role_changes on user_roles, 20271028000000_user_roles.sql):
 -- an actor gives or takes away only roles strictly below their own highest role, on people strictly below it (an admin: any);
 -- nobody removes their own admin role; the service role and a session without a user are exempt. Rolled back; `pnpm test:pgtap`.
 BEGIN;

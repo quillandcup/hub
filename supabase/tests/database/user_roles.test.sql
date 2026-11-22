@@ -1,4 +1,4 @@
--- pgTAP tests for several roles per user (20271008000000_user_roles.sql): the table and its RLS, the backfill,
+-- pgTAP tests for several roles per user (20271028000000_user_roles.sql): the table and its RLS, the backfill,
 -- the helpers over both role sources, the primary role kept in user_profiles.role, set_user_roles(), the audit
 -- entries, and the access token hook's app_roles. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;

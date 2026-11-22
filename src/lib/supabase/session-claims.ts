@@ -54,7 +54,7 @@ export function getAppRoleFromAccessToken(token: string): string | null | undefi
 
 /**
  * The staff roles the token's claims say the user holds, highest priority first: the `app_roles` array that the
- * custom access token hook adds (supabase/migrations/20271008000000_user_roles.sql), or, for a token minted before
+ * custom access token hook adds (supabase/migrations/20271028000000_user_roles.sql), or, for a token minted before
  * that, the single `app_role`.
  *
  * - an array (possibly empty) -- the roles held when the token was minted (anything that isn't a staff role is dropped)
