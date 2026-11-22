@@ -31,8 +31,8 @@ vi.mock("@/app/(admin)/admin/pages/new/NewPageForm", () => ({
   default: ({ templates = [], defaultType }: { templates?: { id: string; name: string }[]; defaultType?: string }) => <form aria-label="New page form" data-default={defaultType} data-templates={templates.map((t) => t.name).join(",")} />,
 }));
 vi.mock("@/app/(admin)/admin/pages/[slug]/LandingEditor", () => ({
-  default: ({ page, data, versions, starters = [], templates = [], site = null }: { page: { slug: string; seoTitle: string; publishedJson: string | null; kind?: string; pageType?: string; publicPath: string }; data: unknown; versions: unknown[]; starters?: { label: string; group?: string }[]; templates?: { name: string; published: boolean }[]; site?: { footer: { text: string } } | null }) => (
-    <div data-testid="editor" data-slug={page.slug} data-seo={page.seoTitle} data-published={String(page.publishedJson !== null)} data-versions={versions.length} data-kind={page.kind} data-type={page.pageType} data-site={site ? site.footer.text : "none"} data-path={page.publicPath} data-starters={starters.map((s) => `${s.group ?? "built"}:${s.label}`).join(",")} data-templates={templates.map((t) => `${t.name}:${t.published}`).join(",")}>
+  default: ({ page, data, versions, replaceChoices = [], templates = [], site = null }: { page: { slug: string; seoTitle: string; publishedJson: string | null; kind?: string; pageType?: string; publicPath: string }; data: unknown; versions: unknown[]; replaceChoices?: { label: string }[]; templates?: { name: string; published: boolean }[]; site?: { footer: { text: string } } | null }) => (
+    <div data-testid="editor" data-slug={page.slug} data-seo={page.seoTitle} data-published={String(page.publishedJson !== null)} data-versions={versions.length} data-kind={page.kind} data-type={page.pageType} data-site={site ? site.footer.text : "none"} data-path={page.publicPath} data-choices={replaceChoices.map((s) => s.label).join(",")} data-templates={templates.map((t) => `${t.name}:${t.published}`).join(",")}>
       {JSON.stringify(data)}
     </div>
   ),
@@ -166,18 +166,18 @@ describe("/admin/pages/[slug]", () => {
     const editor = screen.getByTestId("editor");
     expect(editor).toHaveAttribute("data-kind", "page");
     expect(editor).toHaveAttribute("data-type", "landing");
-    expect(editor.getAttribute("data-starters")).toBe("template:Launch kit");
+    expect(editor.getAttribute("data-choices")).toBe("Launch kit");
     expect(editor.getAttribute("data-templates")?.split(",").sort()).toEqual(["Draft kit:false", "Launch kit:true"]);
     cleanup();
     await renderServerPage(EditLandingPage, params("launch-kit"));
     const asTemplate = screen.getByTestId("editor");
     expect(asTemplate).toHaveAttribute("data-kind", "template");
     expect(asTemplate).toHaveAttribute("data-path", "");
-    expect(asTemplate.getAttribute("data-starters")).toBe("");
+    expect(asTemplate.getAttribute("data-choices")).toBe("");
     expect(asTemplate.getAttribute("data-templates")).toBe("");
   });
 
-  it("offers the Homepage starter, and only website templates, on a website page", async () => {
+  it("offers only the website templates (no built-in starter), on a website page", async () => {
     const site = await state.repos.landingPages.create({ title: "Site kit", slug: "site-kit", createdBy: null, kind: "template", pageType: "website" });
     await state.repos.landingPages.publish(site.id);
     const funnel = await state.repos.landingPages.create({ title: "Funnel kit", slug: "funnel-kit", createdBy: null, kind: "template" });
@@ -185,7 +185,7 @@ describe("/admin/pages/[slug]", () => {
     await state.repos.landingPages.create({ title: "About", slug: "about", createdBy: null, pageType: "website" });
     await renderServerPage(EditLandingPage, params("about"));
     expect(screen.getByTestId("editor")).toHaveAttribute("data-type", "website");
-    expect(screen.getByTestId("editor").getAttribute("data-starters")).toBe("built:Homepage,template:Site kit");
+    expect(screen.getByTestId("editor").getAttribute("data-choices")).toBe("Site kit");
   });
 
   it("gives every page the site design draft: a website page's regions come from it, and a landing page takes its style from it", async () => {

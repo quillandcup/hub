@@ -13,7 +13,6 @@ import { stampLandingVersion } from "@/lib/landing/migrations";
 import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { faviconProblem, pageOverrides } from "@/lib/landing/style";
-import { LANDING_STARTERS, isStarterKey, starterData } from "@/lib/landing/starters";
 import { loadTemplateDraft } from "@/lib/landing/template-data";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
@@ -63,14 +62,14 @@ async function createImpl(auth: Auth, input: { title: string; slug?: string; dat
 
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /**
- * Makes a draft page, empty, from a starter (src/lib/landing/starters.ts) or from a saved template (`template`, its id; cleaned again
+ * Makes a draft page, empty, or from a saved template (`template`, its id; cleaned again
  * as it is used); its address is the title's words unless one is given.
  */
-export async function createLandingPage(input: { title: string; slug?: string; starter?: string; template?: string; pageType?: string }): Promise<PageResult> {
+export async function createLandingPage(input: { title: string; slug?: string; template?: string; pageType?: string }): Promise<PageResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", async () => {
-    // Website or landing (docs/product/LANDING_PAGES.md): a landing page unless said otherwise. A starter belongs to one type and decides it.
+    // Website or landing (docs/product/LANDING_PAGES.md): a landing page unless said otherwise.
     if (input?.pageType !== undefined && !isLandingPageType(input.pageType)) return { error: "Choose a website page or a landing page." };
     const pageType: LandingPageType = input?.pageType ?? "landing";
     if (input?.template) {
@@ -84,10 +83,7 @@ export async function createLandingPage(input: { title: string; slug?: string; s
         return failed("create from template", error, "Couldn't create the page.");
       }
     }
-    if (input?.starter && !isStarterKey(input.starter)) return { error: "That starting point doesn't exist." };
-    const data = input?.starter && isStarterKey(input.starter) ? sanitizeLandingData(starterData(input.starter)) : undefined;
-    if (input?.starter && isStarterKey(input.starter) && LANDING_STARTERS[input.starter].pageType !== pageType) return { error: "That starting point is for the other kind of page." };
-    return createImpl(auth, { title: input?.title, slug: input?.slug, data, pageType });
+    return createImpl(auth, { title: input?.title, slug: input?.slug, pageType });
   });
 }
 
@@ -307,30 +303,6 @@ export async function resetLandingDraftToPublished(pageId: string): Promise<Page
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_draft_reset", () => resetDraftImpl(auth, pageId));
-}
-
-async function starterImpl(auth: Auth, pageId: string, starter: string): Promise<PageResult> {
-  if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
-  if (!isStarterKey(starter)) return { error: "That starting point doesn't exist." };
-  const repo = createRepos(auth.supabase).landingPages;
-  try {
-    // The draft as it is now is kept in History first, so the replacement can be undone with Bring back.
-    const kept = await repo.keepDraftBeforeStarter(pageId, auth.user.id, `Replaced by the starter “${LANDING_STARTERS[starter].label}”`);
-    if (!kept) return { error: NOT_FOUND };
-    const page = await repo.replaceDraftWithStarter(pageId, sanitizeLandingData(starterData(starter)), auth.user.id);
-    if (!page) return { error: NOT_FOUND };
-    refresh();
-    return { slug: page.slug };
-  } catch (error) {
-    return failed("starter replace", error, "Couldn't replace the draft.");
-  }
-}
-
-/** Replaces the draft with a starter's page. The old draft is kept in History; the published copy, title, address and search settings are untouched, and nothing goes live. */
-export async function replaceLandingDraftWithStarter(pageId: string, starter: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
-  if (!auth.ok) return { error: auth.error };
-  return withAction("landing_page_starter_applied", () => starterImpl(auth, pageId, starter));
 }
 
 // ---- import a page's JSON --------------------------------------------------------------------------------

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   unpublish: vi.fn(),
   restore: vi.fn(),
   reset: vi.fn(),
-  starter: vi.fn(),
   template: vi.fn(),
   saveTemplate: vi.fn(),
   importJson: vi.fn(),
@@ -36,7 +35,6 @@ vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({
   unpublishLandingPage: mocks.unpublish,
   restoreLandingPageVersion: mocks.restore,
   resetLandingDraftToPublished: mocks.reset,
-  replaceLandingDraftWithStarter: mocks.starter,
   importLandingDraftJson: mocks.importJson,
   updateLandingPageDetails: mocks.details,
 }));
@@ -60,10 +58,11 @@ import LandingEditor, { type EditorPage } from "@/app/(admin)/admin/pages/[slug]
 const page: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/p/spring" };
 const heading = { type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } };
 const data = { content: [heading], root: {} };
-const STARTERS = [{ key: "home", label: "Homepage", description: "The public front door." }];
+const TEMPLATE_ID = "lpg_TEMPLATEAAA1";
+const TEMPLATES = [{ key: TEMPLATE_ID, label: "Launch kit", description: "A template you published." }];
 
 function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null }[] = []) {
-  return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} starters={STARTERS} />);
+  return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} replaceChoices={TEMPLATES} />);
 }
 
 beforeEach(() => {
@@ -200,7 +199,7 @@ describe("the header", () => {
     mocks.width = 820;
     mocks.height = 1180;
     const view = editor();
-    const again = () => view.rerender(<LandingEditor page={page} data={data} versions={[]} starters={STARTERS} />);
+    const again = () => view.rerender(<LandingEditor page={page} data={data} versions={[]} replaceChoices={TEMPLATES} />);
 
     fireEvent.focus(screen.getByRole("combobox", { name: "Tablet model" }));
     fireEvent.click(screen.getByText("iPad Pro 13-inch"));
@@ -445,12 +444,12 @@ describe("reset to published", () => {
 describe("history and details", () => {
   it("shows who made each version, when, how it came to be and the note, and says Someone when it can't tell", () => {
     editor({}, [
-      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_starter", by: "Bramble Admin", note: "Replaced by the starter “Homepage”" },
+      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_starter", by: "Bramble Admin", note: "Replaced by the template “Launch kit”" },
       { id: "lpgv_AAAAAAAAAAA1", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", note: null },
     ]);
     fireEvent.click(screen.getByRole("button", { name: "History" }));
     expect(screen.getByText(/Your draft before it was replaced by Bramble Admin,/)).toBeInTheDocument();
-    expect(screen.getByText("“Replaced by the starter “Homepage””")).toBeInTheDocument();
+    expect(screen.getByText("“Replaced by the template “Launch kit””")).toBeInTheDocument();
     expect(screen.getByText(/Published by Someone,/)).toBeInTheDocument();
   });
 
@@ -488,7 +487,6 @@ describe("history and details", () => {
 
   describe("starting over from a template", () => {
     const reload = vi.fn();
-    const TEMPLATE_ID = "lpg_TEMPLATEAAA1";
     beforeEach(() => {
       reload.mockReset();
       vi.stubGlobal("location", { ...window.location, reload });
@@ -496,22 +494,22 @@ describe("history and details", () => {
     });
     afterEach(() => vi.unstubAllGlobals());
 
-    it("lists published templates beside the starters, and replaces the draft through the template action, not the starter one", async () => {
-      render(<LandingEditor page={page} data={data} versions={[]} starters={[...STARTERS, { key: TEMPLATE_ID, label: "Launch kit", description: "A template you published.", group: "template" }]} />);
+    it("lists published templates (nothing built in), and replaces the draft through the template action", async () => {
+      render(<LandingEditor page={page} data={data} versions={[]} replaceChoices={TEMPLATES} />);
       fireEvent.click(screen.getByRole("button", { name: "History" }));
-      fireEvent.change(screen.getByLabelText("Starter"), { target: { value: TEMPLATE_ID } });
+      expect(screen.queryByText("Built in")).toBeNull();
+      fireEvent.change(screen.getByLabelText("Template"), { target: { value: TEMPLATE_ID } });
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
       });
       await answer("Replace draft");
       expect(mocks.template).toHaveBeenCalledWith(page.id, TEMPLATE_ID);
-      expect(mocks.starter).not.toHaveBeenCalled();
       expect(reload).toHaveBeenCalled();
     });
 
     it("shows the template's reason when it can't be used", async () => {
       mocks.template.mockResolvedValue({ error: "That template is no longer available." });
-      render(<LandingEditor page={page} data={data} versions={[]} starters={[{ key: TEMPLATE_ID, label: "Launch kit", description: "A template you published.", group: "template" }]} />);
+      render(<LandingEditor page={page} data={data} versions={[]} replaceChoices={TEMPLATES} />);
       fireEvent.click(screen.getByRole("button", { name: "History" }));
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
@@ -522,12 +520,12 @@ describe("history and details", () => {
     });
   });
 
-  describe("starting over from a starter", () => {
+  describe("starting over from a template", () => {
     const reload = vi.fn();
     beforeEach(() => {
       reload.mockReset();
       vi.stubGlobal("location", { ...window.location, reload });
-      mocks.starter.mockResolvedValue({ slug: "spring" });
+      mocks.template.mockResolvedValue({ slug: "spring" });
     });
     afterEach(() => vi.unstubAllGlobals());
 
@@ -535,33 +533,18 @@ describe("history and details", () => {
       editor();
       fireEvent.click(screen.getByRole("button", { name: "History" }));
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Replace draft with starter" }));
+        fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
       });
     };
 
-    it("is offered in History, lists the starters, and asks first, saying what is kept and that nothing goes live", async () => {
+    it("is offered in History, lists the templates, and asks first, saying what is kept and that nothing goes live", async () => {
       await open();
-      expect(screen.getByRole("option", { name: "Homepage" })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Replace your draft with the Homepage starter?" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Launch kit" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Replace your draft with the Launch kit template?" })).toBeInTheDocument();
       expect(screen.getByText(/kept in History as "Your draft before it was replaced"/)).toBeInTheDocument();
       expect(screen.getByText(/nothing goes live/)).toBeInTheDocument();
       await answer("Cancel");
-      expect(mocks.starter).not.toHaveBeenCalled();
-      expect(reload).not.toHaveBeenCalled();
-    });
-
-    it("replaces the draft and reloads the editor on the new one", async () => {
-      await open();
-      await answer("Replace draft");
-      expect(mocks.starter).toHaveBeenCalledWith(page.id, "home");
-      expect(reload).toHaveBeenCalled();
-    });
-
-    it("shows why it failed and does not reload", async () => {
-      mocks.starter.mockResolvedValue({ error: "Couldn't replace the draft." });
-      await open();
-      await answer("Replace draft");
-      expect(screen.getByRole("alert")).toHaveTextContent("Couldn't replace the draft.");
+      expect(mocks.template).not.toHaveBeenCalled();
       expect(reload).not.toHaveBeenCalled();
     });
 
@@ -570,11 +553,11 @@ describe("history and details", () => {
       edit("Welcome back");
       fireEvent.click(screen.getByRole("button", { name: "History" }));
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Replace draft with starter" }));
+        fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
       });
       await answer("Replace draft");
       expect(mocks.save).toHaveBeenCalled();
-      expect(mocks.save.mock.invocationCallOrder[0]).toBeLessThan(mocks.starter.mock.invocationCallOrder[0]);
+      expect(mocks.save.mock.invocationCallOrder[0]).toBeLessThan(mocks.template.mock.invocationCallOrder[0]);
     });
 
     it("names a draft kept before starting over in the list", () => {

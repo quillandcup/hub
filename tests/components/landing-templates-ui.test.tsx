@@ -12,7 +12,7 @@ vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({ createLandingPage:
 vi.mock("../../src/app/(admin)/admin/pages/template-actions", () => ({ saveLandingTemplate: mocks.save }));
 
 import SaveAsTemplate from "@/app/(admin)/admin/pages/[slug]/SaveAsTemplate";
-import StarterReplace from "@/app/(admin)/admin/pages/[slug]/StarterReplace";
+import TemplateReplace from "@/app/(admin)/admin/pages/[slug]/TemplateReplace";
 import NewPageForm from "@/app/(admin)/admin/pages/new/NewPageForm";
 import PagesTable from "@/app/(admin)/admin/pages/PagesTable";
 
@@ -142,18 +142,19 @@ describe("Save as template", () => {
 });
 
 describe("Start over lists", () => {
-  const starters = [
-    { key: "home", label: "Homepage", description: "The front door" },
-    { key: kit.id, label: kit.name, description: "A template you published.", group: "template" as const },
+  const choices = [
+    { key: kit.id, label: kit.name, description: "A template you published." },
+    { key: "lpg_other", label: "Sign-up kit", description: "A template you published." },
   ];
 
-  it("groups the built-in starters and the published templates, and says template for a template", async () => {
+  it("lists only the published templates, with no built-in group, and asks before replacing", async () => {
     const onReplace = vi.fn().mockResolvedValue(null);
-    render(<StarterReplace starters={starters} onReplace={onReplace} />);
-    const select = screen.getByLabelText("Starter");
-    expect(within(select).getByRole("group", { name: "Built in" })).toBeInTheDocument();
-    expect(within(select).getByRole("group", { name: "Templates" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Start over from a starter or template" })).toBeInTheDocument();
+    render(<TemplateReplace choices={choices} onReplace={onReplace} />);
+    const select = screen.getByLabelText("Template");
+    expect(within(select).queryByRole("group")).toBeNull();
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([kit.name, "Sign-up kit"]);
+    expect(screen.getByRole("heading", { name: "Start over from a template" })).toBeInTheDocument();
+    expect(screen.queryByText("Built in")).toBeNull();
     fireEvent.change(select, { target: { value: kit.id } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Replace draft with template" }));
@@ -163,19 +164,19 @@ describe("Start over lists", () => {
     expect(onReplace).toHaveBeenCalledWith(kit.id);
   });
 
-  it("stays a plain starter list when there are no templates", () => {
-    render(<StarterReplace starters={[starters[0]]} onReplace={vi.fn()} />);
-    expect(screen.queryByRole("group")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Start over from a starter" })).toBeInTheDocument();
+  it("shows nothing when there are no published templates", () => {
+    const { container } = render(<TemplateReplace choices={[]} onReplace={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 
 describe("New page from a template", () => {
-  it("lists built-in starters and published templates apart and creates the page from the template", async () => {
+  it("lists the published templates, with no built-in group, and creates the page from the template", async () => {
     render(<NewPageForm aiAvailable={false} templates={[{ id: kit.id, name: kit.name, pageType: "website" }]} />);
     const select = screen.getByLabelText(/Start from/);
-    expect(within(select).getByRole("group", { name: "Built in" })).toBeInTheDocument();
+    expect(within(select).queryByRole("group", { name: "Built in" })).toBeNull();
     expect(within(select).getByRole("group", { name: "Templates" })).toBeInTheDocument();
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["A blank page", "Launch kit"]);
     fireEvent.change(select, { target: { value: kit.id } });
     expect(screen.getByLabelText("Title")).toHaveValue("Launch kit");
     expect(screen.getByText(/Its published copy is saved as a draft/)).toBeInTheDocument();
