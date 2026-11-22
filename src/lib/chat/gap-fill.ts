@@ -2,7 +2,7 @@ import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { projectChatMessage } from "@/lib/chat-projection";
 import { clock } from "@/lib/clock";
 import { slackChannelType } from "@/lib/slack-capture";

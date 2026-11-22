@@ -4,7 +4,7 @@ import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectCareFromDms } from "@/lib/care-dm";
 import { DMS_STALE_HOURS, pullDmsForCoveredMembers } from "@/lib/chat/slack-dms";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { clock } from "@/lib/clock";
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";

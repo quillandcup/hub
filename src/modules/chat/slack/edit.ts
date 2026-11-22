@@ -3,10 +3,10 @@ import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
-import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/lib/chat/slack-post";
-import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
+import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/modules/chat/slack/post";
+import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/modules/chat/slack/rich-blocks";
 import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
-import { uploadedFileIds } from "@/lib/chat/slack-upload";
+import { uploadedFileIds } from "@/modules/chat/slack/upload";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**

@@ -51,10 +51,10 @@ vi.mock("@/lib/data/repos", async () => {
 });
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown[]) => m.connected(...a) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => m.serviceClient() }));
-vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
-vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
-vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: m.slackFileDelete }));
-vi.mock("@/lib/chat/slack-upload", () => ({ keepCopies: m.keepCopies }));
+vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: m.sendToSlack }));
+vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: m.syncReaction }));
+vi.mock("@/modules/chat/slack/edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: m.slackFileDelete }));
+vi.mock("@/modules/chat/slack/upload", () => ({ keepCopies: m.keepCopies }));
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }));
 const notifyChat = vi.hoisted(() => vi.fn(async () => ({ sent: [], dryRun: [] })));

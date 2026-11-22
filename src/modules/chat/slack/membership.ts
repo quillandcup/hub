@@ -1,7 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
 import type { Repos } from "@/lib/data/repos";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { isDeadTokenError } from "@/lib/slack-connect";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 

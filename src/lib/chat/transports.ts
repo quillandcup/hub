@@ -6,8 +6,7 @@ export const NO_TRANSPORT: ChatTransport = {
   id: "none",
   writesEnabled: () => false,
   isConnected: async () => false,
-  deliver: async () => "skipped",
-  retryUnsent: async () => ({ sent: 0, failed: 0, expired: 0 }),
+  send: async () => ({ status: "skipped" }),
   syncReaction: async () => false,
   editMessage: async () => ({ ok: true }),
   deleteMessage: async () => ({ ok: true }),
@@ -17,6 +16,12 @@ export const NO_TRANSPORT: ChatTransport = {
   pushRead: async () => false,
   pushUnread: async () => false,
   pullRead: async () => false,
+  externalIdsFor: async () => new Map(),
+  addToConversation: async () => ({ result: { ok: false, error: "Chat isn't connected to anything that can add people." }, reconnect: false }),
+  removeFromConversation: async () => ({ result: { ok: false, error: "Chat isn't connected to anything that can remove people." }, reconnect: false }),
+  updateAppMessage: async () => {
+    throw new Error("no chat transport installed");
+  },
   pullDirectConversations: async () => null,
   openDirectConversation: async () => ({ ok: false, reason: "not_connected" }),
 };

@@ -20,13 +20,16 @@ const EVENTS_CODE = {
 // not @slack/*. Files that still do are listed, each with its reason, in config/chat-core-baseline.json (shrink-only, checked by
 // tests/lib/chat-core-boundary.test.ts); they are left out of this rule until their last Slack import is gone.
 const CHAT_SLACK_CODE = {
-  group: ["slack", "slack-*", "gap-fill", "@slack/**"],
+  group: ["slack", "slack-*", "gap-fill", "@slack/**", "@/modules/chat/**"],
   message: "Chat core does not import Slack. Ask the transport port instead (src/lib/chat/transport.ts, via chatTransport() from src/lib/chat/transports.ts); Slack code belongs to the adapter (src/modules/chat/slack).",
 };
 const CHAT_CORE_FILES = ["src/lib/chat/**/*.{ts,tsx}", "src/components/chat/**/*.{ts,tsx}", "src/app/(member)/chat/**/*.{ts,tsx}", "src/app/api/chat/**/*.{ts,tsx}", "src/app/api/process/chat/**/*.{ts,tsx}", "src/lib/data/chat*.ts"];
 // The adapter's own files, which still sit in src/lib/chat until the next steps move them under src/modules/chat/slack.
 const CHAT_ADAPTER_FILES = ["src/lib/chat/slack-*.ts", "src/lib/chat/gap-fill.ts"];
 // A path like [id] is a glob character class, so the brackets are escaped.
+// Slack code that still sits outside src/modules/chat/slack (the inbound side: DM pulls, gap-fill, the webhook) and uses the adapter's outbound
+// helpers (the write switch, escaping, edits). It may name them until it moves in (docs/architecture/CHAT_MODULE.md).
+const CHAT_SLACK_SIDE_FILES = [...CHAT_ADAPTER_FILES, "src/lib/prickle-checkin-dm-close.ts", "src/app/api/reconcile/slack-dms/**/*.ts", "src/app/api/webhooks/slack/**/*.ts"];
 const CHAT_BASELINE = Object.keys(JSON.parse(readFileSync(new URL("./chat-core-baseline.json", import.meta.url), "utf8")).files).map((f) => f.replace(/[\\[\]]/g, "\\$&"));
 
 const eslintConfig = [{
@@ -52,6 +55,10 @@ const eslintConfig = [{
   // The pages code: the same, and no events code either (a rule per file set, since a second config object would replace this one).
   files: ["src/lib/landing/**/*.{ts,tsx}", "src/components/landing/**/*.{ts,tsx}"],
   rules: { "no-restricted-imports": ["error", { patterns: [MODULE_INTERNALS, EVENTS_CODE] }] },
+}, {
+  // The Slack-side files still outside the adapter's folder may import its helpers (but still not another module's internals).
+  files: CHAT_SLACK_SIDE_FILES,
+  rules: { "no-restricted-imports": ["error", { patterns: [{ group: ["@/modules/events/**"], message: MODULE_INTERNALS.message }] }] },
 }, {
   // Chat core: no Slack. A rule per file set again, so the module rule is repeated.
   files: CHAT_CORE_FILES,

@@ -42,10 +42,14 @@ vi.mock("@/lib/features.server", () => ({
 const { reportRefused } = vi.hoisted(() => ({ reportRefused: vi.fn() }));
 vi.mock("@/lib/chat/blocks-refused", () => ({ reportRefusedBlocks: (...args: unknown[]) => reportRefused(...args) }));
 const { sendFiles } = vi.hoisted(() => ({ sendFiles: vi.fn() }));
-vi.mock("@/lib/chat/slack-upload", () => ({ sendChatFilesToSlack: sendFiles }));
+vi.mock("@/modules/chat/slack/upload", () => ({ sendChatFilesToSlack: sendFiles }));
 
 import { APP_URL } from "@/lib/config";
-import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata, retryUnsentChatMessages, sendChatMessageToSlack } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/modules/chat/slack/post";
+import { deliverChatMessage, retryUnsentChatMessages } from "@/lib/chat/delivery";
+
+/** The message goes through core's delivery, which asks the Slack transport to send it and records the outcome (what these tests check). */
+const sendChatMessageToSlack = (supabase: Parameters<typeof deliverChatMessage>[0], messageId: string) => deliverChatMessage(supabase, messageId);
 
 const CHANNEL = "chn_AAAAAAAAAAA1";
 const ID = "msg_AAAAAAAAAAA1";
@@ -450,7 +454,7 @@ describe("retryUnsentChatMessages", () => {
 
 describe("sendChatMessageToSlack with files", () => {
   it("hands a message with files (and no text) to the file upload instead of chat.postMessage", async () => {
-    sendFiles.mockResolvedValue("sent");
+    sendFiles.mockResolvedValue({ status: "sent" });
     stateOf(ID)!.thread_root_id = ROOT_ID;
     dataset.chatMessageContents = [
       { message_id: ID, body: "", files: [{ id: "pending-1", name: "cat.gif", mimetype: "image/gif", staged: "staging/x/y/cat.gif" }] },

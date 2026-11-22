@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
@@ -36,7 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!content || !file) return notFound();
 
   const service = createServiceRoleClient();
-  const fetchBytes = (from: string) => service.storage.from(SLACK_FILES_BUCKET).download(from);
+  const fetchBytes = (from: string) => service.storage.from(CHAT_FILES_BUCKET).download(from);
   let storedType: string | null = null;
   /** Ask Slack for the file (and keep a copy of it): the last resort, for a file that came from Slack and has not been copied yet. */
   const fromSlack = async (): Promise<string | null> => {

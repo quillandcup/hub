@@ -4,7 +4,7 @@ import { GET } from '@/app/api/reconcile/slack-dms/route'
 
 vi.mock('@/lib/chat/slack-dms', () => ({ pullDmsForCoveredMembers: vi.fn(), DMS_STALE_HOURS: 72 }))
 vi.mock('@/lib/care-dm', () => ({ projectCareFromDms: vi.fn() }))
-vi.mock('@/lib/chat/slack-post', () => ({ chatSlackWritesEnabled: vi.fn(() => true) }))
+vi.mock('@/modules/chat/slack/post', () => ({ chatSlackWritesEnabled: vi.fn(() => true) }))
 vi.mock('@/lib/supabase/api-auth', () => ({ requireApiPermission: vi.fn() }))
 vi.mock('@/lib/cron-heartbeats', () => ({ pingCronHeartbeat: vi.fn() }))
 vi.mock('@/lib/operations-alerts', () => ({ sendOperationsAlert: vi.fn() }))
@@ -14,7 +14,7 @@ const repos = vi.hoisted(() => ({ care: { name: 'care' }, careDms: { name: 'care
 
 import { pullDmsForCoveredMembers } from '@/lib/chat/slack-dms'
 import { projectCareFromDms } from '@/lib/care-dm'
-import { chatSlackWritesEnabled } from '@/lib/chat/slack-post'
+import { chatSlackWritesEnabled } from '@/modules/chat/slack/post'
 import { sendOperationsAlert } from '@/lib/operations-alerts'
 import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'

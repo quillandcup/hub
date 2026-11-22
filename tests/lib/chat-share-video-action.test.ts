@@ -29,10 +29,10 @@ vi.mock("@/lib/data/repos", async () => ({
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown[]) => m.connected(...a) }));
 vi.mock("@/lib/courses/caller", () => ({ getCoursesCaller: m.coursesCaller }));
 vi.mock("@/lib/courses/member", () => ({ loadMemberCourseAccess: vi.fn(async () => ({ kind: "open" })), canOpenLessons: m.canOpen }));
-vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
-vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: vi.fn() }));
-vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: vi.fn(), deleteChatMessageInSlack: vi.fn(), deleteChatFileInSlack: vi.fn() }));
-vi.mock("@/lib/chat/slack-upload", () => ({ keepCopies: vi.fn() }));
+vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: m.sendToSlack }));
+vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: vi.fn() }));
+vi.mock("@/modules/chat/slack/edit", () => ({ updateChatMessageInSlack: vi.fn(), deleteChatMessageInSlack: vi.fn(), deleteChatFileInSlack: vi.fn() }));
+vi.mock("@/modules/chat/slack/upload", () => ({ keepCopies: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
 

@@ -22,7 +22,7 @@ vi.mock("@slack/web-api", () => ({
   },
 }));
 vi.mock("@/lib/slack-capture", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/slack-capture")>()), ensureSlackFileCopied: m.ensureFile }));
-vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => m.writes }));
+vi.mock("@/modules/chat/slack/post", () => ({ chatSlackWritesEnabled: () => m.writes }));
 vi.mock("@/lib/features.server", () => ({
   membersWithFeatureForOutreach: async (_repos: unknown, _key: string, ids: string[]) => new Set(ids.filter((id) => m.covered.has(id))),
 }));

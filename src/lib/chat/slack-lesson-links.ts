@@ -7,9 +7,9 @@ import type { Repos } from "@/lib/data/repos";
 import { membersWithFeature } from "@/lib/features.server";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
-import { updateChatMessageInSlack } from "@/lib/chat/slack-edit";
+import { updateChatMessageInSlack } from "@/modules/chat/slack/edit";
 import { sharedVideoDefaultText, sharedVideoSlackLine } from "@/lib/chat/video-link";
-import { escapeForSlack } from "@/lib/chat/slack-post";
+import { escapeForSlack } from "@/modules/chat/slack/post";
 import { parseChatFiles } from "@/lib/chat/files";
 
 /**

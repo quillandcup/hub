@@ -20,7 +20,7 @@ const slackRead = vi.hoisted(() => ({
 }));
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => void slackRead.after.push(cb) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
-vi.mock("@/lib/chat/slack-read", () => ({ pushReadToSlack: slackRead.push, pushUnreadToSlack: slackRead.pushUnread, pullReadFromSlack: slackRead.pull }));
+vi.mock("@/modules/chat/slack/read", () => ({ pushReadToSlack: slackRead.push, pushUnreadToSlack: slackRead.pushUnread, pullReadFromSlack: slackRead.pull }));
 const dms = vi.hoisted(() => ({ pull: vi.fn(async () => ({ conversations: 0, messages: 0 })) }));
 vi.mock("@/lib/chat/slack-dms", () => ({ pullMemberDms: dms.pull }));
 const chatNotify = vi.hoisted(() => ({ resolve: vi.fn(async () => {}), notify: vi.fn(async () => ({ sent: [], dryRun: [] })) }));

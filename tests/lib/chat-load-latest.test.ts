@@ -22,8 +22,8 @@ vi.mock("@/lib/features.server", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ supabase: true }) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
-vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn() }));
-vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: vi.fn() }));
+vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: vi.fn() }));
+vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: vi.fn() }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: vi.fn() }));
 // The member's read marker comes from the chat repository, here in memory.
 let memberships: { channel_id: string; member_id: string; last_read_at?: string; joined_at?: string }[] = [];

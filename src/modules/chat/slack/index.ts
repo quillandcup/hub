@@ -1,17 +1,21 @@
 import type { ChatTransport, OpenConversationResult } from "@/lib/chat/transport";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
-import { chatSlackWritesEnabled, retryUnsentChatMessages, sendChatMessageToSlack } from "@/lib/chat/slack-post";
-import { syncReactionToSlack } from "@/lib/chat/slack-react";
-import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack } from "@/lib/chat/slack-read";
+import { createSlackClient } from "@/lib/slack-client";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
+import { chatSlackWritesEnabled, postChatMessageToSlack } from "./post";
+import { syncReactionToSlack } from "./react";
+import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack } from "./read";
 import { openSlackDm, pullMemberDms } from "@/lib/chat/slack-dms";
-import { removeSlackUnfurl } from "@/lib/chat/slack-unfurl-removal";
-import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
+import { removeSlackUnfurl } from "./unfurl-removal";
+import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "./edit";
+import { addToSlackConversation, removeFromSlackConversation, slackIdsForMembers } from "./conversation";
 import { keepSlackFileCopies } from "./files";
 
 /**
- * The Slack transport: implements the chat port (`src/lib/chat/transport.ts`) over the existing Slack code. It owns Slack ids and
- * tokens, mrkdwn escaping and blocks, the user and bot token choice, and Slack's rate limits; core sees none of that.
- * The Slack modules still live in `src/lib/chat/slack-*.ts` and move under this folder in the next steps
+ * The Slack transport: implements the chat port (`src/lib/chat/transport.ts`). It owns Slack ids and tokens, mrkdwn escaping and
+ * blocks, the user and bot token choice, and Slack's rate limits; core sees none of that. It never records delivery status: `send`
+ * answers how it went and core writes it (`src/lib/chat/delivery.ts`). The outbound Slack code is in this folder; the inbound code
+ * (`src/lib/chat/slack-dms.ts`, `gap-fill.ts`, the webhook) still sits outside and moves in the next step
  * (docs/architecture/CHAT_MODULE.md). Registered in `src/modules/chat-transport.ts`.
  */
 
@@ -25,8 +29,7 @@ export const slackTransport: ChatTransport = {
   // does not break importing the transport.
   writesEnabled: () => chatSlackWritesEnabled(),
   isConnected: async (db, memberId) => (await getSlackConnectionStatus(db, memberId)).connected,
-  deliver: (db, messageId) => sendChatMessageToSlack(db, messageId),
-  retryUnsent: (db) => retryUnsentChatMessages(db),
+  send: (db, messageId) => postChatMessageToSlack(db, messageId),
   syncReaction: (db, opts) => syncReactionToSlack(db, opts),
   editMessage: (db, opts) => updateChatMessageInSlack(db, opts),
   deleteMessage: (db, opts) => deleteChatMessageInSlack(db, opts),
@@ -36,6 +39,14 @@ export const slackTransport: ChatTransport = {
   pushRead: (db, opts) => pushReadToSlack(db, opts),
   pushUnread: (db, opts) => pushUnreadToSlack(db, opts),
   pullRead: (db, memberId, opts) => (opts ? pullReadFromSlack(db, memberId, opts) : pullReadFromSlack(db, memberId)),
+  externalIdsFor: (db, memberIds) => slackIdsForMembers(db, memberIds),
+  addToConversation: (db, opts) => addToSlackConversation(db, opts),
+  removeFromConversation: (db, opts) => removeFromSlackConversation(db, opts),
+  updateAppMessage: async ({ channelRef, ref, message }) => {
+    const token = await getSlackBotToken();
+    if (!token) throw new Error("no Slack bot token");
+    await createSlackClient(token).chat.update({ channel: channelRef, ts: ref, ...message } as Parameters<ReturnType<typeof createSlackClient>["chat"]["update"]>[0]);
+  },
   pullDirectConversations: (db, memberId) => pullMemberDms(db, memberId),
   openDirectConversation: async (db, memberId, otherMemberId) => openResult(await openSlackDm(db, memberId, otherMemberId)),
 };

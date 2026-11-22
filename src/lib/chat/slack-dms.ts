@@ -2,7 +2,7 @@ import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { getSlackConnectionStatus, getSlackUserToken, isDeadTokenError, SLACK_DM_SCOPES } from "@/lib/slack-connect";
 import { fetchThread, storedReplyCounts, storeAndProject } from "@/lib/chat/gap-fill";
 import { isKeptSlackMessage } from "@/lib/slack-messages";

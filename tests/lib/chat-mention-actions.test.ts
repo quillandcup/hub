@@ -18,7 +18,7 @@ vi.mock("@/lib/chat/load", () => ({
   loadChannelMembers: m.loadChannelMembers,
   loadChatChannels: m.loadChatChannels,
 }));
-vi.mock("@/lib/chat/slack-membership", () => ({ slackUserIdsFor: m.slackIds }));
+vi.mock("@/modules/chat/slack/membership", () => ({ slackUserIdsFor: m.slackIds }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ supabase: true }) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 // The directory's own matching (name or display name, wildcards as letters) is in its repository contract; here it is a stand-in.

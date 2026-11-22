@@ -7,7 +7,7 @@ import { safeLinkUrl } from "@/lib/chat/unfurls";
 /**
  * The author of a message written in the Hub removed Slack's link preview INSIDE SLACK ("remove preview"): hide the Hub's own preview of
  * that link too, by the same mark the X in the Hub writes (`chat_hidden_unfurls`, key `url:<address>`; docs/product/SLACK_BRIDGED_CHAT.md, "Link
- * previews for messages written in the Hub"). The reverse direction is src/lib/chat/slack-unfurl-removal.ts.
+ * previews for messages written in the Hub"). The reverse direction is src/modules/chat/slack/unfurl-removal.ts.
  *
  * A message written in the Hub shows two cards for a link (Slack's attachment and the Hub's own); the Hub shows only its own. Slack
  * dropping its attachment therefore changes nothing on screen unless we act on it. The signal is Slack sending the message again with an

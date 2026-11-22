@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
-import { setChatPreviewsInSlack } from "@/lib/chat/slack-edit";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
+import { setChatPreviewsInSlack } from "@/modules/chat/slack/edit";
 import { normalizeLinkForMatch } from "@/lib/chat/unfurl-dedupe";
 import { parseChatFiles } from "@/lib/chat/files";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
