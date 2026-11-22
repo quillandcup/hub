@@ -2,7 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MilestonesPanel } from "@/app/(member)/settings/MilestonesPanel";
+import { MilestoneSummary, OtherWorks, ProjectMilestones, type MilestoneWebState } from "@/components/writing/Milestones";
+import { buildWorks, otherWorks, workOfProject, type CardBook, type CardProject } from "@/lib/finishers-works";
 import * as actions from "@/app/(member)/settings/milestoneActions";
 import { MILESTONE_DEFAULT_VISIBILITY, MILESTONE_LEVEL_LINES, MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, PUBLISHED_ROW_HEADING, milestoneRowHeading, SHARE_STORY_LABEL, SHARE_STORY_TIP } from "@/lib/finishers";
 import type { Milestone } from "@/lib/data/milestones";
@@ -30,6 +31,7 @@ const milestone = (overrides: Partial<Milestone> = {}): Milestone => ({
   status: "proposed",
   source: "staff",
   achievedOn: null,
+  achievedPrecision: "day",
   storyBefore: null,
   storyAfter: null,
   visibility: "private",
@@ -39,6 +41,44 @@ const milestone = (overrides: Partial<Milestone> = {}): Milestone => ({
   ...overrides,
 });
 
+
+/**
+ * The milestones as My Writing lays them out, flattened for these tests: each project's own steps (its card opens them, tested
+ * apart in MilestonesOnMyWriting.test.tsx), the summary line, and "Other works".
+ */
+function MilestonesPanel({
+  milestones,
+  projects = [],
+  books = [],
+  firstJoinedAt = null,
+  readOnly = false,
+  web = { available: false, on: false },
+}: {
+  milestones: Milestone[];
+  projects?: CardProject[];
+  books?: CardBook[];
+  firstJoinedAt?: string | null;
+  readOnly?: boolean;
+  web?: MilestoneWebState;
+}) {
+  const works = buildWorks(projects, books, milestones, firstJoinedAt);
+  const active = new Set(projects.map((p) => p.id));
+  return (
+    <div>
+      <MilestoneSummary works={works} waiting={milestones.some((m) => m.status === "proposed")} />
+      <ul>
+        {projects.map((p) => (
+          <li key={p.id}>
+            <h3>{p.title}</h3>
+            <ProjectMilestones work={workOfProject(works, p.id)!} readOnly={readOnly} web={web} />
+          </li>
+        ))}
+      </ul>
+      <OtherWorks works={otherWorks(works, active)} readOnly={readOnly} web={web} />
+    </div>
+  );
+}
+
 const work = (title: string) => screen.getByRole("heading", { name: title }).closest("li") as HTMLElement;
 
 beforeEach(() => {
@@ -46,10 +86,9 @@ beforeEach(() => {
 });
 
 describe("MilestonesPanel (per work)", () => {
-  it("is always there, even with no works, and offers a work that is not listed", () => {
+  it("always offers a work that is not listed, even with no works, and says nothing in the summary", () => {
     render(<MilestonesPanel milestones={[]} />);
-    expect(screen.getByRole("heading", { name: "Your milestones" })).toBeInTheDocument();
-    expect(screen.getByText(/no projects or books yet/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Other works" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add a work that is not listed here" })).toBeEnabled();
     expect(screen.queryByTestId("milestone-summary")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to the Bookshelf" })).toHaveAttribute("href", "/bookshelf");
@@ -68,22 +107,6 @@ describe("MilestonesPanel (per work)", () => {
     expect(li.getByText(milestoneRowHeading("the_end"))).toBeInTheDocument();
     expect(li.getByText(milestoneRowHeading("publish_ready"))).toBeInTheDocument();
     expect(li.queryByText(PUBLISHED_ROW_HEADING)).not.toBeInTheDocument();
-  });
-
-  it("shows works that have a milestone or are past drafting first, and the rest under 'Show all my projects'", async () => {
-    const user = userEvent.setup();
-    render(<MilestonesPanel milestones={[]} projects={[NOVEL, DRAFT]} />);
-    expect(screen.getByRole("heading", { name: "A Fake Novel" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "A Fake Draft" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Show all my projects (1 more)" }));
-    expect(screen.getByRole("heading", { name: "A Fake Draft" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Show all my projects/ })).not.toBeInTheDocument();
-  });
-
-  it("brings a drafting project up front once it has a milestone", () => {
-    render(<MilestonesPanel milestones={[milestone({ projectId: DRAFT.id })]} projects={[DRAFT]} />);
-    expect(screen.getByRole("heading", { name: "A Fake Draft" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Show all my projects/ })).not.toBeInTheDocument();
   });
 
   it("shows a book as a work with Published read-only, once when it is also a project", () => {
@@ -130,7 +153,7 @@ describe("MilestonesPanel (per work)", () => {
     await user.click(within(work("A Fake Novel")).getByRole("button", { name: MILESTONE_SELF_ADD.the_end.button }));
     // No story yet, so nothing to share: the tick is not on the form at all.
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
+    await user.type(screen.getByLabelText("The day"), "2026-05-01");
     await user.type(screen.getByLabelText(/how does it feel now/i), "Done.");
     // It appears with the story, with the wording, and starts unticked; the promises sit behind the info icon, not under every work.
     const tick = screen.getByRole("checkbox", { name: SHARE_STORY_LABEL });
@@ -147,6 +170,7 @@ describe("MilestonesPanel (per work)", () => {
       bookId: "book_1",
       title: null,
       achievedOn: "2026-05-01",
+      achievedPrecision: "day",
       storyBefore: "",
       storyAfter: "Done.",
       shareStory: true,
@@ -264,7 +288,6 @@ describe("MilestonesPanel (per work)", () => {
     const user = userEvent.setup();
     render(<MilestonesPanel milestones={[milestone()]} projects={[NOVEL]} />);
     expect(screen.getByText(/Suggested by the Quill & Cup team/)).toBeInTheDocument();
-    expect(screen.getByText(/stays private until you confirm it/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Yes, this is me" }));
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText(/before you got here/), "Stuck in chapter two.");
@@ -275,6 +298,7 @@ describe("MilestonesPanel (per work)", () => {
       id: "mlst_AAAAAAAAAAA1",
       answer: "confirm",
       achievedOn: null,
+      achievedPrecision: "day",
       storyBefore: "Stuck in chapter two.",
       storyAfter: "",
       shareStory: false,
@@ -415,3 +439,81 @@ describe("MilestonesPanel (who sees it, and the share tick)", () => {
   });
 });
 
+
+describe("MilestonesPanel (approximate dates)", () => {
+  const open = async (user: ReturnType<typeof userEvent.setup>) => {
+    vi.mocked(actions.addMilestone).mockResolvedValue({ success: true, added: true });
+    render(<MilestonesPanel milestones={[]} projects={[NOVEL]} />);
+    await user.click(within(work("A Fake Novel")).getByRole("button", { name: MILESTONE_SELF_ADD.the_end.button }));
+  };
+
+  it("offers a day, a month and year, a year, or I don't remember, starting at the day", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    const when = screen.getByLabelText(/When did it happen/);
+    expect(Array.from((when as HTMLSelectElement).options).map((o) => o.textContent)).toEqual(["A day", "Month and year", "Year only", "I don't remember"]);
+    expect(when).toHaveValue("day");
+    expect(screen.getByLabelText("The day")).toHaveAttribute("type", "date");
+  });
+
+  it("sends a month as the month it is, with its precision", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.selectOptions(screen.getByLabelText(/When did it happen/), "month");
+    expect(screen.getByLabelText("The month")).toHaveAttribute("type", "month");
+    await user.type(screen.getByLabelText("The month"), "2026-05");
+    await user.click(screen.getByRole("button", { name: "Add it" }));
+    await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledWith(expect.objectContaining({ achievedOn: "2026-05", achievedPrecision: "month" })));
+  });
+
+  it("sends a year as four digits, ignoring anything else typed", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.selectOptions(screen.getByLabelText(/When did it happen/), "year");
+    await user.type(screen.getByLabelText("The year"), "20a24");
+    expect(screen.getByLabelText("The year")).toHaveValue("2024");
+    await user.click(screen.getByRole("button", { name: "Add it" }));
+    await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledWith(expect.objectContaining({ achievedOn: "2024", achievedPrecision: "year" })));
+  });
+
+  it("sends no date for I don't remember, and says that is fine", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.type(screen.getByLabelText("The day"), "2026-05-01");
+    await user.selectOptions(screen.getByLabelText(/When did it happen/), "none");
+    expect(screen.queryByLabelText("The day")).not.toBeInTheDocument();
+    expect(screen.getByText(/will show with no date/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add it" }));
+    await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledWith(expect.objectContaining({ achievedOn: null, achievedPrecision: "day" })));
+  });
+
+  it("leaving the date empty is allowed: the answer is asked for, never required", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.click(screen.getByRole("button", { name: "Add it" }));
+    await waitFor(() => expect(actions.addMilestone).toHaveBeenCalledWith(expect.objectContaining({ achievedOn: null, achievedPrecision: "day" })));
+  });
+
+  it("shows a stored month or year as it was given, and opens its form on the same precision", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<MilestonesPanel milestones={[milestone({ status: "confirmed", confirmedAt: "x", source: "member", achievedOn: "2026-05-01", achievedPrecision: "month" })]} projects={[NOVEL]} />);
+    expect(screen.getByText(/Confirmed \(May 2026\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByLabelText(/When did it happen/)).toHaveValue("month");
+    expect(screen.getByLabelText("The month")).toHaveValue("2026-05");
+    unmount();
+    render(<MilestonesPanel milestones={[milestone({ status: "confirmed", confirmedAt: "x", source: "member", achievedOn: "2024-01-01", achievedPrecision: "year" })]} projects={[NOVEL]} />);
+    expect(screen.getByText(/Confirmed \(2024\)/)).toBeInTheDocument();
+  });
+
+  it("opens a confirmed milestone with no date on I don't remember, and a proposal on the day", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<MilestonesPanel milestones={[milestone({ status: "confirmed", confirmedAt: "x", source: "member" })]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByLabelText(/When did it happen/)).toHaveValue("none");
+    unmount();
+    render(<MilestonesPanel milestones={[milestone()]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("button", { name: "Yes, this is me" }));
+    expect(screen.getByLabelText(/When did it happen/)).toHaveValue("day");
+  });
+});

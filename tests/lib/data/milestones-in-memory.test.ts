@@ -48,7 +48,7 @@ describe("InMemoryMilestoneRepository.addOwn", () => {
     const data = new InMemoryDataset({ members: [{ id: ADA, name: "Ada Example" }, { id: BO, name: "Bo Example" }] });
     const otherProject = await new InMemoryWritingRepository(data).createProject(BO, "A Fake Novel", "drafting");
     const repo = new InMemoryMilestoneRepository(data);
-    const answer = { status: "confirmed" as const, achievedOn: null, storyBefore: null, storyAfter: null, consent_profile: false, consent_homepage: false, consent_testimonial: false };
+    const answer = { status: "confirmed" as const, achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, consent_profile: false, consent_homepage: false, consent_testimonial: false };
     await expect(repo.addOwn({ memberId: ADA, kind: "the_end", answer, work: { projectId: otherProject, bookId: null, title: null }, createdBy: "11111111-1111-4111-8111-111111111111" }, new Date())).rejects.toThrow();
     expect(await repo.ofMember(ADA)).toEqual([]);
   });

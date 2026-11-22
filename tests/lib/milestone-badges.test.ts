@@ -79,6 +79,22 @@ describe("milestoneBadgeCounts", () => {
   });
 });
 
+describe("milestoneBadgeCounts with approximate dates", () => {
+  it("counts a month or a year as its last day, so one that overlaps the join day counts", () => {
+    const counts = milestoneBadgeCounts(
+      [
+        { kind: "the_end", achievedOn: "2024-01-01", achievedPrecision: "month" },
+        { kind: "the_end", achievedOn: "2023-12-01", achievedPrecision: "month" },
+        { kind: "publish_ready", achievedOn: "2024-01-01", achievedPrecision: "year" },
+        { kind: "publish_ready", achievedOn: "2023-01-01", achievedPrecision: "year" },
+      ],
+      "2024-01-05",
+    );
+    // January 2024 ends on the 31st, after the join day (the 5th), so it counts; December 2023 and the year 2023 do not.
+    expect(counts).toEqual({ the_end: 1, publish_ready: 1 });
+  });
+});
+
 describe("Finisher and Author badges", () => {
   it("shows the real count of the Finisher badge (1, 2, 7 ... no steps), and Author apart from it", async () => {
     const expected: [number, string | undefined][] = [[0, undefined], [1, "Finisher"], [2, "2x Finisher"], [3, "3x Finisher"], [4, "4x Finisher"], [7, "7x Finisher"], [10, "10x Finisher"], [14, "14x Finisher"]];

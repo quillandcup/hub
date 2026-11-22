@@ -137,7 +137,7 @@ describe("updateProjectPhase: what it asks after the status saved", () => {
 
   it("does not ask again about one the member took back", async () => {
     const { milestone } = await repos.milestones.addOwn(
-      { memberId: ADA, kind: "the_end", answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false }, work: { projectId: PROJECT, bookId: null, title: null }, createdBy: USER },
+      { memberId: ADA, kind: "the_end", answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, consent_testimonial: false }, work: { projectId: PROJECT, bookId: null, title: null }, createdBy: USER },
       new Date(),
     );
     await repos.milestones.takeBack(milestone.id, ADA, new Date());
@@ -166,7 +166,7 @@ describe("updateProjectPhase: what it asks after the status saved", () => {
 
   it("changes nothing about milestones the member already has when the project goes back or to Hibernating", async () => {
     await repos.milestones.addOwn(
-      { memberId: ADA, kind: "the_end", answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false }, work: { projectId: PROJECT, bookId: null, title: null }, createdBy: USER, source: "project_stage" },
+      { memberId: ADA, kind: "the_end", answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, consent_testimonial: false }, work: { projectId: PROJECT, bookId: null, title: null }, createdBy: USER, source: "project_stage" },
       new Date(),
     );
     await move("revising", "drafting");
@@ -272,7 +272,8 @@ describe("answerStageMilestone", () => {
 
   it("refreshes the pages that show milestones", async () => {
     await answerStageMilestone({ projectId: PROJECT, kind: "the_end", answer: "yes" });
-    expect(revalidatePath).toHaveBeenCalledWith("/settings/profile");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects/[id]", "page");
     expect(revalidatePath).toHaveBeenCalledWith(`/members/${ADA}`);
   });
 

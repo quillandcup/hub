@@ -99,9 +99,32 @@ export const MILESTONE_SHOWN: Record<MilestoneKind, string> = {
   publish_ready: "Manuscript ready to publish",
 };
 
-/** A calendar date a member picked ("2026-05-01"), as words. It is a day, not an instant, so no zone is applied. */
-export function milestoneDateWords(value: string): string {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" }).format(new Date(`${value}T00:00:00Z`));
+/**
+ * How exactly a milestone's date is known: the day, only the month and year, or only the year. A member who does not remember has
+ * no date at all (`achievedOn` null). `achievedOn` always holds the first day of the period, so it is a real date for every reader.
+ */
+export const MILESTONE_DATE_PRECISIONS = ["day", "month", "year"] as const;
+export type MilestoneDatePrecision = (typeof MILESTONE_DATE_PRECISIONS)[number];
+
+export function isDatePrecision(value: unknown): value is MilestoneDatePrecision {
+  return typeof value === "string" && (MILESTONE_DATE_PRECISIONS as readonly string[]).includes(value);
+}
+
+/** A calendar date a member picked ("2026-05-01"), as words: "May 1, 2026", "May 2026" or "2026". It is a day, not an instant, so no zone is applied. */
+export function milestoneDateWords(value: string, precision: MilestoneDatePrecision = "day"): string {
+  const options: Intl.DateTimeFormatOptions =
+    precision === "year" ? { year: "numeric" } : precision === "month" ? { year: "numeric", month: "long" } : { year: "numeric", month: "long", day: "numeric" };
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...options }).format(new Date(`${value}T00:00:00Z`));
+}
+
+/** The last day (YYYY-MM-DD) of the period a date stands for: the day itself, the end of its month, or the end of its year. */
+export function datePeriodEnd(value: string, precision: MilestoneDatePrecision = "day"): string {
+  if (precision === "day") return value;
+  const year = Number(value.slice(0, 4));
+  if (precision === "year") return `${String(year).padStart(4, "0")}-12-31`;
+  const month = Number(value.slice(5, 7));
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
 }
 
 /**
@@ -158,7 +181,10 @@ export type MilestoneAnswerInput = {
   answer: "confirm" | "decline";
   /** Who sees it. Left out, a milestone confirmed for the first time starts at `MILESTONE_DEFAULT_VISIBILITY`. */
   visibility?: string | null;
+  /** The date as the form gives it: "YYYY-MM-DD" for a day, "YYYY-MM" for a month, "YYYY" for a year; blank or null for "I don't remember". */
   achievedOn?: string | null;
+  /** How exactly `achievedOn` is known (default: the day). */
+  achievedPrecision?: string | null;
   storyBefore?: string | null;
   storyAfter?: string | null;
   /** The share tick. It only counts when a story is written. */
@@ -168,7 +194,9 @@ export type MilestoneAnswerInput = {
 /** A confirmed answer: what the repository stores when the member says "yes, this is me" (or adds the milestone themselves). */
 export type ConfirmedMilestoneAnswer = {
   status: "confirmed";
+  /** The first day of the period the member gave (the day itself for a day); null when they do not remember. */
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   consent_testimonial: boolean;
@@ -197,6 +225,29 @@ const clean = (value: string | null | undefined): string | null => {
   return trimmed ? trimmed : null;
 };
 
+const MONTH = /^\d{4}-\d{2}$/;
+const YEAR = /^\d{4}$/;
+
+/**
+ * Reads the date a member gave and how exactly they know it. A day is "YYYY-MM-DD", a month "YYYY-MM", a year "YYYY"; the result
+ * always holds the first day of that period, so a month or a year is a real date that other code can sort and compare. Blank means
+ * "I don't remember": no date, precision day. A period that has not started yet is refused (this month and this year are fine).
+ */
+export function parseMilestoneDate(
+  value: string | null | undefined,
+  precision: string | null | undefined,
+  nowMs: number,
+): { achievedOn: string | null; achievedPrecision: MilestoneDatePrecision } | { error: string } {
+  const text = clean(value);
+  if (precision != null && !isDatePrecision(precision)) return { error: "That date doesn't look right. Pick a day, a month or a year, or leave it blank." };
+  const kind: MilestoneDatePrecision = precision ?? "day";
+  if (text === null) return { achievedOn: null, achievedPrecision: "day" };
+  const start = kind === "day" ? text : kind === "month" ? (MONTH.test(text) ? `${text}-01` : "") : YEAR.test(text) ? `${text}-01-01` : "";
+  if (!realDate(start)) return { error: "That date doesn't look right. Use the date picker, or leave it blank." };
+  if (start > orgToday(nowMs)) return { error: "That date is still ahead of us. Pick today or earlier, or leave it blank." };
+  return { achievedOn: start, achievedPrecision: kind };
+}
+
 /**
  * Reads a member's answer. A confirmed answer keeps the optional date and stories (blank means none) and the share tick (off
  * unless ticked, and off when no story was written); a decline keeps nothing. `{ error }` is a sentence for the member.
@@ -205,11 +256,9 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
   if (input.answer === "decline") return { status: "declined" };
   if (input.answer !== "confirm") return { error: "Choose whether this is you." };
 
-  const achievedOn = clean(input.achievedOn);
-  if (achievedOn !== null) {
-    if (!realDate(achievedOn)) return { error: "That date doesn't look right. Use the date picker, or leave it blank." };
-    if (achievedOn > orgToday(nowMs)) return { error: "That date is still ahead of us. Pick today or earlier, or leave it blank." };
-  }
+  const date = parseMilestoneDate(input.achievedOn, input.achievedPrecision, nowMs);
+  if ("error" in date) return date;
+  const { achievedOn, achievedPrecision } = date;
   const storyBefore = clean(input.storyBefore);
   const storyAfter = clean(input.storyAfter);
   for (const story of [storyBefore, storyAfter]) {
@@ -218,7 +267,7 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
   const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null);
   if (input.visibility != null && !isVisibility(input.visibility)) return { error: "That choice is not available." };
   const visibility = input.visibility != null ? input.visibility : undefined;
-  return { status: "confirmed", achievedOn, storyBefore, storyAfter, consent_testimonial, ...(visibility ? { visibility } : {}) };
+  return { status: "confirmed", achievedOn, achievedPrecision, storyBefore, storyAfter, consent_testimonial, ...(visibility ? { visibility } : {}) };
 }
 
 /**
@@ -247,25 +296,29 @@ export type MilestoneBadgeCounts = Record<MilestoneKind, number>;
 
 /**
  * The one rule for "while a member of the community", for milestones and for books: something counts when it has no date (the
- * member did not say when), or its date is on or after the day the member first joined (the join day counts). A member with no
+ * member did not say when), or its date is on or after the day the member first joined (the join day counts); a month or a year counts as its last day, so it counts if any part of it is on or after the join day. A member with no
  * join date has nothing to compare with, so everything counts. The reason: it separates what happened in the Hedgie house from what
  * happened outside it. A milestone or a book still shows on the profile and the Bookshelf whatever its date; this decides what
  * counts for the Finisher, Author and Published Author badges, the Published step in the strips and the summary line. Dates are
  * plain days (YYYY-MM-DD), compared as text.
  */
-export function reachedWhileMember(achievedOn: string | null, firstJoinedAt: string | null): boolean {
+export function reachedWhileMember(achievedOn: string | null, firstJoinedAt: string | null, precision: MilestoneDatePrecision = "day"): boolean {
   if (achievedOn === null || firstJoinedAt === null) return true;
-  return achievedOn >= firstJoinedAt.slice(0, 10);
+  // An imprecise date counts as the LAST day of its period: it counts if any part of the period is on or after the join day.
+  return datePeriodEnd(achievedOn, precision) >= firstJoinedAt.slice(0, 10);
 }
 
 /**
  * The counts behind the Finisher and Author badges: one per milestone (the database allows one per work and kind), counting
  * only those reached while a member. The caller passes only milestones that are confirmed and that the viewer may see.
  */
-export function milestoneBadgeCounts(milestones: readonly { kind: string; achievedOn: string | null }[], firstJoinedAt: string | null): MilestoneBadgeCounts {
+export function milestoneBadgeCounts(
+  milestones: readonly { kind: string; achievedOn: string | null; achievedPrecision?: MilestoneDatePrecision }[],
+  firstJoinedAt: string | null,
+): MilestoneBadgeCounts {
   const counts: MilestoneBadgeCounts = { the_end: 0, publish_ready: 0 };
   for (const m of milestones) {
-    if (isMilestoneKind(m.kind) && reachedWhileMember(m.achievedOn, firstJoinedAt)) counts[m.kind] += 1;
+    if (isMilestoneKind(m.kind) && reachedWhileMember(m.achievedOn, firstJoinedAt, m.achievedPrecision)) counts[m.kind] += 1;
   }
   return counts;
 }

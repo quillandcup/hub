@@ -90,10 +90,10 @@ describe("StageMilestoneDialog: one question", () => {
     await user.type(screen.getByLabelText(/And how does it feel now/), "Finally here.");
     const share = screen.getByRole("checkbox");
     expect(share).not.toBeChecked();
-    await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
+    await user.type(screen.getByLabelText("The day"), "2026-05-01");
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", storyBefore: "", storyAfter: "Finally here.", shareStory: false, visibility: "public" }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", achievedPrecision: "day", storyBefore: "", storyAfter: "Finally here.", shareStory: false, visibility: "public" }),
     );
     expect(await screen.findByTestId("stage-celebration")).toHaveTextContent(MILESTONE_CELEBRATION.the_end);
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -120,7 +120,7 @@ describe("StageMilestoneDialog: one question", () => {
     await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, storyBefore: "", storyAfter: "", shareStory: false, visibility: "public" }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, achievedPrecision: "day", storyBefore: "", storyAfter: "", shareStory: false, visibility: "public" }),
     );
   });
 
@@ -290,5 +290,12 @@ describe("the project page and the prompt", () => {
     await user.selectOptions(screen.getByRole("combobox"), "revising");
     await waitFor(() => expect(updateProjectPhase).toHaveBeenCalled());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("StageMilestoneDialog: the project's milestones", () => {
+  it("links to the project's own milestones, which is where the member can find them again", () => {
+    renderDialog();
+    expect(screen.getByRole("link", { name: /See this project.s milestones/ })).toHaveAttribute("href", `/projects/${PROJECT}#milestones`);
   });
 });

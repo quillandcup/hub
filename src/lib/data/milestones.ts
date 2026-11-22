@@ -1,4 +1,4 @@
-import { MILESTONE_DEFAULT_VISIBILITY, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
+import { MILESTONE_DEFAULT_VISIBILITY, type MilestoneDatePrecision, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
 import { stepsCountedWhileMember, workKey, type WorkRef } from "@/lib/finishers-works";
 import { isShownToMembers, visibilityOf, type Visibility } from "@/lib/writing-visibility";
 import type { Db, Row } from "./db";
@@ -21,7 +21,9 @@ export type Milestone = {
   title: string | null;
   status: MilestoneStatus;
   source: MilestoneSource;
+  /** When it happened: the day, or the first day of the month or year the member gave (`achievedPrecision`); null when they do not remember. */
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   /** Who can see it (and the story with it): only the member, other members, or the web. Only a confirmed milestone is more than private. */
@@ -38,6 +40,7 @@ export type ShownMilestone = {
   /** The title the member wrote, or the book's; null for a milestone of a project (a project's name follows the project's own level). */
   workTitle: string | null;
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   visibility: Visibility;
@@ -56,13 +59,14 @@ export type ShownWorkStep = {
   kind: ShownStepKind;
   workTitle: string | null;
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   visibility: Visibility;
 };
 
 /** A shown milestone as the Finisher and Author badges read it: no id, no work, no stories. */
-export type BadgeMilestone = { memberId: string; kind: MilestoneKind; achievedOn: string | null };
+export type BadgeMilestone = { memberId: string; kind: MilestoneKind; achievedOn: string | null; achievedPrecision: MilestoneDatePrecision };
 
 /** A milestone as the staff list shows it: the member's names, never the stories. */
 export type StaffMilestone = Pick<Milestone, "id" | "memberId" | "kind" | "status" | "source" | "achievedOn" | "createdAt"> & {
@@ -86,11 +90,11 @@ export type MilestoneProposal = {
 };
 
 const COLUMNS =
-  "id, member_id, kind, project_id, book_id, title, status, source, achieved_on, story_before, story_after, visibility, consent_testimonial, confirmed_at, created_at";
+  "id, member_id, kind, project_id, book_id, title, status, source, achieved_on, achieved_precision, story_before, story_after, visibility, consent_testimonial, confirmed_at, created_at";
 
 type MilestoneColumns = Pick<
   MilestoneRow,
-  | "id" | "member_id" | "kind" | "project_id" | "book_id" | "title" | "status" | "source" | "achieved_on" | "story_before" | "story_after"
+  | "id" | "member_id" | "kind" | "project_id" | "book_id" | "title" | "status" | "source" | "achieved_on" | "achieved_precision" | "story_before" | "story_after"
   | "visibility" | "consent_testimonial" | "confirmed_at" | "created_at"
 >;
 
@@ -106,6 +110,7 @@ function toMilestone(r: MilestoneColumns): Milestone {
     status: r.status as MilestoneStatus,
     source: r.source as MilestoneSource,
     achievedOn: r.achieved_on,
+    achievedPrecision: r.achieved_precision as MilestoneDatePrecision,
     storyBefore: r.story_before,
     storyAfter: r.story_after,
     visibility: r.visibility as Visibility,
@@ -115,7 +120,7 @@ function toMilestone(r: MilestoneColumns): Milestone {
   };
 }
 
-type ShownColumns = { kind: string; work_title: string | null; achieved_on: string | null; story_before: string | null; story_after: string | null; visibility: string };
+type ShownColumns = { kind: string; work_title: string | null; achieved_on: string | null; achieved_precision: string; story_before: string | null; story_after: string | null; visibility: string };
 
 type WorkStepColumns = ShownColumns & { work_no: number };
 
@@ -125,6 +130,7 @@ function toWorkStep(r: WorkStepColumns): ShownWorkStep {
     kind: r.kind as ShownStepKind,
     workTitle: r.work_title,
     achievedOn: r.achieved_on,
+    achievedPrecision: r.achieved_precision as MilestoneDatePrecision,
     storyBefore: r.story_before,
     storyAfter: r.story_after,
     visibility: r.visibility as Visibility,
@@ -132,7 +138,7 @@ function toWorkStep(r: WorkStepColumns): ShownWorkStep {
 }
 
 function toShown(r: ShownColumns): ShownMilestone {
-  return { kind: r.kind as MilestoneKind, workTitle: r.work_title, achievedOn: r.achieved_on, storyBefore: r.story_before, storyAfter: r.story_after, visibility: r.visibility as Visibility };
+  return { kind: r.kind as MilestoneKind, workTitle: r.work_title, achievedOn: r.achieved_on, achievedPrecision: r.achieved_precision as MilestoneDatePrecision, storyBefore: r.story_before, storyAfter: r.story_after, visibility: r.visibility as Visibility };
 }
 
 const STATUSES: readonly MilestoneStatus[] = ["proposed", "confirmed", "declined"];
@@ -174,6 +180,7 @@ function answerColumns(answer: MilestoneAnswer, nowIso: string) {
     status: "confirmed",
     confirmed_at: nowIso,
     achieved_on: answer.achievedOn,
+    achieved_precision: answer.achievedPrecision,
     story_before: answer.storyBefore,
     story_after: answer.storyAfter,
     consent_testimonial: answer.consent_testimonial,
@@ -371,6 +378,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
         source: add.source ?? "member",
         created_by: add.createdBy,
         achieved_on: add.answer.achievedOn,
+        achieved_precision: add.answer.achievedPrecision,
         story_before: add.answer.storyBefore,
         story_after: add.answer.storyAfter,
         status: "confirmed",
@@ -475,29 +483,30 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
   }
 
   async shownToMembers(memberId: string) {
-    return (must(await this.db.rpc("milestones_shown_to_members", { p_member_id: memberId })) ?? []).map(toShown);
+    // The works reader carries the date precision; the badges want the milestones only, never the derived Published rows.
+    return (must(await this.db.rpc("member_works_dated_to_members", { p_member_id: memberId })) ?? []).filter((r) => r.kind !== "published").map(toShown);
   }
 
   async worksShownToMembers(memberId: string, firstJoinedAt: string | null) {
-    return stepsCountedWhileMember((must(await this.db.rpc("member_works_shown_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
+    return stepsCountedWhileMember((must(await this.db.rpc("member_works_dated_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
   }
 
   async worksShownOnWeb(memberId: string, firstJoinedAt: string | null) {
-    return stepsCountedWhileMember((must(await this.db.rpc("member_works_shown_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
+    return stepsCountedWhileMember((must(await this.db.rpc("member_works_dated_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
   }
 
   async allShownToMembers() {
-    const rows = await fetchAllRows<{ member_id: string; kind: string; achieved_on: string | null }>((from, to) =>
+    const rows = await fetchAllRows<{ member_id: string; kind: string; achieved_on: string | null; achieved_precision: string }>((from, to) =>
       this.db
         .from("member_milestones")
-        .select("member_id, kind, achieved_on")
+        .select("member_id, kind, achieved_on, achieved_precision")
         .eq("status", "confirmed")
         .is("deleted_at", null)
         .in("visibility", ["community", "public"])
         .order("id")
         .range(from, to),
     );
-    return rows.map((r) => ({ memberId: r.member_id, kind: r.kind as MilestoneKind, achievedOn: r.achieved_on }));
+    return rows.map((r) => ({ memberId: r.member_id, kind: r.kind as MilestoneKind, achievedOn: r.achieved_on, achievedPrecision: r.achieved_precision as MilestoneDatePrecision }));
   }
 }
 
@@ -558,6 +567,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       book_id: work.bookId,
       title: work.title,
       achieved_on: achievedOn,
+      achieved_precision: "day",
       story_before: null,
       story_after: null,
       source: "staff",
@@ -636,6 +646,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       book_id: bookId,
       title: add.work.title,
       achieved_on: add.answer.achievedOn,
+      achieved_precision: add.answer.achievedPrecision,
       story_before: add.answer.storyBefore,
       story_after: add.answer.storyAfter,
       source: add.source ?? "member",
@@ -677,6 +688,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       book_id: null,
       title: null,
       achieved_on: null,
+      achieved_precision: "day",
       story_before: null,
       story_after: null,
       source: "project_stage",
@@ -732,22 +744,11 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return true;
   }
 
-  private shown(memberId: string, levels: readonly string[]): ShownMilestone[] {
-    return this.live()
-      .filter((m) => m.member_id === memberId && m.status === "confirmed" && levels.includes(m.visibility))
-      .sort(byKeyThenId<MilestoneRow>((m) => m.kind, (m) => m.id, true))
-      .map((m) => ({
-        kind: m.kind as MilestoneKind,
-        workTitle: m.title ?? this.data.memberBooks.find((b) => b.id === m.book_id && (b.deleted_at ?? null) === null)?.title ?? null,
-        achievedOn: m.achieved_on,
-        storyBefore: m.story_before,
-        storyAfter: m.story_after,
-        visibility: m.visibility as Visibility,
-      }));
-  }
-
   async shownToMembers(memberId: string) {
-    return this.shown(memberId, ["community", "public"]);
+    // Read through the works reader, as the database does: the milestones only (never the derived Published rows), named as the viewer may know them.
+    return this.works(memberId, ["community", "public"])
+      .filter((w) => w.kind !== "published")
+      .map((w) => ({ kind: w.kind as MilestoneKind, workTitle: w.workTitle, achievedOn: w.achievedOn, achievedPrecision: w.achievedPrecision, storyBefore: w.storyBefore, storyAfter: w.storyAfter, visibility: w.visibility }));
   }
 
   /** The same grouping as `member_works_shown`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
@@ -769,13 +770,14 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
         kind: m.kind as MilestoneKind,
         workTitle: m.title ?? book?.title ?? project?.title ?? null,
         achievedOn: m.achieved_on,
+        achievedPrecision: m.achieved_precision as MilestoneDatePrecision,
         storyBefore: m.story_before,
         storyAfter: m.story_after,
         visibility: m.visibility as Visibility,
       });
     }
     for (const b of books.filter((x) => x.member_id === memberId)) {
-      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", titleRank: 2, workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, storyBefore: null, storyAfter: null, visibility: "public" });
+      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", titleRank: 2, workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, achievedPrecision: "day", storyBefore: null, storyAfter: null, visibility: "public" });
     }
     const first = new Map<string, string>();
     for (const i of items) if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);
@@ -803,6 +805,6 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return this.live()
       .filter((m) => m.status === "confirmed" && isShownToMembers(m.visibility as Visibility))
       .sort(byKeyThenId<MilestoneRow>((m) => m.id, (m) => m.id))
-      .map((m) => ({ memberId: m.member_id, kind: m.kind as MilestoneKind, achievedOn: m.achieved_on }));
+      .map((m) => ({ memberId: m.member_id, kind: m.kind as MilestoneKind, achievedOn: m.achieved_on, achievedPrecision: m.achieved_precision as MilestoneDatePrecision }));
   }
 }

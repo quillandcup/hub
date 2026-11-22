@@ -429,14 +429,14 @@ describe("member profile page: private notes", () => {
 describe("member profile page: Milestones strip", () => {
   // One work with all three steps, one untitled work (a project that is not on the Bookshelf) with one.
   const SHOWN = [
-    { work_no: 1, kind: "the_end", work_title: "A Fake Novel", achieved_on: "2026-05-01", story_before: null, story_after: "I finally did it.", visibility: "community" },
-    { work_no: 1, kind: "publish_ready", work_title: "A Fake Novel", achieved_on: null, story_before: null, story_after: null, visibility: "public" },
-    { work_no: 1, kind: "published", work_title: "A Fake Novel", achieved_on: "2026-09-01", story_before: null, story_after: null, visibility: "public" },
-    { work_no: 2, kind: "publish_ready", work_title: null, achieved_on: null, story_before: "<b>Stuck</b> for years.", story_after: null, visibility: "public" },
+    { work_no: 1, kind: "the_end", work_title: "A Fake Novel", achieved_on: "2026-05-01", achieved_precision: "day", story_before: null, story_after: "I finally did it.", visibility: "community" },
+    { work_no: 1, kind: "publish_ready", work_title: "A Fake Novel", achieved_on: null, achieved_precision: "day", story_before: null, story_after: null, visibility: "public" },
+    { work_no: 1, kind: "published", work_title: "A Fake Novel", achieved_on: "2026-09-01", achieved_precision: "day", story_before: null, story_after: null, visibility: "public" },
+    { work_no: 2, kind: "publish_ready", work_title: null, achieved_on: null, achieved_precision: "day", story_before: "<b>Stuck</b> for years.", story_after: null, visibility: "public" },
   ];
 
   it("shows what the member showed to other members: the title, the work, the day and the story they wrote", async () => {
-    const supabase = useFakeSupabase(tables({ "rpc:member_works_shown_to_members": { data: SHOWN } }));
+    const supabase = useFakeSupabase(tables({ "rpc:member_works_dated_to_members": { data: SHOWN } }));
     await renderServerPage(MemberProfilePage, params);
     const strip = screen.getByTestId("milestone-strip");
     expect(within(strip).getByRole("heading", { name: "Milestones" })).toBeInTheDocument();
@@ -459,12 +459,12 @@ describe("member profile page: Milestones strip", () => {
     expect(within(strip).getByText("<b>Stuck</b> for years.")).toBeInTheDocument();
     expect(strip.querySelector("b")).toBeNull();
     // The reader is asked for the member being viewed, not the signed-in one.
-    expect(supabase.queries.find((q) => q.table === "rpc:member_works_shown_to_members")?.calls).toContainEqual({ method: "args", args: [{ p_member_id: PROFILE_ID }] });
+    expect(supabase.queries.find((q) => q.table === "rpc:member_works_dated_to_members")?.calls).toContainEqual({ method: "args", args: [{ p_member_id: PROFILE_ID }] });
   });
 
   it("leaves out the Published step of a book from before the member first joined (2023-01-10), keeping the join day and later", async () => {
-    const step = (published_on: string, work_no: number, title: string) => ({ work_no, kind: "published", work_title: title, achieved_on: published_on, story_before: null, story_after: null, visibility: "public" });
-    useFakeSupabase(tables({ "rpc:member_works_shown_to_members": { data: [step("2023-01-09", 1, "An Earlier Fake Book"), step("2023-01-10", 2, "A Join Day Fake Book")] } }));
+    const step = (published_on: string, work_no: number, title: string) => ({ work_no, kind: "published", work_title: title, achieved_on: published_on, achieved_precision: "day", story_before: null, story_after: null, visibility: "public" });
+    useFakeSupabase(tables({ "rpc:member_works_dated_to_members": { data: [step("2023-01-09", 1, "An Earlier Fake Book"), step("2023-01-10", 2, "A Join Day Fake Book")] } }));
     await renderServerPage(MemberProfilePage, params);
     const strip = screen.getByTestId("milestone-strip");
     expect(within(strip).getByRole("heading", { name: "A Join Day Fake Book" })).toBeInTheDocument();
@@ -478,7 +478,7 @@ describe("member profile page: Milestones strip", () => {
   });
 
   it("still draws the page when the milestones cannot be read", async () => {
-    useFakeSupabase(tables({ "rpc:member_works_shown_to_members": { error: { message: "boom" } } }));
+    useFakeSupabase(tables({ "rpc:member_works_dated_to_members": { error: { message: "boom" } } }));
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Hazel Burrowes" })).toBeInTheDocument();

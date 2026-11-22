@@ -5150,6 +5150,7 @@ export type Database = {
       member_milestones: {
         Row: {
           achieved_on: string | null
+          achieved_precision: string
           book_id: string | null
           confirmed_at: string | null
           consent_homepage: boolean
@@ -5172,6 +5173,7 @@ export type Database = {
         }
         Insert: {
           achieved_on?: string | null
+          achieved_precision?: string
           book_id?: string | null
           confirmed_at?: string | null
           consent_homepage?: boolean
@@ -5194,6 +5196,7 @@ export type Database = {
         }
         Update: {
           achieved_on?: string | null
+          achieved_precision?: string
           book_id?: string | null
           confirmed_at?: string | null
           consent_homepage?: boolean
@@ -8842,6 +8845,45 @@ export type Database = {
           messages: number
           reactions: number
           total: number
+        }[]
+      }
+      member_works_dated: {
+        Args: { p_levels: string[]; p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_dated_on_web: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_dated_to_members: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
         }[]
       }
       member_works_shown: {

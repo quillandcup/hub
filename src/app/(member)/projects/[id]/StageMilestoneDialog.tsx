@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import Modal from "@/components/Modal";
 import { MILESTONE_CELEBRATION, type MilestoneKind } from "@/lib/finishers";
 import { STAGE_PROMPT, type StageMilestonePrompt } from "@/lib/milestone-prompts";
-import { MilestoneForm } from "@/app/(member)/settings/MilestonesPanel";
+import { MilestoneForm } from "@/components/writing/Milestones";
 import { answerStageMilestone } from "../stageMilestoneActions";
 
 const PRIMARY = "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
@@ -62,7 +63,7 @@ function StepRow({
           initial={null}
           submitLabel="Save it"
           run={(i) =>
-            answerStageMilestone({ projectId, kind, answer: "yes", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })
+            answerStageMilestone({ projectId, kind, answer: "yes", achievedOn: i.achievedOn, achievedPrecision: i.achievedPrecision, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })
           }
           onDone={(saved) => onStep(saved ? "yes" : "asking")}
           readOnly={false}
@@ -97,7 +98,7 @@ export default function StageMilestoneDialog({ prompt, onClose, onPublish }: { p
   const stepOf = (kind: MilestoneKind): Step => steps[kind] ?? "asking";
   const open = kinds.filter((k) => stepOf(k) === "asking" || stepOf(k) === "form");
 
-  // Leaving with a question unanswered counts as "not yet": it is remembered, and the card in Settings is still there.
+  // Leaving with a question unanswered counts as "not yet": it is remembered, and the project's milestones are still there.
   const leave = (then: () => void) => {
     startTransition(async () => {
       await Promise.all(open.map((kind) => answerStageMilestone({ projectId, kind, answer: "not_yet" }).catch(() => null)));
@@ -143,7 +144,15 @@ export default function StageMilestoneDialog({ prompt, onClose, onPublish }: { p
             </div>
           </div>
         )}
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/projects/${projectId}#milestones`}
+            onClick={() => leave(onClose)}
+            data-track="stage-milestone-see-milestones"
+            className="text-sm text-plum-700 underline dark:text-plum-300"
+          >
+            See this project&rsquo;s milestones
+          </Link>
           <button type="button" onClick={() => leave(onClose)} className={allAnswered ? PRIMARY : SECONDARY} data-track="stage-milestone-close">
             {allAnswered ? STAGE_PROMPT.done : STAGE_PROMPT.notNow}
           </button>

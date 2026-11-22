@@ -57,7 +57,7 @@ export const STAGE_PROMPT = {
   yes: { the_end: "Yes, I wrote THE END", publish_ready: "Yes, it is ready to publish" } as Record<MilestoneKind, string>,
   notYet: "Not yet",
   /** Said after "Not yet": it is remembered, and the card is still there. */
-  notYetNote: "That's fine. We won't ask about this again. You can add it any time in Settings, Profile, Your milestones.",
+  notYetNote: "That's fine. We won't ask about this again. You can add it any time under Milestones on the project.",
   /** Said under the question: only the member says it, and nothing is lost by waiting. */
   reassurance: "Only you can say so, and there is no hurry.",
   done: "Done",

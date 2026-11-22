@@ -10,6 +10,7 @@ const step = (overrides: Partial<ShownWorkStep> = {}): ShownWorkStep => ({
   kind: "the_end",
   workTitle: "A Fake Novel",
   achievedOn: null,
+  achievedPrecision: "day",
   storyBefore: null,
   storyAfter: null,
   visibility: "public",

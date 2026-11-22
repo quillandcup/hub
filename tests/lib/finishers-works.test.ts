@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, stepsCountedWhileMember, isFeaturedWork, isPastDrafting, parseWork, summarizeWorks, workKey } from "@/lib/finishers-works";
-import { PROJECT_PHASES } from "@/lib/writing-projects";
+import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, stepsCountedWhileMember, otherWorks, workOfProject, parseWork, summarizeWorks, workKey } from "@/lib/finishers-works";
 import type { Milestone, ShownWorkStep } from "@/lib/data/milestones";
 
 const row = (overrides: Partial<Milestone> = {}): Milestone => ({
@@ -13,6 +12,7 @@ const row = (overrides: Partial<Milestone> = {}): Milestone => ({
   status: "confirmed",
   source: "member",
   achievedOn: null,
+  achievedPrecision: "day",
   storyBefore: null,
   storyAfter: null,
   visibility: "community",
@@ -41,17 +41,6 @@ describe("parseWork", () => {
     expect(parseWork({ title: " " })).toHaveProperty("error");
     expect(parseWork({ title: "x".repeat(MAX_WORK_TITLE_LENGTH) })).toMatchObject({ title: "x".repeat(MAX_WORK_TITLE_LENGTH) });
     expect(parseWork({ title: "x".repeat(MAX_WORK_TITLE_LENGTH + 1) })).toHaveProperty("error");
-  });
-});
-
-describe("isPastDrafting", () => {
-  it("is true from the first read-through on, false before, and for hibernating or no phase", () => {
-    const drafting = PROJECT_PHASES.indexOf("drafting");
-    for (const [i, phase] of PROJECT_PHASES.entries()) {
-      expect(isPastDrafting(phase)).toBe(i > drafting && phase !== "hibernating");
-    }
-    expect(isPastDrafting(null)).toBe(false);
-    expect(isPastDrafting("not a phase")).toBe(false);
   });
 });
 
@@ -97,13 +86,19 @@ describe("buildWorks", () => {
     expect(works).toHaveLength(5);
   });
 
-  it("features works with a milestone, a book or a later phase, and not the rest", () => {
-    const works = buildWorks(
-      [...projects, { id: "wpr_3", title: "Three", phase: "hibernating" }, { id: "wpr_4", title: "Four", phase: "drafting" }],
-      [],
-      [row({ projectId: "wpr_4" })],
+  it("gives a project its own work, and lists the rest as other works: books with no project, titles, rows with no work, put-away projects with something on them", () => {
+    const all = buildWorks(
+      [...projects, { id: "wpr_3", title: "Put away", phase: "hibernating" }, { id: "wpr_4", title: "Put away, empty", phase: "hibernating" }],
+      [{ id: "book_loose", title: "A Loose Book", projectId: null }, { id: "book_1", title: "One Book", projectId: "wpr_1" }],
+      [row({ id: "t", title: "A Title Only Fake Work" }), row({ id: "u", projectId: "wpr_3" })],
     );
-    expect(works.filter(isFeaturedWork).map((w) => w.title)).toEqual(["One", "Four"]);
+    const active = new Set(projects.map((p) => p.id));
+    expect(workOfProject(all, "wpr_1")?.published).toBe(true);
+    expect(workOfProject(all, "wpr_2")?.title).toBe("Two");
+    expect(workOfProject(all, "wpr_nope")).toBeUndefined();
+    expect(otherWorks(all, active).map((w) => w.title).sort()).toEqual(["A Loose Book", "A Title Only Fake Work", "Put away"]);
+    // A project with a book is its project's work, never listed twice.
+    expect(otherWorks(all, active).some((w) => w.projectId === "wpr_1")).toBe(false);
   });
 });
 
@@ -168,6 +163,7 @@ describe("groupShownWorks (the strips)", () => {
     kind: "the_end",
     workTitle: "A Fake Novel",
     achievedOn: null,
+    achievedPrecision: "day",
     storyBefore: null,
     storyAfter: null,
     visibility: "public",
@@ -239,7 +235,7 @@ describe("the date rule for Published (books published before the member joined)
   });
 
   it("drops the Published step of an earlier book from a strip, never a milestone, and keeps everything with no join date", () => {
-    const step = (kind: "the_end" | "published", achievedOn: string | null) => ({ workNo: 1, kind, workTitle: "A Fake Novel", achievedOn, storyBefore: null, storyAfter: null, visibility: "public" as const });
+    const step = (kind: "the_end" | "published", achievedOn: string | null) => ({ workNo: 1, kind, workTitle: "A Fake Novel", achievedOn, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, visibility: "public" as const });
     const steps = [step("the_end", "2020-01-01"), step("published", "2026-02-28")];
     expect(stepsCountedWhileMember(steps, "2026-03-01").map((s) => s.kind)).toEqual(["the_end"]);
     expect(stepsCountedWhileMember([step("the_end", null), step("published", "2026-03-01")], "2026-03-01").map((s) => s.kind)).toEqual(["the_end", "published"]);

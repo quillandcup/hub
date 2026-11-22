@@ -12,9 +12,7 @@ import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { isStaffRole } from "@/lib/permissions";
 import { ProfilePanel } from "./ProfilePanel";
-import { MilestonesPanel } from "./MilestonesPanel";
-import { getServiceRepos } from "@/lib/data/server";
-import { memberHasWriterProfiles } from "@/lib/writer-profiles-access";
+import { MilestonesPointer } from "./MilestonesPointer";
 import { WhosComingSetting } from "./WhosComingSetting";
 import { PreviewsPanel } from "./PreviewsPanel";
 import BlockedPreviewsList from "@/components/chat/BlockedPreviewsList";
@@ -78,27 +76,6 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
     enabledFeatures.includes("chat_link_previews") && effectiveIdentity && !effectiveIdentity.isSudo
       ? await createRepos(supabase).chatLinkPreviews.blocksOf(effectiveIdentity.memberId).catch(() => [])
       : null;
-
-  // Milestones staff or a course proposed (docs/product/FINISHERS.md): the member's own, listed for them to confirm or decline. A failed
-  // read just leaves the card out. In sudo the admin can look but not answer.
-  // The card is always shown: it also needs their projects (to link a milestone they add) and live books (the third milestone is derived).
-  const milestoneRepos = createRepos(supabase);
-  // The globe on a milestone is offered only where writer profiles are open to the member, with a note when their profile is off.
-  const [milestones, milestoneProjects, shelfBooks, milestoneWeb, firstJoinedAt] = effectiveIdentity
-    ? await Promise.all([
-        milestoneRepos.milestones.ofMember(effectiveIdentity.memberId).catch(() => []),
-        milestoneRepos.writing.activeProjects(effectiveIdentity.memberId).catch(() => []),
-        milestoneRepos.books.mine(effectiveIdentity.memberId).catch(() => []),
-        Promise.all([
-          memberHasWriterProfiles(getServiceRepos(), effectiveIdentity.memberId),
-          milestoneRepos.writerProfiles.ofMember(effectiveIdentity.memberId),
-        ])
-          .then(([available, page]) => ({ available, on: page?.isPublic ?? false }))
-          .catch(() => ({ available: false, on: false })),
-        // A book published before they first joined stays on the Bookshelf but is not their Published milestone (reachedWhileMember).
-        milestoneRepos.members.byId(effectiveIdentity.memberId).then((m) => m?.firstJoinedAt ?? null).catch(() => null),
-      ])
-    : [[], [], [], { available: false, on: false }, null];
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -165,7 +142,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 content: (
                   <>
                     <ProfilePanel />
-                    <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date }))} firstJoinedAt={firstJoinedAt} readOnly={effectiveIdentity?.isSudo ?? false} web={milestoneWeb} />
+                    <MilestonesPointer />
                   </>
                 ),
               },

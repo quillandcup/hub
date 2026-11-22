@@ -1,5 +1,4 @@
 import { reachedWhileMember, type MilestoneKind } from "@/lib/finishers";
-import { PROJECT_PHASES } from "@/lib/writing-projects";
 import type { Milestone, ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
 
 /**
@@ -56,13 +55,6 @@ export type Work = {
   published: boolean;
   milestones: Partial<Record<MilestoneKind, Milestone>>;
 };
-
-/** Past the drafting stage (revising and beyond), which is where milestones start to be true. Hibernating says nothing about it. */
-export function isPastDrafting(phase: string | null): boolean {
-  if (!phase || phase === "hibernating") return false;
-  const phases = PROJECT_PHASES as readonly string[];
-  return phases.indexOf(phase) > phases.indexOf("drafting");
-}
 
 /**
  * The member's works for the card: their projects and Bookshelf books, deduplicated (a book with a project is that project's
@@ -121,7 +113,7 @@ export type ShownWork = { title: string | null; steps: ShownWorkStep[] };
 const STEP_ORDER: readonly ShownStepKind[] = ["the_end", "publish_ready", "published"];
 
 /**
- * Groups the rows of `member_works_shown_*` into works for a strip: works in their numbered order, each with one step per kind in the
+ * Groups the rows of `member_works_dated_*` into works for a strip: works in their numbered order, each with one step per kind in the
  * order of the writer's journey (a work cannot have the same step twice: of two books under one project, the earliest date shows).
  */
 export function groupShownWorks(steps: readonly ShownWorkStep[]): ShownWork[] {
@@ -139,11 +131,22 @@ export function groupShownWorks(steps: readonly ShownWorkStep[]): ShownWork[] {
     .map(([, work]) => ({ ...work, steps: [...work.steps].sort((a, b) => STEP_ORDER.indexOf(a.kind) - STEP_ORDER.indexOf(b.kind)) }));
 }
 
-/** Whether the card shows this work up front: it has a milestone, is on the Bookshelf, or is past the drafting stage. */
-export const isFeaturedWork = (work: Work): boolean => Object.keys(work.milestones).length > 0 || work.published || isPastDrafting(work.phase);
+/** The work of one project, for its card and page: always there, with whatever milestones and book it has. */
+export function workOfProject(works: readonly Work[], projectId: string): Work | undefined {
+  return works.find((w) => w.projectId === projectId);
+}
 
 /**
- * The line under "Your milestones": how many works there are and where each stands, as plain counts, no title words. Each work counts
+ * "Other works": the works that are not one of the member's active projects and have something to show (a milestone, or a book on
+ * the Bookshelf): books with no project, works added by title, rows from before works existed, and the works of projects put away.
+ * A put-away project with nothing on it is left out.
+ */
+export function otherWorks(works: readonly Work[], activeProjectIds: ReadonlySet<string>): Work[] {
+  return works.filter((w) => !(w.projectId && activeProjectIds.has(w.projectId)) && (Object.keys(w.milestones).length > 0 || w.published));
+}
+
+/**
+ * The line at the top of My Writing: how many works there are and where each stands, as plain counts, no title words. Each work counts
  * once, at the highest step it has reached ("6 works · 1 published · 2 ready to publish · 3 finished"), only from a milestone the
  * member confirmed or a book on the Bookshelf, so "ready to publish" is never said of a manuscript that is not. This differs on
  * purpose from the badges, which count every step reached (a work that is published also counts as a Finisher and an Author), so
