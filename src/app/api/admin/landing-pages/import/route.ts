@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
 import { importKajabiExport, type ImportOutcome } from "@/lib/landing/kajabi-import-service";
@@ -19,7 +19,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 export const maxDuration = 120;
 
 async function handle(request: NextRequest): Promise<{ response: NextResponse; outcome: ImportOutcome | null }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { response: NextResponse.json({ error: auth.error }, { status: auth.error === "Not authenticated" ? 401 : 403 }), outcome: null };
 
   const declared = Number(request.headers.get("content-length") ?? "0");

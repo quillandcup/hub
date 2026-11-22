@@ -24,7 +24,7 @@ vi.hoisted(() => {
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: async () => ({ id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: async () => ({ id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }) }));
 
 const state = { repos: createInMemoryRepos(new InMemoryDataset()) };
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));

@@ -33,7 +33,7 @@ vi.mock("@/lib/courses/caller", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: async () => ({ ok: true }) }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: async () => ({ ok: true }) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_name: string, run: () => Promise<unknown>) => run() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/courses/activity", () => ({ recordLessonCompleted: vi.fn(), recordLessonWatched: vi.fn() }));

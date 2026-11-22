@@ -3,7 +3,7 @@ import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import Tooltip from "@/components/Tooltip";
 
 export const metadata: Metadata = {
@@ -41,7 +41,7 @@ interface GapFillRow {
  * Checkly can't see; a run of errors usually means the bot isn't in the conversation.
  */
 export default async function ChatGapFillsPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   const chat = createRepos(supabase).chat;

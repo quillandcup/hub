@@ -8,7 +8,7 @@ import { eventSeed } from "@/tests/helpers/event-fixtures";
 // those rows cascade on delete, so the merge has to move them first.
 
 const state = vi.hoisted(() => ({ repos: null as unknown }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }) }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => ({ user: { id: "admin" }, supabase: {} }) }));
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => state.repos,

@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { triggerCalendarSync, triggerReprocessing } from "@/lib/processing/trigger";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { NextRequest, NextResponse } from "next/server";
@@ -28,7 +28,7 @@ function cancelledSinceDays(request: NextRequest): number {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

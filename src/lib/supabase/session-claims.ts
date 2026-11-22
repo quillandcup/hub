@@ -3,7 +3,7 @@
 // (src/lib/supabase/middleware.ts) only call these after supabase.auth.getUser()
 // has already verified the same token over the network; they just read
 // claims off it. Anything decided from them must be re-checked where it
-// matters (RLS scopes data by auth.uid(); requireAdminPage() re-reads the
+// matters (RLS scopes data by auth.uid(); requirePermission(...) re-reads the
 // role from user_profiles).
 function decodeAccessTokenClaims(token: string): Record<string, unknown> | null {
   try {

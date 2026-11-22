@@ -4,7 +4,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 
 const auth = vi.hoisted(() => ({ admin: true }));
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
+  requireActionPermission: async () => (auth.admin ? { ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
 }));
 const data = vi.hoisted(() => ({ current: null as null | unknown }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({

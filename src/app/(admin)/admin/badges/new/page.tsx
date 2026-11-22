@@ -3,14 +3,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import BadgeTypeForm from "../BadgeTypeForm";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "New Badge",
 };
 
 export default async function NewBadgePage() {
-  await requireAdminPage();
+  await requirePermission("badges.manage");
   const supabase = await createClient();
   const repos = createRepos(supabase);
   const [allEvents, linkedEventIds, programs] = await Promise.all([

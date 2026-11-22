@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { NextRequest, NextResponse } from "next/server";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -19,7 +19,7 @@ export const maxDuration = 300; // 5 minutes (max for Hobby tier)
  * by triggerCalendarSync (which also passes daysBack/daysForward as fallback).
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

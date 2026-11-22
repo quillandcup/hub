@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { isId } from "@/lib/ids";
 import { createRepos } from "@/lib/data/repos";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
  * ignored everywhere, for every future appearance.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.hygiene.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase, user } = auth;
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
  * Un-ignore a Zoom name (with `prickleId`, only that prickle's appearance)
  */
 export async function DELETE(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.hygiene.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;

@@ -1,4 +1,4 @@
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { Tabs } from "@/components/Tabs";
 import { APP_URL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
@@ -19,7 +19,7 @@ export const PAGES_TAB_LABELS: Record<PagesTab, string> = { website: "Website", 
 export const PAGES_SECTION = "Pages";
 
 export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
-  await requireAdminPage();
+  await requirePermission("pages.read");
   const repos = createRepos(await createClient());
   const [website, landing, templates, usable, site, siteVersions] = await Promise.all([
     repos.landingPages.list("page", "website"),

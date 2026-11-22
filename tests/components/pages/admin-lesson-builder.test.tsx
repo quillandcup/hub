@@ -9,14 +9,14 @@ import type { AdminLessonDetail } from "@/lib/courses/admin";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => ({ id: "admin-1", email: "admin@example.test" }));
+const requirePermission = vi.fn(async () => ({ id: "admin-1", email: "admin@example.test" }));
 const features = { on: [] as string[] };
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => features.on }));
 const getEffectiveIdentity = vi.fn();
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: (...a: unknown[]) => getEffectiveIdentity(...a) }));
 const muxDataConsentFor = vi.fn();
 vi.mock("@/lib/mux-data.server", () => ({ muxDataConsentFor: (...a: unknown[]) => muxDataConsentFor(...a) }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 const loadAdminLesson = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({ loadAdminLesson: (...a: unknown[]) => loadAdminLesson(...a) }));
 vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: vi.fn() }));
@@ -72,7 +72,7 @@ const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1", lessonId: "le
 beforeEach(() => {
   resetServerPageMocks();
   features.on = [];
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   loadAdminLesson.mockReset();
   publicLessonPreview.mockReset();
   publicLessonPreview.mockResolvedValue({ preview: { lessonId: "les_AAAAAAAAAAA1", title: "Reader Expectations vs. Reader Preferences", excerpt: null, courseSlug: "the-ready-writer", courseTitle: "The Ready Writer", thumbnailSrc: "/api/courses/image/lesson/les_AAAAAAAAAAA1" } });
@@ -86,7 +86,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   it("checks the caller is an admin first, and is a 404 for a lesson Kajabi doesn't have", async () => {
     loadAdminLesson.mockResolvedValue(null);
     await expect(Promise.resolve().then(() => AdminLessonPage(params))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("shows the lesson as imported: title, module, text, download, thumbnail and status", async () => {

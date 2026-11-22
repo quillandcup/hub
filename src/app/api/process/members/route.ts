@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
@@ -46,7 +46,7 @@ export const maxDuration = 300;
 // repositories in src/lib/data/. See .claude/rules/api-routes-and-queries.md "Database Query Limits".
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     // converted to a real transaction) and why it's keyed by email rather
     // than Kajabi customer ID (survives Kajabi-side contact merges).
     // Stripe invoices and charges are service role only (no admin grant), so this read uses the
-    // service role; the caller was verified as an admin by requireAdmin above.
+    // service role; the caller was verified as an admin by requireApiPermission above.
     const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(
       createRepos(createServiceRoleClient()),
       Array.from(aliasMap, ([alias_email, canonical_email]) => ({ alias_email, canonical_email }))

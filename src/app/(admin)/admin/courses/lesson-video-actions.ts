@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { APP_URL } from "@/lib/config";
 import { COURSE_VIDEO_QUALITY } from "@/lib/courses/media";
@@ -20,7 +20,7 @@ import { outboundFetch } from "@/lib/http/outbound";
  * fills in the rest. `videos` is written with the service role, after the admin check, as the Kajabi step does.
  */
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 export type VideoResult = { error?: string; url?: string };
 export type VideoRefreshResult = { error?: string; status?: "none" | "waiting" | "preparing" | "ready" | "errored" };
 export type VideoRemoveResult = { error?: string; id?: string };
@@ -150,28 +150,28 @@ async function frameImpl(auth: Auth, courseId: string, lessonId: string, seconds
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** Sets the lesson's thumbnail to the video as it looks `seconds` in. */
 export async function setLessonThumbnailFromVideo(courseId: string, lessonId: string, seconds: number): Promise<FrameResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_thumbnail_from_frame", () => frameImpl(auth, courseId, lessonId, seconds));
 }
 
 /** Makes a one-use upload address for the lesson's video and points the lesson at the video it will become. */
 export async function startLessonVideoUpload(courseId: string, lessonId: string): Promise<VideoResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_video_upload_started", () => startUploadImpl(auth, courseId, lessonId));
 }
 
 /** Catches the lesson's video up with Mux: whether the upload finished and whether the video is ready. */
 export async function refreshLessonVideo(courseId: string, lessonId: string): Promise<VideoRefreshResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_video_refreshed", () => refreshImpl(auth, courseId, lessonId));
 }
 
 /** Takes the video off the lesson. The video itself stays in Mux (docs/TODO.md). */
 export async function removeLessonVideo(courseId: string, lessonId: string): Promise<VideoRemoveResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_video_removed", () => removeImpl(auth, courseId, lessonId));
 }

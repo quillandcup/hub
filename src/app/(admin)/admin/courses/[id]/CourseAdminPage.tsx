@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { loadAdminCourse, loadAdminCourseTitle, loadHubCourse, loadHubOutline } from "@/lib/courses/admin";
@@ -44,7 +44,7 @@ export async function courseTabMetadata(idParam: string, tab: CourseTab): Promis
  * Hub owns (edited here) alike. The tabs are paths: Outline at the base, the rest beside it.
  */
 export default async function CourseAdminPage({ idParam, tab }: { idParam: string; tab: CourseTab }) {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   const supabase = await createClient();
   const repos = createRepos(supabase);
   // The id or the course's slug (a member's /courses/<slug> address with /admin in front).

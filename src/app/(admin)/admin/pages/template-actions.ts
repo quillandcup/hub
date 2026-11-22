@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { LandingPageSlugTakenError } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
@@ -23,7 +23,7 @@ import { TEMPLATE_NAME_MAX } from "@/lib/landing/templates";
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 export type TemplateResult = { error?: string; templateId?: string; slug?: string; name?: string; published?: boolean };
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 const NAME_TAKEN = "A template with that name already exists. Choose another name, or replace that template's draft.";
 
@@ -102,7 +102,7 @@ async function saveImpl(auth: Auth, data: unknown, input: SaveTemplateInput): Pr
  * published unless `publish` is set). The page itself is not changed. The content is cleaned like a save and size-capped.
  */
 export async function saveLandingTemplate(data: unknown, input: SaveTemplateInput): Promise<TemplateResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_template_saved", () => saveImpl(auth, data, input), (r) => ({ ok: !r.error, detail: r.error ? undefined : input?.replaceId ? "replaced" : "created" }));
 }
@@ -132,7 +132,7 @@ async function applyImpl(auth: Auth, pageId: string, templateId: string): Promis
  * a built-in one: the old draft is kept in History, the published copy, title, address and search settings are untouched, and nothing goes live.
  */
 export async function replaceLandingDraftWithTemplate(pageId: string, templateId: string): Promise<{ error?: string; slug?: string }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_template_applied", () => applyImpl(auth, pageId, templateId));
 }

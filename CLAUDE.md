@@ -26,7 +26,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 - **Batch database work** in API routes (load reference data with `Promise.all`, process in memory, write in chunks); no sequential queries in loops.
 - **Member data in member pages** comes from `getEffectiveIdentity`, so sudo works.
 - **Show members by `getMemberDisplayName`**, not `member.name`.
-- **Admin pages and actions** start with `requireAdminPage()` / `requireAdminAction()`.
+- **Staff pages, actions and routes** start with `requirePermission("<permission>")` / `requireActionPermission(...)` / `requireApiPermission(request, ...)`: access is by permission, roles are bundles (`src/lib/permissions.ts`, `docs/architecture/PERMISSIONS.md`).
 - **Anything sent to a member on the app's initiative** goes through `createNotifier`, never a direct Slack call.
 - **New tables** get `id text DEFAULT public.new_id('<prefix>')`, grants in the same migration, and a repository. Never expose a Tier 2 id.
 - **Migrations never remove what live code still uses** (expand, then contract in a second PR).

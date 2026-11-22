@@ -10,6 +10,7 @@ import { SecondaryTimezoneSwitcher } from "./SecondaryTimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import MfaPanel from "@/components/mfa/MfaPanel";
 import { IdentityPanel } from "./IdentityPanel";
+import { isStaffRole } from "@/lib/permissions";
 import { ProfilePanel } from "./ProfilePanel";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { getServiceRepos } from "@/lib/data/server";
@@ -48,7 +49,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
     getUserFeaturePreviews(user.id),
   ]);
   const isAdmin = profile?.role === "admin";
-  const isStaff = isAdmin || profile?.role === "community_manager";
+  const isStaff = isStaffRole(profile?.role);
   // Hosting is behind the hosting preview, and only for hosts.
   const hostingOn = enabledFeatures.includes("hosting") && hostedVibes.length > 0;
 

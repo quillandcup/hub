@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let admin: { ok: true; user: { id: string } } | { ok: false; error: string } = { ok: true, user: { id: "admin-user" } };
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: async () => admin }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: async () => admin }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const withAction = vi.fn(async (_name: string, run: () => Promise<unknown>, _classify?: (r: unknown) => { ok: boolean }) => run());

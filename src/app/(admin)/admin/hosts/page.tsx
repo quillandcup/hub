@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import HostsClient from "./HostsClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function HostsPage() {
-  await requireAdminPage();
+  await requirePermission("prickles.manage");
   const supabase = await createClient();
   const prickleTypes = await createRepos(supabase).prickles.typesRequiringHost();
 

@@ -75,6 +75,31 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Detail.** \`docs/architecture/PAGE_BLOCKS.md\`.`,
   },
   {
+    slug: "staff-permissions-registry",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "Staff access by permission: operations in code, roles as bundles, one check",
+    summary: "Every staff page, action and route now asks for a named permission, and each staff role is a list of them, so a new role is a decision about permissions instead of a new set of checks.",
+    body: "Access to the staff area used to be \"admin or not\", plus a community manager allowlist. It is now a registry of permissions defined in code (`<area>.<action>`), roles as named bundles of them, and one check, `can(actor, permission)`. The guards are `requirePermission` (pages), `requireActionPermission` (server actions) and `requireApiPermission` (route handlers); the proxy and the sidebar read the same page-to-permission table, so a link is offered only where the page would open. The admin holds everything, the assistant is derived from the admin's list, and the community manager and the conversion specialist hold what is listed for them: a new permission is in nobody's bundle but the admin's until it is granted on purpose. Permissions are the application's gate; row-level security still decides what a role's own client reads (`is_<role>()` beside `is_admin()`, never a widened `is_admin()`). Two tests keep it honest: a role-by-permission table written out in full, and a scan that fails on a page, action or staff route without a guard, or a permission nothing uses. Adding a permission or a role: `docs/architecture/PERMISSIONS.md`.",
+  },
+  {
+    slug: "conversion-specialist-role",
+    date: "2026-11-21",
+    audience: "staff",
+    category: "new",
+    title: "A Conversion Specialist role for marketing: landing pages and outreach, nothing of the members area",
+    summary: "Staff can now be given the Conversion Specialist role. They build, edit and publish landing pages and run outreach, and cannot see members, notes or the changelog.",
+    body: `In **Users**, a staff account can now be set to **Conversion Specialist**. When they sign in they land on **Pages** and see only what their work needs:
+
+- **Pages.** They create and edit landing and website pages, and publish or take them down. They can't delete a page.
+- **Outreach.** They work the outreach list of leads and former members and find new prospects.
+- **Media.** They can pick from the media library when they build a page.
+- **Not for them.** The member list and member pages, staff notes, contact details, merges, overrides, signing in as a member, the activity log, the changelog and the data tools.
+
+To check what they see, an admin opens the user menu, chooses **Preview as...**, picks **Conversion Specialist** and presses **Start preview**; **Exit preview** in the banner goes back. The preview shows the pages and buttons the role has, while data is still read with your own access.`,
+  },
+  {
     slug: "project-stage-milestone-prompt",
     date: "2026-11-21",
     audience: "engineering",

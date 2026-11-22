@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getImportSessionCookie } from "@/lib/google-photos-picker/import-session-cookie";
 import ImportPhotosClient from "./ImportPhotosClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { isId } from "@/lib/ids";
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ImportPhotosPage({ params }: { params: Promise<{ slug: string }> }) {
-  await requireAdminPage();
+  await requirePermission("events.manage");
   const { slug } = await params;
   const supabase = await createClient();
 

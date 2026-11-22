@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const requireAdminAction = vi.fn();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: () => requireAdminAction() }));
+const requireActionPermission = vi.fn();
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: () => requireActionPermission() }));
 
 import { suggestFilterValues } from "@/app/(admin)/admin/analytics/explore/actions";
 
@@ -9,8 +9,8 @@ const rpc = vi.fn();
 
 beforeEach(() => {
   rpc.mockReset();
-  requireAdminAction.mockReset();
-  requireAdminAction.mockResolvedValue({ ok: true, supabase: { rpc } });
+  requireActionPermission.mockReset();
+  requireActionPermission.mockResolvedValue({ ok: true, supabase: { rpc } });
 });
 
 describe("suggestFilterValues", () => {
@@ -26,7 +26,7 @@ describe("suggestFilterValues", () => {
   });
 
   it("returns nothing, and asks the database nothing, for anyone but an admin", async () => {
-    requireAdminAction.mockResolvedValue({ ok: false, error: "Not authorized" });
+    requireActionPermission.mockResolvedValue({ ok: false, error: "Not authorized" });
     expect(await suggestFilterValues("element_clicked", "text")).toEqual([]);
     expect(rpc).not.toHaveBeenCalled();
   });

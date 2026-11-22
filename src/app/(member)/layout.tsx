@@ -1,4 +1,4 @@
-import { COMMUNITY_MANAGER_ROLE } from '@/lib/staff-access'
+import { isStaffRole } from '@/lib/permissions'
 import { BrowserPushAccountGuard } from "@/components/BrowserPushAccountGuard";
 import { createClient } from '@/lib/supabase/server'
 import { createRepos } from '@/lib/data/repos'
@@ -82,7 +82,7 @@ export default async function MemberLayout({
       <Suspense fallback={null}>
         <PushGuard extras={extras} identity={effectiveIdentity} />
       </Suspense>
-      <MemberNavigation isAdmin={isAdmin || profile?.role === COMMUNITY_MANAGER_ROLE} isSudo={effectiveIdentity.isSudo} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
+      <MemberNavigation isAdmin={isStaffRole(profile?.role)} isSudo={effectiveIdentity.isSudo} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         {/* Bars above the header, stacked by priority (src/components/announcements/AnnouncementStack.tsx). */}
         <Suspense fallback={null}>

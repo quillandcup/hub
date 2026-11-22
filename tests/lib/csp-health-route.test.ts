@@ -5,8 +5,8 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
 // The daily CSP health route on the in-memory repositories, with auth, the alert post and the heartbeat faked.
-const requireAdmin = vi.fn();
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: (r: unknown) => requireAdmin(r) }));
+const requireApiPermission = vi.fn();
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: (r: unknown) => requireApiPermission(r) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 const heartbeat = vi.fn();
 vi.mock("@/lib/cron-heartbeats", () => ({
@@ -98,7 +98,7 @@ beforeEach(() => {
   flush.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
-  requireAdmin.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
+  requireApiPermission.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
   repos = createInMemoryRepos(new InMemoryDataset({}));
 });
 
@@ -106,9 +106,9 @@ afterEach(() => vi.useRealTimers());
 
 describe("GET /api/internal/csp-health", () => {
   it("refuses a request with no user and one that is not staff", async () => {
-    requireAdmin.mockResolvedValueOnce({ user: null, forbidden: true });
+    requireApiPermission.mockResolvedValueOnce({ user: null, forbidden: true });
     expect((await GET(request())).status).toBe(401);
-    requireAdmin.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
+    requireApiPermission.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
     expect((await GET(request())).status).toBe(403);
     expect(captured).toEqual([]);
     expect(heartbeat).not.toHaveBeenCalled();

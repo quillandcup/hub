@@ -8,7 +8,7 @@ import { eventSeed } from "@/tests/helpers/event-fixtures";
 
 const state = vi.hoisted(() => ({ repos: null as unknown, rpcCalls: [] as unknown[] }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({
+  requireApiPermission: async () => ({
     user: { id: "admin" },
     supabase: {
       rpc: async (name: string, args: unknown) => {

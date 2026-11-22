@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireAdmin = vi.fn();
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: (request: unknown) => requireAdmin(request) }));
+const requireApiPermission = vi.fn();
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: (request: unknown) => requireApiPermission(request) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ marker: "service" }) }));
 const enforce = vi.fn();
 vi.mock("@/lib/retention/network-details", () => ({ enforceNetworkRetention: (db: unknown) => enforce(db), NETWORK_RETENTION_BUDGET_MS: 240_000 }));
@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
-  requireAdmin.mockResolvedValue({ user: { id: "admin" }, forbidden: false });
+  requireApiPermission.mockResolvedValue({ user: { id: "admin" }, forbidden: false });
   enforce.mockResolvedValue(RESULT);
   rollUp.mockResolvedValue(USAGE);
 });
@@ -38,9 +38,9 @@ describe("GET /api/reconcile/retention", () => {
   });
 
   it("refuses an anonymous caller and a non-admin, and runs nothing", async () => {
-    requireAdmin.mockResolvedValueOnce({ user: null });
+    requireApiPermission.mockResolvedValueOnce({ user: null });
     expect((await GET(request())).status).toBe(401);
-    requireAdmin.mockResolvedValueOnce({ user: { id: "member" }, forbidden: true });
+    requireApiPermission.mockResolvedValueOnce({ user: { id: "member" }, forbidden: true });
     expect((await GET(request())).status).toBe(403);
     expect(enforce).not.toHaveBeenCalled();
     expect(rollUp).not.toHaveBeenCalled();

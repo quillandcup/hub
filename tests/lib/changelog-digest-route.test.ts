@@ -6,8 +6,8 @@ import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { listProductChangelog } from "@/lib/changelog";
 
 // The weekly route on the in-memory repositories, with auth, Slack and the heartbeat faked.
-const requireAdmin = vi.fn();
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: (r: unknown) => requireAdmin(r) }));
+const requireApiPermission = vi.fn();
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: (r: unknown) => requireApiPermission(r) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/cron-heartbeats", () => ({ withCronHeartbeat: async (_job: string, res: Response) => res }));
 const sendSlackDM = vi.fn(async (_p: unknown) => {});
@@ -49,15 +49,15 @@ beforeEach(() => {
   // Today, as far as the digest knows, is the day the newest entry shipped.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${latest}T16:00:00Z`));
-  requireAdmin.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
+  requireApiPermission.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
   setup([flag(false)]);
 });
 
 describe("GET /api/internal/changelog-digest", () => {
   it("refuses a visitor who is signed out, and one who is not an admin", async () => {
-    requireAdmin.mockResolvedValueOnce({ user: null });
+    requireApiPermission.mockResolvedValueOnce({ user: null });
     expect((await GET(request())).status).toBe(401);
-    requireAdmin.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
+    requireApiPermission.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
     expect((await GET(request())).status).toBe(403);
     expect(sendSlackDM).not.toHaveBeenCalled();
   });

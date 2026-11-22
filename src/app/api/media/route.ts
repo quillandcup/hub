@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { MEDIA_BUCKET, storeImage, titleFromFileName } from "@/lib/media/library";
 import { normalizeTags } from "@/lib/data/media";
@@ -9,7 +9,7 @@ import { responseOutcome } from "@/lib/analytics/outcome";
 
 /** Staff browse the shared library: `?q=` (title or tag), `?tag=`, `?limit=`, `?offset=`. */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "media.read");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
  * the existing asset; a new one is 201.
  */
 async function handlePost(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "media.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

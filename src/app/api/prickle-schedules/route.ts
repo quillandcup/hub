@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { getMonthStart, getNextMonthStart, seedNextMonthSchedules, validateScheduleInput } from "@/lib/prickle-schedules";
 import { fetchHostEligibilityByMember } from "@/lib/host-eligibility";
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +7,7 @@ import type { Insert } from "@/lib/data/db";
 import { createRepos } from "@/lib/data/repos";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "prickles.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "prickles.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase, user } = auth;

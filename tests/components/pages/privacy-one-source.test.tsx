@@ -11,8 +11,8 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/analytics/opt-out", () => ({ isAnalyticsOptedOut: () => Promise.resolve(false) }));
 vi.mock("@/app/privacy/actions", () => ({ setAnalyticsOptOut: vi.fn() }));
-const requireAdminPage = vi.fn<() => Promise<unknown>>();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn<() => Promise<unknown>>();
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 import PrivacyPage from "@/app/privacy/page";
 import AdminPrivacyPage from "@/app/(admin)/admin/privacy/page";
@@ -25,7 +25,7 @@ const ROWS = PRIVACY_GROUPS.flatMap((g) => g.rows);
 describe("the Privacy page and its staff view read one list", () => {
   beforeEach(() => {
     resetServerPageMocks();
-    requireAdminPage.mockResolvedValue({ id: "admin" });
+    requirePermission.mockResolvedValue({ id: "admin" });
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
   });
 

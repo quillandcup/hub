@@ -17,7 +17,7 @@ const calPrickle = { id: "prkl_CAL000000001", typeId: TYPE_A, hostId: null, titl
 let repos: ReturnType<typeof createInMemoryRepos>;
 let dataset: InMemoryDataset;
 vi.mock("@/lib/data/repos", async () => ({ ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")), createRepos: () => repos }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => ({ user: { id: "u1" }, forbidden: false, supabase: {} }) }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => ({ user: { id: "u1" }, forbidden: false, supabase: {} }) }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }));
 
 import { PATCH } from "@/app/api/admin/events/[id]/route";

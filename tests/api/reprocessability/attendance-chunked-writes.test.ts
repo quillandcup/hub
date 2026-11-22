@@ -10,9 +10,9 @@ import { seedReferenceData } from '../../helpers/seed-data'
  * that a single call does, including a meeting that crosses midnight UTC and a
  * leave/rejoin. Calls the route directly against the real local DB.
  */
-vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
+vi.mock('@/lib/supabase/api-auth', () => ({ requireApiPermission: vi.fn() }))
 
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { POST } from '@/app/api/process/attendance/route'
 
 const supabase = getTestSupabaseAdminClient()
@@ -77,7 +77,7 @@ async function snapshot() {
 describe('attendance processing: chunked atomic writes', () => {
   beforeAll(async () => {
     await seedReferenceData()
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
 
     const { data: members, error } = await supabase
       .from('members')

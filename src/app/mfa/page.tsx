@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 const HOME = "/admin";
 
-// The gate for staff accounts (GATES.staffMfa; src/proxy.ts and requireAdminPage() send staff here): type the code from the
+// The gate for staff accounts (GATES.staffMfa; src/proxy.ts and requirePermission(...) send staff here): type the code from the
 // authenticator app, or set it up first when the account has none. It sits outside both route groups, like /no-access, so it
 // never depends on a member record. Once the session has passed the second step it goes to where the visitor was headed.
 export default async function MfaPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {

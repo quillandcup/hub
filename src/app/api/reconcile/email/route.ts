@@ -3,7 +3,7 @@ import { clock } from "@/lib/clock";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { createRepos } from "@/lib/data/repos";
 import { pullEmailEvents } from "@/lib/email-events-pull";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 export const maxDuration = 300;
 
@@ -22,7 +22,7 @@ const MAX_DAYS = 90;
  * none is, for now (src/lib/cron-heartbeats.ts, `unmonitored`).
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

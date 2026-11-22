@@ -8,7 +8,7 @@ const revalidated: string[] = [];
 vi.mock("next/cache", () => ({ revalidatePath: (path: string) => revalidated.push(path) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }));
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
+  requireActionPermission: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
 }));
 const ai = vi.hoisted(() => ({ configured: true, result: undefined as unknown }));
 vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => ai.configured, generateLandingPage: async () => ai.result, reviseLandingPage: async () => ai.result }));

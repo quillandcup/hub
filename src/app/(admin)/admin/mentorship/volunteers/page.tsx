@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { tabTitle } from "@/lib/tab-routes";
 import MentorshipPage from "../MentorshipPage";
 import { MENTORSHIP_TAB_LABELS, MENTORSHIP_TITLE } from "../tabs";
@@ -9,6 +9,6 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminMentorshipVolunteersPage() {
-  await requireAdminPage();
+  await requirePermission("mentorship.manage");
   return <MentorshipPage tab="volunteers" />;
 }

@@ -12,7 +12,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin-1" }, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "admin-1" }, supabase: {} }),
 }));
 vi.mock("@/lib/host-eligibility", () => ({ fetchHostEligibilityByMember: async () => new Map() }));
 vi.mock("@/lib/prickle-schedules", async () => ({

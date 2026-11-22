@@ -1,11 +1,11 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 const VALID_STATUSES = ["hot", "warm", "cold"] as const;
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "outreach.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase, user } = auth;

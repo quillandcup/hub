@@ -8,6 +8,8 @@ import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { secretsMatch } from "@/lib/webhook-auth";
 import { staffMfaStateFor } from "@/lib/staff-mfa.server";
 import { blocksStaff } from "@/lib/staff-mfa";
+import type { Permission } from "@/lib/permissions";
+import { decideStaff } from "@/lib/staff-guard";
 
 /**
  * Creates a Supabase client for API routes.
@@ -55,25 +57,36 @@ export async function createApiAuth(request: NextRequest) {
 }
 
 /**
- * Verifies that the request is from an authenticated admin user.
+ * Verifies that the request is from an authenticated staff member whose role holds the permission
+ * (src/lib/permissions.ts). The route handler's guard:
+ *
+ *   const auth = await requireApiPermission(request, "pages.edit");
+ *   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+ *   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
  *
  * Returns an object with:
  * - supabase: the client
  * - user: the authenticated user (or null if no session)
- * - forbidden: true if user is not admin, false otherwise
+ * - forbidden: true if the user's role lacks the permission, false otherwise
  *
- * Service-role key in Authorization header bypasses role check (used by tests).
- * Vercel Cron secret in Authorization header also bypasses role check.
+ * Reads `user_profiles.role`, never the token claim. A "view as role" preview doesn't apply to routes (it is
+ * UI and routing only). Service-role key in Authorization header bypasses the role check (used by tests).
+ * Vercel Cron secret in Authorization header also bypasses the role check.
  */
-export async function requireAdmin(request: NextRequest) {
+export async function requireApiPermission(request: NextRequest, permission: Permission) {
   const auth = await createApiAuth(request);
   if (!auth.user) return { ...auth, forbidden: true as const };
   // Service-role key (tests) or cron secret (Vercel Cron) bypasses role check
   if (auth.user.id === "service-role" || auth.user.id === "cron") {
     return { ...auth, forbidden: false as const };
   }
-  if (!(await createRepos(auth.supabase).profiles.isAdmin(auth.user.id))) return { ...auth, forbidden: true as const };
-  // An admin who hasn't passed (or set up) the second sign-in step gets what a non-admin gets (src/lib/staff-mfa.ts).
-  if (blocksStaff(await staffMfaStateFor(auth.supabase))) return { ...auth, forbidden: true as const };
-  return { ...auth, forbidden: false as const };
+  // The shared decision (src/lib/staff-guard.ts); this guard only says how a "no" is delivered: `forbidden` (a 403 in the
+  // route). Staff who haven't passed (or set up) the second sign-in step get what a non-staff user gets (src/lib/staff-mfa.ts).
+  const profile = await createRepos(auth.supabase).profiles.byId(auth.user.id).catch(() => null);
+  const decision = await decideStaff({
+    realRole: profile?.role,
+    permission,
+    mfaBlocked: async () => blocksStaff(await staffMfaStateFor(auth.supabase)),
+  });
+  return { ...auth, forbidden: !decision.ok };
 }

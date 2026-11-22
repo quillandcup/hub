@@ -1,22 +1,13 @@
-/**
- * Who may open which part of the admin area.
- *
- * `admin` opens all of it. `community_manager` (a member who is a semi-volunteer, paid in comps)
- * opens only the pages below, read-only except where a feature (`COMMUNITY_MANAGER_FEATURES`) lets her
- * write. Anything not listed here is admin-only, so a new admin page is closed to a community manager
- * until someone adds it on purpose.
- *
- * This module is plain (no server imports), so the proxy can use it for its optimistic pre-filter.
- * The secure check is `requireStaffPage()` in each page (src/lib/admin-auth.ts); the data itself is
- * guarded by RLS (`is_community_manager()` policies), not by this list.
- */
-export const COMMUNITY_MANAGER_ROLE = "community_manager";
+import { can, type Permission } from "@/lib/permissions";
 
 /**
- * Controls and views inside the pages a community manager opens, each opt-in. An admin has every
- * feature; a community manager has only those in `COMMUNITY_MANAGER_FEATURES`, which starts empty,
- * so a new control is hidden from them until a feature is added there on purpose. UI only: the
- * server (requireAdminAction, RLS) refuses what the role may not do whatever the page renders.
+ * Controls and views inside the pages a staff role opens, each its own permission (src/lib/permissions.ts).
+ * An admin has every one; a community manager only those the registry lists for the role, so a new control
+ * is hidden from them until it is granted on purpose. UI only: the server (`requireActionPermission`, RLS)
+ * refuses what the role may not do whatever the page renders.
+ *
+ * `staffCan` and `staffFeaturesFor` are the same check as `can` over this subset, kept because pages and
+ * components read "which controls does this role get" as a list.
  */
 export const STAFF_FEATURES = [
   "member.sudo",
@@ -42,72 +33,14 @@ export const STAFF_FEATURES = [
   "prickle.alias_form",
   "prickle.insights_link",
   "care.write",
-] as const;
+] as const satisfies readonly Permission[];
 export type StaffFeature = (typeof STAFF_FEATURES)[number];
 
-/** What a community manager may see or do beyond reading the page. Add a feature here to grant it. */
-export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [
-  // Hedgie Care, her reach-outs to members: she is the first staff role that writes (docs/product/HEDGIE_CARE.md).
-  "care.write",
-  // The member page's Activity tab, limited to the member's own activity: no audit entries, page visits or staff notes
-  // (get_activity_feed enforces it for her; docs/architecture/ACTIVITY_AND_AUDIT_LOG.md, "The community manager's Activity tab").
-  "member.activity_tab_limited",
-];
-
-/** The features this role has: all for an admin, the list above for a community manager, none otherwise. */
+/** The features this role has: all for an admin or assistant, those in its bundle for another staff role, none otherwise. */
 export function staffFeaturesFor(role: string | null | undefined): readonly StaffFeature[] {
-  if (role === "admin") return STAFF_FEATURES;
-  if (role === COMMUNITY_MANAGER_ROLE) return COMMUNITY_MANAGER_FEATURES;
-  return [];
+  return STAFF_FEATURES.filter((feature) => can({ role }, feature));
 }
 
 export function staffCan(role: string | null | undefined, feature: StaffFeature): boolean {
-  return staffFeaturesFor(role).includes(feature);
-}
-
-/** Where a community manager lands when they open the admin area. */
-export const COMMUNITY_MANAGER_HOME = "/admin/at-risk";
-
-/** Pages a community manager opens, exactly. */
-const EXACT_PATHS = [
-  "/admin", // redirects to COMMUNITY_MANAGER_HOME
-  "/admin/at-risk",
-  "/admin/stats",
-  "/admin/calendar",
-  "/admin/members",
-  "/admin/insights/slack-engagement",
-  "/admin/insights/resubscriptions",
-  "/admin/care", // Hedgie Care, the one place she writes (the `care.write` feature)
-  "/admin/care/earlier",
-] as const;
-
-/**
- * Pages under a prefix, one level or more: a member's profile and its tabs, a prickle's page.
- * A tool that lives beside them (`/admin/members/network`) is not included, nor is a member's
- * Identity tab (emails, aliases, legal name), Account tab or Notifications tab (devices, email): those stay admin-only. The Activity tab
- * is open as a path but shows her only the member's own activity, and only with the `member.activity_tab_limited` feature.
- */
-const PREFIX_PATHS = [
-  { prefix: "/admin/members/", except: ["/admin/members/network"] },
-  { prefix: "/admin/prickles/", except: [] as string[] },
-] as const;
-
-export function isCommunityManagerPath(pathname: string): boolean {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  if ((EXACT_PATHS as readonly string[]).includes(path)) return true;
-  if (/^\/admin\/members\/[^/]+\/(account|identity|notifications)$/.test(path)) return false;
-  return PREFIX_PATHS.some(
-    ({ prefix, except }) =>
-      path.startsWith(prefix) && path.length > prefix.length && !except.some((e) => path === e || path.startsWith(`${e}/`))
-  );
-}
-
-/**
- * Whether a signed-in user with this role may open the admin path. Optimistic: `role` may come from
- * the access token's `app_role` claim, up to an hour old. A missing or unknown role is "no".
- */
-export function mayOpenAdminPath(role: string | null | undefined, pathname: string): boolean {
-  if (role === "admin") return true;
-  if (role === COMMUNITY_MANAGER_ROLE) return isCommunityManagerPath(pathname);
-  return false;
+  return can({ role }, feature);
 }

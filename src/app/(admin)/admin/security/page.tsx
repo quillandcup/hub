@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_ITEMS, SECURITY_STATUSES } from "@/content/security";
 import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
 import { TrustNav } from "@/components/trust/Trust";
@@ -25,7 +25,7 @@ const ROWS: StaffRow[] = SECURITY_ITEMS.map((item) => ({
  * here is public-safe by design (see `src/content/security.ts`).
  */
 export default async function AdminSecurityPage() {
-  await requireAdminPage();
+  await requirePermission("system.compliance.read");
 
   return (
     <StaffPage title="Security">

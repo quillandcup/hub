@@ -5,12 +5,12 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
-import { COMMUNITY_MANAGER_HOME } from "@/lib/staff-access";
+import { staffHome } from "@/lib/permissions";
 import { parsePreviewRole, STAFF_PREVIEW_COOKIE } from "@/lib/staff-preview";
 
 /**
  * Start looking at the admin area as a lower staff role (src/lib/staff-preview.ts). Only a real admin may:
- * checked against `user_profiles`, not requireAdminAction(), which refuses while a preview is on.
+ * checked against `user_profiles`, not requireActionPermission(), which refuses while a preview is on.
  */
 export async function startRolePreview(role: string): Promise<void> {
   // Throws, like startSudo: it is a form action, so there is no result to show.
@@ -25,7 +25,7 @@ export async function startRolePreview(role: string): Promise<void> {
     sameSite: "lax",
     path: "/",
   });
-  redirect(COMMUNITY_MANAGER_HOME);
+  redirect(staffHome(previewRole));
 }
 
 /** Back to the admin's own view. Deleting your own preview cookie needs no check. */

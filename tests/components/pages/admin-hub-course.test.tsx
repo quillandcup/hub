@@ -10,8 +10,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 const loadCourseRoster = vi.fn();
 vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 const loadHubCourse = vi.fn();
 const loadHubOutline = vi.fn();
 const loadAdminCourse = vi.fn();
@@ -70,7 +70,7 @@ beforeEach(() => {
   resetServerPageMocks();
   loadCourseRoster.mockReset();
   loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();
   loadHubOutline.mockResolvedValue(buildHubOutline([], []));
@@ -82,7 +82,7 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
   it("checks the caller is an admin first, and shows the Hub course when the id is not a Kajabi import", async () => {
     loadHubCourse.mockResolvedValue(course());
     await renderServerRoute(AdminCoursePage, params());
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(loadHubCourse).toHaveBeenCalledWith(expect.anything(), COURSE);
     expect(loadAdminCourse).toHaveBeenCalledWith(expect.anything(), COURSE);
   });

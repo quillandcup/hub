@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { findMembersWithDisposableEmail } from "@/lib/disposable-email-members";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function TemporaryEmailsPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
   const repos = createRepos(supabase);
 

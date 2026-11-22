@@ -10,8 +10,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 const loadCourseRoster = vi.fn();
 vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 const loadAdminCourses = vi.fn();
 const loadAdminCourse = vi.fn();
@@ -67,7 +67,7 @@ beforeEach(() => {
   resetServerPageMocks();
   loadCourseRoster.mockReset();
   loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   loadAdminCourses.mockReset();
   loadAdminCourse.mockReset();
   loadTakeOverPreview.mockReset();
@@ -80,7 +80,7 @@ describe("/admin/courses", () => {
   it("checks the caller is an admin first", async () => {
     loadAdminCourses.mockResolvedValue([]);
     await renderServerPage(AdminCoursesPage, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("lists each course with its Hub state, settings, lesson states and who has access", async () => {
@@ -155,9 +155,9 @@ describe("/admin/courses/[id]", () => {
   it("checks the caller is an admin on every tab", async () => {
     loadAdminCourse.mockResolvedValue(detail());
     for (const page of [AdminCoursePage, AdminCourseDetailsPage, AdminCourseMediaPage]) {
-      requireAdminPage.mockClear();
+      requirePermission.mockClear();
       const { unmount } = await renderServerRoute(page, params);
-      expect(requireAdminPage).toHaveBeenCalled();
+      expect(requirePermission).toHaveBeenCalled();
       unmount();
     }
   });

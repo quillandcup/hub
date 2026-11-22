@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "No access",
 };
 
-// Where signed-in non-admins land from /admin (src/proxy.ts and requireAdminPage(); see
+// Where signed-in non-admins land from /admin (src/proxy.ts and requirePermission(...); see
 // src/lib/admin-paths.ts). It sits outside both route groups and must never redirect a signed-in
 // user: member pages send anyone without a member record to /admin, so any redirect here could
 // restart the /admin loop this page exists to end. Signed-out visitors are sent to /login by

@@ -9,8 +9,8 @@ import { normalizeSiteTemplate } from "@/lib/landing/site-template";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => ({ id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => ({ id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 const state = { repos: createInMemoryRepos(new InMemoryDataset()) };
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
@@ -47,7 +47,7 @@ const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   state.repos = createInMemoryRepos(new InMemoryDataset());
 });
 
@@ -57,7 +57,7 @@ describe("/admin/pages", () => {
     await state.repos.landingPages.create({ title: "Spring sprint", slug: "spring", createdBy: null });
     await state.repos.landingPages.create({ title: "Fall sprint", slug: "fall", createdBy: null });
     await renderServerPage(AdminPagesPage, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Pages" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new?type=website");
     expect(screen.getByRole("tab", { name: "Website (1)", selected: true })).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("/admin/pages", () => {
     await state.repos.landingPages.create({ title: "Home", slug: "home", createdBy: null, pageType: "website" });
     await state.repos.landingPages.create({ title: "Spring sprint", slug: "spring", createdBy: null });
     await renderServerPage(LandingTab, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: /^Landing/, selected: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "New page" })).toHaveAttribute("href", "/admin/pages/new?type=landing");
     expect(screen.getByTestId("table")).toHaveTextContent("Spring sprint");
@@ -89,7 +89,7 @@ describe("/admin/pages/design", () => {
     const { default: DesignTab } = await import("@/app/(admin)/admin/pages/design/page");
     await state.repos.landingSiteTemplate.saveDraft(draft("Fern Quills"), null);
     await renderServerPage(DesignTab, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: "Design", selected: true })).toBeInTheDocument();
     expect(screen.getByTestId("design")).toHaveAttribute("data-footer", "Fern Quills");
     expect(screen.getByTestId("design")).toHaveAttribute("data-has-published", "false");
@@ -112,7 +112,7 @@ describe("/admin/pages/templates", () => {
     await state.repos.landingPages.create({ title: "A page", slug: "a-page", createdBy: null });
     await state.repos.landingPages.create({ title: "Launch kit", slug: "launch-kit", createdBy: null, kind: "template" });
     await renderServerPage(TemplatesTab, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: /^Templates/, selected: true })).toBeInTheDocument();
     expect(screen.getByTestId("table")).toHaveAttribute("data-kind", "template");
     expect(screen.getByTestId("table")).toHaveTextContent("Launch kit");
@@ -134,7 +134,7 @@ describe("/admin/pages/new", () => {
     await state.repos.landingPages.publish(kit.id);
     await state.repos.landingPages.create({ title: "Draft kit", slug: "draft-kit", createdBy: null, kind: "template" });
     await renderServerPage(NewLandingPage, { searchParams: Promise.resolve({}) });
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(screen.getByRole("form", { name: "New page form" })).toHaveAttribute("data-templates", "Launch kit");
     expect(screen.getByRole("form", { name: "New page form" })).toHaveAttribute("data-default", "website");
   });
@@ -202,6 +202,6 @@ describe("/admin/pages/[slug]", () => {
   it("answers 404 for an unknown page and an invalid address, whoever asks", async () => {
     await expect(EditLandingPage(params("nothing"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
     await expect(EditLandingPage(params("Not Valid"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 });

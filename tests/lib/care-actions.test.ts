@@ -4,7 +4,8 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { periodEndsOn } from "@/lib/care";
 import { CARE_ENGAGEMENT_DAYS } from "@/lib/config";
 import { addDays } from "@/lib/org-week";
-import { COMMUNITY_MANAGER_FEATURES, type StaffFeature } from "@/lib/staff-access";
+import { can } from "@/lib/permissions";
+import { withdrawCommunityManagerFeatures } from "../helpers/community-manager-permissions";
 import { ADMIN_USER, MEMBER_USER, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { FakeClock, useFakeClock } from "@/tests/helpers/fake-clock";
 import { setClock } from "@/lib/clock";
@@ -171,9 +172,11 @@ describe("who may write Hedgie Care", () => {
   });
 
   describe("a staff role without the write feature", () => {
-    const granted = [...COMMUNITY_MANAGER_FEATURES];
-    beforeEach(() => (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).splice(0));
-    afterEach(() => (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).push(...granted));
+    let restore = () => {};
+    beforeEach(() => {
+      restore = withdrawCommunityManagerFeatures();
+    });
+    afterEach(() => restore());
 
     it.each(calls)("%s is refused", async (_name, call) => {
       signInAs(CM_USER);
@@ -1259,7 +1262,7 @@ describe("getCareMessages", () => {
   it("works for an admin previewing as a community manager (who has the feature), and refuses an id that is not a member's", async () => {
     signInAs(ADMIN_USER);
     preview.role = "community_manager";
-    expect(COMMUNITY_MANAGER_FEATURES).toContain("care.write");
+    expect(can({ role: "community_manager" }, "care.write")).toBe(true);
     expect(await getCareMessages(ADA)).toMatchObject({ page: expect.anything() });
     await expect(getCareMessages("not-a-member")).resolves.toEqual({ error: "That member isn't available." });
     await expect(getCareMessages("care_AAAAAAAAAAA1")).resolves.toEqual({ error: "That member isn't available." });

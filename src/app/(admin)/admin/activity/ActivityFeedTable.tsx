@@ -3,7 +3,8 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import { activityLink } from "@/lib/activity-links";
-import { isCommunityManagerPath } from "@/lib/staff-access";
+import { mayOpenAdminPath } from "@/lib/admin-paths";
+import { COMMUNITY_MANAGER_ROLE } from "@/lib/permissions";
 import ReactionEmoji from "@/components/ReactionEmoji";
 import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
@@ -101,7 +102,7 @@ function Summary({ row }: { row: ActivityFeedRow }) {
 function SourceLink({ row, limited }: { row: ActivityFeedRow; limited: boolean }) {
   const link = activityLink(row);
   // A community manager is not offered a link to a page she may not open (the member's feedback list, for one).
-  if (!link || (limited && !isCommunityManagerPath(link.href.split("?")[0]))) return null;
+  if (!link || (limited && !mayOpenAdminPath(COMMUNITY_MANAGER_ROLE, link.href.split("?")[0]))) return null;
   return (
     <>
       {" "}

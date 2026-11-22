@@ -4,14 +4,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import KajabiImportForm from "../KajabiImportForm";
 import SlackImportForm from "../SlackImportForm";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "CSV Import (Testing)",
 };
 
 export default async function TestingImportPage() {
-  await requireAdminPage();
+  await requirePermission("data.pipeline.run");
   if (process.env.NODE_ENV !== "development") {
     notFound();
   }

@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import NetworkGraph from "./NetworkGraph";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import {
   CHAT_MODES,
   WINDOW_DAYS,
@@ -47,7 +47,7 @@ export default async function MemberNetworkPage({
 }: {
   searchParams: Promise<{ chat?: string | string[]; days?: string | string[] }>;
 }) {
-  await requireAdminPage();
+  await requirePermission("members.network.read");
   const supabase = await createClient();
   const params = await searchParams;
   const chatMode = parseChatMode(params.chat);

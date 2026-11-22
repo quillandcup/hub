@@ -5,7 +5,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { GET } from "@/app/api/members/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }));
 // Members come from their repository, in memory here.
 let repos = createInMemoryRepos();
@@ -14,13 +14,13 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 function makeRequest(query = "") {
   return new NextRequest(`http://localhost/api/members${query}`);
 }
 
-const asAdmin = () => vi.mocked(requireAdmin).mockResolvedValue({ supabase: {} as never, user: { id: "u1" }, forbidden: false } as never);
+const asAdmin = () => vi.mocked(requireApiPermission).mockResolvedValue({ supabase: {} as never, user: { id: "u1" }, forbidden: false } as never);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe("GET /api/members admin guard", () => {
   it("returns 401 without a session and never reads members", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ supabase: {} as never, user: null, forbidden: true } as never);
+    vi.mocked(requireApiPermission).mockResolvedValue({ supabase: {} as never, user: null, forbidden: true } as never);
     const search = vi.spyOn(repos.members, "search");
 
     const res = await GET(makeRequest("?search=al&limit=20"));
@@ -39,7 +39,7 @@ describe("GET /api/members admin guard", () => {
   });
 
   it("returns 403 for a non-admin and never reads members", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ supabase: {} as never, user: { id: "u1" }, forbidden: true } as never);
+    vi.mocked(requireApiPermission).mockResolvedValue({ supabase: {} as never, user: { id: "u1" }, forbidden: true } as never);
     const search = vi.spyOn(repos.members, "search");
 
     const res = await GET(makeRequest("?search=al&limit=20"));

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import LandingRender from "@/components/landing/LandingRender";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { withLiveData } from "@/lib/landing/live-server";
 import { isValidSlug } from "@/lib/landing/slug";
@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Preview · Pages", robots: { index: 
 
 /** The draft as a visitor would see it, for admins only: drafts never render on the public route. */
 export default async function PreviewLandingPage({ params }: { params: Promise<{ slug: string }> }) {
-  await requireAdminPage();
+  await requirePermission("pages.read");
   const { slug } = await params;
   if (!isValidSlug(slug)) notFound();
   const repos = createRepos(await createClient());

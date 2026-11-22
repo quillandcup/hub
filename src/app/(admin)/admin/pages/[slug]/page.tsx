@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { normalizeLandingData } from "@/lib/landing/data";
 import { isValidSlug } from "@/lib/landing/slug";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Edit page · Pages" };
 
 /** The editor. Addressed by the page's slug, not its id: an admin URL counts as exposed, and page ids never are (docs/decisions/SHORT_IDS_PLAN.md, Tier 2). */
 export default async function EditLandingPage({ params }: { params: Promise<{ slug: string }> }) {
-  await requireAdminPage();
+  await requirePermission("pages.edit");
   const { slug } = await params;
   if (!isValidSlug(slug)) notFound();
   const repos = createRepos(await createClient());

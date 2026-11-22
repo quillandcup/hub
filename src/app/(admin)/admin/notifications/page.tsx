@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import TestNotifications from "./TestNotifications";
 
 export const metadata: Metadata = {
@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 export default async function TestNotificationsPage() {
-  await requireAdminPage();
+  await requirePermission("system.dev_tools.use");
 
   return (
     <div className="container mx-auto space-y-6 px-6 py-8">

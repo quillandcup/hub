@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { UNHOSTED_LIST_LIMIT } from "@/lib/missing-hosts";
 import { triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
@@ -14,7 +14,7 @@ export type UnhostedPrickle = { id: string; title: string | null; /** The calend
 
 /** Flip whether a prickle type needs a host. */
 export async function setRequiresHost(typeId: string, requiresHost: boolean): Promise<{ error?: string }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickles.manage");
   if (!auth.ok) return { error: auth.error };
 
   try {
@@ -35,7 +35,7 @@ export type DefaultHostChoice = { typeId: string; memberId: string | null };
  * choices from running the (slow) rebuild per type.
  */
 export async function setDefaultHosts(choices: DefaultHostChoice[]): Promise<{ error?: string; saved?: number }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickles.manage");
   if (!auth.ok) return { error: auth.error };
   if (choices.length === 0) return { saved: 0 };
   if (choices.some((c) => c.memberId !== null && !isId(c.memberId, "mbr"))) return { error: "Pick a member" };
@@ -58,7 +58,7 @@ export async function setDefaultHosts(choices: DefaultHostChoice[]): Promise<{ e
 
 /** The newest calendar prickles of a type that have no host (the detail view of one row). */
 export async function getUnhostedPrickles(typeId: string): Promise<{ error: string } | { prickles: UnhostedPrickle[] }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickles.manage");
   if (!auth.ok) return { error: auth.error };
 
   try {
@@ -83,7 +83,7 @@ const ASSIGN_PARALLEL = 10;
  * one included, since this is a record of who hosted.
  */
 export async function assignHostToUnhostedPrickles(typeId: string, memberId: string): Promise<{ error?: string; assigned?: number }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickles.manage");
   if (!auth.ok) return { error: auth.error };
   if (!isId(memberId, "mbr")) return { error: "Pick a member" };
 

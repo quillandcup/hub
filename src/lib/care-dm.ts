@@ -12,7 +12,7 @@
  * - **Staff are never offered.** A counterpart who is staff (`StaffRepository.memberIds()`: `staff.member_id`, or a member
  *   behind an admin, assistant or community manager account; the one definition) is dropped.
  * - The Bronze reads need the service role (Slack content is service role only), so every caller checks who is asking first
- *   (`requireStaffAction()` or the staff page, and `care.write`) and hands the service repositories in.
+ *   (`requireActionPermission("care.write")` or the staff page, and `care.write`) and hands the service repositories in.
  */
 import { clock } from "@/lib/clock";
 import { careOwnerOf, derivedMessageTimes, type DmLastWrites } from "@/lib/care-dm-rules";

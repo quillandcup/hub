@@ -15,7 +15,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: vi.fn() }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: vi.fn() }));
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: vi.fn(() => ({})) }));
 vi.mock("@/lib/writer-profiles-access", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/writer-profiles-access")>();
@@ -43,7 +43,7 @@ import { memberHasWriterProfiles } from "@/lib/writer-profiles-access";
 import { loadWorksOfMember, proposeMilestone, proposeMilestonesFromBooks, withdrawMilestone } from "@/app/(admin)/admin/finishers/actions";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 
 const identity = (memberId: string, isSudo = false) => ({ memberId, memberName: "x", memberEmail: "x@example.com", isSudo });
 
@@ -57,7 +57,7 @@ beforeEach(async () => {
   recorded.length = 0;
   vi.mocked(getCurrentUser).mockResolvedValue({ id: STAFF_USER, email: "ada@example.com" });
   vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(ADA));
-  vi.mocked(requireAdminAction).mockResolvedValue({ ok: true, user: { id: STAFF_USER, email: "staff@example.com" }, supabase: {} as never });
+  vi.mocked(requireActionPermission).mockResolvedValue({ ok: true, user: { id: STAFF_USER, email: "staff@example.com" }, supabase: {} as never, role: "admin", realRole: "admin" });
   await createInMemoryRepos(data).milestones.propose({ memberId: ADA, kind: "the_end", work: WORK, achievedOn: null, createdBy: STAFF_USER });
 });
 
@@ -246,7 +246,7 @@ describe("takeBackMilestone", () => {
 
 describe("the staff actions", () => {
   it("refuse anyone who is not an admin", async () => {
-    vi.mocked(requireAdminAction).mockResolvedValue({ ok: false, error: "Not authorized" });
+    vi.mocked(requireActionPermission).mockResolvedValue({ ok: false, error: "Not authorized" });
     expect(await proposeMilestonesFromBooks()).toEqual({ error: "Not authorized" });
     expect(await proposeMilestone({ memberId: BO, kind: "the_end", title: "A Fake Novel" })).toEqual({ error: "Not authorized" });
     expect(await withdrawMilestone("mlst_x")).toEqual({ error: "Not authorized" });
@@ -293,7 +293,7 @@ describe("the staff actions", () => {
       ],
     });
     expect(await loadWorksOfMember("nope")).toHaveProperty("error");
-    vi.mocked(requireAdminAction).mockResolvedValue({ ok: false, error: "Not authorized" });
+    vi.mocked(requireActionPermission).mockResolvedValue({ ok: false, error: "Not authorized" });
     expect(await loadWorksOfMember(BO)).toEqual({ error: "Not authorized" });
   });
 

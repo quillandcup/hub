@@ -3,7 +3,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), revalidate: vi.fn() }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: mocks.auth }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: mocks.auth }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 
 // The join settings live in the zoom repository, in memory here.

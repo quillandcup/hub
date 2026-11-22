@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { isId } from "@/lib/ids";
 import renderLessonStats, { type LessonStatsQuery } from "../LessonStats";
 
@@ -14,7 +14,7 @@ export default async function LessonWatchStatsPage({
   params: Promise<{ id: string; lessonId: string }>;
   searchParams: Promise<LessonStatsQuery>;
 }) {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   const { id, lessonId } = await params;
   if (!isId(lessonId, "les")) notFound();
   return renderLessonStats({ id, lessonId, query: await searchParams, variant: "page" });

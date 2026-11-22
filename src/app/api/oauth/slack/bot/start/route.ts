@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { buildBotInstallUrl, BOT_STATE_PREFIX } from "@/lib/slack-bot-install";
 import { isSlackConnectConfigured, setConnectStateCookie } from "@/lib/slack-connect";
 
@@ -9,7 +9,7 @@ import { isSlackConnectConfigured, setConnectStateCookie } from "@/lib/slack-con
  * callback, which recognises this flow by its state and finishes it (src/lib/slack-bot-install.ts).
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.integrations.manage");
   if (!auth.user || auth.forbidden) return NextResponse.json({ error: "Admins only" }, { status: 403 });
   if (!isSlackConnectConfigured()) return NextResponse.json({ error: "SLACK_CLIENT_ID and SLACK_CLIENT_SECRET are not set" }, { status: 503 });
 

@@ -18,10 +18,10 @@ function builder(table: string) {
   return b;
 }
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc, from: builder }) }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => ({ id: "admin", email: "a@example.test" })) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => ({ id: "admin", email: "a@example.test" })) }));
 
 const { default: ActivityLogPage } = await import("@/app/(admin)/admin/activity/page");
-const { requireAdminPage } = await import("@/lib/admin-auth");
+const { requirePermission } = await import("@/lib/admin-auth");
 
 const MEMBER_ID = "00000000-0000-4000-a000-0000000000b1";
 
@@ -61,7 +61,7 @@ beforeEach(() => {
   rpc.mockReset();
   tables.members = [{ id: MEMBER_ID, name: "Fern Quillsby", email: "fern@example.test", user_id: null }];
   tables.user_profiles = [{ id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test", role: "admin" }];
-  vi.mocked(requireAdminPage).mockClear();
+  vi.mocked(requirePermission).mockClear();
 });
 
 describe("/admin/activity", () => {
@@ -69,7 +69,7 @@ describe("/admin/activity", () => {
     feed([base]);
     await renderPage();
 
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_audit_only: true }));
     expect(screen.getByText("Bramble Admin")).toBeInTheDocument();
     await userEvent.click(screen.getByText("changed member — status"));

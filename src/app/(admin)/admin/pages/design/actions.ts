@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
 import { siteVersionSummaries, type SiteVersionSummary } from "@/lib/landing/site-versions";
@@ -20,7 +20,7 @@ import { normalizeSiteTemplate, siteAssetIds, siteTemplateIssues, type SiteTempl
 // `versions` is the refreshed History after a publish; `unpublished` says whether a restored or reset draft still differs from what is live.
 export type SiteResult = { error?: string; issues?: string[]; savedAt?: string; publishedAt?: string; site?: SiteTemplate; versions?: SiteVersionSummary[]; unpublished?: boolean };
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 const MAX_BYTES = 100_000;
 const tooBig = (data: unknown) => JSON.stringify(data ?? null).length > MAX_BYTES;
@@ -33,7 +33,7 @@ function failed(action: string, error: unknown, shown: string): { error: string 
 
 /** Saves the draft as it is edited. Whatever was sent is cleaned the way a stored document is read, so nothing the browser sent is trusted. */
 export async function saveSiteDraft(data: unknown): Promise<SiteResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   if (tooBig(data)) return { error: "The site design is too large to save." };
   try {
@@ -74,7 +74,7 @@ async function publishImpl(auth: Auth, data: unknown): Promise<SiteResult> {
 
 /** Publishes the header and footer shown in the Design view, on every published website page at once. Stops on problems that would stop a visitor. */
 export async function publishSiteTemplate(data: unknown): Promise<SiteResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.publish");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_site_published", () => publishImpl(auth, data), (r) => ({ ok: !r.error, detail: r.error ? "refused" : undefined }));
 }
@@ -92,7 +92,7 @@ async function resetImpl(auth: Auth): Promise<SiteResult> {
 
 /** Throws the draft away and goes back to the published copy. Nothing goes live and nothing public changes. */
 export async function resetSiteDraft(): Promise<SiteResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_site_draft_reset", () => resetImpl(auth), (r) => ({ ok: !r.error }));
 }
@@ -112,7 +112,7 @@ async function restoreImpl(auth: Auth, versionId: string): Promise<SiteResult> {
 
 /** Puts an earlier published version into the draft. Nothing goes live until the site design is published again. */
 export async function restoreSiteVersion(versionId: string): Promise<SiteResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_site_version_restored", () => restoreImpl(auth, versionId), (r) => ({ ok: !r.error }));
 }

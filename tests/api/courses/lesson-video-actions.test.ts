@@ -17,7 +17,7 @@ vi.mock('@/lib/admin-auth', async () => {
   const failingWrites = (client: ReturnType<typeof getTestSupabaseAdminClient>) =>
     new Proxy(client, { get: (target, prop) => (prop === 'from' ? (table: string) => (table === 'course_lessons' ? { select: (...a: unknown[]) => (target.from(table) as any).select(...a), update: () => { throw new Error('connection lost') } } : target.from(table)) : (target as any)[prop]) })
   return {
-    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: auth.userId, email: 'admin@example.test' }, supabase: auth.failWrites ? failingWrites(getTestSupabaseAdminClient()) : getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
+    requireActionPermission: async () => (auth.admin ? { ok: true, user: { id: auth.userId, email: 'admin@example.test' }, supabase: auth.failWrites ? failingWrites(getTestSupabaseAdminClient()) : getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
   }
 })
 vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }))

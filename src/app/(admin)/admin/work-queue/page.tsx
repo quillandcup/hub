@@ -23,14 +23,14 @@ import {
 import type { HiatusWindow } from "@/lib/member-tenure";
 import { getArrivals } from "@/lib/arrivals";
 import WorkQueueSections from "./WorkQueueSections";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Work Queue",
 };
 
 export default async function WorkQueuePage() {
-  await requireAdminPage();
+  await requirePermission("community.manage");
   const supabase = await createClient();
 
   const user = await getCurrentUser();

@@ -16,7 +16,7 @@ import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
 import { findMembersWithDisposableEmail } from "@/lib/disposable-email-members";
 import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { formatDateInZone } from "@/lib/formatters";
 import { getViewerTimeZone } from "@/lib/timezone";
 
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DataHygienePage() {
   const timeZone = await getViewerTimeZone();
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   // Fetch data quality metrics

@@ -5,8 +5,8 @@ import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 import AdminChangelogPage from "@/app/(admin)/admin/changelog/page";
 import AdminChangelogEntryPage, { generateMetadata, generateStaticParams } from "@/app/(admin)/admin/changelog/[slug]/page";
@@ -19,13 +19,13 @@ const links = () => screen.getAllByRole("link").map((a) => a.getAttribute("href"
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
 });
 
 describe("admin changelog list", () => {
   it("is for admins only, and lists product and engineering entries with a link each", async () => {
     await renderServerPage(AdminChangelogPage, listProps());
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(links().sort()).toEqual(CHANGELOG_ENTRIES.map((e) => `/admin/changelog/${e.slug}`).sort());
   });
 
@@ -83,7 +83,7 @@ describe("admin changelog entry", () => {
   it("shows an engineering entry, which has no member page, without a link to one", async () => {
     const eng = CHANGELOG_ENTRIES.find((e) => e.audience === "engineering")!;
     await renderServerPage(AdminChangelogEntryPage, entryProps(eng.slug));
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: eng.title, level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "See it as members do" })).not.toBeInTheDocument();
   });

@@ -9,7 +9,7 @@ const admin = vi.hoisted(() => {
 });
 const revalidatePath = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: async () => admin.result }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: async () => admin.result }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_id: string, run: () => Promise<unknown>) => run() }));
 let dataset: InMemoryDataset;
 vi.mock("@/lib/data/server", () => ({

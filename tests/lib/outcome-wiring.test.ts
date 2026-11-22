@@ -16,8 +16,7 @@ vi.mock("@/lib/analytics/server", () => ({
 
 // The admin actions check the caller before they report; here the caller is always an admin.
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} })),
-  requireStaffAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {}, role: "admin", realRole: "admin" })),
+  requireActionPermission: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {}, role: "admin", realRole: "admin" })),
 }));
 
 const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]][] = [

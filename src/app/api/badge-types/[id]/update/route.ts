@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 const VALID_CATEGORIES = ["milestone", "community", "course", "retreat", "special"];
@@ -11,7 +11,7 @@ const VALID_CATEGORIES = ["milestone", "community", "course", "retreat", "specia
 // in data) -- the one exception is program_id, which drives is_automatic directly: linking a
 // program makes the badge computed, unlinking reverts it to a plain manual badge.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "badges.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;

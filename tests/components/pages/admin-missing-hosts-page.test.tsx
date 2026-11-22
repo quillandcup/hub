@@ -8,8 +8,8 @@ import { buildDataset } from "@/lib/data/seed-profile";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
@@ -23,7 +23,7 @@ import MissingHostsPage from "@/app/(admin)/admin/data-health/missing-hosts/page
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
 });
 
 describe("prickles missing hosts page", () => {
@@ -34,7 +34,7 @@ describe("prickles missing hosts page", () => {
 
     await renderServerPage(MissingHostsPage, {});
 
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     const props = JSON.parse(screen.getByTestId("props").textContent!);
     expect(props.members).toBe(dataset.members.length);
     expect(props.stats).toBeGreaterThan(0);

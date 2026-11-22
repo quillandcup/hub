@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import {
   COMPLIANCE_EFFECTIVE,
   COMPLIANCE_GROUPS,
@@ -34,7 +34,7 @@ const ALL_ROWS: StaffRow[] = COMPLIANCE_GROUPS.flatMap((group) =>
  * design (see `src/content/compliance.ts`).
  */
 export default async function AdminCompliancePage() {
-  await requireAdminPage();
+  await requirePermission("system.compliance.read");
 
   return (
     <StaffPage title="Compliance">

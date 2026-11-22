@@ -32,7 +32,7 @@ Every `src/app/api` route file is classified by credential kind in `tests/lib/ap
 
 | Entry point | Guard | Checked |
 |---|---|---|
-| Member and admin pages | The proxy redirects signed-out visitors to `/login`; `/admin` paths are checked in the proxy and again by `requireAdminPage()` / `requireAdminAction()` (`.claude/rules/admin-route-protection.md`). | Proxy read. |
+| Member and admin pages | The proxy redirects signed-out visitors to `/login`; `/admin` paths are checked in the proxy and again by `requirePermission(...)` / `requireActionPermission(...)` (`.claude/rules/admin-route-protection.md`). | Proxy read. |
 | Member data in pages | RLS on every public and bronze table (0 without it, prod); member pages read through `getEffectiveIdentity`. | Prod query. |
 | Provider webhooks (Slack, Zoom, Mux, Resend, Google Calendar) | Signature or shared-token check; a deployed build rejects every request while the secret is unset (`src/lib/webhook-auth.ts`, constant-time compare). | Each handler contains a verification step; Calendar, Mux and the Zoom/Slack/Resend paths were read only as far as that. |
 | Cron and internal routes (`/api/internal/*`) | `Authorization: Bearer` with `CRON_INTERNAL_SECRET`, refused when unset. | `member-reminders` and `prickle-checkins` check the secret; `changelog-digest` and `lesson-comment-notifications` use `requireAdmin` (the cron secret passes it). Classified by the route test. |
