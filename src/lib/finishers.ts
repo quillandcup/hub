@@ -74,9 +74,18 @@ export const SHARE_STORY_DEFAULT = false;
  */
 export const MILESTONE_DEFAULT_VISIBILITY: Visibility = "public";
 export const SHARE_STORY_LABEL = "Share my story to inspire other writers.";
-export const SHARE_STORY_NOTE =
+/** Behind the info icon beside the share tick (not repeated under every work): what ticking it means. */
+export const SHARE_STORY_TIP =
   "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here, and you can change your mind any time.";
-export const SHARE_STORY_TIP = "For marketing: the Finishers section of our website, and testimonials we share.";
+
+/** What a strip calls a work whose name the viewer may not see (a project that is private to them). Never the title itself. */
+export const ANOTHER_WORK_TITLE = "Another work";
+
+/** A step in a row, once, in plain words: "You wrote THE END · Finisher". The stamp ("THE END", "FINAL DRAFT") is already in the words. */
+export function milestoneRowHeading(kind: MilestoneKind): string {
+  return `${MILESTONE_CLAIMS[kind]} · ${MILESTONE_TITLES[kind]}`;
+}
+export const PUBLISHED_ROW_HEADING = `${PUBLISHED_CLAIM} · ${PUBLISHED_TITLE}`;
 
 /** What a member is told right after they confirm a milestone, before anything else. */
 export const MILESTONE_CELEBRATION: Record<MilestoneKind, string> = {

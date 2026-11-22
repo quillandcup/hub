@@ -78,7 +78,7 @@ test("a writer's milestones, in Settings, on her profile and on the web @changel
   await settings("many-works-settings");
   await web("many-works-web");
 
-  // The one-time look at what will be public, right after the writer profile is switched on.
+  // The short note right after the writer profile is switched on.
   await setupManyWorks(false);
   await context.clearCookies();
   await signInAs("regular2");
@@ -87,7 +87,7 @@ test("a writer's milestones, in Settings, on her profile and on the web @changel
   await page.getByRole("checkbox", { name: /Show my profile on the web/ }).click();
   await expect(page.getByRole("checkbox", { name: /Show my profile on the web/ })).toBeChecked({ timeout: 15_000 });
   await page.waitForLoadState("networkidle");
-  const box = page.getByText("Your writer profile is on. Here is who sees what.").locator("xpath=..");
-  await expect(box).toBeVisible();
-  await tall(() => shot(page, testInfo, "switch-on-review", { element: box }));
+  const note = page.getByTestId("writer-profile-on-note");
+  await expect(note).toBeVisible();
+  await tall(() => shot(page, testInfo, "switch-on-note", { element: note }));
 });

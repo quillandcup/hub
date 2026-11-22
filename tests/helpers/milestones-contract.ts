@@ -17,6 +17,8 @@ export type MilestonesContractContext = {
   deleteBooks: (memberId: string) => Promise<void>;
   /** Gives a member one live writing project and returns its id. */
   addProject: (memberId: string) => Promise<string>;
+  /** Sets the level of a writing project (the project is named "A Fake Novel"). */
+  setProjectVisibility: (projectId: string, visibility: "private" | "community" | "public") => Promise<void>;
   /** Removes every milestone, book and project stored for the two members. */
   clear: () => Promise<void>;
 };
@@ -502,6 +504,44 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(steps.find((s) => s.workTitle === "A Title Only Fake Work")).toMatchObject({ kind: "the_end" });
       expect(steps.filter((s) => s.kind === "published").every((s) => s.visibility === "public" && s.storyAfter === null)).toBe(true);
       expect(JSON.stringify(steps)).not.toMatch(/mlst_|wprj_|book_/);
+    });
+
+    it("names a work that is only a project by the project's title when the viewer may see the project, and never otherwise", async () => {
+      const repo = ctx.repo();
+      type Level = "private" | "community" | "public";
+      // The project's level must be one the viewer's read serves: members see community and public, the web only public.
+      const cases: Array<{ project: Level; milestone: "community" | "public"; members: string | null; web: string | null | "absent" }> = [
+        { project: "private", milestone: "public", members: null, web: null },
+        { project: "community", milestone: "community", members: "A Fake Novel", web: "absent" },
+        { project: "community", milestone: "public", members: "A Fake Novel", web: null },
+        { project: "public", milestone: "community", members: "A Fake Novel", web: "absent" },
+        { project: "public", milestone: "public", members: "A Fake Novel", web: "A Fake Novel" },
+      ];
+      for (const c of cases) {
+        await ctx.clear();
+        const projectId = await ctx.addProject(id(ada));
+        await ctx.setProjectVisibility(projectId, c.project);
+        const added = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { visibility: c.milestone }, { projectId, bookId: null, title: null }), NOW);
+        expect(added.milestone.visibility).toBe(c.milestone);
+        const label = `project ${c.project}, milestone ${c.milestone}`;
+        const toMembers = await repo.worksShownToMembers(id(ada), null);
+        const onWeb = await repo.worksShownOnWeb(id(ada), null);
+        expect(toMembers.map((s) => s.workTitle), `members, ${label}`).toEqual([c.members]);
+        expect(onWeb.map((s) => s.workTitle), `web, ${label}`).toEqual(c.web === "absent" ? [] : [c.web]);
+        // A project the viewer may not see never leaks its title, in any field.
+        if (c.members === null) expect(JSON.stringify(toMembers)).not.toContain("A Fake Novel");
+        if (c.web === null) expect(JSON.stringify(onWeb)).not.toContain("A Fake Novel");
+      }
+    });
+
+    it("names a work by the title the member wrote, else its book's title, else its project's", async () => {
+      const repo = ctx.repo();
+      const projectId = await ctx.addProject(id(ada));
+      await ctx.addBook(id(ada), projectId);
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId, bookId: null, title: null }), NOW);
+      expect((await repo.worksShownToMembers(id(ada), null)).map((s) => s.workTitle)).toEqual(["A Book", "A Book"]);
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId: null, title: "A Title Only Fake Work" }), NOW);
+      expect((await repo.worksShownToMembers(id(ada), null)).map((s) => s.workTitle).sort()).toEqual(["A Book", "A Book", "A Title Only Fake Work"]);
     });
 
     it("counts Published only for a book published while a member: before the first join day it is left out, on the join day or undated it stays", async () => {

@@ -29,6 +29,10 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
       for (const b of data.memberBooks) if (b.member_id === memberId) b.deleted_at = new Date().toISOString();
     },
     addProject: (memberId) => new InMemoryWritingRepository(data).createProject(memberId, "A Fake Novel", "drafting"),
+    setProjectVisibility: async (projectId, visibility) => {
+      const project = data.writingProjects.find((p) => p.id === projectId);
+      if (project) Object.assign(project, { visibility, show_on_profile: visibility !== "private" });
+    },
     clear: async () => {
       data.writingProjects = [];
       data.memberMilestones = [];

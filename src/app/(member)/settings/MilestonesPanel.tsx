@@ -13,24 +13,22 @@ import {
   MILESTONE_LEVEL_LINES,
   MILESTONE_SELF_ADD,
   MILESTONE_SOURCE_NOTES,
-  MILESTONE_TITLES,
-  PUBLISHED_CLAIM,
-  PUBLISHED_TITLE,
+  PUBLISHED_ROW_HEADING,
   SHARE_STORY_DEFAULT,
   SHARE_STORY_LABEL,
-  SHARE_STORY_NOTE,
   SHARE_STORY_TIP,
   describeMilestoneLevel,
   hasStory,
   milestoneDateWords,
   milestoneLevels,
+  milestoneRowHeading,
   milestoneWebNote,
   type MilestoneKind,
 } from "@/lib/finishers";
 import type { Visibility } from "@/lib/writing-visibility";
 import VisibilityControl from "@/components/writing/VisibilityControl";
 import { InfoTip } from "@/components/InfoTip";
-import { buildWorks, isFeaturedWork, summarizeTitles, MAX_WORK_TITLE_LENGTH, type CardBook, type CardProject, type Work } from "@/lib/finishers-works";
+import { buildWorks, isFeaturedWork, summarizeWorks, MAX_WORK_TITLE_LENGTH, type CardBook, type CardProject, type Work } from "@/lib/finishers-works";
 import type { Milestone } from "@/lib/data/milestones";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { addMilestone, answerMilestone, setMilestoneShare, setMilestoneVisibility, takeBackMilestone } from "./milestoneActions";
@@ -62,7 +60,6 @@ function ShareStoryTick({ id, checked, onChange, disabled }: { id: string; check
         </label>
         <InfoTip label="What sharing my story means">{SHARE_STORY_TIP}</InfoTip>
       </div>
-      <p className="mt-1 ml-6 text-xs text-slate-600 dark:text-slate-400">{SHARE_STORY_NOTE}</p>
     </div>
   );
 }
@@ -173,9 +170,7 @@ export function MilestoneForm({
 
 function RowHeading({ kind }: { kind: MilestoneKind }) {
   return (
-    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-      {MILESTONE_CLAIMS[kind]} <span className="text-slate-500 dark:text-slate-400">({MILESTONE_TITLES[kind]}, {MILESTONE_LABELS[kind]})</span>
-    </p>
+    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{milestoneRowHeading(kind)}</p>
   );
 }
 
@@ -375,9 +370,7 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
 function PublishedItem() {
   return (
     <li className="rounded-md border border-slate-200 dark:border-slate-700 p-4" data-milestone="published">
-      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-        {PUBLISHED_CLAIM} <span className="text-slate-500 dark:text-slate-400">({PUBLISHED_TITLE})</span>
-      </p>
+      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{PUBLISHED_ROW_HEADING}</p>
       <p className={NOTE}>
         Reached automatically from your Bookshelf.{" "}
         <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
@@ -491,7 +484,7 @@ export function MilestonesPanel({
   const featured = works.filter(isFeaturedWork);
   const rest = works.filter((w) => !isFeaturedWork(w));
   const waiting = milestones.some((m) => m.status === "proposed");
-  const summary = summarizeTitles(works);
+  const summary = summarizeWorks(works);
   return (
     <section aria-labelledby="your-milestones" className="border-t border-slate-200 dark:border-slate-700 pt-6 mt-6">
       <h2 id="your-milestones" className="text-lg font-medium text-slate-900 dark:text-slate-100">

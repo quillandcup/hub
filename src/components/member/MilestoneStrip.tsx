@@ -1,4 +1,4 @@
-import { MILESTONE_SHOWN, MILESTONE_TITLES, PUBLISHED_SHOWN, PUBLISHED_TITLE, milestoneDateWords } from "@/lib/finishers";
+import { ANOTHER_WORK_TITLE, MILESTONE_SHOWN, MILESTONE_TITLES, PUBLISHED_SHOWN, PUBLISHED_TITLE, milestoneDateWords } from "@/lib/finishers";
 import { groupShownWorks } from "@/lib/finishers-works";
 import type { ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
 
@@ -11,7 +11,7 @@ const STEP_SHOWN: Record<ShownStepKind, string> = { ...MILESTONE_SHOWN, publishe
  * docs/product/WRITER_TITLES.md), the day when they gave one, and the story only when they wrote one. Published comes from the
  * Bookshelf and is always at the globe. The rows come from `member_works_shown_to_members` or `member_works_shown_on_web`, which
  * already hold back everything the viewer may not see, so this only draws what it is given. Plain text: React escapes it, and
- * line breaks are kept by the style. Draws nothing when there is nothing to show.
+ * line breaks are kept by the style. A work whose name the viewer may not see (a project private to them) is "Another work". Draws nothing when there is nothing to show.
  */
 export default function MilestoneStrip({ steps, headingClassName }: { steps: ShownWorkStep[]; headingClassName?: string }) {
   const works = groupShownWorks(steps);
@@ -24,7 +24,7 @@ export default function MilestoneStrip({ steps, headingClassName }: { steps: Sho
       <ul className="space-y-6">
         {works.map((work, w) => (
           <li key={w} data-testid="milestone-work">
-            {work.title && <h3 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{work.title}</h3>}
+            <h3 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{work.title ?? ANOTHER_WORK_TITLE}</h3>
             <ul className="space-y-3">
               {work.steps.map((step) => (
                 <li key={step.kind}>

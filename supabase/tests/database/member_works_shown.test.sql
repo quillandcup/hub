@@ -10,7 +10,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(24);
+SELECT plan(35);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f8a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'mw-quinn@example.test');
@@ -104,9 +104,68 @@ SELECT is((SELECT count(*)::int FROM public.member_works_shown_on_web('mbr_mwPia
 SELECT is((SELECT count(*)::int FROM public.member_works_shown_to_members('mbr_mwPia0000001') WHERE kind = 'published'), 0, 'for members either');
 RESET ROLE;
 
--- All three are SECURITY DEFINER with a pinned search path, and the older readers are still there for the contract step.
+-- Naming a work that is only a project: by the project's title when the viewer may see the project, else no name at all.
+-- Members see community and public projects, the web only public ones; the milestone itself is at the globe in every case.
+INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
+  ('mbr_mwRoy0000001', 'Roy Works', 'mw-roy@example.test', now(), 'active', NULL);
+INSERT INTO public.writing_projects (id, member_id, title, phase, visibility) VALUES
+  ('wprj_mwPriv00001', 'mbr_mwRoy0000001', 'Roy Private Fake Project', 'revising', 'private'),
+  ('wprj_mwComm00001', 'mbr_mwRoy0000001', 'Roy Community Fake Project', 'revising', 'community'),
+  ('wprj_mwOpen00001', 'mbr_mwRoy0000001', 'Roy Public Fake Project', 'revising', 'public'),
+  ('wprj_mwGone00001', 'mbr_mwRoy0000001', 'Roy Deleted Fake Project', 'revising', 'public');
+UPDATE public.writing_projects SET deleted_at = now() WHERE id = 'wprj_mwGone00001';
+INSERT INTO public.member_milestones (id, member_id, kind, source, status, confirmed_at, project_id, visibility) VALUES
+  ('mlst_mwRoyPriv01', 'mbr_mwRoy0000001', 'the_end', 'member', 'confirmed', now(), 'wprj_mwPriv00001', 'public'),
+  ('mlst_mwRoyComm01', 'mbr_mwRoy0000001', 'the_end', 'member', 'confirmed', now(), 'wprj_mwComm00001', 'public'),
+  ('mlst_mwRoyOpen01', 'mbr_mwRoy0000001', 'the_end', 'member', 'confirmed', now(), 'wprj_mwOpen00001', 'public'),
+  ('mlst_mwRoyGone01', 'mbr_mwRoy0000001', 'the_end', 'member', 'confirmed', now(), 'wprj_mwGone00001', 'public');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f8a1", "email": "mw-quinn@example.test", "role": "authenticated"}', true);
+SELECT results_eq(
+  $$SELECT work_title FROM public.member_works_shown_to_members('mbr_mwRoy0000001') ORDER BY work_no$$,
+  $$VALUES ('Roy Community Fake Project'::text), (NULL::text), ('Roy Public Fake Project'::text), (NULL::text)$$,
+  'another member sees a project-only work named when its project is community or public, and unnamed when it is private or deleted');
+SELECT is(
+  (SELECT count(*)::int FROM public.member_works_shown_to_members('mbr_mwRoy0000001') t WHERE row_to_json(t)::text ~ '(Roy Private Fake Project|Roy Deleted Fake Project|wprj_)'),
+  0, 'but never the title of a private or deleted project, or an id');
+SELECT is((SELECT count(DISTINCT work_no)::int FROM public.member_works_shown_to_members('mbr_mwRoy0000001')), 4, 'each project is its own work, named or not');
+RESET ROLE;
+
+SET LOCAL ROLE service_role;
+SELECT results_eq(
+  $$SELECT work_title FROM public.member_works_shown_on_web('mbr_mwRoy0000001') ORDER BY work_no$$,
+  $$VALUES (NULL::text), (NULL::text), ('Roy Public Fake Project'::text), (NULL::text)$$,
+  'the web names a project-only work only when its project is public');
+SELECT is(
+  (SELECT count(*)::int FROM public.member_works_shown_on_web('mbr_mwRoy0000001') t WHERE row_to_json(t)::text ~ '(Roy Private Fake Project|Roy Community Fake Project|Roy Deleted Fake Project|wprj_)'),
+  0, 'and never the title of a project that is not public, or an id');
+RESET ROLE;
+
+-- With the book deleted (above), the project's own name takes over for the work it had.
+SET LOCAL ROLE service_role;
+SELECT is(
+  (SELECT work_title FROM public.member_works_shown_to_members('mbr_mwPia0000001') WHERE kind = 'the_end' AND work_title LIKE 'Pia%Project'),
+  'Pia Fake Project', 'a work whose book is gone is named by its project, which members may see');
+RESET ROLE;
+
+-- A project that goes private takes its name off the strip at once; the milestone stays.
+UPDATE public.writing_projects SET visibility = 'private' WHERE id = 'wprj_mwComm00001';
+SET LOCAL ROLE service_role;
+SELECT is((SELECT count(*)::int FROM public.member_works_shown_to_members('mbr_mwRoy0000001') WHERE work_title = 'Roy Community Fake Project'), 0, 'a project that goes private is no longer named');
+SELECT is((SELECT count(*)::int FROM public.member_works_shown_to_members('mbr_mwRoy0000001') WHERE kind = 'the_end'), 4, 'but its milestone is still shown');
+RESET ROLE;
+
+SELECT is(
+  (SELECT prosrc LIKE '%p.visibility = ANY (p_levels)%' FROM pg_proc WHERE proname = 'member_works_shown' AND pronamespace = 'public'::regnamespace),
+  true, 'the shared body checks the project''s own level against the levels it serves');
+SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname = 'member_works_shown' AND pronamespace = 'public'::regnamespace AND prosecdef AND proconfig @> ARRAY['search_path=""']), 1, 'and still pins an empty search path');
+
+
+-- All three are SECURITY DEFINER with a pinned search path; the member reader of badges stays and the old web reader is gone.
 SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('member_works_shown', 'member_works_shown_to_members', 'member_works_shown_on_web') AND prosecdef AND proconfig @> ARRAY['search_path=""']), 3, 'all three pin an empty search path');
-SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('milestones_shown_to_members', 'milestones_shown_on_web')), 2, 'the previous readers stay until the contract step');
+SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname = 'milestones_shown_to_members'), 1, 'the badge reader stays');
+SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname = 'milestones_shown_on_web'), 0, 'the old web reader, which nothing read, is dropped');
 
 SELECT * FROM finish(true);
 ROLLBACK;

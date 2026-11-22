@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, stepsCountedWhileMember, isFeaturedWork, isPastDrafting, parseWork, summarizeTitles, workKey } from "@/lib/finishers-works";
+import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, stepsCountedWhileMember, isFeaturedWork, isPastDrafting, parseWork, summarizeWorks, workKey } from "@/lib/finishers-works";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
 import type { Milestone, ShownWorkStep } from "@/lib/data/milestones";
 
@@ -107,8 +107,8 @@ describe("buildWorks", () => {
   });
 });
 
-describe("summarizeTitles", () => {
-  it("counts each work once at its highest rung, from confirmed milestones and the Bookshelf only", () => {
+describe("summarizeWorks", () => {
+  it("counts each work once at its highest step, in plain counts with no title words, from confirmed milestones and the Bookshelf only", () => {
     const works = buildWorks(
       [
         { id: "wpr_1", title: "One", phase: "revising" },
@@ -126,20 +126,39 @@ describe("summarizeTitles", () => {
         row({ id: "f", projectId: "wpr_4", kind: "publish_ready", status: "declined", confirmedAt: null }),
       ],
     );
-    expect(summarizeTitles(works)).toBe("Published Author of 1 work · Author of 1 work · Finisher of 1 work");
+    expect(summarizeWorks(works)).toBe("3 works · 1 published · 1 ready to publish · 1 finished");
   });
 
   it("never says Author for a work that is not publish-ready, and says nothing when there is nothing to say", () => {
     const works = buildWorks([{ id: "wpr_1", title: "One", phase: "revising" }], [], [row({ projectId: "wpr_1" })]);
-    expect(summarizeTitles(works)).toBe("Finisher of 1 work");
-    expect(summarizeTitles(works)).not.toMatch(/Author/);
-    expect(summarizeTitles(buildWorks([], [], [row({ status: "proposed", confirmedAt: null })]))).toBeNull();
-    expect(summarizeTitles([])).toBeNull();
+    expect(summarizeWorks(works)).toBe("1 work · 1 finished");
+    expect(summarizeWorks(works)).not.toMatch(/Author|Finisher|ready to publish/);
+    expect(summarizeWorks(buildWorks([], [], [row({ status: "proposed", confirmedAt: null })]))).toBeNull();
+    expect(summarizeWorks([])).toBeNull();
+  });
+
+  it("says where each work stands, once, as the badges' counts would not: a published work is also a finished one but is counted only as published", () => {
+    const projects = [1, 2, 3, 4, 5, 6].map((n) => ({ id: `wpr_${n}`, title: `Work ${n}`, phase: "revising" }));
+    const works = buildWorks(
+      projects,
+      [{ id: "book_1", title: "Book 1", projectId: "wpr_1" }],
+      [
+        row({ id: "a", projectId: "wpr_1" }),
+        row({ id: "b", projectId: "wpr_1", kind: "publish_ready" }),
+        row({ id: "c", projectId: "wpr_2", kind: "publish_ready" }),
+        row({ id: "d", projectId: "wpr_2" }),
+        row({ id: "e", projectId: "wpr_3", kind: "publish_ready" }),
+        row({ id: "f", projectId: "wpr_4" }),
+        row({ id: "g", projectId: "wpr_5" }),
+        row({ id: "h", projectId: "wpr_6" }),
+      ],
+    );
+    expect(summarizeWorks(works)).toBe("6 works · 1 published · 2 ready to publish · 3 finished");
   });
 
   it("uses the plural for several works", () => {
     const works = buildWorks([], [], [row({ id: "a", title: "A" }), row({ id: "b", title: "B" })]);
-    expect(summarizeTitles(works)).toBe("Finisher of 2 works");
+    expect(summarizeWorks(works)).toBe("2 works · 2 finished");
   });
 });
 
@@ -215,8 +234,8 @@ describe("the date rule for Published (books published before the member joined)
 
   it("leaves a book with no date counted, and the summary line says Published Author only for the books that count", () => {
     expect(buildWorks([], [{ id: "book_x", title: "An Undated Fake Book", projectId: null }], [], "2026-03-01")[0].published).toBe(true);
-    expect(summarizeTitles(buildWorks(projects, books, [], "2026-03-01"))).toBe("Published Author of 2 works");
-    expect(summarizeTitles(buildWorks(projects, books, [], "2027-01-01"))).toBeNull();
+    expect(summarizeWorks(buildWorks(projects, books, [], "2026-03-01"))).toBe("2 works · 2 published");
+    expect(summarizeWorks(buildWorks(projects, books, [], "2027-01-01"))).toBeNull();
   });
 
   it("drops the Published step of an earlier book from a strip, never a milestone, and keeps everything with no join date", () => {

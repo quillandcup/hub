@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MilestonesPanel } from "@/app/(member)/settings/MilestonesPanel";
 import * as actions from "@/app/(member)/settings/milestoneActions";
-import { MILESTONE_DEFAULT_VISIBILITY, MILESTONE_LEVEL_LINES, MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, MILESTONE_TITLES, PUBLISHED_TITLE, SHARE_STORY_LABEL, SHARE_STORY_NOTE } from "@/lib/finishers";
+import { MILESTONE_DEFAULT_VISIBILITY, MILESTONE_LEVEL_LINES, MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, PUBLISHED_ROW_HEADING, milestoneRowHeading, SHARE_STORY_LABEL, SHARE_STORY_TIP } from "@/lib/finishers";
 import type { Milestone } from "@/lib/data/milestones";
 
 const refresh = vi.fn();
@@ -65,9 +65,9 @@ describe("MilestonesPanel (per work)", () => {
     const li = within(work("A Fake Novel"));
     expect(li.getByText(/Confirmed \(May 1, 2026\)/)).toBeInTheDocument();
     expect(li.getByText(/Waiting for you to confirm/)).toBeInTheDocument();
-    expect(li.getByText(new RegExp(`${MILESTONE_TITLES.the_end}, ${MILESTONE_LABELS.the_end}`))).toBeInTheDocument();
-    expect(li.getByText(new RegExp(`${MILESTONE_TITLES.publish_ready}, ${MILESTONE_LABELS.publish_ready}`))).toBeInTheDocument();
-    expect(li.queryByText(new RegExp(PUBLISHED_TITLE))).not.toBeInTheDocument();
+    expect(li.getByText(milestoneRowHeading("the_end"))).toBeInTheDocument();
+    expect(li.getByText(milestoneRowHeading("publish_ready"))).toBeInTheDocument();
+    expect(li.queryByText(PUBLISHED_ROW_HEADING)).not.toBeInTheDocument();
   });
 
   it("shows works that have a milestone or are past drafting first, and the rest under 'Show all my projects'", async () => {
@@ -90,7 +90,7 @@ describe("MilestonesPanel (per work)", () => {
     render(<MilestonesPanel milestones={[]} projects={[NOVEL]} books={[{ id: "book_1", title: "Its Book", projectId: NOVEL.id }, { id: "book_2", title: "A Loose Book", projectId: null }]} />);
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["A Fake Novel", "A Loose Book"]);
     for (const title of ["A Fake Novel", "A Loose Book"]) {
-      expect(within(work(title)).getByText(new RegExp(PUBLISHED_TITLE))).toBeInTheDocument();
+      expect(within(work(title)).getByText(PUBLISHED_ROW_HEADING)).toBeInTheDocument();
       expect(within(work(title)).getByRole("link", { name: "See your Bookshelf" })).toHaveAttribute("href", "/bookshelf");
     }
   });
@@ -103,11 +103,11 @@ describe("MilestonesPanel (per work)", () => {
         firstJoinedAt="2026-03-01T15:00:00Z"
       />,
     );
-    expect(screen.getByTestId("milestone-summary")).toHaveTextContent("Published Author of 1 work");
+    expect(screen.getByTestId("milestone-summary")).toHaveTextContent("1 work · 1 published");
     expect(screen.getByText(/came out since you joined the community. Earlier books stay on your Bookshelf but are not counted here/)).toBeInTheDocument();
   });
 
-  it("sums up the titles from the whole set in plain words, Author only for publish-ready works", () => {
+  it("sums up where the works stand in plain counts, with no title words", () => {
     render(
       <MilestonesPanel
         milestones={[
@@ -120,7 +120,7 @@ describe("MilestonesPanel (per work)", () => {
         books={[{ id: "book_1", title: "A Loose Book", projectId: null }]}
       />,
     );
-    expect(screen.getByTestId("milestone-summary")).toHaveTextContent("Published Author of 1 work · Author of 1 work · Finisher of 1 work");
+    expect(screen.getByTestId("milestone-summary")).toHaveTextContent("3 works · 1 published · 1 ready to publish · 1 finished");
   });
 
   it("adds THE END for one work: sends that work, with the share tick unticked unless ticked", async () => {
@@ -132,10 +132,11 @@ describe("MilestonesPanel (per work)", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
     await user.type(screen.getByLabelText(/how does it feel now/i), "Done.");
-    // It appears with the story, with the wording and the note, and starts unticked.
+    // It appears with the story, with the wording, and starts unticked; the promises sit behind the info icon, not under every work.
     const tick = screen.getByRole("checkbox", { name: SHARE_STORY_LABEL });
     expect(tick).not.toBeChecked();
-    expect(screen.getByText(SHARE_STORY_NOTE)).toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(SHARE_STORY_TIP);
+    expect(screen.getAllByText(SHARE_STORY_TIP)).toHaveLength(1);
     expect(screen.getByRole("button", { name: "What sharing my story means" })).toBeInTheDocument();
     await user.click(tick);
     await user.click(screen.getByRole("button", { name: "Add it" }));
