@@ -1,5 +1,5 @@
 import { MILESTONE_DEFAULT_VISIBILITY, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
-import { workKey, type WorkRef } from "@/lib/finishers-works";
+import { stepsCountedWhileMember, workKey, type WorkRef } from "@/lib/finishers-works";
 import { isShownToMembers, type Visibility } from "@/lib/writing-visibility";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -238,9 +238,9 @@ export interface MilestoneRepository {
    * The strip on this member's profile for other members: their works, each with its milestones at community or public level
    * and Published (derived from the live Bookshelf books, at the globe), in order. Never a private milestone, whoever asks.
    */
-  worksShownToMembers(memberId: string): Promise<ShownWorkStep[]>;
+  worksShownToMembers(memberId: string, firstJoinedAt: string | null): Promise<ShownWorkStep[]>;
   /** The strip on the writer profile on the web: the works with their milestones at the globe and Published. Service role; the page checks the profile is on. */
-  worksShownOnWeb(memberId: string): Promise<ShownWorkStep[]>;
+  worksShownOnWeb(memberId: string, firstJoinedAt: string | null): Promise<ShownWorkStep[]>;
   /**
    * Every member's confirmed, live milestones at community or public level, for the Finisher and Author badges of many members
    * at once (kind and date only, paged past 1,000 rows). Never a private one, an admin's client included. It reads the table, so
@@ -478,12 +478,12 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
     return (must(await this.db.rpc("milestones_shown_to_members", { p_member_id: memberId })) ?? []).map(toShown);
   }
 
-  async worksShownToMembers(memberId: string) {
-    return (must(await this.db.rpc("member_works_shown_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep);
+  async worksShownToMembers(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember((must(await this.db.rpc("member_works_shown_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
   }
 
-  async worksShownOnWeb(memberId: string) {
-    return (must(await this.db.rpc("member_works_shown_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep);
+  async worksShownOnWeb(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember((must(await this.db.rpc("member_works_shown_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
   }
 
   async allShownToMembers() {
@@ -788,12 +788,12 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       .map(({ key, step: _step, createdAt: _createdAt, ...rest }) => ({ ...rest, workNo: order.indexOf(key) + 1, workTitle: title.get(key) ?? null }));
   }
 
-  async worksShownToMembers(memberId: string) {
-    return this.works(memberId, ["community", "public"]);
+  async worksShownToMembers(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember(this.works(memberId, ["community", "public"]), firstJoinedAt);
   }
 
-  async worksShownOnWeb(memberId: string) {
-    return this.works(memberId, ["public"]);
+  async worksShownOnWeb(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember(this.works(memberId, ["public"]), firstJoinedAt);
   }
 
   async allShownToMembers() {

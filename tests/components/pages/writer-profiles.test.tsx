@@ -143,6 +143,30 @@ describe("/w/[handle]", () => {
       expect(screen.getByTestId("milestone-strip")).toHaveTextContent("September 1, 2026");
     });
 
+    it("leaves out Published for a book published before the owner first joined, on the page and in the preview, and keeps the one on the join day", async () => {
+      await makePage("ada-example");
+      state.dataset.members[0].firstJoinedAt = "2026-09-01T15:00:00Z";
+      book("book_AAAAAAAAAAA1", "An Earlier Fake Book", null, "2026-08-31");
+      book("book_AAAAAAAAAAA2", "A Join Day Fake Book", null, "2026-09-01");
+      const page = await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("A Join Day Fake Book");
+      expect(screen.getByTestId("milestone-strip")).not.toHaveTextContent("An Earlier Fake Book");
+      page.unmount();
+
+      signInAs({ id: "user-ada", email: "ada.private@example.test" } as never, { memberId: ADA, memberName: "Ada", memberEmail: "ada.private@example.test", isSudo: false });
+      await renderServerPage(WriterProfilePreview, {});
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("A Join Day Fake Book");
+      expect(screen.getByTestId("milestone-strip")).not.toHaveTextContent("An Earlier Fake Book");
+    });
+
+    it("draws no strip when every book is from before the owner joined", async () => {
+      await makePage("ada-example");
+      state.dataset.members[0].firstJoinedAt = "2026-09-01";
+      book("book_AAAAAAAAAAA1", "An Earlier Fake Book", null, "2020-01-01");
+      await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
+    });
+
     it("draws no Published for a deleted book", async () => {
       await makePage("ada-example");
       book("book_AAAAAAAAAAA1", "A Deleted Fake Book");

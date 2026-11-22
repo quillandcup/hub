@@ -20,9 +20,9 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
     members: [ADA, BO],
     missingMemberId: "mbr_ZZZZZZZZZZZZ",
     staffUserId: "11111111-1111-4111-8111-111111111111",
-    addBook: async (memberId, projectId) => {
+    addBook: async (memberId, projectId, publishedDate = "2026-01-01") => {
       const id = `book_${String(++n).padStart(12, "A")}`;
-      data.memberBooks.push({ id, member_id: memberId, title: "A Book", published_date: "2026-01-01", cover_asset_id: null, project_id: projectId ?? null });
+      data.memberBooks.push({ id, member_id: memberId, title: "A Book", published_date: publishedDate, cover_asset_id: null, project_id: projectId ?? null });
       return id;
     },
     deleteBooks: async (memberId) => {

@@ -1,6 +1,6 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { parseDateOnly } from "@/lib/member-tenure";
-import { milestoneBadgeCounts, type MilestoneBadgeCounts } from "@/lib/finishers";
+import { milestoneBadgeCounts, publishedBookCount, type MilestoneBadgeCounts } from "@/lib/finishers";
 import type { AttendanceRepository } from "@/lib/data/attendance";
 import type { MentorshipRepository } from "@/lib/data/mentorship";
 import type { Repos } from "@/lib/data/repos";
@@ -101,17 +101,36 @@ export function quarterKey(isoTimestamp: string): string {
   return `${d.getUTCFullYear()}-Q${quarter}`;
 }
 
+/**
+ * The label of a counted badge: the name for one ("Finisher"), then the real count ("2x Finisher", "7x Finisher"). No steps: the
+ * number is what the member has.
+ */
+export function countedBadgeName(name: string, count: number): string {
+  return count <= 1 ? name : `${count}x ${name}`;
+}
+
+/**
+ * What an automatic badge shows for `occurrences`: a counted type (`badge_types.counted`: Finisher, Author, Published Author) shows
+ * its real count and ignores `badge_levels`; any other leveled type shows the highest level reached. Null when there is nothing
+ * to show yet. For a counted badge `level` is the count, so lists sort by it.
+ */
+export function automaticBadgeLevel(badgeType: Pick<BadgeType, "name" | "counted">, levels: BadgeLevel[], occurrences: number): { levelName: string; level: number } | null {
+  if (badgeType.counted) return occurrences >= 1 ? { levelName: countedBadgeName(badgeType.name, occurrences), level: occurrences } : null;
+  const level = deriveLevel(levels, occurrences);
+  return level ? { levelName: level.name, level: level.level } : null;
+}
+
 function pushAutomaticLeveled(
   earned: EarnedBadge[],
   badgeType: BadgeType,
   levels: BadgeLevel[],
   occurrences: number
 ) {
-  const level = deriveLevel(levels, occurrences);
+  const level = automaticBadgeLevel(badgeType, levels, occurrences);
   if (!level) return;
   earned.push({
     badgeType,
-    levelName: level.name,
+    levelName: level.levelName,
     level: level.level,
     occurrences,
     firstAwardedAt: null,
@@ -309,12 +328,17 @@ export async function getHostedQuarterCount(
   return quarters.size;
 }
 
-/** Number of books `memberId` has logged on the Hedgie Bookshelf (member_books). */
+/**
+ * Number of books `memberId` has logged on the Hedgie Bookshelf (member_books) that were published while a member of the community:
+ * a book published before they first joined stays on the Bookshelf but does not count (`reachedWhileMember`, the same rule as the
+ * milestones; no join date counts every book).
+ */
 export async function getPublishedBookCount(
   repos: BadgeRepos,
-  memberId: string
+  memberId: string,
+  firstJoinedAt: string | null
 ): Promise<number> {
-  return repos.books.countLive(memberId);
+  return publishedBookCount(await repos.books.liveDates(memberId), firstJoinedAt);
 }
 
 /** Whose eyes the badges are for: the member's own (everything confirmed counts) or anyone else's (only what the member shows to members). */
@@ -382,17 +406,18 @@ function recipientNames(member: RecipientMember): { memberName: string; memberRe
 
 function pushLeveledRecipient(
   recipients: BadgeRecipient[],
+  badgeType: BadgeType,
   member: RecipientMember,
   levels: BadgeLevel[],
   occurrences: number
 ) {
-  const level = deriveLevel(levels, occurrences);
+  const level = automaticBadgeLevel(badgeType, levels, occurrences);
   if (!level) return;
   recipients.push({
     memberId: member.id,
     ...recipientNames(member),
     memberEmail: member.email,
-    levelName: level.name,
+    levelName: level.levelName,
     level: level.level,
     occurrences,
     firstAwardedAt: null,
@@ -422,19 +447,19 @@ export function computeBadgeRecipients(
       case "prickle_milestones":
         for (const [memberId, occurrences] of metrics.attendedPrickleCountsByMember) {
           const member = membersById.get(memberId);
-          if (member) pushLeveledRecipient(recipients, member, levels, occurrences);
+          if (member) pushLeveledRecipient(recipients, badgeType, member, levels, occurrences);
         }
         break;
       case "hostess":
         for (const [memberId, occurrences] of metrics.hostedQuarterCountsByMember) {
           const member = membersById.get(memberId);
-          if (member) pushLeveledRecipient(recipients, member, levels, occurrences);
+          if (member) pushLeveledRecipient(recipients, badgeType, member, levels, occurrences);
         }
         break;
       case "published_author":
         for (const [memberId, occurrences] of metrics.publishedBookCountsByMember) {
           const member = membersById.get(memberId);
-          if (member) pushLeveledRecipient(recipients, member, levels, occurrences);
+          if (member) pushLeveledRecipient(recipients, badgeType, member, levels, occurrences);
         }
         break;
       case "finisher":
@@ -442,7 +467,7 @@ export function computeBadgeRecipients(
         const kind = badgeType.key === "finisher" ? "the_end" : "publish_ready";
         for (const [memberId, counts] of metrics.milestoneCountsByMember ?? []) {
           const member = membersById.get(memberId);
-          if (member) pushLeveledRecipient(recipients, member, levels, counts[kind]);
+          if (member) pushLeveledRecipient(recipients, badgeType, member, levels, counts[kind]);
         }
         break;
       }
@@ -594,12 +619,18 @@ async function getMilestoneBadgeCountsByMember(
   return counts;
 }
 
-/** Number of books each member has logged on the Hedgie Bookshelf -- the bulk counterpart to
- * getPublishedBookCount, one paginated scan instead of N. */
+/** Number of books each member published while a member -- the bulk counterpart to
+ * getPublishedBookCount, one paginated scan instead of N, each member's books counted against their own join date. */
 async function getPublishedBookCountsByMember(
-  repos: BadgeRepos
+  repos: BadgeRepos,
+  firstJoinedByMember: Map<string, string | null>
 ): Promise<Map<string, number>> {
-  return repos.books.liveCountsByMember();
+  const counts = new Map<string, number>();
+  for (const [memberId, dates] of await repos.books.liveDatesByMember()) {
+    const count = publishedBookCount(dates, firstJoinedByMember.get(memberId) ?? null);
+    if (count > 0) counts.set(memberId, count);
+  }
+  return counts;
 }
 
 /** Distinct prickles attended by a single member -- the per-member counterpart to
@@ -729,7 +760,7 @@ export async function getBadgeRecipients(
       hostedQuarterCountsByMember = await getHostedQuarterCountsByMember(repos);
       break;
     case "published_author":
-      publishedBookCountsByMember = await getPublishedBookCountsByMember(repos);
+      publishedBookCountsByMember = await getPublishedBookCountsByMember(repos, new Map(members.map((m) => [m.id, m.firstJoinedAt])));
       break;
     case "finisher":
     case "author":
@@ -775,7 +806,7 @@ export async function getMemberBadges(
     badges.levels(),
     badges.awardsOf(memberId),
     getHostedQuarterCount(repos, memberId),
-    getPublishedBookCount(repos, memberId),
+    getPublishedBookCount(repos, memberId, firstJoinedAt),
     getProgramCompletions(repos, memberId),
     getMentorshipCounts(repos.mentorship),
     getMilestoneBadgeCounts(repos, memberId, firstJoinedAt, viewer),

@@ -97,8 +97,10 @@ export interface BookRepository {
   coverAssetIdOf(id: string): Promise<string | null>;
   /** How many live books a member has. */
   countLive(memberId: string): Promise<number>;
-  /** Live books per member (a member with none is left out). Paginated. */
-  liveCountsByMember(): Promise<Map<string, number>>;
+  /** The published day of each of a member's live books, for the Published Author badge (which counts only books published while a member). */
+  liveDates(memberId: string): Promise<string[]>;
+  /** The published days of every member's live books, by member (a member with none is left out). Paginated. */
+  liveDatesByMember(): Promise<Map<string, string[]>>;
   /** How many live books were published on or before `date` (a YYYY-MM-DD day): a count, never a title or an author. A book with a later date is not published yet. */
   countPublishedOnOrBefore(date: string): Promise<number>;
   /** Live books matching the words, by author and publish date, newest published first. */
@@ -189,13 +191,20 @@ export class SupabaseBookRepository implements BookRepository {
     return count ?? 0;
   }
 
-  async liveCountsByMember() {
-    const rows = await fetchAllRows<{ member_id: string }>(
-      (from, to) => this.db.from("member_books").select("member_id").is("deleted_at", null).order("id").range(from, to)
+  async liveDates(memberId: string) {
+    const rows = await fetchAllRows<{ published_date: string }>(
+      (from, to) => this.db.from("member_books").select("published_date").eq("member_id", memberId).is("deleted_at", null).order("id").range(from, to)
     );
-    const counts = new Map<string, number>();
-    for (const row of rows) counts.set(row.member_id, (counts.get(row.member_id) ?? 0) + 1);
-    return counts;
+    return rows.map((r) => r.published_date);
+  }
+
+  async liveDatesByMember() {
+    const rows = await fetchAllRows<{ member_id: string; published_date: string }>(
+      (from, to) => this.db.from("member_books").select("member_id, published_date").is("deleted_at", null).order("id").range(from, to)
+    );
+    const dates = new Map<string, string[]>();
+    for (const row of rows) dates.set(row.member_id, [...(dates.get(row.member_id) ?? []), row.published_date]);
+    return dates;
   }
 
   async search(q: BookSearch) {
@@ -359,10 +368,14 @@ export class InMemoryBookRepository implements BookRepository {
     return this.live().filter((b) => b.published_date <= date).length;
   }
 
-  async liveCountsByMember() {
-    const counts = new Map<string, number>();
-    for (const b of this.live()) counts.set(b.member_id, (counts.get(b.member_id) ?? 0) + 1);
-    return counts;
+  async liveDates(memberId: string) {
+    return this.live().filter((b) => b.member_id === memberId).map((b) => b.published_date);
+  }
+
+  async liveDatesByMember() {
+    const dates = new Map<string, string[]>();
+    for (const b of this.live()) dates.set(b.member_id, [...(dates.get(b.member_id) ?? []), b.published_date]);
+    return dates;
   }
 
   async search(q: BookSearch) {

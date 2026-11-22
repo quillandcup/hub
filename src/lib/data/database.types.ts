@@ -1971,6 +1971,7 @@ export type Database = {
       badge_types: {
         Row: {
           category: string
+          counted: boolean
           created_at: string
           description: string | null
           event_id: string | null
@@ -1985,6 +1986,7 @@ export type Database = {
         }
         Insert: {
           category?: string
+          counted?: boolean
           created_at?: string
           description?: string | null
           event_id?: string | null
@@ -1999,6 +2001,7 @@ export type Database = {
         }
         Update: {
           category?: string
+          counted?: boolean
           created_at?: string
           description?: string | null
           event_id?: string | null

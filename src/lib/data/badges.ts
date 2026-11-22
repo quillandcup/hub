@@ -12,6 +12,8 @@ export interface BadgeType {
   icon: string;
   category: string;
   has_levels: boolean;
+  /** The label is the real count ("Finisher", "2x Finisher"), made in code; `badge_levels` is not read for this type. Absent means false. */
+  counted?: boolean;
   is_automatic: boolean;
   program_id: string | null;
   /** The events row a retreat badge commemorates (see badge_types.event_id), if linked. */
@@ -118,11 +120,12 @@ type TypeRow = {
   icon: string;
   category: string;
   has_levels: boolean;
+  counted: boolean;
   is_automatic: boolean;
   program_id: string | null;
   event_id: string | null;
 };
-const TYPE_COLUMNS = "id, key, name, description, icon, category, has_levels, is_automatic, program_id, event_id";
+const TYPE_COLUMNS = "id, key, name, description, icon, category, has_levels, counted, is_automatic, program_id, event_id";
 const toType = (r: TypeRow): BadgeType => ({
   id: r.id,
   key: r.key,
@@ -131,6 +134,7 @@ const toType = (r: TypeRow): BadgeType => ({
   icon: r.icon,
   category: r.category,
   has_levels: r.has_levels,
+  counted: r.counted,
   is_automatic: r.is_automatic,
   program_id: r.program_id,
   event_id: r.event_id,

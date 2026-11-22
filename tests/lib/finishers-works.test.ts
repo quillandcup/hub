@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, isFeaturedWork, isPastDrafting, parseWork, summarizeTitles, workKey } from "@/lib/finishers-works";
+import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, stepsCountedWhileMember, isFeaturedWork, isPastDrafting, parseWork, summarizeTitles, workKey } from "@/lib/finishers-works";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
 import type { Milestone, ShownWorkStep } from "@/lib/data/milestones";
 
@@ -195,5 +195,36 @@ describe("groupShownWorks (the strips)", () => {
     expect(works[0].title).toBe("A Fake Novel");
     expect(works[0].steps.filter((s) => s.kind === "published")).toHaveLength(1);
     expect(works[0].steps.find((s) => s.kind === "published")?.achievedOn).toBe("2026-02-01");
+  });
+});
+
+describe("the date rule for Published (books published before the member joined)", () => {
+  const books = [
+    { id: "book_old", title: "An Earlier Fake Book", projectId: null, publishedDate: "2026-02-28" },
+    { id: "book_join", title: "A Join Day Fake Book", projectId: null, publishedDate: "2026-03-01" },
+    { id: "book_new", title: "A Later Fake Book", projectId: "wpr_1", publishedDate: "2026-09-01" },
+  ];
+  const projects = [{ id: "wpr_1", title: "A Fake Novel", phase: "revising" }];
+  const published = (joined: string | null) => buildWorks(projects, books, [], joined).filter((w) => w.published).map((w) => w.title).sort();
+
+  it("keeps a book from before off the Published list (it is still a work), counts the join day and later, and counts all with no join date", () => {
+    expect(published("2026-03-01T15:00:00Z")).toEqual(["A Fake Novel", "A Join Day Fake Book"]);
+    expect(buildWorks(projects, books, [], "2026-03-01").map((w) => w.title)).toContain("An Earlier Fake Book");
+    expect(published(null)).toEqual(["A Fake Novel", "A Join Day Fake Book", "An Earlier Fake Book"]);
+  });
+
+  it("leaves a book with no date counted, and the summary line says Published Author only for the books that count", () => {
+    expect(buildWorks([], [{ id: "book_x", title: "An Undated Fake Book", projectId: null }], [], "2026-03-01")[0].published).toBe(true);
+    expect(summarizeTitles(buildWorks(projects, books, [], "2026-03-01"))).toBe("Published Author of 2 works");
+    expect(summarizeTitles(buildWorks(projects, books, [], "2027-01-01"))).toBeNull();
+  });
+
+  it("drops the Published step of an earlier book from a strip, never a milestone, and keeps everything with no join date", () => {
+    const step = (kind: "the_end" | "published", achievedOn: string | null) => ({ workNo: 1, kind, workTitle: "A Fake Novel", achievedOn, storyBefore: null, storyAfter: null, visibility: "public" as const });
+    const steps = [step("the_end", "2020-01-01"), step("published", "2026-02-28")];
+    expect(stepsCountedWhileMember(steps, "2026-03-01").map((s) => s.kind)).toEqual(["the_end"]);
+    expect(stepsCountedWhileMember([step("the_end", null), step("published", "2026-03-01")], "2026-03-01").map((s) => s.kind)).toEqual(["the_end", "published"]);
+    expect(stepsCountedWhileMember(steps, null)).toHaveLength(2);
+    expect(groupShownWorks(stepsCountedWhileMember([step("published", "2026-02-28")], "2026-03-01"))).toEqual([]);
   });
 });

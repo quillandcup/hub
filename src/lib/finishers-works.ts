@@ -1,4 +1,4 @@
-import { MILESTONE_TITLES, PUBLISHED_TITLE, type MilestoneKind } from "@/lib/finishers";
+import { MILESTONE_TITLES, PUBLISHED_TITLE, reachedWhileMember, type MilestoneKind } from "@/lib/finishers";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
 import type { Milestone, ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
 
@@ -43,7 +43,7 @@ export function parseWork(input: { projectId?: string | null; bookId?: string | 
 /** A project as the card needs it. */
 export type CardProject = { id: string; title: string; phase: string };
 /** A live Bookshelf book as the card needs it. */
-export type CardBook = { id: string; title: string; projectId: string | null };
+export type CardBook = { id: string; title: string; projectId: string | null; /** The day it was published, for the rule that a book counts only if published while a member. */ publishedDate?: string | null };
 
 /** One work on the card, with the milestones stored for it. `published` is derived: it has a book on the Bookshelf. */
 export type Work = {
@@ -69,7 +69,7 @@ export function isPastDrafting(phase: string | null): boolean {
  * work), then any work only a milestone knows (a title they wrote, or a row from before works existed). Each carries its stored
  * milestones. Order: projects as given, then books, then the rest.
  */
-export function buildWorks(projects: CardProject[], books: CardBook[], milestones: Milestone[]): Work[] {
+export function buildWorks(projects: CardProject[], books: CardBook[], milestones: Milestone[], firstJoinedAt: string | null = null): Work[] {
   const works: Work[] = [];
   const byId = new Map<string, Work>();
   const add = (work: Work, ...ids: Array<string | null>) => {
@@ -78,13 +78,15 @@ export function buildWorks(projects: CardProject[], books: CardBook[], milestone
   };
   for (const p of projects) add({ key: p.id, projectId: p.id, bookId: null, title: p.title, phase: p.phase, published: false, milestones: {} }, p.id);
   for (const b of books) {
+    // A book published before the member joined is on the Bookshelf but is not the Published milestone (reachedWhileMember).
+    const counts = reachedWhileMember(b.publishedDate ?? null, firstJoinedAt);
     const linked = b.projectId ? byId.get(b.projectId) : undefined;
     if (linked) {
       linked.bookId = b.id;
-      linked.published = true;
+      linked.published ||= counts;
       byId.set(b.id, linked);
     } else {
-      add({ key: b.projectId ?? b.id, projectId: b.projectId, bookId: b.id, title: b.title, phase: null, published: true, milestones: {} }, b.id, b.projectId);
+      add({ key: b.projectId ?? b.id, projectId: b.projectId, bookId: b.id, title: b.title, phase: null, published: counts, milestones: {} }, b.id, b.projectId);
     }
   }
   const unlisted = new Map<string, Work>();
@@ -102,6 +104,15 @@ export function buildWorks(projects: CardProject[], books: CardBook[], milestone
     work.milestones[m.kind] ??= m;
   }
   return works;
+}
+
+/**
+ * Drops the Published steps of books published before the member first joined (`reachedWhileMember`, the rule the badges use): the
+ * book stays on the Bookshelf, but is not a milestone in the community. Milestones are left as they are. A member with no join date
+ * keeps every step.
+ */
+export function stepsCountedWhileMember(steps: readonly ShownWorkStep[], firstJoinedAt: string | null): ShownWorkStep[] {
+  return steps.filter((s) => s.kind !== "published" || reachedWhileMember(s.achievedOn, firstJoinedAt));
 }
 
 /** A work as a strip shows it: its name when the viewer may know it, and its steps in order (THE END, publish-ready, Published). */

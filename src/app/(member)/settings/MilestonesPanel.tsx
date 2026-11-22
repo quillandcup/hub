@@ -473,18 +473,21 @@ export function MilestonesPanel({
   milestones,
   projects = [],
   books = [],
+  firstJoinedAt = null,
   readOnly = false,
   web = { available: false, on: false },
 }: {
   milestones: Milestone[];
   projects?: CardProject[];
   books?: CardBook[];
+  /** The day the member first joined: a book published before it is on the Bookshelf but is not their Published milestone. */
+  firstJoinedAt?: string | null;
   readOnly?: boolean;
   /** Whether writer profiles are open to the member (the globe is offered) and whether their profile is on. */
   web?: MilestoneWebState;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const works = buildWorks(projects, books, milestones);
+  const works = buildWorks(projects, books, milestones, firstJoinedAt);
   const featured = works.filter(isFeaturedWork);
   const rest = works.filter((w) => !isFeaturedWork(w));
   const waiting = milestones.some((m) => m.status === "proposed");
@@ -519,7 +522,7 @@ export function MilestonesPanel({
       )}
       <div className="mt-6 space-y-3">
         <p className={NOTE}>
-          A book on your Bookshelf counts as published automatically.{" "}
+          A book on your Bookshelf counts as published automatically if it came out since you joined the community. Earlier books stay on your Bookshelf but are not counted here.{" "}
           <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 underline underline-offset-2">
             Go to the Bookshelf
           </Link>

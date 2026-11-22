@@ -84,7 +84,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   // The card is always shown: it also needs their projects (to link a milestone they add) and live books (the third milestone is derived).
   const milestoneRepos = createRepos(supabase);
   // The globe on a milestone is offered only where writer profiles are open to the member, with a note when their profile is off.
-  const [milestones, milestoneProjects, shelfBooks, milestoneWeb] = effectiveIdentity
+  const [milestones, milestoneProjects, shelfBooks, milestoneWeb, firstJoinedAt] = effectiveIdentity
     ? await Promise.all([
         milestoneRepos.milestones.ofMember(effectiveIdentity.memberId).catch(() => []),
         milestoneRepos.writing.activeProjects(effectiveIdentity.memberId).catch(() => []),
@@ -95,8 +95,10 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
         ])
           .then(([available, page]) => ({ available, on: page?.isPublic ?? false }))
           .catch(() => ({ available: false, on: false })),
+        // A book published before they first joined stays on the Bookshelf but is not their Published milestone (reachedWhileMember).
+        milestoneRepos.members.byId(effectiveIdentity.memberId).then((m) => m?.firstJoinedAt ?? null).catch(() => null),
       ])
-    : [[], [], [], { available: false, on: false }];
+    : [[], [], [], { available: false, on: false }, null];
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -162,8 +164,8 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 label: SETTINGS_TAB_LABELS.profile,
                 content: (
                   <>
-                    <ProfilePanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null }))} readOnly={effectiveIdentity?.isSudo ?? false} />
-                    <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null }))} readOnly={effectiveIdentity?.isSudo ?? false} web={milestoneWeb} />
+                    <ProfilePanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date }))} firstJoinedAt={firstJoinedAt} readOnly={effectiveIdentity?.isSudo ?? false} />
+                    <MilestonesPanel milestones={milestones} projects={milestoneProjects} books={shelfBooks.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date }))} firstJoinedAt={firstJoinedAt} readOnly={effectiveIdentity?.isSudo ?? false} web={milestoneWeb} />
                   </>
                 ),
               },
