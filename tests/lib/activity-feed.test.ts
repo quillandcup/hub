@@ -683,6 +683,7 @@ describe("the page builder in the Activity Log", () => {
 
   it("says each thing done to a page in plain words, naming the page by its title", () => {
     expect(describeRow(page("insert", { title: { old: null, new: "Spring" } }))).toBe("created the page “Spring & <Summer> sale”");
+    expect(describeRow(page("insert", { title: { old: null, new: "Spring" }, replaced_at: { old: null, new: "2026-11-21" } }))).toBe("created the page “Spring & <Summer> sale” from a JSON file");
     expect(describeRow(page("update", { status: { old: "draft", new: "published" }, published_at: { old: null, new: "2026-10-05" } }))).toBe("published the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { published_at: { old: "2026-10-01", new: "2026-10-05" } }))).toBe("published the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { status: { old: "published", new: "draft" } }))).toBe("took the page “Spring & <Summer> sale” down");

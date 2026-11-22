@@ -83,8 +83,8 @@ export interface LandingPageRepository {
   published(slug: string): Promise<PublishedLandingPage | null>;
   /** The live page made by an import with this key (docs/product/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
   byImportKey(importKey: string): Promise<LandingPage | null>;
-  /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. Throws `LandingPageSlugTakenError`. */
-  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage>;
+  /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. `fromFile` marks a page made from a JSON file: it stamps `replaced_at`, so the one Activity Log entry for the insert says so. Throws `LandingPageSlugTakenError`. */
+  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage>;
   /** Keeps the page's draft as it is now in its history, as a "before import" version (restorable like any version). Null when the page is gone. */
   keepDraftBeforeImport(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
   /** An import again: replaces the draft document and stamps `imported_at` (one audit entry). Never touches the published copy, title, address or versions. Null when the page is gone. */
@@ -176,7 +176,7 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     return must(await this.db.from("landing_pages").select("*").eq("import_key", importKey).is("deleted_at", null).maybeSingle());
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage> {
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage> {
     const { data, error } = await this.db
       .from("landing_pages")
       .insert({
@@ -186,6 +186,7 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
         slug: input.slug,
         draft_data: asJson(input.data ?? EMPTY_LANDING_DATA),
         ...(input.importKey ? importStamp(input.importKey) : {}),
+        ...(input.fromFile ? { replaced_at: new Date().toISOString() } : {}),
         created_by: input.createdBy,
         updated_by: input.createdBy,
       })
@@ -397,7 +398,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return structuredClone(page);
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage> {
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage> {
     if (this.live().some((p) => p.slug === input.slug || (input.importKey && p.import_key === input.importKey))) throw new LandingPageSlugTakenError(input.slug);
     const now = new Date().toISOString();
     const page: LandingPage = {
@@ -418,7 +419,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
       restored_at: null,
       import_key: input.importKey ?? null,
       imported_at: input.importKey ? now : null,
-      replaced_at: null,
+      replaced_at: input.fromFile ? now : null,
       created_by: input.createdBy,
       updated_by: input.createdBy,
       created_at: now,
