@@ -27,7 +27,7 @@ const CHAT_CORE_FILES = ["src/lib/chat/**/*.{ts,tsx}", "src/components/chat/**/*
 // The adapter's own files, which still sit in src/lib/chat until the next steps move them under src/modules/chat/slack.
 const CHAT_ADAPTER_FILES = ["src/lib/chat/slack-*.ts", "src/lib/chat/gap-fill.ts"];
 // A path like [id] is a glob character class, so the brackets are escaped.
-const CHAT_BASELINE = Object.keys(JSON.parse(readFileSync(new URL("./chat-core-baseline.json", import.meta.url), "utf8")).files).map((f) => f.replace(/[[\]]/g, "\\$&"));
+const CHAT_BASELINE = Object.keys(JSON.parse(readFileSync(new URL("./chat-core-baseline.json", import.meta.url), "utf8")).files).map((f) => f.replace(/[\\[\]]/g, "\\$&"));
 
 const eslintConfig = [{
   ignores: [".claude/worktrees/**", "next-env.d.ts", ".next-demo/**", "tests/demo/.stack/**", "tests/demo/out/**"],
