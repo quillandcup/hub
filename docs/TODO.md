@@ -1266,6 +1266,20 @@ Authy has no logo catalog we can submit to: it runs a Google Images search on th
 
 **Where to start (in Kajabi):** (1) upload a large logo, at least 512x512 on a transparent or white background, as the header logo, with the alt text "Quill & Cup logo"; (2) set the site's social sharing image (`og:image`) to it; (3) add Organization markup in the site's custom header code: `{"@context":"https://schema.org","@type":"Organization","name":"Quill & Cup","url":"https://www.quillandcup.com","logo":"<URL of the large logo>"}` in a `application/ld+json` script. Then re-test with the QR codes (an otpauth URI with `issuer=quillandcup.com`, any fake account) a week later. When the landing pages move off Kajabi (see "Landing pages (page builder)"), carry the same three things to the new site, so it is not lost with Kajabi.
 
+### Vetting for a public "drop in" button on the home page _(Needs Scheduling)_
+
+A "drop in" button on the public home page would let someone who is not a member join a live prickle. The risk is a stranger who joins to harass or expose themselves to a room of women. **Why deferred:** nothing is built, and the amount of friction (the card step in particular) is a product decision, since it costs sign-ups and is also the strongest deterrent. **Principle:** the button never hands out a room. It starts a request, and a room opens only to someone who has passed a few cheap checks, so a casual troublemaker finds it not worth the effort.
+
+**Plan (layers; none is enough alone):**
+1. **No public link.** The button goes to a short "Request a drop-in" form for a specific prickle. Each approved person gets their own join link (Zoom registration with manual approval issues one per person), so a shared or leaked link opens nothing for anyone else.
+2. **Friction that removes anonymity and zero cost.** Verify an email (phone by text message is optional, only if abuse shows up); ask for a real name and a question or two about their writing, which also checks fit; require a card on file with no charge (a Stripe setup intent), which deters most casual abusers and gives a card fingerprint to ban on; and a code-of-conduct checkbox saying they can be removed and banned.
+3. **Approval.** A host or community manager approves each request ahead of the prickle, or the checks above approve it automatically and staff review only flagged ones. Choose by expected volume.
+4. **Room settings.** Waiting room on, with the host admitting only people whose registered name matches; no renaming, screen share or annotation for participants; first-timers admitted with video off until the host does a short check-in; a co-host present who can suspend participant activities and remove someone in one click.
+5. **Sponsorship.** The strongest trust signal, and it matches the invite-only model: a member can bring a guest and is accountable for them. Offer "Ask a member to bring you" next to the open request path.
+6. **Afterwards.** A ban list keyed on email, card fingerprint and phone; audit-log entries for bans (`audit-and-activity-log.md`); a written procedure for hosts to report and remove.
+
+**Recommended first version:** verified email, card on file with no charge, per-person registered Zoom links, waiting room, and first-timers admitted with video off, plus the sponsorship path. **Where to start:** decide the friction level with the owner; then a `drop_in_requests` table with a repository (new-table rules in `CLAUDE.md`), the Stripe setup step, Zoom registration through the API, an admin approval list under `requireAdminPage()`, and notices to the host through `createNotifier`. Whether a guest counts in attendance and stats needs its own decision.
+
 ## Login & Access History
 
 ### Session Replay (PostHog bolt-on)
