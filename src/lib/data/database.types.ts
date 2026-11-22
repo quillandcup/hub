@@ -8963,42 +8963,6 @@ export type Database = {
           work_title: string
         }[]
       }
-      member_works_shown: {
-        Args: { p_levels: string[]; p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_no: number
-          work_title: string
-        }[]
-      }
-      member_works_shown_on_web: {
-        Args: { p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_no: number
-          work_title: string
-        }[]
-      }
-      member_works_shown_to_members: {
-        Args: { p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_no: number
-          work_title: string
-        }[]
-      }
       mentorship_counts: {
         Args: never
         Returns: {
@@ -9006,17 +8970,6 @@ export type Database = {
           last_started_on: string
           member_id: string
           mentored_count: number
-        }[]
-      }
-      milestones_shown_to_members: {
-        Args: { p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_title: string
         }[]
       }
       moderate_lesson_comment: {
@@ -9145,7 +9098,6 @@ export type Database = {
           proposals: number
         }[]
       }
-      propose_milestones_from_books: { Args: never; Returns: number }
       publish_announced_event_covers: { Args: never; Returns: number }
       publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
       publish_landing_page_with_note: {

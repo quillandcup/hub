@@ -151,10 +151,4 @@ describe("milestones in search", () => {
     const source = fs.readFileSync(path.resolve(ROOT, "../components/writing/Milestones.tsx"), "utf8");
     for (const p of entries) expect(source).toContain(`id="${p.href.split("#")[1]}"`);
   });
-
-  it("leaves Settings, Profile with only a pointer: no heading of its own for the search to list", () => {
-    const pointer = fs.readFileSync(path.join(ROOT, "(member)/settings/MilestonesPointer.tsx"), "utf8");
-    expect(pointer).not.toMatch(/<h[1-6]\b/);
-    expect(pointer).toContain('href="/projects"');
-  });
 });

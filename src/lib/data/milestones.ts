@@ -844,7 +844,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       .map((w) => ({ kind: w.kind as MilestoneKind, workTitle: w.workTitle, achievedOn: w.achievedOn, achievedPrecision: w.achievedPrecision, storyBefore: w.storyBefore, storyAfter: w.storyAfter, visibility: w.visibility }));
   }
 
-  /** The same grouping as `member_works_shown`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
+  /** The same grouping as `member_works_dated`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
   private works(memberId: string, levels: readonly string[]): ShownWorkStep[] {
     const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null);
     type Item = ShownWorkStep & { key: string; step: number; createdAt: string; titleRank: number };

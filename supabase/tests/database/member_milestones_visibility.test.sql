@@ -82,52 +82,52 @@ SELECT is((SELECT visibility FROM public.member_milestones WHERE id = 'mlst_mvPr
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f7a2", "email": "mv-quinn@example.test", "role": "authenticated"}', true);
 SELECT results_eq(
-  $$SELECT kind, work_title, visibility FROM public.milestones_shown_to_members('mbr_mvPia0000001')$$,
+  $$SELECT kind, work_title, visibility FROM public.member_works_dated_to_members('mbr_mvPia0000001') WHERE kind <> 'published'$$,
   $$VALUES ('the_end'::text, 'Pia Fake Book'::text, 'community'::text), ('publish_ready'::text, 'A Public Fake Work'::text, 'public'::text)$$,
   'another member sees the community and public milestones, with the book''s name or the title the member wrote');
-SELECT is((SELECT story_after FROM public.milestones_shown_to_members('mbr_mvPia0000001') WHERE kind = 'the_end'), 'Community story words.', 'and the story at that level');
+SELECT is((SELECT story_after FROM public.member_works_dated_to_members('mbr_mvPia0000001') WHERE kind = 'the_end'), 'Community story words.', 'and the story at that level');
 SELECT is(
-  (SELECT count(*)::int FROM public.milestones_shown_to_members('mbr_mvPia0000001') t WHERE row_to_json(t)::text ~ '(Private story|Deleted story|A Private Fake Work|A Deleted Fake Work|A Proposed Fake Work|mlst_)'),
+  (SELECT count(*)::int FROM public.member_works_dated_to_members('mbr_mvPia0000001') t WHERE row_to_json(t)::text ~ '(Private story|Deleted story|A Private Fake Work|A Deleted Fake Work|A Proposed Fake Work|mlst_)'),
   0, 'but never a private story or title, a taken-back or proposed one, or an id');
-SELECT is((SELECT count(*)::int FROM public.milestones_shown_to_members('mbr_mvQuinn00001')), 1, 'a member sees their own community milestone through it too');
-SELECT throws_ok($$SELECT * FROM public.member_works_shown_on_web('mbr_mvPia0000001')$$, '42501', NULL, 'another member cannot call the web reader');
+SELECT is((SELECT count(*)::int FROM public.member_works_dated_to_members('mbr_mvQuinn00001') WHERE kind <> 'published'), 1, 'a member sees their own community milestone through it too');
+SELECT throws_ok($$SELECT * FROM public.member_works_dated_on_web('mbr_mvPia0000001')$$, '42501', NULL, 'another member cannot call the web reader');
 RESET ROLE;
 
 -- An admin through the same reader sees exactly what another member sees: a private milestone stays private from staff here.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f7a4", "email": "mv-rae@example.test", "role": "authenticated"}', true);
 SELECT results_eq(
-  $$SELECT kind, visibility FROM public.milestones_shown_to_members('mbr_mvPia0000001')$$,
+  $$SELECT kind, visibility FROM public.member_works_dated_to_members('mbr_mvPia0000001') WHERE kind <> 'published'$$,
   $$VALUES ('the_end'::text, 'community'::text), ('publish_ready'::text, 'public'::text)$$,
   'an admin through the member-facing reader gets no private milestone');
 SELECT is(
-  (SELECT count(*)::int FROM public.milestones_shown_to_members('mbr_mvPia0000001') t WHERE row_to_json(t)::text LIKE '%Private story%'),
+  (SELECT count(*)::int FROM public.member_works_dated_to_members('mbr_mvPia0000001') t WHERE row_to_json(t)::text LIKE '%Private story%'),
   0, 'nor its story');
-SELECT throws_ok($$SELECT * FROM public.member_works_shown_on_web('mbr_mvPia0000001')$$, '42501', NULL, 'and an admin cannot call the web reader either');
+SELECT throws_ok($$SELECT * FROM public.member_works_dated_on_web('mbr_mvPia0000001')$$, '42501', NULL, 'and an admin cannot call the web reader either');
 RESET ROLE;
 
 -- A visitor has no access to either reader.
 SET LOCAL ROLE anon;
-SELECT throws_ok($$SELECT * FROM public.milestones_shown_to_members('mbr_mvPia0000001')$$, '42501', NULL, 'a visitor cannot call the member reader');
-SELECT throws_ok($$SELECT * FROM public.member_works_shown_on_web('mbr_mvPia0000001')$$, '42501', NULL, 'nor the web reader');
+SELECT throws_ok($$SELECT * FROM public.member_works_dated_to_members('mbr_mvPia0000001')$$, '42501', NULL, 'a visitor cannot call the member reader');
+SELECT throws_ok($$SELECT * FROM public.member_works_dated_on_web('mbr_mvPia0000001')$$, '42501', NULL, 'nor the web reader');
 RESET ROLE;
 
 -- The web reader (service role, which the page uses after checking the profile is on): only the globe.
 SET LOCAL ROLE service_role;
 SELECT results_eq(
-  $$SELECT kind, work_title, story_after, visibility FROM public.member_works_shown_on_web('mbr_mvPia0000001') WHERE kind <> 'published'$$,
+  $$SELECT kind, work_title, story_after, visibility FROM public.member_works_dated_on_web('mbr_mvPia0000001') WHERE kind <> 'published'$$,
   $$VALUES ('publish_ready'::text, 'A Public Fake Work'::text, 'Public story words.'::text, 'public'::text)$$,
   'the web gets only the milestone at the globe, with its story');
-SELECT is((SELECT count(*)::int FROM public.member_works_shown_on_web('mbr_mvQuinn00001') WHERE kind <> 'published'), 0, 'a community milestone is not on the web');
-SELECT is((SELECT count(*)::int FROM public.member_works_shown_on_web('mbr_mvNobody0001')), 0, 'and a member with nothing returns nothing');
+SELECT is((SELECT count(*)::int FROM public.member_works_dated_on_web('mbr_mvQuinn00001') WHERE kind <> 'published'), 0, 'a community milestone is not on the web');
+SELECT is((SELECT count(*)::int FROM public.member_works_dated_on_web('mbr_mvNobody0001')), 0, 'and a member with nothing returns nothing');
 RESET ROLE;
 
 -- A deleted book lends no name, and a deleted milestone leaves the web too.
 UPDATE public.member_milestones SET book_id = 'book_mvPiaGone1' WHERE id = 'mlst_mvPrivate01';
 UPDATE public.member_milestones SET visibility = 'public', title = NULL WHERE id = 'mlst_mvPrivate01';
-SELECT is((SELECT work_title FROM public.member_works_shown_on_web('mbr_mvPia0000001') WHERE story_after = 'Private story words.'), NULL, 'a deleted book does not lend its title');
+SELECT is((SELECT work_title FROM public.member_works_dated_on_web('mbr_mvPia0000001') WHERE story_after = 'Private story words.'), NULL, 'a deleted book does not lend its title');
 UPDATE public.member_milestones SET deleted_at = now() WHERE id = 'mlst_mvPublic001';
-SELECT is((SELECT count(*)::int FROM public.member_works_shown_on_web('mbr_mvPia0000001') WHERE kind = 'publish_ready'), 0, 'a taken-back milestone leaves the web');
+SELECT is((SELECT count(*)::int FROM public.member_works_dated_on_web('mbr_mvPia0000001') WHERE kind = 'publish_ready'), 0, 'a taken-back milestone leaves the web');
 
 -- The Activity Log: the change of level is an audit row as the member, and never the story.
 SET LOCAL ROLE authenticated;
@@ -141,9 +141,9 @@ SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'member_milestone' AND changes::text LIKE '%story words%'),
   0, 'and no story text is ever in the Activity Log');
 
--- The member reader is SECURITY DEFINER with a pinned search path; the old web reader is gone (the web reads member_works_shown_on_web); the old consent columns are still there for the contract step.
-SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname = 'milestones_shown_to_members' AND prosecdef AND proconfig @> ARRAY['search_path=""']), 1, 'the member reader pins an empty search path');
-SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname = 'milestones_shown_on_web'), 0, 'and the old web reader is gone');
+-- The member reader is SECURITY DEFINER with a pinned search path; the old web reader is gone (the web reads member_works_dated_on_web); the old consent columns are still there for the contract step.
+SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('member_works_dated_to_members', 'member_works_dated_on_web') AND prosecdef AND proconfig @> ARRAY['search_path=""']), 2, 'the two readers pin an empty search path');
+SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname IN ('milestones_shown_to_members', 'milestones_shown_on_web')), 0, 'and the older readers are gone');
 SELECT is((SELECT count(*)::int FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'member_milestones' AND column_name IN ('consent_profile', 'consent_homepage', 'consent_testimonial')), 3, 'the old consent columns stay until the contract step');
 SELECT is((SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'member_milestones' AND column_name = 'consent_testimonial'), 'false', 'and the one consent is off by default');
 
