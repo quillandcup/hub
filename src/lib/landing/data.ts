@@ -8,6 +8,7 @@
  * - a prop named `html` is rich text and is cleaned (src/lib/landing/sanitize.ts) before the public render.
  */
 
+import { allowedHtmlHref } from "@/lib/sanitize-urls";
 import { migrateLandingData } from "./migrations";
 
 export type LandingData = { content: unknown[]; root: Record<string, unknown>; zones?: Record<string, unknown[]>; schemaVersion?: number };
@@ -25,16 +26,13 @@ export function normalizeLandingData(value: unknown): LandingData {
   return migrateLandingData({ ...(v as object), content: Array.isArray(v.content) ? v.content : [], root } as LandingData);
 }
 
-/** A link that is safe to put in an `href`: http(s), mailto, a path on this site or an in-page anchor. Anything else is dropped. */
+/**
+ * A link that is safe to put in an `href`: http(s), mailto, an in-page anchor, or a page path on this site that is not
+ * under /api/. Anything else is dropped. The rule is the one the stored-HTML links use (`allowedHtmlHref`), so there is one
+ * implementation; a staff-authored link is a click, not an automatic request, but one rule everywhere is simpler and safer.
+ */
 export function safeHref(value: unknown): string {
-  if (typeof value !== "string") return "";
-  const href = value.trim();
-  if (!href) return "";
-  // eslint-disable-next-line no-control-regex -- control characters can hide a scheme (java\tscript:)
-  if (/[\u0000-\u001f\u007f]/.test(href)) return "";
-  if (href.startsWith("#")) return href;
-  if (href.startsWith("/") && !href.startsWith("//") && !href.includes("\\")) return href;
-  return /^(https?:\/\/|mailto:)/i.test(href) ? href : "";
+  return typeof value === "string" ? allowedHtmlHref(value) : "";
 }
 
 /** Walks any JSON value, calling `visit` on every property of every object, and rebuilds it from what `visit` returns. */
