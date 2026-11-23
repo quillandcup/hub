@@ -2,7 +2,10 @@
 // Merges the unit and db coverage runs into one PR coverage report and a gate on new code.
 //
 //   tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db \
-//     [--patch-base origin/main]
+//     [--patch-base origin/main] [--badges-dir <dir>]
+//
+// --badges-dir writes shields.io endpoint JSON (overall and per gated area) for the README
+// badges; the `coverage-badge` CI job on main publishes it to the `badges` branch.
 //
 // Reads <dir>/coverage-final.json for each suite (istanbul format). Four measures are tracked:
 // lines (executable when a statement starts on it), statements, functions and branches. Suites
@@ -31,7 +34,7 @@
 // the floors are not skipped.
 
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { addedLinesDiffArgs, parseAddedLines } from "./added-lines";
@@ -184,6 +187,38 @@ const pct = (a: Area) => (a.total === 0 ? 100 : (100 * a.covered) / a.total);
 export function aggregateScore(m: Metrics): number | null {
   const present = SCORED.filter((k) => m[k].total > 0);
   return present.length === 0 ? null : present.reduce((sum, k) => sum + pct(m[k]), 0) / present.length;
+}
+
+/** shields.io color for a coverage percentage. */
+export function badgeColor(score: number): string {
+  if (score >= 90) return "brightgreen";
+  if (score >= 80) return "green";
+  if (score >= 70) return "yellowgreen";
+  if (score >= 60) return "yellow";
+  return score >= 40 ? "orange" : "red";
+}
+
+const badge = (label: string, score: number | null) =>
+  JSON.stringify({
+    schemaVersion: 1,
+    label,
+    message: score === null ? "n/a" : `${score.toFixed(1)}%`,
+    color: score === null ? "lightgrey" : badgeColor(score),
+  });
+
+/**
+ * shields.io endpoint files, name -> JSON: `coverage.json` for the whole app and
+ * `coverage-<area>.json` (slashes become dashes) for each area that has a floor. The percentage
+ * is the same score the new-code gate uses (the mean of statements, functions and branches).
+ */
+export function badgeFiles(combined: Map<string, Metrics>, areas = Object.keys(AREA_FLOORS)): Map<string, string> {
+  const out = new Map<string, string>();
+  out.set("coverage.json", badge("coverage", aggregateScore(sumMetrics(combined.values()))));
+  for (const area of areas) {
+    const m = combined.get(area);
+    out.set(`coverage-${area.replace(/\//g, "-")}.json`, badge(area, m ? aggregateScore(m) : null));
+  }
+  return out;
 }
 
 /**
@@ -440,6 +475,12 @@ function main(): void {
       }
     : undefined;
   const combined = areaMetrics(merged);
+  const badgesIdx = process.argv.indexOf("--badges-dir");
+  const badgesDir = badgesIdx === -1 ? undefined : process.argv[badgesIdx + 1];
+  if (badgesDir) {
+    mkdirSync(badgesDir, { recursive: true });
+    for (const [name, json] of badgeFiles(combined)) writeFileSync(path.join(badgesDir, name), json + "\n");
+  }
   const floors = checkFloors(combined);
   const text = renderReport(
     loaded.map((s) => ({ name: s.name, metrics: areaMetrics(s.hits) })),

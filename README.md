@@ -6,7 +6,16 @@
 [![OSV scan](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml)
 [![gitleaks](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml)
 [![ZAP baseline](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage.json)](https://github.com/quillandcup/hub/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+
+| Area | Coverage |
+|---|---|
+| `lib` (domain logic) | ![lib](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json) |
+| `components` | ![components](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json) |
+| `app/api` (routes) | ![app/api](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json) |
+
+Coverage is the unit and db suites merged: the mean of statements, functions and branches covered, the same score the new-code gate uses.
 
 Member engagement platform for Quill & Cup — giving members visibility into their writing journey and giving staff the tools to understand community health.
 
