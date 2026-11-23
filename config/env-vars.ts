@@ -578,6 +578,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [{ kind: "github" }, { kind: "github-dependabot" }],
   },
   {
+    name: "GH_TOKEN_REFRESH_PR",
+    group: "GitHub Actions CI",
+    description:
+      "GitHub fine-grained token with Contents and Pull requests read/write on this repo only, used by disposable-email-domains.yml to push its branch and open the weekly refresh PR as a real user: a PR opened with the workflow's own GITHUB_TOKEN doesn't trigger the pull_request workflows, so its required checks would never run. A token of its own (not GH_TOKEN_AUTO_MERGE) so each can be rotated or revoked alone. Actions secret only: the workflow is scheduled, so Dependabot never reads it.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
+  {
     name: "DOCKERHUB_USERNAME",
     group: "GitHub Actions CI",
     description:

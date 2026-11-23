@@ -12,9 +12,9 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 | Result | Count |
 |---|---|
-| Met | 37 |
+| Met | 39 |
 | Partly | 6 |
-| Not met | 7 |
+| Not met | 5 |
 | N/A | 15 |
 | Total | 65 |
 
@@ -118,17 +118,16 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 | `OSPS-VM-03.01` Private vulnerability reporting | 2 | Met | Private vulnerability reporting is enabled on the repository (live: `gh api repos/quillandcup/hub/private-vulnerability-reporting`). |
 | `OSPS-VM-04.01` Publish data about discovered vulnerabilities | 2 | N/A | No reports so far; zero published advisories (live). The policy is to publish a GitHub advisory for a confirmed one. |
 | `OSPS-VM-04.02` Non-affecting vulnerabilities in a VEX document | 3 | Partly | No VEX. Accepted findings are recorded with a reason and expiry in `config/osv-scanner.toml`. |
-| `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Partly | Findings are fixed or recorded (`docs/trust/THREAT_MODEL.md`, `docs/TODO.md`), but there is no written pre-release rule. |
+| `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Partly | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed", says a Critical or High dependency finding is fixed before a pull request merges. Only CodeQL is enforced by a required check; a new vulnerable dependency is not blocked (`OSPS-VM-05.03`). |
 | `OSPS-VM-05.03` Dependency changes checked against a policy and blocked | 3 | Not met | OSV-Scanner and `pnpm audit` only report on pull requests (`osv-scan.yml`, `audit.yml`); neither is a required check, because an unfixable advisory would stop every PR. |
-| `OSPS-VM-05.04` Remediation threshold for vulnerable dependencies | 3 | Not met | No written threshold (timing by severity). |
+| `OSPS-VM-05.04` Remediation threshold for vulnerable dependencies | 3 | Met | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed": Critical 7 days, High 30, Medium 60, Low 90. |
 | `OSPS-VM-05.05` Remediation threshold for license findings | 3 | Not met | No license scanning and no threshold. |
-| `OSPS-VM-06.01` Remediation threshold for static analysis findings | 3 | Not met | No written threshold. CodeQL blocks new alerts, but how fast old ones are fixed is not stated. |
+| `OSPS-VM-06.01` Remediation threshold for static analysis findings | 3 | Met | The same table covers CodeQL alerts; CodeQL also blocks new alerts in a pull request (required check). |
 | `OSPS-VM-06.02` Automated enforcement against new weaknesses | 3 | Met | CodeQL is a required check on every pull request (`config/github.yml`), plus ESLint and TypeScript in CI. |
 
 ## What is worth doing
 
-1. Write the remediation thresholds for dependency and static analysis findings (`OSPS-VM-05.04`, `OSPS-VM-06.01`, and the pre-release rule `OSPS-VM-05.02`); a few lines in `docs/trust/THREAT_MODEL.md` or `.github/SECURITY.md`.
-2. Add a `CODEOWNERS` file once there is an organization team to own paths (see `docs/TODO.md`, "OSPS Baseline: what is left").
-3. Decide on blocking dependency checks (`OSPS-VM-05.03`).
+1. Decide on blocking dependency checks (`OSPS-VM-05.03`, which also completes `OSPS-VM-05.02`).
+2. Scan dependency licenses and set a threshold for them (`OSPS-VM-05.05`).
 
 Not within reach without a decision or another person: an open source license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`). Details and owners of the open items are in `docs/TODO.md`.

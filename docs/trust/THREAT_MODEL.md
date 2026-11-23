@@ -85,6 +85,25 @@ Besides CodeQL (a required check on pull requests) and Dependabot, these workflo
 
 An authenticated or active ZAP scan does not belong in the schedule: run those against a local or demo stack, never production. By hand (not automated): SSL Labs and an HTTP header grade (Mozilla Observatory, securityheaders.com) for the production host, and the Supabase Security and Performance advisors for the schema; what is not done yet is in the `docs/TODO.md` entry above.
 
+## How fast findings are fixed
+
+A finding is a vulnerable dependency (Dependabot alert, `pnpm audit`, OSV-Scanner) or a static analysis alert (CodeQL). The time to fix is counted from the day the finding is first reported against the code we run, and the severity is the one the scanner or advisory gives, raised one level when the vulnerable code is reachable from the production app or the advisory is known to be exploited.
+
+| Severity | Fixed or mitigated within |
+|---|---|
+| Critical | 7 days |
+| High | 30 days |
+| Medium | 60 days |
+| Low | 90 days (the next quarterly pass at the latest) |
+
+- **Fixed** means the dependency is upgraded or removed, or the code is changed. **Mitigated** means the risk is removed without that (a feature switched off, an input blocked) and the real fix is tracked in `docs/TODO.md`.
+- **No fix published.** A finding with no fixed version is not left silent: it is recorded with a reason and an expiry no later than its deadline above in `config/osv-scanner.toml`, so the scheduled run fails again on that date and someone looks at it. A finding in a development-only dependency that never reaches the production build can be recorded the same way, saying so.
+- **In a pull request.** A new CodeQL alert blocks the merge (it is a required check). A new vulnerable dependency does not block yet (`docs/checklists/OSPS_BASELINE.md`, `OSPS-VM-05.03`), but the author fixes a Critical or High one before merging, and the reviewer treats a pull request that adds one as not ready.
+- **Missing a deadline.** The finding goes in `docs/TODO.md` with the reason it slipped and a new date, so a miss is visible instead of silently ageing.
+- **Dependabot security updates** open the pull request as soon as an advisory lands (`auto-merge.yml` merges only patch and minor ones; a major always waits for a person), so for most findings the time to fix is the time to review and merge.
+- **Licenses.** We do not scan dependency licenses, so there is no threshold for them yet (`OSPS-VM-05.05`).
+- **Who.** The maintainers. The weekly scanner runs and Dependabot alerts are how a finding reaches them.
+
 ## Review again when
 
 A new public route, webhook or provider is added; sign-ups open; a staff capability is added (imports, sudo, flags); a new place renders stored HTML or fetches a user-chosen URL; or after any security incident.

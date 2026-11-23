@@ -1,0 +1,10 @@
+# Who owns the parts of the repository that change what runs in production or who can reach it.
+# GitHub requests a review from the owners of the files a pull request touches. Review is not
+# required to merge (the `main` ruleset in config/github.yml keeps `require_code_owner_review`
+# off, with zero approvals and auto-merge); this file makes sure the right people are asked.
+# The team needs Write access on the repository, or GitHub ignores the line.
+
+/.github/ @quillandcup/eng
+/config/ @quillandcup/eng
+/supabase/migrations/ @quillandcup/eng
+/.claude/rules/ @quillandcup/eng

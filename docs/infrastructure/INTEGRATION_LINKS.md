@@ -49,6 +49,7 @@ Vercel values. `config/env-vars.ts` is the source of truth for which var goes wh
 | `SLACK_CONFIG_REFRESH_TOKEN` | https://api.slack.com/apps -> "Your App Configuration Tokens" (below the app list) -> Generate Token; copy the refresh token | `gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub` (never synced: CI rewrites it every run) |
 | `GH_TOKEN_SLACK_MANIFEST` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Secrets: Read and write** | `pnpm env:sync:github` |
 | `GH_TOKEN_AUTO_MERGE` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Contents** and **Pull requests: Read and write** | `pnpm env:sync:github` |
+| `GH_TOKEN_REFRESH_PR` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Contents** and **Pull requests: Read and write**. Used only by `disposable-email-domains.yml`, kept apart from `GH_TOKEN_AUTO_MERGE` so each can be rotated or revoked alone | `pnpm env:sync:github --only=GH_TOKEN_REFRESH_PR` |
 | `STRIPE_API_KEY` | https://dashboard.stripe.com/apikeys | `pnpm env:sync` |
 | `RESEND_API_KEY` | https://resend.com/api-keys | `pnpm env:sync:github`, then the next push to main (or `pnpm config:push`) updates Supabase's SMTP password |
 | `RESEND_WEBHOOK_SECRET` | https://resend.com/webhooks (the webhook to `/api/webhooks/resend`; see `docs/architecture/EMAIL_TIMELINE.md`) | `pnpm env:sync --only=RESEND_WEBHOOK_SECRET` |
@@ -292,11 +293,11 @@ worth checking the Billing page above once the trial period ends.
 |------|-----|
 | Actions runs | https://github.com/quillandcup/hub/actions |
 | Secrets & Variables | https://github.com/quillandcup/hub/settings/secrets/actions |
-| Fine-grained personal access tokens (for `GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`) | https://github.com/settings/personal-access-tokens |
+| Fine-grained personal access tokens (for `GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`, `GH_TOKEN_REFRESH_PR`) | https://github.com/settings/personal-access-tokens |
 
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SENTRY_AUTH_TOKEN`, `RESEND_API_KEY`,
-`GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
+`GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`, `GH_TOKEN_REFRESH_PR`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
 Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`pnpm env:sync:github`) see `config/env-vars.ts` at the repo root for the source-of-truth list of which vars go where.
 
 Two exceptions to the sync:
