@@ -23,9 +23,10 @@ export type MilestoneContext = {
  */
 export async function loadMilestoneContext(memberId: string): Promise<MilestoneContext> {
   const repos = createRepos(await createClient());
-  const [milestones, books, web, firstJoinedAt] = await Promise.all([
+  const [milestones, books, bookPhotos, web, firstJoinedAt] = await Promise.all([
     repos.milestones.ofMember(memberId).catch(() => []),
     repos.books.mine(memberId).catch(() => []),
+    repos.milestones.bookPhotosOf(memberId).catch(() => []),
     Promise.all([memberHasWriterProfiles(getServiceRepos(), memberId), repos.writerProfiles.ofMember(memberId)])
       .then(([available, page]) => ({ available, on: page?.isPublic ?? false }))
       .catch(() => ({ available: false, on: false })),
@@ -33,7 +34,10 @@ export async function loadMilestoneContext(memberId: string): Promise<MilestoneC
   ]);
   return {
     milestones,
-    books: books.map((b) => ({ id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date })),
+    books: books.map((b) => {
+      const photo = bookPhotos.find((p) => p.bookId === b.id);
+      return { id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date, photo: photo ? { token: photo.token, alt: photo.alt } : null };
+    }),
     firstJoinedAt,
     web,
   };

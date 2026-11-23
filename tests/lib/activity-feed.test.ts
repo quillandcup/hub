@@ -785,6 +785,13 @@ describe("the Finisher record in the Activity Log", () => {
     expect(describeRow(milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }, "Ada & <Bo>"))).toBe("took back a proposed milestone for Ada & <Bo>");
   });
 
+  it("says that the photo on a milestone changed, never where it is or what it shows", () => {
+    const changed = describeRow(milestone("update", { photo_path: { old: "[redacted]", new: "[redacted]" }, updated_at: { old: "a", new: "b" } }));
+    expect(changed).toBe("changed the photo on a writing milestone");
+    expect(describeRow(milestone("update", { photo_alt: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed what the photo on a writing milestone shows");
+    expect(changed).not.toMatch(/redacted|webp|mbr_/);
+  });
+
   it("says a milestone the member added themselves, and their own take-back, without a date or a story", () => {
     const own = describeRow(milestone("insert", { kind: { old: null, new: "publish_ready" }, source: { old: null, new: "member" }, status: { old: null, new: "confirmed" }, story_after: { old: null, new: "[redacted]" } }));
     expect(own).toBe(`added the \u201c${MILESTONE_LABELS.publish_ready}\u201d milestone`);

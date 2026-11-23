@@ -62,6 +62,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "private-photos-for-milestones",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "new",
+    title: "Photos a member adds to a milestone live in a private bucket and are served only to a viewer its level allows",
+    summary: "A picture on THE END, publish-ready or the Published step is kept where no one can reach it by address, and a route decides on every request whether this viewer may have it, at the milestone's own level.",
+    body: `A member's photo is personal, so it never has a public address. The files are in the private \`milestone-photos\` bucket, which has no storage policy at all; only the server's key reads or writes it. A route (\`GET /api/milestone-photos/<token>\`) streams a picture after \`decidePhotoAccess\` (\`src/lib/milestone-photos.ts\`) has checked the viewer against the milestone's lock, house or globe, with the writer-profile flag and page state for a visitor. A hidden photo is the same 404 as one that does not exist, and a shared cache may hold only a photo a visitor could have.
+
+- **Rule.** Show a member's picture through that route and that function, never a stored URL or a signed link; a row keeps the object path, and the readers return only a random token.
+- **Upload.** \`POST /api/milestone-photos\` sniffs the bytes, re-encodes to a WebP and drops all metadata, EXIF and GPS included; only the server writes the path.
+- **Hooks.** The readers \`member_works_pictured*\` return a photo only with a step the viewer may see; the Published photo sits in \`member_book_photos\`, one per book, until a book has a level of its own.
+- **Detail.** \`docs/product/FINISHERS.md\`, "Photos", and the review in \`docs/trust/MILESTONE_PHOTOS_REVIEW.md\`.`,
+  },
+  {
     slug: "page-checks-in-ci",
     date: "2026-11-22",
     audience: "engineering",
@@ -205,7 +219,8 @@ To check what they see, an admin opens the user menu, chooses **Preview as...**,
 - **A clear note when you go public.** When you switch your writer profile on, you see your page's address and a reminder that anything marked with the globe is on it, with a button to view it as a visitor would.
 - **Say when, as well as you remember.** Give the day, only the month and year, only the year, or leave it out.
 - **Add your story**, how it felt before and how it feels now. It shows under that step, for the same people who can see the step.
-- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.
+- **Add a photo** to a step: the day you wrote THE END, the day your manuscript was ready to publish, or you holding your published book. A photo on THE END or ready to publish is seen only by the people who can see that step, and you can change or remove it any time. The one of you holding your book goes with the Published step, which is public like your book: anyone on the internet can see it once your writer profile is on. We take out the details saved inside a photo, like where it was taken.
+- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story, and the photo you added, on the Quill & Cup website. It starts unticked, and you can untick it any time.
 
 ![A project's milestones, for a book whose three steps are done, with the globe on each and the share box](/changelog/milestones-on-your-profile/07-one-work-3-published-project.webp)
 

@@ -36,6 +36,7 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
     clear: async () => {
       data.writingProjects = [];
       data.memberMilestones = [];
+      data.memberBookPhotos = [];
       data.memberMilestoneSnoozes = [];
       data.memberBooks = [];
     },

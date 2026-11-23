@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import MemberSearch from "@/components/MemberSearch";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { MILESTONE_KINDS, MILESTONE_LABELS, MILESTONE_SOURCE_NOTES, type MilestoneKind, type MilestoneStatus } from "@/lib/finishers";
+import { MILESTONE_KINDS, MILESTONE_LABELS, MILESTONE_PHOTO_ALT, MILESTONE_SOURCE_NOTES, type MilestoneKind, type MilestoneStatus } from "@/lib/finishers";
 import type { MilestoneCounts, StaffMilestone } from "@/lib/data/milestones";
+import { milestonePhotoSrc } from "@/lib/milestone-photos";
 import { loadWorksOfMember, proposeMilestone, proposeMilestonesFromBooks, withdrawMilestone } from "./actions";
 
 type PickerMember = { id: string; name: string; displayName: string | null; status: string; email: string };
@@ -214,7 +215,8 @@ export default function FinishersClient({
         {rows.length === 0 ? (
           <p className="text-sm text-slate-600 dark:text-slate-400">Nothing here yet.</p>
         ) : (
-          <table className="w-full max-w-3xl text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full max-w-4xl text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left dark:border-slate-700">
                 <th className="py-2 pr-4">Member</th>
@@ -222,6 +224,8 @@ export default function FinishersClient({
                 <th className="py-2 pr-4">Milestone</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Started by</th>
+                <th className="py-2 pr-4">Share my story</th>
+                <th className="py-2 pr-4">Photo</th>
                 <th className="py-2" />
               </tr>
             </thead>
@@ -233,6 +237,18 @@ export default function FinishersClient({
                   <td className="py-2 pr-4">{MILESTONE_LABELS[row.kind]}</td>
                   <td className="py-2 pr-4">{STATUS_LABELS[row.status]}</td>
                   <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">{MILESTONE_SOURCE_NOTES[row.source].replace(/\.$/, "")}</td>
+                  <td className="py-2 pr-4" data-testid="finisher-consent">{row.status === "confirmed" ? (row.consentTestimonial ? "Yes" : "No") : "-"}</td>
+                  <td className="py-2 pr-4" data-testid="finisher-photo">
+                    {row.photo ? (
+                      // Only a confirmed milestone whose member ticked "Share my story to inspire other writers": the photo is theirs to share, not the team's to browse.
+                      // eslint-disable-next-line @next/next/no-img-element -- served by our own route, which checks who may see it
+                      <img src={milestonePhotoSrc(row.photo.token)} alt={row.photo.alt || MILESTONE_PHOTO_ALT[row.kind]} loading="lazy" decoding="async" className="h-12 w-16 rounded bg-slate-100 object-contain dark:bg-slate-800" />
+                    ) : row.hasPhoto ? (
+                      "Has a photo, not shared"
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                   <td className="py-2 text-right">
                     {row.status === "proposed" && (
                       <button type="button" onClick={() => withdraw(row)} disabled={pending} className="text-sm underline disabled:opacity-50">
@@ -244,6 +260,7 @@ export default function FinishersClient({
               ))}
             </tbody>
           </table>
+          </div>
         )}
         <nav className="flex gap-4 text-sm" aria-label="Pages">
           {page > 1 && <Link href={link(status, page - 1)}>Previous</Link>}

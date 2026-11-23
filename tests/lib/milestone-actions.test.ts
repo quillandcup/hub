@@ -425,7 +425,7 @@ describe("setMilestoneShare", () => {
 
   it("refuses to tick without a story to share, but always lets them untick", async () => {
     const id = await withStory(null);
-    expect(await setMilestoneShare(id, true)).toEqual({ error: "Write a story first, and then you can share it." });
+    expect(await setMilestoneShare(id, true)).toEqual({ error: "Write a story or add a photo first, and then you can share it." });
     expect(await shared(id)).toBe(false);
     expect(await setMilestoneShare(id, false)).toEqual({ success: true });
   });

@@ -589,6 +589,9 @@ function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChang
   if (fields.consent_testimonial) {
     return fields.consent_testimonial.new === true ? "said we may feature the story of a writing milestone" : "took back permission to feature the story of a writing milestone";
   }
+  // The trigger redacts the path and the description, so the log can say only that a photo changed (added, replaced or removed), never where it is or what it shows.
+  if (fields.photo_path) return "changed the photo on a writing milestone";
+  if (fields.photo_alt) return "changed what the photo on a writing milestone shows";
   return null;
 }
 

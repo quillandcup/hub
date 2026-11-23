@@ -4737,6 +4737,48 @@ export type Database = {
           },
         ]
       }
+      member_book_photos: {
+        Row: {
+          book_id: string
+          created_at: string
+          member_id: string
+          photo_alt: string | null
+          photo_path: string
+          updated_at: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          member_id: string
+          photo_alt?: string | null
+          photo_path: string
+          updated_at?: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          member_id?: string
+          photo_alt?: string | null
+          photo_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_book_photos_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: true
+            referencedRelation: "member_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_book_photos_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_books: {
         Row: {
           cover_asset_id: string | null
@@ -5207,6 +5249,8 @@ export type Database = {
           id: string
           kind: string
           member_id: string
+          photo_alt: string | null
+          photo_path: string | null
           project_id: string | null
           source: string
           status: string
@@ -5230,6 +5274,8 @@ export type Database = {
           id?: string
           kind: string
           member_id: string
+          photo_alt?: string | null
+          photo_path?: string | null
           project_id?: string | null
           source: string
           status?: string
@@ -5253,6 +5299,8 @@ export type Database = {
           id?: string
           kind?: string
           member_id?: string
+          photo_alt?: string | null
+          photo_path?: string | null
           project_id?: string | null
           source?: string
           status?: string
@@ -8953,6 +9001,51 @@ export type Database = {
           achieved_on: string
           achieved_precision: string
           kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_pictured: {
+        Args: { p_levels: string[]; p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          photo_alt: string
+          photo_token: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_pictured_on_web: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          photo_alt: string
+          photo_token: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_pictured_to_members: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          photo_alt: string
+          photo_token: string
           story_after: string
           story_before: string
           visibility: string
