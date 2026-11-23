@@ -11,6 +11,7 @@
 
 // The Kajabi site (courses, checkout, library) moved to its own subdomain when the root domain came to the Hub.
 const kajabiSiteUrl = "https://courses.quillandcup.com";
+const siteUrl = "https://quillandcup.com";
 
 export const appConfig = {
   /** The app's name as shown when installed to a home screen (the web app manifest, the iOS title). */
@@ -207,7 +208,7 @@ export const appConfig = {
    * and where the footer of a writer profile links to. The same deployment answers this host and `appUrl`
    * (src/lib/root-routing.ts decides per host).
    */
-  siteUrl: "https://quillandcup.com",
+  siteUrl,
 
   /**
    * Other hosts of the public site that redirect (307, same path and query) to `siteUrl`. The apex is canonical today, so
@@ -216,10 +217,11 @@ export const appConfig = {
   siteAliasHosts: ["www.quillandcup.com"],
 
   /**
-   * Where the homepage's "Join" link goes. Not decided yet: it points at the Kajabi site's front page until the owner
-   * confirms the real address (docs/TODO.md, "Root domain: confirm the Join link").
+   * Where the homepage's "Join" link goes: the free trial page on the public site. It works before the cutover (the root
+   * host is still Kajabi's, which has the page) and after it (the root host sends it to Kajabi's page, see
+   * src/lib/root-routing.ts) until the Hub has a page of its own at that address.
    */
-  joinUrl: kajabiSiteUrl,
+  joinUrl: `${siteUrl}/free-trial`,
 
   /**
    * Writer profiles (src/lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.
