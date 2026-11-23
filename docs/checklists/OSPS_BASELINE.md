@@ -12,10 +12,10 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 | Result | Count |
 |---|---|
-| Met | 35 |
+| Met | 36 |
 | Partly | 7 |
 | Not met | 7 |
-| N/A | 16 |
+| N/A | 15 |
 | Total | 65 |
 
 **Level 1** (24 controls): all met or N/A except `OSPS-LE-02.01`, which needs relicensing. **Level 2** adds `OSPS-LE-01.01` (a DCO or CLA, not met, because we accept no outside code) and a few documentation gaps. **Level 3** is out of reach as a one-developer project (`OSPS-QA-07.01` needs a second human approver), plus some policy documents we have not written (see `docs/TODO.md`, "OSPS Baseline: what is left").
@@ -52,8 +52,8 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 | Control | Level | Status | Evidence or gap |
 |---|---|---|---|
-| `OSPS-DO-01.01` User guides for basic functionality | 1 | N/A | No releases. Member help is in the app (`/help`); developer setup is `docs/runbooks/SETUP.md`. |
-| `OSPS-DO-02.01` A guide for reporting defects | 1 | N/A | No releases, but met in substance: `.github/CONTRIBUTING.md`, `.github/SUPPORT.md`, `.github/SECURITY.md`. |
+| `OSPS-DO-01.01` User guides for basic functionality | 1 | Met | Member help is in the app (`/help`, Hedgie Help); developer setup is `docs/runbooks/SETUP.md`. The control only applies once a release is made, but the guides exist either way. |
+| `OSPS-DO-02.01` A guide for reporting defects | 1 | Met | `.github/CONTRIBUTING.md`, `.github/SUPPORT.md`, `.github/SECURITY.md`. The control only applies once a release is made, but the guides exist either way. |
 | `OSPS-DO-03.01` How to verify release assets | 3 | N/A | No releases. |
 | `OSPS-DO-03.02` How to verify who authored a release | 3 | N/A | No releases. |
 | `OSPS-DO-04.01` Scope and duration of support per release | 3 | N/A | No releases. `.github/SECURITY.md` says only the current production deployment is supported. |
@@ -67,7 +67,7 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 |---|---|---|---|
 | `OSPS-GV-01.01` List of members with access to sensitive resources | 2 | Partly | `.github/GOVERNANCE.md` names the roles and says two owners hold admin on GitHub, Vercel and Supabase; the names are not in the repository because it is public. The list is the collaborators page and each provider's members. |
 | `OSPS-GV-01.02` Roles and responsibilities | 2 | Met | `.github/GOVERNANCE.md`, "Roles". |
-| `OSPS-GV-02.01` Public discussion of changes and obstacles | 1 | Met | GitHub issues and pull requests are public (`.github/CONTRIBUTING.md`, `.github/SUPPORT.md`). |
+| `OSPS-GV-02.01` Public discussion of changes and obstacles | 1 | N/A | Proprietary project that takes no outside contributions, so changes are not discussed publicly the way an open source project's are. Issues and pull requests are readable on GitHub, but that is transparency, not a discussion mechanism. |
 | `OSPS-GV-03.01` Contribution process, or a statement that none is accepted | 1 | Met | `.github/CONTRIBUTING.md` says outside code is not accepted for now. |
 | `OSPS-GV-03.02` Guide for code contributors | 2 | Met | `.github/CONTRIBUTING.md`, "For people on the team", and `.claude/rules/`. |
 | `OSPS-GV-04.01` Collaborators are reviewed before getting elevated access | 3 | Met | `.github/GOVERNANCE.md`, "Access". |
