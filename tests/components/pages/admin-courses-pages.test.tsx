@@ -37,6 +37,9 @@ const loadTakeOverPreview = vi.fn();
 vi.mock("@/lib/courses/take-over", () => ({ loadTakeOverPreview: (...a: unknown[]) => loadTakeOverPreview(...a) }));
 vi.mock("@/app/(admin)/admin/courses/take-over-actions", () => ({ takeOverCourse: vi.fn() }));
 
+const loadDeletePreview = vi.fn();
+vi.mock("@/lib/courses/delete", () => ({ loadDeletePreview: (...a: unknown[]) => loadDeletePreview(...a) }));
+vi.mock("@/app/(admin)/admin/courses/delete-actions", () => ({ deleteCourse: vi.fn() }));
 const loadDuplicatePreview = vi.fn();
 vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
 vi.mock("@/app/(admin)/admin/courses/duplicate-actions", () => ({ duplicateCourse: vi.fn() }));
@@ -72,6 +75,8 @@ beforeEach(() => {
   loadAdminCourse.mockReset();
   loadTakeOverPreview.mockReset();
   loadTakeOverPreview.mockResolvedValue(null);
+  loadDeletePreview.mockReset();
+  loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "kajabi", isDraft: false, members: 3, activity: 0 });
   loadDuplicatePreview.mockReset();
   loadDuplicatePreview.mockResolvedValue({ modules: 2, lessons: 7, withVideo: 5, downloads: 1, tooDeep: false });
 });

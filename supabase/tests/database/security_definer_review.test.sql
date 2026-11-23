@@ -142,6 +142,8 @@ SELECT is(
 -- 2. Dynamic SQL in callable definer functions ---------------------------------------------------------------------
 CREATE TEMP TABLE reviewed_dynamic (sig text PRIMARY KEY, reason text NOT NULL) ON COMMIT DROP;
 INSERT INTO reviewed_dynamic (sig, reason) VALUES
+  ('delete_course(text)',
+   'only set_config(''app.audit_skip_course'', <the course id the caller named, checked to exist and be a Hub draft first>, true): a fixed key, transaction-local, reset at the end; admin or service role only (reviewed 2026-11-23)'),
   ('duplicate_course(text)',
    'only set_config(''app.audit_skip_course'', <new course id>, true): a fixed key, a value the function generates, transaction-local; admin or service role only (reviewed 2026-11-21)'),
   ('member_owned_row_counts(text)',
