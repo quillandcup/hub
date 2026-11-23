@@ -58,46 +58,51 @@ ${body}
 `;
 }
 
-function run(cmd: string, args: string[], cwd: string): string {
+export type Run = (cmd: string, args: string[], cwd: string) => string;
+
+export const run: Run = (cmd, args, cwd) => {
   const r = spawnSync(cmd, args, { cwd, encoding: "utf8" });
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed: ${r.stderr || r.stdout}`);
   return r.stdout.trim();
+};
+
+/** Downloads (through `runner`) simple-icons@VERSION into `dir`, checks it, and returns the generated module's text. Throws, so nothing is written, on any failure. */
+export function generate(dir: string, runner: Run): string {
+  const expected = runner("npm", ["view", `simple-icons@${VERSION}`, "dist.integrity"], dir);
+  if (!expected.startsWith("sha512-")) throw new Error(`no sha512 integrity published for simple-icons@${VERSION}`);
+  const file = runner("npm", ["pack", `simple-icons@${VERSION}`, "--silent"], dir).split("\n").pop()!;
+  const actual = `sha512-${createHash("sha512").update(readFileSync(path.join(dir, file))).digest("base64")}`;
+  if (actual !== expected) throw new Error(`integrity mismatch for ${file}: the registry says ${expected}, the download is ${actual}`);
+  runner("tar", ["-xzf", file], dir);
+  const pkg = JSON.parse(readFileSync(path.join(dir, "package", "package.json"), "utf8")) as { version: string; license: string };
+  if (pkg.version !== VERSION || pkg.license !== "CC0-1.0") throw new Error(`unexpected package: ${pkg.version} under ${pkg.license}`);
+  const data = JSON.parse(readFileSync(path.join(dir, "package", "data", "simple-icons.json"), "utf8")) as { title: string; slug?: string; hex: string }[];
+
+  const entries: Record<string, Entry> = {};
+  const missing: string[] = [];
+  for (const [key, slug] of Object.entries(WANTED)) {
+    const meta = data.find((i) => i.slug === slug);
+    if (!meta || !/^[0-9A-Fa-f]{6}$/.test(meta.hex)) {
+      missing.push(key);
+      continue;
+    }
+    entries[key] = { slug, title: meta.title, hex: meta.hex.toUpperCase(), path: pathOf(readFileSync(path.join(dir, "package", "icons", `${slug}.svg`), "utf8")) };
+  }
+  if (missing.length > 0) throw new Error(`not in simple-icons@${VERSION}: ${missing.join(", ")}. Nothing was written.`);
+  return render(entries);
 }
 
-function main() {
+export function main(runner: Run = run, output: string = OUTPUT) {
   const dir = mkdtempSync(path.join(tmpdir(), "simple-icons-"));
   try {
-    const expected = run("npm", ["view", `simple-icons@${VERSION}`, "dist.integrity"], dir);
-    if (!expected.startsWith("sha512-")) throw new Error(`no sha512 integrity published for simple-icons@${VERSION}`);
-    const file = run("npm", ["pack", `simple-icons@${VERSION}`, "--silent"], dir).split("\n").pop()!;
-    const actual = `sha512-${createHash("sha512").update(readFileSync(path.join(dir, file))).digest("base64")}`;
-    if (actual !== expected) throw new Error(`integrity mismatch for ${file}: the registry says ${expected}, the download is ${actual}`);
-    run("tar", ["-xzf", file], dir);
-    const pkg = JSON.parse(readFileSync(path.join(dir, "package", "package.json"), "utf8")) as { version: string; license: string };
-    if (pkg.version !== VERSION || pkg.license !== "CC0-1.0") throw new Error(`unexpected package: ${pkg.version} under ${pkg.license}`);
-    const data = JSON.parse(readFileSync(path.join(dir, "package", "data", "simple-icons.json"), "utf8")) as { title: string; slug?: string; hex: string }[];
-
-    const entries: Record<string, Entry> = {};
-    const missing: string[] = [];
-    for (const [key, slug] of Object.entries(WANTED)) {
-      // An icon without a `slug` has the one its title makes; every wanted one has its slug written out.
-      const meta = data.find((i) => i.slug === slug);
-      if (!meta || !/^[0-9A-Fa-f]{6}$/.test(meta.hex)) {
-        missing.push(key);
-        continue;
-      }
-      entries[key] = { slug, title: meta.title, hex: meta.hex.toUpperCase(), path: pathOf(readFileSync(path.join(dir, "package", "icons", `${slug}.svg`), "utf8")) };
-    }
-    if (missing.length > 0) throw new Error(`not in simple-icons@${VERSION}: ${missing.join(", ")}. Nothing was written.`);
-
-    writeFileSync(OUTPUT, render(entries));
-    console.log(`Wrote ${OUTPUT}: ${Object.keys(entries).length} marks from simple-icons@${VERSION} (integrity checked).`);
+    writeFileSync(output, generate(dir, runner));
+    console.log(`Wrote ${output} from simple-icons@${VERSION} (integrity checked).`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-// Run only when started as a script, so the pure helpers can be tested.
+// Run only when started as a script, so the helpers can be tested.
 if (process.argv[1] && path.resolve(process.argv[1]).endsWith("update-brand-icons.ts")) {
   try {
     main();
