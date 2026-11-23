@@ -319,7 +319,7 @@ describe("revising a page", () => {
 describe("lists of items", () => {
   it("offers List, FAQ, Link list and Card grid with their items as child blocks, and reads the bare shorthand", () => {
     const prompt = systemPrompt();
-    for (const [parent, item] of [["List", "ListItem"], ["Faq", "FaqItem"], ["LinkList", "LinkItem"], ["CardGrid", "GridCard"]]) {
+    for (const [parent, item] of [["List", "ListItem"], ["Faq", "FaqQuestion"], ["LinkList", "LinkItem"], ["CardGrid", "GridCard"]]) {
       expect(prompt.split("\n").find((l) => l.startsWith(`- ${parent}:`)), parent).toContain(`a list of ${item} blocks, each {"type": "${item}"`);
     }
     const data = cleanGeneratedBlocks({
@@ -331,7 +331,7 @@ describe("lists of items", () => {
     });
     const [list, faq, links] = content(data);
     expect((list.props.items as Node[]).map((i) => [i.type, i.props.text])).toEqual([["ListItem", "Write daily"], ["ListItem", "Keep going"]]);
-    expect((faq.props.items as Node[])[0]).toMatchObject({ type: "FaqItem", props: { question: "Is it free?", answer: "No." } });
+    expect((faq.props.items as Node[])[0]).toMatchObject({ type: "FaqQuestion", props: { question: "Is it free?", answer: "No." } });
     expect((links.props.items as Node[])[0].props).toMatchObject({ label: "Join", look: "outline", color: "plum" });
   });
 });

@@ -17,7 +17,7 @@ import { renderToString } from "react-dom/server";
 import { FinishLineCard, FinishLineCards, FinisherCard, FinisherCards, JourneyMap, OutcomeNumber, OutcomeNumbers, PlanPhase, PlanPhases, Timeline, TimelineMoment, WeekDay, WeekStrip } from "@/components/landing/homepage-blocks";
 import { AnnouncementStrip, ComingUp, ScheduleRowItem, SchedulePanel } from "@/modules/events/page-blocks/blocks";
 import { itemsSlot } from "./landing-items-slot";
-import { Button, CardGrid, CtaBanner, Divider, Faq, FaqItem, GridCard, Heading, Hero, Image, LinkItem, LinkList, List, ListItem, RichText, Section, Spacer, Split, Stat, Stats, Step, Steps, Testimonial, Testimonials, Video } from "@/components/landing/blocks";
+import { Button, CardGrid, CtaBanner, Divider, Accordion, AccordionItem, Faq, FaqQuestion, GridCard, Heading, Hero, Image, LinkItem, LinkList, List, ListItem, RichText, Section, Spacer, Split, Stat, Stats, Step, Steps, Testimonial, Testimonials, Video } from "@/components/landing/blocks";
 import { BLOCK_DEFAULTS, PageFrame } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage } from "@/lib/landing/a11y";
@@ -158,9 +158,33 @@ describe("lists of things", () => {
   });
 
   it("answers questions with native disclosure elements", () => {
-    const { container } = render(<Faq items={itemsSlot(FaqItem, [{ question: "Is it free?", answer: "Yes.\nReally." }])} />);
+    const { container } = render(<Faq items={itemsSlot(FaqQuestion, [{ question: "Is it free?", answer: "Yes.\nReally." }])} />);
     expect(container.querySelector("details summary")).toHaveTextContent("Is it free?");
     expect(screen.getByText("Really.")).toBeInTheDocument();
+    expect(container.querySelector("script")).toBeNull();
+  });
+
+  it("folds an accordion's items, starts the ones marked open, and draws nothing for an item with no title on the public page", () => {
+    const { container } = render(
+      <Accordion
+        items={itemsSlot(AccordionItem, [
+          { title: "Shut", text: "Hidden words.", open: false },
+          { title: "Open one", text: "Line one\nLine two", open: true },
+          { title: "", text: "Orphan", open: false },
+        ])}
+      />,
+    );
+    const details = container.querySelectorAll("details");
+    expect(details).toHaveLength(2);
+    expect(details[0].hasAttribute("open")).toBe(false);
+    expect(details[1].hasAttribute("open")).toBe(true);
+    expect(details[1].querySelectorAll("p")).toHaveLength(2);
+    expect(screen.queryByText("Orphan")).toBeNull();
+  });
+
+  it("keeps an empty accordion item visible while editing", () => {
+    render(<AccordionItem title="" text="" editing />);
+    expect(document.querySelector("details")).not.toBeNull();
   });
 
   it("shows a card's icon (hidden from screen readers) and description", () => {

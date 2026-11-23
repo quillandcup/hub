@@ -86,7 +86,7 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
     // "Finisher 2" by its place in its block's list; one standing on its own has no place to number it by.
     const finisher = place.parent === "FinisherCards" ? `Finisher ${place.index + 1}` : "A Finisher";
     // What a block adds to the generic checks, from its registry definition (a module's blocks come this way).
-    pageBlocks.get(type)?.publishCheck?.(p, { str, rows, heading: (level, text) => headings.push({ level, text }), checkButton });
+    pageBlocks.get(type)?.publishCheck?.(p, { str, rows, heading: (level, text) => headings.push({ level, text }), checkButton, warn: (block, message) => issues.push({ severity: "warning", block, message }) });
     switch (type) {
       case "Image":
       case "Split":
