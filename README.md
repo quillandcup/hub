@@ -6,7 +6,9 @@
 [![OSV scan](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml)
 [![gitleaks](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml)
 [![ZAP baseline](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml)
+[![Code quality](https://github.com/quillandcup/hub/actions/workflows/code-quality.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/code-quality.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage.json)](https://github.com/quillandcup/hub/actions/workflows/ci.yml)
+[![Hub uptime](https://api.checklyhq.com/v1/badges/checks/d4e1e531-5370-4982-a996-317709722dc6)](https://hub.quillandcup.com)
 [![License: Proprietary](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
 
 | Area | Coverage |
