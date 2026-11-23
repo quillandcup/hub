@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AREA_FLOORS,
+  badgeColor,
+  badgeFiles,
   aggregateScore,
   annotations,
   areaKey,
@@ -60,6 +62,9 @@ describe("isGated / areaKey", () => {
     expect(isGated("src/app/api/process/route.ts")).toBe(true);
     expect(isGated("src/lib/x.test.ts")).toBe(false);
     expect(isGated("src/lib/x.d.ts")).toBe(false);
+    // Generated data, excluded from collection too (config/vitest.mts): a refresh PR must not fail on it.
+    expect(isGated("src/lib/disposable-email-domains.generated.ts")).toBe(false);
+    expect(isGated("src/lib/generated-things.ts")).toBe(true);
     expect(isGated("scripts/x.ts")).toBe(false);
     expect(isGated("next.config.ts")).toBe(false);
   });
@@ -258,5 +263,46 @@ describe("checkFloors", () => {
     const text = renderReport([], combined, null, undefined, checkFloors(combined, floors));
     expect(text).toContain("**Area floors: ❌**");
     expect(text).toContain("| `lib` | 90.0% (min 80%) | 90.0% (min 80%) | ❌ 70.0% (min 80%) | 90.0% (min 50%) |");
+  });
+});
+
+describe("coverage badges", () => {
+  it("picks a color by threshold, at the edges", () => {
+    expect(badgeColor(90)).toBe("brightgreen");
+    expect(badgeColor(89.9)).toBe("green");
+    expect(badgeColor(80)).toBe("green");
+    expect(badgeColor(70)).toBe("yellowgreen");
+    expect(badgeColor(60)).toBe("yellow");
+    expect(badgeColor(40)).toBe("orange");
+    expect(badgeColor(39.9)).toBe("red");
+  });
+
+  it("writes an overall badge and one per gated area as shields endpoint JSON", () => {
+    const combined = new Map<string, Metrics>([
+      ["lib", metrics([90, 100])],
+      ["components", metrics([50, 100])],
+      ["emails", metrics([10, 100])],
+    ]);
+    const files = badgeFiles(combined);
+    expect([...files.keys()].sort()).toEqual([
+      "coverage-app-api.json",
+      "coverage-components.json",
+      "coverage-lib.json",
+      "coverage.json",
+    ]);
+    expect(JSON.parse(files.get("coverage-lib.json")!)).toEqual({
+      schemaVersion: 1,
+      label: "lib",
+      message: "90.0%",
+      color: "brightgreen",
+    });
+    // overall counts every area, not just the gated ones: (90 + 50 + 10) / 3
+    expect(JSON.parse(files.get("coverage.json")!)).toMatchObject({ label: "coverage", message: "50.0%", color: "orange" });
+    // an area with no data is n/a, not 0% or 100%
+    expect(JSON.parse(files.get("coverage-app-api.json")!)).toMatchObject({ message: "n/a", color: "lightgrey" });
+  });
+
+  it("shows n/a overall when nothing was measured", () => {
+    expect(JSON.parse(badgeFiles(new Map()).get("coverage.json")!)).toMatchObject({ message: "n/a" });
   });
 });

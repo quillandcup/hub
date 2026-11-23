@@ -56,6 +56,7 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     place: select("Where the content sits when it is narrower than the page", opts("left", "center", "right")),
     textTone: select("Text colour", [{ label: "Follows the background", value: "auto" }, { label: "Plum", value: "plum" }]),
     fadeIn: toggle("Fade in as it appears"),
+    fill: toggle("Fill the page (on a short page, grow down to the footer)"),
     paddingDesktop: padding("Space inside on desktop", "desktop"),
     paddingMobile: padding("Space inside on mobile", "mobile"),
     hideOnDesktop: toggle("Hide on desktop"),

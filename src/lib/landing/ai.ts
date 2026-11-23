@@ -49,7 +49,7 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
 };
 
 /** What the model is shown and may set for a block: the builder's defaults, except where those are sample content (a card's price and "Buy now"). */
-const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, cardColor: _cardColor, cardSoft: _cardSoft, place: _place, textTone: _textTone, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
+const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, cardColor: _cardColor, cardSoft: _cardSoft, place: _place, textTone: _textTone, fill: _fill, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
 const SHAPES: Partial<Record<AiBlock | (typeof AI_ITEMS)[number], Props>> = {
   // The items of these are child blocks (`SLOT_ALLOW`), described beside the props.
   Steps: { heading: BLOCK_DEFAULTS.Steps.heading },
@@ -58,7 +58,7 @@ const SHAPES: Partial<Record<AiBlock | (typeof AI_ITEMS)[number], Props>> = {
   Faq: {},
   LinkList: {},
   CardGrid: { columns: "3" },
-  // Spacing as numbers (px) for desktop and mobile. The model is not offered hiding a section: that is the admin's call.
+  // Spacing as numbers (px) for desktop and mobile. The model is not offered hiding a section or filling the page: those are the admin's call.
   Section: SECTION_SHAPE,
   // A card is offered without a picture, a price or a button: the request rarely gives them, and the model must not invent them.
   GridCard: { icon: "", title: "", description: "", price: "", buttonLabel: "", href: "" },
