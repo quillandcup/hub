@@ -10,6 +10,7 @@ export const SOCIAL_NETWORKS = {
   x: "X",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  substack: "Substack",
   threads: "Threads",
   email: "Email",
   website: "Website",

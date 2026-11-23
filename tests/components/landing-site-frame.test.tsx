@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { PageFrame, DESIGN_HREF } from "@/components/landing/config";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
-import { EMPTY_SITE_TEMPLATE, normalizeSiteTemplate } from "@/lib/landing/site-template";
+import { EMPTY_SITE_TEMPLATE, SOCIAL_NETWORKS, normalizeSiteTemplate } from "@/lib/landing/site-template";
 
 const full = normalizeSiteTemplate({
   header: {
@@ -32,6 +32,8 @@ describe("the site header", () => {
     expect(screen.getByRole("link", { name: "Join us" })).toHaveAttribute("href", "/join");
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: "Instagram" })).toHaveAttribute("href", "https://example.test/ig");
+    expect(screen.getByRole("link", { name: "Instagram" }).querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("link", { name: "Instagram" }).textContent).toBe("");
     expect(screen.queryByRole("link", { name: "X" })).toBeNull();
   });
 
@@ -89,6 +91,32 @@ describe("the site footer", () => {
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(screen.getByRole("link", { name: "YouTube" })).toBeInTheDocument();
     expect(screen.getByText("Fern Quills")).toBeInTheDocument();
+  });
+
+  it("draws every social network as an icon link named for it, not as text", () => {
+    const networks = SOCIAL_NETWORKS.map((n) => n.value);
+    const footer = normalizeSiteTemplate({ footer: { show: true, text: "", links: [], social: networks.map((network) => ({ network, href: `https://example.test/${network}` })) } }).footer;
+    const { container } = render(<>{SiteFooterView({ footer })}</>);
+    const list = screen.getByRole("list", { name: "Social links" });
+    for (const n of SOCIAL_NETWORKS) {
+      const link = within(list).getByRole("link", { name: n.label });
+      expect(link).toHaveAttribute("href", `https://example.test/${n.value}`);
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+      expect(link.textContent).toBe("");
+      expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(link.className).toContain("focus-visible:ring-2");
+    }
+    expect(new Set([...container.querySelectorAll("a svg")].map((s) => s.innerHTML)).size).toBe(networks.length);
+    expect(list.className).toContain("flex-wrap");
+    expect(list.className).toContain("justify-center");
+    expect(container.querySelector("footer")!.className).toContain("text-white");
+  });
+
+  it("skips a social link with no usable address", () => {
+    const footer = normalizeSiteTemplate({ footer: { show: true, text: "x", links: [], social: [{ network: "substack", href: "" }, { network: "pinterest", href: "javascript:x" }] } }).footer;
+    render(<>{SiteFooterView({ footer })}</>);
+    expect(screen.queryByRole("list", { name: "Social links" })).toBeNull();
   });
 
   it("draws nothing when it is off or empty", () => {

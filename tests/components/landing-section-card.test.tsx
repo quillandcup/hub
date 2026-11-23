@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { render } from "@testing-library/react";
 import { Section } from "@/components/landing/blocks";
 import { CORE_DEFAULTS } from "@/components/landing/core-blocks";
@@ -103,5 +104,47 @@ describe("a Section's new options in an exported file", () => {
     const { data, droppedProps } = pruneToKnownBlocks(normalizeLandingData({ content: [{ type: "Section", props }], root: {}, schemaVersion: LANDING_SCHEMA_VERSION }));
     expect(droppedProps).toBe(0);
     expect((data.content[0] as unknown as { props: Record<string, unknown> }).props).toMatchObject({ overlay: "cream", cardColor: "blush", cardSoft: true, place: "left", textTone: "plum" });
+  });
+});
+
+describe("a Section that fills the page", () => {
+  it("is off by default and for a page saved before the option: no marker, no column, no full width", () => {
+    const { container } = render(<Section {...base} />);
+    expect(CORE_DEFAULTS.Section.fill).toBe(false);
+    expect(band(container).className).not.toContain("lp-fill");
+    expect(band(container).className).not.toContain("flex");
+    expect(band(container).querySelector(":scope > div")!.className).not.toContain("w-full");
+    expect(render(<Section {...base} fill={"yes" as never} />).container.querySelector("section")!.className).not.toContain("lp-fill");
+  });
+
+  it("is a column that centres its content, marked for the frame to grow, and keeps its padding, width and placing", () => {
+    const { container } = render(<Section {...base} fill background="plum" place="right" width="narrow" paddingDesktop={{ top: 70, bottom: 70, left: 10, right: 10 }} />);
+    const section = band(container);
+    for (const cls of ["lp-fill", "flex", "flex-col", "justify-center"]) expect(section.className.split(" ")).toContain(cls);
+    expect(section.style.getPropertyValue("--sp-t-d")).toBe("70px");
+    const inner = section.querySelector(":scope > div")!;
+    expect(inner.className).toContain("w-full");
+    expect(inner.querySelector(":scope > div")!.className).toContain("ml-auto");
+    expect(section.className).toMatch(/bg-/);
+  });
+
+  it("comes back as a flex box, not a block, when it is hidden on one size", () => {
+    expect(band(render(<Section {...base} fill hideOnMobile />).container).className).toContain("hidden @split:flex");
+    expect(band(render(<Section {...base} fill hideOnMobile />).container).className).not.toContain("@split:block");
+    expect(band(render(<Section {...base} hideOnMobile />).container).className).toContain("@split:block");
+  });
+
+  it("is grown by the stylesheet: every wrapper between the page and a top-level section, and the section, take the free height", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+    expect(css).toMatch(/main:has\(\.lp-fill:not\(section \*\)\)/);
+    expect(css).toMatch(/main :not\(section \*\):has\(\.lp-fill:not\(section \*\)\)[^}]*flex-grow: 1/);
+    expect(css).toMatch(/main \.lp-fill:not\(section \*\) \{\s*flex-grow: 1/);
+  });
+
+  it("survives the import pruning, and a document without it gets false", () => {
+    const props = { id: "s", ...CORE_DEFAULTS.Section, fill: true, content: [] };
+    const { data, droppedProps } = pruneToKnownBlocks(normalizeLandingData({ content: [{ type: "Section", props }], root: {}, schemaVersion: LANDING_SCHEMA_VERSION }));
+    expect(droppedProps).toBe(0);
+    expect((data.content[0] as unknown as { props: Record<string, unknown> }).props.fill).toBe(true);
   });
 });
