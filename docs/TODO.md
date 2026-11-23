@@ -1798,6 +1798,10 @@ Hub Chat draws a Slack message that was shared (`docs/product/SLACK_BRIDGED_CHAT
 
 The check-in and check-out modals and the Log Progress modal list the member's most named feelings first (`frequentEmotions` in `src/lib/prickle-checkins.ts`, `PrickleActivityRepository.frequentEmotions`, the Slack DMs' "Frequently used" group), but Find a Prickle's wizard (`src/app/(member)/prickle-picker/PrickleWizard.tsx`) still shows the plain wheel because it has no server data to carry the list. Deferred to keep the first change small. Start by calling `getMyFrequentEmotions` (`src/app/(member)/prickles/checkin-actions.ts`) when the wizard opens and passing the result as `frequentEmotions` to its `CheckinHalfFields`. Also open: letting a member pin a feeling by hand, if the automatic list proves not to be enough.
 
+### Calendar loader still queries per member for commitments and added items _(Needs Scheduling)_
+
+The prickle check-ins and member reminders load each active member's calendar with `loadCalendarFeedPrickleIds` (`src/lib/calendar-feed.ts`). Sentry HUB-1X (an N+1 on the check-in route) came from its prickles reads, which now happen once per run (`preloadPrickleReader`). What is left is per member: `prickleActivity.commitmentsOf` and `calendarFeed.itemsOf` (plus `events.visibleEndingFrom` for added events), roughly three small queries per active member, in groups of 10 (`CALENDAR_LOAD_CONCURRENCY`). Deferred because they hit other tables and Sentry has not flagged them. Start with batch variants taking a member id list (chunked per `data-access-layer.md`) on both repositories and their contract suites, then group by member in memory.
+
 ### Checkly heartbeat for the changelog digest _(Needs Scheduling)_
 
 `/api/internal/changelog-digest` (weekly) has its heartbeat switched off (`unmonitored` in `src/lib/cron-heartbeats.ts`) for the same reason as `/api/reconcile/email`: the plan's 10 uptime monitors are used. Remove that line once a monitor is free (see "Monitor the nightly import" in the email timeline notes for the steps).

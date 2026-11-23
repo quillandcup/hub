@@ -24,6 +24,7 @@ vi.mock("@/lib/slack-matching", () => ({
 const calendarPrickleIds = vi.fn(async (_repos: unknown, _memberId: string): Promise<Set<string>> => new Set());
 vi.mock("@/lib/calendar-feed", () => ({
   loadCalendarFeedPrickleIds: (repos: unknown, memberId: string) => calendarPrickleIds(repos, memberId),
+  preloadPrickleReader: async () => ({}),
 }));
 
 vi.mock("@/lib/cron-heartbeats", () => ({ withCronHeartbeat: async (_job: string, res: Response) => res }));

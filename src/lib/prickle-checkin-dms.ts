@@ -6,7 +6,7 @@ import {
   progressQuestion,
   type WritingMeasure,
 } from "@/lib/writing-projects";
-import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
+import { loadCalendarFeedPrickleIds, preloadPrickleReader } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { joinSlackBlocks, loadPrickleJoinSettings, joinAt, type PrickleJoin } from "@/lib/prickle-join";
 import type { PrickleDetail } from "@/lib/data/prickles";
@@ -106,11 +106,14 @@ export async function loadCalendarPrickleIdsByMember(
   now: Date = new Date()
 ): Promise<Map<string, Set<string>>> {
   const result = new Map<string, Set<string>>();
+  if (memberIds.length === 0) return result;
+  // The prickles are the same for every member: read them once, not once per member (Sentry HUB-1X).
+  const prickles = await preloadPrickleReader(repos, since);
   for (let i = 0; i < memberIds.length; i += CALENDAR_LOAD_CONCURRENCY) {
     await Promise.all(
       memberIds.slice(i, i + CALENDAR_LOAD_CONCURRENCY).map(async (memberId) => {
         try {
-          result.set(memberId, await loadCalendarFeedPrickleIds(repos, memberId, since, now));
+          result.set(memberId, await loadCalendarFeedPrickleIds(repos, memberId, since, now, prickles));
         } catch (error) {
           console.error(`loadCalendarPrickleIdsByMember: calendar failed to load for member=${memberId}:`, error);
           result.set(memberId, new Set());
