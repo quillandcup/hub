@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
-import { SIGN_IN_HREF, SOCIAL_NETWORKS, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
-import { buttonClasses } from "./blocks";
+import { SIGN_IN_HREF, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
+import { buttonClasses, SOCIAL_SIZE, SocialLink } from "./blocks";
 import { pageImage } from "./theme";
 
 /**
@@ -18,19 +18,18 @@ const LIST = "flex flex-wrap items-center gap-1";
 /** Which sizes an item is on: a wide header only (`desktop`), a narrow one only (`mobile`), or both. Hidden items take no room. */
 const SHOW: Record<ItemShow, string> = { both: "", desktop: "hidden @split:block", mobile: "@split:hidden" };
 
-const networkLabel = (value: string) => SOCIAL_NETWORKS.find((n) => n.value === value)?.label ?? value;
-
-function SocialLinks({ links, label }: { links: SiteSocialLink[]; label: string }) {
+/**
+ * The site's social links as icon links: the Social icons block's own link and marks (`SocialLink`, `social-marks.tsx`), so a network
+ * has one drawing, the accessible name is the network's ("Instagram"), and another site opens in a new tab with `rel="noopener noreferrer"`.
+ * The mark is drawn in the text colour of where it sits (white on the footer), with the block's focus ring. Wraps on a narrow screen.
+ */
+function SocialLinks({ links, label, center = false }: { links: SiteSocialLink[]; label: string; center?: boolean }) {
   const shown = links.filter((l) => safeHref(l.href));
   if (shown.length === 0) return null;
   return (
-    <ul className={LIST} aria-label={label}>
+    <ul className={`flex flex-wrap items-center gap-2 ${center ? "justify-center" : ""} ${SOCIAL_SIZE.medium}`} aria-label={label}>
       {shown.map((l, i) => (
-        <li key={i}>
-          <a href={safeHref(l.href)} className={LINK} rel="noopener">
-            {networkLabel(l.network)}
-          </a>
-        </li>
+        <SocialLink key={i} network={l.network} url={l.href} />
       ))}
     </ul>
   );
@@ -158,7 +157,7 @@ export function SiteFooterView({ footer }: { footer: SiteFooter }) {
       )}
       {hasSocial && (
         <div className="mb-2 flex justify-center">
-          <SocialLinks links={footer.social} label="Social links" />
+          <SocialLinks links={footer.social} label="Social links" center />
         </div>
       )}
       {footer.text && <p>{footer.text}</p>}

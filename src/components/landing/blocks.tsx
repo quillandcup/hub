@@ -97,6 +97,8 @@ export type SectionProps = {
   /** `plum` sets the text in the brand's plum; `auto` leaves it to the background. */
   textTone?: "auto" | "plum";
   fadeIn: boolean;
+  /** Grow to take the free height between the site header and footer on a short page; the content stays in the middle. Off unless it is exactly `true`. */
+  fill?: boolean;
   content: Slot;
   /** Set by the editor's canvas only: a hidden section is dimmed there instead of hidden. */
   editing?: boolean;
@@ -106,7 +108,7 @@ export type SectionProps = {
 const SECTION_GRID = "grid grid-cols-12 gap-x-4 @split:gap-x-6";
 
 /** A full-width band with a background colour or picture, and a 12-column grid of other blocks inside it. */
-export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, content: Content, editing }: SectionProps) {
+export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, fill, content: Content, editing }: SectionProps) {
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
@@ -127,13 +129,16 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
     <Content className={SECTION_GRID} collisionAxis="dynamic" />
   );
   const space = sectionPadding({ paddingDesktop, paddingMobile });
+  // "Fill the page": the section is a column that centres its content, and `lp-fill` lets src/app/globals.css grow it (and the wrappers around it) into the free height. A section hidden on a size shows as `flex`, not `block`, when it comes back.
+  const fills = fill === true;
+  const hide = hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing));
   return (
     <section
-      className={`relative ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing))} ${fadeIn ? "landing-fade-in" : ""}`}
+      className={`relative ${fills ? "lp-fill flex flex-col justify-center" : ""} ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${fills ? hide.replace("@split:block", "@split:flex") : hide} ${fadeIn ? "landing-fade-in" : ""}`}
       style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}
     >
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}
-      <div className={`relative mx-auto ${placed ? WIDTHS.wide.cls : pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")} ${tone}`}>
+      <div className={`relative mx-auto ${fills ? "w-full" : ""} ${placed ? WIDTHS.wide.cls : pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")} ${tone}`}>
         {placed ? <div className={`${pick(WIDTHS, width, "wide").cls} ${pick(PLACE, place, "center")}`}>{body}</div> : body}
       </div>
     </section>
@@ -526,7 +531,7 @@ export function PricingPlan({ name, price, period, description, features, badge,
 export type SocialIconsProps = { items: Slot; align: "left" | "center" | "right"; size: "small" | "medium" | "large"; editing?: boolean };
 const SOCIAL_JUSTIFY = { left: "justify-start", center: "justify-center", right: "justify-end" } as const;
 /** The size of every link in the row: the parent sets it, because an item cannot see its block. Full class strings, so Tailwind finds them. */
-const SOCIAL_SIZE = {
+export const SOCIAL_SIZE = {
   small: "[&_.lp-social]:h-8 [&_.lp-social]:w-8 [&_.lp-social_svg]:h-4 [&_.lp-social_svg]:w-4",
   medium: "[&_.lp-social]:h-10 [&_.lp-social]:w-10 [&_.lp-social_svg]:h-5 [&_.lp-social_svg]:w-5",
   large: "[&_.lp-social]:h-12 [&_.lp-social]:w-12 [&_.lp-social_svg]:h-6 [&_.lp-social_svg]:w-6",
