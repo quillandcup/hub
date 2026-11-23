@@ -11,9 +11,9 @@
 
 | Area | Coverage |
 |---|---|
-| `lib` (domain logic) | ![lib](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json) |
-| `components` | ![components](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json) |
-| `app/api` (routes) | ![app/api](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json) |
+| `src/lib` (domain logic) | ![lib](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json) |
+| `src/components` | ![components](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json) |
+| `src/app/api` (routes) | ![app/api](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json) |
 
 Coverage is the unit and db suites merged: the mean of statements, functions and branches covered, the same score the new-code gate uses.
 
