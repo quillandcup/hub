@@ -78,3 +78,9 @@ rulesets:
             # Advanced Security app (57789), not an Actions job: the Analyze jobs only run the scan.
             - context: CodeQL
               integration_id: 57789
+            # Fails a pull request that INTRODUCES a known vulnerability in pnpm-lock.yaml (OSV-Scanner diff
+            # against the base branch, .github/workflows/osv-diff.yml), so an advisory already on main, even one with
+            # no fix, never stops an unrelated PR. No path filter, so it always reports. Trial 2026-11-23: it passed
+            # on a PR that touched no dependencies and failed on a throwaway PR that added lodash 4.17.20.
+            - context: OSV diff / osv-scan
+              integration_id: 15368
