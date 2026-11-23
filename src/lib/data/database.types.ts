@@ -8689,6 +8689,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      delete_course: { Args: { p_course_id: string }; Returns: undefined }
       delete_stale_calendar_events: {
         Args: {
           p_current_google_ids: string[]

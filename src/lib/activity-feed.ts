@@ -688,6 +688,13 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const count = Number.isFinite(lessons) ? ` (${lessons} ${lessons === 1 ? "lesson" : "lessons"})` : "";
     return `duplicated a course as “${formatValue(row.description ?? "")}”${count}`;
   }
+  // A deleted course is one entry with what went with it (`delete_course` writes the counts; the modules' and lessons' own entries are quiet).
+  if (row.entity_type === "course" && row.event_type === "delete") {
+    const lessons = Number(fields.lessons_deleted?.old);
+    const modules = Number(fields.modules_deleted?.old);
+    const holds = [Number.isFinite(modules) && `${modules} ${modules === 1 ? "module" : "modules"}`, Number.isFinite(lessons) && `${lessons} ${lessons === 1 ? "lesson" : "lessons"}`].filter(Boolean).join(", ");
+    return `deleted a course${row.description ? ` “${formatValue(row.description)}”` : ""}${holds ? ` (${holds})` : ""}`;
+  }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;

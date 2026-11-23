@@ -64,6 +64,7 @@ export const OUTCOME_ACTIONS = [
   "course_lesson_file_removed",
   "course_taken_over",
   "course_duplicated",
+  "course_deleted",
   // Landing pages (the page builder)
   "landing_page_created",
   "landing_page_details_saved",

@@ -1,6 +1,6 @@
 # Courses in the Hub
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Plan for moving Quill & Cup's courses from Kajabi into the Hub, starting with **The Ready Writer**, which launches in about two weeks (target: early November 2026). Written 2026-10-18; update it as decisions land.
 
@@ -274,6 +274,16 @@ On a course's admin page (imported or Hub-owned), **Duplicate course** (`Duplica
 - **Audit:** one entry, for the new course (who, from which course: `copied_from`, and `modules_copied`, `lessons_copied`, `files_copied`; the activity feed reads "duplicated a course as ..."). The insert triggers of the copied modules and lessons are quiet for that course during the call (they check the `app.audit_skip_course` setting the function sets for its own transaction), so there is no entry per row; later edits are audited as usual.
 - **The copy's address is a placeholder** until someone picks one. In the course details, renaming the copy (its "(copy)" gone) offers "Use <address>" for the name's address (a suggestion, never a silent overwrite; see "Course addresses" below). The placeholder skips an address an old redirect holds.
 - **Usage:** the action records `course_duplicated` (`src/lib/analytics/actions.ts`); the buttons carry `data-track` names.
+
+## Deleting a course
+
+On a course's admin page, **Delete course** in the ⋯ menu (`DeletePanel`, `deleteCourse` in `src/app/(admin)/admin/courses/delete-actions.ts`, behind `courses.manage` like duplicate; a distinct `courses.delete` verb was not added because no role holds `courses.manage` in part: it is the one bundle for the whole area) removes a course nobody uses, mainly the draft copy a duplicate leaves behind. The item is always listed; when it is off, the reason shows beside it (`deleteBlockedReason`, `src/lib/courses/blocked-reasons.ts`, numbers from `loadDeletePreview`, `src/lib/courses/delete.ts`). The dialog is the lifecycle registry's delete confirmation (`lifecycleConfirm("delete", ...)`): it names the course, says how many modules and lessons go with it and that it can't be undone.
+
+- **One database call** (`delete_course`, migration `20271123000000`, run as the admin so the audit log names them; an admin or the service role, else `not_editable`). It checks and deletes in one transaction. Errors: `not_found`, `not_deletable`, `published`, `has_members`, `has_activity`.
+- **Allowed only when:** the Hub owns it (`source = 'hub'`: a Kajabi course would be brought back by the next import, so it is removed in Kajabi), it is a draft (`is_draft`; a published one is unpublished first), no `course_access` or `course_access_grants` row exists for it, and members left nothing on it (no `lesson_progress`, `lesson_comments` or `chat_message_videos` on its lessons). Anything else is refused and nothing changes.
+- **Goes with it** (existing `ON DELETE CASCADE` keys, no new table): modules and submodules, lessons, the lesson download rows, the course's old addresses (`course_address_redirects`), and comment follows and reads. **Stays:** the stored download files (a copy may point at the same object), the videos (`videos`) and the media-library images, which other courses may share.
+- **Audit:** one entry, the course's delete (who, and what it was), with `modules_deleted` and `lessons_deleted` (the activity feed reads "deleted a course ..."). The delete triggers of the modules and lessons are quiet for that course during the call (the `app.audit_skip_course` setting, as for a duplicate), so there is no entry per row; deleting one lesson or module on its own is audited as usual.
+- **Usage:** the action records `course_deleted` (`src/lib/analytics/actions.ts`); the menu item carries `data-track="admin-course-delete-open"`.
 
 ## Course addresses: suggestions and redirects
 

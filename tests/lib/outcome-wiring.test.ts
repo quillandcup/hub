@@ -77,6 +77,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "src/app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "src/app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],
+  [() => import("@/app/(admin)/admin/courses/delete-actions"), "src/app/(admin)/admin/courses/delete-actions.ts", [["deleteCourse", "course_deleted"]]],
   [
     () => import("@/app/(admin)/admin/pages/actions"),
     "src/app/(admin)/admin/pages/actions.ts",
