@@ -53,8 +53,8 @@ describe("getNotificationSettings", () => {
     expect(await getNotificationSettings()).toEqual({
       channels: ["slack", "in_app", "email"],
       webPushPublicKey: null,
-      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [], big_sister_match: ["slack", "in_app", "web_push"], changelog_digest: ["slack", "in_app"], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: ["slack", "in_app"], lesson_comment_instructor_reply: ["slack", "in_app"], lesson_comment_activity: ["slack", "in_app"], lesson_comment_moderation: ["slack", "in_app"] },
-      visibleKinds: ["prickle_checkin", "prickle_checkout", "intro_nudge", "prickle_nudge", "changelog_digest"],
+      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [], big_sister_match: ["slack", "in_app", "web_push"], changelog_digest: ["slack", "in_app"], book_visibility_notice: ["slack", "in_app"], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: ["slack", "in_app"], lesson_comment_instructor_reply: ["slack", "in_app"], lesson_comment_activity: ["slack", "in_app"], lesson_comment_moderation: ["slack", "in_app"] },
+      visibleKinds: ["prickle_checkin", "prickle_checkout", "intro_nudge", "prickle_nudge", "changelog_digest", "book_visibility_notice"],
       readOnly: false,
       chatNotifications: false,
       chatMainPlace: false,
@@ -340,7 +340,7 @@ describe("NotificationsPanel", () => {
   const initial = {
     channels: ["slack" as const],
     webPushPublicKey: null,
-    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: [], lesson_comment_instructor_reply: [], lesson_comment_activity: [], lesson_comment_moderation: [] },
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], book_visibility_notice: [], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: [], lesson_comment_instructor_reply: [], lesson_comment_activity: [], lesson_comment_moderation: [] },
     visibleKinds: ["prickle_checkin" as const, "prickle_checkout" as const, "intro_nudge" as const, "prickle_nudge" as const],
     readOnly: false,
     chatNotifications: false,
@@ -387,7 +387,7 @@ describe("NotificationsPanel", () => {
 
     render(
       <NotificationsPanel
-        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: [], lesson_comment_instructor_reply: [], lesson_comment_activity: [], lesson_comment_moderation: [] } }}
+        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], book_visibility_notice: [], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: [], lesson_comment_instructor_reply: [], lesson_comment_activity: [], lesson_comment_moderation: [] } }}
       />
     );
     expect(screen.getByRole("button", { name: "Prickle check-ins via In the Hub" })).toHaveAttribute("aria-pressed", "true");
@@ -466,7 +466,7 @@ describe("Hub chat is my main place", () => {
   const initial = {
     channels: ["slack" as const],
     webPushPublicKey: null,
-    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: [], lesson_comment_instructor_reply: [], lesson_comment_activity: [], lesson_comment_moderation: [] },
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], book_visibility_notice: [], chat_dm: [], chat_mention: [], chat_channel_message: [], lesson_comment_reply: [], lesson_comment_instructor_reply: [], lesson_comment_activity: [], lesson_comment_moderation: [] },
     visibleKinds: ["prickle_checkin" as const, "prickle_checkout" as const],
     readOnly: false,
     chatNotifications: false,

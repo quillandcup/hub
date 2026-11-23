@@ -331,14 +331,16 @@ export async function getHostedQuarterCount(
 /**
  * Number of books `memberId` has logged on the Hedgie Bookshelf (member_books) that were published while a member of the community:
  * a book published before they first joined stays on the Bookshelf but does not count (`reachedWhileMember`, the same rule as the
- * milestones; no join date counts every book).
+ * milestones; no join date counts every book). A book is at a level (private, community, public): the member's own view
+ * (`self`) counts every book, anyone else's (`others`, the default) only the books they may see, so a badge never gives away a private book.
  */
 export async function getPublishedBookCount(
   repos: BadgeRepos,
   memberId: string,
-  firstJoinedAt: string | null
+  firstJoinedAt: string | null,
+  viewer: BadgeViewer = "others"
 ): Promise<number> {
-  return publishedBookCount(await repos.books.liveDates(memberId), firstJoinedAt);
+  return publishedBookCount(await repos.books.liveDates(memberId, viewer), firstJoinedAt);
 }
 
 /** Whose eyes the badges are for: the member's own (everything confirmed counts) or anyone else's (only what the member shows to members). */
@@ -620,7 +622,8 @@ async function getMilestoneBadgeCountsByMember(
 }
 
 /** Number of books each member published while a member -- the bulk counterpart to
- * getPublishedBookCount, one paginated scan instead of N, each member's books counted against their own join date. */
+ * getPublishedBookCount for viewer "others" (a private book is not counted): one paginated scan instead of N, each member's books
+ * counted against their own join date. */
 async function getPublishedBookCountsByMember(
   repos: BadgeRepos,
   firstJoinedByMember: Map<string, string | null>
@@ -806,7 +809,7 @@ export async function getMemberBadges(
     badges.levels(),
     badges.awardsOf(memberId),
     getHostedQuarterCount(repos, memberId),
-    getPublishedBookCount(repos, memberId, firstJoinedAt),
+    getPublishedBookCount(repos, memberId, firstJoinedAt, viewer),
     getProgramCompletions(repos, memberId),
     getMentorshipCounts(repos.mentorship),
     getMilestoneBadgeCounts(repos, memberId, firstJoinedAt, viewer),

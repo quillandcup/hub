@@ -10,7 +10,7 @@ const STEP_SHOWN: Record<ShownStepKind, string> = { ...MILESTONE_SHOWN, publishe
  * The "Milestones" strip on a member's profile (for members) and on their writer profile (for the web): each work, with the steps
  * it has reached in order (THE END, publish-ready, Published), the title each earns (Finisher, Author, Published Author;
  * docs/product/WRITER_TITLES.md), the day when they gave one, and the story only when they wrote one. Published comes from the
- * Bookshelf and is always at the globe. The rows come from `member_works_pictured_to_members` or `member_works_pictured_on_web`, which
+ * Bookshelf and follows the book's own level (a private book has no step). The rows come from `member_works_pictured_to_members` or `member_works_pictured_on_web`, which
  * already hold back everything the viewer may not see, so this only draws what it is given. Plain text: React escapes it, and
  * line breaks are kept by the style. A work whose name the viewer may not see (a project private to them) is "Another work". Draws nothing when there is nothing to show.
  */

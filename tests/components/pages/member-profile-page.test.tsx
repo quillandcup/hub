@@ -318,6 +318,34 @@ describe("member profile page: Books and Awards", () => {
     expect(within(awards).getByText(/for “The Lantern Keeper”/)).toHaveTextContent("March 2026");
   });
 
+  it("asks only for the books the viewer may see: no private ones on someone else's profile, in sudo or not, and all of them on your own", async () => {
+    const callsOf = (supabase: ReturnType<typeof useFakeSupabase>) => supabase.queries.find((q) => q.table === "member_books")?.calls ?? [];
+    const notPrivate = { method: "neq", args: ["visibility", "private"] };
+
+    const other = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(other)).toContainEqual(notPrivate);
+    document.body.innerHTML = "";
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    const sudo = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(sudo)).toContainEqual(notPrivate);
+    document.body.innerHTML = "";
+
+    // An admin looking at a member from their own account is just another viewer.
+    signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, memberId: "admin-member" });
+    const admin = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(admin)).toContainEqual(notPrivate);
+    document.body.innerHTML = "";
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: PROFILE_ID });
+    const own = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(own)).not.toContainEqual(notPrivate);
+  });
+
   it("omits the Books and Awards sections when the member has neither", async () => {
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByRole("heading", { name: "Published Books" })).not.toBeInTheDocument();

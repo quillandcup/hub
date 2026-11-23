@@ -181,6 +181,7 @@ export const OUTCOME_ACTIONS = [
   "goal_visibility_changed",
   "book_edited",
   "book_deleted",
+  "book_visibility_set",
   "award_edited",
   "award_deleted",
   "chat_message_retried",

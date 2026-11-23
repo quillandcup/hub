@@ -15,6 +15,8 @@ export type MilestonesContractContext = {
   addBook: (memberId: string, projectId?: string, publishedDate?: string) => Promise<string>;
   /** Soft-deletes every book of the member. */
   deleteBooks: (memberId: string) => Promise<void>;
+  /** Sets the level of a book (a book starts at the globe). */
+  setBookVisibility: (bookId: string, visibility: "private" | "community" | "public") => Promise<void>;
   /** Gives a member one live writing project and returns its id. */
   addProject: (memberId: string) => Promise<string>;
   /** Sets the level of a writing project (the project is named "A Fake Novel"). */
@@ -662,6 +664,46 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(await kinds()).toEqual({ members: ["published"], web: ["published"] });
       await ctx.deleteBooks(id(ada));
       expect(await kinds()).toEqual({ members: [], web: [] });
+    });
+
+    it("shows Published only for a book at a level the viewer may see, at the book's own level: members the house and globe, the web the globe, no one the lock", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      const shown = async () => {
+        const members = (await repo.worksShownToMembers(id(ada), null)).filter((s) => s.kind === "published");
+        const web = (await repo.worksShownOnWeb(id(ada), null)).filter((s) => s.kind === "published");
+        return { members: members.map((s) => [s.workTitle, s.visibility]), web: web.map((s) => [s.workTitle, s.visibility]) };
+      };
+      expect(await shown()).toEqual({ members: [["A Book", "public"]], web: [["A Book", "public"]] });
+      await ctx.setBookVisibility(bookId, "community");
+      expect(await shown()).toEqual({ members: [["A Book", "community"]], web: [] });
+      await ctx.setBookVisibility(bookId, "private");
+      expect(await shown()).toEqual({ members: [], web: [] });
+      await ctx.setBookVisibility(bookId, "public");
+      expect(await shown()).toEqual({ members: [["A Book", "public"]], web: [["A Book", "public"]] });
+    });
+
+    it("never lends a book's title, or a step, to a work when the book is private or at the house and the viewer is the web", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId, title: null }), NOW);
+      const names = async () => ({
+        members: (await repo.worksShownToMembers(id(ada), null)).map((s) => `${s.kind}:${s.workTitle}`),
+        web: (await repo.worksShownOnWeb(id(ada), null)).map((s) => `${s.kind}:${s.workTitle}`),
+      });
+      expect(await names()).toEqual({ members: ["the_end:A Book", "published:A Book"], web: ["the_end:A Book", "published:A Book"] });
+      await ctx.setBookVisibility(bookId, "community");
+      expect(await names()).toEqual({ members: ["the_end:A Book", "published:A Book"], web: ["the_end:null"] });
+      await ctx.setBookVisibility(bookId, "private");
+      expect(await names()).toEqual({ members: ["the_end:null"], web: ["the_end:null"] });
+    });
+
+    it("keeps a private book out of the milestone-only list the badges read", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      await ctx.setBookVisibility(bookId, "private");
+      expect((await repo.shownToMembers(id(ada))).map((s) => s.kind)).toEqual([]);
+      expect((await repo.worksShownToMembers(id(ada), null)).map((s) => s.kind)).toEqual([]);
     });
 
     it("starts a confirmed milestone at the globe, and keeps the level the member picks when they confirm (lock included)", async () => {

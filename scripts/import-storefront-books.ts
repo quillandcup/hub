@@ -67,7 +67,7 @@ async function main() {
       continue;
     }
     const memberId = matches[0].id;
-    const shelf = await repos.books.ofMember(memberId);
+    const shelf = await repos.books.ofMember(memberId, memberId);
     const onShelf = shelf.find((b) => b.title === spec.title);
     if (onShelf) {
       console.log(`  "${spec.title}": already on the shelf (${onShelf.id}), skipped`);

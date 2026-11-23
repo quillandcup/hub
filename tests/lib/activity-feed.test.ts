@@ -323,6 +323,22 @@ describe("describeRow for projects, books and check-ins", () => {
     expect(describeRow(book(null))).toBe("added “Moon Garden” to their bookshelf");
   });
 
+  it("says who can see a book now, in words, with a title that has & and < and never the description", () => {
+    const level = (to: string, over: Record<string, unknown> = {}) =>
+      row({
+        entity_type: "member_book",
+        event_type: "update",
+        description: "Salt & <Sea>",
+        data: { visibility: change("public", to), ...over },
+      });
+    expect(describeRow(level("private"))).toBe("made “Salt & <Sea>” private: only they can see it");
+    expect(describeRow(level("community"))).toBe("showed “Salt & <Sea>” to other members only");
+    expect(describeRow(level("public"))).toBe("showed “Salt & <Sea>” on the public Hedgie Bookshelf");
+    const withText = describeRow(level("private", { description: change("old words", "A private paragraph") }));
+    expect(withText).not.toContain("paragraph");
+    expect(withText).not.toContain("old words");
+  });
+
   it("reads a soft delete as a delete, and clearing it as a restore", () => {
     const update = (entity_type: string, deleted_at: { old: unknown; new: unknown }) =>
       row({ entity_type, event_type: "update", description: "Moon Garden", data: { deleted_at } });

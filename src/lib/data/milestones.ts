@@ -50,7 +50,7 @@ export type ShownMilestone = {
   visibility: Visibility;
 };
 
-/** A step on a work as the strips show it: a stored milestone, or Published (derived from a Bookshelf book, always at the globe). */
+/** A step on a work as the strips show it: a stored milestone, or Published (derived from a Bookshelf book, at that book's own level). */
 export type ShownStepKind = MilestoneKind | "published";
 
 /**
@@ -281,7 +281,7 @@ export interface MilestoneRepository {
   /** What a visitor of the web sees on this member's writer profile: only the milestones at the globe. Service role; the page checks that the profile is on. */
   /**
    * The strip on this member's profile for other members: their works, each with its milestones at community or public level
-   * and Published (derived from the live Bookshelf books, at the globe), in order. Never a private milestone, whoever asks.
+   * and Published (derived from the live Bookshelf books at community or public level, each at its own level), in order. Never a private milestone or a private book, whoever asks.
    */
   worksShownToMembers(memberId: string, firstJoinedAt: string | null): Promise<ShownWorkStep[]>;
   /** The strip on the writer profile on the web: the works with their milestones at the globe and Published. Service role; the page checks the profile is on. */
@@ -1017,7 +1017,8 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
 
   /** The same grouping as `member_works_pictured`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
   private works(memberId: string, levels: readonly string[]): ShownWorkStep[] {
-    const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null);
+    // Only the books the viewer may see (the book's own level is one this read serves, `member_works_dated`): a hidden one names no work and has no Published step.
+    const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null && levels.includes(b.visibility ?? "public"));
     type Item = ShownWorkStep & { key: string; step: number; createdAt: string; titleRank: number };
     const items: Item[] = [];
     for (const m of this.live()) {
@@ -1042,7 +1043,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       });
     }
     for (const b of books.filter((x) => x.member_id === memberId)) {
-      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", titleRank: 2, workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, achievedPrecision: "day", storyBefore: null, storyAfter: null, visibility: "public", photo: this.bookPhotoOf(b.id) });
+      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", titleRank: 2, workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, achievedPrecision: "day", storyBefore: null, storyAfter: null, visibility: (b.visibility ?? "public") as Visibility, photo: this.bookPhotoOf(b.id) });
     }
     const first = new Map<string, string>();
     for (const i of items) if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);

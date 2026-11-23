@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BookFormModal from "@/components/books/BookFormModal";
 import { editionsSummary } from "@/lib/book-editions";
-import { deleteBook, type MyBookRow } from "@/app/(member)/bookshelf/actions";
+import VisibilityControl from "@/components/writing/VisibilityControl";
+import { describeBookLevel, NO_WEB_AUTHOR_LINE } from "@/lib/book-visibility";
+import type { Visibility } from "@/lib/writing-visibility";
+import { deleteBook, setBookVisibility, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 
 interface MyBooksPanelProps {
   initialBooks: MyBookRow[];
@@ -30,8 +33,26 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
   const [showAdd, setShowAdd] = useState(false);
   const [editingBook, setEditingBook] = useState<MyBookRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [levels, setLevels] = useState<Record<string, Visibility>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   function handleSaved() {
+    router.refresh();
+  }
+
+  /** One click on the control: shown at once, saved, and put back with the reason when it could not be saved. */
+  async function changeLevel(book: MyBookRow, next: Visibility) {
+    setSavingId(book.id);
+    setErrors((e) => ({ ...e, [book.id]: "" }));
+    setLevels((l) => ({ ...l, [book.id]: next }));
+    const result = await setBookVisibility(book.id, next);
+    setSavingId(null);
+    if ("error" in result) {
+      setLevels((l) => ({ ...l, [book.id]: book.visibility }));
+      setErrors((e) => ({ ...e, [book.id]: result.error }));
+      return;
+    }
     router.refresh();
   }
 
@@ -88,8 +109,21 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
                     </>
                   )}
                 </p>
+                {(levels[book.id] ?? book.visibility) === "public" && !book.webAuthor && (
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400" data-testid="book-no-web-author">{NO_WEB_AUTHOR_LINE}</p>
+                )}
+                {errors[book.id] && <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{errors[book.id]}</p>}
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
+                <VisibilityControl
+                  visibility={levels[book.id] ?? book.visibility}
+                  onChange={(next) => changeLevel(book, next)}
+                  disabled={savingId === book.id}
+                  noun="book"
+                  describe={describeBookLevel}
+                  withText
+                  className="text-xs text-slate-700 dark:text-slate-300"
+                />
                 <button data-track="project-books-edit"
                   type="button"
                   onClick={() => setEditingBook(book)}

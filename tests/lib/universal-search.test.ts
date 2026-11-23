@@ -67,6 +67,14 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.books.push(...deletedBooks.map((b) => b.id));
+    // A private book: only its own member finds it, whoever else searches.
+    const privateBooks = seeded(
+      await supabase
+        .from("member_books")
+        .insert({ member_id: hostId, title: `${token} Secret Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", published_date: "2026-03-07", visibility: "private" })
+        .select("id")
+    );
+    made.books.push(...privateBooks.map((b) => b.id));
 
     const awards = seeded(
       await supabase
@@ -217,6 +225,13 @@ describe("universalSearch (local database)", () => {
     expect(hits[0]).toMatchObject({ title: `${token} Chronicles`, subtitle: `${token} Hostess`, date: "2026-03-05" });
     expect(hitsOf(await run(`in:books chronicles from:bystander`), "books")).toHaveLength(0);
     expect(hitsOf(await run(`in:books ${token} before:2026-01-01`), "books")).toHaveLength(0);
+  });
+
+  it("finds a private book only for its own member: not for another member, not for nobody, not for staff acting as someone else", async () => {
+    const titles = async (viewerMemberId: string | null) => hitsOf(await run(`in:books ${token} chronicles`, { viewerMemberId }), "books").map((b) => b.title);
+    expect(await titles(hostId)).toEqual([`${token} Secret Chronicles`, `${token} Chronicles`]);
+    expect(await titles(otherId)).toEqual([`${token} Chronicles`]);
+    expect(await titles(null)).toEqual([`${token} Chronicles`]);
   });
 
   it("never finds a book or award its owner deleted", async () => {

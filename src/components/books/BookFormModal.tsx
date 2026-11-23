@@ -26,7 +26,10 @@ interface EditionDraft {
   price: string;
 }
 
-function initialDrafts(book: MyBookRow | undefined): Record<BookFormat, EditionDraft> {
+/** The book the form edits: what it shows. Who can see the book (My Books) and the name it has on the web are not the form's. */
+export type BookFormBook = Omit<MyBookRow, "visibility" | "webAuthor">;
+
+function initialDrafts(book: BookFormBook | undefined): Record<BookFormat, EditionDraft> {
   const drafts = {} as Record<BookFormat, EditionDraft>;
   for (const format of BOOK_FORMATS) {
     const edition = book?.editions.find((e) => e.format === format);
@@ -45,7 +48,7 @@ interface BookFormModalProps {
   onClose: () => void;
   onSaved: () => void;
   /** Present for edit, absent for add/publish. */
-  book?: MyBookRow;
+  book?: BookFormBook;
   /** Present when publishing a project (no `book`) -- prefills the title and routes the submit
    * through publishProject instead of addBook. Absent for a plain standalone add/edit. */
   projectId?: string;
@@ -139,6 +142,11 @@ export default function BookFormModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="sm">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {!book && (
+          <p data-testid="book-public-note" className="text-sm text-slate-600 dark:text-slate-400">
+            This book will be on the Hedgie Bookshelf, which anyone can see. You can hide it or limit it to members in My Writing any time.
+          </p>
+        )}
         {!projectId && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-300 space-y-1">
             <p>

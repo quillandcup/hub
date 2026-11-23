@@ -70,6 +70,20 @@ describe("published book counts (local database)", () => {
     expect((await getMemberBadges(repos, memberId, 0, "2026-03-06")).find((b) => b.badgeType.key === "published_author")).toBeUndefined();
   });
 
+  it("counts a private book for the member's own view only, in the one-member count and in the all-members scan", async () => {
+    const repos = createRepos(supabase as SupabaseClient);
+    const { data, error } = await supabase.from("member_books").insert({ ...book(`Private ${RUN}`, null), visibility: "private" }).select("id").single();
+    if (error) throw new Error(error.message);
+    expect(await getPublishedBookCount(repos, memberId, null, "self")).toBe(2);
+    expect(await getPublishedBookCount(repos, memberId, null, "others")).toBe(1);
+    expect(await getPublishedBookCount(repos, memberId, null)).toBe(1);
+    const recipients = await getBadgeRecipients(repos, badgeType, levels);
+    expect(recipients.find((r) => r.memberId === memberId)?.occurrences).toBe(1);
+    await supabase.from("member_books").update({ visibility: "community" }).eq("id", data.id);
+    expect(await getPublishedBookCount(repos, memberId, null, "others")).toBe(2);
+    await supabase.from("member_books").delete().eq("id", data.id);
+  });
+
   it("counts live books only in the all-members scan the badge page uses", async () => {
     const recipients = await getBadgeRecipients(createRepos(supabase as SupabaseClient), badgeType, levels);
     const mine = recipients.find((r) => r.memberId === memberId);

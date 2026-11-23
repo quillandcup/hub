@@ -76,6 +76,38 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Detail.** \`docs/product/FINISHERS.md\`, "Photos", and the review in \`docs/trust/MILESTONE_PHOTOS_REVIEW.md\`.`,
   },
   {
+    slug: "choose-who-sees-each-of-your-books",
+    held: true,
+    audience: "product",
+    category: "new",
+    title: "Choose who can see each of your books",
+    summary: "Each book in My Writing now has a setting for who can see it: only you, other members, or anyone on the web.",
+    body: `In **My Writing**, under **Books**, each book has a small lock, house or globe beside it. Click it to change who can see that book:
+
+- **Lock:** only you.
+- **House:** other members, on the Hedgie Bookshelf and on your profile.
+- **Globe:** anyone on the web, on the public Hedgie Bookshelf.
+
+Books already on the Hedgie Bookshelf start at the globe, because that list was already public. You can change any of them whenever you like.
+
+A book set to the lock is hidden from other members: it is not on the Bookshelf, on your profile or in search, and it does not count toward your Published Author badge for anyone else.
+
+On the public Hedgie Bookshelf, a book shows its cover, its title, the author name you chose for it and a link to where to get it. That name is the pen name for the book, or else your display name. If you have neither, the book shows with no author name, and you can add a display name in Settings.`,
+  },
+  {
+    slug: "book-visibility-and-public-bookshelf",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "new",
+    title: "Each book has a level, and the public Hedgie Bookshelf is a page block",
+    summary: "A Bookshelf book now has the lock, house and globe of a project, and the first public surface for books is a block of the page builder.",
+    body: `A book (\`member_books.visibility\`, default public, since the list it came from was public) is private, community or public, and the web gets books through a page block, the \`bookshelf\` module's Hedgie Bookshelf, instead of a route of its own.
+
+- **Rule.** Every reader of books holds the level back, whoever asks. Readers take the viewer, the member being acted as: \`BookRepository.shelf\`, \`ofMember\` and \`search\`; counts and the Published step leave private books out, and the Published Author badge counts every book only for the member's own view. A public reader uses \`publicShelf\` and \`isPublicCover\` with the service role and never reads the legal name: the author is the book's pen name, else the display name, else none.
+- **Hooks.** The module (\`src/modules/bookshelf/page-blocks/\`), \`VisibilityControl\` with \`describeBookLevel\`, and the one-time heads-up, the \`book_visibility_notice\` kind, which starts in dry run behind its flag.
+- **Detail.** \`docs/product/WRITER_PROFILES.md\`, "The public Hedgie Bookshelf".`,
+  },
+  {
     slug: "page-checks-in-ci",
     date: "2026-11-22",
     audience: "engineering",

@@ -97,6 +97,13 @@ export const NOTIFICATION_KINDS = [
       "A short note, at most once a week, when we have added or improved something. Nothing is sent in quiet weeks. The full list is on the What's new page.",
     defaultChannels: ["slack", "in_app"],
   },
+  {
+    id: "book_visibility_notice",
+    category: "News about the Hub",
+    label: "Your books on the Hedgie Bookshelf",
+    description: "A one-time note when your published books are shown on the public Hedgie Bookshelf, with the link to hide them or limit them to members in My Writing.",
+    defaultChannels: ["slack", "in_app"],
+  },
   // Hub chat. Off for everyone until they turn on "Hub chat is my main place" (Settings -> Notifications), which writes
   // their choices for these three kinds: a bridged conversation is a real Slack one, and Slack already tells them.
   {

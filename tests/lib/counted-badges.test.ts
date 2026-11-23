@@ -28,12 +28,13 @@ const allLevels = allTypes.flatMap(levels);
 
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test", firstJoinedAt: "2026-03-01T15:00:00Z" };
 let n = 0;
-const book = (memberId: string, publishedDate: string, deleted = false) => ({
+const book = (memberId: string, publishedDate: string, deleted = false, visibility: "private" | "community" | "public" = "public") => ({
   id: `book_${String(++n).padStart(12, "0")}`,
   member_id: memberId,
   title: "A Fake Book",
   published_date: publishedDate,
   cover_asset_id: null,
+  visibility,
   ...(deleted ? { deleted_at: "2026-11-01T00:00:00Z" } : {}),
 });
 const reposWith = (books: ReturnType<typeof book>[], members: { id: string; name: string; email: string; firstJoinedAt: string | null }[] = [ADA]) =>
@@ -103,16 +104,44 @@ describe("the date rule for books (publishedBookCount, via reachedWhileMember)",
     expect(await published_(repos, ADA.firstJoinedAt)).toEqual(["2x Published Author"]);
     // Every book from before: no badge at all (the books are still on the Bookshelf).
     expect(await published_(reposWith([book(ADA.id, "2025-01-01")]), ADA.firstJoinedAt)).toEqual([]);
-    expect(await repos.books.liveDates(ADA.id)).toHaveLength(3);
+    expect(await repos.books.liveDates(ADA.id, "self")).toHaveLength(3);
     // No join date: every live book counts.
     expect(await published_(reposWith([book(ADA.id, "2001-01-01"), book(ADA.id, "2002-01-01")]), null)).toEqual(["2x Published Author"]);
   });
 
-  it("is the same for every viewer: books are public on the Bookshelf, so the count has no private side", async () => {
-    const repos = reposWith([book(ADA.id, "2026-03-01"), book(ADA.id, "2026-03-05")]);
+  it("is the same for every viewer while every book is shown to others", async () => {
+    const repos = reposWith([book(ADA.id, "2026-03-01"), book(ADA.id, "2026-03-05", false, "community")]);
     const as = async (viewer: "self" | "others") => (await getMemberBadges(repos, ADA.id, 0, ADA.firstJoinedAt, viewer)).map((b) => b.levelName);
     expect(await as("self")).toEqual(await as("others"));
     expect(await as("others")).toEqual(["2x Published Author"]);
+  });
+
+  it("counts a private book for the member's own view and for nobody else's, so a badge never gives away a private book", async () => {
+    const repos = reposWith([book(ADA.id, "2026-03-01"), book(ADA.id, "2026-03-05", false, "private"), book(ADA.id, "2026-03-09", false, "private")]);
+    const as = async (viewer?: "self" | "others") => (await getMemberBadges(repos, ADA.id, 0, ADA.firstJoinedAt, viewer)).filter((b) => b.badgeType.key === "published_author").map((b) => b.levelName);
+    expect(await as("self")).toEqual(["3x Published Author"]);
+    expect(await as("others")).toEqual(["Published Author"]);
+    // The default is the safe one.
+    expect(await as()).toEqual(["Published Author"]);
+    expect(await getPublishedBookCount(repos, ADA.id, ADA.firstJoinedAt, "self")).toBe(3);
+    expect(await getPublishedBookCount(repos, ADA.id, ADA.firstJoinedAt)).toBe(1);
+    // A member with only private books has no badge for anyone but themselves.
+    const onlyPrivate = reposWith([book(ADA.id, "2026-03-05", false, "private")]);
+    expect(await getMemberBadges(onlyPrivate, ADA.id, 0, ADA.firstJoinedAt, "others")).toEqual([]);
+    expect((await getMemberBadges(onlyPrivate, ADA.id, 0, ADA.firstJoinedAt, "self")).map((b) => b.levelName)).toEqual(["Published Author"]);
+  });
+
+  it("keeps the date rule for the books others may see: one from before the member joined still does not count", async () => {
+    const repos = reposWith([book(ADA.id, "2026-02-28"), book(ADA.id, "2026-03-01"), book(ADA.id, "2026-04-01", false, "private")]);
+    expect(await getPublishedBookCount(repos, ADA.id, ADA.firstJoinedAt, "others")).toBe(1);
+    expect(await getPublishedBookCount(repos, ADA.id, ADA.firstJoinedAt, "self")).toBe(2);
+  });
+
+  it("leaves a private book out of the recipients list, which is read as others see it", async () => {
+    const bo = { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", email: "bo@example.test", firstJoinedAt: null };
+    const repos = reposWith([book(ADA.id, "2026-03-01"), book(ADA.id, "2026-03-02", false, "private"), book(bo.id, "2026-03-01", false, "private")], [ADA, bo]);
+    const recipients = await getBadgeRecipients(repos, published, levels(published));
+    expect(recipients.map((r) => [r.memberId, r.occurrences])).toEqual([[ADA.id, 1]]);
   });
 
   it("counts every member against their own join date in the recipients list, past 1,000 members", async () => {
