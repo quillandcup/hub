@@ -159,10 +159,14 @@ describe("mapKajabiPage", () => {
     expect(pictures.map((p) => p.zipName)).toContain("bg.jpg");
   });
 
-  it("boxes a section whose text block has its own background", () => {
+  it("puts a card around a text block that has its own background, not around the whole section", () => {
     const settings = exportSettings();
     (settings.current.sections as Record<string, { blocks: Record<string, { settings: Record<string, unknown> }> }>).main_section.blocks["1600000000100_0"].settings.background_color = "#ffffff";
-    expect(map(settings).section.props.card).toBe(true);
+    const { section, inner } = map(settings);
+    expect(section.props.card).toBe(false);
+    const card = inner.find((b) => b.type === "Section");
+    expect(card?.props).toMatchObject({ card: true, cardColor: "default" });
+    expect((card?.props.content as Puck[]).map((b) => b.type)).toContain("Heading");
   });
 
   it("refuses what is not a page export, and an export with nothing to import", () => {

@@ -100,6 +100,16 @@ function rgb(value: unknown): Rgb | null {
   if (fn && (fn[4] === undefined || Number(fn[4]) > 0)) return [Number(fn[1]), Number(fn[2]), Number(fn[3])];
   return null; // empty, transparent or unknown
 }
+/** The opacity of a colour value: 1 for hex and `rgb()`, the alpha of `rgba()`, 0 for empty or transparent. */
+function alphaOf(value: unknown): number {
+  const text = str(value).trim();
+  if (/^#/.test(text)) return rgb(text) ? 1 : 0;
+  const fn = /^rgba?\(\s*\d+[\s,]+\d+[\s,]+\d+(?:[\s,/]+([\d.]+))?\s*\)$/i.exec(text);
+  if (!fn) return 0;
+  return fn[1] === undefined ? 1 : Math.min(1, Math.max(0, Number(fn[1])));
+}
+/** Perceived lightness, 0 (black) to 1 (white). */
+const lightness = (c: Rgb) => (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
 const distance = (a: Rgb, b: Rgb) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 function nearest<K extends string>(color: Rgb, palette: Record<K, Rgb>): { key: K; exact: boolean } {
   let best = { key: Object.keys(palette)[0] as K, d: Infinity };
@@ -197,11 +207,11 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
         if (clean(node.value ?? "")) pending.push(`<p>${clean(node.value ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</p>`);
         continue;
       }
-      if (tag && /^h[1-4]$/.test(tag)) {
+      if (tag && /^h[1-6]$/.test(tag)) {
         const text = clean(textOf(node));
         if (!text) continue;
         flush();
-        const level = tag === "h1" ? "h1" : tag === "h2" ? "h2" : "h3";
+        const level = tag === "h1" ? "h1" : tag === "h2" ? "h2" : "h3"; // h4 to h6 are our smallest heading
         out.push({ type: "Heading", props: { id: id("Heading"), text, level, align: styleAlign(node) ?? align } });
       } else if (tag === "hr" || (tag === "div" && (node.childNodes ?? []).every((c) => c.tagName === "hr" || (c.nodeName === "#text" && !clean(c.value ?? ""))) && (node.childNodes ?? []).some((c) => c.tagName === "hr"))) {
         flush();
@@ -460,7 +470,70 @@ function unsafeCodeReason(code: string): string | null {
 }
 const codeHosts = (code: string) => [...code.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase());
 
+// ---- text colours -----------------------------------------------------------------------------------------
+
+/** The brand plum Kajabi pages use for coloured text (the theme's primary here is a green, but the text colour chosen in the editor is this). */
+const PLUM_TEXT: Rgb = [166, 77, 121];
+
+/** How much of a block's text each colour (from `style="color: ..."`, inherited by what is inside) covers, by number of characters. "" is the page's own colour. */
+function textColourShares(html: string): Map<string, number> {
+  const shares = new Map<string, number>();
+  const walk = (nodes: Node5[], inherited: string) => {
+    for (const node of nodes) {
+      if (node.nodeName === "#text") {
+        const n = clean(node.value ?? "").length;
+        if (n > 0) shares.set(inherited, (shares.get(inherited) ?? 0) + n);
+        continue;
+      }
+      if (!node.tagName || NOT_TEXT.has(node.tagName)) continue;
+      const m = /(?:^|;)\s*color:\s*(#[0-9a-f]{3,6}|rgba?\([^)]*\))/i.exec(attr(node, "style"));
+      walk(node.childNodes ?? [], m && rgb(m[1]) ? m[1].toLowerCase() : inherited);
+    }
+  };
+  walk(parseFragment(html.replace(/&nbsp;|\u00a0/g, " ")).childNodes as unknown as Node5[], "");
+  return shares;
+}
+
+/**
+ * The text tone of a section from the text blocks in it: "plum" when plum covers at least half the words, else the theme's own. Any
+ * other colour that isn't a grey is not carried over, and said once.
+ */
+function sectionTextTone(htmls: string[]): { tone: "auto" | "plum"; others: string[] } {
+  const total = new Map<string, number>();
+  for (const html of htmls) for (const [k, v] of textColourShares(html)) total.set(k, (total.get(k) ?? 0) + v);
+  let all = 0;
+  let plum = 0;
+  const others = new Set<string>();
+  for (const [colour, n] of total) {
+    all += n;
+    const c = colour ? rgb(colour) : null;
+    if (!c) continue;
+    if (distance(c, PLUM_TEXT) <= 60) plum += n;
+    else if (Math.max(...c) - Math.min(...c) > 24) others.add(colour);
+  }
+  return { tone: all > 0 && plum / all >= 0.5 ? "plum" : "auto", others: [...others] };
+}
+
 // ---- the page ------------------------------------------------------------------------------------------------
+
+/** A card's colour and softness from a Kajabi fill: the nearest theme colour (white and solid is the standard card), and a see-through fill lets the picture show faintly. */
+function cardStyle(notes: ImportNote[], fill: unknown): { cardColor: string; cardSoft: boolean } {
+  const color = rgb(fill);
+  if (!color) return { cardColor: "default", cardSoft: false };
+  const alpha = alphaOf(fill);
+  // A see-through fill is judged as it looks over a light page: the colour mixed with white by its opacity.
+  const shown = color.map((c) => Math.round(c * alpha + 255 * (1 - alpha))) as Rgb;
+  const pick = nearest(shown, SECTION_COLORS);
+  if (!pick.exact) notes.push({ kind: "approximated", text: `The card colour ${str(fill)} is shown as the nearest of our colours.` });
+  if (alpha < 0.95) notes.push({ kind: "approximated", text: "A card is a little see-through here (80%), where Kajabi's is a different amount." });
+  return { cardColor: pick.key === "white" && alpha >= 0.95 ? "default" : pick.key, cardSoft: alpha < 0.95 };
+}
+
+/** A Section's padding with no space above and below (the card Section inside a band that has the space already). */
+const zeroVertical = () => {
+  const p = presetPadding("medium");
+  return { paddingDesktop: { ...p.paddingDesktop, top: 0, bottom: 0 }, paddingMobile: { ...p.paddingMobile, top: 0, bottom: 0 } };
+};
 
 export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions): KajabiMapResult {
   const current = isObject(settingsData) && isObject(settingsData.current) ? settingsData.current : null;
@@ -485,6 +558,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const header = sections.header;
   const headerHidden = header && isObject(header.settings) && flag(header.settings.hide_on_desktop) && flag(header.settings.hide_on_mobile);
   let headerLogo: Puck | null = null;
+  const headerOverlays = Boolean(header && isObject(header.settings) && str(header.settings.position) === "overlay");
   if (header && !headerHidden) {
     for (const key of Array.isArray(header.block_order) ? (header.block_order as string[]) : []) {
       const b = header.blocks?.[key];
@@ -495,7 +569,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         if (!clean(str(s.image_alt)) || clean(str(s.image_alt)) === "Header Logo") notes.push({ kind: "todo", text: "The picture at the top has no description: add one in the editor (or mark it decorative) before publishing." });
         headerLogo = {
           type: "Image",
-          props: { id: id("Image"), imageAssetId: pictures.add(s.logo), alt: clean(str(s.image_alt)) === "Header Logo" ? "" : clean(str(s.image_alt)), decorative: false, size: width <= 220 ? "small" : width <= 480 ? "medium" : "full", rounded: false, align: str(s.alignment) === "left" ? "left" : str(s.alignment) === "right" ? "right" : "center" },
+          props: { id: id("Image"), imageAssetId: pictures.add(s.logo), alt: clean(str(s.image_alt)) === "Header Logo" ? "" : clean(str(s.image_alt)), decorative: false, size: width <= 320 ? "small" : width <= 480 ? "medium" : "full", rounded: false, align: str(s.alignment) === "left" ? "left" : str(s.alignment) === "right" ? "right" : "center" },
         };
       } else if (b.type === "logo") notes.push({ kind: "left_out", text: "The header shows the site name as text; it is not imported." });
       else notes.push({ kind: "left_out", text: `Header block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported.` });
@@ -525,7 +599,15 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const inner: Puck[] = [];
     const widths: number[] = [];
     let boxed = false;
-    if (first && headerLogo) inner.push(headerLogo);
+    let cardFill: unknown = "";
+    // A fill on every block of the section is the section's card; a fill on only some is a card around each of those blocks.
+    const shown = blockOrder.filter((k) => !flag(blocks[k].hidden) && !(flag(settingsOf(blocks[k]).hide_on_desktop) && flag(settingsOf(blocks[k]).hide_on_mobile)));
+    const hasFill = (k: string) => ["text", "form"].includes(str(blocks[k].type)) && rgb(settingsOf(blocks[k]).background_color) !== null;
+    const wholeCard = shown.length > 0 && shown.every(hasFill);
+    const words: string[] = [];
+    // The header's logo is over the page's top picture in Kajabi ("overlay"): where the picture is this section's, it stays out of the card.
+    const logoOutside = first && headerLogo !== null && headerOverlays && str(s.bg_type).includes("image") && Boolean(str(s.bg_image));
+    if (first && headerLogo && !logoOutside) inner.push(headerLogo);
     first = false;
 
     const consumed = new Set<string>();
@@ -632,7 +714,23 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
       blockCount += inner.length - before;
       // The width of a card or pricing column is its share of a row, which the grid takes care of.
       if (width !== null && type !== "card" && type !== "pricing") widths.push(width);
-      if (rgb(b.background_color) && (type === "text" || type === "form")) boxed = true;
+      const filled = (type === "text" || type === "form") && rgb(b.background_color) !== null;
+      if (filled && wholeCard) {
+        boxed = true;
+        cardFill ||= b.background_color;
+      } else if (filled) {
+        // Only this block has a fill: it becomes a card of its own, as wide as the block, with its own text colour.
+        const made = inner.splice(before);
+        const own = sectionTextTone([str(b.text)]);
+        if (own.others.length > 0) notes.push({ kind: "approximated", text: `Coloured text (${own.others.join(", ")}) follows the Hub's text colours here; only plum is kept.` });
+        inner.push({
+          type: "Section",
+          props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "none", overlay: "none", width: width !== null && width <= 7 ? "narrow" : width !== null && width <= 9 ? "medium" : "wide", ...zeroVertical(), align: alignOf(b.text_align) === "center" ? "center" : "left", place: "center", card: true, ...cardStyle(notes, b.background_color), textTone: own.tone, content: made },
+        });
+      }
+      if (!filled || wholeCard) {
+        if (type === "text" || type === "form" || type === "feature" || type === "cta") words.push(str(b.text));
+      }
     }
 
     if (inner.length === 0) {
@@ -644,13 +742,56 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const counts = new Map<number, number>();
     for (const w of widths) counts.set(w, (counts.get(w) ?? 0) + 1);
     const common = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 12;
-    const bgColor = rgb(s.background_color);
-    const bgPick = bgColor ? nearest(bgColor, SECTION_COLORS) : { key: "white" as const, exact: true };
-    if (bgColor && !bgPick.exact) notes.push({ kind: "approximated", text: `Section background ${str(s.background_color)} is shown as the nearest of our colours.` });
     const bgPicture = str(s.bg_type).includes("image") ? pictures.add(s.bg_image) : null;
     if (str(s.bg_video)) notes.push({ kind: "left_out", text: "A section background video is not imported." });
-    if (bgPicture) notes.push({ kind: "approximated", text: "A dark shade was added over the section's background picture so the text stays readable." });
+    const bgColor = rgb(s.background_color);
+    const tint = bgColor ? { color: bgColor, alpha: alphaOf(s.background_color) } : null;
+    // Over a picture, the section's colour is a tint on it (a light one with a low opacity washes the picture out); without one it is the background.
+    let overlay: "none" | "dark" | "light" | "cream" = "none";
+    if (bgPicture) {
+      if (tint && lightness(tint.color) >= 0.6) overlay = tint.alpha >= 0.6 ? "light" : "cream";
+      else overlay = "dark";
+      notes.push({
+        kind: "approximated",
+        text: tint
+          ? `The section's picture has a ${lightness(tint.color) >= 0.6 ? "light" : "dark"} tint in Kajabi (${str(s.background_color)}); it is a ${overlay === "dark" ? "dark" : overlay === "light" ? "light" : "soft cream"} shade here, which is the nearest we offer (the exact colour and strength are not carried over).`
+          : "A dark shade was added over the section's background picture so the text stays readable.",
+      });
+    }
+    const bgPick = bgColor && !bgPicture ? nearest(bgColor, SECTION_COLORS) : { key: "white" as const, exact: true };
+    if (bgColor && !bgPicture && !bgPick.exact) notes.push({ kind: "approximated", text: `Section background ${str(s.background_color)} is shown as the nearest of our colours.` });
     const padding = ((num(isObject(s.padding_desktop) ? s.padding_desktop.top : 0) ?? 0) + (num(isObject(s.padding_desktop) ? s.padding_desktop.bottom : 0) ?? 0)) / 2;
+
+    // The card: the block's own fill, as the nearest theme colour; a fill with some transparency lets the picture show faintly through.
+    const { cardColor, cardSoft } = boxed ? cardStyle(notes, cardFill) : { cardColor: "default", cardSoft: false };
+    // Text colour: plum is kept where most of the words are plum; the other colours follow the theme.
+    const { tone, others } = sectionTextTone(words);
+    if (others.length > 0) notes.push({ kind: "approximated", text: `Coloured text (${others.join(", ")}) follows the Hub's text colours here; only plum is kept.` });
+    const place = str(s.horizontal) === "left" ? "left" : str(s.horizontal) === "right" ? "right" : "center";
+    const alignCount = new Map<string, number>();
+    for (const k of blockOrder) {
+      const align = str(settingsOf(blocks[k]).text_align);
+      if (align) alignCount.set(align, (alignCount.get(align) ?? 0) + 1);
+    }
+    const textAlign = [...alignCount.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] === "center" ? "center" : "left";
+    // Kajabi's "full width" lets the blocks spread; a block of half the row is still half the page, so only a section of wide blocks is full width.
+    const sectionWidth = flag(s.full_width) && common >= 11 ? "full" : common <= 6 || (boxed && common === 7) ? "narrow" : common <= 9 ? "medium" : "wide";
+    const spacing = presetPadding(padding >= 60 ? "large" : "medium");
+
+    if (logoOutside && headerLogo) {
+      // The picture and its shade are the band; the logo sits on it, and the card is a Section of its own inside, so the logo is not in the card.
+      const logoAlign = place === "center" ? "center" : (headerLogo.props.align as string);
+      headerLogo.props.align = logoAlign;
+      const inside: Puck = {
+        type: "Section",
+        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "none", overlay: "none", width: sectionWidth, ...zeroVertical(), align: textAlign, place, card: boxed, cardColor, cardSoft, textTone: tone, content: inner },
+      };
+      content.push({
+        type: "Section",
+        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: bgPick.key, backgroundImageAssetId: bgPicture ?? undefined, overlay, width: "wide", ...spacing, align: "center", content: [headerLogo, inside] },
+      });
+      continue;
+    }
     content.push({
       type: "Section",
       props: {
@@ -658,11 +799,15 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         id: id("Section"),
         background: bgPick.key,
         backgroundImageAssetId: bgPicture ?? undefined,
-        overlay: bgPicture ? "dark" : "none",
-        width: flag(s.full_width) ? "full" : common <= 6 ? "narrow" : common <= 9 ? "medium" : "wide",
-        ...presetPadding(padding >= 60 ? "large" : "medium"),
-        align: str(s.horizontal) === "left" ? "left" : "center",
+        overlay,
+        width: sectionWidth,
+        ...spacing,
+        align: textAlign,
+        place,
         card: boxed,
+        cardColor,
+        cardSoft,
+        textTone: tone,
         content: inner,
       },
     });

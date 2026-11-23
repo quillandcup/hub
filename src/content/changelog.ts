@@ -404,6 +404,22 @@ The check only lists them; nothing happens to the member or the import.`,
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
   },
   {
+    slug: "kajabi-import-looks-like-the-original",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "improved",
+    title: "Kajabi page import: pages look much more like the original",
+    summary: "An imported Kajabi page now keeps its light wash over the top picture, the colour and side of its text card, the logo above the card at a modest size, and plum text.",
+    body: `The page builder's Section block gained a few options, and the import uses them.
+
+- **Soft cream shade** over a section's picture, for a picture that should stay visible.
+- **Card colour**, and a card that lets the picture show faintly through, instead of only a white card.
+- **Left, middle or right** for content narrower than the page.
+- **Plum text** for a section.
+
+The import picks them from the Kajabi export: the colour laid over the picture, the colour of the text block's background, which side the block sits on, how wide it is, and the logo's size. The logo sits on the picture, outside the card. Fonts and exact spacing still follow the Hub's theme, and the import report lists what was approximated.`,
+  },
+  {
     slug: "page-builder-accordion-faq-pricing-social",
     date: "2026-11-23",
     audience: "staff",

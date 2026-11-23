@@ -6,7 +6,7 @@ import OptInForm, { type OptInFormProps } from "./OptInForm";
 import { sectionPadding } from "@/lib/landing/layout";
 import { SocialMark } from "./social-marks";
 import { SOCIAL_NETWORKS, socialNetworkOf } from "./social-networks";
-import { background, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
+import { background, BACKGROUNDS, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
 
 /**
  * The page builder's blocks as plain components: the same ones render in the editor's canvas and on the public page
@@ -66,12 +66,20 @@ const alignClass = (a: unknown) => pick(ALIGN, a, "left");
 
 // ---- Section -------------------------------------------------------------------------------------------------
 
-const OVERLAY = { none: "", dark: "bg-black/55", light: "bg-white/70" } as const;
+/** The shade over a Section's picture. `cream` is the soft light one (the brand's cream at half strength), for a picture that should stay visible. */
+const OVERLAY = { none: "", dark: "bg-black/55", light: "bg-white/70", cream: "bg-cream/50" } as const;
+/** Light shades keep dark text, whatever the picture. */
+const LIGHT_OVERLAYS: readonly string[] = ["light", "cream"];
+
+/** Where the content sits in the band when it is narrower than the page: on the left, in the middle (the default) or on the right. */
+const PLACE = { left: "mr-auto", center: "mx-auto", right: "ml-auto" } as const;
+/** A card in one of the theme's colours, solid or softened (80%) so the picture shows faintly through. Full class strings, so Tailwind finds them. */
+const CARD_SOFT = { white: "bg-white/80", cream: "bg-cream/80", blush: "bg-blush/80", mist: "bg-mist-200/80", plum: "bg-plum-700/80", brownMid: "bg-brown/80", brown: "bg-brown-deep/80", charcoal: "bg-cup/80" } as const;
 
 export type SectionProps = {
   background: string;
   backgroundImageAssetId?: string;
-  overlay: "none" | "dark" | "light";
+  overlay: "none" | "dark" | "light" | "cream";
   width: string;
   /** Inner space in px, per size (src/lib/landing/layout.ts); a missing or invalid side takes the default. */
   paddingDesktop?: unknown;
@@ -80,6 +88,14 @@ export type SectionProps = {
   hideOnMobile?: boolean;
   align: "left" | "center";
   card: boolean;
+  /** The card's colour: a theme background (`BACKGROUNDS`), or `default` for the standard card. */
+  cardColor?: string;
+  /** Let the picture show faintly through the card (80% solid). */
+  cardSoft?: boolean;
+  /** Where the content sits when it is narrower than the page. Unset means the middle. */
+  place?: "left" | "center" | "right";
+  /** `plum` sets the text in the brand's plum; `auto` leaves it to the background. */
+  textTone?: "auto" | "plum";
   fadeIn: boolean;
   content: Slot;
   /** Set by the editor's canvas only: a hidden section is dimmed there instead of hidden. */
@@ -90,12 +106,26 @@ export type SectionProps = {
 const SECTION_GRID = "grid grid-cols-12 gap-x-4 @split:gap-x-6";
 
 /** A full-width band with a background colour or picture, and a 12-column grid of other blocks inside it. */
-export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, fadeIn, content: Content, editing }: SectionProps) {
+export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, content: Content, editing }: SectionProps) {
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
-  const text = image && overlay === "dark" ? "text-white" : image && overlay === "light" ? "text-ink" : theme.text;
-  const scope = image ? (overlay === "light" ? "landing-light" : "") : theme.scope;
+  const light = LIGHT_OVERLAYS.includes(overlay);
+  const text = image && overlay === "dark" ? "text-white" : image && light ? "text-ink" : theme.text;
+  const scope = image ? (light ? "landing-light" : "") : theme.scope;
+  const tone = textTone === "plum" ? "text-accent-ink" : "";
+  // A card in a theme colour carries its own readable text (and keeps light text light in dark mode); the standard card is the page's white.
+  const cardTheme = cardColor && cardColor !== "default" && cardColor in BACKGROUNDS ? background(cardColor) : null;
+  const cardClass = cardTheme ? `${cardSoft ? CARD_SOFT[cardColor as keyof typeof CARD_SOFT] : cardTheme.bg} ${cardTheme.text} ${cardTheme.scope}` : `${cardSoft ? "bg-card/80" : "bg-card"} text-ink`;
+  // Content narrower than the page sits at `place`: the frame is the wide column and the content is its left, middle or right.
+  const placed = place === "left" || place === "right";
+  const body = card ? (
+    <div className={`rounded-xl p-6 shadow-lg @pair:p-10 ${cardClass}`}>
+      <Content className={SECTION_GRID} collisionAxis="dynamic" />
+    </div>
+  ) : (
+    <Content className={SECTION_GRID} collisionAxis="dynamic" />
+  );
   const space = sectionPadding({ paddingDesktop, paddingMobile });
   return (
     <section
@@ -103,14 +133,8 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
       style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}
     >
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}
-      <div className={`relative mx-auto ${pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")}`}>
-        {card ? (
-          <div className="rounded-xl bg-card p-6 text-ink shadow-lg @pair:p-10">
-            <Content className={SECTION_GRID} collisionAxis="dynamic" />
-          </div>
-        ) : (
-          <Content className={SECTION_GRID} collisionAxis="dynamic" />
-        )}
+      <div className={`relative mx-auto ${placed ? WIDTHS.wide.cls : pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")} ${tone}`}>
+        {placed ? <div className={`${pick(WIDTHS, width, "wide").cls} ${pick(PLACE, place, "center")}`}>{body}</div> : body}
       </div>
     </section>
   );

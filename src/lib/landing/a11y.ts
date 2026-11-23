@@ -1,4 +1,5 @@
 import { pageBlocks } from "@/components/landing/config";
+import { BACKGROUNDS, type BackgroundKey } from "@/components/landing/theme";
 import { buttonStyleProblems } from "./button-contrast";
 import { normalizeLandingData, parseEmbed, safeHref } from "./data";
 import { featuredOfferIndex } from "./journey";
@@ -34,6 +35,14 @@ function walk(content: unknown[], visit: (node: Node, place: Place) => void, par
       }
     }
   }
+}
+
+const isBackground = (v: unknown): v is BackgroundKey => typeof v === "string" && Object.hasOwn(BACKGROUNDS, v);
+/** Whether what sits right behind a Section's words is dark: its card when it has a coloured one, else its picture (with a dark shade) or its background colour. */
+function sectionIsDark(p: Record<string, unknown>): boolean {
+  if (p.card === true) return isBackground(p.cardColor) && p.cardColor !== "none" ? BACKGROUNDS[p.cardColor].dark : false;
+  if (str(p.backgroundImageAssetId)) return p.overlay === "dark";
+  return isBackground(p.background) ? BACKGROUNDS[p.background].dark : false;
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -193,6 +202,7 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
       case "Section":
         if (str(p.backgroundImageAssetId) && p.overlay === "none") issues.push({ severity: "warning", block: "Section", message: "Text over a picture with no shade can be hard to read. Add a dark or light shade." });
         if (p.hideOnDesktop === true && p.hideOnMobile === true) issues.push({ severity: "warning", block: "Section", message: "A section is hidden on desktop and on mobile, so nobody sees it." });
+        if (p.textTone === "plum" && sectionIsDark(p)) issues.push({ severity: "warning", block: "Section", message: "Plum text on a dark background or dark card is hard to read. Use the background's own text colour, or a lighter background." });
         break;
       case "Countdown":
         if (!str(p.targetAt)) issues.push({ severity: "error", block: "Countdown", message: "The countdown has no date." });
