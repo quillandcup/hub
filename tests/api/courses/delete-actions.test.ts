@@ -37,6 +37,7 @@ describe('deleteCourse', () => {
     ids.kajabi = await course('kajabi', { source: 'kajabi', source_key: `${PREFIX}-k` })
     ids.published = await course('published', { is_draft: false })
     ids.used = await course('used')
+    ids.activity = await course('activity')
     const moduleId = (await supabase.from('course_modules').insert({ course_id: ids.draft, title: 'M', position: 1, publishing_option: 'draft', state: 'hidden', source: 'hub' }).select('id').single()).data!.id
     await supabase.from('course_lessons').insert([
       { course_id: ids.draft, module_id: moduleId, title: 'L', position: 1, publishing_option: 'draft', state: 'hidden', source: 'hub' },
@@ -44,6 +45,11 @@ describe('deleteCourse', () => {
     ])
     const member = (await supabase.from('members').select('id').limit(1).single()).data!.id
     await supabase.from('course_access_grants').insert({ member_id: member, course_id: ids.used })
+    const lesson = (await supabase.from('course_lessons').insert({ course_id: ids.activity, title: 'Tried out', position: 1, publishing_option: 'draft', state: 'hidden', source: 'hub' }).select('id').single()).data!.id
+    await supabase.from('lesson_progress').insert({ member_id: member, lesson_id: lesson, completed_at: new Date().toISOString() })
+    await supabase.from('lesson_comments').insert({ lesson_id: lesson, member_id: member, body: 'A test comment' })
+    ids.activityLesson = lesson
+    ids.member = member
   })
   beforeEach(() => {
     auth.admin = true
@@ -60,10 +66,10 @@ describe('deleteCourse', () => {
     expect(revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('refuses a course imported from Kajabi, a published one, and one members have access to, and keeps them', async () => {
+  it('refuses a course imported from Kajabi, a published one, and one members have access to (saying how many), and keeps them', async () => {
     expect(await deleteCourse(ids.kajabi)).toEqual({ error: expect.stringMatching(/comes from Kajabi/) })
     expect(await deleteCourse(ids.published)).toEqual({ error: expect.stringMatching(/Unpublish it first/) })
-    expect(await deleteCourse(ids.used)).toEqual({ error: expect.stringMatching(/have access to this course/) })
+    expect(await deleteCourse(ids.used)).toEqual({ error: expect.stringMatching(/Members have access to it \(1 with a grant\)/) })
     for (const id of [ids.kajabi, ids.published, ids.used]) expect(await exists(id)).toBe(true)
     expect(revalidatePath).not.toHaveBeenCalled()
   })
@@ -76,6 +82,14 @@ describe('deleteCourse', () => {
     auth.client = { rpc: async () => ({ data: null, error: { message: 'not_editable' } }) }
     expect(await deleteCourse(ids.draft)).toEqual({ error: "You can't delete this course." })
     expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('deletes an unused draft that has progress and a comment on its lessons, taking them with it', async () => {
+    expect(await deleteCourse(ids.activity)).toEqual({ ok: true })
+    expect(await exists(ids.activity)).toBe(false)
+    expect((await supabase.from('lesson_progress').select('lesson_id').eq('lesson_id', ids.activityLesson)).data).toEqual([])
+    expect((await supabase.from('lesson_comments').select('id').eq('lesson_id', ids.activityLesson)).data).toEqual([])
+    expect(revalidatePath).toHaveBeenCalledWith('/admin/courses')
   })
 
   it('does nothing for someone who is not an admin', async () => {

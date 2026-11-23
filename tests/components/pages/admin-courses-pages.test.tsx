@@ -38,7 +38,7 @@ vi.mock("@/lib/courses/take-over", () => ({ loadTakeOverPreview: (...a: unknown[
 vi.mock("@/app/(admin)/admin/courses/take-over-actions", () => ({ takeOverCourse: vi.fn() }));
 
 const loadDeletePreview = vi.fn();
-vi.mock("@/lib/courses/delete", () => ({ loadDeletePreview: (...a: unknown[]) => loadDeletePreview(...a) }));
+vi.mock("@/lib/courses/delete", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/courses/delete")>()), loadDeletePreview: (...a: unknown[]) => loadDeletePreview(...a) }));
 vi.mock("@/app/(admin)/admin/courses/delete-actions", () => ({ deleteCourse: vi.fn() }));
 const loadDuplicatePreview = vi.fn();
 vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
@@ -76,7 +76,7 @@ beforeEach(() => {
   loadTakeOverPreview.mockReset();
   loadTakeOverPreview.mockResolvedValue(null);
   loadDeletePreview.mockReset();
-  loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "kajabi", isDraft: false, members: 3, activity: 0 });
+  loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "kajabi", isDraft: false, access: 3, grants: 0, progress: 0, comments: 0, chatVideos: 0 });
   loadDuplicatePreview.mockReset();
   loadDuplicatePreview.mockResolvedValue({ modules: 2, lessons: 7, withVideo: 5, downloads: 1, tooDeep: false });
 });

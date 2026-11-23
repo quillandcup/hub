@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import type { DeletePreview } from "@/lib/courses/delete";
+import { deleteLosses, type DeletePreview } from "@/lib/courses/delete";
 import { lifecycleConfirm } from "@/lib/lifecycle-actions";
 import { deleteCourse } from "../delete-actions";
 
@@ -19,7 +19,7 @@ export default function DeletePanel({ courseId, title, preview, open, onClose }:
     noun: "course",
     title,
     permanent: true,
-    detail: `Its ${plural(preview.modules, "module")} and ${plural(preview.lessons, "lesson")} are deleted with it. Videos and images stay in the library. This can't be undone.`,
+    detail: [`Its ${plural(preview.modules, "module")} and ${plural(preview.lessons, "lesson")} are deleted with it.`, deleteLosses(preview), "Videos and images stay in the library. This can't be undone."].filter(Boolean).join(" "),
   });
   if (!spec) return null;
 

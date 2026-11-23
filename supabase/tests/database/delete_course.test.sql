@@ -1,12 +1,12 @@
 -- pgTAP tests for deleting a course (20271123000000): only an admin; only a Hub-owned draft course that no member has access
--- to or has left anything on; the tree, downloads and old addresses go with it, other courses and the shared videos stay,
+-- to (progress, comments and chat video links on its lessons do not block, and go with it); the tree, downloads and old addresses go with it, other courses and the shared videos stay,
 -- and the audit log gets one entry for the course instead of one per module and lesson. Runs in one transaction that is
 -- rolled back, so it leaves the shared local DB untouched. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(22);
+SELECT plan(23);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'delcourse-alice@example.test'),
@@ -48,8 +48,13 @@ INSERT INTO public.course_lesson_files (lesson_id, source_key, filename, storage
   ('les_DelCourseO01', 'pgtap-del-file-2', 'a.pdf', 'pgtap/del/a.pdf');
 INSERT INTO public.course_access_grants (member_id, course_id) VALUES ('mbr_DelCourse0001', 'crs_DelCourse005');
 INSERT INTO public.course_access (member_id, course_id, starts_at, origin) VALUES ('mbr_DelCourse0001', 'crs_DelCourse006', now(), 'purchase');
+-- Stray activity on two unused drafts: progress and a comment on one, a comment and a chat message sharing a lesson's video on the other.
 INSERT INTO public.lesson_progress (member_id, lesson_id, completed_at) VALUES ('mbr_DelCourse0001', 'les_DelCourseP01', now());
-INSERT INTO public.lesson_comments (lesson_id, member_id, body) VALUES ('les_DelCourseC01', 'mbr_DelCourse0001', 'A question');
+INSERT INTO public.lesson_comments (lesson_id, member_id, body) VALUES ('les_DelCourseP01', 'mbr_DelCourse0001', 'A test comment'), ('les_DelCourseC01', 'mbr_DelCourse0001', 'A question');
+INSERT INTO public.chat_channels (id, kind, visibility, restricted, name, slack_channel_id) VALUES ('chn_DelCourse0001', 'channel', 'public', false, 'delcourse-open', 'PGTAP_DEL_OPEN');
+INSERT INTO public.chat_messages (id, channel_id, author_member_id, created_at, origin, slack_sync_status) VALUES ('msg_DelCourse0001', 'chn_DelCourse0001', 'mbr_DelCourse0001', now(), 'app', 'sent');
+INSERT INTO public.chat_message_contents (message_id, body) VALUES ('msg_DelCourse0001', 'Look at this lesson');
+INSERT INTO public.chat_message_videos (message_id, lesson_id) VALUES ('msg_DelCourse0001', 'les_DelCourseC01');
 
 -- A course that was published once and renamed, so it holds an old address; then unpublished.
 INSERT INTO public.courses (id, slug, title, source, source_key, is_draft) VALUES ('crs_DelCourse009', 'pgtap-del-old', 'Once live', 'hub', NULL, false);
@@ -82,9 +87,9 @@ INSERT INTO result SELECT 'kajabi', to_jsonb(pg_temp.failure($$SELECT public.del
 INSERT INTO result SELECT 'published', to_jsonb(pg_temp.failure($$SELECT public.delete_course('crs_DelCourse004')$$));
 INSERT INTO result SELECT 'grant', to_jsonb(pg_temp.failure($$SELECT public.delete_course('crs_DelCourse005')$$));
 INSERT INTO result SELECT 'access', to_jsonb(pg_temp.failure($$SELECT public.delete_course('crs_DelCourse006')$$));
-INSERT INTO result SELECT 'progress', to_jsonb(pg_temp.failure($$SELECT public.delete_course('crs_DelCourse007')$$));
-INSERT INTO result SELECT 'comment', to_jsonb(pg_temp.failure($$SELECT public.delete_course('crs_DelCourse008')$$));
 SELECT public.delete_course('crs_DelCourse001');
+SELECT public.delete_course('crs_DelCourse007');
+SELECT public.delete_course('crs_DelCourse008');
 SELECT public.delete_course('crs_DelCourse009');
 INSERT INTO result SELECT 'again', to_jsonb(pg_temp.failure($$SELECT public.delete_course('crs_DelCourse001')$$));
 RESET ROLE;
@@ -95,11 +100,21 @@ SELECT is((SELECT value FROM result WHERE label = 'kajabi'), '"not_deletable"'::
 SELECT is((SELECT value FROM result WHERE label = 'published'), '"published"'::jsonb, 'a published course is refused until it is unpublished');
 SELECT is((SELECT value FROM result WHERE label = 'grant'), '"has_members"'::jsonb, 'a course with a grant is refused');
 SELECT is((SELECT value FROM result WHERE label = 'access'), '"has_members"'::jsonb, 'a course with access is refused');
-SELECT is((SELECT value FROM result WHERE label = 'progress'), '"has_activity"'::jsonb, 'a course a member has progress on is refused');
-SELECT is((SELECT value FROM result WHERE label = 'comment'), '"has_activity"'::jsonb, 'a course with a comment on a lesson is refused');
 SELECT is((SELECT value FROM result WHERE label = 'again'), '"not_found"'::jsonb, 'a deleted course is gone: a second try is not found');
-SELECT is((SELECT count(*)::int FROM public.courses WHERE id IN ('crs_DelCourse003', 'crs_DelCourse004', 'crs_DelCourse005', 'crs_DelCourse006', 'crs_DelCourse007', 'crs_DelCourse008')), 6, 'every refused course is still there');
-SELECT is((SELECT count(*)::int FROM public.course_lessons WHERE course_id IN ('crs_DelCourse007', 'crs_DelCourse008')), 2, 'with its lessons');
+SELECT is((SELECT count(*)::int FROM public.courses WHERE id IN ('crs_DelCourse003', 'crs_DelCourse004', 'crs_DelCourse005', 'crs_DelCourse006')), 4, 'every refused course is still there');
+
+-- Stray activity does not block: both drafts went, with the progress, comments and chat video link on their lessons; the chat message stays.
+SELECT is((SELECT count(*)::int FROM public.courses WHERE id IN ('crs_DelCourse007', 'crs_DelCourse008')), 0, 'a draft with progress and comments, and one with a comment and a chat video link, can be deleted');
+SELECT is(
+  (SELECT jsonb_build_object('progress', (SELECT count(*) FROM public.lesson_progress WHERE lesson_id IN ('les_DelCourseP01', 'les_DelCourseC01')),
+                             'comments', (SELECT count(*) FROM public.lesson_comments WHERE lesson_id IN ('les_DelCourseP01', 'les_DelCourseC01')),
+                             'links', (SELECT count(*) FROM public.chat_message_videos WHERE message_id = 'msg_DelCourse0001'))),
+  '{"progress": 0, "comments": 0, "links": 0}'::jsonb, 'with that progress, those comments and the link');
+SELECT is((SELECT count(*)::int FROM public.chat_messages m JOIN public.chat_message_contents c ON c.message_id = m.id WHERE m.id = 'msg_DelCourse0001'), 1, 'and the chat message itself, with its text, is kept');
+SELECT is(
+  (SELECT jsonb_build_object('modules', changes -> 'modules_deleted' ->> 'old', 'lessons', changes -> 'lessons_deleted' ->> 'old', 'progress', changes -> 'progress_deleted' ->> 'old', 'comments', changes -> 'comments_deleted' ->> 'old', 'links', changes -> 'chat_video_links_deleted' ->> 'old')
+     FROM public.audit_log WHERE entity_type = 'course' AND entity_id = 'crs_DelCourse008' AND action = 'delete'),
+  '{"modules": "0", "lessons": "1", "progress": "0", "comments": "1", "links": "1"}'::jsonb, 'the audit entry counts what was removed with the course');
 
 SELECT is((SELECT count(*)::int FROM public.courses WHERE id IN ('crs_DelCourse001', 'crs_DelCourse009')), 0, 'the deleted courses are gone');
 SELECT is(

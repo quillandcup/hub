@@ -67,15 +67,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "staff",
     category: "new",
     title: "Delete a course nobody uses, such as a draft copy",
-    summary: "On a course's admin page, Delete course removes a course made in the Hub that is still a draft and that no member has used.",
+    summary: "On a course's admin page, Delete course removes a course made in the Hub that is still a draft and that no member has access to.",
     body: [
-      "Open a course in Admin, Courses, then the **Course actions** menu, and press **Delete course**. The dialog names the course and says how many modules and lessons go with it. Deleting can't be undone.",
+      "Open a course in Admin, Courses, then the **Course actions** menu, and press **Delete course**. The dialog names the course, says how many modules and lessons go with it, and lists anything else that is lost. Deleting can't be undone.",
       [
         "- **Only a draft made in the Hub:** a course imported from Kajabi can't be deleted here, because the next import would bring it back (remove it in Kajabi first). A published course has to be unpublished first.",
-        "- **Only when no member uses it:** a course that members have access to, or that has progress or comments on it, stays. The menu item shows the reason when it is off.",
-        "- **What goes with it:** its modules, lessons, download list and old addresses. Videos and pictures stay in the library, since a copy may share them.",
+        "- **Only when no member has access:** a course that anyone has access to, or has been given a grant for, stays. The menu item shows the reason, with how many, when it is off.",
+        "- **What goes with it:** its modules, lessons, download list and old addresses, and any progress or comments left on its lessons. A chat message that shared one of its videos stays, without the video link. Videos and pictures stay in the library, since a copy may share them.",
       ].join("\n"),
-      "The audit log records one entry for the course, saying how many modules and lessons went with it.",
+      "The audit log records one entry for the course, saying how many modules, lessons, progress records, comments and chat links went with it.",
     ].join("\n\n"),
   },
   {

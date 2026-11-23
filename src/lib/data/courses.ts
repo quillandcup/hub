@@ -32,6 +32,9 @@ export type CourseImageKind = "course" | "hero" | "module" | "lesson";
 /** The outline's two kinds of item. */
 export type OutlineKind = "module" | "lesson";
 
+/** What members have on a course (see {@link CourseRepository.memberDataOf}). */
+export type MemberData = { access: number; grants: number; progress: number; comments: number; chatVideos: number };
+
 /** A refused write, with the database's error code (23505 unique, 23503 foreign key, 42501 policy) for callers that tell the person why. */
 export class CourseWriteError extends Error {
   constructor(
@@ -199,15 +202,16 @@ export interface CourseRepository {
    */
   duplicateCourse(courseId: string): Promise<string>;
   /**
-   * What members have on a course, counted for the delete check: `members` is the people with access or a grant (due access too),
-   * `activity` is what they left on it (lesson progress, lesson comments, chat messages linked to a lesson). Zero for an unknown course.
+   * What members have on a course, counted for the delete check: `access` and `grants` are the rows that give someone access (due access
+   * too), `progress`, `comments` and `chatVideos` what was left on its lessons (lesson progress, lesson comments, chat messages that share
+   * a lesson's video). Zero for an unknown course.
    */
-  memberDataOf(courseId: string): Promise<{ members: number; activity: number }>;
+  memberDataOf(courseId: string): Promise<MemberData>;
   /**
-   * Deletes a Hub-owned draft course that no member uses, with its modules, lessons and download rows (the stored files and the shared
-   * videos and images stay), completely or not at all. Throws a {@link CourseWriteError} (`not_found`, `not_deletable` for a course
-   * imported from Kajabi, `published`, `has_members` when anyone has or is due access, `has_activity` when members left progress or
-   * comments, `not_editable` for a caller who may not).
+   * Deletes a Hub-owned draft course that nobody has access to, with its modules, lessons and download rows (the stored files and the
+   * shared videos and images stay) and whatever was left on its lessons (progress, comments, the video link of a chat message, which
+   * itself stays), completely or not at all. Throws a {@link CourseWriteError} (`not_found`, `not_deletable` for a course imported from
+   * Kajabi, `published`, `has_members` when anyone has or is due access, `not_editable` for a caller who may not).
    */
   deleteCourse(courseId: string): Promise<void>;
   /** Copies the length of the video of this Mux asset onto the Hub-owned lessons that use it (whole seconds). */
@@ -589,7 +593,7 @@ export class SupabaseCourseRepository implements CourseRepository {
       count(this.db.from("lesson_comments").select("id, course_lessons!inner(course_id)", head).eq("course_lessons.course_id", courseId)),
       count(this.db.from("chat_message_videos").select("lesson_id, course_lessons!inner(course_id)", head).eq("course_lessons.course_id", courseId)),
     ]);
-    return { members: access + grants, activity: progress + comments + chatLinks };
+    return { access, grants, progress, comments, chatVideos: chatLinks };
   }
 
   async deleteCourse(courseId: string) {
@@ -1275,11 +1279,11 @@ export class InMemoryCourseRepository implements CourseRepository {
   async memberDataOf(courseId: string) {
     const lessons = new Set(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
     return {
-      members: this.data.courseAccess.filter((a) => a.course_id === courseId).length + this.data.courseAccessGrants.filter((g) => g.course_id === courseId).length,
-      activity:
-        this.data.lessonProgress.filter((p) => lessons.has(p.lesson_id)).length +
-        this.data.lessonComments.filter((c) => lessons.has(c.lesson_id)).length +
-        this.data.chatMessageVideos.filter((v) => lessons.has(v.lesson_id)).length,
+      access: this.data.courseAccess.filter((a) => a.course_id === courseId).length,
+      grants: this.data.courseAccessGrants.filter((g) => g.course_id === courseId).length,
+      progress: this.data.lessonProgress.filter((p) => lessons.has(p.lesson_id)).length,
+      comments: this.data.lessonComments.filter((c) => lessons.has(c.lesson_id)).length,
+      chatVideos: this.data.chatMessageVideos.filter((v) => lessons.has(v.lesson_id)).length,
     };
   }
 
@@ -1288,9 +1292,12 @@ export class InMemoryCourseRepository implements CourseRepository {
     if (!course) throw new CourseWriteError("not_found");
     if (course.source !== "hub") throw new CourseWriteError("not_deletable");
     if (!course.is_draft) throw new CourseWriteError("published");
-    const { members, activity } = await this.memberDataOf(courseId);
-    if (members > 0) throw new CourseWriteError("has_members");
-    if (activity > 0) throw new CourseWriteError("has_activity");
+    const used = await this.memberDataOf(courseId);
+    if (used.access + used.grants > 0) throw new CourseWriteError("has_members");
+    const lessons = new Set(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
+    // What was left on the lessons goes with them; a chat message stays, only its video link goes (dropLessons removes progress).
+    this.data.lessonComments = this.data.lessonComments.filter((c) => !lessons.has(c.lesson_id));
+    this.data.chatMessageVideos = this.data.chatMessageVideos.filter((v) => !lessons.has(v.lesson_id));
     this.dropLessons(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
     this.data.courseModules = this.data.courseModules.filter((m) => m.course_id !== courseId);
     this.data.courseAddressRedirects = this.data.courseAddressRedirects.filter((r) => r.course_id !== courseId);

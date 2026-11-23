@@ -33,7 +33,7 @@ vi.mock("@/lib/data/repos", () => ({
   }),
 }));
 const loadDeletePreview = vi.fn();
-vi.mock("@/lib/courses/delete", () => ({ loadDeletePreview: (...a: unknown[]) => loadDeletePreview(...a) }));
+vi.mock("@/lib/courses/delete", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/courses/delete")>()), loadDeletePreview: (...a: unknown[]) => loadDeletePreview(...a) }));
 vi.mock("@/app/(admin)/admin/courses/delete-actions", () => ({ deleteCourse: vi.fn() }));
 const loadDuplicatePreview = vi.fn();
 vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
@@ -72,7 +72,7 @@ const course = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   resetServerPageMocks();
   loadDeletePreview.mockReset();
-  loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "hub", isDraft: true, members: 0, activity: 0 });
+  loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "hub", isDraft: true, access: 0, grants: 0, progress: 0, comments: 0, chatVideos: 0 });
   loadCourseRoster.mockReset();
   loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
   requirePermission.mockClear();
@@ -143,7 +143,7 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
   });
 
   it("keeps delete off, with the reason, for a published course", async () => {
-    loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "hub", isDraft: false, members: 0, activity: 0 });
+    loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "hub", isDraft: false, access: 0, grants: 0, progress: 0, comments: 0, chatVideos: 0 });
     loadHubCourse.mockResolvedValue(course());
     await renderServerRoute(AdminCoursePage, params());
     await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
