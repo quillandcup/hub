@@ -131,7 +131,7 @@ describe("enforcedCsp", () => {
     for (const name of ["connect-src", "frame-src", "media-src", "font-src"]) expect(directive(name)).toBeDefined();
   });
 
-  it("leaves out the report address when asked (preview deployments) but still allows Sentry's host to be reached", () => {
+  it("leaves out the report address when asked (a deployment's own URL) but still allows Sentry's host to be reached", () => {
     const quiet = enforcedCsp({ ...inputs, nonce, reportViolations: false });
 
     expect(quiet).not.toContain("report-uri");
