@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./config/app";
+import { SERVER_ACTION_BODY_LIMIT_BYTES } from "./src/lib/server-action-limits";
 import { buildCsp, CSP_HEADER, SECURITY_HEADERS } from "./src/lib/csp";
 import { helpImagesVersion } from "./scripts/help-images-version";
 import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
@@ -57,7 +58,8 @@ const nextConfig: NextConfig = {
   // Revisiting a page within 30s reuses what the client already has (default 0: every click renders on
   // the server). Makes flipping between chat conversations instant; a server action that calls
   // revalidatePath still clears it, and the live conversation reconciles over Realtime.
-  experimental: { staleTimes: { dynamic: 30 } },
+  // A Server Action body is capped at 1 MB by default; the landing builder's pages go up to 2 MB (src/lib/server-action-limits.ts).
+  experimental: { staleTimes: { dynamic: 30 }, serverActions: { bodySizeLimit: SERVER_ACTION_BODY_LIMIT_BYTES } },
   // The member page's Identity tab is now Account; old links keep landing on it (the page there checks the admin).
   async redirects() {
     return [{ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true }];
