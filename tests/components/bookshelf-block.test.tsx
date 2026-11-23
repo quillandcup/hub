@@ -74,13 +74,14 @@ describe("HedgieBookshelf", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Show more books" }));
     expect(screen.getAllByRole("listitem")).toHaveLength(48);
-    // Pressing until the end removes the button.
-    for (let i = 0; i < 45; i++) {
-      const more = screen.queryByRole("button", { name: "Show more books" });
-      if (!more) break;
-      await userEvent.click(more);
-    }
-    expect(screen.getAllByRole("listitem")).toHaveLength(1001);
+  });
+
+  it("removes the button once the last book is shown", async () => {
+    const books = Array.from({ length: 60 }, (_, i) => card(i));
+    render(<HedgieBookshelf {...props} firstShown={24} live={{ books }} />);
+    await userEvent.click(screen.getByRole("button", { name: "Show more books" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show more books" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(60);
     expect(screen.queryByRole("button", { name: "Show more books" })).not.toBeInTheDocument();
   });
 
