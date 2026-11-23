@@ -72,7 +72,7 @@ const PRICING_PLAN_DEFAULT = { name: "A plan", price: "$0", period: "one time", 
 const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
 
 export const CORE_DEFAULTS = {
-  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, fadeIn: false },
+  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, cardColor: "default", cardSoft: false, place: "center", textTone: "auto", fadeIn: false },
   Columns: { count: "2", gap: "medium", verticalAlign: "top" },
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
