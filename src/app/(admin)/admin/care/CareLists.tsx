@@ -11,7 +11,7 @@ import OwnerFilter, { matchesOwner, useOwnerChoice } from "./OwnerFilter";
 
 const EMPTY = "rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
 
-type ListProps = { cards: EngagementCardData[]; canWrite: boolean; owners: readonly CareOwner[]; meId: string };
+type ListProps = { cards: EngagementCardData[]; canWrite: boolean; canSeeMemberActivity: boolean; owners: readonly CareOwner[]; meId: string };
 
 const chipClass = (pressed: boolean) =>
   `rounded-full border px-3 py-1 text-sm ${
@@ -22,7 +22,7 @@ type ActiveFilter = "all" | Exclude<CareStatus, "lapsed" | "closed">;
 const ACTIVE_FILTERS: ActiveFilter[] = ["all", "needs_reply", "review_due", "gone_quiet", "waiting"];
 
 /** The Active tab, in the order the server sorted it (what needs her first), with an owner filter and a chip per status to narrow it. */
-export function ActiveList({ cards, canWrite, owners, meId }: ListProps) {
+export function ActiveList({ cards, canWrite, canSeeMemberActivity, owners, meId }: ListProps) {
   const [filter, setFilter] = useState<ActiveFilter>("all");
   const [choice, setChoice] = useOwnerChoice();
   const mine = cards.filter((c) => matchesOwner(c, choice, meId));
@@ -44,7 +44,7 @@ export function ActiveList({ cards, canWrite, owners, meId }: ListProps) {
       ) : (
         <ul className="space-y-3">
           {shown.map((card) => (
-            <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} meId={meId} />
+            <EngagementCard key={card.id} card={card} canWrite={canWrite} canSeeMemberActivity={canSeeMemberActivity} owners={owners} meId={meId} />
           ))}
         </ul>
       )}
@@ -56,7 +56,7 @@ type EarlierFilter = "all" | "closed" | "lapsed";
 const EARLIER_FILTERS: EarlierFilter[] = ["all", "lapsed", "closed"];
 
 /** The Earlier tab: closed and lapsed engagements, most recently ended first (the server sorted them), with the owner filter, paged. */
-export function EarlierList({ cards, canWrite, owners, meId }: ListProps) {
+export function EarlierList({ cards, canWrite, canSeeMemberActivity, owners, meId }: ListProps) {
   const [filter, setFilter] = useState<EarlierFilter>("all");
   const [choice, setChoice] = useOwnerChoice();
   const mine = cards.filter((c) => matchesOwner(c, choice, meId));
@@ -84,7 +84,7 @@ export function EarlierList({ cards, canWrite, owners, meId }: ListProps) {
             <>
               <ul className="space-y-3">
                 {table.rows.map((card) => (
-                  <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} meId={meId} />
+                  <EngagementCard key={card.id} card={card} canWrite={canWrite} canSeeMemberActivity={canSeeMemberActivity} owners={owners} meId={meId} />
                 ))}
               </ul>
               <DataTablePager table={table} itemLabel="care plans" />

@@ -1,6 +1,6 @@
 # Hedgie Care: tracking a community manager's reach-outs
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The community manager reaches out to members (an introduction, a check-in on their writing, a welcome back) and some of those turn into long conversations. She started with a spreadsheet, one row per message. **Hedgie Care** tracks it in the Hub instead: one record per **care plan** (one reach-out period with one member; the code, table and events still call it an engagement), a status that follows from the dates and who spoke last, and results measured against the member's own activity before, during and after.
 
@@ -246,7 +246,7 @@ A care plan with a tracked Slack DM (hers, open or closed) has an **Open the DM*
 
 ### Plan messages: the text of tracked DMs, inside the plan (decided 2026-11-12)
 
-The owner's decision: the team does **not** get a general reader for DMs with staff (a DM with a staff member outside a care plan is exactly as before: break-glass only; no chat policy changed). Instead the **Messages** panel on a care plan (`CarePlanMessages`, the `getCareMessages` action, `src/lib/care-messages.ts`) shows the **full messages** of the member's tracked DM(s) sent **inside the windows of the member's care plans**, to whoever can open Hedgie Care with the `care.write` feature (admins and community managers; `requireActionPermission(...)` refuses an assistant, a member and a signed-out caller).
+The owner's decision: the team does **not** get a general reader for DMs with staff (a DM with a staff member outside a care plan is exactly as before: break-glass only; no chat policy changed). Instead the **Messages** panel on a care plan (`CarePlanMessages`, the `getCareMessages` action, `src/lib/care-messages.ts`) shows the **full messages** of the member's tracked DM(s) sent **inside the windows of the member's care plans**, to whoever can open Hedgie Care with the `care.write` feature (admins and community managers; `requireActionPermission(...)` refuses an assistant, a member and a signed-out caller). An assistant otherwise has Hedgie Care (`care.read`, `care.write`) and only lacks `care.member_activity.read`, so the page hides its **Messages** and **Activity during this plan** buttons instead of offering them to be refused (`canSeeMemberActivity` in `CarePage.tsx`).
 
 - **The window of a plan** runs from its start (`opened_at`) to its end (`closed_at`, or now while it is open); the end is not included, so plans that follow each other never claim the same message. A message in no window is never read. Deleted messages and the notices Slack posts itself are left out (`SlackMessageRepository.dmMessagesBetween`, service role only; `src/lib/care-messages.ts` is its only caller).
 - **Per member, not per owner.** The panel shows all of that member's plans, newest first, each with its messages (who and when, oldest first inside a plan), a page of 50 at a time ("Older messages"). A new caregiver (once they accept a hand-over), or the owner of a later plan, sees the earlier plans' messages.

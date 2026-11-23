@@ -35,6 +35,8 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
   const repos = createRepos(await createClient());
   const service = getServiceRepos();
   const canWrite = staffCan(staff, "care.write");
+  // The DM text and the activity during a plan: not the assistant's (the privacy page promises it), so the controls for them are not offered.
+  const canSeeMemberActivity = staffCan(staff, "care.member_activity.read");
   // Her DMs first (docs/product/HEDGIE_CARE.md): a DM is tracked because she holds a care plan with the member (a plan she holds whose
   // DM is not tracked yet is tracked now), and the tracked DMs fill in who spoke last on those plans. The list below reads the
   // result. Only her own plans and DMs are looked at; a failure is logged and the page still opens with what it has.
@@ -153,7 +155,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
                   <TakeoverNotices cards={takenOver} />
                   {canWrite && <StartEngagementForm today={orgYmd(now)} />}
                   <MemberOnly name={shownMember} base="/admin/care" show={!!memberId} />
-                  <ActiveList cards={only(active)} canWrite={canWrite} owners={owners} meId={staff.id} />
+                  <ActiveList cards={only(active)} canWrite={canWrite} canSeeMemberActivity={canSeeMemberActivity} owners={owners} meId={staff.id} />
                 </div>
               ),
             },
@@ -166,7 +168,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
                   <HandoverInbox cards={waiting} />
                   <TakeoverNotices cards={takenOver} />
                   <MemberOnly name={shownMember} base="/admin/care/earlier" show={!!memberId} />
-                  <EarlierList cards={only(earlier)} canWrite={canWrite} owners={owners} meId={staff.id} />
+                  <EarlierList cards={only(earlier)} canWrite={canWrite} canSeeMemberActivity={canSeeMemberActivity} owners={owners} meId={staff.id} />
                 </>
               ),
             },
