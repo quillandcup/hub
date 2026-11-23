@@ -5,11 +5,15 @@
 import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { APP_URL } from "@/lib/config";
+import { APP_URL, ROOT_HOST, SITE_URL } from "@/lib/config";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 // Imported only so the layout module loads in a node test; none of it runs here.
 vi.mock("next/font/google", () => ({ Playfair_Display: () => ({ variable: "", className: "" }) }));
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+const state = vi.hoisted(() => ({ host: "" }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: state.host }) }));
 vi.mock("next/script", () => ({ default: () => null }));
 vi.mock("./providers/ThemeProvider", () => ({ ThemeProvider: () => null }));
 vi.mock("@/app/providers/ThemeProvider", () => ({ ThemeProvider: () => null }));
@@ -42,9 +46,13 @@ function bytes(file: string): number {
 }
 
 describe("link unfurl metadata", () => {
-  it("resolves image URLs against the app URL and asks for a large twitter card", async () => {
-    const { metadata } = await import("@/app/layout");
+  it("resolves image URLs against the host asked for (the public site's on the root host, the app's otherwise) and asks for a large twitter card", async () => {
+    const { generateMetadata } = await import("@/app/layout");
+    state.host = new URL(APP_URL).host;
+    const metadata = await generateMetadata();
     expect(String(metadata.metadataBase)).toBe(`${APP_URL}/`);
+    state.host = ROOT_HOST;
+    expect(String((await generateMetadata()).metadataBase)).toBe(`${SITE_URL}/`);
     expect(metadata.openGraph).toMatchObject({ type: "website" })
     expect(metadata.openGraph).not.toHaveProperty("siteName");
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image" });

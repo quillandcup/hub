@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import appConfig from "@/config/app";
-import { APP_URL, WRITER_PROFILES } from "@/lib/config";
+import { SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import {
   BIO_MAX_LENGTH,
   HANDLE_PROBLEM_MESSAGES,
@@ -16,6 +16,9 @@ import {
   writerProfilePath,
   writerProfileUrl,
 } from "@/lib/writer-profile";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const { handleMinLength: MIN, handleMaxLength: MAX } = WRITER_PROFILES;
 
@@ -105,9 +108,9 @@ describe("normalizeHandle and addresses", () => {
     expect(normalizeHandle("  Ada-Example ")).toBe("ada-example");
   });
 
-  it("builds the page address from the app URL and the /w path", () => {
+  it("builds the page address from the public site URL and the /w path", () => {
     expect(writerProfilePath("ada-example")).toBe("/w/ada-example");
-    expect(writerProfileUrl("ada-example")).toBe(`${APP_URL}/w/ada-example`);
+    expect(writerProfileUrl("ada-example")).toBe(`${SITE_URL}/w/ada-example`);
   });
 });
 

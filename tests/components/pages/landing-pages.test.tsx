@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
 import { renderServerPage, resetServerPageMocks, signInAs, ADMIN_USER } from "@/tests/helpers/server-page";
-import { APP_URL } from "@/lib/config";
+import { SITE_URL } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { normalizeSiteTemplate } from "@/lib/landing/site-template";
@@ -34,6 +34,9 @@ vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOrigina
 
 import PublicLandingPage, { generateMetadata } from "@/app/p/[slug]/page";
 import PreviewLandingPage from "@/app/(admin-bare)/admin/pages/[slug]/preview/page";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
 const doc = (text: string) => ({ content: [{ type: "Heading", props: { id: "h", text, level: "h1", align: "center" } }], root: {} });
@@ -129,8 +132,8 @@ describe("/p/[slug]", () => {
     const metadata = await generateMetadata(params("meta"));
     expect(metadata.title).toBe("Search title");
     expect(metadata.description).toBe("About this page");
-    expect(metadata.alternates?.canonical).toBe(`${APP_URL}/p/meta`);
-    expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${APP_URL}/p/meta` });
+    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/p/meta`);
+    expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${SITE_URL}/p/meta` });
   });
 
   it("shows the site's published favicon, the page's own over it, and none when the page says none", async () => {

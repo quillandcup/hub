@@ -41,7 +41,10 @@ vi.mock("@/app/(admin)/admin/pages/[slug]/LandingEditor", () => ({
 import AdminPagesPage from "@/app/(admin)/admin/pages/page";
 import NewLandingPage from "@/app/(admin)/admin/pages/new/page";
 import EditLandingPage from "@/app/(admin)/admin/pages/[slug]/page";
-import { APP_URL } from "@/lib/config";
+import { SITE_URL } from "@/lib/config";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
 
@@ -66,7 +69,7 @@ describe("/admin/pages", () => {
     expect(screen.getByTestId("table")).toHaveTextContent("Home");
     expect(screen.getByTestId("table")).not.toHaveTextContent("Spring sprint");
     expect(screen.getByTestId("table")).toHaveAttribute("data-type", "website");
-    expect(screen.getByTestId("table")).toHaveAttribute("data-base", APP_URL);
+    expect(screen.getByTestId("table")).toHaveAttribute("data-base", SITE_URL);
   });
 
   it("lists only the landing pages on the Landing tab, and New page there starts a landing page", async () => {

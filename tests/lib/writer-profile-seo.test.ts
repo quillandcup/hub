@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { APP_URL, WRITER_PROFILES } from "@/lib/config";
+import { describe, expect, it, vi } from "vitest";
+import { SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import type { PublicWriterProfile } from "@/lib/data/writer-profiles";
 import { jsonLdScript, writerProfileDescription, writerProfileJsonLd, writerProfileMetadata } from "@/lib/writer-profile-seo";
 import { sitemapIds, sitemapUrl } from "@/lib/writer-sitemap";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const profile = (changes: Partial<PublicWriterProfile> = {}): PublicWriterProfile => ({
   handle: "ada-example",
@@ -36,7 +39,7 @@ describe("writerProfileMetadata", () => {
   it("can be indexed or not, with the same canonical address", () => {
     expect(writerProfileMetadata(profile(), { indexed: true }).robots).toEqual({ index: true, follow: true });
     expect(writerProfileMetadata(profile(), { indexed: false }).robots).toEqual({ index: false, follow: false });
-    expect(writerProfileMetadata(profile(), { indexed: false }).alternates?.canonical).toBe(`${APP_URL}/w/ada-example`);
+    expect(writerProfileMetadata(profile(), { indexed: false }).alternates?.canonical).toBe(`${SITE_URL}/w/ada-example`);
   });
 
   it("uses a small card without a photo, and a large one with it", () => {
@@ -47,7 +50,7 @@ describe("writerProfileMetadata", () => {
 
 describe("structured data", () => {
   it("is a Person with what the page shows and nothing more", () => {
-    expect(writerProfileJsonLd(profile())).toEqual({ "@context": "https://schema.org", "@type": "Person", name: "Ada Example", url: `${APP_URL}/w/ada-example` });
+    expect(writerProfileJsonLd(profile())).toEqual({ "@context": "https://schema.org", "@type": "Person", name: "Ada Example", url: `${SITE_URL}/w/ada-example` });
   });
 
   it("escapes a closing tag so text can never end the script", () => {
@@ -66,7 +69,7 @@ describe("sitemap files", () => {
   });
 
   it("is at an address under /w", () => {
-    expect(sitemapUrl(2)).toBe(`${APP_URL}/w/sitemap/2.xml`);
+    expect(sitemapUrl(2)).toBe(`${SITE_URL}/w/sitemap/2.xml`);
   });
 
   it("stays under the 50,000-address limit of a sitemap file", () => {

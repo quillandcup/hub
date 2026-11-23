@@ -1,11 +1,13 @@
-import { APP_URL, KAJABI_SITE_URL, PUBLIC_SITE_LIVE, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
+import { APP_HOST, APP_URL, KAJABI_SITE_URL, PUBLIC_SITE_LIVE, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
 import { ROOT_REDIRECTS, fillTarget, matchRedirect, type RootRedirect } from "@/lib/root-redirects";
 
 /**
  * Which host a request is for decides what happens to it. The same deployment answers three kinds of host:
  *
- *   - the APP host (hub.quillandcup.com, `appUrl`), preview deployments and localhost: nothing here applies. The Hub behaves
- *     exactly as before (signed-out visitors go to /login, an unknown path is a normal 404).
+ *   - the APP host (hub.quillandcup.com, `appUrl`), preview deployments and localhost: the Hub behaves as before (signed-out
+ *     visitors go to /login, an unknown path is a normal 404), with one exception: a public page (PUBLIC_PAGE_SEGMENTS: /w and /p,
+ *     writer profiles and landing pages with their sitemaps) has one address, on the root host, so on the app host (only that
+ *     one: a preview or localhost still serves them, so they can be tried) it is a 307 to the same path and query there.
  *   - an ALIAS of the public site (www.quillandcup.com, `siteAliasHosts`): 307 to the same path and query on the root host.
  *   - the ROOT host (quillandcup.com, `siteUrl`): the public site. Decided in this order (decideRoute):
  *       1. An explicit entry in src/lib/root-redirects.ts, unless it would shadow a path the Hub serves or owns.
@@ -27,6 +29,12 @@ import { ROOT_REDIRECTS, fillTarget, matchRedirect, type RootRedirect } from "@/
  * Every redirect is 307 (temporary: the pages are taken over gradually, so no browser or search engine may remember one) and
  * keeps the method, the path (case, percent-encoding and trailing slash exactly as sent) and the whole query string.
  */
+
+/**
+ * The public pages that live on one address, the root host's: the app host sends them there (decideRoute). All are in
+ * ROOT_SERVED_SEGMENTS (tests/lib/root-routing.test.ts). /privacy, /security and /compliance are not here: members read them inside the Hub too.
+ */
+export const PUBLIC_PAGE_SEGMENTS: readonly string[] = ["w", "p"];
 
 /** Top-level paths the Hub serves on the root host, signed out. "/" (the homepage) is always served. */
 export const ROOT_SERVED_SEGMENTS: readonly string[] = ["w", "p", "privacy", "security", "compliance"];
@@ -80,6 +88,7 @@ export interface RoutingConfig {
   /** config/app.ts `publicSiteLive`: false means nothing here applies and every request is the app host's. */
   live: boolean;
   rootHost: string;
+  appHost: string;
   aliasHosts: readonly string[];
   siteUrl: string;
   appUrl: string;
@@ -88,11 +97,13 @@ export interface RoutingConfig {
   rootServed: readonly string[];
   infrastructure: readonly string[];
   hubOnly: readonly string[];
+  publicPages: readonly string[];
 }
 
 export const DEFAULT_ROUTING: RoutingConfig = {
   live: PUBLIC_SITE_LIVE,
   rootHost: ROOT_HOST,
+  appHost: APP_HOST,
   aliasHosts: SITE_ALIAS_HOSTS,
   siteUrl: SITE_URL,
   appUrl: APP_URL,
@@ -101,6 +112,7 @@ export const DEFAULT_ROUTING: RoutingConfig = {
   rootServed: ROOT_SERVED_SEGMENTS,
   infrastructure: INFRASTRUCTURE_SEGMENTS,
   hubOnly: HUB_ONLY_SEGMENTS,
+  publicPages: PUBLIC_PAGE_SEGMENTS,
 };
 
 /** The host as a header carries it: lowercase, no port, no trailing dot. */
@@ -159,6 +171,9 @@ export function decideRoute(req: RouteRequest, config: RoutingConfig = DEFAULT_R
   if (!config.live) return { action: "pass", host: "app" };
 
   if (config.aliasHosts.includes(host)) {
+    return { action: "redirect", location: sameLocation(config.siteUrl, req.pathname, req.search), status: 307 };
+  }
+  if (host === config.appHost && config.publicPages.includes(firstSegment(req.pathname))) {
     return { action: "redirect", location: sameLocation(config.siteUrl, req.pathname, req.search), status: 307 };
   }
   if (host !== config.rootHost) return { action: "pass", host: "app" };

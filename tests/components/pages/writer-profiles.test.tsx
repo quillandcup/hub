@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { expectPermanentRedirect, expectRedirect, getCurrentUser, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
-import { APP_URL, SITE_URL, WRITER_PROFILES } from "@/lib/config";
+import { APP_URL, ROOT_HOST, SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { WRITER_PREVIEW_PATH } from "@/lib/writer-profile";
@@ -21,6 +21,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 
 const ADA = "mbr_AAAAAAAAAAA1";
 const state = { dataset: undefined as never as InMemoryDataset, repos: undefined as never as ReturnType<typeof createInMemoryRepos> };
+const headerState = { host: ROOT_HOST };
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: headerState.host }) }));
 vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
@@ -28,6 +30,9 @@ import WriterProfile, { generateMetadata } from "@/app/w/[handle]/page";
 import WriterProfilePreview, { metadata as previewMetadata } from "@/app/(member)/writer-profile/preview/page";
 import sitemap, { generateSitemaps } from "@/app/w/sitemap";
 import robots from "@/app/robots";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const params = (handle: string) => ({ params: Promise.resolve({ handle }) });
 const NOW = new Date("2027-03-01T12:00:00Z");
@@ -289,8 +294,8 @@ describe("/w/[handle]", () => {
     expect(metadata.title).toBe("Ada Example");
     expect(metadata.description).toBe("I write cozy mysteries.");
     expect(metadata.robots).toEqual({ index: true, follow: true });
-    expect(metadata.alternates?.canonical).toBe(`${APP_URL}/w/ada-example`);
-    expect(metadata.openGraph).toMatchObject({ title: "Ada Example", url: `${APP_URL}/w/ada-example`, type: "profile", images: [{ url: "https://photos.example.com/ada.png" }] });
+    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/w/ada-example`);
+    expect(metadata.openGraph).toMatchObject({ title: "Ada Example", url: `${SITE_URL}/w/ada-example`, type: "profile", images: [{ url: "https://photos.example.com/ada.png" }] });
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image", title: "Ada Example" });
 
     const { container } = await renderServerPage(WriterProfile, params("ada-example"));
@@ -299,7 +304,7 @@ describe("/w/[handle]", () => {
       "@context": "https://schema.org",
       "@type": "Person",
       name: "Ada Example",
-      url: `${APP_URL}/w/ada-example`,
+      url: `${SITE_URL}/w/ada-example`,
       description: "I write cozy mysteries.",
       image: "https://photos.example.com/ada.png",
     });
@@ -370,13 +375,13 @@ describe("the writer_profiles flag", () => {
     state.dataset.featureFlags = [flagRow(false)];
     state.dataset.userFeaturePreviews = [{ user_id: "user-grace", feature_key: "writer_profiles", enabled_at: NOW.toISOString() }];
 
-    expect(await sitemap({ id: Promise.resolve("0") })).toEqual([{ url: `${APP_URL}/w/grace-example`, lastModified: expect.any(String) }]);
+    expect(await sitemap({ id: Promise.resolve("0") })).toEqual([{ url: `${SITE_URL}/w/grace-example`, lastModified: expect.any(String) }]);
 
     state.dataset.userFeaturePreviews = [];
     expect(await sitemap({ id: Promise.resolve("0") })).toEqual([]);
     const rules = await robots();
     expect(JSON.stringify(rules)).not.toContain("grace-example");
-    expect(rules.sitemap).toEqual([`${APP_URL}/w/sitemap/0.xml`]);
+    expect(rules.sitemap).toEqual([`${SITE_URL}/w/sitemap/0.xml`]);
   });
 
   it("checks the owners of a whole sitemap file together, not one by one", async () => {
@@ -448,7 +453,7 @@ describe("sitemap and robots", () => {
 
     const entries = await sitemap({ id: Promise.resolve("0") });
 
-    expect(entries).toEqual([{ url: `${APP_URL}/w/ada-example`, lastModified: expect.any(String) }]);
+    expect(entries).toEqual([{ url: `${SITE_URL}/w/ada-example`, lastModified: expect.any(String) }]);
   });
 
   it("makes one sitemap when there are none or a few, and more as the pages grow", async () => {
@@ -464,8 +469,18 @@ describe("sitemap and robots", () => {
 
     expect(await robots()).toEqual({
       rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/"] },
-      sitemap: [`${APP_URL}/w/sitemap/0.xml`],
+      sitemap: [`${SITE_URL}/w/sitemap/0.xml`],
     });
+  });
+
+  it("lists no sitemap on the app host, which sends the public pages to the root host", async () => {
+    await makePage("ada-example");
+    headerState.host = new URL(APP_URL).host;
+    try {
+      expect(await robots()).toEqual({ rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/"] } });
+    } finally {
+      headerState.host = ROOT_HOST;
+    }
   });
 
   it("still makes the first sitemap when the count cannot be read, so a build without a database does not fail", async () => {
@@ -475,6 +490,6 @@ describe("sitemap and robots", () => {
 
   it("still lists the first sitemap when the count cannot be read", async () => {
     vi.spyOn(state.repos.writerProfiles, "publicCount").mockRejectedValue(new Error("down"));
-    expect((await robots()).sitemap).toEqual([`${APP_URL}/w/sitemap/0.xml`]);
+    expect((await robots()).sitemap).toEqual([`${SITE_URL}/w/sitemap/0.xml`]);
   });
 });

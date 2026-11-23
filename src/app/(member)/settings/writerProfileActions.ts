@@ -8,7 +8,7 @@ import { createRepos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { PublicNameNotAllowedError } from "@/lib/data/writer-profiles";
 import { clock } from "@/lib/clock";
-import { APP_URL, WRITER_PROFILES } from "@/lib/config";
+import { PUBLIC_PAGES_URL, WRITER_PROFILES } from "@/lib/config";
 import {
   HANDLE_UNAVAILABLE_MESSAGES,
   WRITER_PROFILE_PATH,
@@ -114,7 +114,7 @@ export async function getMyWriterProfile(): Promise<MyWriterProfile | { error: s
       ...(accountName && accountName !== displayName && !penNames.some((a) => a.alias === accountName) ? [{ kind: "account" as const, aliasId: null, label: accountName }] : []),
     ],
     suggestedHandle: suggestHandle(displayName),
-    addressPrefix: `${new URL(APP_URL).host}${WRITER_PROFILE_PATH}/`,
+    addressPrefix: `${new URL(PUBLIC_PAGES_URL).host}${WRITER_PROFILE_PATH}/`,
     pageUrl: page ? writerProfileUrl(page.handle) : null,
     previewPath: WRITER_PREVIEW_PATH,
   };

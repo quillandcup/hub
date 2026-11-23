@@ -1,4 +1,4 @@
-import { APP_URL, WRITER_PROFILES } from "@/lib/config";
+import { PUBLIC_PAGES_URL, WRITER_PROFILES } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
@@ -17,9 +17,9 @@ export function writerProfilePath(handle: string): string {
   return `${WRITER_PROFILE_PATH}/${handle}`;
 }
 
-/** The full address of a page: the canonical URL, the one in the sitemap and in the structured data. */
+/** The full address of a page: the canonical URL, the one in the sitemap and in the structured data. A public page lives on the public site (the root host), not the app host. */
 export function writerProfileUrl(handle: string): string {
-  return `${APP_URL}${writerProfilePath(handle)}`;
+  return `${PUBLIC_PAGES_URL}${writerProfilePath(handle)}`;
 }
 
 /** Letters and digits, with single hyphens between (never at either end, never two in a row). */
