@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const startRolePreview = vi.hoisted(() => vi.fn(async (_role: string) => undefined));
+const startRolePreview = vi.hoisted(() => vi.fn(async (_role: string) => "/admin/pages"));
 
 vi.mock("@/app/actions/staff-preview", () => ({ startRolePreview }));
 vi.mock("@/components/SudoModal", () => ({ default: () => null }));
@@ -13,7 +13,12 @@ import UserMenu from "@/components/UserMenu";
 import { PREVIEWABLE_ROLES, PREVIEW_ROLE_LABELS } from "@/lib/staff-preview";
 
 describe("UserMenu Preview as", () => {
-  beforeEach(() => startRolePreview.mockClear());
+  const assign = vi.fn();
+  beforeEach(() => {
+    startRolePreview.mockClear();
+    assign.mockClear();
+    vi.stubGlobal("location", { ...window.location, assign });
+  });
 
   const open = async () => userEvent.click(screen.getByRole("button", { name: /admin@example\.com/ }));
 
@@ -36,6 +41,8 @@ describe("UserMenu Preview as", () => {
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Role" }), "conversion_specialist");
     await userEvent.click(screen.getByRole("button", { name: "Start preview" }));
     expect(startRolePreview).toHaveBeenCalledWith("conversion_specialist");
+    // A full page load, so the staff layout (banner, sidebar) re-renders for the previewed role.
+    expect(assign).toHaveBeenCalledWith("/admin/pages");
   });
 
   it("closes without starting anything on Cancel", async () => {

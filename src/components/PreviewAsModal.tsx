@@ -21,8 +21,9 @@ export default function PreviewAsModal({ isOpen, onClose }: PreviewAsModalProps)
   async function handleConfirm() {
     setIsPending(true)
     try {
-      await startRolePreview(role)
-    } finally {
+      // A full load, so the layout re-renders with the preview banner and the role's sidebar.
+      window.location.assign(await startRolePreview(role))
+    } catch {
       setIsPending(false)
     }
   }
