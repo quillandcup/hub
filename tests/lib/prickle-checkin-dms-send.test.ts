@@ -24,6 +24,7 @@ vi.mock("@/lib/slack-matching", () => ({
 const calendarPrickleIds = vi.fn(async (_repos: unknown, _memberId: string): Promise<Set<string>> => new Set());
 vi.mock("@/lib/calendar-feed", () => ({
   loadCalendarFeedPrickleIds: (repos: unknown, memberId: string) => calendarPrickleIds(repos, memberId),
+  preloadPrickleReader: async () => ({}),
 }));
 
 // Who the drop-in check-in is live for (the `checkin_dropins` flag); everyone else is a dry run.

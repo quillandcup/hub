@@ -359,9 +359,10 @@ export async function loadCalendarFeedPrickleIds(
   repos: FeedRepos,
   memberId: string,
   since: Date,
-  now: Date = new Date()
+  now: Date = new Date(),
+  prickles: PrickleReader = repos.prickles
 ): Promise<Set<string>> {
-  const { hosted, committed, added } = await loadCalendarFeedSources(repos, memberId, since, now);
+  const { hosted, committed, added } = await loadCalendarFeedSources(repos, memberId, since, now, prickles);
   const ids = new Set<string>();
   for (const p of hosted) ids.add(p.id);
   for (const o of committed) if (o.prickle) ids.add(o.prickle.id);
@@ -369,20 +370,52 @@ export async function loadCalendarFeedPrickleIds(
   return ids;
 }
 
+/** The prickle reads the feed makes. A batch caller passes `preloadPrickleReader` so N members cost one read, not N. */
+export type PrickleReader = Pick<FeedRepos["prickles"], "startingBetween" | "byIds">;
+
+/**
+ * Every prickle from `since` on, read once, answering the feed's prickle reads from memory with the
+ * repository's own filters (window, types, host). A read the cache cannot answer (it begins before
+ * `since`, or asks for the Event type) goes to the repository. `byIds` returns the cached ones only:
+ * the feed drops prickles that started before `since` anyway, and those are the ones not cached.
+ */
+export async function preloadPrickleReader(repos: FeedRepos, since: Date): Promise<PrickleReader> {
+  const sinceMs = since.getTime();
+  const all = await repos.prickles.startingBetween({ from: since.toISOString() });
+  const byId = new Map(all.map((p) => [p.id, p]));
+  return {
+    byIds: async (ids) => ids.flatMap((id) => byId.get(id) ?? []),
+    startingBetween: async (window) => {
+      if (window.includeEventType || new Date(window.from).getTime() < sinceMs) return repos.prickles.startingBetween(window);
+      const fromMs = new Date(window.from).getTime();
+      const toMs = window.to === undefined ? null : new Date(window.to).getTime();
+      const types = window.typeIds ? new Set(window.typeIds) : null;
+      return all.filter((p) => {
+        const start = new Date(p.startTime).getTime();
+        if (start < fromMs) return false;
+        if (toMs !== null && (window.inclusiveEnd ? start > toMs : start >= toMs)) return false;
+        if (types && !(p.typeId && types.has(p.typeId))) return false;
+        return !window.hostId || p.hostId === window.hostId;
+      });
+    },
+  };
+}
+
 /** Everything a member's feed is built from, from `since` on (see buildCalendarFeedEvents). */
 async function loadCalendarFeedSources(
   repos: FeedRepos,
   memberId: string,
   since: Date,
-  now: Date
+  now: Date,
+  prickleReader: PrickleReader = repos.prickles
 ): Promise<{ hosted: FeedPrickle[]; committed: CommittedOccurrence[]; added: FeedPrickle[]; events: FeedEventRow[] }> {
   // Added items don't depend on hosting or commitments: start them now, collect them at the end.
-  const addedPromise = loadAddedItems(repos, memberId, since);
+  const addedPromise = loadAddedItems(repos, memberId, since, prickleReader);
   // Keep a rejection from going unhandled while the steps below run; it's rethrown at the await.
   addedPromise.catch(() => {});
 
   const [hostedRows, storedCommitments] = await Promise.all([
-    repos.prickles.startingBetween({ from: since.toISOString(), hostId: memberId }),
+    prickleReader.startingBetween({ from: since.toISOString(), hostId: memberId }),
     repos.prickleActivity.commitmentsOf(memberId, { endsOnOrAfter: since.toISOString().slice(0, 10) }),
   ]);
 
@@ -394,7 +427,7 @@ async function loadCalendarFeedSources(
   if (window) {
     const typeIds = [...new Set(commitments.flatMap((c) => c.slots.map((s) => s.typeId)))];
     const prickles = (
-      await repos.prickles.startingBetween({ from: window.from, to: window.to, inclusiveEnd: true, typeIds })
+      await prickleReader.startingBetween({ from: window.from, to: window.to, inclusiveEnd: true, typeIds })
     ).map(toFeedPrickle);
     const byId = new Map(prickles.map((p) => [p.id, p]));
     const slotPrickles: SlotPrickle[] = prickles.map((p) => ({
@@ -438,7 +471,8 @@ async function loadCalendarFeedSources(
 async function loadAddedItems(
   repos: FeedRepos,
   memberId: string,
-  since: Date
+  since: Date,
+  prickleReader: PrickleReader
 ): Promise<{ added: FeedPrickle[]; events: FeedEventRow[] }> {
   const items = await repos.calendarFeed.itemsOf(memberId);
 
@@ -451,14 +485,14 @@ async function loadAddedItems(
   // The three lookups are independent, so they run in parallel (one round trip, not three).
   const loadOnce = async (): Promise<FeedPrickle[]> => {
     if (prickleIds.length === 0) return [];
-    const found = await repos.prickles.byIds(prickleIds);
+    const found = await prickleReader.byIds(prickleIds);
     return found.filter((p) => new Date(p.startTime) >= since).map(toFeedPrickle);
   };
 
   const loadWeekly = async (): Promise<FeedPrickle[]> => {
     if (slots.length === 0) return [];
     const typeIds = [...new Set(slots.map((s) => s.typeId))];
-    const candidates = (await repos.prickles.startingBetween({ from: since.toISOString(), typeIds })).map(toFeedPrickle);
+    const candidates = (await prickleReader.startingBetween({ from: since.toISOString(), typeIds })).map(toFeedPrickle);
     return candidates.filter((p) => slots.some((slot) => prickleMatchesSlot(p, slot)));
   };
 
