@@ -1,67 +1,63 @@
-import type { ReactNode } from "react";
-import type { SocialNetwork } from "./social-networks";
+import { BRAND_ICONS } from "./brand-icons.generated";
+import { DRAWN_MARKS, type DrawnMark } from "./brand-icons.drawn";
+import type { SocialLook, SocialNetwork } from "./social-networks";
 
 /**
- * The marks of the Social icons block. Brand marks are not in lucide (`.claude/rules/icons.md`: a brand mark is a custom drawing), and
- * these are not the networks' official logos: each is a simple outline drawn for this project from plain shapes (rounded squares,
- * circles, lines), so there is no third-party artwork or licence to carry. They are recognisable by shape and by the link's name,
- * which is always the network's own ("Instagram"), never the picture alone. Stroked in `currentColor`, so they follow the section's text colour.
+ * The marks of the Social icons block, and of the site header and footer's social links. Brand marks are not in lucide
+ * (`.claude/rules/icons.md`: a brand mark is a custom drawing), so they live in two files: `brand-icons.generated.ts`, the networks' real
+ * marks with their official colours (simple-icons, CC0-1.0, made by `pnpm brand-icons:update`), and `brand-icons.drawn.ts`, the few that
+ * package does not have (LinkedIn, Email, Website), drawn by hand. A mark is never redrawn, stretched or recoloured: it is in its own
+ * colour (the default, on a light round badge), or in the network's black or white version (no badge). The link's name is always the
+ * network's own ("Instagram"), never the picture alone.
  */
-const MARKS: Record<SocialNetwork, ReactNode> = {
-  instagram: (
-    <>
-      <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.2" cy="6.8" r="0.7" fill="currentColor" />
-    </>
-  ),
-  facebook: <path d="M14.5 3.5h-1.8A3.7 3.7 0 0 0 9 7.2V10H6.5v3.5H9V21h3.5v-7.5H15l.5-3.5h-3V7.7c0-.7.4-1.2 1.1-1.2h1.9z" />,
-  youtube: (
-    <>
-      <rect x="2.5" y="5.5" width="19" height="13" rx="4" />
-      <path d="M10 9.5v5l4.5-2.5z" fill="currentColor" />
-    </>
-  ),
-  tiktok: <path d="M14 3v10.5a3.5 3.5 0 1 1-3.5-3.5M14 3c.3 2.5 2 4.2 4.5 4.5" />,
-  x: <path d="M4.5 4.5l15 15M19.5 4.5l-15 15" />,
-  linkedin: (
-    <>
-      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
-      <path d="M8 10.5V16M8 7.8v.01M11.5 16v-5.5M11.5 13c0-1.5 1-2.5 2.5-2.5s2.5 1 2.5 2.5V16" />
-    </>
-  ),
-  pinterest: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M10.5 18.5l1.7-7M9.6 11.2a3 3 0 1 1 3.2 3.4" />
-    </>
-  ),
-  substack: (
-    <>
-      <path d="M5 4.5h14M5 8.5h14" />
-      <path d="M5 12.5h14v8l-7-4-7 4z" />
-    </>
-  ),
-  threads: <path d="M16.5 9.5c-.6-2.2-2.2-3.3-4.5-3.3-3 0-5 2.3-5 5.8s2 5.8 5 5.8c2.7 0 4.5-1.4 4.5-3.4 0-2.2-2-3.3-4.5-3.1-2 .2-3 1-3 2.2 0 1.1 1 1.8 2.3 1.8 1.8 0 2.7-1.1 2.7-3.3" />,
-  email: (
-    <>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M3.5 7l8.5 6 8.5-6" />
-    </>
-  ),
-  website: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z" />
-    </>
-  ),
+type Mark = DrawnMark;
+const MARKS: Record<SocialNetwork, Mark> = {
+  ...BRAND_ICONS,
+  ...DRAWN_MARKS,
 };
 
-/** The mark of a network, hidden from screen readers (the link carries the name). Size comes from the class. */
-export function SocialMark({ network, className = "h-5 w-5" }: { network: SocialNetwork; className?: string }) {
+const BLACK = "000000";
+const WHITE = "FFFFFF";
+
+const channel = (v: number) => {
+  const c = v / 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const luminance = (hex: string) => 0.2126 * channel(parseInt(hex.slice(0, 2), 16)) + 0.7152 * channel(parseInt(hex.slice(2, 4), 16)) + 0.0722 * channel(parseInt(hex.slice(4, 6), 16));
+/** WCAG contrast ratio of two six-digit colours (no `#`). */
+export function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+/** The least contrast a graphic needs against what it sits on (WCAG 1.4.11). */
+export const MIN_GRAPHIC_CONTRAST = 3;
+
+/** A network's official colour (no `#`). */
+export const brandHex = (network: SocialNetwork): string => MARKS[network].hex;
+/** What a network's mark is drawn in, per look. In colour it is the brand's own, on the white badge; where that colour is too faint against white (Substack's orange), the network's black version. */
+export function markHex(network: SocialNetwork, look: SocialLook = "colour"): string {
+  if (look === "dark") return BLACK;
+  if (look === "light") return WHITE;
+  const hex = MARKS[network].hex;
+  return contrast(hex, WHITE) >= MIN_GRAPHIC_CONTRAST ? hex : BLACK;
+}
+/** The networks whose own colour is too faint on the white badge, so their black version is used. */
+export const BLACK_ON_BADGE = (Object.keys(MARKS) as SocialNetwork[]).filter((n) => markHex(n) !== MARKS[n].hex);
+
+/** The mark of a network, hidden from screen readers (the link carries the name). Size comes from the class; the colour from `look`, which a row can also override with CSS (`!text-black`). */
+export function SocialMark({ network, look = "colour", className = "h-5 w-5" }: { network: SocialNetwork; look?: SocialLook; className?: string }) {
+  const mark = MARKS[network];
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" className={className}>
-      {MARKS[network]}
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+      style={{ color: `#${markHex(network, look)}` }}
+      data-network={network}
+      {...(mark.stroke ? { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const } : { fill: "currentColor" })}
+    >
+      <path d={mark.path} {...(mark.evenodd ? { fillRule: "evenodd" as const } : {})} />
     </svg>
   );
 }

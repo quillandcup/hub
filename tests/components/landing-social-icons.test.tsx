@@ -39,9 +39,24 @@ describe("the Social icons block", () => {
     expect(list.className).toContain("justify-end");
     expect(list.className).toContain("[&_.lp-social]:h-12");
     const a = screen.getByRole("link", { name: "YouTube" });
-    expect(a.className).toContain("border-current");
-    expect(container.querySelector("svg")).toHaveAttribute("stroke", "currentColor");
-    expect(container.innerHTML).not.toMatch(/#[0-9a-f]{3,6}\b|@\[|(?:^|[\s"])(?:sm|md|lg|xl):/i);
+    // The default: the network's own colour on a white badge with a thin neutral ring (so it holds on a light page, a dark one and in dark mode).
+    expect(a.className).toContain("bg-white");
+    expect(a.className).toContain("border-neutral-300");
+    expect(a.className).toContain("focus-visible:ring-2");
+    expect(container.querySelector("svg")).toHaveStyle({ color: "#FF0000" });
+    expect(container.innerHTML).not.toMatch(/@\[|(?:^|[\s"])(?:sm|md|lg|xl):/i);
+  });
+
+  it("has three looks: colour on a badge (the default, and for data saved before the choice), and black or white with no badge", () => {
+    const row = (look?: "colour" | "dark" | "light") => render(<SocialIcons align="left" size="small" look={look} items={itemsSlot(SocialLink, [link("youtube")])} />).container.querySelector("ul")!.className;
+    expect(row(undefined)).toBe(row("colour"));
+    expect(row("colour")).not.toContain("!text-");
+    for (const [look, mark] of [["dark", "!text-black"], ["light", "!text-white"]] as const) {
+      expect(row(look)).toContain(mark);
+      expect(row(look)).toContain("[&_.lp-social]:!bg-transparent");
+      expect(row(look)).toContain("[&_.lp-social]:!border-transparent");
+    }
+    expect(row("sparkly" as never)).toBe(row("colour"));
   });
 
   it("falls back to medium and centred for values it does not know, and to a Website mark for an unknown network", () => {
