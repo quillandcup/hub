@@ -1,3 +1,4 @@
+import { safeHref } from "@/lib/landing/data";
 import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
 import { definePageBlock, type PageBlockCategory, type PageBlockContribution, type PageBlockDefinition } from "./block-registry";
 import {
@@ -26,6 +27,8 @@ import {
   RichText,
   RowButton,
   Section,
+  SocialIcons,
+  SocialLink,
   Spacer,
   Split,
   Stat,
@@ -52,6 +55,7 @@ import {
   WeekStrip,
 } from "./homepage-blocks";
 import { ITEM_LIMITS } from "./item-limits";
+import { SOCIAL_NETWORKS, socialNetworkOf } from "./social-networks";
 
 /**
  * The blocks the pages code owns, registered through `definePageBlock` like any module's (block-registry.ts). A block is: a component
@@ -77,6 +81,7 @@ export const CORE_DEFAULTS = {
   Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center", fit: "whole" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
+  SocialIcons: { items: [kid("SocialLink", { network: "instagram", url: "" }), kid("SocialLink", { network: "youtube", url: "" })], align: "center", size: "medium" },
   Pricing: { items: [kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "First plan" }), kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "Second plan", badge: "Most popular", featured: true })] },
   Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
   Accordion: { items: [kid("AccordionItem", { title: "A title", text: "What opens under it.", open: false }), kid("AccordionItem", { title: "Another title", text: "What opens under that one.", open: false })] },
@@ -135,6 +140,7 @@ export const CORE_DEFAULTS = {
   LinkItem: { label: "A link", href: "", look: "inherit", color: "plum" },
   OutcomeNumber: { source: "manual", stat: "hours_30d", value: "0", label: "", note: "" },
   PricingPlan: PRICING_PLAN_DEFAULT,
+  SocialLink: { network: "instagram", url: "" },
   JourneyMap: {
     stages: [
       { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
@@ -167,6 +173,12 @@ const planCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { st
   if (name) heading(3, name);
   checkButton("Pricing", props.buttonLabel, props.href, name ? `The button of the "${name}" plan` : "A plan's button");
   if (!text(props.buttonLabel) && text(props.href)) warn("Pricing", `${name ? `The "${name}" plan has` : "A plan has"} a link but no button label, so the link is not shown.`);
+};
+
+/** A link with an address that can't be used (a script, a bare email address with no mailto:) is an error, like a button with no link. A link with no address at all draws nothing, which the generic empty-list check already warns about. */
+const socialLinkCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, error }) => {
+  const url = text(props.url);
+  if (url && !safeHref(url)) error("Social icons", `The ${SOCIAL_NETWORKS[socialNetworkOf(props.network)]} link has an address that can't be used. Use https://, or mailto: for an email address.`);
 };
 
 type CoreType = keyof typeof CORE_DEFAULTS;
@@ -225,6 +237,11 @@ export const coreBlocks: PageBlockContribution = {
     core("ButtonRow", "Buttons", "links", 20, ButtonRow, { slots: holds("RowButton"), itemLimit: ITEM_LIMITS.ButtonRow, itemRule: { block: "Buttons", noun: "button", plural: "buttons", item: "RowButton", key: "label" } }),
     core("LinkList", "Link list", "links", 30, LinkList, { slots: holds("LinkItem"), itemRule: { block: "Link list", noun: "link", plural: "links", item: "LinkItem", key: "label" } }),
     core("OptInForm", "Sign-up form", "links", 40, OptInFormBlock),
+    core("SocialIcons", "Social icons", "links", 50, SocialIcons, {
+      slots: holds("SocialLink"),
+      itemLimit: ITEM_LIMITS.SocialIcons,
+      itemRule: { block: "Social icons", noun: "link", plural: "links", item: "SocialLink", key: "url" },
+    }),
     // Parts of a block: the items of the blocks above, each its own block, dropped into its parent's `items` slot.
     core("Step", "Step", "parts", 10, Step),
     core("Stat", "Figure", "parts", 20, Stat),
@@ -241,6 +258,7 @@ export const coreBlocks: PageBlockContribution = {
     core("GridCard", "Card", "parts", 120, GridCard),
     core("LinkItem", "Link", "parts", 130, LinkItem),
     core("PricingPlan", "Plan", "parts", 160, PricingPlan, { publishCheck: planCheck }),
+    core("SocialLink", "Social link", "parts", 170, SocialLink, { publishCheck: socialLinkCheck }),
     core("OutcomeNumber", "Outcome number", "parts", 150, OutcomeNumber),
   ],
 };

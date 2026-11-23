@@ -4,6 +4,8 @@ import { ITEM_LIMITS } from "./item-limits";
 import Countdown, { type CountdownProps } from "./Countdown";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
 import { sectionPadding } from "@/lib/landing/layout";
+import { SocialMark } from "./social-marks";
+import { SOCIAL_NETWORKS, socialNetworkOf } from "./social-networks";
 import { background, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
 
 /**
@@ -30,6 +32,7 @@ const CAP_CLASS: Record<number, string> = {
   5: "[&>:nth-child(n+6)]:hidden",
   6: "[&>:nth-child(n+7)]:hidden",
   7: "[&>:nth-child(n+8)]:hidden",
+  8: "[&>:nth-child(n+9)]:hidden",
   12: "[&>:nth-child(n+13)]:hidden",
 };
 
@@ -489,6 +492,51 @@ export function PricingPlan({ name, price, period, description, features, badge,
             </span>
           )}
         </div>
+      )}
+    </li>
+  );
+}
+
+// ---- Social icons --------------------------------------------------------------------------------------------
+
+export type SocialIconsProps = { items: Slot; align: "left" | "center" | "right"; size: "small" | "medium" | "large"; editing?: boolean };
+const SOCIAL_JUSTIFY = { left: "justify-start", center: "justify-center", right: "justify-end" } as const;
+/** The size of every link in the row: the parent sets it, because an item cannot see its block. Full class strings, so Tailwind finds them. */
+const SOCIAL_SIZE = {
+  small: "[&_.lp-social]:h-8 [&_.lp-social]:w-8 [&_.lp-social_svg]:h-4 [&_.lp-social_svg]:w-4",
+  medium: "[&_.lp-social]:h-10 [&_.lp-social]:w-10 [&_.lp-social_svg]:h-5 [&_.lp-social_svg]:w-5",
+  large: "[&_.lp-social]:h-12 [&_.lp-social]:w-12 [&_.lp-social_svg]:h-6 [&_.lp-social_svg]:w-6",
+} as const;
+
+/** A row of round icon links, each a `SocialLink` in the `items` slot (eight at most). The colour is the section's text colour, so it reads on any background the theme offers. */
+export function SocialIcons({ items: Items, align, size, editing }: SocialIconsProps) {
+  return <Items as="ul" collisionAxis="x" className={`my-3 flex flex-wrap gap-3 ${pick(SOCIAL_JUSTIFY, align, "center")} ${pick(SOCIAL_SIZE, size, "medium")} ${itemList(ITEM_LIMITS.SocialIcons, editing)}`} />;
+}
+
+export type SocialLinkProps = { network: string; url: string } & ItemProps;
+
+const SOCIAL_LINK = "lp-social inline-flex items-center justify-center rounded-full border border-current no-underline transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2";
+
+/**
+ * One link of a Social icons block. Its accessible name is the network's ("Instagram"), the picture is decoration. A link to another site
+ * opens in a new tab with `noopener noreferrer`; a `mailto:` does not. With no usable address a visitor sees nothing (the publish
+ * check asks for it) and the editor shows the icon disabled.
+ */
+export function SocialLink({ network, url, dragRef, editing }: SocialLinkProps) {
+  const kind = socialNetworkOf(network);
+  const label = SOCIAL_NETWORKS[kind];
+  const href = safeHref(url);
+  if (!href && !editing) return null;
+  return (
+    <li ref={dragRef}>
+      {href ? (
+        <a href={href} aria-label={label} className={SOCIAL_LINK} {...(/^https?:/i.test(href) ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+          <SocialMark network={kind} />
+        </a>
+      ) : (
+        <span role="img" aria-label={`${label} (no link yet)`} aria-disabled="true" className={`${SOCIAL_LINK} opacity-50`}>
+          <SocialMark network={kind} />
+        </span>
       )}
     </li>
   );

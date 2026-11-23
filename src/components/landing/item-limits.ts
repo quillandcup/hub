@@ -5,4 +5,4 @@
  * These are the pages code's own blocks; a module's block states its limit in its definition (`itemLimit`, block-registry.ts), and `pageBlocks.itemLimits` has them all.
  * The numbers must be ones `CAP_CLASS` (blocks.tsx) has a class for, so Tailwind finds it.
  */
-export const ITEM_LIMITS = { Steps: 5, Stats: 4, FinisherCards: 6, Timeline: 12, WeekStrip: 7, FinishLineCards: 3, PlanPhases: 4, ButtonRow: 3, OutcomeNumbers: 4, Pricing: 3 } as const;
+export const ITEM_LIMITS = { Steps: 5, Stats: 4, FinisherCards: 6, Timeline: 12, WeekStrip: 7, FinishLineCards: 3, PlanPhases: 4, ButtonRow: 3, OutcomeNumbers: 4, Pricing: 3, SocialIcons: 8 } as const;

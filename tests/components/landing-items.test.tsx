@@ -169,7 +169,7 @@ describe("a realistic page", () => {
     // Every block with items has some in the sample page, so none is blank.
     const text = JSON.stringify(content);
     // The homepage has no List, Pricing, FAQ, Testimonials, Card grid, Link list, Steps or Stats; every other block with items is in it.
-    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList", "Pricing"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
+    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList", "Pricing", "SocialIcons"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
   });
 });
 
