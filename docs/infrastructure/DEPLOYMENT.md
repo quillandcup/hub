@@ -119,9 +119,38 @@ above replaced the manual deploy, and roles, signups and keys moved on. What rep
 - **Inviting a member or staff user:** `docs/runbooks/INVITING_USERS.md`.
 - **Rotating a secret or key:** `docs/runbooks/SECRET_ROTATION.md`.
 - **Moving the domain:** `docs/runbooks/DOMAIN_MIGRATION.md`.
-- **Backups and restore:** point-in-time recovery is on (see "Plans and headroom" below); restoring is a Supabase dashboard action, never a `supabase db reset` against production.
+- **Backups and restore:** "Restoring the database" below.
+- **When something looks wrong:** "When something looks wrong" below.
 - **Signups, auth redirect URLs, RLS:** `docs/trust/RLS_SECURITY.md` and `docs/trust/THREAT_MODEL.md`.
 
+
+## Restoring the database
+
+Point-in-time recovery is on (see "Plans and headroom" below), so a restore goes to a chosen
+moment inside the recovery window (about a week). It is a Supabase dashboard action:
+**Database → Backups → Point in Time**, pick the time, confirm. Know before you start:
+
+- A restore replaces the whole production database with its state at that moment, so everything
+  written since (member activity, imports, webhooks) is lost. Decide that with the owners first;
+  it is not a routine undo.
+- Never run Supabase's database reset against production: it wipes the database and reapplies
+  the migrations, without the data.
+- A bad migration is fixed forward with a new migration (`.claude/rules/migrations.md`:
+  expand, then contract), not by restoring.
+- Check the window read-only first: `supabase backups list --project-ref <ref>`. After a
+  restore, run `supabase migration list --linked` and compare it with the migrations in `main`.
+
+## When something looks wrong
+
+- **Errors in the app:** Sentry (`docs/infrastructure/SENTRY_CONFIG.md`).
+- **Runtime logs and deploys:** the Vercel CLI, read-only (`.claude/rules/read-only-clis.md`).
+- **Database and auth logs:** Supabase dashboard → Logs, or a read with
+  `supabase db query --linked "<select ...>"` (`.claude/rules/verify-against-prod.md`).
+- **Is a commit live?** "Seeing what is in production" above.
+- **Empty results or "permission denied" for a member:** row level security is working as
+  designed until proven otherwise; start with `docs/trust/RLS_SECURITY.md` and
+  `.claude/rules/member-identity.md` (sudo).
+- **A missing or wrong environment variable:** `docs/infrastructure/ENV_MANAGEMENT.md`.
 
 ## Supabase production checklist
 

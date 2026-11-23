@@ -1250,11 +1250,11 @@ location instead.
 ### OSPS Baseline: what is left _(Needs Scheduling)_
 
 `docs/checklists/OSPS_BASELINE.md` (assessed 2026-11-23, catalog `v2026.08.28`) maps every control. The cheap ones were fixed with it (the "Access" and "Dependencies" sections of `.github/GOVERNANCE.md`); what needs a decision or the owner is left:
-- **Workflow token default is `write`** (`OSPS-AC-04.01`). Every workflow already declares its own `permissions:`, but the repository default (live `default_workflow_permissions`) is `write`, so a workflow that forgets the line gets write. Set it to `read` (Settings, Actions, General, or `gh api -X PUT repos/quillandcup/hub/actions/permissions/workflow -f default_workflow_permissions=read`). Not done because the owner runs repository-wide settings and `scripts/github-config.ts` only manages the repository PATCH and rulesets (that endpoint is separate); either teach the script this endpoint or do it by hand once. Check after that nothing relied on the default: run a PR and a `main` build.
+- **Workflow token default** (`OSPS-AC-04.01`). **Resolved (2026-11-23):** set to `read` by hand in Settings, Actions, General (live `default_workflow_permissions` is `read`). Every workflow declares its own `permissions:`, and the one that opens PRs uses `GH_TOKEN_AUTO_MERGE`, so nothing relied on the default. **Still open:** the setting is not in code, because `scripts/github-config.ts` only manages the repository PATCH and rulesets; teach it `PUT repos/<repo>/actions/permissions/workflow` if the setting ever drifts.
 - **`CODEOWNERS`** was left out: the organization has no team, and a file naming individual accounts puts people in a public file for no gain while `require_code_owner_review` is off (it stays off: zero approvals and auto-merge). Create a maintainers team in the organization, then add `.github/CODEOWNERS` pointing at it for `.github/`, `config/`, `supabase/migrations/` and `.claude/rules/`.
 - **Remediation thresholds** (`OSPS-VM-05.04`, `OSPS-VM-05.05`, `OSPS-VM-06.01`, and the pre-release rule `OSPS-VM-05.02`). The practice is to fix scanner findings quickly, but nothing says how quickly. Needs the owner's decision (for example critical in 7 days, high in 30, others at the next Dependabot batch), then a short section in `docs/trust/THREAT_MODEL.md` or `.github/SECURITY.md`. A license policy (`OSPS-VM-05.05`) also needs a license scanner, which we don't run.
 - **Blocking dependency checks** (`OSPS-VM-05.03`): OSV-Scanner and `pnpm audit` only report on pull requests, because an advisory with no fix would stop every PR. A middle road is failing only on a newly introduced vulnerable version (OSV-Scanner's diff mode); worth trying once the first scanner triage is finished.
-- **Dependabot security updates** are off (live `security_and_analysis`), although weekly version updates run. Enable them under Settings, Advanced Security; free on a public repo. Left for the batch in "Repo Security Settings and Scans".
+- **Dependabot security updates.** **Resolved (2026-11-23):** enabled (live `gh api repos/quillandcup/hub/automated-security-fixes` returns `enabled: true`). **Still open:** the two checks in "Repo Security Settings and Scans" (alerts against the `npm audit` findings, and that `auto-merge.yml` doesn't merge a security major).
 - **Not pursued, by nature of the project**: an OSI license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`).
 
 ### GUAC: considered, not planned
@@ -1285,7 +1285,7 @@ so none was urgent. Deferred to batch them.
 - [ ] **Secret scanning: validity checks.** Off today. GitHub tests a detected credential against
       the provider and marks the alert `active`, `inactive` or `unknown`, which tells us whether a
       leak needs rotating now (`docs/runbooks/SECRET_ROTATION.md`) or is already dead. Same settings page.
-- [ ] **Dependabot security updates.** Disabled today, though `.github/dependabot.yml` already
+- [ ] **Dependabot security updates.** Enabled 2026-11-23; the two checks in the last two sentences are still to do. It was disabled, though `.github/dependabot.yml` already
       runs weekly version updates (npm and github-actions) and `auto-merge.yml` merges the
       patch/minor ones. Security updates are a separate setting: they open a PR as soon as an
       advisory affects a dependency, instead of waiting for the weekly run, and can raise a
