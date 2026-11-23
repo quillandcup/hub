@@ -1,6 +1,6 @@
 # Deployment Guide
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 ## How production deploys (the CI pipeline)
 
@@ -336,7 +336,7 @@ In Vercel:
 
 The same deployment answers the app host (`appUrl`, where members sign in), the public site's root host (`siteUrl`) and its alias (`siteAliasHosts`, `www`), all set in `config/app.ts`. All three are added in Vercel (Project Settings, Domains); only the app host's address goes in the Supabase redirect URLs, because sign-in stays there (cookies belong to that host alone).
 
-`src/proxy.ts` decides per host (`src/lib/root-routing.ts`): the alias redirects (307) to the root host; the root host serves the homepage and the public pages, sends signed-in paths to the app host, and sends every other path and query to the Kajabi site (`kajabiSiteUrl`, a subdomain whose custom domain must be set in Kajabi). Explicit exceptions live in `src/lib/root-redirects.ts`. Public pages (`/w/...` writer profiles and `/p/...` landing pages, with their sitemaps) have one address, on the root host: the app host sends them there with a 307, while previews and localhost still serve them. Their canonical and Open Graph URLs, the sitemap and `robots.txt` use `siteUrl`; links inside the signed-in Hub (chat, lessons, calendar feed, webhooks, sign-in) stay on `appUrl`. Otherwise the app host and previews are untouched. After changing any of this, run `pnpm check:redirects` (read-only) against the live root host.
+`src/proxy.ts` decides per host (`src/lib/root-routing.ts`): the alias redirects (307) to the root host; the root host serves the homepage and the public pages, sends signed-in paths to the app host, serves a **published landing page at its bare address** (`/<slug>`, rewritten to `/p/<slug>`; the proxy asks a list of published addresses that each instance keeps in memory for 30 seconds, so it is one small read per instance per half minute, never one per request; `docs/product/LANDING_PAGES.md`, "Addresses"), and sends every other path and query to the Kajabi site (`kajabiSiteUrl`, a subdomain whose custom domain must be set in Kajabi). A single-segment address with no published page, or when that read fails, still goes to Kajabi with a 307, so publishing a page at an old Kajabi address (for example `/free-trial`) takes that address over with no redirect to add, and unpublishing it gives it back. Explicit exceptions live in `src/lib/root-redirects.ts`. Public pages (`/w/...` writer profiles and landing pages, with their sitemaps: `/sitemap.xml` lists the landing pages, `/w/sitemap/<n>.xml` the writers) have one address, on the root host: `/p/<slug>` there is a 308 to `/<slug>`, and the app host sends `/w` and `/p` to the root host with a 307, while previews and localhost still serve them as they are. Their canonical and Open Graph URLs, the sitemap and `robots.txt` use `siteUrl`; links inside the signed-in Hub (chat, lessons, calendar feed, webhooks, sign-in) stay on `appUrl`. Otherwise the app host and previews are untouched. After changing any of this, run `pnpm check:redirects` (read-only) against the live root host.
 
 ## Monitoring
 

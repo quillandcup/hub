@@ -36,10 +36,12 @@ function askedFor(request: NextRequest): string {
  * from the proxy to Server Components: `NextResponse.next({ request: { headers } })`). The headers are copied from the request
  * at this moment, so cookies a token refresh just set on it (see setAll below) go along.
  */
-function continueWithPath(request: NextRequest, extraHeaders: Record<string, string> = {}): NextResponse {
+function continueWithPath(request: NextRequest, extraHeaders: Record<string, string> = {}, rewriteTo?: string): NextResponse {
   const headers = new Headers(request.headers)
   headers.set(CURRENT_PATH_HEADER, askedFor(request))
   for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
+  // A rewrite serves another path of the app under the address asked for (the query goes along); the address in the browser stays.
+  if (rewriteTo) return NextResponse.rewrite(new URL(`${rewriteTo}${request.nextUrl.search}`, request.url), { request: { headers } })
   return NextResponse.next({ request: { headers } })
 }
 
@@ -48,8 +50,8 @@ function continueWithPath(request: NextRequest, extraHeaders: Record<string, str
  * cookie belongs to the app host and nobody is signed in here, and no sign-in redirect applies. Otherwise the same as
  * updateSession: the page gets the address being asked for and `requestHeaders`.
  */
-export function continueSignedOut(request: NextRequest, requestHeaders: Record<string, string> = {}): NextResponse {
-  return continueWithPath(request, requestHeaders)
+export function continueSignedOut(request: NextRequest, requestHeaders: Record<string, string> = {}, rewriteTo?: string): NextResponse {
+  return continueWithPath(request, requestHeaders, rewriteTo)
 }
 
 /**

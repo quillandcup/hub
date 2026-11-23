@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { LandingPageType } from "@/lib/data/landing-pages";
 import { PROMPT_MAX } from "@/lib/landing/ai-limits";
+import { landingAddressPrefix } from "@/lib/landing/address";
 import { slugify } from "@/lib/landing/slug";
 import { createLandingPage, createLandingPageWithAi } from "../actions";
 
@@ -81,7 +82,7 @@ export default function NewPageForm({ aiAvailable, defaultType = "website", temp
       <label className="block text-sm font-medium">
         Address
         <span className="mt-1 flex items-center gap-1">
-          <span className="text-sm text-slate-600 dark:text-slate-400">/p/</span>
+          <span className="text-sm text-slate-600 dark:text-slate-400">{landingAddressPrefix()}</span>
           <input
             value={slug}
             onChange={(e) => {

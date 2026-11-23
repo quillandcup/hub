@@ -4,7 +4,7 @@ import LandingRender from "@/components/landing/LandingRender";
 import { getServiceRepos } from "@/lib/data/server";
 import { withLiveData } from "@/lib/landing/live-server";
 import { pageOverrides, resolveFaviconAssetId } from "@/lib/landing/style";
-import { isValidSlug } from "@/lib/landing/slug";
+import { HOME_SLUG, isValidSlug } from "@/lib/landing/slug";
 import { mediaSrc } from "@/lib/media/url";
 
 /**
@@ -13,8 +13,8 @@ import { mediaSrc } from "@/lib/media/url";
  * draft, a deleted page and an address never used are all "no page" (docs/product/LANDING_PAGES.md).
  */
 
-/** The landing page the root host's homepage shows (admin: /admin/pages/home). Its own /p/home address redirects to `/`. */
-export const HOME_SLUG = "home";
+/** The landing page the root host's homepage shows (admin: /admin/pages/home); it has no other address (`/home` and `/p/home` go to `/`). */
+export { HOME_SLUG };
 
 export type PublishedLandingPage = NonNullable<Awaited<ReturnType<ReturnType<typeof getServiceRepos>["landingPages"]["published"]>>>;
 

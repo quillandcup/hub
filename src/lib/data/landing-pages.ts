@@ -4,6 +4,7 @@ import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { asJson } from "./json";
 import { must } from "./query";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export type LandingPage = Row<"landing_pages">;
 /** A page is public once published; a template is a page kept to start others from and is never public (docs/product/LANDING_PAGES.md, "Templates"). */
@@ -19,6 +20,12 @@ export const isLandingPageType = (value: unknown): value is LandingPageType => v
 /** A page without its two JSON documents: what a list shows. */
 export type LandingPageSummary = Omit<LandingPage, "draft_data" | "published_data">;
 export type LandingPageVersion = Omit<Row<"landing_page_versions">, "data">;
+
+/** One published page's address, and when it last changed (when it was published, else when it was saved). */
+export interface PublishedAddress {
+  slug: string;
+  updatedAt: string;
+}
 
 /** What a signed-out visitor is given: the published document and the fields the page's head needs. */
 export interface PublishedLandingPage {
@@ -80,6 +87,11 @@ export interface LandingPageRepository {
   bySlug(slug: string): Promise<LandingPage | null>;
   /** What the public page renders: the published PAGE with this address, or null for a draft, a deleted page, a template or no page. */
   published(slug: string): Promise<PublishedLandingPage | null>;
+  /**
+   * The address and last change of every published PAGE (never a template, a draft or a deleted page), by address: the same set `published`
+   * answers for, in one read (the root host's sitemap and its routing, docs/product/LANDING_PAGES.md, "Addresses"). Pages past 1000 rows are all returned.
+   */
+  publishedAddresses(): Promise<PublishedAddress[]>;
   /** The live page made by an import with this key (docs/product/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
   byImportKey(importKey: string): Promise<LandingPage | null>;
   /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. Throws `LandingPageSlugTakenError`. */
@@ -169,6 +181,22 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
   async published(slug: string): Promise<PublishedLandingPage | null> {
     const page = await this.bySlug(slug);
     return page ? toPublished(page) : null;
+  }
+
+  async publishedAddresses(): Promise<PublishedAddress[]> {
+    const rows = await fetchAllRows<{ slug: string; published_at: string | null; updated_at: string }>((from, to) =>
+      this.db
+        .from("landing_pages")
+        .select("slug, published_at, updated_at")
+        .eq("kind", "page")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .not("published_data", "is", null)
+        .order("slug")
+        .order("id")
+        .range(from, to),
+    );
+    return rows.map((r) => ({ slug: r.slug, updatedAt: r.published_at ?? r.updated_at }));
   }
 
   async byImportKey(importKey: string): Promise<LandingPage | null> {
@@ -353,6 +381,13 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
   async published(slug: string): Promise<PublishedLandingPage | null> {
     const page = await this.bySlug(slug);
     return page ? toPublished(page) : null;
+  }
+
+  async publishedAddresses(): Promise<PublishedAddress[]> {
+    return this.live()
+      .filter((p) => toPublished(p))
+      .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : a.id < b.id ? -1 : 1))
+      .map((p) => ({ slug: p.slug, updatedAt: p.published_at ?? p.updated_at }));
   }
 
   async byImportKey(importKey: string): Promise<LandingPage | null> {

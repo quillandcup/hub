@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { safeHref } from "@/lib/landing/data";
+import { HOME_SLUG, isValidSlug } from "@/lib/landing/slug";
 
 export type OptInFormProps = {
   /** The form the sign-up goes to in Kajabi. */
@@ -20,10 +21,15 @@ export type OptInFormProps = {
 const INPUT =
   "mt-1 block w-full rounded-md border border-ink-muted bg-card px-3 py-2 text-base text-ink placeholder:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-600";
 
-/** The page's address, read in the browser: the relay finds the form in the published page by it. Null in the editor and the preview. */
-function publicSlug(): string | null {
-  const match = /^\/p\/([A-Za-z0-9-]+)\/?$/.exec(window.location.pathname);
-  return match ? match[1] : null;
+/**
+ * The page's address, read in the browser: the relay finds the form in the published page by it. A published page is at /<slug> on
+ * the public site (the front page, /, is the page `home`) and at /p/<slug> where that route is served as it is (previews). Null in
+ * the editor and the preview (/admin/pages/...), which have more than one segment, and on any reserved or invalid address.
+ */
+export function publicSlug(pathname: string = window.location.pathname): string | null {
+  if (pathname === "/") return HOME_SLUG;
+  const match = /^\/(?:p\/)?([A-Za-z0-9-]+)\/?$/.exec(pathname);
+  return match && isValidSlug(match[1]) ? match[1] : null;
 }
 
 /**

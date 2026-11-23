@@ -44,6 +44,43 @@ describe("OptInFormBlock", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  describe("at the page's address", () => {
+    async function pageSentFrom(path: string) {
+      visit(path);
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      render(<OptInFormBlock {...base} />);
+      await waitFor(() => expect(screen.getByRole("button", { name: "Join the list" })).toBeEnabled());
+      await user.type(screen.getByLabelText("Name"), "Ada Example");
+      await user.type(screen.getByLabelText("Email"), "ada@example.test");
+      await user.click(screen.getByRole("button", { name: "Join the list" }));
+      await screen.findByRole("status");
+      return JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).page;
+    }
+
+    it("reads the page from the bare address, with or without a trailing slash, and from /p/<slug>", async () => {
+      expect(await pageSentFrom("/spring")).toBe("spring");
+      cleanup();
+      expect(await pageSentFrom("/spring/")).toBe("spring");
+      cleanup();
+      expect(await pageSentFrom("/p/spring")).toBe("spring");
+    });
+
+    it("is the page `home` at /", async () => {
+      expect(await pageSentFrom("/")).toBe("home");
+    });
+
+    it("sends nothing from an address that is a real path, not a page", async () => {
+      visit("/dashboard");
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      render(<OptInFormBlock {...base} />);
+      expect(await screen.findByText(/nothing is sent from here/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Join the list" })).toBeDisabled();
+    });
+  });
+
   describe("on the public page", () => {
     beforeEach(() => visit("/p/spring"));
 

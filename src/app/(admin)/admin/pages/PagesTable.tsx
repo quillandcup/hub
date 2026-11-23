@@ -12,6 +12,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import type { LandingPageSummary, LandingPageType } from "@/lib/data/landing-pages";
+import { landingPagePath } from "@/lib/landing/address";
 import { deleteLandingPage, duplicateLandingPage } from "./actions";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
 import Tooltip from "@/components/Tooltip";
@@ -44,10 +45,10 @@ export default function PagesTable({ pages, publicBase, kind = "page", pageType 
 
   async function copyLink(slug: string) {
     try {
-      await navigator.clipboard.writeText(`${publicBase}/p/${slug}`);
+      await navigator.clipboard.writeText(`${publicBase}${landingPagePath(slug)}`);
       setMessage("Link copied.");
     } catch {
-      setMessage(`${publicBase}/p/${slug}`);
+      setMessage(`${publicBase}${landingPagePath(slug)}`);
     }
   }
 
@@ -92,7 +93,7 @@ export default function PagesTable({ pages, publicBase, kind = "page", pageType 
                     <Link href={`/admin/pages/${p.slug}`} className="font-medium text-plum-700 hover:underline dark:text-plum-300">
                       {p.title}
                     </Link>
-                    {kind === "page" && <span className="block text-xs text-slate-600 dark:text-slate-400">/p/{p.slug}</span>}
+                    {kind === "page" && <span className="block text-xs text-slate-600 dark:text-slate-400">{landingPagePath(p.slug)}</span>}
                   </td>
                   <td className="px-6 py-3">
                     <LifecycleStatusChip published={p.status === "published"} />

@@ -18,6 +18,9 @@ vi.mock("@supabase/ssr", () => ({
   }),
 }));
 
+// No landing page is published here (tests/lib/proxy-landing-address.test.ts covers the ones that are), and no database is read.
+vi.mock("@/lib/landing/published-addresses", () => ({ isPublishedAddress: async () => false }));
+
 import { proxy } from "@/proxy";
 
 const APP_HOST = new URL(APP_URL).host;

@@ -48,7 +48,9 @@ describe("the committed list", () => {
   it("agrees with the routing logic for every entry (the list and the code say the same)", () => {
     for (const entry of entries) {
       const [pathname, ...q] = entry.path.split("?");
-      const decision = decideRoute({ host: ROOT_HOST, method: "GET", pathname, search: q.length ? `?${q.join("?")}` : "" });
+      const decided = decideRoute({ host: ROOT_HOST, method: "GET", pathname, search: q.length ? `?${q.join("?")}` : "" });
+      // The list is the old Kajabi addresses, so it is checked as when no landing page is published at them.
+      const decision = decided.action === "landing-page" ? decided.fallback : decided;
       const expected = expectedFor(entry);
       if (expected.location === null) expect(decision.action, entry.path).toBe("pass");
       else expect(decision, entry.path).toEqual({ action: "redirect", location: expected.location, status: expected.status });

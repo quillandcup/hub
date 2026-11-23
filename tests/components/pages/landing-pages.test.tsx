@@ -129,8 +129,24 @@ describe("/p/[slug]", () => {
     const metadata = await generateMetadata(params("meta"));
     expect(metadata.title).toBe("Search title");
     expect(metadata.description).toBe("About this page");
-    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/p/meta`);
-    expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${SITE_URL}/p/meta` });
+    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/meta`);
+    expect(metadata.openGraph).toMatchObject({ title: "Search title", url: `${SITE_URL}/meta` });
+  });
+
+  it("has the bare address as canonical and Open Graph address, and the root host's address for the social image, never /p/", async () => {
+    const page = await makePage("shared", "Words");
+    await state.repos.landingPages.updateDetails(page.id, { title: page.title, slug: "shared", seoTitle: "Search title", seoDescription: "About this page", socialImageAssetId: "mda_SOCIAL" }, null);
+    const metadata = await generateMetadata(params("shared"));
+    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/shared`);
+    expect(metadata.openGraph).toMatchObject({ url: `${SITE_URL}/shared`, images: [{ url: expect.stringMatching(new RegExp(`^${SITE_URL}/.*mda_SOCIAL`)) }] });
+    expect(JSON.stringify(metadata)).not.toContain("/p/");
+  });
+
+  it("gives the page `home` / as its one address", async () => {
+    await makePage("home", "Words");
+    const metadata = await generateMetadata(params("home"));
+    expect(metadata.alternates?.canonical).toBe(`${SITE_URL}/`);
+    expect(metadata.openGraph).toMatchObject({ url: `${SITE_URL}/` });
   });
 
   it("shows the site's published favicon, the page's own over it, and none when the page says none", async () => {
