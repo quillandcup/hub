@@ -12,8 +12,8 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 | Result | Count |
 |---|---|
-| Met | 40 |
-| Partly | 7 |
+| Met | 42 |
+| Partly | 5 |
 | Not met | 3 |
 | N/A | 15 |
 | Total | 65 |
@@ -118,8 +118,8 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 | `OSPS-VM-03.01` Private vulnerability reporting | 2 | Met | Private vulnerability reporting is enabled on the repository (live: `gh api repos/quillandcup/hub/private-vulnerability-reporting`). |
 | `OSPS-VM-04.01` Publish data about discovered vulnerabilities | 2 | N/A | No reports so far; zero published advisories (live). The policy is to publish a GitHub advisory for a confirmed one. |
 | `OSPS-VM-04.02` Non-affecting vulnerabilities in a VEX document | 3 | Partly | No VEX. Accepted findings are recorded with a reason and expiry in `config/osv-scanner.toml`. |
-| `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Partly | A pull request that introduces a vulnerable dependency fails the `OSV diff / osv-scan` check (`OSPS-VM-05.03`); the policy text is `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed". Becomes Met once the check is live in the ruleset. |
-| `OSPS-VM-05.03` Dependency changes checked against a policy and blocked | 3 | Partly | `osv-diff.yml` (OSV-Scanner diff mode) fails a pull request only on a vulnerability it introduces, and is listed as a required check in `config/github.yml`; tested 2026-11-23 on a throwaway PR (lodash 4.17.20 failed, a PR with no dependency change passed). Becomes Met when `pnpm github:config:push` has applied the ruleset (the live ruleset was not changed by the PR). `pnpm audit` still only reports. |
+| `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Met | A pull request that introduces a vulnerable dependency fails the `OSV diff / osv-scan` check, which is a required check on `main` (live ruleset, read 2026-11-23; `OSPS-VM-05.03`); the policy text is `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed". A pull request can still add an ignore for its own finding in `config/osv-scanner.toml`; that is tracked in `docs/TODO.md`. |
+| `OSPS-VM-05.03` Dependency changes checked against a policy and blocked | 3 | Met | `osv-diff.yml` (OSV-Scanner diff mode) fails a pull request only on a vulnerability it introduces. It is a required check in `config/github.yml` and in the live `main` ruleset (read 2026-11-23, after `pnpm github:config:push`). Tested 2026-11-23, before it became required, on a throwaway PR (lodash 4.17.20 failed, a PR with no dependency change passed). `pnpm audit` still only reports. |
 | `OSPS-VM-05.04` Remediation threshold for vulnerable dependencies | 3 | Met | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed": Critical 10 days, High 30, Medium 60, Low 90. |
 | `OSPS-VM-05.05` Remediation threshold for license findings | 3 | Met | `license-scan.yml` checks dependency licenses against `config/license-policy.json` weekly (informational, like the other scans); the threshold (30 days production, 60 days development only) is in `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed". |
 | `OSPS-VM-06.01` Remediation threshold for static analysis findings | 3 | Met | The same table covers CodeQL alerts; CodeQL also blocks new alerts in a pull request (required check). |
@@ -127,6 +127,6 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 ## What is worth doing
 
-1. Push the ruleset (`pnpm github:config:push`) so the `OSV diff / osv-scan` check is required (`OSPS-VM-05.03`, which also completes `OSPS-VM-05.02`).
+Nothing is left that only needs a decision or a setting; what remains is design work on the Partly rows (`OSPS-SA-01.01`, `-SA-02.01`, `-SA-03.02`, `-VM-04.02` and `OSPS-GV-01.01`).
 
 Not within reach without a decision or another person: an open source license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`). Details and owners of the open items are in `docs/TODO.md`.
