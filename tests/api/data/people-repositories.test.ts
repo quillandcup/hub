@@ -14,6 +14,7 @@ import { defineOutreachContract } from "@/tests/helpers/outreach-contract";
 import { createRunMembers, createRunUser, deleteRunMembers, type PeopleMember } from "@/tests/helpers/people-fixtures";
 import { defineStaffContract } from "@/tests/helpers/staff-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
+import { giveRoles } from "@/tests/helpers/user-roles";
 
 const admin = getTestSupabaseAdminClient();
 const db = admin as unknown as Db;
@@ -72,7 +73,8 @@ defineStaffContract("SupabaseStaffRepository", () => ({
     for (const a of accounts) {
       const id = await createRunUser(admin, `people-repo-acct-${a.memberIndex}`, `${RUN}-${accountIds.length}`);
       accountIds.push(id);
-      must((await db.from("user_profiles").upsert({ id, email: `people-repo-acct-${a.memberIndex}-${RUN}-${accountIds.length - 1}@example.com`, role: a.role })).error);
+      must((await db.from("user_profiles").upsert({ id, email: `people-repo-acct-${a.memberIndex}-${RUN}-${accountIds.length - 1}@example.com`, })).error);
+      await giveRoles(admin, id, a.role);
       must((await db.from("members").update({ user_id: id }).eq("id", members[a.memberIndex].id)).error);
     }
   },

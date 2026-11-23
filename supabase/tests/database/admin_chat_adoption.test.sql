@@ -14,10 +14,13 @@ SELECT plan(9);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000ca01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'chatadopt-admin@example.test'),
   ('00000000-0000-4000-a000-00000000ca02', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'chatadopt-plain@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000ca01', 'chatadopt-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000ca02', 'chatadopt-plain@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000ca01', 'chatadopt-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000ca02', 'chatadopt-plain@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000ca01', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, display_name, email, joined_at, status) VALUES
   ('mbr_CADAAAAAAAA1', 'Chat Ada', 'Ada C', 'chatadopt-ada@example.test', now(), 'active'),
   ('mbr_CADAAAAAAAA2', 'Chat Bea', NULL, 'chatadopt-bea@example.test', now(), 'active'),

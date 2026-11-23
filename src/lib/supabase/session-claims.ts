@@ -34,8 +34,7 @@ export function getSessionIdFromAccessToken(token: string): string | null {
 
 /**
  * The staff roles the token's claims say the user holds, highest priority first: the `app_roles` array that the
- * custom access token hook adds (supabase/migrations/20271028000000_user_roles.sql). The hook still adds `app_role` (the primary
- * role) too, but nothing reads it.
+ * custom access token hook adds (supabase/migrations/20271028000000_user_roles.sql).
  *
  * - an array (possibly empty) -- the roles held when the token was minted (anything that isn't a staff role is dropped)
  * - `undefined` -- no usable claim (the hook isn't enabled, or its lookup failed): the proxy treats this as no role

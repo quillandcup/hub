@@ -21,7 +21,7 @@ export interface StaffRepository {
   /**
    * The ids of the members who are staff: THE definition, used wherever the question is asked (Hedgie Care leaves them out of
    * the DMs it offers). A member linked in the `staff` roster, or the member behind an admin, assistant, community manager or conversion specialist
-   * account (`user_profiles.role`). Who may READ something is a separate question, decided by role where it is asked. Service role in the database (the function behind it, `staff_member_ids`, refuses a
+   * account (`user_roles`). Who may READ something is a separate question, decided by role where it is asked. Service role in the database (the function behind it, `staff_member_ids`, refuses a
    * signed-in user); the staff list is a handful of people, so it is read in one call.
    */
   memberIds(): Promise<Set<string>>;

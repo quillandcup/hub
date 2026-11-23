@@ -11,10 +11,13 @@ SELECT plan(13);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e4a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'move-alice@example.test'),
   ('00000000-0000-4000-a000-00000000e4a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'move-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e4a1', 'move-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e4a4', 'move-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e4a1', 'move-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000e4a4', 'move-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e4a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- A Hub-owned course: module Open (published) with a lesson, module Hidden (a draft) with a lesson, and a lesson in no module.
 INSERT INTO public.courses (id, slug, title, source) VALUES

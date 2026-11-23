@@ -180,8 +180,9 @@ SELECT is(
 -- Members can't read it.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fea2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'int-member@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES ('00000000-0000-4000-a000-00000000fea2', 'int-member@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fea2', 'int-member@example.test')
+ON CONFLICT (id) DO NOTHING;
 CREATE TEMP TABLE seen(n bigint) ON COMMIT DROP;
 GRANT INSERT ON seen TO authenticated;
 SET LOCAL ROLE authenticated;

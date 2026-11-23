@@ -12,10 +12,14 @@ SELECT plan(9);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000cd01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cd-manager@example.test'),
   ('00000000-0000-4000-a000-00000000cd03', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cd-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000cd01', 'cd-manager@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000cd03', 'cd-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000cd01', 'cd-manager@example.test'),
+  ('00000000-0000-4000-a000-00000000cd03', 'cd-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000cd01', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000cd03', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_CareDateAAA1', 'Ada Example', 'cd-ada@example.test', now(), 'active');

@@ -218,7 +218,7 @@ export type RoleInput = string | readonly (string | null | undefined)[] | null |
 /**
  * The staff roles in a set of roles, deduplicated, highest priority first. Priority is the order of `STAFF_ROLES`
  * (admin, assistant, community manager, conversion specialist), the same order `staff_role_rank()` has in SQL, so the
- * first one is the primary role that `user_profiles.role` holds. Anything else (`member`, unknown values) is dropped.
+ * first one is the primary role (where a person lands, what is shown first). Anything else (`member`, unknown values) is dropped.
  */
 export function staffRolesIn(input: RoleInput): StaffRole[] {
   const list = typeof input === "string" ? [input] : (input ?? []);
@@ -230,7 +230,7 @@ export function rolesOf(actor: Actor): StaffRole[] {
   return staffRolesIn(actor?.roles);
 }
 
-/** The highest-priority staff role in the set, or null when there is none: what `user_profiles.role` and `app_role` carry. */
+/** The highest-priority staff role in the set, or null when there is none. */
 export function primaryRole(input: RoleInput): StaffRole | null {
   return staffRolesIn(input)[0] ?? null;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 import { createRepos } from '@/lib/data/repos'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * Exercises RLS on events / event_attendees / event_photos directly over PostgREST (not through
@@ -29,7 +30,7 @@ describe('events / event_attendees / event_photos RLS', () => {
     const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create test user: ${error?.message}`)
     authUserIds.push(data.user.id)
-    await service.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(service, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in: ${signInError.message}`)

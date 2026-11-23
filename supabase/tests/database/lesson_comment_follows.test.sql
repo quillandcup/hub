@@ -17,12 +17,15 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000c02a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lf-bob@example.test'),
   ('00000000-0000-4000-a000-0000000c02a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lf-carol@example.test'),
   ('00000000-0000-4000-a000-0000000c02a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lf-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-0000000c02a1', 'lf-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-0000000c02a2', 'lf-bob@example.test', 'member'),
-  ('00000000-0000-4000-a000-0000000c02a3', 'lf-carol@example.test', 'member'),
-  ('00000000-0000-4000-a000-0000000c02a4', 'lf-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-0000000c02a1', 'lf-alice@example.test'),
+  ('00000000-0000-4000-a000-0000000c02a2', 'lf-bob@example.test'),
+  ('00000000-0000-4000-a000-0000000c02a3', 'lf-carol@example.test'),
+  ('00000000-0000-4000-a000-0000000c02a4', 'lf-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-0000000c02a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_AAAAAAAAMfA1', 'Follow Alice', 'lf-alice@example.test', now(), 'active', '00000000-0000-4000-a000-0000000c02a1'),
   ('mbr_AAAAAAAAMfA2', 'Follow Bob', 'lf-bob@example.test', now(), 'active', '00000000-0000-4000-a000-0000000c02a2'),

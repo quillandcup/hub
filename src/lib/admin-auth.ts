@@ -37,7 +37,7 @@ const staffRolesOf = cache(async (userId: string): Promise<StaffRole[]> => {
  *   const user = await requirePermission("pages.read");
  *
  * - signed out → redirect("/login")
- * - signed in but not staff (holds no staff role in `user_roles` or `user_profiles.role`, or no profile row) → redirect("/no-access")
+ * - signed in but not staff (holds no staff role in `user_roles`) → redirect("/no-access")
  * - staff none of whose roles holds the permission → redirect("/no-access"); a real admin previewing a lower role goes
  *   to that role's home instead, since /no-access has no banner to leave the preview from
  * - otherwise returns the verified user with the roles that let them in

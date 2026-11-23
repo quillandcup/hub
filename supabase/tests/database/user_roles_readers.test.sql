@@ -1,23 +1,22 @@
--- pgTAP tests for 20271102000000_user_roles_readers.sql (several roles per user, contract step 1): every reader of
--- user_profiles.role now reads user_roles. For each function that moved: a single-role user gets the same answer as before
--- and a user holding two roles gets the answer for the union; a user whose old column says admin but who holds no
--- user_roles row (the sync triggers are switched off to make one) is NOT treated as admin. A guard scans the database for
--- any other function that reads the column. Rolled back; run with `pnpm test:pgtap`.
+-- pgTAP tests for the functions that read a person's roles from user_roles (20271102000000_user_roles_readers.sql; the old
+-- user_profiles.role column is dropped in 20271110000000). For each function: a single-role user gets the answer they always did and a
+-- user holding two roles gets the answer for the union. A guard scans the database for any function, policy or view that still reads a
+-- role column of user_profiles (there is none: the column is gone). Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(32);
+SELECT plan(22);
 
 -- g1 admin; g2 assistant; g3 community manager; g4 community manager + conversion specialist; g5 assistant + conversion specialist;
 -- g6 member; g7 conversion specialist + admin; g8 conversion specialist only; g9 no profile row.
 INSERT INTO auth.users (id, instance_id, aud, role, email)
 SELECT ('00000000-0000-4000-a000-00000000e0' || lpad(n::text, 2, '0'))::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'readers-g' || n || '@example.test'
 FROM generate_series(1, 9) AS n;
-INSERT INTO public.user_profiles (id, email, role)
-SELECT ('00000000-0000-4000-a000-00000000e0' || lpad(n::text, 2, '0'))::uuid, 'readers-g' || n || '@example.test', 'member'
+INSERT INTO public.user_profiles (id, email)
+SELECT ('00000000-0000-4000-a000-00000000e0' || lpad(n::text, 2, '0'))::uuid, 'readers-g' || n || '@example.test'
 FROM generate_series(1, 8) AS n
-ON CONFLICT (id) DO UPDATE SET role = 'member';
+ON CONFLICT (id) DO NOTHING;
 DELETE FROM public.user_profiles WHERE id = '00000000-0000-4000-a000-00000000e009';
 
 INSERT INTO public.user_roles (user_id, role) VALUES
@@ -117,57 +116,31 @@ SELECT is((SELECT samples FROM public.member_removal_extras('mbr_ReadersAAA6') W
 CREATE FUNCTION pg_temp.claims_of(n int) RETURNS jsonb LANGUAGE sql AS $$
   SELECT public.custom_access_token_hook(jsonb_build_object('user_id', ('00000000-0000-4000-a000-00000000e0' || lpad(n::text, 2, '0'))::uuid, 'claims', jsonb_build_object('role', 'authenticated'))) -> 'claims'
 $$;
-SELECT is(pg_temp.claims_of(1) -> 'app_role', '"admin"'::jsonb, 'hook: an admin''s app_role');
 SELECT is(pg_temp.claims_of(1) -> 'app_roles', '["admin"]'::jsonb, 'and app_roles');
-SELECT is(pg_temp.claims_of(4) -> 'app_role', '"community_manager"'::jsonb, 'hook: two roles, app_role is the primary one');
 SELECT is(pg_temp.claims_of(4) -> 'app_roles', '["community_manager", "conversion_specialist"]'::jsonb, 'and app_roles lists both, highest first');
 SELECT is(pg_temp.claims_of(7) -> 'app_roles', '["admin", "conversion_specialist"]'::jsonb, 'whatever order they were given');
-SELECT is(pg_temp.claims_of(6) -> 'app_role', '"member"'::jsonb, 'hook: a member');
 SELECT is(pg_temp.claims_of(6) -> 'app_roles', '[]'::jsonb, 'holds no roles');
-SELECT is(pg_temp.claims_of(9) -> 'app_role', 'null'::jsonb, 'hook: no profile row, app_role is JSON null');
+SELECT ok(NOT (pg_temp.claims_of(1) ? 'app_role'), 'hook: the single app_role claim is gone');
 SELECT is(pg_temp.claims_of(9) -> 'app_roles', '[]'::jsonb, 'and no roles');
 
 -- 7. top_role_rank and the last-admin check read user_roles only ------------------------------------------------------------------
 SELECT is((SELECT array_agg(public.top_role_rank(('00000000-0000-4000-a000-00000000e0' || lpad(n::text, 2, '0'))::uuid) ORDER BY n) FROM generate_series(1, 8) AS n),
   ARRAY[1, 2, 3, 3, 2, NULL, 1, 4], 'top_role_rank: the highest role held, null for a member');
 
--- 8. A column that says admin without a user_roles row grants nothing to any moved reader -------------------------------------
-ALTER TABLE public.user_profiles DISABLE TRIGGER USER;
-UPDATE public.user_profiles SET role = 'admin' WHERE id = '00000000-0000-4000-a000-00000000e006';
-ALTER TABLE public.user_profiles ENABLE TRIGGER USER;
-SELECT is((SELECT role FROM public.user_profiles WHERE id = '00000000-0000-4000-a000-00000000e006'), 'admin', 'setup: the old column says admin for the member, with no user_roles row');
-SELECT ok(NOT public.analytics_is_staff('00000000-0000-4000-a000-00000000e006'), 'analytics_is_staff ignores the column');
-SELECT is(pg_temp.claims_of(6) -> 'app_role', '"member"'::jsonb, 'the hook ignores the column');
-SELECT is(pg_temp.claims_of(6) -> 'app_roles', '[]'::jsonb, 'for the roles too');
-SELECT is(public.top_role_rank('00000000-0000-4000-a000-00000000e006'), NULL::int, 'top_role_rank ignores the column');
-SELECT is((SELECT samples FROM public.member_removal_extras('mbr_ReadersAAA6') WHERE item = 'user_profiles'), ARRAY['Profile, role member'], 'member_removal_extras ignores the column');
--- the last-admin rule counts user_roles only: g1 (admin) removes g7's admin role while the only other "admin" is a column
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e001", "role": "authenticated"}', true);
-SELECT lives_ok($$SELECT public.set_user_roles('00000000-0000-4000-a000-00000000e007', ARRAY['conversion_specialist'])$$, 'enforce_user_role_changes: removing another admin''s role is fine while an admin (the actor) remains');
-RESET ROLE;
-
--- 9. The guard: no other function, policy or view reads the column --------------------------------------------------------------------
+-- 8. The guard: no function, policy or view reads a role column of user_profiles ------------------------------------------------------------
+SELECT hasnt_column('public', 'user_profiles', 'role', 'the old column is gone');
 SELECT is(
   ARRAY(SELECT p.proname::text FROM pg_proc p
          WHERE p.pronamespace = 'public'::regnamespace AND p.prokind IN ('f', 'p')
-           AND pg_get_functiondef(p.oid) ~* 'user_profiles[^;]*\mrole\M'
+           AND pg_get_functiondef(p.oid) ~* 'user_profiles[^;]*\mrole\M|\m(up|vp|prof)\.role\M'
          ORDER BY 1),
-  ARRAY['create_user_profile', 'sync_profile_role_from_user_roles', 'user_has_any_role'],
-  'only the new-profile default, the sync trigger and user_has_any_role''s second source mention user_profiles.role (a new reader must read user_roles)');
+  ARRAY[]::text[], 'no function reads user_profiles.role (a new reader must read user_roles)');
 SELECT is(
   ARRAY(SELECT policyname::text FROM pg_policies WHERE tablename <> 'user_profiles' AND (coalesce(qual, '') || coalesce(with_check, '')) ~* 'user_profiles' ORDER BY 1),
   ARRAY[]::text[], 'no policy on another table reads user_profiles');
 SELECT is(
   ARRAY(SELECT viewname::text FROM pg_views WHERE schemaname IN ('public', 'bronze') AND definition ~* 'user_profiles' ORDER BY 1),
   ARRAY[]::text[], 'no view reads user_profiles');
-SELECT is(
-  ARRAY(SELECT p.proname::text FROM pg_proc p
-         WHERE p.pronamespace = 'public'::regnamespace AND p.prokind IN ('f', 'p') AND p.proname NOT IN ('custom_access_token_hook', 'user_has_any_role')
-           AND pg_get_functiondef(p.oid) ~* 'user_profiles[^;]*\mrole\M|\m(up|vp|p|prof)\.role\M'
-         ORDER BY 1),
-  ARRAY['create_user_profile', 'sync_profile_role_from_user_roles'],
-  'and no function reads it through an alias');
 
 SELECT * FROM finish(true);
 ROLLBACK;

@@ -17,6 +17,7 @@ vi.mock("@/lib/supabase/service", async () => {
 });
 
 import { getCurrentUser } from "@/lib/auth";
+import { giveRoles } from "@/tests/helpers/user-roles";
 
 const db = getTestSupabaseAdminClient();
 const RUN = Date.now();
@@ -249,7 +250,8 @@ describe("downloads at any size, and the original", () => {
 
     const { error } = await db.auth.admin.createUser({ id: adminUserId, email, email_confirm: true });
     expect(error).toBeNull();
-    await db.from("user_profiles").upsert({ id: adminUserId, email, role: "admin" });
+    await db.from("user_profiles").upsert({ id: adminUserId, email });
+    await giveRoles(db, adminUserId, "admin");
     vi.mocked(getCurrentUser).mockResolvedValue({ id: adminUserId, email });
     const res = await apiFetch(`/api/media/${id}/original?download=1`);
     expect(res.status).toBe(200);

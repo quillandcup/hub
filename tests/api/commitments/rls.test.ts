@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * Exercises RLS and constraints on prickle_commitments + prickle_commitment_slots
@@ -73,7 +74,7 @@ describe('prickle_commitments + prickle_commitment_slots RLS', () => {
     if (error || !data.user) throw new Error(`Failed to create test user ${email}: ${error?.message}`)
     authUserIds.push(data.user.id)
     // Set role explicitly rather than relying on the on_auth_user_created default.
-    await admin.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(admin, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in as ${email}: ${signInError.message}`)

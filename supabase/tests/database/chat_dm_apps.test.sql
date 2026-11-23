@@ -13,10 +13,10 @@ SELECT ok(NOT has_function_privilege('anon', 'chat_dm_apps(text)', 'EXECUTE') AN
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fda1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'da-fern@example.test'),
   ('00000000-0000-4000-a000-00000000fda2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'da-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fda1', 'da-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000fda2', 'da-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fda1', 'da-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000fda2', 'da-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, display_name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAdaA1', 'Da Fern Legal', 'Da Fern', 'da-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAdaA2', 'Da Gale Legal', 'Da Gale', 'da-gale@example.test', now(), 'active');

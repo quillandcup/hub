@@ -12,10 +12,10 @@ SELECT ok(has_function_privilege('authenticated', 'chat_add_message_files(text, 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fab1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'af-fern@example.test'),
   ('00000000-0000-4000-a000-00000000fab2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'af-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fab1', 'af-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000fab2', 'af-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fab1', 'af-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000fab2', 'af-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAfbA1', 'Af Fern', 'af-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAfbA2', 'Af Gale', 'af-gale@example.test', now(), 'active');

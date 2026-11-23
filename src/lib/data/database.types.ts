@@ -7198,7 +7198,6 @@ export type Database = {
           email: string
           id: string
           nav_mode: string | null
-          role: string
           secondary_timezone: string | null
           timezone_preference: string | null
           updated_at: string | null
@@ -7209,7 +7208,6 @@ export type Database = {
           email: string
           id: string
           nav_mode?: string | null
-          role?: string
           secondary_timezone?: string | null
           timezone_preference?: string | null
           updated_at?: string | null
@@ -7220,7 +7218,6 @@ export type Database = {
           email?: string
           id?: string
           nav_mode?: string | null
-          role?: string
           secondary_timezone?: string | null
           timezone_preference?: string | null
           updated_at?: string | null

@@ -17,10 +17,10 @@ SELECT plan(11);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000d1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'softdel-alice@example.test'),
   ('00000000-0000-4000-a000-00000000d1a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'softdel-bob@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000d1a1', 'softdel-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000d1a2', 'softdel-bob@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000d1a1', 'softdel-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000d1a2', 'softdel-bob@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_AAAAAAAAd1A1', 'Softdel Alice', 'softdel-alice@example.test', now(), 'active', '00000000-0000-4000-a000-00000000d1a1'),
   ('mbr_AAAAAAAAd1A2', 'Softdel Bob', 'softdel-bob@example.test', now(), 'active', '00000000-0000-4000-a000-00000000d1a2');
