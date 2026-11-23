@@ -141,6 +141,20 @@ describe("the words around a photo", () => {
     expect(milestonePhotoLine("public", { available: true, on: false })).toMatch(/goes on the web once your writer profile is on/);
     expect(milestonePhotoLine("public", { available: true, on: true })).toMatch(/Anyone on the internet/);
     expect(publishedPhotoLine({ available: true, on: true })).toBe(milestonePhotoLine("public", { available: true, on: true }));
+    // A book's photo has the book's level.
+    expect(publishedPhotoLine({ available: true, on: true }, "public")).toBe(milestonePhotoLine("public", { available: true, on: true }));
+    expect(publishedPhotoLine({ available: true, on: true }, "private")).toMatch(/Only you .* this book is private/);
+    expect(publishedPhotoLine({ available: true, on: true }, "community")).toMatch(/Other members .* the same as this book\. It is not on the web/);
+  });
+
+  it("hands a book's photo at the lock to nobody but its member: not another member, not a visitor, not staff (a book has no 'Share my story' tick)", () => {
+    const book = (viewer: PhotoViewer, webOn = true) => decidePhotoAccess({ ownerId: OWNER, level: "private", consentTestimonial: false }, viewer, webOn);
+    expect(book(owner)).toEqual({ allowed: true, cache: "private" });
+    for (const viewer of [member, staff, staffMember, signedInNoRecord, ANONYMOUS_VIEWER]) expect(book(viewer)).toEqual({ allowed: false });
+    // At the house a book's photo is for members, and never for a visitor or for staff who are not members' viewers of it.
+    const house = (viewer: PhotoViewer) => decidePhotoAccess({ ownerId: OWNER, level: "community", consentTestimonial: false }, viewer, true);
+    expect(house(member)).toEqual({ allowed: true, cache: "private" });
+    expect(house(ANONYMOUS_VIEWER)).toEqual({ allowed: false });
   });
 
   it("has a description and a prompt for every step, THE END, publish-ready and Published", () => {

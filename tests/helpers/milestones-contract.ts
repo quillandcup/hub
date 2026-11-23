@@ -871,6 +871,32 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         expect(await repo.photoByToken(token(44))).toBeNull();
       });
 
+      it("gives a book's photo the book's own level: the lock shows it to nobody, the house to members, the globe to the web too", async () => {
+        const repo = ctx.repo();
+        const book = await ctx.addBook(id(ada));
+        await repo.setBookPhoto(book, id(ada), pathOf(ada, 71), "With my book", NOW);
+        const photoFor = async (reader: "web" | "members") => (await stepsOf(repo, reader)).find((s) => s.kind === "published")?.photo ?? null;
+        const mine = { token: token(71), alt: "With my book" };
+
+        expect(await repo.photoByToken(token(71))).toMatchObject({ target: "book", level: "public" });
+        expect(await photoFor("web")).toEqual(mine);
+
+        await ctx.setBookVisibility(book, "community");
+        expect(await repo.photoByToken(token(71))).toMatchObject({ target: "book", ownerId: id(ada), level: "community" });
+        expect(await photoFor("members")).toEqual(mine);
+        expect(await photoFor("web")).toBeNull();
+
+        await ctx.setBookVisibility(book, "private");
+        expect(await repo.photoByToken(token(71))).toMatchObject({ target: "book", ownerId: id(ada), level: "private" });
+        expect(await photoFor("members")).toBeNull();
+        expect(await photoFor("web")).toBeNull();
+        // The member's own My Writing list still has it: it is theirs.
+        expect(await repo.bookPhotosOf(id(ada))).toEqual([{ bookId: book, token: token(71), alt: "With my book" }]);
+
+        await ctx.setBookVisibility(book, "public");
+        expect(await photoFor("web")).toEqual(mine);
+      });
+
       it("serves no photo of a book that was deleted from the Bookshelf", async () => {
         const repo = ctx.repo();
         const book = await ctx.addBook(id(ada));

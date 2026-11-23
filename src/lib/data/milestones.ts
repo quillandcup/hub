@@ -729,9 +729,10 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
     const { data: bookPhoto, error: bookPhotoError } = await this.db.from("member_book_photos").select("book_id, member_id, photo_path").like("photo_path", `%/${token}.webp`).maybeSingle();
     if (bookPhotoError) throw new Error(bookPhotoError.message);
     if (!bookPhoto) return null;
-    const { data: book, error: bookError } = await this.db.from("member_books").select("id").eq("id", bookPhoto.book_id).is("deleted_at", null).maybeSingle();
+    const { data: book, error: bookError } = await this.db.from("member_books").select("id, visibility").eq("id", bookPhoto.book_id).is("deleted_at", null).maybeSingle();
     if (bookError) throw new Error(bookError.message);
-    return book ? { target: "book" as const, ownerId: bookPhoto.member_id, path: bookPhoto.photo_path, level: "public" as Visibility, consentTestimonial: false } : null;
+    // A photo has the level of its book, and never more.
+    return book ? { target: "book" as const, ownerId: bookPhoto.member_id, path: bookPhoto.photo_path, level: book.visibility as Visibility, consentTestimonial: false } : null;
   }
 }
 
@@ -1150,7 +1151,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     }
     const bookPhoto = this.data.memberBookPhotos.find((p) => tokenOfPath(p.photo_path) === token);
     if (!bookPhoto) return null;
-    const live = this.data.memberBooks.some((b) => b.id === bookPhoto.book_id && (b.deleted_at ?? null) === null);
-    return live ? { target: "book" as const, ownerId: bookPhoto.member_id, path: bookPhoto.photo_path, level: "public" as Visibility, consentTestimonial: false } : null;
+    const book = this.data.memberBooks.find((b) => b.id === bookPhoto.book_id && (b.deleted_at ?? null) === null);
+    return book ? { target: "book" as const, ownerId: bookPhoto.member_id, path: bookPhoto.photo_path, level: (book.visibility ?? "public") as Visibility, consentTestimonial: false } : null;
   }
 }

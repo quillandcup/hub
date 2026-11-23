@@ -1,6 +1,7 @@
 import { reachedWhileMember, type MilestoneKind } from "@/lib/finishers";
 import type { Milestone, ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
 import type { StepPhoto } from "@/lib/milestone-photos";
+import type { Visibility } from "@/lib/writing-visibility";
 
 /**
  * Works (docs/product/FINISHERS.md). A milestone belongs to one work: a writing project and/or a Bookshelf book (a book that has
@@ -43,7 +44,7 @@ export function parseWork(input: { projectId?: string | null; bookId?: string | 
 /** A project as the card needs it. */
 export type CardProject = { id: string; title: string; phase: string };
 /** A live Bookshelf book as the card needs it. */
-export type CardBook = { id: string; title: string; projectId: string | null; /** The day it was published, for the rule that a book counts only if published while a member. */ publishedDate?: string | null; /** The photo of the member holding it (the Published step). */ photo?: StepPhoto | null };
+export type CardBook = { id: string; title: string; projectId: string | null; /** The day it was published, for the rule that a book counts only if published while a member. */ publishedDate?: string | null; /** The photo of the member holding it (the Published step). */ photo?: StepPhoto | null; /** Who can see the book; its photo never has more. */ visibility?: Visibility };
 
 /** One work on the card, with the milestones stored for it. `published` is derived: it has a book on the Bookshelf. */
 export type Work = {
@@ -56,6 +57,8 @@ export type Work = {
   published: boolean;
   /** The "holding my book" photo of the work's Bookshelf book, for the Published step. */
   bookPhoto?: StepPhoto | null;
+  /** The level of the work's Bookshelf book (its photo has the same). */
+  bookVisibility?: Visibility;
   milestones: Partial<Record<MilestoneKind, Milestone>>;
 };
 
@@ -80,9 +83,10 @@ export function buildWorks(projects: CardProject[], books: CardBook[], milestone
       linked.bookId = b.id;
       linked.published ||= counts;
       linked.bookPhoto = b.photo ?? null;
+      linked.bookVisibility = b.visibility ?? "public";
       byId.set(b.id, linked);
     } else {
-      add({ key: b.projectId ?? b.id, projectId: b.projectId, bookId: b.id, title: b.title, phase: null, published: counts, bookPhoto: b.photo ?? null, milestones: {} }, b.id, b.projectId);
+      add({ key: b.projectId ?? b.id, projectId: b.projectId, bookId: b.id, title: b.title, phase: null, published: counts, bookPhoto: b.photo ?? null, bookVisibility: b.visibility ?? "public", milestones: {} }, b.id, b.projectId);
     }
   }
   const unlisted = new Map<string, Work>();
