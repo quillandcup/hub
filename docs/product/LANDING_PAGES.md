@@ -1,6 +1,6 @@
 # Landing pages (the page builder)
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block (sign-ups into Kajabi) and the import of Kajabi page exports are built too; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
 
@@ -71,7 +71,7 @@ Every button the builder draws (Button, Buttons, Link list, the sign-up form, th
 - **Publish** opens a dialog: it runs the accessibility checks (below), lists what must be fixed or checked, and only then publishes. The server runs the same checks and refuses on errors. Publishing sends the draft the editor shows, so nothing typed a moment before is left out.
 - **Versions**: History lists the last 20 versions, each with **who made it** (a display name through `editorNames`, `src/lib/landing/version-people.ts`; "Someone" when unknown; never a user id), when, what kind it is (published, or the draft kept before an import or a replacement) and its **note**. The note is what the admin typed in the Publish dialog's optional "What changed?" (at most 200 characters, `landing_page_versions.note`, written by `publish_landing_page_with_note` in the same step), or what the app wrote for a draft it kept: "Replaced by the template “X”", "Replaced by the page “Y”", "Replaced by a JSON import", "Replaced by a Kajabi import", and "Saved from the page “Y”" for the publish of Save as template (a name or title, never typed page content). The note lives on the version only: it is never in the Activity Log sentence or the audit rows. Bring back replaces the draft (after a confirm), and the editor reopens on it. It never goes live until published again.
 - **Details**: title, address (a warning when the page is live), search title and description, the picture shown when shared.
-- **Preview** opens `/admin/pages/<slug>/preview`, the draft rendered as a visitor would see it; drafts never render on the public route.
+- **Preview** opens `/admin/pages/<slug>/preview`, the draft rendered as a visitor would see it, under a "Preview of the draft" banner and without the staff shell (no sidebar or top bar: it lives in the `src/app/(admin-bare)` route group, same URL and the same `pages.read` guard); drafts never render on the public route.
 - Device preview uses Puck's viewports: desktop is 1280 wide with a free height; Tablet and Phone set an exact width and height from a model (`devices.ts`: the portrait CSS screen, full height, so a phone's browser toolbars take roughly 100 to 150px more than the fold shown). The editor remembers the chosen model and the orientation separately: Tablet landscape swaps the same model's width and height. At a device size the canvas is one screen tall (Puck scales it to fit) and the page scrolls inside it; `FoldMarker.tsx` draws a dashed plum line with "Fold: Npx" at the viewport height inside the canvas iframe (Puck's `iframe` override), and a header button hides it. Blocks lay out with container queries (`@container` on the page frame, named sizes), so the phone preview reflows as a phone does.
 
 ## Accessibility checks (`src/lib/landing/a11y.ts`)
