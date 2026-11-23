@@ -1,4 +1,4 @@
--- pgTAP test for public.custom_access_token_hook (20260926000900_add_role_to_access_token.sql).
+-- pgTAP test for public.custom_access_token_hook (20260926000900_add_role_to_access_token.sql, app_roles from user_roles since 20271008000000).
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job). It runs
 -- as supabase_admin, since tests here SET ROLE to roles postgres can't. finish(true) raises on
@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(16);
+SELECT plan(13);
 
 -- Fixture users (fixed ids that nothing else uses; rolled back at the end).
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -16,10 +16,11 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000a903', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hook-noprofile@example.test');
 
 -- The signup trigger may already have created profile rows; set them explicitly either way.
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000a901', 'hook-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000a902', 'hook-member@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000a901', 'hook-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000a902', 'hook-member@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES ('00000000-0000-4000-a000-00000000a901', 'admin') ON CONFLICT (user_id, role) DO NOTHING;
 DELETE FROM public.user_profiles WHERE id = '00000000-0000-4000-a000-00000000a903';
 
 CREATE TEMP TABLE hook_event(user_id uuid, event jsonb) ON COMMIT DROP;
@@ -50,31 +51,22 @@ FROM (SELECT '{"user_id": "not-a-uuid", "claims": {"role": "authenticated"}}'::j
 RESET ROLE;
 
 SELECT is(
-  (SELECT result -> 'claims' ->> 'app_role' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a901'),
-  'admin', 'admin profile → app_role "admin"');
-SELECT is(
-  (SELECT result -> 'claims' ->> 'app_role' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a902'),
-  'member', 'member profile → app_role "member"');
-SELECT is(
-  (SELECT result -> 'claims' -> 'app_role' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a903'),
-  'null'::jsonb, 'no profile row → app_role is JSON null (present, never admin)');
-SELECT is(
   (SELECT result -> 'claims' -> 'app_roles' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a901'),
-  '["admin"]'::jsonb, 'admin profile → app_roles ["admin"] (a user_roles row from the sync)');
+  '["admin"]'::jsonb, 'an admin → app_roles ["admin"]');
 SELECT is(
   (SELECT result -> 'claims' -> 'app_roles' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a902'),
-  '[]'::jsonb, 'member profile → app_roles is empty');
+  '[]'::jsonb, 'a member → app_roles is empty');
 SELECT is(
   (SELECT result -> 'claims' -> 'app_roles' FROM hook_result WHERE user_id = '00000000-0000-4000-a000-00000000a903'),
-  '[]'::jsonb, 'no profile row → app_roles is empty');
+  '[]'::jsonb, 'no profile row → app_roles is empty (never an admin)');
 SELECT ok(
-  (SELECT bool_and(result -> 'claims' ? 'app_role') FROM hook_result WHERE user_id IS NOT NULL),
+  (SELECT bool_and(result -> 'claims' ? 'app_roles') FROM hook_result WHERE user_id IS NOT NULL),
   'every token gets the claim, so the proxy can skip its DB read');
 SELECT is(
   (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND result -> 'claims' ->> 'role' = 'authenticated'),
   3, 'the reserved role claim stays "authenticated"');
 SELECT is(
-  (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND (result -> 'claims') - 'app_role' - 'app_roles' = event -> 'claims'),
+  (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND (result -> 'claims') - 'app_roles' = event -> 'claims'),
   3, 'no other claim is added, removed or changed');
 SELECT is(
   (SELECT count(*)::int FROM hook_result WHERE user_id IS NOT NULL AND result - 'claims' = event - 'claims'),

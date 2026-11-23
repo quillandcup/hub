@@ -21,10 +21,10 @@ SELECT ok(
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f7a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'post-fern@example.test'),
   ('00000000-0000-4000-a000-00000000f7a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'post-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f7a1', 'post-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f7a2', 'post-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f7a1', 'post-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000f7a2', 'post-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAf7A1', 'Post Fern', 'post-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAf7A2', 'Post Gale', 'post-gale@example.test', now(), 'active');

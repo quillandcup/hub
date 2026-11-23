@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { loadCourseWatchStats } from '@/lib/courses/watch-stats-data'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * What the staff watch-stats pages read, against the real local database: each lesson's video, the
@@ -35,7 +36,7 @@ describe('loadCourseWatchStats', () => {
     const { data: auth, error: authError } = await supabase.auth.admin.createUser({ email: emailOf('staff'), email_confirm: true })
     if (authError || !auth.user) throw new Error(`createUser failed: ${authError?.message}`)
     staffAuthId = auth.user.id
-    await supabase.from('user_profiles').update({ role: 'admin' }).eq('id', staffAuthId)
+    await giveRoles(supabase, staffAuthId, 'admin')
     await supabase.from('members').update({ user_id: staffAuthId }).eq('id', ids.staff)
 
     // Ann has an account too, with access events from two places before her visits: where a visit came from is her latest located event before it.

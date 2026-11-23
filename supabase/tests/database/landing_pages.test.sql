@@ -12,10 +12,13 @@ SELECT plan(33);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pages-member@example.test'),
   ('00000000-0000-4000-a000-00000000e5a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pages-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e5a1', 'pages-member@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e5a2', 'pages-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e5a1', 'pages-member@example.test'),
+  ('00000000-0000-4000-a000-00000000e5a2', 'pages-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e5a2', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Made as the database owner, so what the admin does to it below is a separate audit story from its creation.
 INSERT INTO public.landing_pages (id, slug, title, draft_data) VALUES

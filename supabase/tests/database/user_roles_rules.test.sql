@@ -16,15 +16,22 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000ef05', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rules-cm1@example.test'),
   ('00000000-0000-4000-a000-00000000ef06', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rules-mb1@example.test'),
   ('00000000-0000-4000-a000-00000000ef07', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rules-mb2@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000ef01', 'rules-ad1@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000ef02', 'rules-ad2@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000ef03', 'rules-as1@example.test', 'assistant'),
-  ('00000000-0000-4000-a000-00000000ef04', 'rules-as2@example.test', 'assistant'),
-  ('00000000-0000-4000-a000-00000000ef05', 'rules-cm1@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000ef06', 'rules-mb1@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000ef07', 'rules-mb2@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000ef01', 'rules-ad1@example.test'),
+  ('00000000-0000-4000-a000-00000000ef02', 'rules-ad2@example.test'),
+  ('00000000-0000-4000-a000-00000000ef03', 'rules-as1@example.test'),
+  ('00000000-0000-4000-a000-00000000ef04', 'rules-as2@example.test'),
+  ('00000000-0000-4000-a000-00000000ef05', 'rules-cm1@example.test'),
+  ('00000000-0000-4000-a000-00000000ef06', 'rules-mb1@example.test'),
+  ('00000000-0000-4000-a000-00000000ef07', 'rules-mb2@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000ef01', 'admin'),
+  ('00000000-0000-4000-a000-00000000ef02', 'admin'),
+  ('00000000-0000-4000-a000-00000000ef03', 'assistant'),
+  ('00000000-0000-4000-a000-00000000ef04', 'assistant'),
+  ('00000000-0000-4000-a000-00000000ef05', 'community_manager')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 SET LOCAL ROLE authenticated;
 

@@ -14,10 +14,10 @@ SELECT ok(NOT has_function_privilege('anon', 'chat_dm_counterparts(text)', 'EXEC
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fdc1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-fern@example.test'),
   ('00000000-0000-4000-a000-00000000fdc2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fdc1', 'dc-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000fdc2', 'dc-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fdc1', 'dc-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000fdc2', 'dc-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, display_name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAdcA1', 'Dc Fern Legal', 'Dc Fern', 'dc-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAdcA2', 'Dc Gale Legal', 'Dc Gale', 'dc-gale@example.test', now(), 'active'),

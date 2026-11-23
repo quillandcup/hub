@@ -5,19 +5,13 @@ import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { escapeLike } from "./query";
 
-/**
- * A signed-in user's profile row (one per Supabase Auth user): their time zone and display settings. Not a member record, and
- * deliberately without `role`: a person's roles are in `user_roles` (`rolesOf`), never read from the old column, so a read of
- * `profile.role` does not typecheck.
- */
-export type UserProfile = Omit<Row<"user_profiles">, "role">;
-
-/** The columns a profile read selects: all of them but the old `role` column (see {@link UserProfile}). */
-const PROFILE_COLUMNS = "id, email, created_at, updated_at, timezone_preference, nav_mode, secondary_timezone, analytics_opt_out_at";
+/** A signed-in user's profile row (one per Supabase Auth user): their time zone and display settings. Not a member record, and not their roles (`user_roles`, read with `rolesOf`). */
+export type UserProfile = Row<"user_profiles">;
 
 /**
- * A profile as the in-memory dataset keeps it: the id and email, and whatever else a test names. `role` is seed shorthand for
- * one `user_roles` row, as the database's sync trigger treats a profile written with a role; the twin reads it as a role held.
+ * A profile as the in-memory dataset keeps it: the id and email, and whatever else a test names. `role` is seed shorthand for one
+ * `user_roles` row (a test that names a role for a profile means the person holds it); the twin reads it as a role held, and
+ * `setRoles` replaces it. There is no such column in the database.
  */
 export type UserProfileSeed = Pick<UserProfile, "id" | "email"> & Partial<Omit<UserProfile, "id" | "email">> & { role?: string };
 
@@ -57,7 +51,7 @@ function withRoles(profiles: readonly ProfileIdentity[], held: ReadonlyMap<strin
 /**
  * The profile of each Supabase Auth user (`user_profiles`, keyed by the auth user id): the roles, and the time zone
  * settings. A user holds a set of staff roles (`user_roles`; a member holds none), and every read of "who holds this role"
- * is a read of that table. The old `user_profiles.role` column is still written (by triggers) until it is dropped, and never read.
+ * is a read of that table.
  * Every method throws on a database error, except {@link isAdmin}, which authorizes and so answers "no" when it can't tell.
  */
 export interface ProfileRepository {
@@ -105,7 +99,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   constructor(private readonly db: Db) {}
 
   async byId(userId: string) {
-    const { data, error } = await this.db.from("user_profiles").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle();
+    const { data, error } = await this.db.from("user_profiles").select("*").eq("id", userId).maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -168,7 +162,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async byIds(userIds: string[]) {
     const rows: UserProfile[] = [];
     for (const part of chunk([...new Set(userIds)], ID_CHUNK)) {
-      const { data, error } = await this.db.from("user_profiles").select(PROFILE_COLUMNS).in("id", part);
+      const { data, error } = await this.db.from("user_profiles").select("*").in("id", part);
       if (error) throw new Error(error.message);
       rows.push(...(data ?? []));
     }
@@ -178,7 +172,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async all() {
     return fetchAllRows<UserProfile>(
       (from, to) =>
-        this.db.from("user_profiles").select(PROFILE_COLUMNS).order("id").range(from, to)
+        this.db.from("user_profiles").select("*").order("id").range(from, to)
     );
   }
 
@@ -282,7 +276,7 @@ export class InMemoryProfileRepository implements ProfileRepository {
     if (!profile) throw new Error("No such user");
     this.data.userRoles = this.data.userRoles.filter((r) => r.user_id !== userId);
     for (const role of wanted) this.data.userRoles.push({ user_id: userId, role });
-    profile.role = primaryRole(wanted) ?? "member";
+    profile.role = undefined; // the seed shorthand is replaced by the rows just written
   }
 
   async byIds(userIds: string[]) {

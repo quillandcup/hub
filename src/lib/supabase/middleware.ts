@@ -234,12 +234,12 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   // secure check is requirePermission(...) (src/lib/admin-auth.ts) in the admin layout
   // and every admin page. See "Admin route protection" in .claude/rules/admin-route-protection.md.
   if (user && isAdminPath(pathname)) {
-    // The role comes from the `app_role` claim that the custom access token
-    // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)
-    // puts in every token -- no user_profiles read. A missing claim counts as
+    // The roles come from the `app_roles` claim that the custom access token
+    // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql,
+    // 20271008000000_user_roles.sql) puts in every token -- no database read. A missing claim counts as
     // not-admin. The claim can be up to one access-token lifetime stale
     // (auth.jwt_expiry), which is fine for a pre-filter: requirePermission(...)
-    // re-reads user_profiles. Sudo doesn't matter: the sudo cookie only
+    // re-reads user_roles. Sudo doesn't matter: the sudo cookie only
     // changes the *effective member*, not the signed-in user.
     // An admin previewing a lower role is checked as that role (src/lib/staff-preview.ts), but sent to its home
     // instead of /no-access, which has no way out of the preview.

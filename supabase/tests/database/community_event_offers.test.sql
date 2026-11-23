@@ -10,10 +10,13 @@ SELECT plan(15);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e0a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'eventoffer-admin@example.test'),
   ('00000000-0000-4000-a000-00000000e0a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'eventoffer-member@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e0a1', 'eventoffer-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000e0a2', 'eventoffer-member@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e0a1', 'eventoffer-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000e0a2', 'eventoffer-member@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e0a1', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO public.prickles (id, source, type_id, title, start_time, end_time) VALUES
   ('prkl_EVOFFER0001', 'calendar', (SELECT id FROM public.prickle_types WHERE normalized_name = 'event'), 'Offer Event A', '2097-05-05 15:00:00+00', '2097-05-05 17:00:00+00'),

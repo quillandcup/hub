@@ -14,9 +14,9 @@ SELECT plan(34);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f8a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'mw-quinn@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f8a1', 'mw-quinn@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f8a1', 'mw-quinn@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_mwPia0000001', 'Pia Works', 'mw-pia@example.test', now(), 'active', NULL),
   ('mbr_mwQuinn00001', 'Quinn Works', 'mw-quinn@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f8a1');

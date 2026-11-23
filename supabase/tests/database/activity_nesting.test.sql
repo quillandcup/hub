@@ -19,11 +19,15 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fd01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nest-manager@example.test'),
   ('00000000-0000-4000-a000-00000000fd02', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nest-admin@example.test'),
   ('00000000-0000-4000-a000-00000000fd03', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nest-ada@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fd01', 'nest-manager@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000fd02', 'nest-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000fd03', 'nest-ada@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fd01', 'nest-manager@example.test'),
+  ('00000000-0000-4000-a000-00000000fd02', 'nest-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000fd03', 'nest-ada@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000fd01', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000fd02', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_NestAAAAAA1', 'Ada Example', 'nest-ada@example.test', now(), 'active', '00000000-0000-4000-a000-00000000fd03'),
   ('mbr_NestAAAAAA2', 'Bo Example', 'nest-bo@example.test', now(), 'active', NULL);

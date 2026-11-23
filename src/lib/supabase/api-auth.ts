@@ -69,7 +69,7 @@ export async function createApiAuth(request: NextRequest) {
  * - user: the authenticated user (or null if no session)
  * - forbidden: true if the user's role lacks the permission, false otherwise
  *
- * Reads the roles from the database (`user_roles`, with `user_profiles.role`), never the token claim. A "view as role" preview doesn't apply to routes (it is
+ * Reads the roles from the database (`user_roles`), never the token claim. A "view as role" preview doesn't apply to routes (it is
  * UI and routing only). Service-role key in Authorization header bypasses the role check (used by tests).
  * Vercel Cron secret in Authorization header also bypasses the role check.
  */

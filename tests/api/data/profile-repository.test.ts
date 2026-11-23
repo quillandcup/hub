@@ -3,6 +3,7 @@ import type { Db } from "@/lib/data/db";
 import { SupabaseProfileRepository } from "@/lib/data/profiles";
 import { defineProfileContract } from "@/tests/helpers/profile-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
+import { giveRoles } from "@/tests/helpers/user-roles";
 
 const db = getTestSupabaseAdminClient() as unknown as Db;
 const RUN = `${Date.now()}`;
@@ -29,9 +30,10 @@ defineProfileContract("SupabaseProfileRepository", () => ({
       created.push(data.user.id);
       const { error: updateError } = await db
         .from("user_profiles")
-        .update({ role: u.role ?? "member", timezone_preference: u.timezone ?? null, secondary_timezone: u.secondary ?? null })
+        .update({ timezone_preference: u.timezone ?? null, secondary_timezone: u.secondary ?? null })
         .eq("id", data.user.id);
       if (updateError) throw new Error(updateError.message);
+      await giveRoles(db, data.user.id, u.role ?? "member");
     }
     return ids;
   },

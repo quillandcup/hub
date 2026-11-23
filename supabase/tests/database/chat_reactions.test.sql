@@ -16,11 +16,14 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f9a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'react-fern@example.test'),
   ('00000000-0000-4000-a000-00000000f9a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'react-gale@example.test'),
   ('00000000-0000-4000-a000-00000000f9a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'react-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f9a1', 'react-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f9a2', 'react-gale@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f9a3', 'react-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f9a1', 'react-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000f9a2', 'react-gale@example.test'),
+  ('00000000-0000-4000-a000-00000000f9a3', 'react-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f9a3', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAf9A1', 'React Fern', 'react-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAf9A2', 'React Gale', 'react-gale@example.test', now(), 'active'),

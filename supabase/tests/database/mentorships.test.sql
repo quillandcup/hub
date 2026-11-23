@@ -12,10 +12,13 @@ SELECT plan(25);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000b1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'bs-member@example.test'),
   ('00000000-0000-4000-a000-00000000b1a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'bs-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000b1a1', 'bs-member@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b1a4', 'bs-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000b1a1', 'bs-member@example.test'),
+  ('00000000-0000-4000-a000-00000000b1a4', 'bs-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000b1a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('00000000-0000-4000-a000-00000000b101', 'Big Sister One', 'bs-one@example.test', now(), 'active'),
@@ -136,9 +139,9 @@ SELECT ok(
 -- set_mentorship_note: the match's own big sister can write the reason, nobody else can.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000b1a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'bs-mentor@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000b1a2', 'bs-mentor@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000b1a2', 'bs-mentor@example.test')
+ON CONFLICT (id) DO NOTHING;
 UPDATE public.members SET user_id = '00000000-0000-4000-a000-00000000b1a2' WHERE id = '00000000-0000-4000-a000-00000000b101';
 CREATE TEMP TABLE note(label text, value jsonb) ON COMMIT DROP;
 GRANT INSERT ON note TO authenticated;

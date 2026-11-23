@@ -16,14 +16,19 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e5d5', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cp-cleo@example.test'),
   ('00000000-0000-4000-a000-00000000e5d6', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cp-orla@example.test'),
   ('00000000-0000-4000-a000-00000000e5d7', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cp-ines@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e5d1', 'cp-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e5d2', 'cp-gale@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e5d3', 'cp-ada@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000e5d5', 'cp-cleo@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000e5d6', 'cp-orla@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e5d7', 'cp-ines@example.test', 'assistant')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e5d1', 'cp-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000e5d2', 'cp-gale@example.test'),
+  ('00000000-0000-4000-a000-00000000e5d3', 'cp-ada@example.test'),
+  ('00000000-0000-4000-a000-00000000e5d5', 'cp-cleo@example.test'),
+  ('00000000-0000-4000-a000-00000000e5d6', 'cp-orla@example.test'),
+  ('00000000-0000-4000-a000-00000000e5d7', 'cp-ines@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e5d3', 'admin'),
+  ('00000000-0000-4000-a000-00000000e5d5', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000e5d7', 'assistant')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_CPAAAAAAAAF1', 'Cp Fern', 'cp-fern@example.test', now(), 'active', '00000000-0000-4000-a000-00000000e5d1'),
   ('mbr_CPAAAAAAAAG1', 'Cp Gale', 'cp-gale@example.test', now(), 'active', '00000000-0000-4000-a000-00000000e5d2'),

@@ -22,11 +22,14 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-alice@example.test'),
   ('00000000-0000-4000-a000-00000000f5a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-bob@example.test'),
   ('00000000-0000-4000-a000-00000000f5a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f5a1', 'ms-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f5a2', 'ms-bob@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f5a4', 'ms-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f5a1', 'ms-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000f5a2', 'ms-bob@example.test'),
+  ('00000000-0000-4000-a000-00000000f5a4', 'ms-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f5a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_msAlice00001', 'Alice Milestone', 'ms-alice@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a1'),
   ('mbr_msBob0000001', 'Bob Milestone', 'ms-bob@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a2'),
@@ -141,10 +144,10 @@ SELECT is(
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f5a5', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-erin@example.test'),
   ('00000000-0000-4000-a000-00000000f5a6', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-gus@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f5a5', 'ms-erin@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f5a6', 'ms-gus@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f5a5', 'ms-erin@example.test'),
+  ('00000000-0000-4000-a000-00000000f5a6', 'ms-gus@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_msErin000001', 'Erin Milestone', 'ms-erin@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a5'),
   ('mbr_msGus0000001', 'Gus Milestone', 'ms-gus@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a6');
@@ -209,8 +212,12 @@ RESET ROLE;
 -- Sudo: an admin who is also a member (valid short id, which the X-Acting-As header needs) views as themselves.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f5a7', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ms-sudo@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES ('00000000-0000-4000-a000-00000000f5a7', 'ms-sudo@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f5a7', 'ms-sudo@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f5a7', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_msSudoAdmin1', 'Sudo Milestone', 'ms-sudo@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a7');
 SET LOCAL ROLE authenticated;

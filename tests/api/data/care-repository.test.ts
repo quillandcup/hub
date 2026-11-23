@@ -4,6 +4,7 @@ import { SupabaseCareRepository } from "@/lib/data/care";
 import { defineCareContract } from "@/tests/helpers/care-contract";
 import { createRunMembers, createRunUser, deleteRunMembers, type PeopleMember } from "@/tests/helpers/people-fixtures";
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from "@/tests/helpers/supabase";
+import { giveRoles } from "@/tests/helpers/user-roles";
 
 const admin = getTestSupabaseAdminClient();
 const db = admin as unknown as Db;
@@ -24,8 +25,7 @@ beforeAll(async () => {
     const label = `care-repo-${who}`;
     const id = await createRunUser(admin, label, RUN);
     users[who] = id;
-    const { error } = await admin.from("user_profiles").update({ role: ROLES[who] }).eq("id", id);
-    if (error) throw new Error(error.message);
+    await giveRoles(admin, id, ROLES[who]);
     const client = getTestSupabaseClient();
     const signedIn = await client.auth.signInWithPassword({ email: `${label}-${RUN}@example.com`, password: PASSWORD });
     if (signedIn.error) throw new Error(signedIn.error.message);

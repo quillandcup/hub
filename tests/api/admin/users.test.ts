@@ -147,13 +147,9 @@ describe('Admin Users API', () => {
     expect(res.ok).toBe(true)
 
     // Confirm the change is reflected in the DB
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', testUserId)
-      .single()
+    const { data: held } = await supabase.from('user_roles').select('role').eq('user_id', testUserId)
 
-    expect(profile?.role).toBe('admin')
+    expect((held ?? []).map((r) => r.role)).toEqual(['admin'])
   })
 
   describe('PATCH roles — a person can hold several', () => {
@@ -165,17 +161,14 @@ describe('Admin Users API', () => {
       })
 
     const stored = async () => {
-      const [{ data: held }, { data: profile }] = await Promise.all([
-        supabase.from('user_roles').select('role').eq('user_id', testUserId),
-        supabase.from('user_profiles').select('role').eq('id', testUserId).single(),
-      ])
-      return { roles: (held ?? []).map((r) => r.role).sort(), column: profile?.role }
+      const { data: held } = await supabase.from('user_roles').select('role').eq('user_id', testUserId)
+      return { roles: (held ?? []).map((r) => r.role).sort() }
     }
 
-    it('stores each role and keeps the old column at the highest priority one', async () => {
+    it('stores each role', async () => {
       const res = await patchRoles(['conversion_specialist', 'community_manager'])
       expect(res.ok).toBe(true)
-      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'], column: 'community_manager' })
+      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'] })
     })
 
     it('GET lists every role held, and the primary one as `role`', async () => {
@@ -188,12 +181,12 @@ describe('Admin Users API', () => {
 
     it('replaces the set, and an empty list makes the person a member', async () => {
       await patchRoles(['assistant', 'community_manager'])
-      expect(await stored()).toEqual({ roles: ['assistant', 'community_manager'], column: 'assistant' })
+      expect(await stored()).toEqual({ roles: ['assistant', 'community_manager'] })
       await patchRoles(['community_manager'])
-      expect(await stored()).toEqual({ roles: ['community_manager'], column: 'community_manager' })
+      expect(await stored()).toEqual({ roles: ['community_manager'] })
       const res = await patchRoles([])
       expect(res.ok).toBe(true)
-      expect(await stored()).toEqual({ roles: [], column: 'member' })
+      expect(await stored()).toEqual({ roles: [] })
     })
 
     it('refuses an unknown role and a malformed list, and changes nothing', async () => {
@@ -201,7 +194,7 @@ describe('Admin Users API', () => {
       expect((await patchRoles(['superuser'])).status).toBe(400)
       expect((await patchRoles('admin')).status).toBe(400)
       expect((await patchRoles([7])).status).toBe(400)
-      expect(await stored()).toEqual({ roles: ['community_manager'], column: 'community_manager' })
+      expect(await stored()).toEqual({ roles: ['community_manager'] })
       await patchRoles([])
     })
 
@@ -213,7 +206,7 @@ describe('Admin Users API', () => {
         body: JSON.stringify({ role: 'assistant' }),
       })
       expect(res.ok).toBe(true)
-      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'], column: 'community_manager' })
+      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'] })
       await patchRoles([])
     })
   })
@@ -280,12 +273,12 @@ describe('Admin Users API', () => {
 
     expect(res.ok).toBe(true)
 
-    const [{ data: profile }, { data: rows }] = await Promise.all([
-      supabase.from('user_profiles').select('role').eq('id', testUserId).single(),
+    const [{ data: held }, { data: rows }] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', testUserId),
       supabase.from('user_feature_previews').select('feature_key').eq('user_id', testUserId),
     ])
 
-    expect(profile?.role).toBe('member')
+    expect(held ?? []).toEqual([])
     expect((rows ?? []).map((r) => r.feature_key)).toEqual(['member_overrides'])
   })
 
