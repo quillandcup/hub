@@ -451,6 +451,8 @@ jobs:
     if: needs.capture.outputs.published == 'true'
     permissions:
       contents: write # moves the `production` tag
+      id-token: write # deploy.yml's attest job (build provenance); the deploy job itself stays at contents: write
+      attestations: write
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
     with:
