@@ -12,8 +12,8 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 | Result | Count |
 |---|---|
-| Met | 36 |
-| Partly | 7 |
+| Met | 37 |
+| Partly | 6 |
 | Not met | 7 |
 | N/A | 15 |
 | Total | 65 |
@@ -28,7 +28,7 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 | `OSPS-AC-02.01` New collaborators get the lowest permission | 1 | Met | The organization's default repository permission is `read` (live); collaborators are added by hand by an owner (`.github/GOVERNANCE.md`, "Access"). |
 | `OSPS-AC-03.01` Direct commits to the primary branch are blocked | 1 | Met | The `main` ruleset requires a pull request (`config/github.yml`); the only bypass is the admin role, and only through a pull request. |
 | `OSPS-AC-03.02` Deleting the primary branch is prevented | 1 | Met | The `deletion` and `non_fast_forward` rules in the same ruleset. |
-| `OSPS-AC-04.01` Default CI permissions are the lowest | 2 | Partly | Every workflow in `.github/workflows/` declares a top-level `permissions:` (read-only; writes only on the jobs that need them). The repository's own default for the token is still `write` (live), so a new workflow that forgets the line would get write. |
+| `OSPS-AC-04.01` Default CI permissions are the lowest | 2 | Met | Every workflow in `.github/workflows/` declares a top-level `permissions:` (read-only; writes only on the jobs that need them), and the repository default for the token is `read` (live, set 2026-11-23: `gh api repos/quillandcup/hub/actions/permissions/workflow`). |
 | `OSPS-AC-04.02` Each job gets the minimum it needs | 3 | Met | Top-level `read` and per-job grants (`openssf-scorecard.yml`, `deploy.yml`, `ci.yml`); no workflow has write at the top level. |
 
 ## Build and release (BR)
@@ -127,9 +127,8 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 ## What is worth doing
 
-1. Set the workflow token default to read-only (`OSPS-AC-04.01`), the live setting `default_workflow_permissions`.
-2. Write the remediation thresholds for dependency and static analysis findings (`OSPS-VM-05.04`, `OSPS-VM-06.01`, and the pre-release rule `OSPS-VM-05.02`); a few lines in `docs/trust/THREAT_MODEL.md` or `.github/SECURITY.md`.
-3. Add a `CODEOWNERS` file once there is an organization team to own paths (see `docs/TODO.md`, "OSPS Baseline: what is left").
-4. Decide on blocking dependency checks (`OSPS-VM-05.03`).
+1. Write the remediation thresholds for dependency and static analysis findings (`OSPS-VM-05.04`, `OSPS-VM-06.01`, and the pre-release rule `OSPS-VM-05.02`); a few lines in `docs/trust/THREAT_MODEL.md` or `.github/SECURITY.md`.
+2. Add a `CODEOWNERS` file once there is an organization team to own paths (see `docs/TODO.md`, "OSPS Baseline: what is left").
+3. Decide on blocking dependency checks (`OSPS-VM-05.03`).
 
 Not within reach without a decision or another person: an open source license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`). Details and owners of the open items are in `docs/TODO.md`.
