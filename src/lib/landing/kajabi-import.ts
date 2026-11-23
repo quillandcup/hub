@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseFragment, serializeOuter } from "parse5";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
+import { ITEM_LIMITS } from "@/components/landing/item-limits";
 import { safeHref, type LandingData } from "@/lib/landing/data";
 import { presetPadding } from "@/lib/landing/layout";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
@@ -349,29 +350,42 @@ function mapCards(ctx: Ctx, cards: Settings[]): Puck[] {
 }
 
 /**
- * Pricing columns become a Card grid as well: the plan's name, the price as written, its heading and the button with the
- * export's link. Nothing is added: no price or link the export does not have. What a card has no room for (the list under the
- * price, a second button) follows the grid, so no words are lost.
+ * Pricing columns become Pricing blocks (up to three plans each, so a longer row is several blocks): the plan's name, the price
+ * exactly as written, its heading and any plain paragraphs as the description, its list as what is included, and the button with the
+ * export's link. Nothing is added: no price, period or link the export does not have (Kajabi has no billing-period field, so the
+ * period line stays empty unless the price text carries it). A second button follows the block as a button.
  */
 function mapPricing(ctx: Ctx, plans: Settings[]): Puck[] {
+  const out: Puck[] = [];
   const extras: Puck[] = [];
+  let flattened = false;
+  let pictures = 0;
   const items = plans.map((b) => {
-    const title = clean(textOfHtml(str(b.name))) || "Plan";
-    const ref = flag(b.show_image) ? ctx.pictures.add(b.image) : null;
-    if (ref) ctx.notes.push({ kind: "todo", text: NO_DESCRIPTION });
+    const name = clean(textOfHtml(str(b.name))) || "Plan";
+    if (flag(b.show_image) && str(b.image)) pictures += 1;
     const label = flag(b.show_cta) ? clean(textOfHtml(str(b.btn_text))) : "";
     const href = label ? checkedLink(ctx, label, b.btn_action, "Pricing button") : "";
-    const escaped = title.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
-    extras.push(...textBlocks(`<h4>${escaped}</h4>${str(b.text)}`, "left", ctx.id));
+    const body = readText(str(b.text));
+    flattened ||= body.lossy;
+    // A list under the price is what is included; any other words follow the heading as the description.
+    const bullet = /^(?:•|\d+\.)\s+/;
+    const features = body.lines.filter((l) => bullet.test(l)).map((l) => l.replace(bullet, ""));
+    const description = [clean(textOfHtml(str(b.heading))), body.heading, ...body.lines.filter((l) => !bullet.test(l))].filter(Boolean).join("\n");
     const second = flag(b.show_secondary_cta) ? clean(textOfHtml(str(b.secondary_btn_text))) : "";
     if (second) {
       const synthesized: Settings = { btn_text: b.secondary_btn_text, btn_action: b.secondary_btn_action, btn_background_color: b.secondary_btn_background_color, btn_text_color: b.secondary_btn_text_color, btn_style: b.secondary_btn_style, btn_width: b.secondary_btn_width, btn_border_radius: b.secondary_btn_border_radius, text_align: "left" };
       extras.push(makeButton(ctx, synthesized, second));
     }
-    return { type: "GridCard", props: { id: ctx.id("GridCard"), imageAssetId: ref ?? undefined, alt: "", icon: "", title, description: clean(textOfHtml(str(b.heading))), price: clean(str(b.price)), buttonLabel: label, href } };
+    return { type: "PricingPlan", props: { id: ctx.id("PricingPlan"), name, price: clean(str(b.price)), period: "", description, features: features.join("\n"), badge: "", featured: false, buttonLabel: label, href } };
   });
-  ctx.notes.push({ kind: "approximated", text: `${items.length} pricing column${items.length === 1 ? "" : "s"} became a Card grid with each price as written and the button's link from the export; nothing was added. The list under each price, and any second button, follow the grid as text and buttons.` });
-  return [{ type: "CardGrid", props: { id: ctx.id("CardGrid"), columns: gridColumns(items.length), items } }, ...extras];
+  for (let i = 0; i < items.length; i += ITEM_LIMITS.Pricing) out.push({ type: "Pricing", props: { id: ctx.id("Pricing"), items: items.slice(i, i + ITEM_LIMITS.Pricing) } });
+  const seconds = extras.length;
+  ctx.notes.push({
+    kind: "approximated",
+    text: `${items.length} pricing column${items.length === 1 ? "" : "s"} became ${out.length === 1 ? "a Pricing block" : `${out.length} Pricing blocks`} with each price as written and the button's link from the export; nothing was added, and the billing period line is empty (Kajabi has none). Their colours, borders and shadows are not carried over, and no plan is featured: choose one in the editor if you want one${flattened ? "; the text under each price is plain lines (bold, italics and links are not kept)" : ""}.${seconds > 0 ? ` ${seconds} second button${seconds === 1 ? "" : "s"} follow the block as button${seconds === 1 ? "" : "s"}.` : ""}`,
+  });
+  if (pictures > 0) ctx.notes.push({ kind: "left_out", text: `${pictures} pricing column picture${pictures === 1 ? "" : "s"} not imported: the Pricing block has no picture.` });
+  return [...out, ...extras];
 }
 
 /**

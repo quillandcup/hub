@@ -101,30 +101,38 @@ describe("pricing", () => {
   const plan = (name: string, over: Record<string, unknown> = {}) =>
     block("pricing", { width: "5", name, price: "$97", heading: "Pay once.", text: '<p><strong>What you get</strong></p><ul><li>One thing</li></ul>', show_cta: true, btn_text: "Enroll", btn_action: "/resource_redirect/offers/AAA", show_secondary_cta: true, secondary_btn_text: "Payment plan", secondary_btn_action: "https://example.com/plan", secondary_btn_style: "outline", ...over });
 
-  it("carries the name, the price as written and the checkout link, and puts what a card can't hold after the grid", () => {
+  it("carries the name, the price as written, the list and the checkout link into a Pricing block, and puts a second button after it", () => {
     const { inner, notes } = more({ p1: plan("Plan A"), p2: plan("Plan B", { price: "$197", btn_action: "https://example.com/b", show_secondary_cta: false }) });
-    expect(inner.map((b) => b.type)).toEqual(["CardGrid", "Heading", "RichText", "Button", "Heading", "RichText"]);
-    expect(inner[0].props.columns).toBe("2");
+    expect(inner.map((b) => b.type)).toEqual(["Pricing", "Button"]);
     const [a, b] = kids(inner[0]);
-    expect(a.props).toMatchObject({ title: "Plan A", price: "$97", description: "Pay once.", buttonLabel: "Enroll", href: "https://kajabi.example.test/resource_redirect/offers/AAA" });
-    expect(b.props).toMatchObject({ title: "Plan B", price: "$197", href: "https://example.com/b" });
-    expect(inner[1].props).toMatchObject({ text: "Plan A", level: "h3" });
-    expect(String(inner[2].props.html)).toContain("One thing");
-    expect(inner[3].props).toMatchObject({ label: "Payment plan", href: "https://example.com/plan", look: "outline" });
-    expect(note(notes, "approximated", "2 pricing columns became a Card grid")).toBe(true);
+    expect(kids(inner[0]).map((k) => k.type)).toEqual(["PricingPlan", "PricingPlan"]);
+    expect(a.props).toMatchObject({ name: "Plan A", price: "$97", period: "", description: "Pay once.\nWhat you get", features: "One thing", badge: "", featured: false, buttonLabel: "Enroll", href: "https://kajabi.example.test/resource_redirect/offers/AAA" });
+    expect(b.props).toMatchObject({ name: "Plan B", price: "$197", href: "https://example.com/b" });
+    expect(inner[1].props).toMatchObject({ label: "Payment plan", href: "https://example.com/plan", look: "outline" });
+    expect(note(notes, "approximated", "2 pricing columns became a Pricing block")).toBe(true);
+    expect(note(notes, "approximated", "billing period line is empty")).toBe(true);
+    expect(note(notes, "approximated", "1 second button follow")).toBe(true);
     expect(note(notes, "approximated", "/resource_redirect/offers/AAA")).toBe(true);
   });
 
-  it("invents nothing: a plan with no price or link has none", () => {
+  it("splits a row of more than three plans into Pricing blocks of at most three", () => {
+    const { inner, notes } = more({ p1: plan("A", { show_secondary_cta: false }), p2: plan("B", { show_secondary_cta: false }), p3: plan("C", { show_secondary_cta: false }), p4: plan("D", { show_secondary_cta: false }) });
+    expect(inner.map((b) => kids(b).length)).toEqual([3, 1]);
+    expect(note(notes, "approximated", "4 pricing columns became 2 Pricing blocks")).toBe(true);
+  });
+
+  it("invents nothing: a plan with no price, words or link has none, and says so", () => {
     const { inner, notes } = more({ p1: plan("Bare", { price: "", heading: "", btn_action: "", show_secondary_cta: false, text: "" }) });
-    expect(kids(inner[0])[0].props).toMatchObject({ title: "Bare", price: "", description: "", href: "" });
+    expect(kids(inner[0])[0].props).toMatchObject({ name: "Bare", price: "", period: "", description: "", features: "", href: "" });
     expect(note(notes, "todo", "has no link")).toBe(true);
   });
 
-  it("leaves out a plan hidden in Kajabi, and an offer button that is turned off", () => {
-    const { inner } = more({ p1: plan("Shown", { show_cta: false }), p2: block("pricing", { name: "Hidden", price: "$1" }, { hidden: "true" }) });
+  it("leaves out a plan hidden in Kajabi, a button that is turned off, and a picture the block has no room for, and never lets markup through", () => {
+    const { inner, notes, json } = more({ p1: plan("Shown", { show_cta: false, show_image: true, image: "assets/p.png", text: '<ul><li>Safe <a href="javascript:alert(1)">x</a><script>alert(2)</script></li></ul>' }), p2: block("pricing", { name: "Hidden", price: "$1" }, { hidden: "true" }) });
     expect(kids(inner[0])).toHaveLength(1);
-    expect(kids(inner[0])[0].props.buttonLabel).toBe("");
+    expect(kids(inner[0])[0].props).toMatchObject({ buttonLabel: "", features: "Safe x" });
+    expect(note(notes, "left_out", "1 pricing column picture not imported")).toBe(true);
+    expect(json).not.toMatch(/<script|javascript:|alert/i);
   });
 });
 

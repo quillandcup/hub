@@ -103,6 +103,7 @@ describe("the real Puck editor with an items slot", () => {
 
   it.each([
     ["List", "ListItem", "ul", (id: string, text: string) => ({ id, text, icon: "✓" }), "text"],
+    ["Pricing", "PricingPlan", "ul", (id: string, name: string) => ({ id, name, price: "$1", period: "", description: "", features: "", badge: "", featured: false, buttonLabel: "", href: "" }), "name"],
     ["Accordion", "AccordionItem", "div", (id: string, title: string) => ({ id, title, text: "", open: false }), "title"],
     ["Faq", "FaqQuestion", "div", (id: string, question: string) => ({ id, question, answer: "" }), "question"],
     ["ButtonRow", "RowButton", "ul", (id: string, label: string) => ({ id, label, href: "", look: "solid", color: "plum", shape: "pill" }), "label"],

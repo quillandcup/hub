@@ -168,8 +168,8 @@ describe("a realistic page", () => {
     expect(pruneToKnownBlocks(normalizeLandingData(sampleLandingPage()))).toMatchObject({ leftOut: [], droppedProps: 0 });
     // Every block with items has some in the sample page, so none is blank.
     const text = JSON.stringify(content);
-    // The homepage has no List, FAQ, Testimonials, Card grid, Link list, Steps or Stats; every other block with items is in it.
-    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
+    // The homepage has no List, Pricing, FAQ, Testimonials, Card grid, Link list, Steps or Stats; every other block with items is in it.
+    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList", "Pricing"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
   });
 });
 
@@ -234,6 +234,7 @@ describe("the lists that used to be array fields", () => {
     const cases: [string, Record<string, unknown>, Node[], string[]][] = [
       ["List", { align: "left" }, ["One", "Two"].map((t) => kid("ListItem", { text: t })), ["One", "Two"]],
       ["Testimonials", {}, ["Quote A", "Quote B"].map((q) => kid("Testimonial", { quote: q })), ["Quote A", "Quote B"]],
+      ["Pricing", {}, ["Plan A", "Plan B"].map((n) => kid("PricingPlan", { name: n })), ["Plan A", "Plan B"]],
       ["Accordion", {}, ["Title one", "Title two"].map((t) => kid("AccordionItem", { title: t })), ["Title one", "Title two"]],
       ["Faq", {}, ["Q one", "Q two"].map((q) => kid("FaqQuestion", { question: q })), ["Q one", "Q two"]],
       ["CardGrid", { columns: "3" }, ["Card A", "Card B"].map((t) => kid("GridCard", { title: t })), ["Card A", "Card B"]],
@@ -256,7 +257,7 @@ describe("the lists that used to be array fields", () => {
   });
 
   it("hide an empty list on the public page, but not while editing", () => {
-    for (const parent of ["List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList", "ButtonRow"] as const) {
+    for (const parent of ["List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList", "ButtonRow", "Pricing"] as const) {
       const Parent = renderOf(parent);
       const none = itemsSlot(renderOf(itemType(parent)) as ComponentType<object>, []);
       const live = render(<Parent {...(BLOCK_DEFAULTS[parent] as object)} id="p" items={none} puck={{ isEditing: false }} />);
