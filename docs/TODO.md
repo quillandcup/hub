@@ -488,10 +488,10 @@ Production (2026-11-10): lesson thumbnails are all copied into the media library
 
 ## Infrastructure & Deployment
 
-### Root domain: confirm the Join link and old addresses that end in an image extension
-The public site's homepage (root host, `src/components/site/RootHomepage.tsx`) links "Join" to `joinUrl` in `config/app.ts`, which is the Kajabi site's front page until the owner decides the real address. Separately, `src/proxy.ts` does not run for paths ending in an image extension (its matcher skips them), so an old Kajabi address like `/something.png` on the root host answers 404 instead of going to Kajabi. Kajabi serves its images from a CDN, so none is expected, and it only matters if one turns up in the redirect check.
-- Why deferred: the Join address is the owner's call; the matcher gap has no known case.
-- Where to start: set `joinUrl`; if a real case appears, drop the extension exclusion on the root host in `src/proxy.ts` (and `PROXY_SKIPPED_SOURCES` in `next.config.ts`, tests/lib/csp.test.ts) and add the path to `scripts/data/redirect-check-urls.txt`.
+### Root domain: old addresses that end in an image extension
+`src/proxy.ts` does not run for paths ending in an image extension (its matcher skips them), so an old Kajabi address like `/something.png` on the root host answers 404 instead of going to Kajabi. Kajabi serves its images from a CDN, so none is expected, and it only matters if one turns up in the redirect check.
+- Why deferred: no known case.
+- Where to start: if a real case appears, drop the extension exclusion on the root host in `src/proxy.ts` (and `PROXY_SKIPPED_SOURCES` in `next.config.ts`, tests/lib/csp.test.ts) and add the path to `scripts/data/redirect-check-urls.txt`.
 
 ### Refresh the aging architecture docs
 Two living docs in `docs/architecture/` have drifted from the code. `SEQUENCE_DIAGRAMS.md` (last edited 2026-08-26) lists `/api/analyze/*` and `/api/import/*` routes, some of which may have moved or been renamed since. `ERD.md` says it covers "87 migrations", which is almost certainly far behind now (check `ls supabase/migrations | wc -l`). Both are marked living, so a wrong line is a bug.

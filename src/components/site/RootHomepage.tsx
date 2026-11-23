@@ -1,9 +1,9 @@
 import { APP_URL, JOIN_URL, KAJABI_LOGIN_URL } from "@/lib/config";
 
 /**
- * The public homepage on the root host (quillandcup.com), seen by everyone: nobody is signed in on that host (the session
- * belongs to the app host), so "Member login" goes to the Hub login. Plain on purpose; the owner fills in the real content
- * later. The "Join" link is `joinUrl` in config/app.ts (not decided yet).
+ * The plain fallback for the public homepage on the root host (quillandcup.com): shown only when no landing page with slug `home`
+ * is published (src/app/page.tsx), so the site is never blank. Nobody is signed in on that host (the session belongs to the app
+ * host), so "Member login" goes to the Hub login. The "Join" link is `joinUrl` in config/app.ts.
  */
 export default function RootHomepage() {
   const button = "inline-block rounded-lg px-6 py-3 font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 focus-visible:ring-offset-2";

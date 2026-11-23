@@ -1,13 +1,9 @@
-import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import LandingRender from "@/components/landing/LandingRender";
-import { APP_URL } from "@/lib/config";
-import { getServiceRepos } from "@/lib/data/server";
-import { withLiveData } from "@/lib/landing/live-server";
-import { pageOverrides, resolveFaviconAssetId } from "@/lib/landing/style";
-import { isValidSlug } from "@/lib/landing/slug";
-import { mediaSrc } from "@/lib/media/url";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import { APP_URL, SITE_URL } from "@/lib/config";
+import { HOME_SLUG, publicLandingElement, landingPageMetadata, loadPublishedLandingPage } from "@/lib/landing/public-page";
+import { isRootHost } from "@/lib/root-routing";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -16,33 +12,21 @@ type Params = { params: Promise<{ slug: string }> };
  * service role and returns only a page that is published and not deleted, so a draft, a deleted page and an address
  * that was never used are all the same 404. Nothing here sends anything to an analytics provider; the site's consent
  * banner and tracking rules apply as on every page (docs/product/ANALYTICS.md).
+ *
+ * The page with slug `home` is the root host's homepage (`/`), so it has one address: its canonical is `/` on the public site,
+ * and on the root host /p/home redirects there.
  */
-const load = cache(async (slug: string) => (isValidSlug(slug) ? getServiceRepos().landingPages.published(slug) : null));
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const page = await load(slug);
+  const page = await loadPublishedLandingPage(slug);
   if (!page) return { title: "Not found", robots: { index: false } };
-  const title = page.seoTitle || page.title;
-  // The favicon: this page's own, or the site's published one. None means the app's icon stays.
-  const favicon = resolveFaviconAssetId((await getServiceRepos().landingSiteTemplate.published())?.favicon.assetId, pageOverrides(page.data).favicon);
-  const image = page.socialImageAssetId ? [{ url: `${APP_URL}${mediaSrc(page.socialImageAssetId, "event_hero")}` }] : undefined;
-  return {
-    title,
-    description: page.seoDescription ?? undefined,
-    ...(favicon ? { icons: { icon: mediaSrc(favicon, "thumb") } } : {}),
-    alternates: { canonical: `${APP_URL}/p/${page.slug}` },
-    openGraph: { title, description: page.seoDescription ?? undefined, type: "website", url: `${APP_URL}/p/${page.slug}`, images: image },
-    twitter: { card: image ? "summary_large_image" : "summary", title, description: page.seoDescription ?? undefined, images: image?.map((i) => i.url) },
-  };
+  return landingPageMetadata(page, page.slug === HOME_SLUG ? `${SITE_URL}/` : `${APP_URL}/p/${page.slug}`, APP_URL);
 }
 
 export default async function PublicLandingPage({ params }: Params) {
   const { slug } = await params;
-  const page = await load(slug);
+  const page = await loadPublishedLandingPage(slug);
   if (!page) notFound();
-  // The site's design is the PUBLISHED copy, so a draft of it never reaches a visitor: a website page is framed by its header and footer, and every page takes its style from it unless the page has its own.
-  const site = await getServiceRepos().landingSiteTemplate.published();
-  // Live blocks get their figures here, for this render only (src/lib/landing/live-data.ts): the stored page is never changed.
-  return <LandingRender data={await withLiveData(page.data)} frame={{ pageType: page.pageType, site }} />;
+  if (page.slug === HOME_SLUG && isRootHost((await headers()).get("host"))) redirect("/");
+  return publicLandingElement(page);
 }

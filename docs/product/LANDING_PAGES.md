@@ -1,6 +1,6 @@
 # Landing pages (the page builder)
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block (sign-ups into Kajabi) and the import of Kajabi page exports are built too; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
 
@@ -22,7 +22,7 @@ Borrowed from Kajabi: **website pages** are the interconnected pages of the site
 
 - `landing_pages.page_type` (`website` or `landing`, default `landing`) is chosen in New page (a choice between the two, with the templates filtered to the kind) and never changed afterwards; the editor's Details show it read only, and a copy keeps it. A template takes the type of the page it was saved from and is offered only when starting that type. It is separate from `kind`, which says page or template.
 - The Pages list is one sheet with three tabs, which are paths (`/admin/pages` Website, `/admin/pages/landing`, `/admin/pages/templates`), each with a count and the same search as before. New page opens on the type of the tab you are on.
-- Public routing is unchanged: both types are served at `/p/<slug>`. A website page is framed by the site template (below); a landing page keeps its own header and footer root fields, as before.
+- Public routing is unchanged: both types are served at `/p/<slug>`. **The homepage** of the public site's root host (`/`) is the published page with slug `home` (`src/app/page.tsx`, same read and renderer as `/p/<slug>`, via `src/lib/landing/public-page.tsx`): never a draft; with none published (never made, a draft, taken down) the plain `RootHomepage` shows instead, so the site is never blank. Its one address is `/`: `/p/home` redirects there on the root host and names `/` as its canonical. The app host's `/` stays the dashboard or login redirect. A website page is framed by the site template (below); a landing page keeps its own header and footer root fields, as before.
 
 ## Site template
 

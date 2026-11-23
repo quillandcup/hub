@@ -37,7 +37,7 @@ describe("the committed list", () => {
 
   it("covers the Kajabi path shapes with deep links and query strings", () => {
     const paths = entries.map((e) => e.path);
-    for (const shape of ["/login", "/library", "/library/categories/example", "/products/example-course", "/products/example-course/categories/123/posts/456", "/offers/ExAmPlE/checkout", "/offers/ExAmPlE", "/pages/example-landing-page", "/blog", "/blog/example-post", "/resource_redirect/landing_pages/123", "/forms/example", "/waitlist"]) {
+    for (const shape of ["/", "/login", "/library", "/products/quill-cup-membership", "/products/the-ready-writer", "/products/the-ready-writer/categories/2160891046", "/waitlist", "/free-trial", "/hedgie-books", "/blog", "/about", "/offers/ExAmPlE/checkout", "/pages/example-landing-page", "/blog/example-post", "/resource_redirect/landing_pages/123"]) {
       expect(paths).toContain(shape);
     }
     expect(paths.some((p) => p.includes("utm_source=instagram&utm_medium=social"))).toBe(true);
