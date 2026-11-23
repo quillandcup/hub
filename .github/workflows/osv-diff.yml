@@ -1,0 +1,35 @@
+name: OSV diff
+
+# Blocks a pull request that INTRODUCES a known vulnerability (OSPS-VM-05.03): OSV-Scanner's diff mode scans
+# pnpm-lock.yaml on the base branch and on the PR, and fails only on a vulnerability that is in the PR and not in the base.
+# So a PR that touches no dependencies, removes one, or upgrades to a fixed version passes, and an advisory that already
+# exists on main (even one with no fix) never stops an unrelated PR; osv-scan.yml reports those weekly.
+# Required check: "OSV diff" in config/github.yml. It runs on every pull request, with no path filter, so it always
+# reports (a required check that never starts leaves the PR pending forever). A finding accepted on purpose is listed in
+# config/osv-scanner.toml with a reason and an expiry; the base branch's copy of that file is the one the base scan reads,
+# and the PR's copy the PR scan reads, so a PR that adds an ignore for its own new vulnerability shows up in review.
+# The results are not uploaded to code scanning (upload-sarif is off) so they cannot add alerts to the CodeQL check.
+on:
+  pull_request:
+
+concurrency:
+  group: osv-diff-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  osv-diff:
+    name: OSV diff
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+        --config=config/osv-scanner.toml
+      upload-sarif: false
+      fail-on-vuln: true
