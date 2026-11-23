@@ -202,8 +202,10 @@ export function milestonePhotoLine(visibility: Visibility, page: { available: bo
   return "Anyone on the internet can see this photo on your writer profile, the same as this milestone.";
 }
 
-/** The line under the photo on the Published step, which is derived from your Bookshelf and is at the globe. */
-export function publishedPhotoLine(page: { available: boolean; on: boolean }): string {
+/** The line under the photo on the Published step, which is derived from your Bookshelf: the photo has the level of the book and never more. */
+export function publishedPhotoLine(page: { available: boolean; on: boolean }, level: Visibility = "public"): string {
+  if (level === "private") return "Only you can see this photo, because this book is private.";
+  if (level !== "public") return "Other members can see this photo on your profile, the same as this book. It is not on the web.";
   return milestonePhotoLine("public", page);
 }
 

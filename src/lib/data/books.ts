@@ -1,15 +1,19 @@
 import { randomInt } from "@/lib/random-int";
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { fetchAllRows, fetchRowWindow } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { BOOK_FORMATS, rowEditions, storedEditions, type BookEdition } from "@/lib/book-editions";
+import { isVisibility, type Visibility } from "@/lib/writing-visibility";
+
+/** The level a book is at: only the member (private), signed-in members (community) or the web (public). */
+export type BookVisibility = Visibility;
 
 /** A book on a member's bookshelf (`member_books`). A deleted one keeps its row, with `deleted_at` set. */
 // `book_member` in the generated row is the author function, not a column.
-export type BookRow = Omit<Row<"member_books">, "book_member">;
+export type BookRow = Omit<Row<"member_books">, "book_member" | "visibility"> & { visibility: BookVisibility };
 // The editions go in as `BookEdition`s; the column holds them as JSON (`storedEditions`).
-export type NewBook = Omit<Insert<"member_books">, "editions"> & { editions: BookEdition[] };
-export type BookPatch = Omit<Update<"member_books">, "editions"> & { editions?: BookEdition[] };
+export type NewBook = Omit<Insert<"member_books">, "editions" | "visibility"> & { editions: BookEdition[]; visibility?: BookVisibility };
+export type BookPatch = Omit<Update<"member_books">, "editions" | "visibility"> & { editions?: BookEdition[]; visibility?: BookVisibility };
 
 /** What the bookshelf page shows for a book: the book, and its author's names (null when the member is gone). */
 export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "description" | "cover_url" | "published_date" | "genres" | "pen_name"> & {
@@ -21,12 +25,14 @@ export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "descriptio
 export type ProfileBook = Pick<BookRow, "id" | "title" | "cover_url" | "published_date"> & { editions: BookEdition[] };
 
 /** One of a member's own books with the library image behind its cover. */
-export type MyBook = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "published_date" | "genres" | "project_id" | "pen_name"> & {
+export type MyBook = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "published_date" | "genres" | "project_id" | "pen_name" | "visibility"> & {
   editions: BookEdition[];
   cover_asset: { id: string; width: number; height: number } | null;
 };
 
 export type BookSearch = {
+  /** Who is searching: a private book is found only by its own member, whoever else asks (staff included). */
+  viewerId: string;
   /** Every word must be in the title or the description (case-insensitive). */
   words: string[];
   /** Only books by these members; null = anyone. Keep it short (a few dozen ids). */
@@ -40,6 +46,21 @@ export type BookSearch = {
 
 export type BookHit = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "published_date" | "pen_name"> & { author: { id: string; name: string } | null };
 
+/** What the public Bookshelf shows for a book: only what its card on the web needs, never an id or the member. */
+export type PublicBook = Pick<BookRow, "title" | "cover_url" | "published_date" | "genres"> & {
+  /** The name on the book: its own pen name, else the member's display name, else null. Never the legal name. */
+  author: string | null;
+  /** The link of the first edition (print before ebook), or null. */
+  purchase_url: string | null;
+};
+
+export type PublicShelfQuery = {
+  /** Only books with this genre tag (case-insensitive); null = every genre. */
+  genre: string | null;
+  /** Most books to return (the block's own cap). */
+  limit: number;
+};
+
 /** A book whose cover is still a link, not a library image. */
 export type BookWithLegacyCover = Pick<BookRow, "id" | "member_id" | "title" | "cover_url">;
 
@@ -49,6 +70,28 @@ export class BookExistsError extends Error {
     super(message);
     this.name = "BookExistsError";
   }
+}
+
+/** The PostgREST filter for the books a viewer may see: not private, or their own. A member id is plain text (`mem_` and letters). */
+const mayBeSeenBy = (viewerId: string) => `visibility.neq.private,member_id.eq.${viewerId.replace(/[^A-Za-z0-9_-]/g, "")}`;
+
+/** The first edition's link: print comes before ebook in the stored list. */
+const firstPurchaseUrl = (editions: BookEdition[]) => editions[0]?.purchase_url ?? null;
+
+/** The card of a book at the globe: its pen name, else the member's display name, else no author. Neither is ever the legal name. */
+function publicBook(
+  book: Pick<BookRow, "title" | "cover_url" | "published_date" | "genres" | "pen_name">,
+  editions: BookEdition[],
+  displayName: string | null,
+): PublicBook {
+  return {
+    title: book.title,
+    cover_url: book.cover_url,
+    published_date: book.published_date,
+    genres: book.genres,
+    author: book.pen_name?.trim() || displayName?.trim() || null,
+    purchase_url: firstPurchaseUrl(editions),
+  };
 }
 
 /** A search word with the characters that mean something to LIKE or to a PostgREST filter neutralized. */
@@ -81,10 +124,13 @@ const editionPatch = (editions: BookEdition[] | undefined) => (editions ? { edit
  * under RLS (own rows, or an admin's during sudo; other members see live books only).
  */
 export interface BookRepository {
-  /** Every live book with its author, newest published first. Paginated. */
-  shelf(): Promise<ShelfBook[]>;
-  /** A member's live books, newest published first. */
-  ofMember(memberId: string): Promise<ProfileBook[]>;
+  /**
+   * Every live book `viewerId` may see, with its author, newest published first: community and public books, and the viewer's own
+   * private ones. The viewer is the member being acted as, not the signed-in user, so staff in sudo see that member's shelf. Paginated.
+   */
+  shelf(viewerId: string): Promise<ShelfBook[]>;
+  /** A member's live books `viewerId` may see (a private one only when the viewer is that member), newest published first. */
+  ofMember(memberId: string, viewerId: string): Promise<ProfileBook[]>;
   /** A member's live books with the library image behind each cover, newest published first. */
   mine(memberId: string): Promise<MyBook[]>;
   /** Adds a book and returns its id. Throws {@link BookExistsError} when its project already has a live book. */
@@ -97,14 +143,26 @@ export interface BookRepository {
   coverAssetIdOf(id: string): Promise<string | null>;
   /** How many live books a member has. */
   countLive(memberId: string): Promise<number>;
-  /** The published day of each of a member's live books, for the Published Author badge (which counts only books published while a member). */
-  liveDates(memberId: string): Promise<string[]>;
-  /** The published days of every member's live books, by member (a member with none is left out). Paginated. */
+  /**
+   * The published day of each of a member's live books, for the Published Author badge (which counts only books published while a
+   * member). `self` is the member's own view and counts every book; `others` counts only the books others may see (not private).
+   */
+  liveDates(memberId: string, viewer: "self" | "others"): Promise<string[]>;
+  /** The published days of every member's live books that others may see (not private), by member (a member with none is left out). Paginated. */
   liveDatesByMember(): Promise<Map<string, string[]>>;
-  /** How many live books were published on or before `date` (a YYYY-MM-DD day): a count, never a title or an author. A book with a later date is not published yet. */
+  /** How many live books that others may see (not private) were published on or before `date` (a YYYY-MM-DD day): a count, never a title or an author. A book with a later date is not published yet. */
   countPublishedOnOrBefore(date: string): Promise<number>;
-  /** Live books matching the words, by author and publish date, newest published first. */
+  /** Live books matching the words, by author and publish date, newest published first; a private book only for its own member (`viewerId`). */
   search(query: BookSearch): Promise<BookHit[]>;
+  /**
+   * The books at the globe, newest published first, for the public Bookshelf (service role: its readers are not signed in). Pages
+   * past 1000 rows. The author is the book's pen name, else the member's display name, else null: never the legal name.
+   */
+  publicShelf(query: PublicShelfQuery): Promise<PublicBook[]>;
+  /** Whether a live book at the globe uses this library image as its cover: only then may a visitor who is not signed in be given it. */
+  isPublicCover(assetId: string): Promise<boolean>;
+  /** How many live books at the globe each member has (a member with none is left out). Paginated. For the one-time heads-up that books are public (service role). */
+  publicBookCountsByMember(): Promise<Map<string, number>>;
   /** Books (deleted ones included) whose cover is not a library image yet, by id. Paginated. */
   withoutCoverAsset(): Promise<BookWithLegacyCover[]>;
   /** Points a book at a library image, only if its cover is still `currentUrl` and no image yet. False when it changed meanwhile. */
@@ -115,7 +173,7 @@ export interface BookRepository {
 export class SupabaseBookRepository implements BookRepository {
   constructor(private readonly db: Db) {}
 
-  async shelf() {
+  async shelf(viewerId: string) {
     type Raw = Omit<ShelfBook, "author" | "editions"> & WithStoredEditions & { author: ShelfBook["author"] | ShelfBook["author"][] };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
@@ -123,6 +181,7 @@ export class SupabaseBookRepository implements BookRepository {
           .from("member_books")
           .select(`id, member_id, title, description, cover_url, published_date, genres, pen_name, editions, author:book_member(name, display_name)`)
           .is("deleted_at", null)
+          .or(mayBeSeenBy(viewerId))
           .order("published_date", { ascending: false })
           .order("id")
           .range(from, to)
@@ -130,14 +189,10 @@ export class SupabaseBookRepository implements BookRepository {
     return rows.map((row) => ({ ...withEditions(row), author: one(row.author) }));
   }
 
-  async ofMember(memberId: string) {
-    const { data, error } = await this.db
-      .from("member_books")
-      .select(`id, title, cover_url, published_date, editions`)
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .order("published_date", { ascending: false })
-      .order("id");
+  async ofMember(memberId: string, viewerId: string) {
+    let query = this.db.from("member_books").select(`id, title, cover_url, published_date, editions`).eq("member_id", memberId).is("deleted_at", null);
+    if (viewerId !== memberId) query = query.neq("visibility", "private");
+    const { data, error } = await query.order("published_date", { ascending: false }).order("id");
     if (error) throw new Error(error.message);
     return (data ?? []).map(withEditions);
   }
@@ -145,13 +200,13 @@ export class SupabaseBookRepository implements BookRepository {
   async mine(memberId: string) {
     const { data, error } = await this.db
       .from("member_books")
-      .select(`id, title, description, cover_url, published_date, genres, project_id, pen_name, editions, cover_asset:media_assets(id, width, height)`)
+      .select(`id, title, description, cover_url, published_date, genres, project_id, pen_name, visibility, editions, cover_asset:media_assets(id, width, height)`)
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("published_date", { ascending: false })
       .order("id");
     if (error) throw new Error(error.message);
-    return (data ?? []).map((row) => ({ ...withEditions(row), cover_asset: one(row.cover_asset) }));
+    return (data ?? []).map((row) => ({ ...withEditions(row), visibility: row.visibility as BookVisibility, cover_asset: one(row.cover_asset) }));
   }
 
   async add({ editions, ...book }: NewBook) {
@@ -186,21 +241,23 @@ export class SupabaseBookRepository implements BookRepository {
   }
 
   async countPublishedOnOrBefore(date: string) {
-    const { count, error } = await this.db.from("member_books").select("id", { count: "exact", head: true }).is("deleted_at", null).lte("published_date", date);
+    const { count, error } = await this.db.from("member_books").select("id", { count: "exact", head: true }).is("deleted_at", null).neq("visibility", "private").lte("published_date", date);
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
 
-  async liveDates(memberId: string) {
-    const rows = await fetchAllRows<{ published_date: string }>(
-      (from, to) => this.db.from("member_books").select("published_date").eq("member_id", memberId).is("deleted_at", null).order("id").range(from, to)
-    );
+  async liveDates(memberId: string, viewer: "self" | "others") {
+    const rows = await fetchAllRows<{ published_date: string }>((from, to) => {
+      let query = this.db.from("member_books").select("published_date").eq("member_id", memberId).is("deleted_at", null);
+      if (viewer === "others") query = query.neq("visibility", "private");
+      return query.order("id").range(from, to);
+    });
     return rows.map((r) => r.published_date);
   }
 
   async liveDatesByMember() {
     const rows = await fetchAllRows<{ member_id: string; published_date: string }>(
-      (from, to) => this.db.from("member_books").select("member_id, published_date").is("deleted_at", null).order("id").range(from, to)
+      (from, to) => this.db.from("member_books").select("member_id, published_date").is("deleted_at", null).neq("visibility", "private").order("id").range(from, to)
     );
     const dates = new Map<string, string[]>();
     for (const row of rows) dates.set(row.member_id, [...(dates.get(row.member_id) ?? []), row.published_date]);
@@ -213,13 +270,49 @@ export class SupabaseBookRepository implements BookRepository {
     for (const word of q.words) {
       query = query.or(SEARCH_FIELDS.map((f) => `${f}.ilike."%${searchWord(word)}%"`).join(","));
     }
-    query = query.is("deleted_at", null);
+    query = query.is("deleted_at", null).or(mayBeSeenBy(q.viewerId));
     if (q.authorIds) query = query.in("member_id", q.authorIds);
     if (q.after) query = query.gte("published_date", q.after.slice(0, 10));
     if (q.before) query = query.lt("published_date", q.before.slice(0, 10));
     const { data, error } = await query.order("published_date", { ascending: false }).order("id").range(q.offset, q.offset + q.limit - 1);
     if (error) throw new Error(error.message);
     return (data ?? []).map((row) => ({ ...row, author: one(row.author) }));
+  }
+
+  async publicShelf({ genre, limit }: PublicShelfQuery) {
+    type Raw = Pick<BookRow, "title" | "cover_url" | "published_date" | "genres" | "pen_name"> & WithStoredEditions & { author: { display_name: string | null } | { display_name: string | null }[] | null };
+    const word = genre ? searchWord(genre).toLowerCase() : "";
+    const rows = await fetchRowWindow<Raw>(0, limit, (from, to) => {
+      // The legal name is never read: only the display name comes with the book.
+      let query = this.db
+        .from("member_books")
+        .select("title, cover_url, published_date, genres, pen_name, editions, author:book_member(display_name)")
+        .eq("visibility", "public")
+        .is("deleted_at", null);
+      if (word) query = query.ilike("genres_search", `%${word}%`);
+      return query.order("published_date", { ascending: false }).order("id").range(from, to);
+    });
+    return rows.map((row) => publicBook(row, rowEditions(row.editions), one(row.author)?.display_name ?? null));
+  }
+
+  async isPublicCover(assetId: string) {
+    const { count, error } = await this.db
+      .from("member_books")
+      .select("id", { count: "exact", head: true })
+      .eq("cover_asset_id", assetId)
+      .eq("visibility", "public")
+      .is("deleted_at", null);
+    if (error) throw new Error(error.message);
+    return (count ?? 0) > 0;
+  }
+
+  async publicBookCountsByMember() {
+    const rows = await fetchAllRows<{ member_id: string }>((from, to) =>
+      this.db.from("member_books").select("member_id").eq("visibility", "public").is("deleted_at", null).order("id").range(from, to),
+    );
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row.member_id, (counts.get(row.member_id) ?? 0) + 1);
+    return counts;
   }
 
   async withoutCoverAsset() {
@@ -257,6 +350,7 @@ export function bookRow(seed: BookSeed): BookRow {
     genres_search: null,
     project_id: null,
     pen_name: null,
+    visibility: "public",
     deleted_at: null,
     created_at: "2026-01-01T00:00:00Z",
     ...(Object.fromEntries(Object.entries(seed).filter(([, v]) => v !== undefined)) as BookSeed),
@@ -279,8 +373,13 @@ export class InMemoryBookRepository implements BookRepository {
     return this.data.members.find((m) => m.id === memberId) ?? null;
   }
 
-  async shelf() {
-    return this.live()
+  /** The live books `viewerId` may see: not private, or their own. */
+  private seenBy(viewerId: string) {
+    return this.live().filter((b) => b.visibility !== "private" || b.member_id === viewerId);
+  }
+
+  async shelf(viewerId: string) {
+    return this.seenBy(viewerId)
       .sort(newestFirst)
       .map((b) => {
         const m = this.author(b.member_id);
@@ -299,8 +398,8 @@ export class InMemoryBookRepository implements BookRepository {
       });
   }
 
-  async ofMember(memberId: string) {
-    return this.live()
+  async ofMember(memberId: string, viewerId: string) {
+    return this.seenBy(viewerId)
       .filter((b) => b.member_id === memberId)
       .sort(newestFirst)
       .map((b) => ({ id: b.id, title: b.title, cover_url: b.cover_url, published_date: b.published_date, editions: this.editionsOf(b) }));
@@ -322,6 +421,7 @@ export class InMemoryBookRepository implements BookRepository {
           editions: this.editionsOf(b),
           project_id: b.project_id,
           pen_name: b.pen_name,
+          visibility: b.visibility,
           cover_asset: asset ? { id: asset.id, width: asset.width, height: asset.height } : null,
         };
       });
@@ -335,9 +435,15 @@ export class InMemoryBookRepository implements BookRepository {
     if (!valid) throw new Error("violates check constraint member_books_editions_valid");
   }
 
+  /** The database's CHECK on `visibility`. */
+  private assertVisibility(visibility: string | undefined) {
+    if (visibility !== undefined && !isVisibility(visibility)) throw new Error("violates check constraint member_books_visibility_check");
+  }
+
   async add({ editions, ...book }: NewBook) {
     if (!this.author(book.member_id)) throw new Error("violates foreign key constraint on member_id");
     this.assertEditions(editions);
+    this.assertVisibility(book.visibility);
     if (book.project_id && this.live().some((b) => b.project_id === book.project_id)) throw new BookExistsError();
     const row = bookRow({ ...book, ...editionPatch(editions), id: book.id ?? newBookId(), cover_asset_id: book.cover_asset_id ?? null, created_at: new Date().toISOString() } as BookSeed);
     this.data.memberBooks.push(row);
@@ -348,6 +454,7 @@ export class InMemoryBookRepository implements BookRepository {
     const index = this.data.memberBooks.findIndex((b) => b.id === id && (b.deleted_at ?? null) === null);
     if (index < 0) return false;
     if (editions) this.assertEditions(editions);
+    this.assertVisibility(patch.visibility);
     this.data.memberBooks[index] = bookRow({ ...bookRow(this.data.memberBooks[index]), ...patch, ...editionPatch(editions) } as BookSeed);
     return true;
   }
@@ -365,16 +472,16 @@ export class InMemoryBookRepository implements BookRepository {
   }
 
   async countPublishedOnOrBefore(date: string) {
-    return this.live().filter((b) => b.published_date <= date).length;
+    return this.live().filter((b) => b.visibility !== "private" && b.published_date <= date).length;
   }
 
-  async liveDates(memberId: string) {
-    return this.live().filter((b) => b.member_id === memberId).map((b) => b.published_date);
+  async liveDates(memberId: string, viewer: "self" | "others") {
+    return this.live().filter((b) => b.member_id === memberId && (viewer === "self" || b.visibility !== "private")).map((b) => b.published_date);
   }
 
   async liveDatesByMember() {
     const dates = new Map<string, string[]>();
-    for (const b of this.live()) dates.set(b.member_id, [...(dates.get(b.member_id) ?? []), b.published_date]);
+    for (const b of this.live().filter((x) => x.visibility !== "private")) dates.set(b.member_id, [...(dates.get(b.member_id) ?? []), b.published_date]);
     return dates;
   }
 
@@ -382,7 +489,7 @@ export class InMemoryBookRepository implements BookRepository {
     if (q.authorIds && q.authorIds.length === 0) return [];
     const words = q.words.map((w) => searchWord(w).toLowerCase());
     const day = (d: string) => d.slice(0, 10);
-    return this.live()
+    return this.seenBy(q.viewerId)
       .filter((b) => {
         if (q.authorIds && !q.authorIds.includes(b.member_id)) return false;
         if (q.after && b.published_date < day(q.after)) return false;
@@ -395,6 +502,25 @@ export class InMemoryBookRepository implements BookRepository {
         const m = this.author(b.member_id);
         return { id: b.id, title: b.title, description: b.description, cover_url: b.cover_url, published_date: b.published_date, pen_name: b.pen_name, author: m ? { id: m.id, name: m.name } : null };
       });
+  }
+
+  async publicShelf({ genre, limit }: PublicShelfQuery) {
+    const word = genre ? searchWord(genre).toLowerCase() : "";
+    return this.live()
+      .filter((b) => b.visibility === "public" && (!word || b.genres.join(" ").toLowerCase().includes(word)))
+      .sort(newestFirst)
+      .slice(0, limit)
+      .map((b) => publicBook(b, this.editionsOf(b), this.author(b.member_id)?.displayName ?? null));
+  }
+
+  async isPublicCover(assetId: string) {
+    return this.live().some((b) => b.cover_asset_id === assetId && b.visibility === "public");
+  }
+
+  async publicBookCountsByMember() {
+    const counts = new Map<string, number>();
+    for (const b of this.live().filter((x) => x.visibility === "public")) counts.set(b.member_id, (counts.get(b.member_id) ?? 0) + 1);
+    return counts;
   }
 
   async withoutCoverAsset() {

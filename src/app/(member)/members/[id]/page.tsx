@@ -89,7 +89,8 @@ export default async function MemberProfilePage({
   // would resolve the admin as the author -- see src/app/(member)/members/[id]/noteActions.ts.
   const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
   const [booksData, awards, tzPref, askMeAbout, noteRow, milestones] = await Promise.all([
-    createRepos(supabase).books.ofMember(id),
+    // A private book is listed only on its own member's profile, whoever else looks (an admin included).
+    createRepos(supabase).books.ofMember(id, effectiveIdentity.memberId),
     createRepos(supabase).awards.ofMember(id),
     getUserTimezonePreference(),
     createRepos(supabase).memberProfile.askMeAbout(id),

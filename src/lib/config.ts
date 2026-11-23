@@ -103,9 +103,6 @@ export const WRITER_PROFILES = appConfig.writerProfiles;
 
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
 
-/** Whether book covers are served to visitors who aren't signed in (config/app.ts `bookshelfPublic`). */
-export const BOOKSHELF_PUBLIC: boolean = appConfig.bookshelfPublic;
-
 /** Slack workspace URL, no trailing slash, for links that open a channel. */
 export const SLACK_WORKSPACE_URL = appConfig.slack.workspaceUrl.replace(/\/+$/, "");
 

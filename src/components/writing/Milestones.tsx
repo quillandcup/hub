@@ -442,7 +442,7 @@ function PublishedItem({ work, readOnly, web }: { work: Work; readOnly: boolean;
         </Link>
       </p>
       {work.bookId && (
-        <MilestonePhoto target="book" id={work.bookId} kind="published" photo={work.bookPhoto ?? null} visibilityLine={publishedPhotoLine(web)} readOnly={readOnly} idPrefix={`book-${work.bookId}`} />
+        <MilestonePhoto target="book" id={work.bookId} kind="published" photo={work.bookPhoto ?? null} visibilityLine={publishedPhotoLine(web, work.bookVisibility ?? "public")} readOnly={readOnly} idPrefix={`book-${work.bookId}`} />
       )}
     </li>
   );

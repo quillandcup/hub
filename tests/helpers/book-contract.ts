@@ -41,11 +41,11 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const id = await ctx.repo().add(book(m1.id, title, { description: "A tale." }));
       expect(id).toMatch(/^book_[1-9A-HJ-NP-Za-km-z]{12}$/);
 
-      expect(await ctx.repo().ofMember(m1.id)).toEqual([{ id, title, cover_url: "https://example.com/cover.png", published_date: "2026-03-05", editions: [PRINT] }]);
+      expect(await ctx.repo().ofMember(m1.id, m1.id)).toEqual([{ id, title, cover_url: "https://example.com/cover.png", published_date: "2026-03-05", editions: [PRINT] }]);
       expect(await ctx.repo().mine(m1.id)).toEqual([
-        { id, title, description: "A tale.", cover_url: "https://example.com/cover.png", published_date: "2026-03-05", editions: [PRINT], genres: [], project_id: null, pen_name: null, cover_asset: null },
+        { id, title, description: "A tale.", cover_url: "https://example.com/cover.png", published_date: "2026-03-05", editions: [PRINT], genres: [], project_id: null, pen_name: null, visibility: "public", cover_asset: null },
       ]);
-      const onShelf = (await ctx.repo().shelf()).find((b) => b.id === id);
+      const onShelf = (await ctx.repo().shelf(m1.id)).find((b) => b.id === id);
       expect(onShelf).toEqual({
         id,
         member_id: m1.id,
@@ -66,8 +66,8 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const id = await ctx.repo().add(book(m1.id, ctx.unique("Full"), { pen_name: "A. E. Byron", genres: ["Fantasy", "Cozy Mystery"], editions: [EBOOK, { ...PRINT, price: 17.99 }], cover_asset_id: asset }));
       const mine = (await ctx.repo().mine(m1.id)).find((b) => b.id === id);
       expect(mine).toMatchObject({ pen_name: "A. E. Byron", genres: ["Fantasy", "Cozy Mystery"], editions: [{ ...PRINT, price: 17.99 }, EBOOK], cover_asset: { id: asset, width: 1600, height: 2560 } });
-      expect((await ctx.repo().shelf()).find((b) => b.id === id)?.editions).toEqual([{ ...PRINT, price: 17.99 }, EBOOK]);
-      expect((await ctx.repo().ofMember(m1.id)).find((b) => b.id === id)?.editions).toEqual([{ ...PRINT, price: 17.99 }, EBOOK]);
+      expect((await ctx.repo().shelf(m1.id)).find((b) => b.id === id)?.editions).toEqual([{ ...PRINT, price: 17.99 }, EBOOK]);
+      expect((await ctx.repo().ofMember(m1.id, m1.id)).find((b) => b.id === id)?.editions).toEqual([{ ...PRINT, price: 17.99 }, EBOOK]);
     });
 
     it("lists a member's books newest published first, the id breaking ties, and not another member's", async () => {
@@ -83,11 +83,11 @@ export function defineBookContract(name: string, setup: () => BookContractContex
         expect(ids[2]).toBe(a);
         return ids;
       };
-      const first = inOrder(await ctx.repo().ofMember(m1.id));
+      const first = inOrder(await ctx.repo().ofMember(m1.id, m1.id));
       expect(inOrder(await ctx.repo().mine(m1.id))).toEqual(first);
-      expect(inOrder(await ctx.repo().shelf())).toEqual(first);
+      expect(inOrder(await ctx.repo().shelf(m1.id))).toEqual(first);
       expect(first).toHaveLength(3);
-      expect((await ctx.repo().ofMember(m1.id)).some((x) => x.published_date === "2026-07-01")).toBe(false);
+      expect((await ctx.repo().ofMember(m1.id, m1.id)).some((x) => x.published_date === "2026-07-01")).toBe(false);
     });
 
     it("counts live books published on or before a day, and not deleted or later ones", async () => {
@@ -154,9 +154,9 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       expect(await ctx.repo().update(id, { title: "Back" })).toBe(false);
       expect(await ctx.repo().remove("book_ZZZZZZZZZZZZ")).toBe(false);
 
-      expect((await ctx.repo().ofMember(m1.id)).map((b) => b.id)).toEqual([keep]);
+      expect((await ctx.repo().ofMember(m1.id, m1.id)).map((b) => b.id)).toEqual([keep]);
       expect((await ctx.repo().mine(m1.id)).map((b) => b.id)).toEqual([keep]);
-      expect((await ctx.repo().shelf()).some((b) => b.id === id)).toBe(false);
+      expect((await ctx.repo().shelf(m1.id)).some((b) => b.id === id)).toBe(false);
       expect(await ctx.repo().countLive(m1.id)).toBe(1);
       expect(await ctx.repo().coverAssetIdOf(id)).toBe(asset);
     });
@@ -183,8 +183,8 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const dates = await ctx.repo().liveDatesByMember();
       expect(dates.get(m1.id)).toEqual(["2026-03-05", "2026-03-05"]);
       expect(dates.has(m2.id)).toBe(false);
-      expect(await ctx.repo().liveDates(m1.id)).toEqual(["2026-03-05", "2026-03-05"]);
-      expect(await ctx.repo().liveDates(m2.id)).toEqual([]);
+      expect(await ctx.repo().liveDates(m1.id, "self")).toEqual(["2026-03-05", "2026-03-05"]);
+      expect(await ctx.repo().liveDates(m2.id, "self")).toEqual([]);
     });
 
     it("searches live books for every word in the title or description, any case, newest first", async () => {
@@ -195,7 +195,7 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const both = await ctx.repo().add(book(m1.id, `${tag} dragon`, { published_date: "2026-03-01", pen_name: "Pen" }));
       const deleted = await ctx.repo().add(book(m1.id, `${tag} deleted`, { published_date: "2026-04-01" }));
       await ctx.repo().remove(deleted);
-      const search = (extra: Partial<Parameters<BookRepository["search"]>[0]> = {}) => ctx.repo().search({ words: [tag], authorIds: null, limit: 10, offset: 0, ...extra });
+      const search = (extra: Partial<Parameters<BookRepository["search"]>[0]> = {}) => ctx.repo().search({ viewerId: m1.id, words: [tag], authorIds: null, limit: 10, offset: 0, ...extra });
 
       expect((await search()).map((b) => b.id)).toEqual([both, byDescription, byTitle]);
       expect((await search({ words: [tag, "DRAGON"] })).map((b) => b.id)).toEqual([both, byDescription]);
@@ -216,7 +216,7 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const tag = ctx.unique("zg").toLowerCase().replace(/[^a-z0-9]/g, "");
       const tagged = await ctx.repo().add(book(m1.id, ctx.unique("Genre book"), { genres: ["Cozy Mystery", tag.toUpperCase()], published_date: "2026-01-01" }));
       const plain = await ctx.repo().add(book(m1.id, `${tag} plain`, { published_date: "2026-02-01" }));
-      const search = (words: string[]) => ctx.repo().search({ words, authorIds: null, limit: 10, offset: 0 });
+      const search = (words: string[]) => ctx.repo().search({ viewerId: m1.id, words, authorIds: null, limit: 10, offset: 0 });
 
       expect((await search([tag])).map((b) => b.id)).toEqual([plain, tagged]);
       expect((await search([tag, "cozy"])).map((b) => b.id)).toEqual([tagged]);
@@ -229,7 +229,7 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const a = await ctx.repo().add(book(m1.id, `${tag} a`, { published_date: "2026-01-10" }));
       const b = await ctx.repo().add(book(m2.id, `${tag} b`, { published_date: "2026-02-10" }));
       const c = await ctx.repo().add(book(m1.id, `${tag} c`, { published_date: "2026-03-10" }));
-      const search = (extra: Partial<Parameters<BookRepository["search"]>[0]> = {}) => ctx.repo().search({ words: [tag], authorIds: null, limit: 10, offset: 0, ...extra });
+      const search = (extra: Partial<Parameters<BookRepository["search"]>[0]> = {}) => ctx.repo().search({ viewerId: m1.id, words: [tag], authorIds: null, limit: 10, offset: 0, ...extra });
       const ids = async (extra = {}) => (await search(extra)).map((x) => x.id);
 
       expect(await ids({ authorIds: [m1.id] })).toEqual([c, a]);
@@ -246,9 +246,9 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const [m1] = await ctx.members();
       const tag = ctx.unique("xq").toLowerCase().replace(/[^a-z0-9]/g, "");
       const id = await ctx.repo().add(book(m1.id, `${tag} plain`));
-      expect((await ctx.repo().search({ words: [`${tag}%`], authorIds: null, limit: 10, offset: 0 })).map((b) => b.id)).toEqual([id]);
-      expect(await ctx.repo().search({ words: [`${tag},("x`], authorIds: null, limit: 10, offset: 0 })).toBeDefined();
-      expect(await ctx.repo().search({ words: ["%"], authorIds: [m1.id], limit: 1, offset: 0 })).toHaveLength(1);
+      expect((await ctx.repo().search({ viewerId: m1.id, words: [`${tag}%`], authorIds: null, limit: 10, offset: 0 })).map((b) => b.id)).toEqual([id]);
+      expect(await ctx.repo().search({ viewerId: m1.id, words: [`${tag},("x`], authorIds: null, limit: 10, offset: 0 })).toBeDefined();
+      expect(await ctx.repo().search({ viewerId: m1.id, words: ["%"], authorIds: [m1.id], limit: 1, offset: 0 })).toHaveLength(1);
     });
 
     it("reads every book past 1000 rows, on the shelf and in the counts", async () => {
@@ -258,14 +258,191 @@ export function defineBookContract(name: string, setup: () => BookContractContex
         const batch = await Promise.all(Array.from({ length: Math.min(50, 1010 - start) }, (_, i) => ctx.repo().add(book(m2.id, ctx.unique(`bulk${start + i}`), { published_date: `2025-${String((i % 12) + 1).padStart(2, "0")}-01` }))));
         ids.push(...batch);
       }
-      const shelf = (await ctx.repo().shelf()).map((b) => b.id);
+      const shelf = (await ctx.repo().shelf(m1.id)).map((b) => b.id);
       expect(new Set(shelf).size).toBe(shelf.length);
       expect(ids.every((id) => shelf.includes(id))).toBe(true);
       expect((await ctx.repo().liveDatesByMember()).get(m2.id)).toHaveLength(1010);
-      expect(await ctx.repo().liveDates(m2.id)).toHaveLength(1010);
+      expect(await ctx.repo().liveDates(m2.id, "self")).toHaveLength(1010);
       expect(await ctx.repo().countLive(m2.id)).toBe(1010);
       expect(await ctx.repo().countLive(m1.id)).toBe(0);
     }, 60_000);
+
+    describe("who may see a book (private, community, public)", () => {
+      const levels = ["private", "community", "public"] as const;
+
+      /** One book of m1 at each level, with a word to search them by. */
+      async function threeLevels() {
+        const [m1, m2] = await ctx.members();
+        const tag = ctx.unique("lv").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const ids = {} as Record<(typeof levels)[number], string>;
+        for (const level of levels) ids[level] = await ctx.repo().add(book(m1.id, `${tag} ${level}`, { visibility: level, published_date: "2026-04-01" }));
+        return { m1, m2, tag, ids };
+      }
+
+      it("starts a book at the globe and changes the level with an ordinary update", async () => {
+        const [m1] = await ctx.members();
+        const id = await ctx.repo().add(book(m1.id, ctx.unique("Starts public")));
+        expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.visibility).toBe("public");
+        for (const level of ["private", "community", "public"] as const) {
+          expect(await ctx.repo().update(id, { visibility: level })).toBe(true);
+          expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.visibility).toBe(level);
+        }
+      });
+
+      it("refuses a level that is not one of the three", async () => {
+        const [m1] = await ctx.members();
+        const id = await ctx.repo().add(book(m1.id, ctx.unique("Bad level")));
+        await expect(ctx.repo().update(id, { visibility: "everyone" as never })).rejects.toThrow();
+        await expect(ctx.repo().add(book(m1.id, ctx.unique("Bad level new"), { visibility: "web" as never }))).rejects.toThrow();
+        expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.visibility).toBe("public");
+      });
+
+      it("shows the owner all three on My Books, the shelf, the profile and in search, and everyone else only community and public", async () => {
+        const { m1, m2, tag, ids } = await threeLevels();
+        const idsOf = (list: { id: string }[]) => list.map((b) => b.id).filter((id) => Object.values(ids).includes(id)).sort();
+        const all = Object.values(ids).sort();
+        const seen = [ids.community, ids.public].sort();
+
+        expect(idsOf(await ctx.repo().mine(m1.id))).toEqual(all);
+        expect(idsOf(await ctx.repo().shelf(m1.id))).toEqual(all);
+        expect(idsOf(await ctx.repo().shelf(m2.id))).toEqual(seen);
+        expect(idsOf(await ctx.repo().ofMember(m1.id, m1.id))).toEqual(all);
+        expect(idsOf(await ctx.repo().ofMember(m1.id, m2.id))).toEqual(seen);
+        expect(idsOf(await ctx.repo().search({ viewerId: m1.id, words: [tag], authorIds: null, limit: 10, offset: 0 }))).toEqual(all);
+        expect(idsOf(await ctx.repo().search({ viewerId: m2.id, words: [tag], authorIds: null, limit: 10, offset: 0 }))).toEqual(seen);
+        // A viewer nobody knows (a blank id, or a made-up one) is an ordinary other member.
+        expect(idsOf(await ctx.repo().search({ viewerId: "", words: [tag], authorIds: null, limit: 10, offset: 0 }))).toEqual(seen);
+      });
+
+      it("counts a book for other viewers only when they may see it, and for the member always", async () => {
+        const { m1, m2 } = await threeLevels();
+        expect(await ctx.repo().liveDates(m1.id, "self")).toHaveLength(3);
+        expect(await ctx.repo().liveDates(m1.id, "others")).toHaveLength(2);
+        expect((await ctx.repo().liveDatesByMember()).get(m1.id)).toHaveLength(2);
+        expect(await ctx.repo().liveDates(m2.id, "others")).toEqual([]);
+        const before = await ctx.repo().countPublishedOnOrBefore("2026-04-01");
+        const id = await ctx.repo().add(book(m1.id, ctx.unique("Hidden count"), { visibility: "private", published_date: "2026-04-01" }));
+        expect(await ctx.repo().countPublishedOnOrBefore("2026-04-01")).toBe(before);
+        await ctx.repo().update(id, { visibility: "community" });
+        expect(await ctx.repo().countPublishedOnOrBefore("2026-04-01")).toBe(before + 1);
+      });
+
+      it("hides a member whose books are all private from the other members' counts", async () => {
+        const [m1] = await ctx.members();
+        await ctx.repo().add(book(m1.id, ctx.unique("Only private"), { visibility: "private" }));
+        expect((await ctx.repo().liveDatesByMember()).has(m1.id)).toBe(false);
+        expect(await ctx.repo().liveDates(m1.id, "others")).toEqual([]);
+        expect(await ctx.repo().liveDates(m1.id, "self")).toHaveLength(1);
+      });
+
+      it("lists on the public shelf only live books at the globe, newest first, with no id and no member", async () => {
+        const { m1, ids } = await threeLevels();
+        const genre = ctx.unique("pubgenre").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const newest = await ctx.repo().add(book(m1.id, ctx.unique("Newest"), { genres: [genre], published_date: "2026-09-01" }));
+        const older = await ctx.repo().add(book(m1.id, ctx.unique("Older"), { genres: [genre], published_date: "2026-05-01" }));
+        const hidden = await ctx.repo().add(book(m1.id, ctx.unique("Hidden"), { genres: [genre], visibility: "community", published_date: "2026-10-01" }));
+        const gone = await ctx.repo().add(book(m1.id, ctx.unique("Deleted"), { genres: [genre], published_date: "2026-11-01" }));
+        await ctx.repo().remove(gone);
+        await ctx.repo().update(ids.public, { genres: [genre] });
+
+        const shelf = await ctx.repo().publicShelf({ genre, limit: 50 });
+        const titles = (await ctx.repo().mine(m1.id)).filter((b) => [newest, older, ids.public].includes(b.id)).sort((a, b) => (a.published_date < b.published_date ? 1 : -1)).map((b) => b.title);
+        expect(shelf.map((b) => b.title)).toEqual(titles);
+        expect(shelf.some((b) => b.title.includes("Hidden") || b.title.includes("Deleted") || b.title.endsWith("private"))).toBe(false);
+        expect(Object.keys(shelf[0]).sort()).toEqual(["author", "cover_url", "genres", "published_date", "purchase_url", "title"]);
+        expect(hidden).toBeDefined();
+      });
+
+      it("names the author by the book's pen name, else the display name, else nothing, and never the legal name", async () => {
+        const [m1, m2] = await ctx.members();
+        const genre = ctx.unique("authgenre").toLowerCase().replace(/[^a-z0-9]/g, "");
+        await ctx.repo().add(book(m1.id, ctx.unique("Penned"), { genres: [genre], pen_name: "A. E. Byron", published_date: "2026-03-03" }));
+        await ctx.repo().add(book(m1.id, ctx.unique("Displayed"), { genres: [genre], published_date: "2026-03-02" }));
+        await ctx.repo().add(book(m2.id, ctx.unique("Nameless"), { genres: [genre], published_date: "2026-03-01" }));
+        await ctx.repo().add(book(m2.id, ctx.unique("Blank pen"), { genres: [genre], pen_name: "  ", published_date: "2026-02-01" }));
+
+        const shelf = await ctx.repo().publicShelf({ genre, limit: 10 });
+        expect(shelf.map((b) => b.author)).toEqual(["A. E. Byron", m1.displayName, null, null]);
+        // m2 has no display name, so the book shows no author at all: the account name is the legal name.
+        expect(JSON.stringify(shelf)).not.toContain(m2.name);
+        expect(JSON.stringify(shelf)).not.toContain(m1.name);
+      });
+
+      it("gives the link of the first edition, print before ebook, and null when there is none", async () => {
+        const [m1] = await ctx.members();
+        const genre = ctx.unique("linkgenre").toLowerCase().replace(/[^a-z0-9]/g, "");
+        await ctx.repo().add(book(m1.id, ctx.unique("Both"), { genres: [genre], editions: [EBOOK, PRINT], published_date: "2026-03-02" }));
+        await ctx.repo().add(book(m1.id, ctx.unique("Ebook"), { genres: [genre], editions: [EBOOK], published_date: "2026-03-01" }));
+        expect((await ctx.repo().publicShelf({ genre, limit: 10 })).map((b) => b.purchase_url)).toEqual([PRINT.purchase_url, EBOOK.purchase_url]);
+      });
+
+      it("filters the public shelf by genre, any case, and keeps to the count asked for", async () => {
+        const [m1] = await ctx.members();
+        const tag = ctx.unique("fg").toLowerCase().replace(/[^a-z0-9]/g, "");
+        for (let i = 0; i < 4; i++) await ctx.repo().add(book(m1.id, ctx.unique(`Fg${i}`), { genres: [`Cozy ${tag.toUpperCase()}`], published_date: `2026-02-0${i + 1}` }));
+        await ctx.repo().add(book(m1.id, ctx.unique("Other genre"), { genres: ["Memoir"] }));
+        expect(await ctx.repo().publicShelf({ genre: tag, limit: 100 })).toHaveLength(4);
+        expect((await ctx.repo().publicShelf({ genre: `COZY ${tag}`, limit: 100 })).map((b) => b.published_date)).toEqual(["2026-02-04", "2026-02-03", "2026-02-02", "2026-02-01"]);
+        expect(await ctx.repo().publicShelf({ genre: tag, limit: 3 })).toHaveLength(3);
+        expect(await ctx.repo().publicShelf({ genre: `${tag}-none`, limit: 100 })).toEqual([]);
+        // Characters that mean something to a filter are separators, not syntax.
+        expect(await ctx.repo().publicShelf({ genre: `${tag}%,(")`, limit: 100 })).toBeDefined();
+      });
+
+      it("pages past 1000 rows on the public shelf: 999, 1000, 1001 and 2000 books asked of 2000, no repeats, newest first", async () => {
+        const [m1] = await ctx.members();
+        const genre = ctx.unique("bulkpub").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const total = 2000;
+        for (let start = 0; start < total; start += 100) {
+          await Promise.all(
+            Array.from({ length: 100 }, (_, i) => {
+              const n = start + i;
+              // A day for each book, so the order is the date's and never a tie.
+              const day = new Date(Date.UTC(2020, 0, 1) + n * 86_400_000).toISOString().slice(0, 10);
+              return ctx.repo().add(book(m1.id, ctx.unique(`bp${n}`), { genres: [genre], published_date: day }));
+            }),
+          );
+        }
+        for (const [limit, expected] of [[999, 999], [1000, 1000], [1001, 1001], [2000, 2000], [2500, 2000]] as const) {
+          const shelf = await ctx.repo().publicShelf({ genre, limit });
+          expect(shelf).toHaveLength(expected);
+          expect(new Set(shelf.map((b) => b.title)).size).toBe(expected);
+          expect(shelf.every((b, i) => i === 0 || shelf[i - 1].published_date > b.published_date)).toBe(true);
+        }
+        // The same count asked of a shelf one short of the page: 999 books, then exactly 1000 and 1001 books.
+        const small = await ctx.repo().publicShelf({ genre, limit: 1 });
+        expect(small[0].published_date).toBe(new Date(Date.UTC(2020, 0, 1) + (total - 1) * 86_400_000).toISOString().slice(0, 10));
+      }, 180_000);
+
+      it("serves a cover to visitors only while a live book at the globe uses it", async () => {
+        const [m1] = await ctx.members();
+        const asset = await ctx.coverAsset(800, 1200);
+        const id = await ctx.repo().add(book(m1.id, ctx.unique("Cover"), { cover_asset_id: asset }));
+        expect(await ctx.repo().isPublicCover(asset)).toBe(true);
+        await ctx.repo().update(id, { visibility: "community" });
+        expect(await ctx.repo().isPublicCover(asset)).toBe(false);
+        await ctx.repo().update(id, { visibility: "private" });
+        expect(await ctx.repo().isPublicCover(asset)).toBe(false);
+        await ctx.repo().update(id, { visibility: "public" });
+        expect(await ctx.repo().isPublicCover(asset)).toBe(true);
+        await ctx.repo().remove(id);
+        expect(await ctx.repo().isPublicCover(asset)).toBe(false);
+        expect(await ctx.repo().isPublicCover("media_ZZZZZZZZZZZZ")).toBe(false);
+      });
+
+      it("counts the live books at the globe for each member, for the one-time note", async () => {
+        const [m1, m2] = await ctx.members();
+        await ctx.repo().add(book(m1.id, ctx.unique("N1")));
+        await ctx.repo().add(book(m1.id, ctx.unique("N2")));
+        await ctx.repo().add(book(m1.id, ctx.unique("N3"), { visibility: "community" }));
+        await ctx.repo().add(book(m2.id, ctx.unique("N4"), { visibility: "private" }));
+        const gone = await ctx.repo().add(book(m1.id, ctx.unique("N5")));
+        await ctx.repo().remove(gone);
+        const counts = await ctx.repo().publicBookCountsByMember();
+        expect(counts.get(m1.id)).toBe(2);
+        expect(counts.has(m2.id)).toBe(false);
+      });
+    });
 
     it("finds books whose cover is not a library image yet, and moves one only if its cover is still what was read", async () => {
       const [m1] = await ctx.members();

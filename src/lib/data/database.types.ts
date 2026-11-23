@@ -4795,6 +4795,7 @@ export type Database = {
           project_id: string | null
           published_date: string
           title: string
+          visibility: string
           book_member: {
             bio: string | null
             display_name: string | null
@@ -4825,6 +4826,7 @@ export type Database = {
           project_id?: string | null
           published_date: string
           title: string
+          visibility?: string
         }
         Update: {
           cover_asset_id?: string | null
@@ -4841,6 +4843,7 @@ export type Database = {
           project_id?: string | null
           published_date?: string
           title?: string
+          visibility?: string
         }
         Relationships: [
           {

@@ -719,6 +719,12 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
       return fields.project_id?.new ? `published${quoted} from a writing project` : `added${quoted} to their bookshelf`;
     }
     if (row.event_type === "delete") return `removed${quoted} from their bookshelf`;
+    // Who may see the book (the lock, house or globe on My Books): the level in words, never the book's description.
+    if (row.event_type === "update" && typeof fields.visibility?.new === "string") {
+      if (fields.visibility.new === "private") return `made${quoted} private: only they can see it`;
+      if (fields.visibility.new === "public") return `showed${quoted} on the public Hedgie Bookshelf`;
+      return `showed${quoted} to other members only`;
+    }
   }
   return null;
 }

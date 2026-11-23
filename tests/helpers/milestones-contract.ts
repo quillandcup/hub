@@ -15,6 +15,8 @@ export type MilestonesContractContext = {
   addBook: (memberId: string, projectId?: string, publishedDate?: string) => Promise<string>;
   /** Soft-deletes every book of the member. */
   deleteBooks: (memberId: string) => Promise<void>;
+  /** Sets the level of a book (a book starts at the globe). */
+  setBookVisibility: (bookId: string, visibility: "private" | "community" | "public") => Promise<void>;
   /** Gives a member one live writing project and returns its id. */
   addProject: (memberId: string) => Promise<string>;
   /** Sets the level of a writing project (the project is named "A Fake Novel"). */
@@ -664,6 +666,46 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       expect(await kinds()).toEqual({ members: [], web: [] });
     });
 
+    it("shows Published only for a book at a level the viewer may see, at the book's own level: members the house and globe, the web the globe, no one the lock", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      const shown = async () => {
+        const members = (await repo.worksShownToMembers(id(ada), null)).filter((s) => s.kind === "published");
+        const web = (await repo.worksShownOnWeb(id(ada), null)).filter((s) => s.kind === "published");
+        return { members: members.map((s) => [s.workTitle, s.visibility]), web: web.map((s) => [s.workTitle, s.visibility]) };
+      };
+      expect(await shown()).toEqual({ members: [["A Book", "public"]], web: [["A Book", "public"]] });
+      await ctx.setBookVisibility(bookId, "community");
+      expect(await shown()).toEqual({ members: [["A Book", "community"]], web: [] });
+      await ctx.setBookVisibility(bookId, "private");
+      expect(await shown()).toEqual({ members: [], web: [] });
+      await ctx.setBookVisibility(bookId, "public");
+      expect(await shown()).toEqual({ members: [["A Book", "public"]], web: [["A Book", "public"]] });
+    });
+
+    it("never lends a book's title, or a step, to a work when the book is private or at the house and the viewer is the web", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, { projectId: null, bookId, title: null }), NOW);
+      const names = async () => ({
+        members: (await repo.worksShownToMembers(id(ada), null)).map((s) => `${s.kind}:${s.workTitle}`),
+        web: (await repo.worksShownOnWeb(id(ada), null)).map((s) => `${s.kind}:${s.workTitle}`),
+      });
+      expect(await names()).toEqual({ members: ["the_end:A Book", "published:A Book"], web: ["the_end:A Book", "published:A Book"] });
+      await ctx.setBookVisibility(bookId, "community");
+      expect(await names()).toEqual({ members: ["the_end:A Book", "published:A Book"], web: ["the_end:null"] });
+      await ctx.setBookVisibility(bookId, "private");
+      expect(await names()).toEqual({ members: ["the_end:null"], web: ["the_end:null"] });
+    });
+
+    it("keeps a private book out of the milestone-only list the badges read", async () => {
+      const repo = ctx.repo();
+      const bookId = await ctx.addBook(id(ada));
+      await ctx.setBookVisibility(bookId, "private");
+      expect((await repo.shownToMembers(id(ada))).map((s) => s.kind)).toEqual([]);
+      expect((await repo.worksShownToMembers(id(ada), null)).map((s) => s.kind)).toEqual([]);
+    });
+
     it("starts a confirmed milestone at the globe, and keeps the level the member picks when they confirm (lock included)", async () => {
       const repo = ctx.repo();
       const levelOfAdd = async (title: string, visibility?: "private" | "community" | "public") =>
@@ -827,6 +869,32 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         expect(await repo.removeBookPhoto(book, id(bo))).toBeNull();
         expect(await repo.removeBookPhoto(book, id(ada))).toEqual({ previousPath: pathOf(ada, 44) });
         expect(await repo.photoByToken(token(44))).toBeNull();
+      });
+
+      it("gives a book's photo the book's own level: the lock shows it to nobody, the house to members, the globe to the web too", async () => {
+        const repo = ctx.repo();
+        const book = await ctx.addBook(id(ada));
+        await repo.setBookPhoto(book, id(ada), pathOf(ada, 71), "With my book", NOW);
+        const photoFor = async (reader: "web" | "members") => (await stepsOf(repo, reader)).find((s) => s.kind === "published")?.photo ?? null;
+        const mine = { token: token(71), alt: "With my book" };
+
+        expect(await repo.photoByToken(token(71))).toMatchObject({ target: "book", level: "public" });
+        expect(await photoFor("web")).toEqual(mine);
+
+        await ctx.setBookVisibility(book, "community");
+        expect(await repo.photoByToken(token(71))).toMatchObject({ target: "book", ownerId: id(ada), level: "community" });
+        expect(await photoFor("members")).toEqual(mine);
+        expect(await photoFor("web")).toBeNull();
+
+        await ctx.setBookVisibility(book, "private");
+        expect(await repo.photoByToken(token(71))).toMatchObject({ target: "book", ownerId: id(ada), level: "private" });
+        expect(await photoFor("members")).toBeNull();
+        expect(await photoFor("web")).toBeNull();
+        // The member's own My Writing list still has it: it is theirs.
+        expect(await repo.bookPhotosOf(id(ada))).toEqual([{ bookId: book, token: token(71), alt: "With my book" }]);
+
+        await ctx.setBookVisibility(book, "public");
+        expect(await photoFor("web")).toEqual(mine);
       });
 
       it("serves no photo of a book that was deleted from the Bookshelf", async () => {

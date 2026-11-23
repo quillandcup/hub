@@ -25,6 +25,10 @@ defineMilestonesContract("InMemoryMilestoneRepository", () => {
       data.memberBooks.push({ id, member_id: memberId, title: "A Book", published_date: publishedDate, cover_asset_id: null, project_id: projectId ?? null });
       return id;
     },
+    setBookVisibility: async (bookId, visibility) => {
+      const book = data.memberBooks.find((b) => b.id === bookId);
+      if (book) book.visibility = visibility;
+    },
     deleteBooks: async (memberId) => {
       for (const b of data.memberBooks) if (b.member_id === memberId) b.deleted_at = new Date().toISOString();
     },

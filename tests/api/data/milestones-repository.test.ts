@@ -56,6 +56,9 @@ defineMilestonesContract("SupabaseMilestoneRepository", () => ({
   },
   addBook: async (memberId, projectId, publishedDate = "2026-01-01") =>
     must(await db.from("member_books").insert({ member_id: memberId, title: "A Book", published_date: publishedDate, cover_url: "", project_id: projectId ?? null }).select("id").single())!.id,
+  setBookVisibility: async (bookId, visibility) => {
+    must(await db.from("member_books").update({ visibility }).eq("id", bookId));
+  },
   deleteBooks: async (memberId) => {
     must(await db.from("member_books").update({ deleted_at: new Date().toISOString() }).eq("member_id", memberId));
   },

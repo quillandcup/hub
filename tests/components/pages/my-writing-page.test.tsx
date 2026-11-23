@@ -31,6 +31,7 @@ vi.mock("@/app/(member)/bookshelf/actions", () => ({
   addBook: vi.fn(),
   updateBook: vi.fn(),
   deleteBook: vi.fn(),
+  setBookVisibility: vi.fn(),
 }));
 vi.mock("@/app/(member)/awards/actions", () => ({ getMyAwards: vi.fn() }));
 const milestoneContext = vi.hoisted(() => ({
@@ -80,6 +81,8 @@ function book(overrides: Partial<MyBookRow>): MyBookRow {
     editions: [{ format: "ebook", purchaseUrl: "https://example.com/buy", price: null }],
     genres: [],
     projectId: null,
+    visibility: "public",
+    webAuthor: "Ada E.",
     ...overrides,
   } as MyBookRow;
 }

@@ -1,4 +1,5 @@
 import type { PageBlockContribution } from "@/components/landing/block-registry";
+import { bookshelfPageBlocks, type BOOKSHELF_BLOCK_DEFAULTS } from "./bookshelf/page-blocks";
 import { eventsPageBlocks, type EVENT_BLOCK_DEFAULTS } from "./events/page-blocks";
 
 /**
@@ -14,7 +15,7 @@ import { eventsPageBlocks, type EVENT_BLOCK_DEFAULTS } from "./events/page-block
  * To leave a module out, remove its line from all three files: the pages still render, and a stored block the module owned shows as a
  * placeholder in the editor and draws nothing for visitors. See docs/architecture/PAGE_BLOCKS.md.
  */
-export const installedPageBlocks: readonly PageBlockContribution[] = [eventsPageBlocks];
+export const installedPageBlocks: readonly PageBlockContribution[] = [eventsPageBlocks, bookshelfPageBlocks];
 
 /** The default props of the installed modules' blocks, for the pages code's typed `BLOCK_DEFAULTS`. */
-export type InstalledBlockDefaults = typeof EVENT_BLOCK_DEFAULTS;
+export type InstalledBlockDefaults = typeof EVENT_BLOCK_DEFAULTS & typeof BOOKSHELF_BLOCK_DEFAULTS;

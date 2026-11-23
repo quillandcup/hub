@@ -36,7 +36,7 @@ export async function loadMilestoneContext(memberId: string): Promise<MilestoneC
     milestones,
     books: books.map((b) => {
       const photo = bookPhotos.find((p) => p.bookId === b.id);
-      return { id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date, photo: photo ? { token: photo.token, alt: photo.alt } : null };
+      return { id: b.id, title: b.title, projectId: b.project_id ?? null, publishedDate: b.published_date, visibility: b.visibility, photo: photo ? { token: photo.token, alt: photo.alt } : null };
     }),
     firstJoinedAt,
     web,

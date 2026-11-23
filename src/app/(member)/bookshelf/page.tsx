@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import BookshelfClient, { type ShelfBook } from "./BookshelfClient";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { getCurrentUser } from "@/lib/auth";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Hedgie Book Shelf",
@@ -11,7 +14,13 @@ export const metadata: Metadata = {
 export default async function BookshelfPage() {
   const supabase = await createClient();
 
-  const books = await createRepos(supabase).books.shelf();
+  // The member being acted as (sudo included): their own private books are on their shelf, nobody else's.
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) redirect("/admin");
+
+  const books = await createRepos(supabase).books.shelf(identity.memberId);
 
   const shelf: ShelfBook[] = books.map((row) => ({
     id: row.id,
