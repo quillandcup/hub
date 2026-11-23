@@ -433,9 +433,9 @@ The Kajabi Product Progress import stores only a percentage per student, which c
 
 ### Delete course: what the first version leaves out _(Needs Scheduling)_
 
-"Delete course" (`docs/product/COURSES.md`, "Deleting a course") removes a Hub-owned draft course that no member uses. Deferred, and where to start:
+"Delete course" (`docs/product/COURSES.md`, "Deleting a course") removes a Hub-owned draft course that no member has access to. Deferred, and where to start:
 - **Courses imported from Kajabi.** They are refused, because the import would create them again from the Bronze rows (`/api/process/courses`). Removing one for good needs a way to tell the import to skip it (a hidden or ignored flag on `kajabi_courses`, or deleting it in Kajabi and letting the import's soft delete reach Silver). **Where to start:** `src/lib/data/kajabi-courses.ts`, `src/lib/courses/import.ts`, `src/lib/courses/process.ts`.
-- **Courses with members.** Refused while anyone has or is due access, or left progress or comments. A course that was used and is retired should be archived (hidden, kept), not deleted; there is no such state yet. **Where to start:** a soft-delete or archive column on `courses` read by `loadAdminCourses`, if staff ask for it.
+- **Courses with members.** Refused while anyone has or is due access (progress, comments and chat links alone do not block). A course that was used and is retired should be archived (hidden, kept), not deleted; there is no such state yet. **Where to start:** a soft-delete or archive column on `courses` read by `loadAdminCourses`, if staff ask for it.
 - **No undo.** The delete is for good (the dialog says so). A soft delete with restore would need the same column.
 - **Stored files stay.** Deleting a course leaves its objects in the `course-files` bucket (the guard `storagePathShared` protects copies that share them); the sweep of unreferenced objects is the one in "Duplicated courses: what the first version leaves out".
 - **A once-published course's old addresses** stop redirecting when it is deleted, so a link someone saved to it ends in a not-found page. Acceptable for the draft copies this was built for; revisit if staff delete courses that were live.

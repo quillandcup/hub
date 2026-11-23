@@ -12,12 +12,13 @@ vi.mock("@/app/(admin)/admin/courses/duplicate-actions", () => ({ duplicateCours
 vi.mock("@/app/(admin)/admin/courses/take-over-actions", () => ({ takeOverCourse: vi.fn() }));
 
 import CourseActions from "@/app/(admin)/admin/courses/[id]/CourseActions";
+import { deleteLosses } from "@/lib/courses/delete";
 import { deleteBlockedReason, duplicateBlockedReason, takeOverBlockedReason } from "@/lib/courses/blocked-reasons";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const dup = { modules: 1, lessons: 2, withVideo: 0, downloads: 0, tooDeep: false };
 const take = { modules: 1, lessons: 2, withText: 1, withVideo: 0, downloads: 0, withoutSetting: 0, tooDeep: false };
-const del = { modules: 2, lessons: 5, source: "hub", isDraft: true, members: 0, activity: 0 };
+const del = { modules: 2, lessons: 5, source: "hub", isDraft: true, access: 0, grants: 0, progress: 0, comments: 0, chatVideos: 0 };
 const openMenu = async () => {
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Course actions" }));
@@ -83,6 +84,15 @@ describe("CourseActions delete", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("lists exactly what the lessons held that is lost, in the dialog", async () => {
+    render(<CourseActions courseId={COURSE} title="Plot Lab (copy)" duplicate={dup} takeOver={null} deletion={{ ...del, progress: 1, comments: 3, chatVideos: 2 }} />);
+    const user = await openMenu();
+    await user.click(screen.getByRole("menuitem", { name: "Delete course" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete course?" });
+    expect(dialog).toHaveTextContent("1 lesson progress record and 3 comments on its lessons are deleted too.");
+    expect(dialog).toHaveTextContent("2 chat messages will lose their video link (the messages stay).");
+  });
+
   it("deletes on confirm and goes back to the course list", async () => {
     deleteCourse.mockResolvedValue({ ok: true });
     render(<CourseActions courseId={COURSE} title="Plot Lab (copy)" duplicate={dup} takeOver={null} deletion={{ ...del, modules: 1, lessons: 1 }} />);
@@ -95,12 +105,12 @@ describe("CourseActions delete", () => {
   });
 
   it("keeps the dialog open with the reason when the server refuses, and when the call fails", async () => {
-    deleteCourse.mockResolvedValueOnce({ error: "Members have access to this course or are due access, so it can't be deleted." });
+    deleteCourse.mockResolvedValueOnce({ error: "Members have access to it (1 with a grant), so it can't be deleted." });
     render(<CourseActions courseId={COURSE} title="Plot Lab" duplicate={dup} takeOver={null} deletion={del} />);
     const user = await openMenu();
     await user.click(screen.getByRole("menuitem", { name: "Delete course" }));
     await user.click(screen.getByRole("button", { name: "Delete course" }));
-    expect(await screen.findByText(/have access to this course/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 with a grant/)).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
     deleteCourse.mockRejectedValueOnce(new Error("network"));
     await user.click(screen.getByRole("button", { name: "Delete course" }));
@@ -127,11 +137,27 @@ describe("deleteBlockedReason", () => {
   it("is null for a draft Hub course nobody uses", () => {
     expect(deleteBlockedReason(del)).toBeNull();
   });
-  it("names the first thing in the way: Kajabi, published, members, then what members left", () => {
-    expect(deleteBlockedReason({ ...del, source: "kajabi", isDraft: false, members: 3 })).toMatch(/comes from Kajabi/);
-    expect(deleteBlockedReason({ ...del, isDraft: false, members: 3 })).toMatch(/Unpublish it first/);
-    expect(deleteBlockedReason({ ...del, members: 3 })).toMatch(/access/);
-    expect(deleteBlockedReason({ ...del, activity: 2 })).toMatch(/progress or comments/);
+  it("names the first thing in the way: Kajabi, published, then access, with how many", () => {
+    expect(deleteBlockedReason({ ...del, source: "kajabi", isDraft: false, access: 3 })).toMatch(/comes from Kajabi/);
+    expect(deleteBlockedReason({ ...del, isDraft: false, access: 3 })).toMatch(/Unpublish it first/);
+    expect(deleteBlockedReason({ ...del, access: 3 })).toBe("Members have access to it (3 with access), so it can't be deleted.");
+    expect(deleteBlockedReason({ ...del, access: 2, grants: 1 })).toBe("Members have access to it (2 with access, 1 with a grant), so it can't be deleted.");
+    expect(deleteBlockedReason({ ...del, grants: 1 })).toBe("Members have access to it (1 with a grant), so it can't be deleted.");
+  });
+  it("doesn't block on what members left on the lessons: the dialog lists it", () => {
+    const left = { ...del, progress: 1, comments: 4, chatVideos: 2 };
+    expect(deleteBlockedReason(left)).toBeNull();
+  });
+});
+
+describe("deleteLosses", () => {
+  it("is empty when nothing was left on the lessons", () => {
+    expect(deleteLosses(del)).toBe("");
+  });
+  it("lists each kind with its count, and says the chat messages stay", () => {
+    expect(deleteLosses({ progress: 1, comments: 0, chatVideos: 2 })).toBe("1 lesson progress record on its lessons is deleted too. 2 chat messages will lose their video link (the messages stay).");
+    expect(deleteLosses({ progress: 3, comments: 4, chatVideos: 1 })).toBe("3 lesson progress records and 4 comments on its lessons are deleted too. 1 chat message will lose its video link (the message stays).");
+    expect(deleteLosses({ progress: 0, comments: 1, chatVideos: 0 })).toBe("1 comment on its lessons is deleted too.");
   });
 });
 
