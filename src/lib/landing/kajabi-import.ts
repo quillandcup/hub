@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { parseFragment, serializeOuter } from "parse5";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { ITEM_LIMITS } from "@/components/landing/item-limits";
+import type { SocialNetwork } from "@/components/landing/social-networks";
 import { safeHref, type LandingData } from "@/lib/landing/data";
 import { presetPadding } from "@/lib/landing/layout";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
@@ -424,27 +425,32 @@ function mapVideo(ctx: Ctx, b: Settings): Puck {
   return { type: "Video", props: { id: ctx.id("Video"), url: "", title: "" } };
 }
 
+/** Kajabi's networks that the Social icons block has (Kajabi's "twitter" is X); the rest are named in the report. */
+const SOCIAL_FROM_KAJABI: Record<string, SocialNetwork> = { instagram: "instagram", facebook: "facebook", youtube: "youtube", tiktok: "tiktok", twitter: "x", linkedin: "linkedin", pinterest: "pinterest" };
 const SOCIAL_LABELS: Record<string, string> = { facebook: "Facebook", twitter: "Twitter", instagram: "Instagram", youtube: "YouTube", spotify: "Spotify", linkedin: "LinkedIn", pinterest: "Pinterest", tiktok: "TikTok", apple_podcasts: "Apple Podcasts", google_podcasts: "Google Podcasts", itunes: "iTunes", snapchat: "Snapchat", vimeo: "Vimeo", soundcloud: "SoundCloud", github: "GitHub", medium: "Medium", twitch: "Twitch", rss: "RSS" };
+const humanNetwork = (key: string) => SOCIAL_LABELS[key] ?? key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
-/** Social icons become a row of text links (up to three buttons, else a link list): the networks that have an address. */
+/**
+ * Social icons become a Social icons block: one icon link per network the export gives an address for and the block has (Instagram, Facebook,
+ * YouTube, TikTok, X, LinkedIn, Pinterest), in the export's order, with its alignment and size. A network the block does not have is left out
+ * and named; a link that can't be used here is kept with no address and a to-do.
+ */
 function mapSocialIcons(ctx: Ctx, b: Settings): Puck | null {
-  const links = Object.entries(b)
+  const given = Object.entries(b)
     .filter(([key]) => key.startsWith("social_icon_link_"))
-    .map(([key, value]) => {
-      const network = key.slice("social_icon_link_".length);
-      return { label: SOCIAL_LABELS[network] ?? network.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), href: resolveLink(value, ctx.siteUrl), given: clean(str(value)) };
-    })
+    .map(([key, value]) => ({ key: key.slice("social_icon_link_".length), href: resolveLink(value, ctx.siteUrl), given: clean(str(value)) }))
     .filter((l) => l.given);
-  if (links.length === 0) return null;
-  for (const l of links.filter((x) => !x.href)) ctx.notes.push({ kind: "todo", text: `The ${l.label} link in the social icons can't be used here: set it in the editor.` });
-  ctx.notes.push({ kind: "approximated", text: `Social icons became ${links.length <= 3 ? "a row of text buttons" : "a list of links"} (${links.map((l) => l.label).join(", ")}): the Hub has no icon block yet.` });
-  if (links.length <= 3) {
-    return {
-      type: "ButtonRow",
-      props: { id: ctx.id("ButtonRow"), align: str(b.horizontal) === "center" ? "center" : "left", gap: "medium", items: links.map((l) => ({ type: "RowButton", props: { id: ctx.id("RowButton"), label: l.label, href: l.href, look: "outline", color: "plum", shape: "pill" } })) },
-    };
-  }
-  return { type: "LinkList", props: { id: ctx.id("LinkList"), items: links.map((l) => ({ type: "LinkItem", props: { id: ctx.id("LinkItem"), label: l.label, href: l.href, look: "inherit", color: "plum" } })) } };
+  if (given.length === 0) return null;
+  const known = given.filter((l) => Object.hasOwn(SOCIAL_FROM_KAJABI, l.key));
+  const unknown = given.filter((l) => !Object.hasOwn(SOCIAL_FROM_KAJABI, l.key));
+  if (unknown.length > 0) ctx.notes.push({ kind: "left_out", text: `Social icons for ${unknown.map((l) => humanNetwork(l.key)).join(", ")} are not imported: the Social icons block has no mark for ${unknown.length === 1 ? "that network" : "those networks"}. Add a Website link if you want one.` });
+  if (known.length === 0) return null;
+  for (const l of known.filter((x) => !x.href)) ctx.notes.push({ kind: "todo", text: `The ${humanNetwork(l.key)} link in the social icons can't be used here: set it in the editor.` });
+  const align = str(b.horizontal) === "left" ? "left" : str(b.horizontal) === "right" ? "right" : "center";
+  const size = /^(small|large)$/.test(str(b.social_icon_size)) ? str(b.social_icon_size) : "medium";
+  const items = known.slice(0, ITEM_LIMITS.SocialIcons).map((l) => ({ type: "SocialLink", props: { id: ctx.id("SocialLink"), network: SOCIAL_FROM_KAJABI[l.key], url: l.href } }));
+  ctx.notes.push({ kind: "approximated", text: `Social icons became a Social icons block (${known.map((l) => humanNetwork(l.key)).join(", ")}) with the Hub's own simple marks and the theme's colours; Kajabi's icon colours and backgrounds are not carried over, and the links open in a new tab.` });
+  return { type: "SocialIcons", props: { id: ctx.id("SocialIcons"), items, align, size } };
 }
 
 /** Why embedded code is not carried over, or null when it is plain markup the rich text rules can hold. Anything that runs or loads something is refused. */

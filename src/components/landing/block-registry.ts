@@ -34,6 +34,8 @@ export type PublishCheckTools = {
   checkButton: (block: string, label: unknown, href: unknown, what?: string) => void;
   /** A problem the block's own check finds that is worth a note but does not stop the publish. */
   warn: (block: string, message: string) => void;
+  /** A problem a visitor can't work around (a link with no usable address): it stops the publish. */
+  error: (block: string, message: string) => void;
 };
 
 /** How the publish check treats a block whose list is a slot of item blocks: what to call them and which prop shows an item is filled in. */

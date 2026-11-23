@@ -210,27 +210,32 @@ describe("link_list", () => {
 });
 
 describe("social_icons", () => {
-  it("becomes a row of buttons for up to three networks", () => {
-    const { inner, notes } = more({ s1: block("social_icons", { horizontal: "center", social_icon_link_instagram: "https://instagram.example.com/me", social_icon_link_youtube: "https://youtube.example.com/me", social_icon_link_facebook: "" }) });
-    expect(inner[0]).toMatchObject({ type: "ButtonRow", props: { align: "center" } });
-    expect(kids(inner[0]).map((k) => [k.props.label, k.props.href])).toEqual([
-      ["Instagram", "https://instagram.example.com/me"],
-      ["YouTube", "https://youtube.example.com/me"],
+  it("becomes a Social icons block with the networks that have an address, in order, with its alignment", () => {
+    const { inner, notes } = more({ s1: block("social_icons", { horizontal: "right", social_icon_link_instagram: "https://instagram.example.com/me", social_icon_link_twitter: "https://x.example.com/me", social_icon_link_youtube: "https://youtube.example.com/me", social_icon_link_facebook: "" }) });
+    expect(inner[0]).toMatchObject({ type: "SocialIcons", props: { align: "right", size: "medium" } });
+    expect(kids(inner[0]).map((k) => [k.type, k.props.network, k.props.url])).toEqual([
+      ["SocialLink", "instagram", "https://instagram.example.com/me"],
+      ["SocialLink", "x", "https://x.example.com/me"],
+      ["SocialLink", "youtube", "https://youtube.example.com/me"],
     ]);
-    expect(note(notes, "approximated", "Social icons became a row of text buttons")).toBe(true);
+    expect(note(notes, "approximated", "Social icons became a Social icons block (Instagram, Twitter, YouTube)")).toBe(true);
   });
 
-  it("becomes a list of links for more networks, and asks for a link that can't be used", () => {
-    const { inner, notes } = more({ s1: block("social_icons", { social_icon_link_instagram: "https://a.example.com", social_icon_link_facebook: "https://b.example.com", social_icon_link_twitter: "javascript:alert(1)", social_icon_link_linkedin: "https://d.example.com", social_icon_link_apple_podcasts: "https://e.example.com" }) });
-    expect(inner[0].type).toBe("LinkList");
-    expect(kids(inner[0]).map((k) => k.props.label)).toEqual(["Instagram", "Facebook", "Twitter", "LinkedIn", "Apple Podcasts"]);
-    expect(kids(inner[0])[2].props.href).toBe("");
-    expect(note(notes, "todo", "Twitter link")).toBe(true);
+  it("names the networks the block has no mark for and leaves them out, and asks for a link that can't be used", () => {
+    const { inner, notes } = more({ s1: block("social_icons", { social_icon_link_instagram: "https://a.example.com", social_icon_link_linkedin: "javascript:alert(1)", social_icon_link_spotify: "https://e.example.com", social_icon_link_apple_podcasts: "https://f.example.com", social_icon_size: "large" }) });
+    expect(kids(inner[0]).map((k) => k.props.network)).toEqual(["instagram", "linkedin"]);
+    expect(kids(inner[0])[1].props.url).toBe("");
+    expect(inner[0].props.size).toBe("large");
+    expect(note(notes, "left_out", "Spotify, Apple Podcasts are not imported")).toBe(true);
+    expect(note(notes, "todo", "LinkedIn link")).toBe(true);
   });
 
-  it("is left out with no links, and a hidden one stays hidden", () => {
+  it("is left out with no links or only networks the block does not have, and a hidden one stays hidden", () => {
     const empty = more({ s1: block("social_icons", {}), t: block("text", { text: "<p>Kept</p>" }) });
     expect(note(empty.notes, "left_out", "no links to import")).toBe(true);
+    const only = more({ s1: block("social_icons", { social_icon_link_spotify: "https://e.example.com" }), t: block("text", { text: "<p>Kept</p>" }) });
+    expect(only.inner.map((b) => b.type)).toEqual(["RichText"]);
+    expect(note(only.notes, "left_out", "Spotify")).toBe(true);
     const hidden = more({ s1: block("social_icons", { social_icon_link_instagram: "https://a.example.com" }, { hidden: "true" }), t: block("text", { text: "<p>Kept</p>" }) });
     expect(hidden.json).not.toContain("a.example.com");
   });
