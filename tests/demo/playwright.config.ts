@@ -6,6 +6,10 @@ import { appConfig } from "../../config/app";
  * breakpoint (lg, 1024px): tablet portrait is below it, tablet landscape and desktop above. For captures only
  * (screenshots for an article), run one project: `pnpm demo:capture --project=desktop-light`.
  */
+// The notification mockups render the emails in the test process, and an email carries the postal address (`postalAddress()`, from the
+// environment, not the code: the repo is public). A made-up one, as tests/setup.ts does; the picture is of a fictional community.
+process.env.POSTAL_ADDRESS ||= "Example Press, 1 Example Street, Exampleville, EX 00000";
+
 const SIZES = {
   // Chromium at the iPhone's size, touch and user agent: the profile's own WebKit isn't installed (add it for Safari-accurate checks).
   phone: { ...devices["iPhone 14"], defaultBrowserType: "chromium" as const },

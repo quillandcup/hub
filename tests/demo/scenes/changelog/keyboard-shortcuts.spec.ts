@@ -8,5 +8,5 @@ test("a member opens the keyboard shortcuts panel @changelog", async ({ page, si
   await page.getByRole("menuitem", { name: /Keyboard shortcuts/ }).click();
   await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toBeVisible();
   // The header search button fails the label-in-name check on this page (a finding that is not about this entry, see docs/TODO.md).
-  await shot(page, testInfo, "shortcuts-panel", { checks: false });
+  await shot(page, testInfo, "shortcuts-panel");
 });

@@ -7,5 +7,5 @@ test("a member sees a project's goals with their grips @changelog", async ({ pag
   await page.getByRole("link", { name: /The Lighthouse Bakery Murders/ }).first().click();
   await expect(page.getByText("First 10,000 words").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /^Reorder / }).first()).toBeVisible();
-  await shot(page, testInfo, "goals-with-grips", { checks: false });
+  await shot(page, testInfo, "goals-with-grips");
 });

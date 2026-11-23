@@ -1,3 +1,5 @@
+"use client";
+
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import Tooltip from "@/components/Tooltip";
 

@@ -39,7 +39,7 @@ export default async function TemporaryEmailsPage() {
       </div>
 
       {flagged.length === 0 ? (
-        <p className="text-sm text-green-600 dark:text-green-400">No temporary-mail addresses ✓</p>
+        <p className="text-sm text-green-700 dark:text-green-400">No temporary-mail addresses ✓</p>
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800">
           {flagged.map((m) => {
