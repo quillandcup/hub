@@ -1247,6 +1247,20 @@ location instead.
    - Not found anywhere in history: real API tokens or keys. The Supabase key and Slack-token
      look-alikes are the public local-dev demo key and placeholders.
 
+### OSPS Baseline: what is left _(Needs Scheduling)_
+
+`docs/checklists/OSPS_BASELINE.md` (assessed 2026-11-23, catalog `v2026.08.28`) maps every control. The cheap ones were fixed with it (the "Access" and "Dependencies" sections of `.github/GOVERNANCE.md`); what needs a decision or the owner is left:
+- **Workflow token default is `write`** (`OSPS-AC-04.01`). Every workflow already declares its own `permissions:`, but the repository default (live `default_workflow_permissions`) is `write`, so a workflow that forgets the line gets write. Set it to `read` (Settings, Actions, General, or `gh api -X PUT repos/quillandcup/hub/actions/permissions/workflow -f default_workflow_permissions=read`). Not done because the owner runs repository-wide settings and `scripts/github-config.ts` only manages the repository PATCH and rulesets (that endpoint is separate); either teach the script this endpoint or do it by hand once. Check after that nothing relied on the default: run a PR and a `main` build.
+- **`CODEOWNERS`** was left out: the organization has no team, and a file naming individual accounts puts people in a public file for no gain while `require_code_owner_review` is off (it stays off: zero approvals and auto-merge). Create a maintainers team in the organization, then add `.github/CODEOWNERS` pointing at it for `.github/`, `config/`, `supabase/migrations/` and `.claude/rules/`.
+- **Remediation thresholds** (`OSPS-VM-05.04`, `OSPS-VM-05.05`, `OSPS-VM-06.01`, and the pre-release rule `OSPS-VM-05.02`). The practice is to fix scanner findings quickly, but nothing says how quickly. Needs the owner's decision (for example critical in 7 days, high in 30, others at the next Dependabot batch), then a short section in `docs/trust/THREAT_MODEL.md` or `.github/SECURITY.md`. A license policy (`OSPS-VM-05.05`) also needs a license scanner, which we don't run.
+- **Blocking dependency checks** (`OSPS-VM-05.03`): OSV-Scanner and `pnpm audit` only report on pull requests, because an advisory with no fix would stop every PR. A middle road is failing only on a newly introduced vulnerable version (OSV-Scanner's diff mode); worth trying once the first scanner triage is finished.
+- **Dependabot security updates** are off (live `security_and_analysis`), although weekly version updates run. Enable them under Settings, Advanced Security; free on a public repo. Left for the batch in "Repo Security Settings and Scans".
+- **Not pursued, by nature of the project**: an OSI license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`).
+
+### GUAC: considered, not planned
+
+GUAC (Graph for Understanding Artifact Composition, from OpenSSF) ingests SBOMs, attestations and scanner output from many projects into one graph to answer supply-chain questions. Not planned: this is a single project with no corpus of SBOMs or attestations to analyze, and OSV-Scanner, Dependabot and `pnpm audit` already answer "which of our dependencies are known-vulnerable". Revisit if the number of repositories or published artifacts grows, or once SBOMs and build attestations exist for more than one thing.
+
 ### Repo Security Settings and Scans _(Needs Scheduling)_
 Found 2026-10-22 by comparing the live repo's `security_and_analysis` (read with
 `gh api repos/quillandcup/hub`) against what GitHub offers for public repos. Secret scanning and push
