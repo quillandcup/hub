@@ -1,8 +1,8 @@
 # CSP rollout alerts
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-The Content-Security-Policy is moving to a strict, nonce-based script policy (`src/lib/csp.ts`, `docs/TODO.md`, "CSP for scripts and styles (nonces)"). Two things can go wrong without anyone noticing, so two layers watch for them:
+The Content-Security-Policy has a strict, nonce-based script policy, enforced since 2026-11-23 (`src/lib/csp.ts`, `docs/TODO.md`, "CSP for scripts and styles (nonces)"); connection, frame, media and font sources are still report-only. Two things can go wrong without anyone noticing, so two layers watch for them:
 
 1. **Sentry alert rules** (`config/sentry.yml`, `alerts:`) email when a CSP violation is new, comes back, or floods in.
 2. **A daily health check** (`/api/internal/csp-health`, `src/lib/csp-health.ts`) reads the access log and, when browsers are not running our scripts, sends a Sentry event per failing check. A fourth Sentry rule emails about those. It sends nothing when all is well. Everything arrives by Sentry email: one channel, nothing goes to Slack.
