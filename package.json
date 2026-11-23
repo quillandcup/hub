@@ -156,6 +156,7 @@
     "@vitest/ui": "^4.1.12",
     "autoprefixer": "^10.6.2",
     "checkly": "latest",
+    "csp_evaluator": "^1.1.8",
     "doctoc": "^2.5.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",

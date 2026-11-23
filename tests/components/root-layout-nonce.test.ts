@@ -55,13 +55,10 @@ describe("the root layout and the script nonce", () => {
     expect(find(tree, "GoogleAnalytics")[0].props.nonce).toBe("abc123");
   });
 
-  it("carries the enforcing picture policy as a meta tag, without what a meta tag cannot hold", async () => {
+  it("carries no policy meta tag: the policy is a header, sent by the proxy", async () => {
     const tree = await RootLayout({ children: null });
 
-    const meta = find(tree, "meta")[0];
-    expect(meta.props.httpEquiv).toBe("Content-Security-Policy");
-    expect(meta.props.content).toContain("img-src ");
-    expect(meta.props.content).not.toContain("frame-ancestors");
+    expect(find(tree, "meta")).toHaveLength(0);
   });
 
   it("passes no nonce when the request has none", async () => {
