@@ -1,4 +1,5 @@
 import { APP_HOST, APP_URL, KAJABI_SITE_URL, PUBLIC_SITE_LIVE, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
+import { HOME_SLUG, isValidSlug } from "@/lib/landing/slug";
 import { ROOT_REDIRECTS, fillTarget, matchRedirect, type RootRedirect } from "@/lib/root-redirects";
 
 /**
@@ -16,7 +17,12 @@ import { ROOT_REDIRECTS, fillTarget, matchRedirect, type RootRedirect } from "@/
  *          No sign-in is needed or attempted: the session cookie belongs to the app host, so nobody is signed in on this host.
  *       3. A signed-in Hub path (HUB_ONLY_SEGMENTS: /dashboard, /admin, /auth, ...): 307 to the same path on the app host.
  *          Sending a visitor to /login here would sign them in on the wrong host.
- *       4. Anything else is an old Kajabi address (a checkout link in an email, an Instagram link, a bookmark): 307 to the
+ *       4. A single segment that is a valid landing page address (isValidSlug: lowercase words, not reserved) and a PUBLISHED page
+ *          is that page, served at /<slug> (the route behind it is /p/<slug>); `/p/<slug>` itself is a 308 to `/<slug>` (`/` for
+ *          the page `home`). decideRoute cannot know what is published, so it answers "landing-page" and resolveLandingRoute,
+ *          given a lookup, finishes it: a page that is not published (a draft, taken down, a template, never made, the read
+ *          failed) gets exactly what it got without this step, i.e. step 5 (for /p/<slug>, the route's own 404).
+ *       5. Anything else is an old Kajabi address (a checkout link in an email, an Instagram link, a bookmark): 307 to the
  *          same path and query on the Kajabi host, so it keeps working.
  *
  * Why the proxy and a list of segments rather than a catch-all `[...path]` route: the proxy runs before routing and before the
@@ -81,8 +87,29 @@ export interface RouteRequest {
   search: string;
 }
 
-/** `pass` carries which kind of host it is: on the root host nobody is signed in (see the top of this file). */
-export type RouteDecision = { action: "pass"; host: "app" | "root" } | { action: "redirect"; location: string; status: 307 | 308 };
+/**
+ * What the proxy does with a request. `pass` carries which kind of host it is: on the root host nobody is signed in (see the top of
+ * this file). `rewrite` serves another path of this app under the address asked for, on the root host. `landing-page` is only
+ * what decideRoute returns for a path that might be a published page: resolveLandingRoute turns it into one of the others.
+ */
+export type SettledRoute =
+  | { action: "pass"; host: "app" | "root" }
+  | { action: "redirect"; location: string; status: 307 | 308 }
+  | { action: "rewrite"; pathname: string; host: "root" };
+export type RouteDecision = SettledRoute | LandingCandidate;
+
+/** A request on the root host whose path is a valid page address, and what to do when no such page is published. */
+export interface LandingCandidate {
+  action: "landing-page";
+  slug: string;
+  /** "short" is /<slug> (the address); "prefixed" is /p/<slug> (the route behind it). */
+  form: "short" | "prefixed";
+  /** The path ended in a slash. */
+  slash: boolean;
+  search: string;
+  /** Not published: the answer the request would have had without landing pages. */
+  fallback: SettledRoute;
+}
 
 export interface RoutingConfig {
   /** config/app.ts `publicSiteLive`: false means nothing here applies and every request is the app host's. */
@@ -188,11 +215,48 @@ export function decideRoute(req: RouteRequest, config: RoutingConfig = DEFAULT_R
     return { action: "redirect", location: explicitTarget(entry, match.rest, req, config), status: entry.permanent ? 308 : 307 };
   }
 
+  const prefixed = /^\/p\/([^/]+)(\/?)$/.exec(req.pathname);
+  if (prefixed && isValidSlug(prefixed[1])) {
+    return { action: "landing-page", slug: prefixed[1], form: "prefixed", slash: prefixed[2] === "/", search: req.search, fallback: { action: "pass", host: "root" } };
+  }
   if (isHome(req.pathname) || config.rootServed.includes(segment) || config.infrastructure.includes(segment)) return { action: "pass", host: "root" };
   if (config.hubOnly.includes(segment)) {
     return { action: "redirect", location: sameLocation(config.appUrl, req.pathname, req.search), status: 307 };
   }
-  return { action: "redirect", location: sameLocation(config.kajabiUrl, req.pathname, req.search), status: 307 };
+  const toKajabi = { action: "redirect", location: sameLocation(config.kajabiUrl, req.pathname, req.search), status: 307 } as const;
+  // One segment, optionally with a trailing slash, spelled as a page address exactly (no percent-encoding, no uppercase): the only
+  // paths that can be a landing page, so every other old address goes to Kajabi without a lookup.
+  const short = /^\/([^/]+)(\/?)$/.exec(req.pathname);
+  if (short && isValidSlug(short[1])) {
+    return { action: "landing-page", slug: short[1], form: "short", slash: short[2] === "/", search: req.search, fallback: toKajabi };
+  }
+  return toKajabi;
+}
+
+/**
+ * Finishes a "landing-page" decision once it is known whether the page is published. `isPublished` is the lookup
+ * (src/lib/landing/published-addresses.ts); if it throws, the page counts as not published, so a failing database can only ever
+ * turn a landing page into what its address did before (a Kajabi redirect, or a 404), never break the Kajabi redirects.
+ *   - published, /<slug>: a rewrite to /p/<slug>, which renders it (the address in the browser stays /<slug>); with a trailing
+ *     slash, a 308 to the address without it, like every page the Hub serves.
+ *   - published, /p/<slug> (the route, not the address): a 308 to /<slug>.
+ *   - the page `home` has only the address `/`: /home and /p/home are a 308 to it.
+ * 308 here, not 307: the address is permanent, unlike the Kajabi fallback, which is temporary while pages are taken over.
+ */
+export async function resolveLandingRoute(
+  candidate: LandingCandidate,
+  isPublished: (slug: string) => Promise<boolean>,
+  config: RoutingConfig = DEFAULT_ROUTING,
+): Promise<SettledRoute> {
+  const published = await Promise.resolve()
+    .then(() => isPublished(candidate.slug))
+    .catch(() => false);
+  if (!published) return candidate.fallback;
+  const address = candidate.slug === HOME_SLUG ? "/" : `/${candidate.slug}`;
+  if (candidate.form === "prefixed" || candidate.slash || candidate.slug === HOME_SLUG) {
+    return { action: "redirect", location: sameLocation(config.siteUrl, address, candidate.search), status: 308 };
+  }
+  return { action: "rewrite", pathname: `/p/${candidate.slug}`, host: "root" };
 }
 
 /** True when this request is for the root host (the public site), where the homepage renders instead of the dashboard redirect. */

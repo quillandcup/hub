@@ -162,7 +162,7 @@ function Picker({ initial = [] as string[] }: { initial?: string[] }) {
 
 const pickerInput = () => screen.getByRole("combobox", { name: "find" });
 
-const landingPage: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/p/spring" };
+const landingPage: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/spring" };
 const landingData = { content: [{ type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } }], root: {} };
 const renderLandingEditor = () => render(<LandingEditor page={landingPage} data={landingData} versions={[]} />);
 

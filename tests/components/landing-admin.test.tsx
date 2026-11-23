@@ -11,11 +11,15 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: str
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));
 vi.mock("../../src/app/(admin)/admin/pages/actions", () => ({ duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove, createLandingPage: mocks.create, createLandingPageWithAi: mocks.createAi }));
 
+import { SITE_URL } from "@/lib/config";
 import PagesTable from "@/app/(admin)/admin/pages/PagesTable";
 import NewPageForm from "@/app/(admin)/admin/pages/new/NewPageForm";
 import { ZonedDateTimeField } from "@/components/landing/fields";
 import { BLOCK_DEFAULTS, ITEM_BLOCKS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
+
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
   id: "lpg_AAAAAAAAAAA1",
@@ -61,7 +65,24 @@ describe("the pages list", () => {
     expect(within(rows[1]).getByText("Draft")).toBeInTheDocument();
     expect(within(rows[1]).getByRole("link", { name: "Customize" })).toHaveAttribute("href", "/admin/pages/spring");
     expect(within(rows[1]).getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/admin/pages/spring/preview");
-    expect(screen.getByText("/p/waitlist")).toBeInTheDocument();
+    expect(screen.getByText("/waitlist")).toBeInTheDocument();
+  });
+
+  it("shows the page `home` at / (its one address), and copies that", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<PagesTable pages={[row({ id: "lpg_AAAAAAAAAAA3", slug: "home", title: "Home", status: "published" })]} publicBase="https://hub.example.test" />);
+    expect(screen.getByText("/")).toBeInTheDocument();
+    expect(screen.queryByText("/p/home")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    });
+    expect(writeText).toHaveBeenCalledWith("https://hub.example.test/");
+  });
+
+  it("shows no /p/ address anywhere in the list", () => {
+    render(<PagesTable pages={pages} publicBase="https://hub.example.test" />);
+    expect(document.body.textContent).not.toContain("/p/");
   });
 
   it("searches by title or address", () => {
@@ -79,7 +100,7 @@ describe("the pages list", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
     });
-    expect(writeText).toHaveBeenCalledWith("https://hub.example.test/p/waitlist");
+    expect(writeText).toHaveBeenCalledWith("https://hub.example.test/waitlist");
     expect(screen.getByRole("status")).toHaveTextContent("Link copied.");
   });
 
@@ -153,6 +174,12 @@ describe("the new page form, kind of page", () => {
 });
 
 describe("the new page form", () => {
+  it("shows the root host's address before the field, never /p/", () => {
+    render(<NewPageForm aiAvailable={false} />);
+    expect(screen.getByText(`${new URL(SITE_URL).host}/`)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("/p/");
+  });
+
   it("fills the address in from the title until it is typed over, then opens the editor", async () => {
     render(<NewPageForm aiAvailable={false} />);
     const title = screen.getByLabelText("Title");

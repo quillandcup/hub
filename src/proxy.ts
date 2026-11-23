@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { continueSignedOut, updateSession } from './lib/supabase/middleware'
-import { decideRoute } from './lib/root-routing'
+import { decideRoute, resolveLandingRoute } from './lib/root-routing'
+import { isPublishedAddress } from './lib/landing/published-addresses'
 import { PUBLIC_SITE_LIVE } from './lib/config'
 import appConfig from '../config/app'
 import { CSP_HEADER, NONCE_HEADER, enforcedCsp, generateNonce } from './lib/csp'
@@ -8,12 +9,15 @@ import { CSP_HEADER, NONCE_HEADER, enforcedCsp, generateNonce } from './lib/csp'
 export async function proxy(request: NextRequest) {
   // Host first (src/lib/root-routing.ts): www goes to the root host, the root host sends what the Hub doesn't serve to Kajabi and
   // signed-in paths to the app host. The app host and previews get "pass" and everything below runs as before.
-  const route = decideRoute({
+  const decided = decideRoute({
     host: request.headers.get('host') ?? '',
     method: request.method,
     pathname: request.nextUrl.pathname,
     search: request.nextUrl.search,
   })
+  // On the root host a single segment that is spelled like a page address may be a published landing page (/<slug>, served from
+  // /p/<slug>): the lookup (cached, bounded, never throws) decides, and anything not published gets what it got without it.
+  const route = decided.action === 'landing-page' ? await resolveLandingRoute(decided, isPublishedAddress) : decided
   if (route.action === 'redirect') return NextResponse.redirect(route.location, route.status)
   // next.config.ts sets skipTrailingSlashRedirect so that Next doesn't 308 "/products/x/" to "/products/x" before this proxy can send it to
   // Kajabi with its slash intact. For everything the Hub serves, this keeps what Next did itself: a trailing slash is dropped (308).
@@ -40,7 +44,10 @@ export async function proxy(request: NextRequest) {
     dev: process.env.NODE_ENV === 'development',
   })
   const headers = { [NONCE_HEADER]: nonce, [CSP_HEADER]: policy }
-  const response = route.host === 'root' ? continueSignedOut(request, headers) : await updateSession(request, headers)
+  const response =
+    route.host === 'root'
+      ? continueSignedOut(request, headers, route.action === 'rewrite' ? route.pathname : undefined)
+      : await updateSession(request, headers)
   response.headers.set(CSP_HEADER, policy)
   return response
 }

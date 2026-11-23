@@ -36,6 +36,7 @@ import { VERSION_NOTE_MAX } from "@/lib/landing/version-notes";
 import { isLandingPageId } from "@/lib/landing/slug";
 import { importLandingDraftJson, publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
+import { landingAddressPrefix, landingPagePath } from "@/lib/landing/address";
 import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 
 const usePuck = createUsePuck();
@@ -596,7 +597,7 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
           start(async () => {
             const result = await updateLandingPageDetails(page.id, { title, slug, seoTitle, seoDescription, socialImageAssetId: social });
             if (result.error) return setError(result.error);
-            onSaved({ title, slug: result.slug ?? slug, seoTitle, seoDescription, socialImageAssetId: social, publicPath: page.kind === "template" ? "" : `/p/${result.slug ?? slug}` });
+            onSaved({ title, slug: result.slug ?? slug, seoTitle, seoDescription, socialImageAssetId: social, publicPath: page.kind === "template" ? "" : landingPagePath(result.slug ?? slug) });
           });
         }}
       >
@@ -612,7 +613,7 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
           </span>
         </p>
         <label className="block text-sm font-medium">
-          {page.kind === "template" ? "Address in the editor (/admin/pages/…)" : "Address (/p/…)"}
+          {page.kind === "template" ? "Address in the editor (/admin/pages/…)" : `Address (${landingAddressPrefix()}…)`}
           <input value={slug} onChange={(e) => setSlug(e.target.value)} pattern="[a-z0-9]+(-[a-z0-9]+)*" title="Lowercase letters, numbers and dashes" className={input} />
           {page.status === "published" && page.kind !== "template" && <span className="mt-1 block text-xs text-amber-800 dark:text-amber-300">The page is live: changing the address breaks links people already have.</span>}
         </label>

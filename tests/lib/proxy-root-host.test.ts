@@ -18,6 +18,9 @@ vi.mock("@supabase/ssr", () => ({
   }),
 }));
 
+// No landing page is published here (tests/lib/proxy-landing-address.test.ts covers the ones that are), and no database is read.
+vi.mock("@/lib/landing/published-addresses", () => ({ isPublishedAddress: async () => false }));
+
 import { proxy } from "@/proxy";
 
 // The state after the cutover (config/app.ts publicSiteLive true); the state before it is in the "not live" tests (tests/lib/public-site-flag.test.ts lists them).

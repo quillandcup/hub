@@ -74,6 +74,30 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().published(slug)).toBeNull();
     });
 
+    it("lists the address of every published page, and no draft, template or deleted page", async () => {
+      const live = ctx.unique("listed");
+      const draft = ctx.unique("unlisted-draft");
+      const taken = ctx.unique("unlisted-down");
+      const gone = ctx.unique("unlisted-gone");
+      const template = ctx.unique("unlisted-template");
+      const a = await ctx.repo().create({ title: "Live", slug: live, data: doc("a"), createdBy: null });
+      await ctx.repo().create({ title: "Draft", slug: draft, data: doc("b"), createdBy: null });
+      const b = await ctx.repo().create({ title: "Down", slug: taken, data: doc("c"), createdBy: null });
+      const c = await ctx.repo().create({ title: "Gone", slug: gone, data: doc("d"), createdBy: null });
+      const t = await ctx.repo().create({ title: "Template", slug: template, data: doc("e"), createdBy: null, kind: "template" });
+      for (const page of [a, b, c, t]) await ctx.repo().publish(page.id);
+      await ctx.repo().unpublish(b.id, null);
+      await ctx.repo().remove(c.id, null);
+
+      const slugs = (await ctx.repo().publishedAddresses()).map((r) => r.slug);
+
+      expect(slugs).toContain(live);
+      for (const hidden of [draft, taken, gone, template]) expect(slugs).not.toContain(hidden);
+      expect([...slugs].sort()).toEqual(slugs);
+      const entry = (await ctx.repo().publishedAddresses()).find((r) => r.slug === live);
+      expect(entry?.updatedAt).toEqual(expect.any(String));
+    });
+
     it("keeps a version at each publish and restores one into the draft without publishing it", async () => {
       const slug = ctx.unique("versions");
       const page = await ctx.repo().create({ title: "Versions", slug, data: doc("one"), createdBy: null });

@@ -117,6 +117,18 @@ describe("robots.txt and the layout while not live", () => {
   });
 });
 
+describe("the landing pages' sitemap while not live", () => {
+  it("is empty on any host, whatever is published (the bare address and its sitemap are the live state)", async () => {
+    const page = await state.repos.landingPages.create({ title: "Spring", slug: "spring", createdBy: null });
+    await state.repos.landingPages.publish(page.id);
+    const { default: sitemap } = await import("@/app/sitemap");
+    for (const host of [APP_HOST, ROOT_HOST]) {
+      state.host = host;
+      expect(await sitemap()).toEqual([]);
+    }
+  });
+});
+
 describe("the front page while not live", () => {
   it("sends a signed-out visitor to /login and a signed-in one to the dashboard, on the Hub host and on the root host's name", async () => {
     const { default: Home } = await import("@/app/page");

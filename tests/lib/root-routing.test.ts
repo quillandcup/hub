@@ -3,13 +3,14 @@ import {
   DEFAULT_ROUTING,
   PUBLIC_PAGE_SEGMENTS,
   ROOT_SERVED_SEGMENTS,
-  decideRoute,
+  decideRoute as decideRaw,
   firstSegment,
   isRootHost,
   normalizeHost,
   sameLocation,
   type RouteRequest,
   type RoutingConfig,
+  type SettledRoute,
 } from "@/lib/root-routing";
 import { APP_URL, KAJABI_SITE_URL, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
 import { matchRedirect, fillTarget, ROOT_REDIRECTS } from "@/lib/root-redirects";
@@ -18,6 +19,15 @@ import { matchRedirect, fillTarget, ROOT_REDIRECTS } from "@/lib/root-redirects"
 vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const KAJABI = new URL(KAJABI_SITE_URL).origin;
+
+/**
+ * What a request gets when no landing page is published at its address: a single segment is only a candidate for a page
+ * (decideRaw says "landing-page", with this as its fallback), so everything below that is about the old behavior uses this.
+ */
+function decideRoute(req: RouteRequest, config?: RoutingConfig): SettledRoute {
+  const decision = decideRaw(req, config);
+  return decision.action === "landing-page" ? decision.fallback : decision;
+}
 
 function root(pathname: string, search = "", method = "GET"): RouteRequest {
   return { host: ROOT_HOST, method, pathname, search };

@@ -17,7 +17,7 @@ import {
   writerProfileUrl,
 } from "@/lib/writer-profile";
 
-// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
 vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const { handleMinLength: MIN, handleMaxLength: MAX } = WRITER_PROFILES;

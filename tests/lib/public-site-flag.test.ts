@@ -13,8 +13,13 @@
  *   next.config.ts         `skipTrailingSlashRedirect` (only live)
  *   src/app/login/LoginForm.tsx   the "Still on Kajabi?" note (only live)
  *   src/app/p/[slug]/page.tsx     the canonical of `home` (`/`, only live)
- *   and, through PUBLIC_PAGES_URL and PUBLIC_SITE_LIVE: the landing page, writer profile and sitemap addresses, robots.txt, the
- *   layout's metadataBase, the Settings address and the admin copy link (see those tests).
+ *   src/app/p/[slug]/page.tsx     the canonical of `home` (`/`, only live) and every landing page's origin (PUBLIC_PAGES_URL)
+ *   src/app/robots.ts      the writers' sitemaps on any host until live, only on the root host after; the landing sitemap only live
+ *   src/app/sitemap.ts     (through isRootHost) empty until live
+ *   src/lib/landing/address.ts   `/p/<slug>` on the Hub host until live, the bare `/<slug>` on the root host after (PagesTable copy link,
+ *                          the editor and new-page form labels, canonical and Open Graph, the landing sitemap)
+ *   and, through PUBLIC_PAGES_URL: writer profile and sitemap addresses, the layout's metadataBase, the Settings address and the
+ *   admin copy link. The "not live" tests: public-pages-not-live.test.ts, landing-address-not-live.test.tsx.
  */
 import { describe, expect, it } from "vitest";
 import { publicSiteConfig, publicSiteLive } from "@/config/app";

@@ -7,6 +7,7 @@ import { isValidSlug } from "@/lib/landing/slug";
 import { UNKNOWN_EDITOR } from "@/lib/landing/version-notes";
 import { editorNames } from "@/lib/landing/version-people";
 import { createClient } from "@/lib/supabase/server";
+import { landingPagePath } from "@/lib/landing/address";
 import LandingEditor from "./LandingEditor";
 
 export const metadata: Metadata = { title: "Edit page · Pages" };
@@ -37,7 +38,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
         seoDescription: page.seo_description ?? "",
         socialImageAssetId: page.social_image_asset_id ?? "",
         publishedJson: page.published_data ? JSON.stringify(normalizeLandingData(page.published_data)) : null,
-        publicPath: page.kind === "template" ? "" : `/p/${page.slug}`,
+        publicPath: page.kind === "template" ? "" : landingPagePath(page.slug),
         kind: page.kind === "template" ? "template" : "page",
         pageType,
       }}

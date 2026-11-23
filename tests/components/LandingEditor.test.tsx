@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { SITE_URL } from "@/lib/config";
 import { tooltipText } from "@/tests/helpers/tooltip";
 
 const mocks = vi.hoisted(() => ({
@@ -55,7 +56,10 @@ vi.mock("@puckeditor/core", () => ({
 
 import LandingEditor, { type EditorPage } from "@/app/(admin)/admin/pages/[slug]/LandingEditor";
 
-const page: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/p/spring" };
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
+const page: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/spring" };
 const heading = { type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } };
 const data = { content: [heading], root: {} };
 const TEMPLATE_ID = "lpg_TEMPLATEAAA1";
@@ -278,7 +282,7 @@ describe("the header", () => {
     unmount();
     editor({ status: "published", publishedJson: JSON.stringify(data) });
     expect(screen.getByText("Published")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View live" })).toHaveAttribute("href", "/p/spring");
+    expect(screen.getByRole("link", { name: "View live" })).toHaveAttribute("href", "/spring");
   });
 
   it("keeps the controls as icons with a name and a tooltip each, so the header fits on one line", () => {
@@ -752,6 +756,13 @@ describe("history and details", () => {
     editor();
     fireEvent.click(screen.getByRole("button", { name: "History" }));
     expect(screen.getByText(/Nothing has been published yet/)).toBeInTheDocument();
+  });
+
+  it("labels a page's address with the root host, not /p/", () => {
+    editor();
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByLabelText(`Address (${SITE_URL.replace(/^https?:\/\//, "")}/…)`)).toHaveValue("spring");
+    expect(screen.queryByLabelText(/\/p\//)).toBeNull();
   });
 
   it("keeps a template's details to its name and editor address, with no search fields", async () => {

@@ -512,6 +512,10 @@ Production (2026-11-10): lesson thumbnails are all copied into the media library
 
 ## Infrastructure & Deployment
 
+### Root domain: landing pages at the old Kajabi addresses (cutover data task)
+**Resolved:** a published landing page is served at `/<slug>` on the root host with no redirect to add, so publishing a page with the old address as its slug (`hedgie-books`, `free-trial`, `waitlist`, `about`) takes that address over from Kajabi, and the Hedgie Bookshelf block works on such a page (`docs/product/LANDING_PAGES.md`, "Addresses"). The sitemap lists published pages (`/sitemap.xml`).
+**Still open:** the pages themselves are not built or published, and an old address that cannot be a slug (nested, with capitals or an extension, for example `/products/...`) can only be handled by an entry in `src/lib/root-redirects.ts`. Why deferred: it is data for the cutover day, not code, and the owner decides which old addresses get a page. Where to start: list the top old addresses (the domain migration runbook, once it is on `main`, and `scripts/data/redirect-check-urls.txt`), build and publish a page for each that should stay, and move its line in the check list from `kajabi` to the page. When this lands on `main`, also bring the Hedgie Bookshelf entry, "A route and the old address" (Writer profiles), in line: its route and the `/p/<slug>` wording are now this.
+
 ### Root domain: old addresses that end in an image extension
 `src/proxy.ts` does not run for paths ending in an image extension (its matcher skips them), so an old Kajabi address like `/something.png` on the root host answers 404 instead of going to Kajabi. Kajabi serves its images from a CDN, so none is expected, and it only matters if one turns up in the redirect check.
 - Why deferred: no known case.

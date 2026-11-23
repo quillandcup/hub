@@ -31,7 +31,7 @@ import WriterProfilePreview, { metadata as previewMetadata } from "@/app/(member
 import sitemap, { generateSitemaps } from "@/app/w/sitemap";
 import robots from "@/app/robots";
 
-// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
 vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const params = (handle: string) => ({ params: Promise.resolve({ handle }) });
@@ -381,7 +381,7 @@ describe("the writer_profiles flag", () => {
     expect(await sitemap({ id: Promise.resolve("0") })).toEqual([]);
     const rules = await robots();
     expect(JSON.stringify(rules)).not.toContain("grace-example");
-    expect(rules.sitemap).toEqual([`${SITE_URL}/w/sitemap/0.xml`]);
+    expect(rules.sitemap).toEqual([`${SITE_URL}/sitemap.xml`, `${SITE_URL}/w/sitemap/0.xml`]);
   });
 
   it("checks the owners of a whole sitemap file together, not one by one", async () => {
@@ -469,7 +469,7 @@ describe("sitemap and robots", () => {
 
     expect(await robots()).toEqual({
       rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/"] },
-      sitemap: [`${SITE_URL}/w/sitemap/0.xml`],
+      sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/w/sitemap/0.xml`],
     });
   });
 
@@ -490,6 +490,6 @@ describe("sitemap and robots", () => {
 
   it("still lists the first sitemap when the count cannot be read", async () => {
     vi.spyOn(state.repos.writerProfiles, "publicCount").mockRejectedValue(new Error("down"));
-    expect((await robots()).sitemap).toEqual([`${SITE_URL}/w/sitemap/0.xml`]);
+    expect((await robots()).sitemap).toEqual([`${SITE_URL}/sitemap.xml`, `${SITE_URL}/w/sitemap/0.xml`]);
   });
 });
