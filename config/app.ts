@@ -279,7 +279,7 @@ export const appConfig = {
       "https://*.google-analytics.com", // the EU collection host (region1.google-analytics.com); Google's CSP guide lists the wildcard for img-src
       "https://www.googletagmanager.com",
     ],
-    // The next three are tried report-only (docs/TODO.md, "CSP for scripts and styles"): the reports name what is missing.
+    // The next three are enforced too (src/lib/csp.ts, enforcedCsp); a host missing here shows up as a Sentry report (docs/infrastructure/CSP_ALERTS.md).
     // Supabase (https and wss) and Sentry's ingest host are added from the environment, not listed here.
     /** Where the browser may send requests (fetch, XHR, WebSocket) besides us. */
     connectHosts: [

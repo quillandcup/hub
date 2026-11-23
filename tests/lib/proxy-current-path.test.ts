@@ -95,16 +95,13 @@ describe("the script and style policy", () => {
     for (const part of ["script-src ", "style-src ", "img-src ", "object-src 'none'", "frame-ancestors 'self'"]) {
       expect(a.headers.get("content-security-policy")).toContain(part);
     }
-    // Next reads `content-security-policy` first, so nothing else may carry the nonce-less policy, and the report-only one stays off the request.
     expect(forwarded(a, "content-security-policy-report-only")).toBeNull();
   });
 
-  it("reports what is not enforced yet on the response only", async () => {
+  it("enforces connection, frame, media and font sources in the same header, and sends no Report-Only one", async () => {
     const res = await proxy(new NextRequest("http://localhost:3000/dashboard"));
-    const reportOnly = res.headers.get("content-security-policy-report-only");
 
-    for (const part of ["connect-src ", "frame-src ", "media-src ", "font-src "]) expect(reportOnly).toContain(part);
-    expect(reportOnly).not.toContain("script-src");
-    expect(res.headers.get("content-security-policy")).not.toContain("connect-src");
+    for (const part of ["connect-src ", "frame-src ", "media-src ", "font-src "]) expect(res.headers.get("content-security-policy")).toContain(part);
+    expect(res.headers.get("content-security-policy-report-only")).toBeNull();
   });
 });

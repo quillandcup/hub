@@ -1,13 +1,11 @@
 // Content-Security-Policy for every response. Imported by next.config.ts, so it uses relative imports only.
 //
 // One enforcing policy per request, sent by src/proxy.ts (enforcedCsp): scripts and styles with a per-request nonce, pictures,
-// plugins, base tag, forms and framing. Violations are still sent to Sentry, so a host we forgot shows up as a report.
-// What is not enforced yet (connection, frame, media and font sources) goes out beside it as Report-Only (reportOnlyCsp), until its
-// reports have been read (docs/TODO.md, "CSP for scripts and styles").
+// plugins, base tag, forms, framing, and where requests, frames, media and fonts may come from. Violations are still sent to Sentry,
+// so a host we forgot shows up as a report (docs/TODO.md, "CSP for scripts and styles").
 // Paths the proxy skips (static files, pictures, the Sentry tunnel, the service worker) get the picture policy (buildCsp) from next.config.ts.
 
 export const CSP_HEADER = "Content-Security-Policy";
-export const CSP_REPORT_ONLY_HEADER = "Content-Security-Policy-Report-Only";
 /** The request header that carries the nonce to Server Components (`headers().get(NONCE_HEADER)`). */
 export const NONCE_HEADER = "x-nonce";
 
@@ -18,7 +16,7 @@ export interface CspInputs {
   imageHosts: readonly string[];
   /** The Sentry DSN, whose ingest host also takes CSP reports. Without one, violations are not reported anywhere. */
   sentryDsn?: string;
-  /** Report-only for now: where requests may go (config/app.ts `csp.connectHosts`), what may be framed, where media loads from. */
+  /** Where requests may go (config/app.ts `csp.connectHosts`), what may be framed, where media loads from. */
   connectHosts?: readonly string[];
   frameHosts?: readonly string[];
   mediaHosts?: readonly string[];
@@ -116,26 +114,18 @@ function websocketOf(origin: string | null): string | null {
 
 /**
  * The policy a page is held to, sent by src/proxy.ts as `Content-Security-Policy` on the request (Next reads the nonce out of it and
- * puts it on its own scripts and styles) and on the response: scripts and styles with the nonce, and the picture, plugin, base, form
- * and framing directives. It must be the only `content-security-policy` header a page request carries: Vercel copies such a header
+ * puts it on its own scripts and styles) and on the response: scripts and styles with the nonce, the picture, plugin, base, form and
+ * framing directives, and connection, frame, media and font sources from `config/app.ts` `csp.*Hosts` (Supabase and Sentry are added
+ * from the environment). It must be the only `content-security-policy` header a page request carries: Vercel copies such a header
  * onto the request, and Next takes the nonce from the first one it finds (docs/TODO.md, "CSP for scripts and styles").
  */
 export function enforcedCsp(inputs: CspInputs & { nonce: string; dev?: boolean }): string {
-  const directives = [...scriptStyleDirectives(inputs.nonce, inputs.dev ?? false), ...pictureDirectives(inputs)];
-  const report = sentryReportUri(inputs.sentryDsn);
-  if (report) directives.push(`report-uri ${report}`);
-  return directives.join("; ");
-}
-
-/**
- * What nothing enforces yet, sent report-only beside the enforced policy: connection, frame, media and font sources. Reports go to
- * Sentry; nothing is blocked by this header. Not sent on the request, so it cannot hide the nonce.
- */
-export function reportOnlyCsp(inputs: CspInputs): string {
   const supabase = originOf(inputs.supabaseUrl);
   const sentry = originOf(inputs.sentryDsn);
   const list = (...sources: (string | null | undefined)[]) => [...new Set(sources.filter((v): v is string => Boolean(v)))].join(" ");
   const directives = [
+    ...scriptStyleDirectives(inputs.nonce, inputs.dev ?? false),
+    ...pictureDirectives(inputs),
     `connect-src ${list("'self'", supabase, websocketOf(supabase), sentry, ...(inputs.connectHosts ?? []))}`,
     `frame-src ${list("'self'", ...(inputs.frameHosts ?? []))}`,
     `media-src ${list("'self'", "blob:", supabase, ...(inputs.mediaHosts ?? []))}`,

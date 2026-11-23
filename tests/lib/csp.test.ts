@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../config/app";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS, enforcedCsp, reportOnlyCsp, generateNonce, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, enforcedCsp, generateNonce, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -127,8 +127,8 @@ describe("enforcedCsp", () => {
     for (const d of buildCsp({ ...inputs, sentryDsn: undefined }).split("; ")) expect(policy.split("; ")).toContain(d);
   });
 
-  it("does not hold back what is still report-only", () => {
-    for (const name of ["connect-src", "frame-src", "media-src", "font-src"]) expect(directive(name)).toBeUndefined();
+  it("also enforces connection, frame, media and font sources", () => {
+    for (const name of ["connect-src", "frame-src", "media-src", "font-src"]) expect(directive(name)).toBeDefined();
   });
 
   it("reports to Sentry once when there is a DSN, and not otherwise", () => {
@@ -142,8 +142,9 @@ describe("enforcedCsp", () => {
   });
 });
 
-describe("reportOnlyCsp", () => {
-  const policy = reportOnlyCsp({
+describe("enforcedCsp: connection, frame, media and font sources", () => {
+  const policy = enforcedCsp({
+    nonce: generateNonce(),
     supabaseUrl: "https://project.supabase.co/",
     imageHosts: appConfig.csp.imageHosts,
     connectHosts: appConfig.csp.connectHosts,
@@ -152,10 +153,6 @@ describe("reportOnlyCsp", () => {
     sentryDsn: DSN,
   });
   const directive = (name: string) => policy.split("; ").find((d) => d.startsWith(`${name} `));
-
-  it("holds only what is not enforced: no script, style, picture or framing directive", () => {
-    for (const name of ["script-src", "style-src", "img-src", "object-src", "base-uri", "form-action", "frame-ancestors"]) expect(directive(name)).toBeUndefined();
-  });
 
   it("adds connection, frame, media and font sources from the config, with Supabase's websocket and Sentry's host", () => {
     expect(directive("connect-src")).toContain("wss://project.supabase.co");
@@ -220,7 +217,7 @@ describe("reportOnlyCsp", () => {
   });
 
   it("works with no hosts and no Supabase or Sentry settings", () => {
-    const bare = reportOnlyCsp({ imageHosts: [] });
+    const bare = enforcedCsp({ imageHosts: [], nonce: generateNonce() });
     expect(bare).toContain("connect-src 'self'");
     expect(bare).not.toContain("report-uri");
   });
