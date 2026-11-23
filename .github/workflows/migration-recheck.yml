@@ -1,0 +1,51 @@
+name: Migration recheck
+
+# When a migration lands on main, an open pull request that adds an older-numbered one has a green
+# `Check migrations` from before and would merge into a failed `main` run (`version is not newer
+# than <latest>`; nothing deploys). This re-runs that job for exactly those pull requests so it goes
+# red and auto-merge waits until the author renumbers (`pnpm migrations:renumber`).
+#
+# Only runs for pushes to main that touch supabase/migrations, so it costs nothing for the other
+# pull requests, and it is a separate workflow: it is not on the CI or deploy path and adds no
+# required check (the `Check migrations` job in ci.yml stays the required one, config/github.yml).
+# A re-run of that job fetches the current `main` by name, so it compares with the new main.
+#
+# Safe by construction: it checks out main itself (the pushed commit), never a pull request, and the
+# script reads only the PRs' file names from the API. Its token can re-run and cancel Actions runs and
+# read pull requests; no secrets, no inputs from a pull request reach a shell.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: migration-recheck
+  cancel-in-progress: false
+
+jobs:
+  recheck:
+    name: Re-run Check migrations for out-of-date pull requests
+    permissions:
+      contents: read # check out main
+      actions: write # cancel a run in progress, re-run one job
+      pull-requests: read # list open pull requests and their files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: "package.json"
+
+      - name: Re-run the check for pull requests with an out-of-date migration
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/recheck-migration-prs.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}

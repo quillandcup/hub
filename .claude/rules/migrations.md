@@ -3,11 +3,14 @@ paths:
   - "supabase/migrations/**"
   - "config/squawk.toml"
   - "scripts/check-migration-order.ts"
+  - "scripts/renumber-migrations.ts"
 ---
 
 ### Migration numbering
 
 A new migration's timestamp must be newer than the latest on `main`, with no duplicate versions: `supabase db push` rejects an older one only after merge, when it fails the deploy. `pnpm check:migrations` (`scripts/check-migration-order.ts`, compared with `origin/main`) runs in the pre-commit hook and in the `Check migrations` CI job, which starts first and fails in seconds: on pull requests against the base branch, and on main against the commit before the push (two PRs that each passed alone can still collide). `push-migrations` waits on it. If it fails, rename the file with a fresh timestamp (and check other worktrees for the number you pick).
+
+When it says "version is not newer than ...", run `pnpm migrations:renumber` (a dry run; add `--apply` to write, `--include-prs` to also step past open PRs' and other worktrees' migrations). It renames the migrations your branch adds to the next free versions after `main`'s latest, in order, and updates every reference to the old version (tests, docs, TODO); then re-run `pnpm check:migrations`. After a migration lands on `main`, `.github/workflows/migration-recheck.yml` re-runs `Check migrations` for open PRs that are now out of date, so a PR that was green can turn red: renumber it and push.
 
 ### Migrations: expand, then contract
 

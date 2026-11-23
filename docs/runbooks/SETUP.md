@@ -1,6 +1,6 @@
 # Setup Guide
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Two jobs, in order: get a development machine running on a local Supabase stack, then (rarely) bring up a deployed environment. How environment variables are declared, synced and rotated is in `docs/infrastructure/ENV_MANAGEMENT.md`; how production deploys is in `docs/infrastructure/DEPLOYMENT.md`.
 
@@ -58,7 +58,7 @@ pnpm test:pgtap     # SQL and RLS tests, needs the local stack
 pnpm test:smoke
 ```
 
-After a migration, run `pnpm types:gen` and commit `src/lib/data/database.types.ts`; `pnpm check:migrations` checks the numbering. The workflow for pull requests and CI is in `.claude/rules/ship-via-pr.md` and `.claude/rules/pr-watch.md`.
+After a migration, run `pnpm types:gen` and commit `src/lib/data/database.types.ts`; `pnpm check:migrations` checks the numbering and `pnpm migrations:renumber` fixes it. The workflow for pull requests and CI is in `.claude/rules/ship-via-pr.md` and `.claude/rules/pr-watch.md`.
 
 ### Day to day
 
