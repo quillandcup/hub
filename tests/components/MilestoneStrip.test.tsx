@@ -42,3 +42,35 @@ describe("MilestoneStrip: naming a work", () => {
     expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
   });
 });
+
+describe("MilestoneStrip: photos", () => {
+  const TOKEN = "0123456789abcdef0123456789abcdef";
+
+  it("shows a step's photo from our own route, lazy, in a fixed-shape box, with the description the member wrote", () => {
+    render(<MilestoneStrip steps={[step({ photo: { token: TOKEN, alt: "Me at my desk" } })]} />);
+    const image = screen.getByRole("img", { name: "Me at my desk" });
+    expect(image).toHaveAttribute("src", `/api/milestone-photos/${TOKEN}`);
+    expect(image).toHaveAttribute("loading", "lazy");
+    expect(screen.getByTestId("milestone-photo").className).toMatch(/aspect-\[4\/3\]/);
+  });
+
+  it("describes a photo by its step when the member wrote nothing, and shows nothing for a step with none", () => {
+    render(
+      <MilestoneStrip
+        steps={[
+          step({ photo: { token: TOKEN, alt: null } }),
+          step({ kind: "publish_ready" }),
+          step({ kind: "published", photo: { token: "f".repeat(32), alt: "" } }),
+        ]}
+      />,
+    );
+    const images = screen.getAllByRole("img");
+    expect(images.map((i) => i.getAttribute("alt"))).toEqual(["A photo from the day they wrote THE END", "A photo of the author holding their published book"]);
+    expect(screen.getAllByTestId("milestone-photo")).toHaveLength(2);
+  });
+
+  it("never puts an id or a storage path in the page", () => {
+    const { container } = render(<MilestoneStrip steps={[step({ photo: { token: TOKEN, alt: null } })]} />);
+    expect(container.innerHTML).not.toMatch(/mbr_|mlst_|\.webp|milestone-photos\/[^"]*\//);
+  });
+});

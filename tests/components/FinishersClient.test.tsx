@@ -31,6 +31,9 @@ const row = (overrides: Partial<StaffMilestone> = {}): StaffMilestone => ({
   workTitle: "A Fake Novel",
   name: "Ada Legalname",
   displayName: "Ada Example",
+  consentTestimonial: false,
+  hasPhoto: false,
+  photo: null,
   ...overrides,
 });
 
@@ -149,6 +152,31 @@ describe("FinishersClient", () => {
     expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/admin/finishers?status=proposed");
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/admin/finishers?status=proposed&page=3");
     expect(screen.getByRole("link", { name: "Show all" })).toHaveAttribute("href", "/admin/finishers");
+  });
+
+  describe("photos and the share consent", () => {
+    const TOKEN = "0123456789abcdef0123456789abcdef";
+    const confirmed = (overrides: Partial<StaffMilestone> = {}) => row({ status: "confirmed", source: "member", ...overrides });
+
+    it("says whether 'Share my story' is ticked on a confirmed milestone, and shows no consent for one not confirmed", () => {
+      renderPage({ rows: [confirmed({ id: "mlst_2", consentTestimonial: true }), confirmed({ id: "mlst_3" }), row({ id: "mlst_4" })] });
+      expect(screen.getAllByTestId("finisher-consent").map((c) => c.textContent)).toEqual(["Yes", "No", "-"]);
+    });
+
+    it("shows the photo only where the member ticked the consent, and says only that one exists where they did not", () => {
+      renderPage({
+        rows: [
+          confirmed({ id: "mlst_2", consentTestimonial: true, hasPhoto: true, photo: { token: TOKEN, alt: "Me at my desk" } }),
+          confirmed({ id: "mlst_3", hasPhoto: true, photo: null }),
+          confirmed({ id: "mlst_4" }),
+        ],
+      });
+      const cells = screen.getAllByTestId("finisher-photo");
+      expect(within(cells[0]).getByRole("img", { name: "Me at my desk" })).toHaveAttribute("src", `/api/milestone-photos/${TOKEN}`);
+      expect(cells[1]).toHaveTextContent("Has a photo, not shared");
+      expect(within(cells[1]).queryByRole("img")).not.toBeInTheDocument();
+      expect(cells[2]).toHaveTextContent("-");
+    });
   });
 
   it("says so when nothing is listed", () => {

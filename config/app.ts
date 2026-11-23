@@ -219,6 +219,25 @@ export const appConfig = {
     gravatarHost: "www.gravatar.com",
   },
 
+  /**
+   * Photos on milestones (src/lib/milestone-photos.ts, docs/product/FINISHERS.md, "Photos"): the picture of the day a member wrote
+   * THE END, of the day it was ready to publish, and of them holding their book. They live in a private bucket and are served only
+   * to a viewer the milestone's level allows.
+   * `maxUploadBytes`: the largest file a member can upload (JPEG, PNG or WebP); it is re-encoded to a WebP.
+   * `maxEdge`: the longest side, in pixels, of the stored picture (a larger one is shrunk, a smaller one is kept).
+   * `quality`: the WebP quality of the stored picture.
+   * `altMaxLength`: the longest description a member can give a photo.
+   * `webCacheSeconds`: how long a shared cache may keep a photo served to anyone on the web (the globe, on a page that is on). A
+   * photo at any other level is never cached by a shared cache.
+   */
+  milestonePhoto: {
+    maxUploadBytes: 4 * 1024 * 1024, // under the 4.5 MB request body a Vercel function accepts
+    maxEdge: 1600,
+    quality: 82,
+    altMaxLength: 300,
+    webCacheSeconds: 60,
+  },
+
   writerProfiles: {
     handleMinLength: 3,
     handleMaxLength: 30,

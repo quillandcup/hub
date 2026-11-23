@@ -76,7 +76,7 @@ export const MILESTONE_DEFAULT_VISIBILITY: Visibility = "public";
 export const SHARE_STORY_LABEL = "Share my story to inspire other writers.";
 /** Behind the info icon beside the share tick (not repeated under every work): what ticking it means. */
 export const SHARE_STORY_TIP =
-  "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here, and you can change your mind any time.";
+  "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here and, if you've added one, the photo, and you can change your mind any time.";
 
 /** What a strip calls a work whose name the viewer may not see (a project that is private to them). Never the title itself. */
 export const ANOTHER_WORK_TITLE = "Another work";
@@ -167,6 +167,46 @@ export function hasStory(m: { storyBefore: string | null; storyAfter: string | n
   return Boolean(m.storyBefore?.trim() || m.storyAfter?.trim());
 }
 
+/** Whether there is something of the member's to share: a story they wrote, or a photo they added (docs/product/FINISHERS.md, "Photos"). */
+export function hasSomethingToShare(m: { storyBefore: string | null; storyAfter: string | null; photo?: unknown }): boolean {
+  return hasStory(m) || Boolean(m.photo);
+}
+
+/**
+ * What a photo shows when its owner wrote no description: said once per step, in plain words, so a picture is never a nameless
+ * image to someone using a screen reader.
+ */
+export const MILESTONE_PHOTO_ALT: Record<MilestoneKind | "published", string> = {
+  the_end: "A photo from the day they wrote THE END",
+  publish_ready: "A photo from the day their manuscript was ready to publish",
+  published: "A photo of the author holding their published book",
+};
+
+/** The prompt that opens the photo on a step, so the member knows what is welcome (and that it is optional). */
+export const MILESTONE_PHOTO_PROMPT: Record<MilestoneKind | "published", string> = {
+  the_end: "A photo from the day you wrote THE END, if you have one.",
+  publish_ready: "A photo from the day your manuscript was ready to publish, if you have one.",
+  published: "A photo of you holding your book, printed or on a Kindle, if you have one.",
+};
+
+/**
+ * Who can see a photo, in a sentence beside it. A photo has the level of its milestone and never more: the globe line never
+ * promises more than will happen (the web needs writer profiles open to the member and their page on). The team sees a photo only
+ * when the member ticked "Share my story".
+ */
+export function milestonePhotoLine(visibility: Visibility, page: { available: boolean; on: boolean }): string {
+  if (visibility === "private") return "Only you can see this photo, because this milestone is private.";
+  if (visibility !== "public") return "Other members can see this photo on your profile, the same as this milestone. It is not on the web.";
+  if (!page.available) return "Other members can see this photo on your profile. It is not on the web, because writer profiles are not open to you yet.";
+  if (!page.on) return "Other members can see this photo on your profile. It goes on the web once your writer profile is on.";
+  return "Anyone on the internet can see this photo on your writer profile, the same as this milestone.";
+}
+
+/** The line under the photo on the Published step, which is derived from your Bookshelf and is at the globe. */
+export function publishedPhotoLine(page: { available: boolean; on: boolean }): string {
+  return milestonePhotoLine("public", page);
+}
+
 export const MAX_STORY_LENGTH = 2000;
 
 /** Who will see a milestone at each level, in the sentence beside the story fields. The globe line never promises more than will happen. */
@@ -187,8 +227,10 @@ export type MilestoneAnswerInput = {
   achievedPrecision?: string | null;
   storyBefore?: string | null;
   storyAfter?: string | null;
-  /** The share tick. It only counts when a story is written. */
+  /** The share tick. It only counts when a story is written, or the milestone has a photo (`hasPhoto`). */
   shareStory?: boolean;
+  /** Whether the milestone already has a photo, which the server looks up (never taken from the member's form). */
+  hasPhoto?: boolean;
 };
 
 /** A confirmed answer: what the repository stores when the member says "yes, this is me" (or adds the milestone themselves). */
@@ -264,7 +306,7 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
   for (const story of [storyBefore, storyAfter]) {
     if (story !== null && story.length > MAX_STORY_LENGTH) return { error: `Please keep each story under ${MAX_STORY_LENGTH} characters.` };
   }
-  const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null);
+  const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null || input.hasPhoto === true);
   if (input.visibility != null && !isVisibility(input.visibility)) return { error: "That choice is not available." };
   const visibility = input.visibility != null ? input.visibility : undefined;
   return { status: "confirmed", achievedOn, achievedPrecision, storyBefore, storyAfter, consent_testimonial, ...(visibility ? { visibility } : {}) };

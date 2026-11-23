@@ -18,7 +18,9 @@ import {
   SHARE_STORY_LABEL,
   SHARE_STORY_TIP,
   describeMilestoneLevel,
-  hasStory,
+  hasSomethingToShare,
+  milestonePhotoLine,
+  publishedPhotoLine,
   milestoneDateWords,
   milestoneLevels,
   milestoneRowHeading,
@@ -29,6 +31,7 @@ import {
 import type { Visibility } from "@/lib/writing-visibility";
 import VisibilityControl from "@/components/writing/VisibilityControl";
 import { InfoTip } from "@/components/InfoTip";
+import MilestonePhoto from "@/components/writing/MilestonePhoto";
 import { summarizeWorks, MAX_WORK_TITLE_LENGTH, type Work } from "@/lib/finishers-works";
 import type { Milestone } from "@/lib/data/milestones";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -114,7 +117,7 @@ export function MilestoneForm({
   const [share, setShare] = useState(initial?.status === "confirmed" ? initial.consentTestimonial : SHARE_STORY_DEFAULT);
   // Who sees it starts at the default (the globe) for a milestone not confirmed yet, so the choice is visible and one click away; a confirmed one shows its own.
   const [level, setLevel] = useState<Visibility>(initial?.status === "confirmed" ? initial.visibility : MILESTONE_DEFAULT_VISIBILITY);
-  const written = before.trim() !== "" || after.trim() !== "";
+  const written = before.trim() !== "" || after.trim() !== "" || Boolean(initial?.photo);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -367,7 +370,16 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
               </p>
             )}
           </div>
-          {hasStory(milestone) && (
+          <MilestonePhoto
+            target="milestone"
+            id={milestone.id}
+            kind={kind}
+            photo={milestone.photo}
+            visibilityLine={milestonePhotoLine(level ?? milestone.visibility, web)}
+            readOnly={readOnly}
+            idPrefix={`ms-${milestone.id}`}
+          />
+          {hasSomethingToShare(milestone) && (
             <div className="mt-3">
               <ShareStoryTick id={`ms-${milestone.id}-share-now`} checked={shared ?? milestone.consentTestimonial} onChange={(next) => changeShare(milestone, next)} disabled={pending || readOnly} />
             </div>
@@ -419,7 +431,7 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
 }
 
 /** The third milestone: nobody adds it, it is true when the work is a book on the Bookshelf. */
-function PublishedItem() {
+function PublishedItem({ work, readOnly, web }: { work: Work; readOnly: boolean; web: MilestoneWebState }) {
   return (
     <li className="rounded-md border border-slate-200 dark:border-slate-700 p-4" data-milestone="published">
       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{PUBLISHED_ROW_HEADING}</p>
@@ -429,6 +441,9 @@ function PublishedItem() {
           See your Bookshelf
         </Link>
       </p>
+      {work.bookId && (
+        <MilestonePhoto target="book" id={work.bookId} kind="published" photo={work.bookPhoto ?? null} visibilityLine={publishedPhotoLine(web)} readOnly={readOnly} idPrefix={`book-${work.bookId}`} />
+      )}
     </li>
   );
 }
@@ -444,7 +459,7 @@ export function ProjectMilestones({ work, readOnly = false, web = { available: f
       {MILESTONE_KINDS.map((kind) => (
         <MilestoneItem key={kind} kind={kind} milestone={work.milestones[kind]} work={work} readOnly={readOnly} web={web} />
       ))}
-      {work.published && <PublishedItem />}
+      {work.published && <PublishedItem work={work} readOnly={readOnly} web={web} />}
     </ul>
   );
 }

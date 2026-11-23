@@ -16,6 +16,7 @@ vi.mock("@/app/(member)/settings/milestoneActions", () => ({
   takeBackMilestone: vi.fn(),
   setMilestoneVisibility: vi.fn(),
   setMilestoneShare: vi.fn(),
+  setMilestonePhotoAlt: vi.fn(),
 }));
 
 const NOVEL = { id: "wpr_NOVEL", title: "A Fake Novel", phase: "revising" };
@@ -36,6 +37,7 @@ const milestone = (overrides: Partial<Milestone> = {}): Milestone => ({
   storyAfter: null,
   visibility: "private",
   consentTestimonial: false,
+  photo: null,
   confirmedAt: null,
   createdAt: "2026-11-20T12:00:00Z",
   ...overrides,
@@ -515,5 +517,62 @@ describe("MilestonesPanel (approximate dates)", () => {
     render(<MilestonesPanel milestones={[milestone()]} projects={[NOVEL]} />);
     await user.click(screen.getByRole("button", { name: "Yes, this is me" }));
     expect(screen.getByLabelText(/When did it happen/)).toHaveValue("day");
+  });
+});
+
+describe("MilestonesPanel (photos)", () => {
+  const TOKEN = "0123456789abcdef0123456789abcdef";
+  const confirmedAt = (visibility: Milestone["visibility"], extra: Partial<Milestone> = {}) => milestone({ status: "confirmed", source: "member", confirmedAt: "2026-11-21", visibility, ...extra });
+
+  it("offers a photo on each confirmed step, in the step's own words, and none on a step not confirmed", () => {
+    render(<MilestonesPanel milestones={[confirmedAt("community"), milestone({ id: "mlst_2", kind: "publish_ready" })]} projects={[NOVEL]} />);
+    const li = within(work("A Fake Novel"));
+    expect(li.getAllByRole("button", { name: "Add a photo" })).toHaveLength(1);
+    expect(li.getByText("A photo from the day you wrote THE END, if you have one.")).toBeInTheDocument();
+  });
+
+  it("says who can see the photo at each level, the same as the milestone, and never more than will happen", () => {
+    const { rerender } = render(<MilestonesPanel milestones={[confirmedAt("private")]} projects={[NOVEL]} />);
+    expect(screen.getByTestId("milestone-photo-line")).toHaveTextContent("Only you can see this photo");
+    rerender(<MilestonesPanel milestones={[confirmedAt("community")]} projects={[NOVEL]} />);
+    expect(screen.getByTestId("milestone-photo-line")).toHaveTextContent("Other members can see this photo on your profile");
+    rerender(<MilestonesPanel milestones={[confirmedAt("public")]} projects={[NOVEL]} web={{ available: true, on: false }} />);
+    expect(screen.getByTestId("milestone-photo-line")).toHaveTextContent("goes on the web once your writer profile is on");
+    rerender(<MilestonesPanel milestones={[confirmedAt("public")]} projects={[NOVEL]} web={{ available: true, on: true }} />);
+    expect(screen.getByTestId("milestone-photo-line")).toHaveTextContent("Anyone on the internet can see this photo");
+  });
+
+  it("shows the photo that is there, and offers the share tick for a milestone that has a photo and no story", () => {
+    render(<MilestonesPanel milestones={[confirmedAt("community", { photo: { token: TOKEN, alt: "Me at my desk" } })]} projects={[NOVEL]} />);
+    expect(screen.getByRole("img", { name: "Me at my desk" })).toHaveAttribute("src", `/api/milestone-photos/${TOKEN}`);
+    expect(screen.getByLabelText(SHARE_STORY_LABEL)).toBeInTheDocument();
+  });
+
+  it("offers no share tick for a milestone with neither a story nor a photo", () => {
+    render(<MilestonesPanel milestones={[confirmedAt("community")]} projects={[NOVEL]} />);
+    expect(screen.queryByLabelText(SHARE_STORY_LABEL)).not.toBeInTheDocument();
+  });
+
+  it("puts the 'holding my book' photo on the Published step of a Bookshelf book, at the globe", () => {
+    render(
+      <MilestonesPanel
+        milestones={[]}
+        books={[{ id: "book_1", title: "A Loose Book", projectId: null, photo: { token: TOKEN, alt: "Holding it" } }, { id: "book_2", title: "Another Loose Book", projectId: null }]}
+        web={{ available: true, on: true }}
+      />,
+    );
+    const first = within(work("A Loose Book"));
+    expect(first.getByRole("img", { name: "Holding it" })).toHaveAttribute("src", `/api/milestone-photos/${TOKEN}`);
+    expect(first.getByTestId("milestone-photo-line")).toHaveTextContent("Anyone on the internet can see this photo");
+    const second = within(work("Another Loose Book"));
+    expect(second.getByRole("button", { name: "Add a photo" })).toBeInTheDocument();
+    expect(second.getByText("A photo of you holding your book, printed or on a Kindle, if you have one.")).toBeInTheDocument();
+    expect(second.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("is look-only when staff view as the member", () => {
+    render(<MilestonesPanel milestones={[confirmedAt("community", { photo: { token: TOKEN, alt: null } })]} projects={[NOVEL]} readOnly />);
+    expect(screen.getByRole("button", { name: "Change photo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove photo" })).toBeDisabled();
   });
 });

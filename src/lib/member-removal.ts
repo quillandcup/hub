@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { createRepos } from "@/lib/data/repos";
+import { MILESTONE_PHOTO_BUCKET } from "@/lib/milestone-photos";
 
 /**
  * Removing a member on their request: a dry run of what would happen, and the real thing. The database does the
@@ -64,6 +65,20 @@ export async function previewMemberRemoval(db: Db, memberId: string): Promise<Re
 const MEDIA_BUCKET = "media";
 const FEEDBACK_BUCKET = "feedback-screenshots";
 
+/** Deletes every file in the member's folder of the milestone photo bucket; a sentence for the person doing the removal when something stayed, else null. */
+async function removeMilestonePhotoFolder(db: Db, memberId: string): Promise<string | null> {
+  const bucket = db.storage.from(MILESTONE_PHOTO_BUCKET);
+  // A folder lists at most `limit` files at a time; what was deleted is gone from the next listing.
+  for (let round = 0; round < 20; round++) {
+    const { data, error } = await bucket.list(memberId, { limit: 100 });
+    if (error) return `Their milestone photos could not be listed (${error.message}). Delete the ${memberId} folder in the ${MILESTONE_PHOTO_BUCKET} bucket.`;
+    if (!data || data.length === 0) return null;
+    const { error: removeError } = await bucket.remove(data.map((file) => `${memberId}/${file.name}`));
+    if (removeError) return `${data.length} milestone photo file(s) were not deleted (${removeError.message}).`;
+  }
+  return `Some milestone photos may remain in the ${memberId} folder of the ${MILESTONE_PHOTO_BUCKET} bucket.`;
+}
+
 export type RemovalResult =
   | { ok: true; /** What did not finish after the database part had committed: the person must follow these up by hand. */ leftovers: string[] }
   | { ok: false; error: string };
@@ -97,6 +112,10 @@ export async function removeMemberOnRequest(db: Db, memberId: string, keepPublic
     const { error: removeError } = await db.storage.from(bucket).remove(paths);
     if (removeError) leftovers.push(`${paths.length} file(s) in the ${bucket} bucket were not deleted (${removeError.message}).`);
   }
+
+  // Photos on milestones live under the member's own folder of a private bucket; their rows went with the member, so the folder goes too.
+  const photoLeftover = await removeMilestonePhotoFolder(db, memberId);
+  if (photoLeftover) leftovers.push(photoLeftover);
 
   return { ok: true, leftovers };
 }

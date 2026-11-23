@@ -711,5 +711,150 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
       ]);
       expect(JSON.stringify(all)).not.toMatch(/mlst_/);
     });
+
+    describe("photos", () => {
+      const token = (n: number) => n.toString(16).padStart(32, "0");
+      const pathOf = (memberIndex: number, n: number) => `${id(memberIndex)}/${token(n)}.webp`;
+      const titled = (title: string): WorkRef => ({ projectId: null, bookId: null, title });
+      const stepsOf = async (repo: MilestoneRepository, viewer: "members" | "web", member = ada) =>
+        viewer === "members" ? repo.worksShownToMembers(id(member), null) : repo.worksShownOnWeb(id(member), null);
+
+      it("puts a photo on a confirmed milestone, replaces it, describes it and takes it away, giving back each path it let go of", async () => {
+        const repo = ctx.repo();
+        const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A Photo Fake Work")), NOW);
+        expect(milestone.photo).toBeNull();
+
+        expect(await repo.setPhoto(milestone.id, id(ada), pathOf(ada, 1), "At my desk", NOW)).toEqual({ previousPath: null });
+        expect((await repo.ofMember(id(ada)))[0].photo).toEqual({ token: token(1), alt: "At my desk" });
+
+        expect(await repo.setPhoto(milestone.id, id(ada), pathOf(ada, 2), null, NOW)).toEqual({ previousPath: pathOf(ada, 1) });
+        expect((await repo.ofMember(id(ada)))[0].photo).toEqual({ token: token(2), alt: null });
+
+        expect(await repo.setPhotoAlt(milestone.id, id(ada), "With tea", NOW)).toBe(true);
+        expect((await repo.ofMember(id(ada)))[0].photo).toEqual({ token: token(2), alt: "With tea" });
+
+        expect(await repo.removePhoto(milestone.id, id(ada), NOW)).toEqual({ previousPath: pathOf(ada, 2) });
+        expect((await repo.ofMember(id(ada)))[0].photo).toBeNull();
+        expect(await repo.removePhoto(milestone.id, id(ada), NOW)).toEqual({ previousPath: null });
+        expect(await repo.setPhotoAlt(milestone.id, id(ada), "No photo to describe", NOW)).toBe(false);
+      });
+
+      it("keeps a photo to the member's own milestone and own folder, and only a confirmed one", async () => {
+        const repo = ctx.repo();
+        const mine = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A Photo Fake Work")), NOW);
+        await repo.propose(proposal(bo, "publish_ready", titled("A Proposed Fake Work")));
+        const proposed = (await repo.ofMember(id(bo)))[0];
+
+        expect(await repo.setPhoto(mine.milestone.id, id(bo), pathOf(bo, 3), null, NOW)).toBeNull();
+        expect(await repo.setPhoto(proposed.id, id(bo), pathOf(bo, 4), null, NOW)).toBeNull();
+        expect(await repo.removePhoto(mine.milestone.id, id(bo), NOW)).toBeNull();
+        expect(await repo.setPhotoAlt(mine.milestone.id, id(bo), "Not mine", NOW)).toBe(false);
+        // A path in someone else's folder is refused by the table's own check.
+        await expect(repo.setPhoto(mine.milestone.id, id(ada), pathOf(bo, 5), null, NOW)).rejects.toThrow();
+        expect((await repo.ofMember(id(ada)))[0].photo).toBeNull();
+      });
+
+      it("shows a photo only with a step the viewer may see, and never one at the lock, whoever asks", async () => {
+        const repo = ctx.repo();
+        const house = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A House Fake Work")), NOW);
+        const globe = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A Globe Fake Work")), NOW);
+        const lock = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A Lock Fake Work")), NOW);
+        await repo.setVisibility(house.milestone.id, id(ada), "community", NOW);
+        await repo.setVisibility(globe.milestone.id, id(ada), "public", NOW);
+        await repo.setVisibility(lock.milestone.id, id(ada), "private", NOW);
+        await repo.setPhoto(house.milestone.id, id(ada), pathOf(ada, 11), "House photo", NOW);
+        await repo.setPhoto(globe.milestone.id, id(ada), pathOf(ada, 12), "Globe photo", NOW);
+        await repo.setPhoto(lock.milestone.id, id(ada), pathOf(ada, 13), "Lock photo", NOW);
+
+        const photos = (steps: Awaited<ReturnType<typeof stepsOf>>) => steps.map((s) => [s.workTitle, s.photo?.token ?? null]).sort((a, b) => String(a).localeCompare(String(b)));
+        expect(photos(await stepsOf(repo, "members"))).toEqual([
+          ["A Globe Fake Work", token(12)],
+          ["A House Fake Work", token(11)],
+        ]);
+        expect(photos(await stepsOf(repo, "web"))).toEqual([["A Globe Fake Work", token(12)]]);
+        expect(JSON.stringify([await stepsOf(repo, "members"), await stepsOf(repo, "web")])).not.toContain(token(13));
+        expect(JSON.stringify(await repo.shownToMembers(id(ada)))).not.toContain(token(13));
+      });
+
+      it("finds a photo by its token for the route: whose it is, its file, its level; nothing once it is taken back, declined or malformed", async () => {
+        const repo = ctx.repo();
+        const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "Done.", shareStory: true }, titled("A Photo Fake Work")), NOW);
+        await repo.setPhoto(milestone.id, id(ada), pathOf(ada, 21), null, NOW);
+
+        expect(await repo.photoByToken(token(21))).toEqual({ target: "milestone", ownerId: id(ada), path: pathOf(ada, 21), level: MILESTONE_DEFAULT_VISIBILITY, consentTestimonial: true });
+        expect(await repo.photoByToken(token(22))).toBeNull();
+        expect(await repo.photoByToken("not-a-token")).toBeNull();
+        expect(await repo.photoByToken("%")).toBeNull();
+
+        await repo.setVisibility(milestone.id, id(ada), "private", NOW);
+        expect((await repo.photoByToken(token(21)))?.level).toBe("private");
+
+        await repo.takeBack(milestone.id, id(ada), NOW);
+        expect(await repo.photoByToken(token(21))).toBeNull();
+      });
+
+      it("finds no photo for a milestone the member declined", async () => {
+        const repo = ctx.repo();
+        const { milestone } = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, titled("A Photo Fake Work")), NOW);
+        await repo.setPhoto(milestone.id, id(ada), pathOf(ada, 31), null, NOW);
+        await repo.answer(milestone.id, id(ada), { status: "declined" }, NOW);
+        expect(await repo.photoByToken(token(31))).toBeNull();
+        expect(await repo.setPhoto(milestone.id, id(ada), pathOf(ada, 32), null, NOW)).toBeNull();
+      });
+
+      it("keeps the 'holding my book' photo on the Bookshelf book, for the Published step", async () => {
+        const repo = ctx.repo();
+        const book = await ctx.addBook(id(ada));
+        const bosBook = await ctx.addBook(id(bo));
+
+        expect(await repo.bookPhotosOf(id(ada))).toEqual([]);
+        expect(await repo.setBookPhoto(book, id(ada), pathOf(ada, 41), "With my book", NOW)).toEqual({ previousPath: null });
+        expect(await repo.setBookPhoto(bosBook, id(ada), pathOf(ada, 42), null, NOW)).toBeNull();
+        await expect(repo.setBookPhoto(book, id(ada), pathOf(bo, 43), null, NOW)).rejects.toThrow();
+        expect(await repo.bookPhotosOf(id(ada))).toEqual([{ bookId: book, token: token(41), alt: "With my book" }]);
+
+        const published = (await stepsOf(repo, "web")).find((s) => s.kind === "published");
+        expect(published?.photo).toEqual({ token: token(41), alt: "With my book" });
+        expect((await stepsOf(repo, "web", bo)).find((s) => s.kind === "published")?.photo).toBeNull();
+
+        expect(await repo.photoByToken(token(41))).toEqual({ target: "book", ownerId: id(ada), path: pathOf(ada, 41), level: "public", consentTestimonial: false });
+
+        expect(await repo.setBookPhoto(book, id(ada), pathOf(ada, 44), null, NOW)).toEqual({ previousPath: pathOf(ada, 41) });
+        expect(await repo.setBookPhotoAlt(book, id(ada), "Kindle in hand", NOW)).toBe(true);
+        expect(await repo.setBookPhotoAlt(book, id(bo), "Not mine", NOW)).toBe(false);
+        expect(await repo.bookPhotosOf(id(ada))).toEqual([{ bookId: book, token: token(44), alt: "Kindle in hand" }]);
+
+        expect(await repo.removeBookPhoto(book, id(bo))).toBeNull();
+        expect(await repo.removeBookPhoto(book, id(ada))).toEqual({ previousPath: pathOf(ada, 44) });
+        expect(await repo.photoByToken(token(44))).toBeNull();
+      });
+
+      it("serves no photo of a book that was deleted from the Bookshelf", async () => {
+        const repo = ctx.repo();
+        const book = await ctx.addBook(id(ada));
+        await repo.setBookPhoto(book, id(ada), pathOf(ada, 51), null, NOW);
+        await ctx.deleteBooks(id(ada));
+        expect(await repo.photoByToken(token(51))).toBeNull();
+        expect(await stepsOf(repo, "web")).toEqual([]);
+      });
+
+      it("tells staff there is a photo, and shows it only when the member ticked 'Share my story'", async () => {
+        const repo = ctx.repo();
+        const shared = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "Done.", shareStory: true }, titled("A Shared Fake Work")), NOW);
+        const kept = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A Kept Fake Work")), NOW);
+        const bare = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "publish_ready", {}, titled("A Bare Fake Work")), NOW);
+        await repo.setPhoto(shared.milestone.id, id(ada), pathOf(ada, 61), "Shared", NOW);
+        await repo.setPhoto(kept.milestone.id, id(ada), pathOf(ada, 62), "Kept", NOW);
+        await repo.setVisibility(kept.milestone.id, id(ada), "private", NOW);
+
+        const rows = (await repo.page({ limit: 50, offset: 0 })).filter((r) => r.memberId === id(ada));
+        const by = (title: string) => rows.find((r) => r.workTitle === title)!;
+        expect(by("A Shared Fake Work")).toMatchObject({ consentTestimonial: true, hasPhoto: true, photo: { token: token(61), alt: "Shared" } });
+        expect(by("A Kept Fake Work")).toMatchObject({ consentTestimonial: false, hasPhoto: true, photo: null });
+        expect(by("A Bare Fake Work")).toMatchObject({ consentTestimonial: false, hasPhoto: false, photo: null });
+        expect(bare.milestone.photo).toBeNull();
+        expect(JSON.stringify(rows)).not.toContain(token(62));
+      });
+    });
   });
 }

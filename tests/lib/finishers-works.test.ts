@@ -17,6 +17,7 @@ const row = (overrides: Partial<Milestone> = {}): Milestone => ({
   storyAfter: null,
   visibility: "community",
   consentTestimonial: false,
+  photo: null,
   confirmedAt: "2026-11-20T12:00:00Z",
   createdAt: "2026-11-20T12:00:00Z",
   ...overrides,

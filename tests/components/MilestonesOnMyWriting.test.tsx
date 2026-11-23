@@ -36,6 +36,7 @@ vi.mock("@/app/(member)/settings/milestoneActions", () => ({
   takeBackMilestone: vi.fn(),
   setMilestoneVisibility: vi.fn(),
   setMilestoneShare: vi.fn(),
+  setMilestonePhotoAlt: vi.fn(),
 }));
 
 const NOVEL = { id: "wpr_NOVEL", title: "A Fake Novel", phase: "revising" };
@@ -56,6 +57,7 @@ const milestone = (overrides: Partial<Milestone> = {}): Milestone => ({
   storyAfter: null,
   visibility: "public",
   consentTestimonial: false,
+  photo: null,
   confirmedAt: "2026-11-20T12:00:00Z",
   createdAt: "2026-11-20T12:00:00Z",
   ...overrides,

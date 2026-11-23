@@ -1,5 +1,6 @@
 import { reachedWhileMember, type MilestoneKind } from "@/lib/finishers";
 import type { Milestone, ShownStepKind, ShownWorkStep } from "@/lib/data/milestones";
+import type { StepPhoto } from "@/lib/milestone-photos";
 
 /**
  * Works (docs/product/FINISHERS.md). A milestone belongs to one work: a writing project and/or a Bookshelf book (a book that has
@@ -42,7 +43,7 @@ export function parseWork(input: { projectId?: string | null; bookId?: string | 
 /** A project as the card needs it. */
 export type CardProject = { id: string; title: string; phase: string };
 /** A live Bookshelf book as the card needs it. */
-export type CardBook = { id: string; title: string; projectId: string | null; /** The day it was published, for the rule that a book counts only if published while a member. */ publishedDate?: string | null };
+export type CardBook = { id: string; title: string; projectId: string | null; /** The day it was published, for the rule that a book counts only if published while a member. */ publishedDate?: string | null; /** The photo of the member holding it (the Published step). */ photo?: StepPhoto | null };
 
 /** One work on the card, with the milestones stored for it. `published` is derived: it has a book on the Bookshelf. */
 export type Work = {
@@ -53,6 +54,8 @@ export type Work = {
   /** The project's phase, when the work is a project. */
   phase: string | null;
   published: boolean;
+  /** The "holding my book" photo of the work's Bookshelf book, for the Published step. */
+  bookPhoto?: StepPhoto | null;
   milestones: Partial<Record<MilestoneKind, Milestone>>;
 };
 
@@ -76,9 +79,10 @@ export function buildWorks(projects: CardProject[], books: CardBook[], milestone
     if (linked) {
       linked.bookId = b.id;
       linked.published ||= counts;
+      linked.bookPhoto = b.photo ?? null;
       byId.set(b.id, linked);
     } else {
-      add({ key: b.projectId ?? b.id, projectId: b.projectId, bookId: b.id, title: b.title, phase: null, published: counts, milestones: {} }, b.id, b.projectId);
+      add({ key: b.projectId ?? b.id, projectId: b.projectId, bookId: b.id, title: b.title, phase: null, published: counts, bookPhoto: b.photo ?? null, milestones: {} }, b.id, b.projectId);
     }
   }
   const unlisted = new Map<string, Work>();
@@ -113,7 +117,7 @@ export type ShownWork = { title: string | null; steps: ShownWorkStep[] };
 const STEP_ORDER: readonly ShownStepKind[] = ["the_end", "publish_ready", "published"];
 
 /**
- * Groups the rows of `member_works_dated_*` into works for a strip: works in their numbered order, each with one step per kind in the
+ * Groups the rows of `member_works_pictured_*` into works for a strip: works in their numbered order, each with one step per kind in the
  * order of the writer's journey (a work cannot have the same step twice: of two books under one project, the earliest date shows).
  */
 export function groupShownWorks(steps: readonly ShownWorkStep[]): ShownWork[] {
