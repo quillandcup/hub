@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AuthUser } from "@/lib/auth";
 
 /**
  * The port between chat core and a transport (docs/architecture/CHAT_MODULE.md). Core (messages, channels, reactions, files, rich text,
@@ -36,6 +37,9 @@ export type OpenConversationResult =
   | { ok: true; channelId: string }
   | { ok: false; reason: "not_production" | "not_connected" | "unknown_person" | "refused" };
 
+/** Where a file the transport holds is kept for us, or why it could not be. */
+export type FetchedFile = { ok: true; path: string; mimetype: string | null } | { ok: false; reason: string };
+
 export interface EditMessageArgs {
   messageId: string;
   memberId: string;
@@ -51,6 +55,10 @@ export interface ChatTransport {
 
   /** Whether this deployment may write to the real external system (production only for Slack). Reads and pulls are separate. */
   writesEnabled(): boolean;
+  /** Whether this deployment asks members to link their account to the transport before chatting (off until the transport is configured, so a missing setting never locks everyone out). */
+  requiresLink(): boolean;
+  /** Whether the member's link is complete enough for everything chat does with it (acting as them, read state in step). */
+  hasFullLink(db: SupabaseClient, memberId: string): Promise<boolean>;
   /** Whether the member has a working link to the transport, which is what lets them write through it. */
   isConnected(db: SupabaseClient, memberId: string): Promise<boolean>;
 
@@ -63,6 +71,16 @@ export interface ChatTransport {
   deleteFile(db: SupabaseClient, opts: { messageId: string; memberId: string; fileId: string }): Promise<TransportWriteResult>;
   /** Stop a delivered message from showing one link preview in the transport. */
   removePreview(db: SupabaseClient, opts: { messageId: string; memberId: string; key: string }): Promise<PreviewRemoval>;
+  /** An address that opens the message in the transport's own app, or null when it has none. Pure: no lookup. */
+  messageLink(opts: { channelRef: string; ref: string }): string | null;
+  /** The Hub body of a message whose rich-text blocks say more than its text (an underline), or null when its own text is right. `plain` is a message written in the Hub. */
+  bodyFromBlocks(blocks: unknown, opts: { plain: boolean }): string | null;
+  /**
+   * Make sure a file the transport holds is in our storage, asking the transport for it if it is not yet, and say where it is. Which
+   * credential may ask (the app's, or the viewer's own for a conversation only they can read) is the transport's to decide, and it
+   * never uses another member's. Once copied, it is served from our storage whoever asks.
+   */
+  fetchFile(db: SupabaseClient, viewer: AuthUser, ref: { fileId: string; channelRef: string; ref: string }): Promise<FetchedFile>;
   /** Files added to a delivered message, already in hand: keep them as the permanent copies so the Hub never asks the transport for its own upload. */
   keepFileCopies(
     db: SupabaseClient,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blocksToBody } from "@/lib/chat/rich-blocks";
+import { blocksToBody } from "@/modules/chat/slack/blocks-to-body";
 import { bodyToBlocks, hasUnderline, isInvalidBlocks, needsBlocks, stripUnderline, type RichTextBlock } from "@/modules/chat/slack/rich-blocks";
 
 const section = (...elements: object[]) => ({ type: "rich_text_section", elements });

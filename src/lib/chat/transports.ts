@@ -5,6 +5,8 @@ import { installedChatTransports } from "@/modules/chat-transport";
 export const NO_TRANSPORT: ChatTransport = {
   id: "none",
   writesEnabled: () => false,
+  requiresLink: () => false,
+  hasFullLink: async () => false,
   isConnected: async () => false,
   send: async () => ({ status: "skipped" }),
   syncReaction: async () => false,
@@ -12,6 +14,9 @@ export const NO_TRANSPORT: ChatTransport = {
   deleteMessage: async () => ({ ok: true }),
   deleteFile: async () => ({ ok: true }),
   removePreview: async () => "not_needed",
+  messageLink: () => null,
+  bodyFromBlocks: () => null,
+  fetchFile: async () => ({ ok: false, reason: "no chat transport installed" }),
   keepFileCopies: async () => {},
   pushRead: async () => false,
   pushUnread: async () => false,

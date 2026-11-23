@@ -378,7 +378,7 @@ function parseBlock(raw: unknown): UnfurlBlock | null {
 
 /**
  * When blocks are drawn as cards rather than as the message's text. A person's message always has `rich_text` blocks,
- * which the text already says (src/lib/chat/rich-blocks.ts), so those never get cards. An app's message is drawn from its
+ * which the text already says (src/modules/chat/slack/rich-blocks.ts), so those never get cards. An app's message is drawn from its
  * blocks when it has no `rich_text` and either was posted by an app or has no text of its own. Otherwise: text only.
  */
 export function blocksAreCards(blocks: unknown, opts: { bot: boolean; body: string }): blocks is unknown[] {

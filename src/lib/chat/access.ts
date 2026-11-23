@@ -4,7 +4,7 @@ import { GATES } from "@/lib/gates";
 import { redirectToGate } from "@/lib/gates.server";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
-import { getSlackConnectionStatus, isSlackConnectConfigured } from "@/lib/slack-connect";
+import { chatTransport } from "@/lib/chat/transports";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
@@ -20,9 +20,9 @@ export const requireChat = cache(async (): Promise<{ user: AuthUser; identity: E
   // Chat is for members who connected Slack (with every scope read sync needs): that link is what
   // attributes their messages and what lets the Hub act as them. Sudo has none to check; it is
   // read-only. Off until the Slack app is configured, so a missing env var never locks everyone out.
-  if (!identity.isSudo && isSlackConnectConfigured()) {
-    const slack = await getSlackConnectionStatus(createServiceRoleClient(), identity.memberId);
-    if (!slack.sharesReadState) await redirectToGate(GATES.connectSlack);
+  const transport = chatTransport();
+  if (!identity.isSudo && transport.requiresLink()) {
+    if (!(await transport.hasFullLink(createServiceRoleClient(), identity.memberId))) await redirectToGate(GATES.connectSlack);
   }
   return { user, identity };
 });

@@ -50,7 +50,7 @@ describe("the lint rule", () => {
     ["src/modules/chat/slack/index.ts", "@/modules/chat/slack/post"],
     ["src/app/api/webhooks/slack/route.ts", "@/modules/chat/slack/webhook"],
     ["src/app/api/reconcile/slack-dms/route.ts", "@/modules/chat/slack/dms"],
-    ["src/lib/chat/file-token.ts", "@/modules/chat/slack/dm-events"],
+    ["src/app/api/process/chat/route.ts", "@/modules/chat/slack/lesson-links"],
     ["src/lib/slack-connect.ts", "@/lib/slack-client"],
     ["src/app/(member)/settings/SettingsPage.tsx", "@/lib/slack-connect"],
   ])("lets %s import %s", async (file, from) => {

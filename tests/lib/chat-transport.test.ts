@@ -6,6 +6,8 @@ import { NO_TRANSPORT, createChatTransportRegistry } from "@/lib/chat/transports
 const m = vi.hoisted(() => ({
   chatSlackWritesEnabled: vi.fn(() => true),
   postChatMessageToSlack: vi.fn(),
+  isSlackConnectConfigured: vi.fn(),
+  copyChatFile: vi.fn(),
   catchUpChannel: vi.fn(),
   slackUserIdsByMember: vi.fn(),
   join: vi.fn(),
@@ -36,13 +38,14 @@ vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: m.syncReacti
 vi.mock("@/modules/chat/slack/read", () => ({ pullReadFromSlack: m.pullReadFromSlack, pushReadToSlack: m.pushReadToSlack, pushUnreadToSlack: m.pushUnreadToSlack }));
 vi.mock("@/modules/chat/slack/dms", () => ({ openSlackDm: m.openSlackDm, pullMemberDms: m.pullMemberDms }));
 vi.mock("@/modules/chat/slack/gap-fill", () => ({ catchUpChannel: m.catchUpChannel }));
+vi.mock("@/modules/chat/slack/file-copy", () => ({ copyChatFile: m.copyChatFile }));
 vi.mock("@/modules/chat/slack/unfurl-removal", () => ({ removeSlackUnfurl: m.removeSlackUnfurl }));
 vi.mock("@/modules/chat/slack/edit", () => ({
   deleteChatFileInSlack: m.deleteChatFileInSlack,
   deleteChatMessageInSlack: m.deleteChatMessageInSlack,
   updateChatMessageInSlack: m.updateChatMessageInSlack,
 }));
-vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: m.getSlackConnectionStatus, getSlackUserToken: m.getSlackUserToken, isDeadTokenError: (e: { data?: { error?: string } } | null) => e?.data?.error === "token_revoked" }));
+vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: m.getSlackConnectionStatus, isSlackConnectConfigured: m.isSlackConnectConfigured, getSlackUserToken: m.getSlackUserToken, isDeadTokenError: (e: { data?: { error?: string } } | null) => e?.data?.error === "token_revoked" }));
 vi.mock("@/lib/slack-bot-token", () => ({ getSlackBotToken: m.getSlackBotToken }));
 vi.mock("@/lib/slack-client", () => ({
   createSlackClient: () => ({ chat: { update: m.chatUpdate }, conversations: { join: m.join, invite: m.invite, kick: m.kick, leave: m.leave, info: vi.fn() } }),
@@ -108,6 +111,11 @@ describe("the transport registry", () => {
     expect(t).toBe(NO_TRANSPORT);
     expect(t.writesEnabled()).toBe(false);
     expect(await t.isConnected(db, "member-1")).toBe(false);
+    expect(t.requiresLink()).toBe(false);
+    expect(await t.hasFullLink(db, "member-1")).toBe(false);
+    expect(t.messageLink({ channelRef: "c", ref: "1.2" })).toBeNull();
+    expect(t.bodyFromBlocks([], { plain: true })).toBeNull();
+    expect(await t.fetchFile(db, {} as never, { fileId: "f", channelRef: "c", ref: "1.2" })).toEqual({ ok: false, reason: "no chat transport installed" });
     expect(await t.send(db, "msg-1")).toEqual({ status: "skipped" });
     expect(await t.externalIdsFor(db, ["member-1"])).toEqual(new Map());
     expect((await t.addToConversation(db, { actorMemberId: "member-1", channelRef: "c", externalUserIds: [], selfJoin: false })).result.ok).toBe(false);
@@ -249,6 +257,29 @@ describe("the Slack adapter satisfies the port", () => {
       expect(out.result.ok).toBe(false);
       expect(!out.result.ok && out.result.error).toMatch(/Reconnect Slack in Settings to do this as yourself\.$/);
     });
+  });
+
+  it("says whether members must link Slack, and whether theirs is complete (read sync included)", async () => {
+    m.isSlackConnectConfigured.mockReturnValueOnce(true).mockReturnValueOnce(false);
+    expect(slackTransport.requiresLink()).toBe(true);
+    expect(slackTransport.requiresLink()).toBe(false);
+    m.getSlackConnectionStatus.mockResolvedValueOnce({ connected: true, sharesReadState: false }).mockResolvedValueOnce({ connected: true, sharesReadState: true });
+    expect(await slackTransport.hasFullLink(db, "member-1")).toBe(false);
+    expect(await slackTransport.hasFullLink(db, "member-1")).toBe(true);
+  });
+
+  it("links to a message in Slack, and reads rich-text blocks back into a body", () => {
+    expect(slackTransport.messageLink({ channelRef: "C1", ref: "1700000000.000200" })).toMatch(/\/archives\/C1\/p1700000000000200$/);
+    const blocks = [{ type: "rich_text", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: "hi", style: { underline: true } }] }] }];
+    expect(slackTransport.bodyFromBlocks(blocks, { plain: true })).toBe("<u>hi</u>");
+    expect(slackTransport.bodyFromBlocks([], { plain: true })).toBeNull();
+  });
+
+  it("fetches a file with the Slack file code, naming the channel and message the way Slack does", async () => {
+    m.copyChatFile.mockResolvedValue({ ok: true, path: "F1/a.png", mimetype: "image/png" });
+    const viewer = { id: "user-1" } as never;
+    expect(await slackTransport.fetchFile(db, viewer, { fileId: "F1", channelRef: "C1", ref: "1.2" })).toEqual({ ok: true, path: "F1/a.png", mimetype: "image/png" });
+    expect(m.copyChatFile).toHaveBeenCalledWith(db, viewer, { fileId: "F1", channelId: "C1", messageTs: "1.2" });
   });
 
   it("catches a conversation up from Slack when it is opened", async () => {
