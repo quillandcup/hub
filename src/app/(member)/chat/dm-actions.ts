@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { dmCaller, postingCaller } from "@/lib/chat/caller";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
-import { openSlackDm, type OpenDmResult } from "@/lib/chat/slack-dms";
+import { chatTransport } from "@/lib/chat/transports";
+import type { OpenConversationResult } from "@/lib/chat/transport";
 import { isId } from "@/lib/ids";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
@@ -17,13 +18,15 @@ export type StartDmResult = { ok: true; channelId: string } | { ok: false; error
 const DM_ERRORS: Record<string, string> = {
   no_member: "You need a member profile to send messages.",
   bad_member: "You can't message that person.",
+  not_active: "They aren't an active member right now, so you can't message them.",
+  other_left: "They've left your conversation, so it can't be reopened from here.",
 };
 
-const SLACK_DM_ERRORS: Record<Exclude<OpenDmResult, { ok: true }>["reason"], string> = {
+const SLACK_DM_ERRORS: Record<Exclude<OpenConversationResult, { ok: true }>["reason"], string> = {
   not_production: "Slack direct messages only work on the live Hub.",
   not_connected: "Reconnect Slack in Settings to message people.",
   unknown_person: "They haven't connected Slack to the Hub yet, so there's no Slack direct message to open.",
-  slack_refused: "Slack wouldn't open that conversation. Try again in a moment.",
+  refused: "Slack wouldn't open that conversation. Try again in a moment.",
 };
 
 /**
@@ -40,7 +43,7 @@ async function startDirectMessageImpl(memberId: string): Promise<StartDmResult> 
   if (memberId === caller.identity.memberId) return { ok: false, error: DM_ERRORS.bad_member };
 
   if (bridge) {
-    const opened = await openSlackDm(createServiceRoleClient(), bridge.identity.memberId, memberId);
+    const opened = await chatTransport().openDirectConversation(createServiceRoleClient(), bridge.identity.memberId, memberId);
     return opened.ok ? { ok: true, channelId: opened.channelId } : { ok: false, error: SLACK_DM_ERRORS[opened.reason] };
   }
 

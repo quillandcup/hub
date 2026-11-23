@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getViewerTimeZone } from "@/lib/timezone";
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function ZoomMeetingsPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const timeZone = await getViewerTimeZone();
   const zoom = createRepos(await createClient()).zoom;
   const [accounts, meetings] = await Promise.all([zoom.accounts(), zoom.reviewMeetings()]);

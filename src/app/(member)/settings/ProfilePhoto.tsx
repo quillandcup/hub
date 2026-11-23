@@ -114,7 +114,7 @@ export default function ProfilePhoto({
           </p>
         )}
         {(problem || done) && (
-          <p role="status" className={`text-xs ${problem ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+          <p role="status" className={`text-xs ${problem ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>
             {problem ?? done}
           </p>
         )}

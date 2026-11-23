@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES } from "@/content/changelog";
 import { filterByAudience, filterByCategory, groupByMonth, listChangelog, parseAudienceFilter, parseCategoryFilter, searchChangelog } from "@/lib/changelog";
 import ChangelogFilters from "@/components/changelog/ChangelogFilters";
@@ -17,7 +17,7 @@ const majorBadge = (
  * history that members never do. Search, filter by category, and by audience (the filter members' page does not have).
  */
 export default async function AdminChangelogPage({ searchParams }: PageProps<"/admin/changelog">) {
-  await requireAdminPage();
+  await requirePermission("changelog.read");
 
   const params = await searchParams;
   const show = parseCategoryFilter(params.show);

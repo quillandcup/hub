@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { CourseProcessingError, processCourses } from "@/lib/courses/process";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -25,7 +25,7 @@ export const maxDuration = 300;
  * stable and a lesson that's deleted, drafted or hidden in Kajabi disappears on the next run.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

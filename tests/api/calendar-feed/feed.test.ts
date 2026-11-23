@@ -5,6 +5,7 @@ import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers
 import { GET } from '@/app/api/calendar/feed/[token]/route'
 import { slotTimeForInstant } from '@/lib/commitments'
 import { SCHEDULE_TIMEZONE } from '@/lib/calendar-feed'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * Personal calendar feeds (supabase/migrations/20260928000000_create_calendar_feed_tokens.sql,
@@ -67,7 +68,7 @@ describe('calendar feed', () => {
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create test user ${email}: ${error?.message}`)
     authUserIds.push(data.user.id)
-    await admin.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(admin, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in as ${email}: ${signInError.message}`)

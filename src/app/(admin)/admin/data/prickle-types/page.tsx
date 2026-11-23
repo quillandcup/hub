@@ -3,7 +3,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import Link from "next/link";
 import type { Metadata } from "next";
 import PrickleTypesTable from "./PrickleTypesTable";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PrickleTypesPage() {
-  await requireAdminPage();
+  await requirePermission("prickles.manage");
   const supabase = await createClient();
 
   // Fetch all prickle types

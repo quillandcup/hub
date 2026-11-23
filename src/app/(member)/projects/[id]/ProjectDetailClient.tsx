@@ -328,18 +328,22 @@ export default function ProjectDetailClient({ project, entries, archivedGoals, o
 
       {project.book ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 flex gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image */}
-          <img
-            src={project.book.coverUrl}
-            alt={`Cover of ${project.book.title}`}
-            className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
-          />
+          {project.book.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image
+            <img
+              src={project.book.coverUrl}
+              alt={`Cover of ${project.book.title}`}
+              className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+            />
+          ) : (
+            <div aria-hidden="true" className="w-16 h-24 rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">📖</div>
+          )}
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
               Published
             </h2>
             <a data-track="project-buy-book"
-              href={project.book.editions[0]?.purchaseUrl}
+              href={project.book.editions[0]?.purchaseUrl || undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:underline"
@@ -829,10 +833,11 @@ export function GoalForm({
       {goalType === "target" ? (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label htmlFor="goal-start-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Start date <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
             </label>
             <input
+              id="goal-start-date"
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
@@ -840,10 +845,11 @@ export function GoalForm({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label htmlFor="goal-end-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               End date <span className="text-slate-500 dark:text-slate-400 font-normal">(optional, enables a pace line)</span>
             </label>
             <input
+              id="goal-end-date"
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}

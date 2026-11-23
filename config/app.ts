@@ -132,14 +132,6 @@ export const appConfig = {
   attendanceDataStartsOn: "2026-01-01",
 
   /**
-   * Whether the Bookshelf is open to people who aren't signed in. While false, a book's cover is readable by
-   * signed-in members only. When true, the shelf-size version of any image a book uses as its cover is served
-   * to everyone (src/app/api/media/[id]/[preset]/route.ts); it does not make the Bookshelf page public, which is a
-   * change to that page and to who may reach it.
-   */
-  bookshelfPublic: false,
-
-  /**
    * The course the Courses page offers to a member who has none: its name, and the public waitlist
    * page where members sign up for it.
    */
@@ -245,6 +237,25 @@ export const appConfig = {
     gravatarHost: "www.gravatar.com",
   },
 
+  /**
+   * Photos on milestones (src/lib/milestone-photos.ts, docs/product/FINISHERS.md, "Photos"): the picture of the day a member wrote
+   * THE END, of the day it was ready to publish, and of them holding their book. They live in a private bucket and are served only
+   * to a viewer the milestone's level allows.
+   * `maxUploadBytes`: the largest file a member can upload (JPEG, PNG or WebP); it is re-encoded to a WebP.
+   * `maxEdge`: the longest side, in pixels, of the stored picture (a larger one is shrunk, a smaller one is kept).
+   * `quality`: the WebP quality of the stored picture.
+   * `altMaxLength`: the longest description a member can give a photo.
+   * `webCacheSeconds`: how long a shared cache may keep a photo served to anyone on the web (the globe, on a page that is on). A
+   * photo at any other level is never cached by a shared cache.
+   */
+  milestonePhoto: {
+    maxUploadBytes: 4 * 1024 * 1024, // under the 4.5 MB request body a Vercel function accepts
+    maxEdge: 1600,
+    quality: 82,
+    altMaxLength: 300,
+    webCacheSeconds: 60,
+  },
+
   writerProfiles: {
     handleMinLength: 3,
     handleMaxLength: 30,
@@ -294,7 +305,7 @@ export const appConfig = {
       "https://*.google-analytics.com", // the EU collection host (region1.google-analytics.com); Google's CSP guide lists the wildcard for img-src
       "https://www.googletagmanager.com",
     ],
-    // The next three are tried report-only (docs/TODO.md, "CSP for scripts and styles"): the reports name what is missing.
+    // The next three are enforced too (src/lib/csp.ts, enforcedCsp); a host missing here shows up as a Sentry report (docs/infrastructure/CSP_ALERTS.md).
     // Supabase (https and wss) and Sentry's ingest host are added from the environment, not listed here.
     /** Where the browser may send requests (fetch, XHR, WebSocket) besides us. */
     connectHosts: [

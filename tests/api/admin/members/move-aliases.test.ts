@@ -3,13 +3,13 @@ import type { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { POST } from "@/app/api/admin/members/move-aliases/route";
 
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: vi.fn() }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerAttendanceReprocessing: vi.fn().mockResolvedValue({}) }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
 
 vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => members, () => aliasData)));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
 const FROM = { id: "from-1" };
@@ -63,7 +63,7 @@ function makeSupabaseMock(opts: { noAttendance?: boolean; failOn?: { table: stri
 
 const request = (body: unknown) => ({ json: async () => body }) as unknown as NextRequest;
 const useMock = (mock: ReturnType<typeof makeSupabaseMock>) =>
-  vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+  vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
 const BODY = { fromMemberId: FROM.id, toMemberId: TO.id, nameAliasIds: ["n1"], emailAliasIds: ["e1", "e2"] };
 
@@ -126,7 +126,7 @@ describe("POST /api/admin/members/move-aliases", () => {
   });
 
   it("requires an admin", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: null } as any);
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: null } as any);
     expect((await POST(request(BODY))).status).toBe(401);
   });
 });

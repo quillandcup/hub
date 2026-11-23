@@ -16,7 +16,7 @@ import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
 import { findMembersWithDisposableEmail } from "@/lib/disposable-email-members";
 import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { formatDateInZone } from "@/lib/formatters";
 import { getViewerTimeZone } from "@/lib/timezone";
 
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DataHygienePage() {
   const timeZone = await getViewerTimeZone();
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   // Fetch data quality metrics
@@ -655,7 +655,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {unmatchedSlackUsersCount === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   All matched ✓
                 </p>
               )}
@@ -684,7 +684,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {membersWithoutSlackCount === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   All linked ✓
                 </p>
               )}
@@ -713,7 +713,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {unmatchedZoomNamesCount === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   All matched ✓
                 </p>
               )}
@@ -742,7 +742,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {ambiguousNamesCount === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   None pending ✓
                 </p>
               )}
@@ -771,7 +771,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {undecidedZoomMeetings === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   Nothing waiting ✓
                 </p>
               )}
@@ -814,7 +814,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {duplicateCount === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   No duplicates found ✓
                 </p>
               )}
@@ -843,7 +843,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {totalConflicts === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   All clear ✓
                 </p>
               )}
@@ -931,7 +931,7 @@ export default async function DataHygienePage() {
                 </p>
               )}
               {temporaryEmailCount === 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2">
                   None found ✓
                 </p>
               )}

@@ -70,14 +70,14 @@ vi.mock('@slack/web-api', () => ({
 
 // The emoji images are not real addresses; copying them is tested in tests/lib/emoji-copy.test.ts.
 vi.mock('@/lib/chat/emoji-copy', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/chat/emoji-copy')>()), copyEmojiImages: vi.fn(async () => ({ copied: 0, failed: 0 })) }))
-vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
+vi.mock('@/lib/supabase/api-auth', () => ({ requireApiPermission: vi.fn() }))
 vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }))
 vi.mock('@/lib/supabase/service', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
   return { createServiceRoleClient: () => getTestSupabaseAdminClient() }
 })
 
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { POST } from '@/app/api/import/slack-api/route'
 import {
   applySlackEmojiEvent,
@@ -133,7 +133,7 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.stubEnv('SLACK_BOT_TOKEN', 'xoxb-test')
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
     slack.hasMpimScope = true
     slack.members = new Map([
       [channelId, [alice, bob]],

@@ -8,8 +8,8 @@ import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-p
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({}) }));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 const loadOfferCoverage = vi.fn();
 vi.mock("@/lib/offer-coverage", async (orig) => ({
@@ -21,7 +21,7 @@ import AdminOffersPage from "@/app/(admin)/admin/offers/page";
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   loadOfferCoverage.mockReset();
 });
 
@@ -29,7 +29,7 @@ describe("/admin/offers", () => {
   it("checks the caller is an admin first", async () => {
     loadOfferCoverage.mockResolvedValue([]);
     await renderServerPage(AdminOffersPage, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("shows each offer's state and linked resources, with counts", async () => {

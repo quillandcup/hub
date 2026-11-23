@@ -95,13 +95,13 @@ export const SITE_URL = appConfig.siteUrl.replace(/\/+$/, "");
 /** A member's own profile photo: the largest upload, the one host a Gravatar photo is copied from (config/app.ts `memberPhoto`). */
 export const MEMBER_PHOTO = appConfig.memberPhoto;
 
+/** Photos on milestones: the upload limit, the stored size, the description length, the web cache time (config/app.ts `milestonePhoto`). */
+export const MILESTONE_PHOTO = appConfig.milestonePhoto;
+
 /** Writer profiles: handle length, how long a given-up handle stays reserved, the bio limit, reserved words (config/app.ts `writerProfiles`). */
 export const WRITER_PROFILES = appConfig.writerProfiles;
 
 export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
-
-/** Whether book covers are served to visitors who aren't signed in (config/app.ts `bookshelfPublic`). */
-export const BOOKSHELF_PUBLIC: boolean = appConfig.bookshelfPublic;
 
 /** Slack workspace URL, no trailing slash, for links that open a channel. */
 export const SLACK_WORKSPACE_URL = appConfig.slack.workspaceUrl.replace(/\/+$/, "");

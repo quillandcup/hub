@@ -13,14 +13,14 @@ import ProductProgressImportForm from "./ProductProgressImportForm";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Import Data",
 };
 
 export default async function ImportPage() {
-  await requireAdminPage();
+  await requirePermission("data.pipeline.run");
   const user = await getCurrentUser();
 
   if (!user) {

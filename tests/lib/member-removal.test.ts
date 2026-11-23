@@ -8,7 +8,8 @@ import { previewMemberRemoval, removeMemberOnRequest } from "@/lib/member-remova
 
 const rpc = vi.fn();
 const remove = vi.fn();
-const from = vi.fn(() => ({ remove }));
+const list = vi.fn();
+const from = vi.fn(() => ({ remove, list }));
 const db = { rpc, storage: { from } } as never;
 
 const reportRow = (table: string, action: string, count: number) => ({ table_name: table, column_name: "member_id", action, why: "why", row_count: count });
@@ -17,6 +18,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   deleteUser.mockResolvedValue(undefined);
   remove.mockResolvedValue({ error: null });
+  list.mockResolvedValue({ data: [], error: null });
 });
 
 describe("previewMemberRemoval", () => {
@@ -83,7 +85,28 @@ describe("removeMemberOnRequest", () => {
     rpc.mockResolvedValue({ data: { auth_user_id: null, media_paths: [], feedback_paths: [] }, error: null });
     expect(await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false)).toEqual({ ok: true, leftovers: [] });
     expect(deleteUser).not.toHaveBeenCalled();
-    expect(from).not.toHaveBeenCalled();
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(from).toHaveBeenCalledWith("milestone-photos");
+  });
+
+  it("deletes every photo on a milestone from the member's own folder of the private bucket", async () => {
+    rpc.mockResolvedValue({ data: { auth_user_id: null, media_paths: [], feedback_paths: [] }, error: null });
+    list.mockResolvedValueOnce({ data: [{ name: "aaa.webp" }, { name: "bbb.webp" }], error: null }).mockResolvedValue({ data: [], error: null });
+    expect(await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false)).toEqual({ ok: true, leftovers: [] });
+    expect(list).toHaveBeenCalledWith("mbr_AAAAAAAAAAA1", { limit: 100 });
+    expect(remove).toHaveBeenCalledWith(["mbr_AAAAAAAAAAA1/aaa.webp", "mbr_AAAAAAAAAAA1/bbb.webp"]);
+  });
+
+  it("says so when the photo folder cannot be listed or cleared", async () => {
+    rpc.mockResolvedValue({ data: { auth_user_id: null, media_paths: [], feedback_paths: [] }, error: null });
+    list.mockResolvedValueOnce({ data: null, error: { message: "list down" } });
+    const listFailed = await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false);
+    expect(listFailed.ok && listFailed.leftovers.join(" ")).toContain("list down");
+
+    list.mockResolvedValueOnce({ data: [{ name: "aaa.webp" }], error: null });
+    remove.mockResolvedValueOnce({ error: { message: "remove down" } });
+    const removeFailed = await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false);
+    expect(removeFailed.ok && removeFailed.leftovers.join(" ")).toContain("remove down");
   });
 
   it("says what did not finish once the database part has committed", async () => {

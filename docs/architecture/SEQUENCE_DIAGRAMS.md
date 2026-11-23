@@ -66,7 +66,7 @@ sequenceDiagram
     participant Rest as ...same as real-time flow<br/>from here down
 
     Cron->>Recon: GET (Authorization: Bearer CRON_SECRET)
-    Recon->>Recon: requireAdmin() — cron secret bypasses role check
+    Recon->>Recon: requireApiPermission(...) — cron secret bypasses role check
     Recon->>Import: triggerZoomImport({fromDate: now-90d, toDate: now})
     Import->>Rest: fetch, upsert Bronze, reprocess attendance
 ```
@@ -121,7 +121,7 @@ sequenceDiagram
     participant Silver as member_activities
 
     Cron->>Recon: GET (Authorization: Bearer CRON_SECRET)
-    Recon->>Recon: requireAdmin() — cron secret bypasses role check
+    Recon->>Recon: requireApiPermission(...) — cron secret bypasses role check
     Recon->>Import: triggerSlackSync({daysBack: 90})
     Import->>API: users.list, conversations.list,<br/>conversations.history (per channel)
     API-->>Import: users, channels, messages, reactions
@@ -207,7 +207,7 @@ sequenceDiagram
     participant Rest as ...same as real-time flow<br/>from here down
 
     Cron->>Recon: GET (Authorization: Bearer CRON_SECRET)
-    Recon->>Recon: requireAdmin() — cron secret bypasses role check
+    Recon->>Recon: requireApiPermission(...) — cron secret bypasses role check
     Recon->>Import: triggerCalendarSync({daysBack:90, daysForward:90})
     Import->>Rest: fetch, upsert Bronze, reprocess prickles + attendance
 ```
@@ -238,7 +238,7 @@ sequenceDiagram
     participant ProcAtt as /api/process/attendance
 
     Cron->>Recon: GET (Authorization: Bearer CRON_SECRET)
-    Recon->>Recon: requireAdmin() — cron secret bypasses role check
+    Recon->>Recon: requireApiPermission(...) — cron secret bypasses role check
     Recon->>Import: triggerKajabiSync()
     Import->>API: fetchAllContacts / Customers / Subscriptions / Offers (parallel)
     API-->>Import: contacts, customers, purchases, offers

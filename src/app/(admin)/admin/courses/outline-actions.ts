@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
@@ -20,7 +20,7 @@ import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
  * so they happen completely or not at all.
  */
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 export type OutlineResult = { error?: string; id?: string };
 export type ItemKind = "module" | "lesson";
 
@@ -223,65 +223,65 @@ async function moveLessonImpl(auth: Auth, courseId: string, lessonId: string, mo
 
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 export async function addCourseModule(courseId: string, parentModuleId: string | null, title: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_module_added", () => addModuleImpl(auth, courseId, parentModuleId, title));
 }
 
 export async function addCourseLesson(courseId: string, moduleId: string, title: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_added", () => addLessonImpl(auth, courseId, moduleId, title));
 }
 
 export async function renameCourseItem(courseId: string, kind: ItemKind, id: string, title: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_item_renamed", () => renameItemImpl(auth, courseId, kind, id, title));
 }
 
 export async function deleteCourseItem(courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_item_deleted", () => deleteItemImpl(auth, courseId, kind, id));
 }
 
 export async function duplicateCourseItem(courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_item_duplicated", () => duplicateItemImpl(auth, courseId, kind, id));
 }
 
 export async function reorderCourseItems(courseId: string, kind: ItemKind, parentId: string | null, orderedIds: string[]): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_items_reordered", () => reorderItemsImpl(auth, courseId, kind, parentId, orderedIds));
 }
 
 /** A Hub-owned lesson's text, as HTML from the editor; it is cleaned to the lesson allowlist before it is stored. */
 export async function saveLessonText(courseId: string, lessonId: string, html: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_text_saved", () => saveLessonTextImpl(auth, courseId, lessonId, html));
 }
 
 /** Sets a Hub-owned lesson's thumbnail to a library image (null: none). */
 export async function setLessonThumbnail(courseId: string, lessonId: string, assetId: string | null): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_thumbnail_set", () => setThumbnailImpl(auth, courseId, lessonId, assetId));
 }
 
 /** Moves a Hub-owned lesson to the end of another module (null: out of every module). */
 export async function moveCourseLesson(courseId: string, lessonId: string, moduleId: string | null): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_moved", () => moveLessonImpl(auth, courseId, lessonId, moduleId));
 }
 
 /** A module's or lesson's own setting: draft, published or locked. */
 export async function setCourseItemStatus(courseId: string, kind: ItemKind, id: string, option: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_item_status_set", () => setItemStatusImpl(auth, courseId, kind, id, option));
 }

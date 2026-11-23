@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 // Logs one occurrence of a badge for a member (e.g. one quarter hosted, one retreat attended).
@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 // is derived from how many occurrence rows they have (see src/lib/badges.ts deriveLevel()), so
 // awarding the same badge type again is how an admin "levels someone up".
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "member.badges_edit");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase, user } = auth;

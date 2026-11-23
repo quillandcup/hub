@@ -177,6 +177,8 @@ async function searchBooks(ctx: SearchContext, q: UniversalQuery): Promise<KindR
   const authors = await memberIdsNamed(ctx, q.from);
   if (authors && authors.length === 0) return { kind: "books", hits: [], hasMore: false };
   const data = await createRepos(ctx.supabase).books.search({
+    // The member being acted as (so staff in sudo search as that member): a private book is found only by its own member.
+    viewerId: ctx.viewerMemberId ?? "",
     words: matchWords(q),
     authorIds: authors,
     after: q.after,

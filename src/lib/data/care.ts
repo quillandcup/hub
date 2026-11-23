@@ -453,14 +453,15 @@ export class InMemoryCareRepository implements CareRepository {
     private readonly signedInAs: string | null = null
   ) {}
 
-  private roleOf(userId: string | null): string | null {
-    return userId ? (this.data.userProfiles.find((p) => p.id === userId)?.role ?? "member") : null;
+  /** The roles a user holds, as the database reads them: their `user_roles` rows and the old `userProfiles` role. */
+  private rolesOf(userId: string | null): string[] {
+    if (!userId) return [];
+    return [...this.data.userRoles.filter((r) => r.user_id === userId).map((r) => r.role), this.data.userProfiles.find((p) => p.id === userId)?.role ?? "member"];
   }
 
-  /** `can_own_care_plans`: an admin or a community manager; an assistant or a member is not. */
+  /** `can_own_care_plans`: holds admin or community manager (alone or among several roles); an assistant alone or a member does not. */
   private mayOwn(userId: string | null) {
-    const role = this.roleOf(userId);
-    return role === "admin" || role === "community_manager";
+    return this.rolesOf(userId).some((role) => role === "admin" || role === "community_manager");
   }
 
   private handover(id: string, step: (plan: CareEngagementRow, me: string) => HandoverRefusal | null): HandoverResult {
@@ -641,7 +642,7 @@ export class InMemoryCareRepository implements CareRepository {
 
   async proposeHandover(id: string, toUserId: string): Promise<HandoverResult> {
     return this.handover(id, (plan, me) => {
-      if (plan.owned_by !== me && this.roleOf(me) !== "admin") return "not_allowed";
+      if (plan.owned_by !== me && !this.rolesOf(me).includes("admin")) return "not_allowed";
       if (!this.mayOwn(toUserId)) return "receiver_not_allowed";
       if (toUserId === plan.owned_by) return "same_owner";
       if (toUserId === me) return "self";
@@ -670,7 +671,7 @@ export class InMemoryCareRepository implements CareRepository {
   async cancelHandover(id: string): Promise<HandoverResult> {
     return this.handover(id, (plan, me) => {
       if (plan.handover_to === null) return "no_handover";
-      if (me !== plan.handover_by && me !== plan.owned_by && this.roleOf(me) !== "admin") return "not_allowed";
+      if (me !== plan.handover_by && me !== plan.owned_by && !this.rolesOf(me).includes("admin")) return "not_allowed";
       Object.assign(plan, { handover_to: null, handover_by: null, handover_at: null });
       return null;
     });
@@ -683,7 +684,7 @@ export class InMemoryCareRepository implements CareRepository {
         return null;
       }
       // An owner is there: only an admin may take the plan, and only an open one.
-      if (this.roleOf(me) !== "admin") return "has_owner";
+      if (!this.rolesOf(me).includes("admin")) return "has_owner";
       if (plan.owned_by === me) return "already_yours";
       if (plan.closed_at !== null) return "plan_closed";
       Object.assign(plan, { taken_from: plan.owned_by, taken_by: me, taken_at: new Date().toISOString(), taken_seen_at: null, owned_by: me, handover_to: null, handover_by: null, handover_at: null });

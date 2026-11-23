@@ -68,7 +68,7 @@ describe("root host", () => {
       const res = await call(ROOT_HOST, p);
       expect(res.headers.get("location"), p).toBeNull();
       expect(res.status, p).toBe(200);
-      expect(res.headers.get("content-security-policy-report-only"), p).toBeTruthy();
+      expect(res.headers.get("content-security-policy"), p).toBeTruthy();
     }
     expect(getUser).not.toHaveBeenCalled();
   });

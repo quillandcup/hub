@@ -10,8 +10,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 const loadCourseRoster = vi.fn();
 vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 const loadHubCourse = vi.fn();
 const loadHubOutline = vi.fn();
 const loadAdminCourse = vi.fn();
@@ -32,6 +32,9 @@ vi.mock("@/lib/data/repos", () => ({
     },
   }),
 }));
+const loadDeletePreview = vi.fn();
+vi.mock("@/lib/courses/delete", () => ({ loadDeletePreview: (...a: unknown[]) => loadDeletePreview(...a) }));
+vi.mock("@/app/(admin)/admin/courses/delete-actions", () => ({ deleteCourse: vi.fn() }));
 const loadDuplicatePreview = vi.fn();
 vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
 vi.mock("@/app/(admin)/admin/courses/duplicate-actions", () => ({ duplicateCourse: vi.fn() }));
@@ -68,9 +71,11 @@ const course = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
+  loadDeletePreview.mockReset();
+  loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "hub", isDraft: true, members: 0, activity: 0 });
   loadCourseRoster.mockReset();
   loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();
   loadHubOutline.mockResolvedValue(buildHubOutline([], []));
@@ -82,7 +87,7 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
   it("checks the caller is an admin first, and shows the Hub course when the id is not a Kajabi import", async () => {
     loadHubCourse.mockResolvedValue(course());
     await renderServerRoute(AdminCoursePage, params());
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(loadHubCourse).toHaveBeenCalledWith(expect.anything(), COURSE);
     expect(loadAdminCourse).toHaveBeenCalledWith(expect.anything(), COURSE);
   });
@@ -127,6 +132,23 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     await renderServerRoute(AdminCourseDetailsPage, params());
     expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
     await expect(renderServerRoute(AdminCourseMediaPage, params())).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+  });
+
+  it("offers to delete the course from the menu, saying what goes with it", async () => {
+    loadHubCourse.mockResolvedValue(course());
+    await renderServerRoute(AdminCoursePage, params());
+    await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete course" }));
+    expect(screen.getByRole("dialog", { name: "Delete course?" })).toHaveTextContent(/Its 2 modules and 7 lessons are deleted with it/);
+  });
+
+  it("keeps delete off, with the reason, for a published course", async () => {
+    loadDeletePreview.mockResolvedValue({ modules: 2, lessons: 7, source: "hub", isDraft: false, members: 0, activity: 0 });
+    loadHubCourse.mockResolvedValue(course());
+    await renderServerRoute(AdminCoursePage, params());
+    await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
+    expect(screen.getByRole("menuitem", { name: /Delete course/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(/Unpublish it first/)).toBeInTheDocument();
   });
 
   it("offers to duplicate the course from the menu", async () => {

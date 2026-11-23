@@ -1,5 +1,5 @@
 import { prepareChatUploads } from "@/app/(member)/chat/actions";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 import type { StagedUpload } from "@/lib/chat/staging";
 import { CHAT_UPLOAD_CONCURRENCY, runPool } from "@/lib/chat/upload-pool";
 import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
@@ -22,7 +22,7 @@ export async function uploadStagedFiles(
       const { path, token } = prepared.uploads[i];
       const contentType = file.type || "application/octet-stream";
       const result = await uploadWithProgress({
-        url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, SLACK_FILES_BUCKET, path, token),
+        url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, CHAT_FILES_BUCKET, path, token),
         file,
         contentType,
         apiKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

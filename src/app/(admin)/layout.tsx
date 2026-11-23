@@ -1,4 +1,6 @@
-import { requireStaffPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
+import { can } from "@/lib/permissions";
+import { PREVIEW_ROLE_LABELS, type PreviewableRole } from "@/lib/staff-preview";
 import RolePreviewBanner from "@/components/RolePreviewBanner";
 import AnnouncementStack, { ANNOUNCEMENT_PRIORITY } from "@/components/announcements/AnnouncementStack";
 import AnnouncementBar from "@/components/announcements/AnnouncementBar";
@@ -25,14 +27,15 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Secure staff check (redirects signed-out → /login, anyone but an admin or community manager
-  // → /no-access). src/proxy.ts pre-filters /admin optimistically, and each admin page repeats its own
-  // check (requireAdminPage, or requireStaffPage on the pages a community manager may open)
-  // because layouts don't re-run on client navigation -- see src/lib/admin-auth.ts.
-  const user = await requireStaffPage();
-  const isAdmin = user.role === "admin";
+  // Secure staff check (redirects signed-out → /login, anyone who isn't staff → /no-access). src/proxy.ts
+  // pre-filters /admin optimistically, and each admin page repeats its own check with the permission it needs
+  // (requirePermission) because layouts don't re-run on client navigation -- see src/lib/admin-auth.ts.
+  const user = await requirePermission("staff.access");
+  // What the viewer's role may do in the header: the admin search, and sudo as a member.
+  const canSearch = can(user, "system.search.use");
+  const canSudo = can(user, "member.sudo");
   // A real admin looking at the area as a lower role (src/lib/staff-preview.ts).
-  const previewing = user.role !== user.realRole;
+  const previewing = user.roles.join() !== user.realRoles.join();
 
   // A failed read leaves the page default.
   const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
@@ -48,7 +51,7 @@ export default async function AdminLayout({
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
-      <AdminNavigation role={user.role} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
+      <AdminNavigation roles={user.roles} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         <AnnouncementStack
           items={[
@@ -63,13 +66,13 @@ export default async function AdminLayout({
                 </AnnouncementBar>
               ),
             },
-            { id: "role-preview", priority: ANNOUNCEMENT_PRIORITY.sudo, element: previewing && <RolePreviewBanner roleLabel="Community Manager" /> },
+            { id: "role-preview", priority: ANNOUNCEMENT_PRIORITY.sudo, element: previewing && <RolePreviewBanner roleLabel={PREVIEW_ROLE_LABELS[user.role as PreviewableRole] ?? user.role} /> },
           ]}
         />
         <WithInAppNotifications identity={identity}>
           <ShortcutsProvider>
-          <AppHeader resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin}>
-            <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} canPreviewRole={isAdmin} />
+          <AppHeader resultsPath={canSearch ? "/admin/search" : "/search"} isAdmin={canSearch}>
+            <UserMenu userEmail={user.email || "User"} isAdmin={canSudo} canPreviewRole={user.realRole === "admin" && !previewing} />
           </AppHeader>
           <TimezoneProvider zone={timeZone}>
             <ShortcutsLayout>

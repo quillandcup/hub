@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { clock } from "@/lib/clock";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { firstOfNextMonth, joinAt, loadPrickleJoinSettings, earliestStartDate } from "@/lib/prickle-join";
@@ -16,7 +16,7 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { timeZone: ORG_TIMEZONE, dateStyle: "medium", timeStyle: "short" });
 
 export default async function PrickleJoinPage() {
-  await requireAdminPage();
+  await requirePermission("prickles.manage");
   const settings = await loadPrickleJoinSettings(createRepos(await createClient()));
   const now = clock.now();
   const current = joinAt(settings);

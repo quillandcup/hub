@@ -1,9 +1,9 @@
 import { KAJABI_PHOTO_HOSTS, KAJABI_SITE_URL } from "@/lib/config";
-import { LandingPageSlugTakenError, type LandingPage, type LandingPageRepository } from "@/lib/data/landing-pages";
+import { LandingPageSlugTakenError, type LandingPage, type LandingPageRepository, type LandingPageSummary } from "@/lib/data/landing-pages";
 import type { MediaRepository } from "@/lib/data/media";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import { mapAssetIds, normalizeLandingData } from "@/lib/landing/data";
-import { mapKajabiPage, type ImportNote, type PictureSource } from "@/lib/landing/kajabi-import";
+import { freeImportKey, keyHasLayout, mapKajabiPage, pageStart, type ImportNote, type PageStart, type PictureSource } from "@/lib/landing/kajabi-import";
 import { readKajabiZip } from "@/lib/landing/kajabi-zip";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { isValidSlug, slugify, SLUG_MAX } from "@/lib/landing/slug";
@@ -13,9 +13,10 @@ import { safeGet } from "@/lib/net/safe-fetch";
 /**
  * "Import from Kajabi" (docs/product/LANDING_PAGES.md): an uploaded Kajabi page export becomes a draft page. The mapping is
  * `mapKajabiPage` (deterministic, no model); this is the rest: read the archive safely, fetch the pictures into the
- * media library (private until a page that shows them is published), and save. The page is found again by its import
- * key, so a repeat import replaces that page's draft and nothing else: never its published copy, versions, title or
- * address. Before an unconfirmed draft is replaced, the admin is asked, and the old draft is kept in the page's history.
+ * media library (private until a page that shows them is published), and save. The admin says what the export is: a
+ * new page, or the page whose draft it replaces. A page with the same layout (the import key, kajabi-import.ts) is
+ * only ever offered, never assumed: without a choice the import asks. A replace changes that page's draft and nothing
+ * else (never its published copy, versions, title or address), and the old draft is kept in the page's history.
  */
 
 const MAX_PICTURE_BYTES = 8 * 1024 * 1024;
@@ -47,13 +48,47 @@ export interface ImportDeps {
   fetchPicture?: FetchPicture;
 }
 
+/** A page that looks like the export: it has the same layout (`layoutFingerprint` in kajabi-import.ts). Never proof that it is the same page. */
+export type PageMatch = {
+  id: string;
+  title: string;
+  slug: string;
+  /** What the page's draft starts with now, to compare with the export's. */
+  draftHeading: string;
+  published: boolean;
+  /** The draft was changed in the editor after the last import. */
+  edited: boolean;
+  /** The draft differs from the live page, so replacing it also loses changes nobody published. */
+  unpublishedChanges: boolean;
+};
+
+/** A page an import can replace: one made by an import. */
+export type ReplaceablePage = { id: string; title: string; slug: string };
+
+export type InspectOutcome =
+  | { status: "error"; error: string }
+  | {
+      status: "inspected";
+      /** What the export starts with, and a title to start from (the export has none). */
+      start: PageStart;
+      suggestedTitle: string;
+      blocks: number;
+      /** Pages with the same layout: often none, several when pages were cloned from each other. */
+      matches: PageMatch[];
+      /** Every page made by an import, for "replace another page". */
+      pages: ReplaceablePage[];
+    };
+
+/** What the admin chose: a new page, or replacing the draft of this page. */
+export type ImportTarget = { kind: "new" } | { kind: "replace"; pageId: string };
+
 export type ImportOutcome =
   | { status: "error"; error: string }
-  /** Nothing was written: the admin must confirm replacing what is there. */
-  | { status: "confirm"; reasons: string[]; existing: { title: string; slug: string } }
+  /** Nothing was written: a page has the same layout, and the admin must choose between replacing it and a new page. */
+  | { status: "choose"; matches: PageMatch[]; pages: ReplaceablePage[] }
   | {
       status: "imported";
-      /** "created" a new draft, "updated" the draft of a page imported before. */
+      /** "created" a new draft, "updated" the draft of an existing page. */
       action: "created" | "updated";
       slug: string;
       title: string;
@@ -82,16 +117,20 @@ export const sameDocument = (a: unknown, b: unknown) => canonical(a) === canonic
 
 const isEmptyDocument = (d: unknown) => normalizeLandingData(d).content.length === 0;
 
-/** Why replacing this page's draft needs a yes: the draft has changes only it holds, or the export is a different page than the one named. */
-export function replaceReasons(page: LandingPage, typedTitle: string): string[] {
-  const reasons: string[] = [];
-  const live = page.status === "published";
-  const sameAsLive = live && sameDocument(page.draft_data, page.published_data);
-  // Publishing also moves `updated_at`, and a draft equal to the live page has nothing that would be lost.
-  if (page.imported_at && Date.parse(page.updated_at) > Date.parse(page.imported_at) && !sameAsLive) reasons.push("Its draft was edited after the last import. Those edits will be replaced (the old draft is kept in the page's history).");
-  if (live && !sameAsLive) reasons.push("Its draft has unpublished changes that differ from the live page. They will be replaced (the old draft is kept in the page's history); the live page doesn't change.");
-  if (typedTitle.trim() && typedTitle.trim().toLowerCase() !== page.title.trim().toLowerCase()) reasons.push(`This export matches the page "${page.title}", which you named "${typedTitle.trim()}". Its draft will be replaced.`);
-  return reasons;
+/** What the admin is told about a page the import would replace: where it stands, so they see what the replacement would lose. */
+export function matchOf(page: LandingPage): PageMatch {
+  const published = page.status === "published";
+  const sameAsLive = published && sameDocument(page.draft_data, page.published_data);
+  return {
+    id: page.id,
+    title: page.title,
+    slug: page.slug,
+    draftHeading: pageStart(normalizeLandingData(page.draft_data)).heading,
+    published,
+    // Publishing also moves `updated_at`, and a draft equal to the live page has nothing that would be lost.
+    edited: Boolean(page.imported_at) && Date.parse(page.updated_at) > Date.parse(page.imported_at!) && !sameAsLive,
+    unpublishedChanges: published && !sameAsLive,
+  };
 }
 
 async function freeSlug(pages: LandingPageRepository, wish: string, taken: Set<string>): Promise<string> {
@@ -103,28 +142,69 @@ async function freeSlug(pages: LandingPageRepository, wish: string, taken: Set<s
   throw new Error("no free address found");
 }
 
-export async function importKajabiExport(
-  deps: ImportDeps,
-  input: { archive: Uint8Array; title: string; confirm: boolean; userId: string | null; year: number },
-): Promise<ImportOutcome> {
-  const zip = readKajabiZip(input.archive);
-  if (!zip.ok) return { status: "error", error: zip.error };
+type Mapped = Extract<ReturnType<typeof mapKajabiPage>, { ok: true }>;
+type Read = { ok: true; zip: Extract<ReturnType<typeof readKajabiZip>, { ok: true }>; mapped: Mapped } | { ok: false; error: string };
+
+function readExport(archive: Uint8Array, year: number): Read {
+  const zip = readKajabiZip(archive);
+  if (!zip.ok) return { ok: false, error: zip.error };
   let settings: unknown;
   try {
     settings = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(zip.settings));
   } catch {
-    return { status: "error", error: "The page's settings in that export couldn't be read." };
+    return { ok: false, error: "The page's settings in that export couldn't be read." };
   }
-  const mapped = mapKajabiPage(settings, { siteUrl: KAJABI_SITE_URL, cdnBase: `https://${KAJABI_PHOTO_HOSTS[0]}/${CDN_PATH}`, year: input.year });
-  if (!mapped.ok) return { status: "error", error: mapped.error };
+  const mapped = mapKajabiPage(settings, { siteUrl: KAJABI_SITE_URL, cdnBase: `https://${KAJABI_PHOTO_HOSTS[0]}/${CDN_PATH}`, year });
+  return mapped.ok ? { ok: true, zip, mapped } : { ok: false, error: mapped.error };
+}
+
+/** The pages made by an import (under a key of any version). */
+async function importedPages(pages: LandingPageRepository): Promise<LandingPageSummary[]> {
+  return (await pages.list("page")).filter((p) => p.import_key);
+}
+
+const replaceable = (p: { id: string; title: string; slug: string }): ReplaceablePage => ({ id: p.id, title: p.title, slug: p.slug });
+
+/** Pages whose layout is the export's. A page imported under the first key format (which collided between pages) is never one. */
+async function matchesFor(pages: LandingPageRepository, mapped: Mapped, imported: LandingPageSummary[]): Promise<PageMatch[]> {
+  const found = await Promise.all(imported.filter((p) => keyHasLayout(p.import_key, mapped.layout)).map((p) => pages.byId(p.id)));
+  return found.filter((p): p is LandingPage => Boolean(p)).map(matchOf);
+}
+
+/**
+ * Reads an export without writing anything: what it starts with, a title to start from, and the pages that look like
+ * it, so the admin can tell exports apart and choose before importing.
+ */
+export async function inspectKajabiExport(deps: Pick<ImportDeps, "pages">, input: { archive: Uint8Array; year: number }): Promise<InspectOutcome> {
+  const read = readExport(input.archive, input.year);
+  if (!read.ok) return { status: "error", error: read.error };
+  const imported = await importedPages(deps.pages);
+  return { status: "inspected", start: read.mapped.start, suggestedTitle: read.mapped.suggestedTitle, blocks: read.mapped.counts.blocks, matches: await matchesFor(deps.pages, read.mapped, imported), pages: imported.map(replaceable) };
+}
+
+export async function importKajabiExport(
+  deps: ImportDeps,
+  input: { archive: Uint8Array; title: string; target?: ImportTarget; userId: string | null; year: number },
+): Promise<ImportOutcome> {
+  const read = readExport(input.archive, input.year);
+  if (!read.ok) return { status: "error", error: read.error };
+  const { zip, mapped } = read;
 
   const title = input.title.trim().slice(0, 120);
-  const existing = await deps.pages.byImportKey(mapped.importKey);
-  if (!existing && !title) return { status: "error", error: "Give the page a title: the export doesn't have one." };
-  if (existing && !input.confirm) {
-    const reasons = replaceReasons(existing, title);
-    if (reasons.length > 0) return { status: "confirm", reasons, existing: { title: existing.title, slug: existing.slug } };
+  const imported = await importedPages(deps.pages);
+  const keys = new Set(imported.map((p) => p.import_key!));
+
+  let existing: LandingPage | null = null;
+  if (!input.target) {
+    // Without a choice, an export that looks like a page already here is never imported over it: the admin is asked.
+    const matches = await matchesFor(deps.pages, mapped, imported);
+    if (matches.length > 0) return { status: "choose", matches, pages: imported.map(replaceable) };
+  } else if (input.target.kind === "replace") {
+    existing = await deps.pages.byId(input.target.pageId);
+    if (!existing || existing.kind !== "page") return { status: "error", error: "That page no longer exists." };
+    if (!existing.import_key) return { status: "error", error: "Only a page made by an import can be replaced by one." };
   }
+  if (!existing && !title) return { status: "error", error: "Give the page a title: the export doesn't have one." };
 
   // Pictures: the export's own files first, a Kajabi upload from the CDN otherwise. A picture that can't be had is left out, and said.
   const notes = [...mapped.notes];
@@ -149,7 +229,10 @@ export async function importKajabiExport(
     // The old draft stays restorable from the page's history, unless there was nothing in it.
     const keep = !isEmptyDocument(existing.draft_data) && !sameDocument(existing.draft_data, data);
     if (keep) await deps.pages.keepDraftBeforeImport(existing.id, input.userId, "Replaced by a Kajabi import");
-    const page = await deps.pages.replaceImportedDraft(existing.id, data, input.userId);
+    // The page takes a key for the export's layout (so its next export is found), unless it has one already. This is also
+    // how a page made under the first key format moves to the current one.
+    const key = keyHasLayout(existing.import_key, mapped.layout) ? undefined : freeImportKey(mapped.importKey, keys);
+    const page = await deps.pages.replaceImportedDraft(existing.id, data, input.userId, key);
     if (!page) return { status: "error", error: "That page was deleted while the import ran." };
     return { status: "imported", action: "updated", slug: page.slug, title: page.title, published: page.status === "published", keptBefore: keep, notes, issues, counts };
   }
@@ -158,17 +241,14 @@ export async function importKajabiExport(
   for (let attempt = 0; attempt < 5; attempt++) {
     const slug = await freeSlug(deps.pages, slugify(title) || "page", taken);
     try {
-      const page = await deps.pages.create({ title, slug, data, createdBy: input.userId, importKey: mapped.importKey });
+      // A second page with the same layout (a page cloned in Kajabi) gets a numbered key, so the first keeps its own.
+      const page = await deps.pages.create({ title, slug, data, createdBy: input.userId, importKey: freeImportKey(mapped.importKey, keys) });
       return { status: "imported", action: "created", slug: page.slug, title: page.title, published: false, keptBefore: false, notes, issues, counts };
     } catch (error) {
       if (!(error instanceof LandingPageSlugTakenError)) throw error;
-      // The address was taken a moment ago, or another import of this same page just landed.
-      const raced = await deps.pages.byImportKey(mapped.importKey);
-      if (raced) {
-        const page = await deps.pages.replaceImportedDraft(raced.id, data, input.userId);
-        if (page) return { status: "imported", action: "updated", slug: page.slug, title: page.title, published: page.status === "published", keptBefore: false, notes, issues, counts };
-      }
+      // The address was taken a moment ago, or another import with this layout just landed: look at both again.
       taken.add(slug);
+      for (const p of await importedPages(deps.pages)) keys.add(p.import_key!);
     }
   }
   return { status: "error", error: "Couldn't find a free address for the page." };
@@ -182,4 +262,3 @@ async function pictureBytes(picture: PictureSource, images: Map<string, Uint8Arr
   }
   return picture.url ? get(picture.url) : { error: "no source" };
 }
-

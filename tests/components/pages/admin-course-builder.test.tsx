@@ -7,8 +7,8 @@ import { ACCESS_OPTIONS } from "@/lib/courses/access-options";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 const names = vi.fn();
 vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({ programs: { names: () => names() } }) }));
 vi.mock("@/app/(admin)/admin/courses/actions", () => ({ createCourse: vi.fn(), updateCourseDetails: vi.fn() }));
@@ -17,7 +17,7 @@ import NewCoursePage from "@/app/(admin)/admin/courses/new/page";
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   names.mockReset();
   names.mockResolvedValue([
     { id: "prg_AAAAAAAAAAA1", name: "180 Program" },
@@ -28,7 +28,7 @@ beforeEach(() => {
 describe("/admin/courses/new", () => {
   it("checks the caller is an admin first", async () => {
     await renderServerPage(NewCoursePage, {});
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("is a blank form for a Hub-owned course, with no choice of access length made for you", async () => {

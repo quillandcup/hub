@@ -11,7 +11,7 @@ The words we use for members and their milestones, in the Hub, on public pages, 
 | Anyone who writes | **Writer** | Always. "If you write, you're a writer." |
 | Wrote THE END | **Finisher** | Finished a complete first draft. |
 | Revised to be publish-ready | **Author** | Finished the final round of revisions, just before the optional publication step. |
-| Published | **Published Author** | Has a published book (printed or digital) on the Bookshelf. |
+| Published | **Published Author** | Has a published book (printed or digital) on the Bookshelf that came out on or after the day they joined (an earlier book stays on the Bookshelf but is not counted). |
 
 Each rung keeps the one before it: a Published Author is also an Author, a Finisher and a Writer.
 

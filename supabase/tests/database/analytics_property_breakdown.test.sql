@@ -12,11 +12,14 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000b2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'breakdown-alice@example.test'),
   ('00000000-0000-4000-a000-00000000b2a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'breakdown-bob@example.test'),
   ('00000000-0000-4000-a000-00000000b2a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'breakdown-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000b2a1', 'breakdown-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b2a2', 'breakdown-bob@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b2a3', 'breakdown-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000b2a1', 'breakdown-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000b2a2', 'breakdown-bob@example.test'),
+  ('00000000-0000-4000-a000-00000000b2a3', 'breakdown-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000b2a3', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Alice opens twice while live (two visits) and once off air; Bob once while live; one event has
 -- no `live` at all; the admin in sudo opens once (left out); another event kind is ignored.

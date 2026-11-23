@@ -12,10 +12,13 @@ SELECT plan(41);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outline-alice@example.test'),
   ('00000000-0000-4000-a000-00000000e1a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outline-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e1a1', 'outline-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e1a4', 'outline-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e1a1', 'outline-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000e1a4', 'outline-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e1a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Two Hub-owned courses and one imported from Kajabi, each with a module and a lesson.
 INSERT INTO public.courses (id, slug, title, source, source_key) VALUES

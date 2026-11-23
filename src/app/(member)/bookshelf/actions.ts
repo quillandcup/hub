@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { invalidateLiveLandingData } from "@/lib/landing/live-cache";
+import { isVisibility, type Visibility } from "@/lib/writing-visibility";
 import { validateBookInput } from "@/lib/bookValidation";
 import { cleanGenres } from "@/lib/book-genres";
 import { cleanEditions, type BookEdition, type BookEditionInput, type BookFormat } from "@/lib/book-editions";
@@ -12,7 +14,7 @@ import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets"
 import { celebrateNewBook } from "@/lib/slack";
 import { getPenNameOptions, resolvePenName, type PenNameOptions } from "@/lib/book-pen-name";
 
-import { withAction } from "@/lib/analytics/server";
+import { actionOutcome, withAction } from "@/lib/analytics/server";
 export type { BookFormat };
 
 export interface BookInput {
@@ -43,6 +45,10 @@ export interface MyBookRow {
   projectId: string | null;
   /** The media library image behind the cover, with its size (for the Amazon download); null for an older cover. */
   coverAsset: { id: string; width: number; height: number } | null;
+  /** Who can see the book: only the member, other members, or the web. */
+  visibility: Visibility;
+  /** The name the book carries on the web (its pen name, else the member's display name), or null when it has none: then the web shows no author name. */
+  webAuthor: string | null;
 }
 
 type IdentityContext =
@@ -70,7 +76,9 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const books = await createRepos(supabase).books.mine(effectiveIdentity.memberId);
+  const repos = createRepos(supabase);
+  const [books, member] = await Promise.all([repos.books.mine(effectiveIdentity.memberId), repos.members.byId(effectiveIdentity.memberId)]);
+  const displayName = member?.displayName?.trim() || null;
 
   return books.map((row) => ({
     id: row.id,
@@ -83,6 +91,8 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     penName: row.pen_name,
     projectId: row.project_id,
     coverAsset: row.cover_asset,
+    visibility: row.visibility,
+    webAuthor: row.pen_name?.trim() || displayName,
   }));
 }
 
@@ -125,6 +135,8 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
     purchaseUrl: editions[0].purchase_url,
   }).catch((err) => console.error("New book Slack notification failed:", err));
 
+  // The public Bookshelf block reads the books through a one-minute cache: drop it so a change (a book taken off the web) shows at once.
+  invalidateLiveLandingData();
   revalidatePath("/bookshelf");
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -172,6 +184,8 @@ async function updateBookImpl(
 
   await releaseReplacedCover(media, effectiveIdentity.memberId, previousCoverAssetId, cover.assetId);
 
+  // The public Bookshelf block reads the books through a one-minute cache: drop it so a change (a book taken off the web) shows at once.
+  invalidateLiveLandingData();
   revalidatePath("/bookshelf");
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -191,6 +205,42 @@ async function deleteBookImpl(bookId: string): Promise<{ success: true } | { err
     return { error: (error as Error).message };
   }
 
+  // The public Bookshelf block reads the books through a one-minute cache: drop it so a change (a book taken off the web) shows at once.
+  invalidateLiveLandingData();
+  revalidatePath("/bookshelf");
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+/**
+ * A member sets who can see one of their books: only them, other members, or the web (the public Hedgie Bookshelf). Saved the
+ * moment they click the lock, house or globe. Never in sudo (staff acting as the member can look, not change what the
+ * member shows the world), and only the member's own live book. "No change" writes nothing. The change is an audit entry as
+ * the member (the table's trigger, which is also the Activity Log line) and never carries the title or description in the sentence.
+ */
+async function setBookVisibilityImpl(bookId: string, level: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+  if (effectiveIdentity.isSudo) return { error: "Only the member can change who sees their book." };
+  if (!bookId) return { error: "Book not found" };
+  if (!isVisibility(level)) return { error: "That choice is not available." };
+
+  try {
+    const books = createRepos(supabase).books;
+    // Only the acting member's own books are listed here, so a book of someone else is "not found", never a silent write.
+    const book = (await books.mine(effectiveIdentity.memberId)).find((b) => b.id === bookId);
+    if (!book) return { error: "Book not found" };
+    if (book.visibility === level) return { success: true };
+    if (!(await books.update(bookId, { visibility: level }))) return { error: "Book not found" };
+  } catch (error) {
+    console.error("books.setVisibility failed", error instanceof Error ? error.message : String(error));
+    return { error: "We couldn't save that. Please try again in a moment." };
+  }
+
+  // The public Bookshelf block reads the books through a one-minute cache: drop it so a change (a book taken off the web) shows at once.
+  invalidateLiveLandingData();
   revalidatePath("/bookshelf");
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -211,6 +261,14 @@ export async function addBook(...args: Parameters<typeof addBookImpl>): ReturnTy
 
 export async function updateBook(...args: Parameters<typeof updateBookImpl>): ReturnType<typeof updateBookImpl> {
   return withAction("book_edited", () => updateBookImpl(...args));
+}
+
+// Whether it worked, and the level chosen (a fixed word, never anything the member wrote).
+export async function setBookVisibility(...args: Parameters<typeof setBookVisibilityImpl>): ReturnType<typeof setBookVisibilityImpl> {
+  return withAction("book_visibility_set", () => setBookVisibilityImpl(...args), (result) => ({
+    ...actionOutcome(result),
+    detail: isVisibility(args[1]) ? args[1] : undefined,
+  }));
 }
 
 export async function deleteBook(...args: Parameters<typeof deleteBookImpl>): ReturnType<typeof deleteBookImpl> {

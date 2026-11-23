@@ -21,6 +21,7 @@ import {
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import type { HostedPrickleRecord } from "@/lib/hosting-stats";
 import type { HostedScheduleSlot } from "@/lib/prickle-schedule";
+import { ANOTHER_WORK_TITLE } from "@/lib/finishers";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -317,6 +318,34 @@ describe("member profile page: Books and Awards", () => {
     expect(within(awards).getByText(/for “The Lantern Keeper”/)).toHaveTextContent("March 2026");
   });
 
+  it("asks only for the books the viewer may see: no private ones on someone else's profile, in sudo or not, and all of them on your own", async () => {
+    const callsOf = (supabase: ReturnType<typeof useFakeSupabase>) => supabase.queries.find((q) => q.table === "member_books")?.calls ?? [];
+    const notPrivate = { method: "neq", args: ["visibility", "private"] };
+
+    const other = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(other)).toContainEqual(notPrivate);
+    document.body.innerHTML = "";
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    const sudo = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(sudo)).toContainEqual(notPrivate);
+    document.body.innerHTML = "";
+
+    // An admin looking at a member from their own account is just another viewer.
+    signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, memberId: "admin-member" });
+    const admin = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(admin)).toContainEqual(notPrivate);
+    document.body.innerHTML = "";
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: PROFILE_ID });
+    const own = useFakeSupabase(tables({}));
+    await renderServerPage(MemberProfilePage, params);
+    expect(callsOf(own)).not.toContainEqual(notPrivate);
+  });
+
   it("omits the Books and Awards sections when the member has neither", async () => {
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByRole("heading", { name: "Published Books" })).not.toBeInTheDocument();
@@ -428,14 +457,23 @@ describe("member profile page: private notes", () => {
 describe("member profile page: Milestones strip", () => {
   // One work with all three steps, one untitled work (a project that is not on the Bookshelf) with one.
   const SHOWN = [
-    { work_no: 1, kind: "the_end", work_title: "A Fake Novel", achieved_on: "2026-05-01", story_before: null, story_after: "I finally did it.", visibility: "community" },
-    { work_no: 1, kind: "publish_ready", work_title: "A Fake Novel", achieved_on: null, story_before: null, story_after: null, visibility: "public" },
-    { work_no: 1, kind: "published", work_title: "A Fake Novel", achieved_on: "2026-09-01", story_before: null, story_after: null, visibility: "public" },
-    { work_no: 2, kind: "publish_ready", work_title: null, achieved_on: null, story_before: "<b>Stuck</b> for years.", story_after: null, visibility: "public" },
+    { work_no: 1, kind: "the_end", work_title: "A Fake Novel", achieved_on: "2026-05-01", achieved_precision: "day", story_before: null, story_after: "I finally did it.", visibility: "community" },
+    { work_no: 1, kind: "publish_ready", work_title: "A Fake Novel", achieved_on: null, achieved_precision: "day", story_before: null, story_after: null, visibility: "public" },
+    { work_no: 1, kind: "published", work_title: "A Fake Novel", achieved_on: "2026-09-01", achieved_precision: "day", story_before: null, story_after: null, visibility: "public" },
+    { work_no: 2, kind: "publish_ready", work_title: null, achieved_on: null, achieved_precision: "day", story_before: "<b>Stuck</b> for years.", story_after: null, visibility: "public" },
   ];
 
+  it("shows the photo of a step the member showed to other members, asking our own route for it", async () => {
+    const withPhoto = SHOWN.map((s, i) => (i === 0 ? { ...s, photo_token: "0123456789abcdef0123456789abcdef", photo_alt: "Me at my desk" } : s));
+    useFakeSupabase(tables({ "rpc:member_works_pictured_to_members": { data: withPhoto } }));
+    await renderServerPage(MemberProfilePage, params);
+    const photos = within(screen.getByTestId("milestone-strip")).getAllByTestId("milestone-photo");
+    expect(photos).toHaveLength(1);
+    expect(within(photos[0]).getByRole("img", { name: "Me at my desk" })).toHaveAttribute("src", "/api/milestone-photos/0123456789abcdef0123456789abcdef");
+  });
+
   it("shows what the member showed to other members: the title, the work, the day and the story they wrote", async () => {
-    const supabase = useFakeSupabase(tables({ "rpc:member_works_shown_to_members": { data: SHOWN } }));
+    const supabase = useFakeSupabase(tables({ "rpc:member_works_pictured_to_members": { data: SHOWN } }));
     await renderServerPage(MemberProfilePage, params);
     const strip = screen.getByTestId("milestone-strip");
     expect(within(strip).getByRole("heading", { name: "Milestones" })).toBeInTheDocument();
@@ -451,14 +489,23 @@ describe("member profile page: Milestones strip", () => {
     expect(within(works[0]).getByText("May 1, 2026")).toBeInTheDocument();
     expect(within(works[0]).getByText("September 1, 2026")).toBeInTheDocument();
     expect(within(strip).getByText("I finally did it.")).toBeInTheDocument();
-    // A work whose name the viewer may not know has no heading, only its step.
-    expect(within(works[1]).queryByRole("heading")).not.toBeInTheDocument();
+    // A work whose name the viewer may not know is "Another work" (never blank), with only its step.
+    expect(within(works[1]).getByRole("heading", { name: ANOTHER_WORK_TITLE })).toBeInTheDocument();
     expect(within(works[1]).getByText("Author · Manuscript ready to publish")).toBeInTheDocument();
     // A story is plain text, never markup.
     expect(within(strip).getByText("<b>Stuck</b> for years.")).toBeInTheDocument();
     expect(strip.querySelector("b")).toBeNull();
     // The reader is asked for the member being viewed, not the signed-in one.
-    expect(supabase.queries.find((q) => q.table === "rpc:member_works_shown_to_members")?.calls).toContainEqual({ method: "args", args: [{ p_member_id: PROFILE_ID }] });
+    expect(supabase.queries.find((q) => q.table === "rpc:member_works_pictured_to_members")?.calls).toContainEqual({ method: "args", args: [{ p_member_id: PROFILE_ID }] });
+  });
+
+  it("leaves out the Published step of a book from before the member first joined (2023-01-10), keeping the join day and later", async () => {
+    const step = (published_on: string, work_no: number, title: string) => ({ work_no, kind: "published", work_title: title, achieved_on: published_on, achieved_precision: "day", story_before: null, story_after: null, visibility: "public" });
+    useFakeSupabase(tables({ "rpc:member_works_pictured_to_members": { data: [step("2023-01-09", 1, "An Earlier Fake Book"), step("2023-01-10", 2, "A Join Day Fake Book")] } }));
+    await renderServerPage(MemberProfilePage, params);
+    const strip = screen.getByTestId("milestone-strip");
+    expect(within(strip).getByRole("heading", { name: "A Join Day Fake Book" })).toBeInTheDocument();
+    expect(within(strip).queryByText("An Earlier Fake Book")).not.toBeInTheDocument();
   });
 
   it("shows nothing when the member has shown none (an empty strip is not drawn), the same for an admin", async () => {
@@ -468,7 +515,7 @@ describe("member profile page: Milestones strip", () => {
   });
 
   it("still draws the page when the milestones cannot be read", async () => {
-    useFakeSupabase(tables({ "rpc:member_works_shown_to_members": { error: { message: "boom" } } }));
+    useFakeSupabase(tables({ "rpc:member_works_pictured_to_members": { error: { message: "boom" } } }));
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Hazel Burrowes" })).toBeInTheDocument();

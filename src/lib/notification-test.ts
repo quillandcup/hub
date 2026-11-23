@@ -9,6 +9,7 @@ import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { APP_URL } from "@/lib/config";
 import { digestMessage } from "@/lib/changelog/digest";
+import { bookVisibilityNoticeMessage } from "@/lib/book-visibility-notice";
 import { listProductChangelog } from "@/lib/changelog";
 import type { NotificationKindId } from "@/lib/notifications/registry";
 import { activityMessage, moderationMessage, replyMessage } from "@/lib/courses/comment-notifications";
@@ -77,6 +78,8 @@ export async function sampleMessages(
       return [mark(prickleNudgeMessage("first"))];
     case "changelog_digest":
       return [mark(digestMessage(listProductChangelog().slice(0, 1)))];
+    case "book_visibility_notice":
+      return [mark(bookVisibilityNoticeMessage(1))];
     // Chat samples link to the chat list, not a conversation: there is no real one to name.
     case "chat_dm":
       return [mark(chatNotificationMessage("chat_dm", { authorName: "Marlow", channelKind: "dm", channelName: null, channelId: null, threadRootId: null }))];

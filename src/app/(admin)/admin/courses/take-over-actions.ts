@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
@@ -17,7 +17,7 @@ export type TakeOverResult = { error?: string; id?: string };
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 async function takeOverImpl(auth: Auth, courseId: string): Promise<TakeOverResult> {
   if (!isId(courseId, "crs")) return { error: "Course not found." };
@@ -41,7 +41,7 @@ async function takeOverImpl(auth: Auth, courseId: string): Promise<TakeOverResul
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** Turns a course imported from Kajabi into one the Hub owns. */
 export async function takeOverCourse(courseId: string): Promise<TakeOverResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_taken_over", () => takeOverImpl(auth, courseId));
 }

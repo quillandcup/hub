@@ -11,10 +11,13 @@ SELECT plan(17);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e3a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'takeover-alice@example.test'),
   ('00000000-0000-4000-a000-00000000e3a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'takeover-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e3a1', 'takeover-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e3a4', 'takeover-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e3a1', 'takeover-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000e3a4', 'takeover-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e3a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- An imported course: module A (published, open) with submodule A1 (locked, so coming soon) and lessons in each,
 -- a module with no setting, and a lesson with a setting the editor doesn't use.

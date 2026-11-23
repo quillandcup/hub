@@ -7,7 +7,8 @@ export interface StaffUser {
   id: string;
   name: string;
   email: string;
-  role: string;
+  /** Every staff role the person holds, highest priority first. */
+  roles: string[];
 }
 
 interface StaffSearchProps {
@@ -30,7 +31,7 @@ export default function StaffSearch({
 }: StaffSearchProps) {
   return (
     <EntitySearch
-      items={staff.map((s) => ({ id: s.id, name: s.name, detail: `${s.email} · ${s.role}` }))}
+      items={staff.map((s) => ({ id: s.id, name: s.name, detail: `${s.email} · ${s.roles.join(", ")}` }))}
       selectedId={selectedUserId}
       selectedName={selectedName}
       onSelect={(item) => onSelect(item ? (staff.find((s) => s.id === item.id) ?? null) : null)}

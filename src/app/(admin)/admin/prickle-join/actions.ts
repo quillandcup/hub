@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { effectiveFromForDate, formatMeetingId, isAllowedStartDate, isMeetingId } from "@/lib/prickle-join";
@@ -13,7 +13,7 @@ import { effectiveFromForDate, formatMeetingId, isAllowedStartDate, isMeetingId 
  * src/lib/prickle-join.ts), which keeps past calendar events accurate. The link must be https.
  */
 export async function savePrickleJoin(input: { url: string; meetingId: string; passcode: string; startDate?: string }) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickles.manage");
   if (!auth.ok) return { error: auth.error };
 
   const url = typeof input?.url === "string" ? input.url.trim() : "";
@@ -52,7 +52,7 @@ export async function savePrickleJoin(input: { url: string; meetingId: string; p
 
 /** Take back a change scheduled for a future day. Anything already in effect stays (RLS refuses). */
 export async function removeScheduledPrickleJoin(id: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("prickles.manage");
   if (!auth.ok) return { error: auth.error };
   if (typeof id !== "string" || !id) return { error: "Invalid setting" };
 

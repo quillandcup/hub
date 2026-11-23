@@ -10,7 +10,7 @@ import { ambiguousZoomName, zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => undefined) }));
 // Members come from their repository, in memory here.
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({

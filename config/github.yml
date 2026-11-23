@@ -14,6 +14,14 @@ settings:
   allow_auto_merge: true
   delete_branch_on_merge: true
 
+# Default permission of a workflow's GITHUB_TOKEN (Settings, Actions, General), applied with
+# PUT /repos/{repo}/actions/permissions/workflow. `read` means a workflow gets write access only
+# where it declares `permissions:` itself (every workflow here does). can_approve_pull_request_reviews
+# stays true: some workflows (for example the disposable-email-domains refresh) may rely on it.
+workflow_permissions:
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: true
+
 # One ruleset on the default branch. Required checks are the job names in
 # .github/workflows/ci.yml; a check skipped by its `if:` (Coverage report on a push to main)
 # counts as passing, so only pull requests wait on it; that is also how a docs-only change gets
@@ -70,3 +78,9 @@ rulesets:
             # Advanced Security app (57789), not an Actions job: the Analyze jobs only run the scan.
             - context: CodeQL
               integration_id: 57789
+            # Fails a pull request that INTRODUCES a known vulnerability in pnpm-lock.yaml (OSV-Scanner diff
+            # against the base branch, .github/workflows/osv-diff.yml), so an advisory already on main, even one with
+            # no fix, never stops an unrelated PR. No path filter, so it always reports. Trial 2026-11-23: it passed
+            # on a PR that touched no dependencies and failed on a throwaway PR that added lodash 4.17.20.
+            - context: OSV diff / osv-scan
+              integration_id: 15368

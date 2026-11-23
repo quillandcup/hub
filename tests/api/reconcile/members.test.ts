@@ -7,11 +7,11 @@ vi.mock('@/lib/processing/trigger', () => ({
 }))
 
 vi.mock('@/lib/supabase/api-auth', () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }))
 
 import { triggerKajabiSync } from '@/lib/processing/trigger'
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 
 function makeRequest() {
   return new Request('http://localhost:3000/api/reconcile/members') as unknown as NextRequest
@@ -20,7 +20,7 @@ function makeRequest() {
 describe('GET /api/reconcile/members', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireAdmin).mockResolvedValue({
+    vi.mocked(requireApiPermission).mockResolvedValue({
       user: { id: 'service-role' } as any,
       forbidden: false,
       supabase: {} as any,
@@ -29,7 +29,7 @@ describe('GET /api/reconcile/members', () => {
 
   describe('auth', () => {
     it('returns 401 when unauthenticated', async () => {
-      vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any })
+      vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any })
 
       const response = await GET(makeRequest())
 
@@ -37,7 +37,7 @@ describe('GET /api/reconcile/members', () => {
     })
 
     it('returns 403 when authenticated but not admin', async () => {
-      vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'user-1' } as any, forbidden: true, supabase: {} as any })
+      vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: 'user-1' } as any, forbidden: true, supabase: {} as any })
 
       const response = await GET(makeRequest())
 

@@ -62,11 +62,12 @@ function SiteRegion({ name, empty, children }: { name: "header" | "footer"; empt
 
 /** The frame around every page: an optional header (logo and links), the blocks, an optional footer. Where `@container` lives, so blocks respond to the room they have. */
 export function PageFrame({ children, frame, ...root }: RootProps & { children?: ReactNode; frame?: FrameContext }) {
-  const logo = pageImage(root.logoAssetId, "event_card");
+  const logo = pageImage(root.logoAssetId, "logo");
   const nav = (root.navLinks ?? []).filter((l) => l.label && safeHref(l.href));
   const footerLinks = (root.footerLinks ?? []).filter((l) => l.label && safeHref(l.href));
   // The page's look: the site's style tokens, then this page's own where it has them (src/lib/landing/style.ts). The same for the editor's canvas and a visitor.
-  const frameClasses = `@container relative min-h-screen bg-page text-ink ${styleClasses(resolveStyle(frame?.site?.style, root.styleOverride))}`;
+  // A column at least as tall as the screen, with the blocks taking the slack: on a short page the footer sits at the bottom of the screen and no page colour shows under it.
+  const frameClasses = `@container relative flex min-h-screen flex-col bg-page text-ink ${styleClasses(resolveStyle(frame?.site?.style, root.styleOverride))}`;
   const tools = frame?.editing ? <DesignToolsOverlay /> : null;
   if (frame?.pageType === "website") {
     const site = frame.site ?? EMPTY_SITE_TEMPLATE;
@@ -81,7 +82,7 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
         ) : (
           header
         )}
-        <main>{children}</main>
+        <main className="flex-1">{children}</main>
         {frame.editing ? (
           <SiteRegion name="footer" empty={footer === null}>
             {footer}
@@ -103,7 +104,7 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
             {logo && (
               <a href={safeHref(root.logoHref) || "/"} className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route */}
-                <img src={logo} alt={root.logoAlt || ""} className="h-12 w-auto" />
+                <img src={logo} alt={root.logoAlt || ""} height={48} decoding="async" className="h-12 w-auto max-w-full object-contain" />
               </a>
             )}
             {nav.length > 0 && (
@@ -122,7 +123,7 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
           </div>
         </header>
       )}
-      <main>{children}</main>
+      <main className="flex-1">{children}</main>
       {root.showFooter && (root.footerText || footerLinks.length > 0) && (
         <footer className="bg-cup px-4 py-6 text-center text-sm text-white">
           {footerLinks.length > 0 && (

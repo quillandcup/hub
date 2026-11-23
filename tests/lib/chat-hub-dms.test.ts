@@ -45,11 +45,11 @@ vi.mock("@/lib/data/repos", async () => {
 });
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown[]) => m.connected(...a) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
-vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
-vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
-vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: vi.fn() }));
+vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: m.sendToSlack }));
+vi.mock("@/modules/chat/slack/react", () => ({ syncReactionToSlack: m.syncReaction }));
+vi.mock("@/modules/chat/slack/edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
-vi.mock("@/lib/chat/slack-dms", () => ({ openSlackDm: m.openDm, pullMemberDms: vi.fn() }));
+vi.mock("@/modules/chat/slack/dms", () => ({ openSlackDm: m.openDm, pullMemberDms: vi.fn() }));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
 const notifyChat = vi.hoisted(() => vi.fn(async () => ({ sent: [], dryRun: [] })));
 vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessage: notifyChat, resolveChatNotifications: vi.fn() }));
@@ -111,6 +111,13 @@ describe("startDirectMessage", () => {
     await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "Something went wrong. Try again." });
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+
+  it("tells the person when the other one is not active or has left the conversation", async () => {
+    m.rpc.mockResolvedValueOnce({ data: null, error: { message: "chat_dm: not_active" } });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "They aren't an active member right now, so you can't message them." });
+    m.rpc.mockResolvedValueOnce({ data: null, error: { message: "chat_dm: other_left" } });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "They've left your conversation, so it can't be reopened from here." });
   });
 });
 

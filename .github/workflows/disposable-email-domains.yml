@@ -6,7 +6,8 @@ name: Refresh temp-mail domain list
 # something fails. The script refuses a list that is suspiciously short or that names a mainstream provider (Gmail,
 # Outlook, ...), so a bad upstream edit fails this job instead of reaching members.
 #
-# Opens the PR with GH_TOKEN_AUTO_MERGE (the personal token auto-merge.yml uses), not the built-in GITHUB_TOKEN:
+# Opens the PR with GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS (a fine-grained personal token of its own, so it can be rotated or
+# revoked without touching auto-merge.yml's), not the built-in GITHUB_TOKEN:
 # a PR opened by GITHUB_TOKEN does not trigger the pull_request workflows, so its required checks would never run
 # and it could not merge. Rotate it per docs/runbooks/SECRET_ROTATION.md. At most one refresh PR is open at a time.
 on:
@@ -23,11 +24,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          token: ${{ secrets.GH_TOKEN_AUTO_MERGE }}
+          token: ${{ secrets.GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS }}
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
@@ -56,7 +57,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           git add src/lib/disposable-email-domains.generated.ts
-          git commit -m "Refresh the temp-mail domain list"
+          # `pnpm install` points core.hooksPath at config/husky, so a plain commit runs the pre-commit hook:
+          # a production build, which fails here (no env vars) and stopped the first scheduled run. The pull
+          # request runs every required check, which is where this change is verified.
+          git commit --no-verify -m "Refresh the temp-mail domain list"
           git push origin "$branch"
           gh pr create --base main --head "$branch" \
             --title "Refresh the temp-mail domain list" \

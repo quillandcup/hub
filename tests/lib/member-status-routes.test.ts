@@ -13,7 +13,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "11111111-1111-4111-8111-111111111111" }, forbidden: false, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "11111111-1111-4111-8111-111111111111" }, forbidden: false, supabase: {} }),
 }));
 const recompute = vi.fn(async () => null);
 vi.mock("@/lib/member-status", () => ({ recomputeMemberStatus: (...args: unknown[]) => recompute(...(args as [])) }));

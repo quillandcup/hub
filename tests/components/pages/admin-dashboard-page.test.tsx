@@ -8,8 +8,8 @@ import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireStaffPage: async () => { await requireAdminPage(); return { id: "admin", email: "a@example.test", role: "admin" }; } }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: async () => { await requirePermission(); return { id: "admin", email: "a@example.test", role: "admin", roles: ["admin"] }; } }));
 let attendance = new InMemoryAttendanceRepository();
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
@@ -51,7 +51,7 @@ const record = (id: string, memberId: string, days: number) => ({
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(ADMIN_USER);
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   attendance = new InMemoryAttendanceRepository([
     record("a1", MEMBERS[0].id, 40),
     record("a2", MEMBERS[0].id, 20),
@@ -63,7 +63,7 @@ beforeEach(() => {
 describe("admin dashboard page", () => {
   it("is for admins", async () => {
     await renderServerPage(DashboardPage, {});
-    expect(requireAdminPage).toHaveBeenCalledTimes(1);
+    expect(requirePermission).toHaveBeenCalledTimes(1);
   });
 
   it("slices one 8-week read into the 30-day hours and the 7-day engagement", async () => {

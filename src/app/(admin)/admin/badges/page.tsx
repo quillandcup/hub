@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Badges",
@@ -19,7 +19,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_ORDER = ["milestone", "special", "community", "course", "retreat"];
 
 export default async function BadgesPage() {
-  await requireAdminPage();
+  await requirePermission("badges.manage");
   const supabase = await createClient();
 
   const badges = createRepos(supabase).badges;
@@ -85,7 +85,12 @@ export default async function BadgesPage() {
                               Automatic
                             </span>
                           )}
-                          {type.has_levels && typeLevels.length > 0 && (
+                          {type.counted && (
+                            <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="counted-badge-text">
+                              Shows the real count: {type.name} → 2x {type.name} → 3x {type.name} …
+                            </span>
+                          )}
+                          {!type.counted && type.has_levels && typeLevels.length > 0 && (
                             <span className="text-xs text-slate-500 dark:text-slate-400">
                               {typeLevels.map((l) => l.name).join(" → ")}
                             </span>

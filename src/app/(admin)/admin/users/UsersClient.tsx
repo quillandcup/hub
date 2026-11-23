@@ -10,6 +10,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { FEATURE_PREVIEWS } from "@/lib/features";
+import { ROLE_CHANGE_REFUSALS, changeableRoles, roleChangeRefusal } from "@/lib/permissions";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { describeStoredDevice, type DeviceInfo } from "@/lib/device-label";
@@ -18,7 +19,8 @@ import { useTimeZone } from "@/components/Timezone";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import Tooltip from "@/components/Tooltip";
 
-type Role = "admin" | "assistant" | "community_manager" | "member";
+type Role = "admin" | "assistant" | "community_manager" | "conversion_specialist" | "member";
+type HubRole = Exclude<Role, "member">;
 type StaffRole = "owner" | "staff" | "contractor";
 
 interface MemberRecord {
@@ -31,7 +33,10 @@ interface MemberRecord {
 interface AppUser {
   id: string;
   email: string;
+  /** The primary role (the highest priority one held), `member` for none. */
   role: Role;
+  /** Every staff role held (a person can hold several; what they may do is the union). Older responses carry only `role`. */
+  roles?: HubRole[];
   features: string[];
   createdAt: string;
   /** Their latest page view or sign-in. Null when they have never signed in (an invite not accepted, or an account nobody has used). */
@@ -87,13 +92,23 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   assistant: "Assistant",
   community_manager: "Community Manager",
+  conversion_specialist: "Conversion Specialist",
   member: "Member",
 };
+
+/** The roles a person can be given, in priority order (`member` is holding none of them). */
+const ASSIGNABLE_ROLES: HubRole[] = ["admin", "assistant", "community_manager", "conversion_specialist"];
+
+/** The staff roles this user holds. */
+function rolesHeld(user: AppUser): HubRole[] {
+  return user.roles ?? (user.role === "member" ? [] : [user.role]);
+}
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: "bg-mist-100 text-mist-800 dark:bg-mist-900/30 dark:text-mist-300",
   assistant: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
   community_manager: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
+  conversion_specialist: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
   member: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
 };
 
@@ -121,7 +136,7 @@ const AUDIENCES: { key: Audience; label: string }[] = [
 
 /** Staff: anyone with a staff record or a role above member. Everyone else is a member. */
 function isStaffUser(user: AppUser): boolean {
-  return user.staffId !== null || user.role !== "member";
+  return user.staffId !== null || rolesHeld(user).length > 0;
 }
 
 /** The name a person is known by: their member display name, else the staff name; null when nothing is linked. */
@@ -134,7 +149,7 @@ function matchesSearch(user: AppUser, term: string): boolean {
   return [user.email, user.memberName, user.memberDisplayName, user.staffName, ...user.aliases].some((v) => v?.toLowerCase().includes(term));
 }
 
-const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, community_manager: 2, member: 3 };
+const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, community_manager: 2, conversion_specialist: 3, member: 4 };
 
 function getSortValue(user: AppUser, column: SortColumn): SortValue {
   switch (column) {
@@ -179,7 +194,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [error, setError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState<Role>("member");
+  const [editRoles, setEditRoles] = useState<Set<HubRole>>(new Set());
   const [editFeatures, setEditFeatures] = useState<Set<string>>(new Set());
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -193,6 +208,8 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /** The roles the person using this page holds (from the API), which decide which roles they may give or take away. */
+  const [viewerRoles, setViewerRoles] = useState<HubRole[] | null>(null);
 
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
@@ -213,6 +230,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load users");
       setUsers(data.users);
+      setViewerRoles(data.viewerRoles ?? null);
       setAllMembers(data.allMembers ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load users");
@@ -225,9 +243,35 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
   function startEdit(user: AppUser) {
     setEditingId(user.id);
-    setEditRole(user.role);
+    setEditRoles(new Set(rolesHeld(user)));
     setEditFeatures(new Set(user.features));
     setEditMemberId(user.memberId);
+  }
+
+  /** The roles the viewer holds: from the API, else from their own row in the list; none known means nothing may be changed. */
+  const actorRoles: HubRole[] = viewerRoles ?? (() => {
+    const me = users.find((u) => u.id === currentUserId);
+    return me ? rolesHeld(me) : [];
+  })();
+  const adminCount = users.filter((u) => rolesHeld(u).includes("admin")).length;
+  /** What the viewer may do with this person's roles: the roles they may flip, and why not when none. */
+  function roleRights(user: AppUser) {
+    const target = rolesHeld(user);
+    const otherAdmins = adminCount - (target.includes("admin") ? 1 : 0);
+    const self = user.id === currentUserId;
+    const changeable = changeableRoles({ actor: actorRoles, target, self, otherAdmins });
+    const whyNot = changeable.length === 0 ? roleChangeRefusal({ actor: actorRoles, target, next: target.includes("community_manager") ? target.filter((r) => r !== "community_manager") : [...target, "community_manager"], self, otherAdmins }) : null;
+    const mayDelete = roleChangeRefusal({ actor: actorRoles, target, next: [], self: false, otherAdmins }) === null;
+    return { changeable, whyNot, mayDelete };
+  }
+
+  function toggleRole(role: HubRole) {
+    setEditRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) next.delete(role);
+      else next.add(role);
+      return next;
+    });
   }
 
   function cancelEdit() {
@@ -238,7 +282,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
-        role: editRole,
+        roles: ASSIGNABLE_ROLES.filter((role) => editRoles.has(role)),
         features: Array.from(editFeatures),
       };
       // Only include memberId if it changed
@@ -615,20 +659,34 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </td>
                       <td className="px-6 py-4">
                         {isEditing ? (
-                          <select
-                            value={editRole}
-                            onChange={(e) => setEditRole(e.target.value as Role)}
-                            className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
-                          >
-                            <option value="admin">Admin</option>
-                            <option value="assistant">Assistant</option>
-                            <option value="community_manager">Community Manager</option>
-                            <option value="member">Member</option>
-                          </select>
+                          <fieldset className="flex flex-col gap-1">
+                            <legend className="sr-only">Roles</legend>
+                            {ASSIGNABLE_ROLES.map((role) => {
+                              const rights = roleRights(user);
+                              const allowed = rights.changeable.includes(role);
+                              return (
+                                <label key={role} className={`flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 ${allowed ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+                                  <input type="checkbox" checked={editRoles.has(role)} disabled={!allowed} onChange={() => toggleRole(role)} className="rounded" />
+                                  {ROLE_LABELS[role]}
+                                </label>
+                              );
+                            })}
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {roleRights(user).changeable.length === 0
+                                ? (roleRights(user).whyNot ?? ROLE_CHANGE_REFUSALS.notManager)
+                                : editRoles.size === 0
+                                  ? "No role: a member."
+                                  : "They may do whatever any of their roles allows."}
+                            </span>
+                          </fieldset>
                         ) : (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
-                            {ROLE_LABELS[user.role]}
-                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {(rolesHeld(user).length > 0 ? rolesHeld(user) : (["member"] as Role[])).map((role) => (
+                              <span key={role} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[role]}`}>
+                                {ROLE_LABELS[role]}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -733,7 +791,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                       : "Resend Invite"}
                                 </button>
                               )}
-                              {!isCurrentUser && (
+                              {!isCurrentUser && roleRights(user).mayDelete && (
                                 confirmDeleteId === user.id ? (
                                   <>
                                     <button

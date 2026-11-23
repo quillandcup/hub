@@ -92,6 +92,8 @@ describe("CommitmentsManager", () => {
       expect(link).toHaveAttribute("href", "/my-prickles/all?commit=");
     }
     expect(screen.getByRole("link", { name: /Make a commitment/ })).toBeInTheDocument();
+    // A link inside a sentence is underlined: colour alone doesn't tell it from the words around it.
+    expect(screen.getByRole("link", { name: "All Prickles" }).className).toContain("underline");
   });
 
   it("shows a multi-slot commitment's total progress and a dot row per slot", () => {

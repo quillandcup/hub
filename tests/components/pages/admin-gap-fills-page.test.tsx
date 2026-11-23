@@ -8,8 +8,8 @@ import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-p
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 import ChatGapFillsPage from "@/app/(admin)/admin/data-health/gap-fills/page";
 
@@ -45,7 +45,7 @@ const seedChat = (fills: ReturnType<typeof fill>[], channels = CHANNELS) => {
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   repos = createInMemoryRepos();
 });
 
@@ -53,7 +53,7 @@ describe("admin chat gap-fills page", () => {
   it("is for admins: it starts by requiring one", async () => {
     seedChat([], []);
     await renderServerPage(ChatGapFillsPage, {});
-    expect(requireAdminPage).toHaveBeenCalledTimes(1);
+    expect(requirePermission).toHaveBeenCalledTimes(1);
   });
 
   it("shows no fills (and logs) when they can't be read, and bare Slack ids when the channels can't", async () => {

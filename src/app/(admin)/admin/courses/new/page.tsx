@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import CourseDetailsForm from "../CourseDetailsForm";
@@ -8,7 +8,7 @@ import CourseDetailsForm from "../CourseDetailsForm";
 export const metadata: Metadata = { title: "New course · Courses" };
 
 export default async function NewCoursePage() {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   const programs = await createRepos(await createClient()).programs.names();
 
   return (

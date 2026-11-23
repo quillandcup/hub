@@ -9,7 +9,7 @@ import { withConversationParticipants, withMentionNames } from "@/lib/chat/names
 import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { requireStaffPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { staffFeaturesFor, type StaffFeature } from "@/lib/staff-access";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -58,7 +58,7 @@ export function memberTabMetadata(tab: MemberTabId) {
 /**
  * Admin member detail, rendered by /admin/members/<id> (Overview) and each
  * /admin/members/<id>/<tab> route with that tab open. Every tab's data loads here, so switching
- * tabs is instant. Callers have already run requireStaffPage() (or requireAdminPage() for an admin-only tab).
+ * tabs is instant. Callers have already run requirePermission() for the tab.
  * A community manager sees the profile read-only: no sudo, merge, split, remove, notes, billing links or
  * override reasons, (each a staff feature, `can()` below).
  */
@@ -74,8 +74,8 @@ export default async function MemberDetailPage({
 }) {
   const supabase = await createClient();
 
-  const role = (await requireStaffPage()).role;
-  const features = staffFeaturesFor(role);
+  const staff = await requirePermission("members.read");
+  const features = staffFeaturesFor(staff);
   const can = (feature: StaffFeature) => features.includes(feature);
   const user = await getCurrentUser();
 

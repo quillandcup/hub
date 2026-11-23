@@ -12,7 +12,7 @@ import {
   type AttendanceRow,
 } from "@/lib/scheduled-prickle-stats";
 import PricklesTable from "./PricklesTable";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Prickle Insights",
@@ -69,7 +69,7 @@ export default async function PrickleInsightsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  await requireAdminPage();
+  await requirePermission("analytics.prickles.read");
   const supabase = await createClient();
 
   const user = await getCurrentUser();

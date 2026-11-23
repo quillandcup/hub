@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/supabase/api-auth';
+import { requireApiPermission } from '@/lib/supabase/api-auth';
 import { createRepos } from '@/lib/data/repos';
 import { FEATURE_PREVIEWS, type FeatureKey } from '@/lib/features';
 import { withAction } from "@/lib/analytics/server";
 import { responseOutcome } from "@/lib/analytics/outcome";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.previews.manage");
   if (auth.forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const features = await createRepos(auth.supabase).featureFlags.previewKeys(auth.user!.id);
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function handlePost(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.previews.manage");
   if (auth.forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const parsed = await request.json().catch(() => undefined);

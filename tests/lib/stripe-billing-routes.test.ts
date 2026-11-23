@@ -10,7 +10,7 @@ const stripe = vi.hoisted(() => ({
   fetchAllSubscriptions: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: vi.fn() }));
 vi.mock("@/lib/cron-heartbeats", () => ({ pingCronHeartbeat: vi.fn() }));
 vi.mock("@/lib/data/repos", () => ({ createRepos: vi.fn(() => repos) }));
 vi.mock("@/lib/stripe/client", () => ({ createStripeClient: vi.fn(() => stripe) }));
@@ -21,7 +21,7 @@ vi.mock("@/lib/stripe/billing-import", async () => ({
 
 import { GET as reconcile } from "@/app/api/reconcile/stripe-billing/route";
 import { POST as manualImport } from "@/app/api/import/stripe/route";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createStripeClient } from "@/lib/stripe/client";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { importStripeBilling, StripeBillingPermissionError } from "@/lib/stripe/billing-import";
@@ -31,7 +31,7 @@ const done = { invoices: 3, charges: 4, invoicesSince: null, chargesSince: null,
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "cron" } as never, forbidden: false, supabase: {} as never });
+  vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "cron" } as never, forbidden: false, supabase: {} as never });
   vi.mocked(importStripeBilling).mockResolvedValue(done);
   for (const upsert of Object.values(repos.billing)) upsert.mockResolvedValue(undefined);
   stripe.fetchAllCustomers.mockResolvedValue([{ id: "cus_AAAA1", email: "ada@example.test", name: "Ada Example", created: 1_700_000_000 }]);
@@ -41,9 +41,9 @@ beforeEach(() => {
 
 describe("GET /api/reconcile/stripe-billing", () => {
   it("answers 401 when unauthenticated and 403 when not an admin, and imports nothing", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as never });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as never });
     expect((await reconcile(request())).status).toBe(401);
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "u" } as never, forbidden: true, supabase: {} as never });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "u" } as never, forbidden: true, supabase: {} as never });
     expect((await reconcile(request())).status).toBe(403);
     expect(importStripeBilling).not.toHaveBeenCalled();
   });
@@ -101,9 +101,9 @@ describe("GET /api/reconcile/stripe-billing", () => {
 
 describe("POST /api/import/stripe", () => {
   it("answers 401 and 403 like the other admin imports", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as never });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as never });
     expect((await manualImport(request("http://localhost:3000/api/import/stripe"))).status).toBe(401);
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "u" } as never, forbidden: true, supabase: {} as never });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "u" } as never, forbidden: true, supabase: {} as never });
     expect((await manualImport(request("http://localhost:3000/api/import/stripe"))).status).toBe(403);
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent, type ScreenReaderInstructions } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -70,6 +70,8 @@ export function useReorderableList<T extends { id: string }>(items: T[], save: (
  * a screen reader is told while picking up, moving and dropping an item (by its name, not its id).
  */
 export function SortableList({ ids, labels, onReorder, children }: { ids: string[]; labels: Record<string, string>; onReorder: (ids: string[]) => void; children: ReactNode }) {
+  // dnd-kit numbers its accessibility text ids with a counter that runs on from request to request on the server and starts at zero in the browser, so the server HTML and the first client render disagreed (a hydration mismatch on every page with a list). A React id is the same on both.
+  const dndId = useId();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   function handleDragEnd({ active, over }: DragEndEvent) {
@@ -82,6 +84,7 @@ export function SortableList({ ids, labels, onReorder, children }: { ids: string
 
   return (
     <DndContext
+      id={dndId}
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}

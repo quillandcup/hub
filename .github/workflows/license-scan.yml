@@ -1,0 +1,55 @@
+name: License scan
+
+# Licenses of the installed dependencies against config/license-policy.json (`pnpm check:licenses`): an allow-list of
+# permissive licenses, with copyleft and undeclared licenses as findings; a package we accept on purpose is an exception
+# in that file with a reason and an expiry date. Not a required check and never blocks a merge. Scheduled and manual runs
+# fail on a finding (and post to the alerts channel); a pull request that touches the lockfile or the policy only reports
+# (step-level continue-on-error), for the reason audit.yml gives. The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL).
+on:
+  schedule:
+    - cron: "29 6 * * 1"
+  pull_request:
+    paths:
+      - package.json
+      - pnpm-lock.yaml
+      - config/license-policy.json
+      - scripts/check-licenses.ts
+      - .github/workflows/license-scan.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  licenses:
+    name: Dependency licenses
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: "package.json"
+
+      # pnpm reads each package's license from the installed files, so the dependencies must be installed.
+      - run: pnpm install --frozen-lockfile
+
+      # Step-level continue-on-error on pull requests only, as in audit.yml: the check stays green, the log shows the findings.
+      - name: Check licenses
+        id: licenses
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        run: pnpm check:licenses
+
+      - name: Post findings to Slack
+        if: always() && steps.licenses.outcome == 'failure' && github.event_name != 'pull_request'
+        env:
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_ALERTS_WEBHOOK_URL" ]; then echo "SLACK_ALERTS_WEBHOOK_URL is not set; not posting."; exit 0; fi
+          curl -sS --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\": \"License scan found dependencies outside the license policy. Details: $RUN_URL\"}" \
+            "$SLACK_ALERTS_WEBHOOK_URL"

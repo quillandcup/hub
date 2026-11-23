@@ -5,11 +5,11 @@ const { writesEnabled, projectChatMessage, markRemoved } = vi.hoisted(() => ({
   projectChatMessage: vi.fn(async () => true),
   markRemoved: vi.fn(async () => 0),
 }));
-vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
+vi.mock("@/modules/chat/slack/post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
 vi.mock("@/lib/chat-projection", () => ({ projectChatMessage: (...a: unknown[]) => projectChatMessage(...(a as [])) }));
 vi.mock("@/lib/slack-reactions", () => ({ markRemovedSlackReactions: (...a: unknown[]) => markRemoved(...(a as [])) }));
 
-import { catchUpChannel, fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
+import { catchUpChannel, fillMessageGap, fillThreadIfRootMissing } from "@/modules/chat/slack/gap-fill";
 import { setClock, systemClock } from "@/lib/clock";
 import { InMemoryChatRepository, type GapFillOutcome } from "@/lib/data/chat";
 import { InMemoryDataset } from "@/lib/data/in-memory";

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { storeImage } from "@/lib/media/library";
 import { withAction } from "@/lib/analytics/server";
@@ -13,7 +13,7 @@ import { responseOutcome } from "@/lib/analytics/outcome";
  * answers 200 with the same asset, a new one is 201.
  */
 async function handlePost(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "media.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

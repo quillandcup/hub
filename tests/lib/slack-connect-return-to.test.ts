@@ -26,7 +26,7 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/auth", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: m.getEffectiveIdentity }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: vi.fn() }));
 vi.mock("@/lib/slack-bot-install", () => ({ BOT_STATE_PREFIX: "bot-", completeBotInstall: vi.fn() }));
 vi.mock("@/lib/slack-connect", () => ({
   isSlackConnectConfigured: () => m.configured(),

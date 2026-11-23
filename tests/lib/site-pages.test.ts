@@ -138,3 +138,17 @@ describe("settings sections", () => {
     expect(rows).toBe(NOTIFICATION_KINDS.length);
   });
 });
+
+describe("milestones in search", () => {
+  const entries = SITE_PAGES.filter((p) => p.title === "Your milestones" || p.title === "Other works");
+
+  it("points at My Writing, where the milestones are, not at Settings", () => {
+    expect(entries.map((p) => p.href).sort()).toEqual(["/projects#other-works", "/projects#your-milestones"]);
+    expect(SETTINGS_SECTIONS.some((s) => s.id === "your-milestones")).toBe(false);
+  });
+
+  it("anchors both entries in the components My Writing renders", () => {
+    const source = fs.readFileSync(path.resolve(ROOT, "../components/writing/Milestones.tsx"), "utf8");
+    for (const p of entries) expect(source).toContain(`id="${p.href.split("#")[1]}"`);
+  });
+});

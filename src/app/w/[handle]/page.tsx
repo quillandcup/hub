@@ -41,6 +41,9 @@ export default async function WriterProfile({ params }: Params) {
   if (found.profile.handle !== handle) permanentRedirect(writerProfilePath(found.profile.handle));
   // The milestones at the globe: read now, after the checks in `load` (the page is on, the owner has the feature), and on every request
   // (the page is rendered on demand), so a withdrawn one is gone on the next read; the milestone actions also revalidate this path.
-  const milestones = await getServiceRepos().milestones.worksShownOnWeb(found.ownerId);
+  // A book published before the owner first joined is not a milestone in the community, on the page either (`reachedWhileMember`).
+  const repos = getServiceRepos();
+  const firstJoinedAt = (await repos.members.byId(found.ownerId))?.firstJoinedAt ?? null;
+  const milestones = await repos.milestones.worksShownOnWeb(found.ownerId, firstJoinedAt);
   return <WriterProfileView profile={found.profile} milestones={milestones} />;
 }

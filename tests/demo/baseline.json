@@ -1,1 +1,32 @@
-{}
+{
+  "desktop-dark": {
+    "/chat/:id": {
+      "edge:control-covered": 1
+    }
+  },
+  "desktop-light": {
+    "/chat/:id": {
+      "edge:control-covered": 1
+    }
+  },
+  "tablet-landscape-dark": {
+    "/chat/:id": {
+      "edge:control-covered": 1
+    }
+  },
+  "tablet-landscape-light": {
+    "/chat/:id": {
+      "edge:control-covered": 1
+    }
+  },
+  "tablet-portrait-dark": {
+    "/chat/:id": {
+      "edge:control-covered": 1
+    }
+  },
+  "tablet-portrait-light": {
+    "/chat/:id": {
+      "edge:control-covered": 1
+    }
+  }
+}

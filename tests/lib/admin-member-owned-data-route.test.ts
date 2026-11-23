@@ -5,7 +5,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { describeOwnedRows } from "@/lib/member-merge-coverage";
 
 const auth = vi.hoisted(() => ({ current: { user: { id: "admin" }, supabase: {} } as { user: { id: string } | null; forbidden?: boolean; supabase: object } }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => auth.current }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => auth.current }));
 
 const state = vi.hoisted(() => ({ repos: null as unknown }));
 vi.mock("@/lib/data/repos", async () => ({

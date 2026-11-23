@@ -10,10 +10,13 @@ SELECT plan(6);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'slack-sum-admin@example.test'),
   ('00000000-0000-4000-a000-00000000f5a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'slack-sum-member@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f5a1', 'slack-sum-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000f5a2', 'slack-sum-member@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f5a1', 'slack-sum-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000f5a2', 'slack-sum-member@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f5a1', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_SlkSumAAAA1', 'Sum Ada', 'slack-sum-ada@example.test', now(), 'active', NULL),
   ('mbr_SlkSumAAAA2', 'Sum Bea', 'slack-sum-bea@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f5a2');

@@ -5,8 +5,9 @@ import { nextVisibility, type Visibility } from "@/lib/writing-visibility";
 /**
  * Who can see a writing project or goal, as one control: a click moves it private -> community -> public -> private.
  * Lock = only me, house = other signed-in members, globe = open to the internet (the same lock and globe as everywhere,
- * `.claude/rules/icons.md`). Nothing public exists yet: that level is saved for the public profile that is coming, and
- * the tooltip says so. Reuse it wherever a writer's own work gets a visibility (books and awards later).
+ * `.claude/rules/icons.md`). Used for projects, goals, milestones, profile items and books (a book's own words are
+ * `describeBookLevel`, `src/lib/book-visibility.ts`); the default tooltip is the project and goal one, and anything else passes
+ * `describe`. Reuse it wherever a writer's own work gets a visibility (awards later: docs/TODO.md).
  */
 
 const ICON: Record<Visibility, IconName> = { private: "unpublish", community: "community", public: "publish" };

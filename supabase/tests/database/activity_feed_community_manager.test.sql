@@ -19,12 +19,16 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fc02', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fcm-admin@example.test'),
   ('00000000-0000-4000-a000-00000000fc03', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fcm-ada@example.test'),
   ('00000000-0000-4000-a000-00000000fc04', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fcm-plain@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fc01', 'fcm-manager@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000fc02', 'fcm-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000fc03', 'fcm-ada@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000fc04', 'fcm-plain@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fc01', 'fcm-manager@example.test'),
+  ('00000000-0000-4000-a000-00000000fc02', 'fcm-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000fc03', 'fcm-ada@example.test'),
+  ('00000000-0000-4000-a000-00000000fc04', 'fcm-plain@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000fc01', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000fc02', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Self is the community manager's own member record, Ada the member whose tab is read, Bo another member.
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES

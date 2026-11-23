@@ -6,8 +6,8 @@ import { COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, complianc
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 
-const requireAdminPage = vi.fn<() => Promise<unknown>>();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn<() => Promise<unknown>>();
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 import AdminCompliancePage from "@/app/(admin)/admin/compliance/page";
 import { containsText } from "@/tests/helpers/contains-text";
@@ -16,14 +16,14 @@ const ITEMS = COMPLIANCE_GROUPS.flatMap((g) => g.items);
 
 describe("/admin/compliance (staff)", () => {
   beforeEach(() => {
-    requireAdminPage.mockReset();
-    requireAdminPage.mockResolvedValue({ id: "admin" });
+    requirePermission.mockReset();
+    requirePermission.mockResolvedValue({ id: "admin" });
   });
 
   it("checks for an admin first and renders nothing when the check redirects", async () => {
-    requireAdminPage.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    requirePermission.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(AdminCompliancePage()).rejects.toThrow("NEXT_REDIRECT");
-    expect(requireAdminPage).toHaveBeenCalledTimes(1);
+    expect(requirePermission).toHaveBeenCalledTimes(1);
   });
 
   it("links to the public page and shows a section for each group", async () => {

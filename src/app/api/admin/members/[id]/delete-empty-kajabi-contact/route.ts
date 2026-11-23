@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createKajabiClient, isEmptyContact } from "@/lib/kajabi/client";
 import { normalizeEmail } from "@/lib/member-email";
@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
  * in Kajabi right now, and Kajabi must say nothing is attached (no customer record, tags or offers).
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "members.write");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import MediaLibraryClient from "./MediaLibraryClient";
 
 export const metadata: Metadata = {
@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 export default async function MediaPage() {
-  await requireAdminPage();
+  await requirePermission("media.manage");
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

@@ -204,6 +204,13 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "X (copy)", data: { copied_from: data.copied_from } }))).toBe("duplicated a course as “X (copy)”");
   });
 
+  it("reads a deleted course as one sentence with what went with it", () => {
+    const data = { modules_deleted: { old: 2, new: null }, lessons_deleted: { old: 5, new: null } };
+    expect(describeRow(row({ entity_type: "course", event_type: "delete", description: "Plot Lab (copy)", data }))).toBe("deleted a course “Plot Lab (copy)” (2 modules, 5 lessons)");
+    expect(describeRow(row({ entity_type: "course", event_type: "delete", description: "X", data: { modules_deleted: { old: 1, new: null }, lessons_deleted: { old: 1, new: null } } }))).toBe("deleted a course “X” (1 module, 1 lesson)");
+    expect(describeRow(row({ entity_type: "course", event_type: "delete", description: null, data: {} }))).toBe("deleted a course");
+  });
+
   it("uses verbs for insert and delete and caps long field lists", () => {
     expect(describeRow(row({ event_type: "insert", data: { a: { old: null, new: 1 } } }))).toBe("added prickle type");
     expect(describeRow(row({ event_type: "delete" }))).toBe("removed prickle type");
@@ -321,6 +328,22 @@ describe("describeRow for projects, books and check-ins", () => {
       });
     expect(describeRow(book("p1"))).toBe("published “Moon Garden” from a writing project");
     expect(describeRow(book(null))).toBe("added “Moon Garden” to their bookshelf");
+  });
+
+  it("says who can see a book now, in words, with a title that has & and < and never the description", () => {
+    const level = (to: string, over: Record<string, unknown> = {}) =>
+      row({
+        entity_type: "member_book",
+        event_type: "update",
+        description: "Salt & <Sea>",
+        data: { visibility: change("public", to), ...over },
+      });
+    expect(describeRow(level("private"))).toBe("made “Salt & <Sea>” private: only they can see it");
+    expect(describeRow(level("community"))).toBe("showed “Salt & <Sea>” to other members only");
+    expect(describeRow(level("public"))).toBe("showed “Salt & <Sea>” on the public Hedgie Bookshelf");
+    const withText = describeRow(level("private", { description: change("old words", "A private paragraph") }));
+    expect(withText).not.toContain("paragraph");
+    expect(withText).not.toContain("old words");
   });
 
   it("reads a soft delete as a delete, and clearing it as a restore", () => {
@@ -683,6 +706,7 @@ describe("the page builder in the Activity Log", () => {
 
   it("says each thing done to a page in plain words, naming the page by its title", () => {
     expect(describeRow(page("insert", { title: { old: null, new: "Spring" } }))).toBe("created the page “Spring & <Summer> sale”");
+    expect(describeRow(page("insert", { title: { old: null, new: "Spring" }, replaced_at: { old: null, new: "2026-11-21" } }))).toBe("created the page “Spring & <Summer> sale” from a JSON file");
     expect(describeRow(page("update", { status: { old: "draft", new: "published" }, published_at: { old: null, new: "2026-10-05" } }))).toBe("published the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { published_at: { old: "2026-10-01", new: "2026-10-05" } }))).toBe("published the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { status: { old: "published", new: "draft" } }))).toBe("took the page “Spring & <Summer> sale” down");
@@ -691,6 +715,8 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(page("update", { slug: { old: "a", new: "b" } }))).toBe("changed the address of the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { seo_title: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed the search and sharing details of the page “Spring & <Summer> sale”");
     expect(describeRow(page("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the page “Spring & <Summer> sale”");
+    expect(describeRow(page("update", { replaced_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the page “Spring & <Summer> sale” with a template or an imported file");
+    // a row written before the column was renamed
     expect(describeRow(page("update", { starter_applied_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the page “Spring & <Summer> sale” with a template or an imported file");
     expect(describeRow(page("update", { imported_at: { old: null, new: "2026-10-05" } }))).toBe("imported a Kajabi page into the draft of “Spring & <Summer> sale”");
   });
@@ -702,6 +728,8 @@ describe("the page builder in the Activity Log", () => {
     expect(describeRow(kit("update", { published_at: { old: "2026-10-01", new: "2026-10-05" } }))).toBe("published the template “Launch & <Kit>”");
     expect(describeRow(kit("update", { status: { old: "published", new: "draft" } }))).toBe("took the template “Launch & <Kit>” down");
     expect(describeRow(kit("update", { restored_at: { old: null, new: "2026-10-05" } }))).toBe("brought back an earlier version of the template “Launch & <Kit>” into its draft");
+    expect(describeRow(kit("update", { replaced_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the template “Launch & <Kit>” with a template or an imported file");
+    // a row written before the column was renamed
     expect(describeRow(kit("update", { starter_applied_at: { old: null, new: "2026-10-05" } }))).toBe("replaced the draft of the template “Launch & <Kit>” with a template or an imported file");
     expect(describeRow(kit("update", { title: { old: "Old & <name>", new: "New" } }))).toBe("renamed the template “Old & <name>” to “New”");
     expect(describeRow(kit("update", { deleted_at: { old: null, new: "2026-10-05" } }))).toBe("deleted the template “Launch & <Kit>”");
@@ -778,6 +806,13 @@ describe("the Finisher record in the Activity Log", () => {
     expect(describeRow(milestone("update", { visibility: { old: "private", new: "community" } }))).toBe("showed a writing milestone to other members");
     expect(describeRow(milestone("update", { visibility: { old: "community", new: "public" } }))).toBe("showed a writing milestone on their public writer profile");
     expect(describeRow(milestone("update", { deleted_at: { old: null, new: "2026-11-20" } }, "Ada & <Bo>"))).toBe("took back a proposed milestone for Ada & <Bo>");
+  });
+
+  it("says that the photo on a milestone changed, never where it is or what it shows", () => {
+    const changed = describeRow(milestone("update", { photo_path: { old: "[redacted]", new: "[redacted]" }, updated_at: { old: "a", new: "b" } }));
+    expect(changed).toBe("changed the photo on a writing milestone");
+    expect(describeRow(milestone("update", { photo_alt: { old: "[redacted]", new: "[redacted]" } }))).toBe("changed what the photo on a writing milestone shows");
+    expect(changed).not.toMatch(/redacted|webp|mbr_/);
   });
 
   it("says a milestone the member added themselves, and their own take-back, without a date or a story", () => {

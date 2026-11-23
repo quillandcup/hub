@@ -8,7 +8,7 @@ import { detectDuplicates, withDuplicateAliases } from "@/lib/member-duplicates"
 import MergeFixClient from "./MergeFixClient";
 import { sortGroupMembers } from "@/lib/merge-fix";
 import type { EnrichedGroup } from "@/lib/merge-fix";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Merge & Fix",
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function MergeFixPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   const user = await getCurrentUser();

@@ -6,7 +6,7 @@ import { buildRoster, type RosterAccess, type RosterLesson, type RosterProgress,
 type RosterDataRepos = Pick<Repos, "courseProgress" | "courses" | "members">;
 
 /**
- * The roster page's data (service role, behind `requireAdminPage()`): everyone with access to the
+ * The roster page's data (service role, behind `requirePermission(...)`): everyone with access to the
  * course and their lesson progress, in a handful of batched reads (never a query per member).
  * Null when the course isn't in the Hub.
  */

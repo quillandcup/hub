@@ -7,7 +7,7 @@ vi.mock("@/lib/search/universal", () => ({ universalSearch: (...args: unknown[])
 const loadUnreadCounts = vi.fn();
 vi.mock("@/lib/chat/load", () => ({ loadUnreadCounts: (...args: unknown[]) => loadUnreadCounts(...args) }));
 const pullReadFromSlack = vi.fn();
-vi.mock("@/lib/chat/slack-read", () => ({ pullReadFromSlack: (...args: unknown[]) => pullReadFromSlack(...args) }));
+vi.mock("@/modules/chat/slack/read", () => ({ pullReadFromSlack: (...args: unknown[]) => pullReadFromSlack(...args) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 vi.mock("@/lib/search/metrics", () => ({ recordSearchTimings: vi.fn() }));
 const closeCheckinDmsAfterResponse = vi.fn();

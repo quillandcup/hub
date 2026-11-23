@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadAdminLesson, type AdminLessonDetail } from "@/lib/courses/admin";
 import { formatCourseDateTime } from "@/lib/courses/format";
@@ -144,7 +144,7 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean, mux
 
 /** One lesson's builder page: the lesson as last imported from Kajabi, read only until the builder can save. */
 export default async function AdminLessonPage({ params }: Params) {
-  const user = await requireAdminPage();
+  const user = await requirePermission("courses.manage");
   const { id, lessonId } = await params;
   const detail = await loadAdminLesson(createRepos(await createClient()), id, lessonId);
   if (!detail) notFound();

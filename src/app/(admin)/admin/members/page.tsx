@@ -14,7 +14,7 @@ import {
   type MemberFilter,
 } from "@/lib/admin-members-paging";
 import { parsePageParam, parsePageSizeParam, parseSortParams } from "@/lib/pagination";
-import { requireStaffPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { staffCan } from "@/lib/staff-access";
 
 export const metadata: Metadata = {
@@ -28,7 +28,7 @@ export default async function MembersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const canBulkMerge = staffCan((await requireStaffPage()).role, "members.bulk_merge");
+  const canBulkMerge = staffCan(await requirePermission("members.read"), "members.bulk_merge");
   const supabase = await createClient();
   const params = await searchParams;
 

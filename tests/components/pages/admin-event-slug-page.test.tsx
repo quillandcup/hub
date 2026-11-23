@@ -10,7 +10,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => undefined) }));
 vi.mock("@/components/RecordHistoryButton", () => ({ default: () => null }));
 vi.mock("@/app/(admin)/admin/events/[slug]/EventDetailClient", () => ({ default: ({ eventId }: { eventId: string }) => <div data-testid="client">{eventId}</div> }));
 vi.mock("@/app/(admin)/admin/events/[slug]/import-photos/ImportPhotosClient", () => ({

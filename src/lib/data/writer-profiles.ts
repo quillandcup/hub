@@ -84,6 +84,8 @@ export interface WriterProfileRepository {
   setHandle(memberId: string, handle: string, options: { reserveDays: number; now: Date }): Promise<SetHandleOutcome>;
   /** What a visitor gets at this address (service role). A page that is off, deleted or not servable is "none", like one that never existed. */
   publicByHandle(handle: string): Promise<PublicLookup>;
+  /** Whether this member's page is on and can be served to a visitor right now (service role): switched on, not deleted, the member not removed. */
+  isOnForMember(memberId: string): Promise<boolean>;
   /** The member's page as a visitor would see it, switched on or not (service role; for the member's own preview). */
   previewOfMember(memberId: string): Promise<PublicWriterProfile | null>;
   /** How many pages are public (service role): the sitemap's size. */
@@ -246,6 +248,11 @@ export class SupabaseWriterProfileRepository implements WriterProfileRepository 
     return profile && current ? { kind: "redirect", handle: profile.handle, ownerId: current.member_id } : { kind: "none" };
   }
 
+  async isOnForMember(memberId: string): Promise<boolean> {
+    const row = await this.publicRow("member_id", memberId, true);
+    return row !== null && toPublic(row) !== null;
+  }
+
   async previewOfMember(memberId: string): Promise<PublicWriterProfile | null> {
     const row = await this.publicRow("member_id", memberId, false);
     return row ? toPublic(row) : null;
@@ -402,6 +409,11 @@ export class InMemoryWriterProfileRepository implements WriterProfileRepository 
     const current = old ? this.live().find((p) => p.member_id === old.member_id && p.is_public) : undefined;
     const profile = current ? toPublic(this.toPublicRow(current)) : null;
     return profile && current ? { kind: "redirect", handle: profile.handle, ownerId: current.member_id } : { kind: "none" };
+  }
+
+  async isOnForMember(memberId: string) {
+    const row = this.live().find((p) => p.member_id === memberId && p.is_public);
+    return row !== undefined && toPublic(this.toPublicRow(row)) !== null;
   }
 
   async previewOfMember(memberId: string) {

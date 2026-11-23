@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * RLS write boundary for the tables tightened in
  * 20260926000600_tighten_permissive_write_policies.sql. Hits PostgREST directly with real
- * member/admin sessions (the API routes' requireAdmin isn't in play here).
+ * member/admin sessions (the API routes' requireApiPermission isn't in play here).
  *
  * Postgres checks RLS WITH CHECK before NOT NULL / other constraints, so an empty INSERT is a
  * clean probe: a denied role gets 42501, a permitted one gets past RLS (and then usually a
@@ -49,7 +50,7 @@ describe('tightened write policies (RLS)', () => {
     const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create test user: ${error?.message}`)
     authUserIds.push(data.user.id)
-    await service.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(service, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in: ${signInError.message}`)

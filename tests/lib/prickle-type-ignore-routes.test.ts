@@ -19,7 +19,7 @@ vi.mock("@/lib/data/repos", async () => ({
 let signedIn = true;
 let forbidden = false;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, forbidden, supabase: {} } : { user: null }),
+  requireApiPermission: async () => (signedIn ? { user: { id: "admin" }, forbidden, supabase: {} } : { user: null }),
 }));
 
 import { POST as ignoreOne } from "@/app/api/prickle-types/ignore/route";

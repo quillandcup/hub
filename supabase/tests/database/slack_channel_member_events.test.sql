@@ -16,10 +16,13 @@ SELECT ok(NOT has_table_privilege('anon', 'bronze.slack_channel_membership_perio
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000d1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'events-fern@example.test'),
   ('00000000-0000-4000-a000-00000000d1a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'events-bramble@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000d1a1', 'events-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000d1a4', 'events-bramble@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000d1a1', 'events-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000d1a4', 'events-bramble@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000d1a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO bronze.slack_channel_member_events (channel_id, user_id, event, occurred_at, source, inviter_user_id) VALUES
   -- U_REJOIN: joined (notice + the webhook a moment later), left, came back. Two periods.

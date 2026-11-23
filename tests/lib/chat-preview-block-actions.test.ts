@@ -12,11 +12,11 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 vi.mock("@/lib/data/repos", async () => ({ ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")), createRepos: () => m.repos }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_name: string, run: () => Promise<unknown>) => run() }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: async () => ({ connected: true }) }));
-vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn(async () => "sent") }));
-vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: async () => ({ ok: true }), deleteChatMessageInSlack: vi.fn(), deleteChatFileInSlack: vi.fn() }));
+vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: vi.fn(async () => "sent") }));
+vi.mock("@/modules/chat/slack/edit", () => ({ updateChatMessageInSlack: async () => ({ ok: true }), deleteChatMessageInSlack: vi.fn(), deleteChatFileInSlack: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
 const removeSlackUnfurl = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/chat/slack-unfurl-removal", () => ({ removeSlackUnfurl }));
+vi.mock("@/modules/chat/slack/unfurl-removal", () => ({ removeSlackUnfurl }));
 vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessage: vi.fn(), resolveChatNotifications: vi.fn() }));
 
 import { hideChatUnfurl, unblockChatPreviews } from "@/app/(member)/chat/actions";

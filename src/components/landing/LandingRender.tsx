@@ -1,5 +1,7 @@
 import { Render, type Data } from "@puckeditor/core";
+import { faqStructuredData } from "@/lib/landing/faq-schema";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
+import { jsonLdScript } from "@/lib/writer-profile-seo";
 import type { PageBlockRegistry } from "./block-registry";
 import { withStandIns } from "./block-placeholder";
 import { buildRenderConfig, pageBlocks, renderConfig, renderConfigFor, type FrameContext } from "./config";
@@ -12,10 +14,20 @@ import { buildRenderConfig, pageBlocks, renderConfig, renderConfigFor, type Fram
  *
  * A stored block that nothing in the block registry owns (its module is not installed) draws nothing instead of breaking the
  * page (block-placeholder.tsx). `registry` is for tests that build a composition without a module; the page uses the installed one.
+ *
+ * `structuredData` is set by the published public route only (never the admin preview, never the editor's canvas, which does not use
+ * this component): it adds the page's FAQ as schema.org JSON-LD (`faqStructuredData`). That is a data block, not a script that runs, so
+ * the per-request nonce of src/lib/csp.ts does not apply to it (as for the writer profile's); `jsonLdScript` escapes `<`.
  */
-export default function LandingRender({ data, frame, registry = pageBlocks }: { data: unknown; frame?: FrameContext; registry?: PageBlockRegistry }) {
+export default function LandingRender({ data, frame, registry = pageBlocks, structuredData = false }: { data: unknown; frame?: FrameContext; registry?: PageBlockRegistry; structuredData?: boolean }) {
   const clean = sanitizeLandingData(data);
   const base = registry === pageBlocks ? renderConfig : buildRenderConfig(registry);
   const config = withStandIns(frame ? renderConfigFor(frame, base) : base, clean, registry, false);
-  return <Render config={config} data={clean as unknown as Data} />;
+  const faq = structuredData ? faqStructuredData(clean) : null;
+  return (
+    <>
+      <Render config={config} data={clean as unknown as Data} />
+      {faq && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faq) }} />}
+    </>
+  );
 }

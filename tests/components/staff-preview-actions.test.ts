@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => ({ set: vi.fn(), delete: vi.fn() }));
 const state = vi.hoisted(() => ({ user: null as { id: string } | null, admin: false }));
-const redirect = vi.hoisted(() => vi.fn((to: string) => { throw new Error(`redirect:${to}`); }));
 
 vi.mock("next/headers", () => ({ cookies: async () => store }));
-vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => state.user }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({ profiles: { isAdmin: async () => state.admin } }) }));
@@ -21,8 +19,13 @@ beforeEach(() => {
 
 describe("startRolePreview", () => {
   it("sets the preview cookie for an admin and lands on the role's home", async () => {
-    await expect(startRolePreview("community_manager")).rejects.toThrow("redirect:/admin/at-risk");
+    await expect(startRolePreview("community_manager")).resolves.toBe("/admin/at-risk");
     expect(store.set).toHaveBeenCalledWith("staff_preview_role", "community_manager", expect.objectContaining({ httpOnly: true, path: "/" }));
+  });
+
+  it("previews the conversion specialist too, landing on their home", async () => {
+    await expect(startRolePreview("conversion_specialist")).resolves.toBe("/admin/pages");
+    expect(store.set).toHaveBeenCalledWith("staff_preview_role", "conversion_specialist", expect.objectContaining({ httpOnly: true, path: "/" }));
   });
 
   it("refuses a signed-out caller and a non-admin, setting nothing", async () => {
@@ -42,7 +45,7 @@ describe("startRolePreview", () => {
 
 describe("stopRolePreview", () => {
   it("clears the cookie and returns to the admin dashboard", async () => {
-    await expect(stopRolePreview()).rejects.toThrow("redirect:/admin");
+    await expect(stopRolePreview()).resolves.toBe("/admin");
     expect(store.delete).toHaveBeenCalledWith("staff_preview_role");
   });
 });

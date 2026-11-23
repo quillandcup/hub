@@ -20,7 +20,7 @@ vi.mock("@/lib/data/repos", async () => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(dataset) };
 });
 
-import { decideDmEvent, isMemberTokenConversation, isSlackDmChannelId } from "@/lib/chat/slack-dm-events";
+import { decideDmEvent, isMemberTokenConversation, isSlackDmChannelId } from "@/modules/chat/slack/dm-events";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 const service = {} as never;

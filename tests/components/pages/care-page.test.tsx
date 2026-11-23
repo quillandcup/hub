@@ -8,7 +8,7 @@ import { cleanup, fireEvent, screen, within, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { COMMUNITY_MANAGER_FEATURES, type StaffFeature } from "@/lib/staff-access";
+import { withdrawCommunityManagerFeatures } from "../../helpers/community-manager-permissions";
 import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerRoute, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 
 // The page's own search params are the address bar's, so the owner filter can be read from and written to the URL.
@@ -294,9 +294,11 @@ describe("the Active tab", () => {
   });
 
   describe("without the write feature", () => {
-    const granted = [...COMMUNITY_MANAGER_FEATURES];
-    beforeEach(() => (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).splice(0));
-    afterEach(() => (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).push(...granted));
+    let restore = () => {};
+    beforeEach(() => {
+      restore = withdrawCommunityManagerFeatures();
+    });
+    afterEach(() => restore());
 
     it("shows the list with no form and no controls", async () => {
       signInAs(CM_USER);
@@ -1281,8 +1283,7 @@ describe("handing a care plan over: it takes two", () => {
   });
 
   it("shows nothing about hand-overs without the write feature", async () => {
-    const granted = [...COMMUNITY_MANAGER_FEATURES];
-    (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).splice(0);
+    const restore = withdrawCommunityManagerFeatures();
     try {
       Object.assign(dataset.careEngagements.find((c) => c.id === "care_AAAAAAAAAAA2")!, { handover_to: CM_USER.id, handover_by: ADMIN_USER.id, handover_at: ago(1) });
       await open();
@@ -1290,7 +1291,7 @@ describe("handing a care plan over: it takes two", () => {
       expect(screen.queryByRole("button", { name: "Hand over to…" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     } finally {
-      (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).push(...granted);
+      restore();
     }
   });
 });

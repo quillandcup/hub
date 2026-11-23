@@ -9,7 +9,7 @@ const revalidated: string[] = [];
 vi.mock("next/cache", () => ({ revalidatePath: (path: string) => revalidated.push(path) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }));
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
+  requireActionPermission: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
 }));
 vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => false, generateLandingPage: async () => undefined, reviseLandingPage: async () => undefined }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
@@ -95,7 +95,7 @@ describe("importLandingDraftJson", () => {
     expect(page).toMatchObject({ title: "My page", slug: "mine", seo_title: "Search title", seo_description: "Words", status: "published", published_at: before.published_at });
     const versions = await state.repos.landingPages.versions(id);
     expect(versions).toHaveLength(versionsBefore.length + 1);
-    expect(versions[0]).toMatchObject({ kind: "before_starter", title: "My page", note: "Replaced by a JSON import" });
+    expect(versions[0]).toMatchObject({ kind: "before_replace", title: "My page", note: "Replaced by a JSON import" });
     expect(versions.slice(1).map((v) => v.id)).toEqual(versionsBefore.map((v) => v.id));
     expect(await state.repos.landingPages.published("mine")).toMatchObject({ title: "My page" });
     expect(revalidated).toContain("/admin/pages");
@@ -106,7 +106,7 @@ describe("importLandingDraftJson", () => {
   it("can be undone: the kept draft comes back with Bring back", async () => {
     const id = await livePage();
     await importLandingDraftJson(id, file(doc({ type: "Heading", props: { id: "n", text: "Brand new", level: "h2", align: "left" } })));
-    const kept = (await state.repos.landingPages.versions(id)).find((v) => v.kind === "before_starter")!;
+    const kept = (await state.repos.landingPages.versions(id)).find((v) => v.kind === "before_replace")!;
 
     await restoreLandingPageVersion(kept.id);
 
@@ -267,7 +267,7 @@ describe("importLandingDraftJson", () => {
 
   it("reports a failure as a plain message", async () => {
     const id = await livePage();
-    vi.spyOn(state.repos.landingPages, "replaceDraftWithStarter").mockRejectedValueOnce(new Error("db down"));
+    vi.spyOn(state.repos.landingPages, "replaceDraft").mockRejectedValueOnce(new Error("db down"));
     expect(await importLandingDraftJson(id, file(doc()))).toEqual({ error: "Couldn't import the page." });
   });
 });

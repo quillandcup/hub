@@ -23,9 +23,7 @@ import ProfilePhoto from "./ProfilePhoto";
 import { setProfileVisibility } from "./profileVisibilityActions";
 import type { ProfileItem } from "@/lib/profile-visibility";
 import type { Visibility } from "@/lib/writing-visibility";
-import WriterProfileReview, { type ReviewItem } from "./WriterProfileReview";
-import { buildWorks, type CardBook, type CardProject } from "@/lib/finishers-works";
-import type { Milestone } from "@/lib/data/milestones";
+import WriterProfileOnNote from "./WriterProfileOnNote";
 
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
@@ -68,18 +66,7 @@ function ItemHeader({ children, control }: { children: React.ReactNode; control:
  * field; bio / Facebook / X are Hub-owned overrides. Below it, when pages on the web are open to the member, the block
  * about their writer profile (`WriterProfilePanel`). "Who's coming" lives in Preferences (`WhosComingSetting`).
  */
-export function ProfilePanel({
-  milestones = [],
-  projects = [],
-  books = [],
-  readOnly = false,
-}: {
-  /** The member's milestones, works and books, for the one-time look at what the page shows after the profile is switched on. */
-  milestones?: Milestone[];
-  projects?: CardProject[];
-  books?: CardBook[];
-  readOnly?: boolean;
-} = {}) {
+export function ProfilePanel() {
   const [data, setData] = useState<ProfileSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,8 +79,8 @@ export function ProfilePanel({
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState<MyWriterProfile | null>(null);
   const [savingItem, setSavingItem] = useState<ProfileItem | null>(null);
-  // Set when the member switches their writer profile on: the one-time look at who sees what, until they dismiss it or switch it off.
-  const [review, setReview] = useState(false);
+  // Set when the member switches their writer profile on: the short confirmation, until they dismiss it or switch it off.
+  const [justTurnedOn, setJustTurnedOn] = useState(false);
 
   // The writer profile's settings: they decide whether a globe is offered and what its note says. A failed read leaves the page block out.
   const loadPage = useCallback(async () => {
@@ -219,18 +206,6 @@ export function ProfilePanel({
     />
   );
 
-  const reviewItems: ReviewItem[] = [
-    { key: "photo", label: "Photo", has: Boolean(data.photo.url) },
-    { key: "bio", label: "Bio", has: Boolean(data.details.bio?.trim()) || separateBio },
-    { key: "instagram", label: "Instagram", has: Boolean(data.instagramUrl) },
-    { key: "facebook", label: "Facebook", has: Boolean(data.details.facebookUrl) },
-    { key: "x", label: "X / Twitter", has: Boolean(data.details.twitterUrl) },
-  ]
-    .filter((i) => i.has)
-    .map((i) => ({ key: i.key, label: i.label, control: control(i.key as ProfileItem) }));
-  const shownName =
-    page?.nameChoices.find((c) => (page.publicNameAliasId ? c.aliasId === page.publicNameAliasId : page.useAccountName ? c.kind === "account" : c.kind === "display"))?.label ?? null;
-
   return (
     <div className="space-y-8">
       <div>
@@ -255,7 +230,7 @@ export function ProfilePanel({
       {(error || message) && (
         <div role="status" className="text-sm">
           {error && <span className="text-red-600 dark:text-red-400">{error}</span>}
-          {!error && message && <span className="text-green-600 dark:text-green-400">{message}</span>}
+          {!error && message && <span className="text-green-700 dark:text-green-400">{message}</span>}
         </div>
       )}
 
@@ -394,18 +369,10 @@ export function ProfilePanel({
 
       {page?.available && (
         <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-          <WriterProfilePanel settings={page} onChanged={loadPage} onTurnedOn={() => setReview(true)} onTurnedOff={() => setReview(false)} />
-          {review && page.isPublic && (
+          <WriterProfilePanel settings={page} onChanged={loadPage} onTurnedOn={() => setJustTurnedOn(true)} onTurnedOff={() => setJustTurnedOn(false)} />
+          {justTurnedOn && page.isPublic && (
             <div className="mt-4">
-              <WriterProfileReview
-                name={shownName}
-                items={reviewItems}
-                works={buildWorks(projects, books, milestones)}
-                webAvailable={page.available}
-                previewPath={page.previewPath}
-                readOnly={readOnly}
-                onDone={() => setReview(false)}
-              />
+              <WriterProfileOnNote address={page.pageUrl} previewPath={page.previewPath} onDone={() => setJustTurnedOn(false)} />
             </div>
           )}
         </div>

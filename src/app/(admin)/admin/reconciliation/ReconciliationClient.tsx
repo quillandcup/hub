@@ -345,7 +345,7 @@ export default function ReconciliationClient() {
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Members</div>
         </div>
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+          <div className="text-2xl font-bold text-green-700 dark:text-green-400">
             {data.summary.active_in_stripe}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Paying (Stripe)</div>
@@ -379,7 +379,7 @@ export default function ReconciliationClient() {
             className={`text-2xl font-bold ${
               data.summary.discrepancies > 0
                 ? "text-red-600 dark:text-red-400"
-                : "text-green-600 dark:text-green-400"
+                : "text-green-700 dark:text-green-400"
             }`}
           >
             {data.summary.discrepancies}
@@ -538,7 +538,7 @@ export default function ReconciliationClient() {
                     {slackData && (
                       <td className="px-4 py-3 text-sm">
                         {inSlack ? (
-                          <span className="text-green-600 dark:text-green-400">✓</span>
+                          <span className="text-green-700 dark:text-green-400">✓</span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}
@@ -620,7 +620,7 @@ export default function ReconciliationClient() {
                           ⚠ Mismatch
                         </span>
                       ) : (
-                        <span className="text-green-600 dark:text-green-400 text-sm">✓ OK</span>
+                        <span className="text-green-700 dark:text-green-400 text-sm">✓ OK</span>
                       )}
                     </td>
                   </tr>

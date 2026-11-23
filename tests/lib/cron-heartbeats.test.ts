@@ -50,9 +50,10 @@ describe("CRON_HEARTBEATS coverage", () => {
 
   it("leaves a job out of the Checkly monitors only with a reason, and only the ones marked", () => {
     const unmonitored = Object.entries<CronHeartbeat>(CRON_HEARTBEATS).filter(([, h]) => h.unmonitored !== undefined);
-    expect(unmonitored.map(([job]) => job)).toEqual(["reconcile-email", "reconcile-stripe-billing", "changelog-digest", "lesson-comment-notifications", "csp-health"]);
+    expect(unmonitored.map(([job]) => job)).toEqual(["reconcile-slack-dms", "reconcile-email", "reconcile-stripe-billing", "changelog-digest", "lesson-comment-notifications", "csp-health"]);
     for (const [job, h] of unmonitored) expect(h.unmonitored, job).toMatch(/\S/);
     const monitored = MONITORED_HEARTBEATS.map(([job]) => job);
+    expect(monitored).not.toContain("reconcile-slack-dms");
     expect(monitored).not.toContain("reconcile-email");
     expect(monitored).not.toContain("reconcile-stripe-billing");
     expect(monitored).not.toContain("changelog-digest");
@@ -60,6 +61,18 @@ describe("CRON_HEARTBEATS coverage", () => {
     expect(monitored).not.toContain("csp-health");
     expect(monitored).toHaveLength(Object.keys(CRON_HEARTBEATS).length - unmonitored.length);
     expect(monitored).toContain("reconcile-calendar");
+  });
+
+  it("keeps the Checkly monitors within the plan's uptime monitor limit", () => {
+    // The Hobby plan allows 10 uptime monitors (heartbeats and URL monitors both count). Over it, the whole
+    // `checkly deploy` fails, so no monitor change goes live. Raise this when the plan does.
+    const planLimit = 10;
+    const urlMonitors = fs
+      .readdirSync(path.join(process.cwd(), "config", "checkly", "__checks__"))
+      .filter((f) => f.endsWith(".check.ts"))
+      .reduce((n, f) => n + (fs.readFileSync(path.join(process.cwd(), "config", "checkly", "__checks__", f), "utf8").match(/new (UrlMonitor|TcpMonitor)\(/g)?.length ?? 0), 0);
+    expect(urlMonitors).toBeGreaterThan(0);
+    expect(MONITORED_HEARTBEATS.length + urlMonitors).toBeLessThanOrEqual(planLimit);
   });
 
   it("pings from each job's route", () => {

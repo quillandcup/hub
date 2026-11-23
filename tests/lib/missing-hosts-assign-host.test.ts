@@ -25,7 +25,7 @@ const supabase = {};
 /** The decisions stored so far (the review queue table). */
 const decisions = () => dataset.unmatchedEvents;
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (admin ? { ok: true, supabase, user: { id: "u1" } } : { ok: false, error: "Not authorized" }),
+  requireActionPermission: async () => (admin ? { ok: true, supabase, user: { id: "u1" } } : { ok: false, error: "Not authorized" }),
 }));
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));

@@ -54,7 +54,7 @@ vi.mock('@slack/web-api', () => ({
   },
 }))
 
-vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
+vi.mock('@/lib/supabase/api-auth', () => ({ requireApiPermission: vi.fn() }))
 // The import writes membership, emoji and file records with the service role.
 vi.mock('@/lib/supabase/service', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
@@ -62,7 +62,7 @@ vi.mock('@/lib/supabase/service', async () => {
 })
 vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }))
 
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { triggerReprocessing } from '@/lib/processing/trigger'
 import { POST } from '@/app/api/import/slack-api/route'
 
@@ -91,7 +91,7 @@ describe('POST /api/import/slack-api thread replies', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.stubEnv('SLACK_BOT_TOKEN', 'xoxb-test')
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
     await cleanup()
   })
 

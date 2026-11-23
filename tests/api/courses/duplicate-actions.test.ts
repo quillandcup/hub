@@ -14,7 +14,7 @@ const auth = vi.hoisted(() => ({ admin: true, client: null as unknown }))
 vi.mock('@/lib/admin-auth', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
   return {
-    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: auth.client ?? getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
+    requireActionPermission: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: auth.client ?? getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
   }
 })
 vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }))

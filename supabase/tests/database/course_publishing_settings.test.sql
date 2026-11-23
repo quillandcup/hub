@@ -13,10 +13,13 @@ SELECT plan(32);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'settings-alice@example.test'),
   ('00000000-0000-4000-a000-00000000e2a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'settings-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e2a1', 'settings-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e2a4', 'settings-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e2a1', 'settings-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000e2a4', 'settings-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e2a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- The rule on its own.
 SELECT is(public.course_visibility('published'), 'open', 'published is open');

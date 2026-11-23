@@ -57,6 +57,9 @@ describe("SortableList", () => {
     vi.resetModules();
     const { SortableList: Fresh } = await import("@/components/writing/SortableList");
     render(<Fresh ids={ids} labels={labels} onReorder={() => {}}>{null}</Fresh>);
+    // An id of its own (React's, the same on the server and in the browser): dnd-kit's counter is not, which was a hydration mismatch.
+    expect((captured as DndContextProps | null)?.id).toEqual(expect.any(String));
+    expect((captured as DndContextProps | null)?.id).not.toBe("");
     const accessibility = (captured as DndContextProps | null)?.accessibility;
     expect(accessibility?.screenReaderInstructions).toEqual(SCREEN_READER_INSTRUCTIONS);
     expect(accessibility?.announcements?.onDragStart?.({ active: { id: "p1" } } as never)).toBe("Picked up Alpha Draft. It is at position 1 of 3.");

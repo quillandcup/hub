@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 
@@ -13,7 +13,7 @@ const PAGE_PATH = "/admin/data/slack-channels";
  * already copied into member activities (docs/product/SLACK_BRIDGED_CHAT.md).
  */
 export async function restrictSlackChannel(channelId: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("data.hygiene.manage");
   if (!auth.ok) return { error: auth.error };
   const { supabase } = auth;
 
@@ -37,7 +37,7 @@ export async function restrictSlackChannel(channelId: string) {
  * message text back for the last 90 days; older activity rows stay without it.
  */
 export async function unrestrictSlackChannel(channelId: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("data.hygiene.manage");
   if (!auth.ok) return { error: auth.error };
   const { supabase } = auth;
 

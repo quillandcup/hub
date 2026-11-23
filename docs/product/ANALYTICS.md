@@ -118,7 +118,7 @@ Where a visit came from is **not** stored with the video data: the general acces
 
 Both usage pages have two filters (`src/lib/analytics/audience.ts`, `src/components/admin/AudienceFilter.tsx`), kept in the address (`staff=hide`, `sudo=show`) so a view can be shared:
 
-- **Ignore staff** (off by default): leave out events from staff, meaning admins (`user_profiles.role = 'admin'`) and members with a `staff_role`. Turn it on once real members use the Hub, so staff testing doesn't read as usage.
+- **Ignore staff** (off by default): leave out events from staff, meaning admins (a `user_roles` row of `admin`) and members with a `staff_role`. Turn it on once real members use the Hub, so staff testing doesn't read as usage.
 - **Ignore staff in sudo** (on by default): leave out events recorded while an admin viewed as a member. Those are the viewed member's experience driven by staff, so "ignore staff" does not remove them; this filter alone decides whether they count, which keeps the two independent.
 
 Every analytics function takes `ignore_staff` and `ignore_sudo` (defaults: false and true, so a caller that passes neither behaves as before) and applies them through `analytics_counts()` / `analytics_is_staff()`.

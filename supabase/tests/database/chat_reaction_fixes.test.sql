@@ -13,9 +13,9 @@ SELECT plan(9);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fba1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rfix-fern@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fba1', 'rfix-fern@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fba1', 'rfix-fern@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('00000000-0000-4000-a000-00000000fb01', 'Fix Fern', 'rfix-fern@example.test', now(), 'active');
 INSERT INTO public.chat_channels (id, kind, visibility, restricted, name, slack_channel_id) VALUES

@@ -22,7 +22,7 @@ vi.mock("@slack/web-api", () => ({
   },
 }));
 vi.mock("@/lib/slack-capture", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/slack-capture")>()), ensureSlackFileCopied: m.ensureFile }));
-vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => m.writes }));
+vi.mock("@/modules/chat/slack/post", () => ({ chatSlackWritesEnabled: () => m.writes }));
 vi.mock("@/lib/features.server", () => ({
   membersWithFeatureForOutreach: async (_repos: unknown, _key: string, ids: string[]) => new Set(ids.filter((id) => m.covered.has(id))),
 }));
@@ -40,7 +40,7 @@ vi.mock("@/lib/data/repos", async () => {
 const notifyPulled = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/chat/notifications", () => ({ notifyPulledMessages: notifyPulled }));
 
-import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS, waitOutRateLimits } from "@/lib/chat/slack-dms";
+import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS, waitOutRateLimits } from "@/modules/chat/slack/dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemorySlackWorkspaceRepository } from "@/lib/data/slack-workspace";
 

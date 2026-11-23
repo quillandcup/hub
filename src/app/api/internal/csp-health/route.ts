@@ -5,7 +5,7 @@ import { CSP_HEALTH } from "@/lib/config";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { CSP_HEALTH_LOGGER, CSP_HEALTH_TAG, cspHealthEvents, evaluateCspHealth } from "@/lib/csp-health";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const maxDuration = 60;
@@ -24,7 +24,7 @@ const FLUSH_TIMEOUT_MS = 5000;
  * One SQL aggregate (one row per user and user agent) feeds all three checks, so it never reads the request log row by row.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.internal.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

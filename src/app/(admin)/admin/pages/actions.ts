@@ -2,7 +2,7 @@
 
 import { isDeepStrictEqual } from "node:util";
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { LandingPageSlugTakenError, isLandingPageType, type LandingPageType } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
@@ -25,7 +25,7 @@ import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib
 export type PageResult = { error?: string; slug?: string };
 export type PublishResult = { error?: string; issues?: A11yIssue[]; publishedAt?: string };
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 const NOT_FOUND = "That page no longer exists.";
 const MAX_BYTES = MAX_LANDING_BYTES;
@@ -66,7 +66,7 @@ async function createImpl(auth: Auth, input: { title: string; slug?: string; dat
  * as it is used); its address is the title's words unless one is given.
  */
 export async function createLandingPage(input: { title: string; slug?: string; template?: string; pageType?: string }): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", async () => {
     // Website or landing (docs/product/LANDING_PAGES.md): a landing page unless said otherwise.
@@ -100,7 +100,7 @@ async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string
 
 /** Makes a draft page from the admin's description (src/lib/landing/ai.ts). Never published: the admin reads it in the editor first. */
 export async function createLandingPageWithAi(input: { title: string; slug?: string; prompt: string; pageType?: string }): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_ai_built", () => buildWithAiImpl(auth, input), (r) => ({ ok: !r.error }));
 }
@@ -112,7 +112,7 @@ export type AiBlocksResult = { error?: string; blocks?: unknown[]; notes?: A11yI
  * nothing: the editor inserts them (one undo step) and autosave takes it from there. The page itself is not sent.
  */
 export async function generateLandingBlocks(prompt: string): Promise<AiBlocksResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction(
     "landing_page_ai_added",
@@ -131,7 +131,7 @@ export async function generateLandingBlocks(prompt: string): Promise<AiBlocksRes
  * or not); the answer is the whole revised list for the editor to put in place as one undo step. Saves nothing.
  */
 export async function reviseLandingBlocks(prompt: string, content: unknown): Promise<AiBlocksResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction(
     "landing_page_ai_revised",
@@ -150,7 +150,7 @@ export async function reviseLandingBlocks(prompt: string, content: unknown): Pro
 
 /** Saves the draft as it is edited. Not audited and not counted: the audit log records publishing, not typing. */
 export async function saveLandingDraft(pageId: string, data: unknown): Promise<{ error?: string; savedAt?: string }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (tooBig(data)) return { error: "This page is too large to save." };
@@ -191,7 +191,7 @@ async function detailsImpl(auth: Auth, pageId: string, input: DetailsInput): Pro
 
 /** The title, address and what a search result or a shared link shows. A published page's address change takes effect at once. */
 export async function updateLandingPageDetails(pageId: string, input: DetailsInput): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_details_saved", () => detailsImpl(auth, pageId, input));
 }
@@ -241,7 +241,7 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown, note?: str
 
 /** Publishes what the editor is showing: checks it, keeps a version (with an optional note on what changed, at most 200 characters, shown in History and never in the Activity Log), and makes its pictures public. Stops on problems that would stop a visitor. */
 export async function publishLandingPage(pageId: string, data: unknown, options?: { note?: string }): Promise<PublishResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.publish");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_published", () => publishImpl(auth, pageId, data, typeof options?.note === "string" ? options.note : undefined), (r) => ({ ok: !r.error, detail: r.error ? "refused" : undefined }));
 }
@@ -260,7 +260,7 @@ async function unpublishImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** Takes the page off the public site at once; the draft and the versions stay. */
 export async function unpublishLandingPage(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.publish");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_unpublished", () => unpublishImpl(auth, pageId));
 }
@@ -281,7 +281,7 @@ async function restoreImpl(auth: Auth, versionId: string): Promise<PageResult> {
 
 /** Puts an earlier published version into the draft. It does not go live until it is published again. */
 export async function restoreLandingPageVersion(versionId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_version_restored", () => restoreImpl(auth, versionId));
 }
@@ -300,7 +300,7 @@ async function resetDraftImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** Throws the draft's unpublished changes away: the draft becomes the published document again. Nothing goes live or changes publicly. */
 export async function resetLandingDraftToPublished(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_draft_reset", () => resetDraftImpl(auth, pageId));
 }
@@ -326,26 +326,36 @@ export type JsonImportSummary = {
 /** `applied` is true when the draft was replaced: never on a dry run, or when the file matches the draft already. */
 export type JsonImportResult = { error?: string; summary?: JsonImportSummary; applied?: boolean };
 
+type Prepared = { ok: true; clean: LandingData; pruned: ReturnType<typeof pruneToKnownBlocks>; removedPictures: number; source?: ImportSource } | { ok: false; error: string };
+
+/** What a file becomes in this library, before anything is written (shared by the editor's import and "new page from a file"). */
+async function prepareJsonImport(repos: ReturnType<typeof createRepos>, text: unknown): Promise<Prepared> {
+  if (typeof text !== "string") return { ok: false, error: "Choose a file or paste the page's JSON first." };
+  const parsed = parseLandingImport(text);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  // The file is untrusted: bring it up to date, keep only blocks and props the builder has, then check its pictures and clean it as a save does.
+  const pruned = pruneToKnownBlocks(normalizeLandingData(parsed.document));
+  const ids = collectAssetIds(pruned.data);
+  const found = await Promise.all(ids.map((id) => repos.media.byId(id)));
+  const missing = new Set(ids.filter((_, i) => !found[i] || found[i]?.deleted_at));
+  let removedPictures = 0;
+  const withPictures = missing.size === 0 ? pruned.data : mapAssetIds(pruned.data, (id) => (missing.has(id) ? (removedPictures++, "") : id));
+  const clean = sanitizeLandingData(stampLandingVersion(withPictures));
+  if (tooBig(clean)) return { ok: false, error: "This page is too large to import." };
+  return { ok: true, clean, pruned, removedPictures, source: parsed.source };
+}
+
 async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun: boolean): Promise<JsonImportResult> {
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (typeof text !== "string") return { error: "Choose a file or paste the page's JSON first." };
-  const parsed = parseLandingImport(text);
-  if (!parsed.ok) return { error: parsed.error };
   const repos = createRepos(auth.supabase);
   const repo = repos.landingPages;
   try {
     const page = await repo.byId(pageId);
     if (!page) return { error: NOT_FOUND };
-
-    // The file is untrusted: bring it up to date, keep only blocks and props the builder has, then check its pictures and clean it as a save does.
-    const pruned = pruneToKnownBlocks(normalizeLandingData(parsed.document));
-    const ids = collectAssetIds(pruned.data);
-    const found = await Promise.all(ids.map((id) => repos.media.byId(id)));
-    const missing = new Set(ids.filter((_, i) => !found[i] || found[i]?.deleted_at));
-    let removedPictures = 0;
-    const withPictures = missing.size === 0 ? pruned.data : mapAssetIds(pruned.data, (id) => (missing.has(id) ? (removedPictures++, "") : id));
-    const clean = sanitizeLandingData(stampLandingVersion(withPictures));
-    if (tooBig(clean)) return { error: "This page is too large to import." };
+    const prepared = await prepareJsonImport(repos, text);
+    if (!prepared.ok) return { error: prepared.error };
+    const { clean, pruned, removedPictures } = prepared;
 
     const current = sanitizeLandingData(stampLandingVersion(page.draft_data));
     const summary: JsonImportSummary = {
@@ -356,13 +366,13 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
       removedPictures,
       issues: checkLandingPage(clean),
       identical: isDeepStrictEqual(clean, current),
-      source: parsed.source,
+      source: prepared.source,
     };
     if (dryRun || summary.identical) return { summary, applied: false };
 
     // The draft as it is now is kept in History first, so the import can be undone with Bring back.
-    if (!(await repo.keepDraftBeforeStarter(pageId, auth.user.id, "Replaced by a JSON import"))) return { error: NOT_FOUND };
-    if (!(await repo.replaceDraftWithStarter(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
+    if (!(await repo.keepDraftBeforeReplace(pageId, auth.user.id, "Replaced by a JSON import"))) return { error: NOT_FOUND };
+    if (!(await repo.replaceDraft(pageId, clean, auth.user.id))) return { error: NOT_FOUND };
     refresh();
     return { summary, applied: true };
   } catch (error) {
@@ -376,7 +386,7 @@ async function jsonImportImpl(auth: Auth, pageId: string, text: unknown, dryRun:
  * nothing. The old draft is kept in History; the published copy, title, address and search settings are untouched, and nothing goes live.
  */
 export async function importLandingDraftJson(pageId: string, text: string, options?: { dryRun?: boolean }): Promise<JsonImportResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   const dryRun = options?.dryRun === true;
   return withAction(
@@ -384,6 +394,55 @@ export async function importLandingDraftJson(pageId: string, text: string, optio
     () => jsonImportImpl(auth, pageId, text, dryRun),
     (r) => ({ ok: !r.error, detail: r.error ? undefined : dryRun ? "preview" : r.applied ? undefined : "unchanged" }),
   );
+}
+
+export type CreateFromJsonResult = { error?: string; slug?: string; summary?: JsonImportSummary };
+
+async function createFromJsonImpl(auth: Auth, input: { text: unknown; title?: string; slug?: string; pageType?: string }, dryRun: boolean): Promise<CreateFromJsonResult> {
+  if (!dryRun && !isLandingPageType(input?.pageType)) return { error: "Choose a website page or a landing page." };
+  try {
+    const prepared = await prepareJsonImport(createRepos(auth.supabase), input?.text);
+    if (!prepared.ok) return { error: prepared.error };
+    const summary: JsonImportSummary = {
+      blocksBefore: 0,
+      blocksAfter: countBlocks(prepared.clean.content),
+      leftOut: prepared.pruned.leftOut,
+      droppedProps: prepared.pruned.droppedProps,
+      removedPictures: prepared.removedPictures,
+      issues: checkLandingPage(prepared.clean),
+      identical: false,
+      source: prepared.source,
+    };
+    if (dryRun) return { summary };
+    // Only now is a page made, in one insert with the cleaned document: a file that fails leaves nothing behind.
+    const title = (input.title ?? "").trim();
+    if (!title) return { error: "Give the page a title." };
+    const slug = (input.slug ?? "").trim() || slugify(title);
+    if (!isValidSlug(slug)) return { error: "The address can use lowercase letters, numbers and dashes." };
+    try {
+      const page = await createRepos(auth.supabase).landingPages.create({ title, slug, data: prepared.clean, createdBy: auth.user.id, pageType: input.pageType as LandingPageType, fromFile: true });
+      refresh();
+      return { slug: page.slug, summary };
+    } catch (error) {
+      if (error instanceof LandingPageSlugTakenError) return { error: "Another page already has that address." };
+      throw error;
+    }
+  } catch (error) {
+    return failed("create from file", error, "Couldn't create the page.");
+  }
+}
+
+/**
+ * Makes a new draft page from a page's JSON (the file the editor exports): "New page" > "Import from a JSON file". The file goes
+ * through the same reading, pruning and cleaning as an import into an existing draft. `dryRun` returns the preview and writes
+ * nothing (no title or kind needed). The kind of page (website or landing) is the admin's choice: the file doesn't carry one.
+ * The Activity Log entry is the page's insert, which says it came from a file.
+ */
+export async function createLandingPageFromJson(input: { text: string; title?: string; slug?: string; pageType?: string }, options?: { dryRun?: boolean }): Promise<CreateFromJsonResult> {
+  const auth = await requireActionPermission("pages.edit");
+  if (!auth.ok) return { error: auth.error };
+  const dryRun = options?.dryRun === true;
+  return withAction("landing_page_created_from_file", () => createFromJsonImpl(auth, input, dryRun), (r) => ({ ok: !r.error, detail: r.error ? undefined : dryRun ? "preview" : undefined }));
 }
 
 // ---- duplicate and delete --------------------------------------------------------------------------------
@@ -414,7 +473,7 @@ async function duplicateImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** A new draft page with this page's content, titled "(copy)". */
 export async function duplicateLandingPage(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_duplicated", () => duplicateImpl(auth, pageId));
 }
@@ -434,7 +493,7 @@ async function deleteImpl(auth: Auth, pageId: string): Promise<PageResult> {
 
 /** Deletes the page (it stays in the database until removed on request, and its address is free again). It disappears from the public site at once. */
 export async function deleteLandingPage(pageId: string): Promise<PageResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.delete");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_deleted", () => deleteImpl(auth, pageId));
 }

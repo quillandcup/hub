@@ -12,15 +12,15 @@ import type { Page } from "playwright/test";
  *    or sits closer than EDGE_MARGIN to a side without being a full-width sheet;
  *  - covered: no control is still under a fixed or sticky bar, or any other element, after it has been scrolled to the
  *    middle of the screen (a button the user can never reach because the footer is in the way);
- *  - console: an error was logged, or the page threw (collected by the fixture, not here).
+ *  - console: an error or warning was logged, a request to the app failed, or the page threw (collected by the fixture, not here).
  *
  * The member app scrolls inside its own area (`main`), not the window, so before checking, every scrolling area
  * is scrolled through (`scrollThroughPage`): that lays out and loads everything below the fold, which axe needs to
  * report it consistently, and it makes lazy content appear. A full-page capture has to grow the viewport for the
  * same reason (`tallViewportHeight`): Playwright's own fullPage only knows the window.
  *
- * A finding has a stable `key` (what and where, no pixel values) so the known ones can be listed in
- * tests/demo/baseline.json and only NEW ones fail a run. See docs/product/DEMO_AND_HELP.md.
+ * A finding has a stable `key` (what and where, no pixel values) and belongs to a page and a rule, so the known ones can be
+ * counted in tests/demo/baseline.json and only NEW ones fail a run. See docs/product/DEMO_AND_HELP.md.
  */
 export const EDGE_MARGIN = 8;
 
@@ -29,6 +29,8 @@ export interface Finding {
   /** Stable identity: the check, the rule or kind, and a selector or message. */
   key: string;
   detail: string;
+  /** The page it was found on (`pageRoute`), set when the checks run. */
+  route?: string;
 }
 
 /** What the page-side script reports; kept as plain data so it is testable without a browser. */
@@ -38,27 +40,89 @@ export interface BoxFinding {
   detail: string;
 }
 
-/** What is known today and fails nothing: project (size and theme) -> `scene/step` -> finding keys. See tests/demo/baseline.ts. */
-export type Baseline = Record<string, Record<string, string[]>>;
-
-/**
- * The finding keys already known for a step. A finding known at ANY size in the same theme counts as known: axe
- * isn't consistent about elements below the fold on a short screen (a stat that is reported at tablet width may
- * not be at phone width on one run and be on the next), and that is not a new problem. A genuinely new element or
- * rule isn't in any size's list, so it still fails.
- */
-export function knownKeys(baseline: Baseline, project: string, step: string): Set<string> {
-  const theme = project.endsWith("-dark") ? "-dark" : "-light";
-  const known = new Set<string>();
-  for (const [name, steps] of Object.entries(baseline)) {
-    if (name.endsWith(theme)) for (const key of steps[step] ?? []) known.add(key);
+/** The page a finding was made on: its path, with record ids and numbers as `:id`, so every record of one kind is one page. */
+export function pageRoute(url: string): string {
+  let pathname: string;
+  try {
+    pathname = new URL(url, "http://app.invalid").pathname;
+  } catch {
+    return "/";
   }
-  return known;
+  const segments = pathname.split("/").map((s) => (/^[a-z]{2,8}_[1-9A-HJ-NP-Za-km-z]{12}$/.test(s) || /^\d+$/.test(s) || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(s) ? ":id" : s));
+  return segments.join("/").replace(/\/+$/, "") || "/";
 }
 
-/** A console message with urls, numbers and ids squeezed out, so the same error on another run has the same identity. */
-export function consoleKey(message: string): string {
-  return `console:${withoutIds(message).replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8,}|\d+/gi, "#").slice(0, 120)}`;
+/** The rule a finding belongs to: the check and the axe rule or box kind (`a11y:color-contrast`), or a console message's own identity. */
+export function ruleOf(key: string): string {
+  return key.startsWith("console:") ? key : key.split(":").slice(0, 2).join(":");
+}
+
+/**
+ * What is known today and fails nothing, per size and theme (Playwright project), page (`pageRoute`) and rule: how many
+ * distinct findings (elements, for a rule on a page) are tolerated. Shrink-only: a finding beyond the count fails a run, and
+ * so does a count above what a full run sees, so fixing something means lowering its entry in the same change.
+ * See tests/demo/baseline.ts and docs/product/DEMO_AND_HELP.md.
+ */
+export type Baseline = Record<string, Record<string, Record<string, number>>>;
+
+/** What a step writes next to its screenshot (`NN-name.findings.json`): the pages it looked at, and what it found. */
+export interface FindingsFile {
+  routes: string[];
+  findings: Finding[];
+}
+
+/** page -> rule -> the distinct finding keys seen there. */
+export type Tally = Record<string, Record<string, Set<string>>>;
+
+export function tally(findings: Pick<Finding, "key" | "route">[], into: Tally = {}): Tally {
+  for (const f of findings) {
+    ((into[f.route ?? "/"] ??= {})[ruleOf(f.key)] ??= new Set()).add(f.key);
+  }
+  return into;
+}
+
+/**
+ * What a run found that its project's baseline does not allow: a page and rule with more findings than listed, or not
+ * listed at all. With `visited` (the pages the run opened) it also says what the baseline lists for those pages but the run
+ * no longer finds, so a fixed problem has to leave the file. A page the run never opened is not judged: a run of some
+ * scenes can't say a finding on a page only other scenes open is gone.
+ */
+export function compareToBaseline(seen: Tally, known: Record<string, Record<string, number>> | undefined, visited?: ReadonlySet<string>): string[] {
+  const problems: string[] = [];
+  for (const [route, rules] of Object.entries(seen)) {
+    for (const [rule, keys] of Object.entries(rules)) {
+      const allowed = known?.[route]?.[rule] ?? 0;
+      if (keys.size > allowed) problems.push(`${route} ${rule}: ${keys.size} found, ${allowed} known. ${[...keys].slice(0, 3).join(" | ").slice(0, 300)}`);
+    }
+  }
+  if (visited) {
+    for (const [route, rules] of Object.entries(known ?? {})) {
+      if (!visited.has(route)) continue;
+      for (const [rule, allowed] of Object.entries(rules)) {
+        const found = seen[route]?.[rule]?.size ?? 0;
+        if (found < allowed) problems.push(`${route} ${rule}: ${found} found but ${allowed} known (fixed: ${found === 0 ? "delete" : `lower to ${found}`} the entry in tests/demo/baseline.json)`);
+      }
+    }
+  }
+  return problems;
+}
+
+/**
+ * Console lines that come from the demo's surroundings, not from the app, so they say nothing about a page:
+ *  - Vercel's analytics and speed-insights scripts exist only on Vercel's hosting. Anywhere else the request is a 404 or, signed out, a
+ *    redirect to /login, and the browser refuses to run the answer as a script.
+ *  - Hub Chat's live updates use the local Supabase stack's realtime service, which the demo stack doesn't reliably serve: the socket closes
+ *    and chat falls back to polling (docs/TODO.md, "Realtime in the demo stack").
+ */
+export function isEnvironmentNoise(text: string, sourceUrl = ""): boolean {
+  if (sourceUrl.includes("/_vercel/") || text.includes("/_vercel/")) return true;
+  if (/^Refused to execute script from 'https?:\/\/[^/']+\/login'/.test(text)) return true;
+  return /^\[chat\] live updates:/.test(text) || /^WebSocket connection to '[^']*\/realtime\/v\d+\/websocket/.test(text);
+}
+
+/** A console message with urls, numbers and ids squeezed out, so the same message on another run has the same identity. */
+export function consoleKey(message: string, level: "error" | "warning" = "error"): string {
+  return `console:${level}:${withoutIds(message).replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8,}|\d+/gi, "#").slice(0, 120)}`;
 }
 
 /** The app's ids: a readable prefix, an underscore and 12 base58 characters (`prkl_gB9UBSUvB7h7`). Different on every seed. */

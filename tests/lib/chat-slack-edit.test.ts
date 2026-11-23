@@ -25,8 +25,8 @@ vi.mock("@/lib/slack-connect", async (original) => ({
   getSlackUserToken: (...args: unknown[]) => getSlackUserToken(...args),
 }));
 
-import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
-import { hubMessageMetadata } from "@/lib/chat/slack-post";
+import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/modules/chat/slack/edit";
+import { hubMessageMetadata } from "@/modules/chat/slack/post";
 
 const ROW = {
   origin: "app",

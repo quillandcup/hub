@@ -27,10 +27,12 @@ export default async function WriterProfilePreview() {
   const serviceRepos = getServiceRepos();
   if (!(await memberHasWriterProfiles(serviceRepos, identity.memberId))) notFound();
 
+  // A book published before the member first joined is not a milestone in the community, on the page either (`reachedWhileMember`).
+  const firstJoinedAt = (await serviceRepos.members.byId(identity.memberId))?.firstJoinedAt ?? null;
   const [profile, settings, milestones] = await Promise.all([
     serviceRepos.writerProfiles.previewOfMember(identity.memberId),
     createRepos(await createClient()).writerProfiles.ofMember(identity.memberId),
-    serviceRepos.milestones.worksShownOnWeb(identity.memberId),
+    serviceRepos.milestones.worksShownOnWeb(identity.memberId, firstJoinedAt),
   ]);
 
   if (!profile || !settings) {

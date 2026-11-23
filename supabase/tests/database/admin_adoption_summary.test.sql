@@ -16,10 +16,13 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000ad03', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adopt-tenday@example.test'),
   ('00000000-0000-4000-a000-00000000ad04', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adopt-gone@example.test'),
   ('00000000-0000-4000-a000-00000000ad05', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adopt-plain@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000ad01', 'adopt-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000ad05', 'adopt-plain@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000ad01', 'adopt-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000ad05', 'adopt-plain@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000ad01', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 CREATE TEMP TABLE before_counts(active_members bigint, with_account bigint, seen_today bigint, seen_7d bigint, seen_30d bigint) ON COMMIT DROP;
 CREATE TEMP TABLE after_counts(active_members bigint, with_account bigint, seen_today bigint, seen_7d bigint, seen_30d bigint) ON COMMIT DROP;

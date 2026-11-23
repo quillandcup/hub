@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
- * user_profiles.role is what every admin check trusts, and members can UPDATE their
- * own row (to set timezone_preference). These tests use real signed-in sessions to
- * prove a member can't promote themselves (or touch role/email/id at all), while
- * members can still change their timezone and admins can still change roles.
- * See supabase/migrations/20260925000000_block_self_role_escalation.sql.
+ * A person's roles are `user_roles` rows, which every admin check trusts, and members can UPDATE their own profile row (to set
+ * timezone_preference). These tests use real signed-in sessions to prove a member can't promote themselves (not through the roles table
+ * and not through the profile: email and id stay guarded, and there is no role column to write), while members can still change their
+ * timezone and admins can still change roles. See supabase/migrations/20260925000000_block_self_role_escalation.sql and
+ * 20271110000000_drop_user_profiles_role.sql.
  */
-describe('user_profiles privileged columns', () => {
+describe('user roles and the privileged profile columns', () => {
   const admin = getTestSupabaseAdminClient()
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const password = 'test-password-12345!'
@@ -24,16 +25,20 @@ describe('user_profiles privileged columns', () => {
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create ${label}: ${error?.message}`)
     authUserIds.push(data.user.id)
-    const { error: roleError } = await admin.from('user_profiles').update({ role }).eq('id', data.user.id)
-    if (roleError) throw new Error(`Failed to set ${label} role: ${roleError.message}`)
+    await giveRoles(admin, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in as ${label}: ${signInError.message}`)
     return { id: data.user.id, client }
   }
 
-  async function roleOf(id: string) {
-    const { data } = await admin.from('user_profiles').select('role, email').eq('id', id).single()
+  async function rolesOf(id: string) {
+    const { data } = await admin.from('user_roles').select('role').eq('user_id', id)
+    return (data ?? []).map((r) => r.role).sort()
+  }
+
+  async function profileOf(id: string) {
+    const { data } = await admin.from('user_profiles').select('email, timezone_preference').eq('id', id).single()
     return data
   }
 
@@ -49,39 +54,44 @@ describe('user_profiles privileged columns', () => {
     for (const id of authUserIds) await admin.auth.admin.deleteUser(id)
   })
 
-  it('rejects a member promoting themselves to admin', async () => {
-    const { error } = await memberClient.from('user_profiles').update({ role: 'admin' }).eq('id', memberId)
+  it('has no role column on the profile to promote through', async () => {
+    const { error } = await memberClient.from('user_profiles').update({ role: 'admin' } as never).eq('id', memberId)
+    expect(error).not.toBeNull()
+    expect(await rolesOf(memberId)).toEqual([])
+  })
+
+  it('rejects a member giving themselves a role', async () => {
+    const { error } = await memberClient.from('user_roles').insert({ user_id: memberId, role: 'admin' })
     expect(error?.code).toBe('42501')
-    expect((await roleOf(memberId))?.role).toBe('member')
+    expect(await rolesOf(memberId)).toEqual([])
+  })
+
+  it('rejects a member calling set_user_roles for themselves', async () => {
+    const { error } = await memberClient.rpc('set_user_roles', { p_user: memberId, p_roles: ['admin'] })
+    expect(error?.code).toBe('42501')
+    expect(await rolesOf(memberId)).toEqual([])
   })
 
   it('rejects a member changing their own email on the profile', async () => {
-    const before = await roleOf(memberId)
+    const before = await profileOf(memberId)
     const { error } = await memberClient
       .from('user_profiles')
       .update({ email: `hijack-${suffix}@example.com` })
       .eq('id', memberId)
     expect(error?.code).toBe('42501')
-    expect((await roleOf(memberId))?.email).toBe(before?.email)
+    expect((await profileOf(memberId))?.email).toBe(before?.email)
   })
 
-  it('rejects a role change even when bundled with an allowed column', async () => {
-    const { error } = await memberClient
-      .from('user_profiles')
-      .update({ timezone_preference: 'Europe/London', role: 'admin' })
-      .eq('id', memberId)
-    expect(error?.code).toBe('42501')
-    expect((await roleOf(memberId))?.role).toBe('member')
-  })
-
-  it("can't touch another member's row at all", async () => {
+  it("can't touch another member's profile or roles at all", async () => {
     const { data } = await memberClient
       .from('user_profiles')
-      .update({ role: 'admin' })
+      .update({ timezone_preference: 'Europe/London' })
       .eq('id', otherMemberId)
       .select('id')
     expect(data ?? []).toEqual([])
-    expect((await roleOf(otherMemberId))?.role).toBe('member')
+    const { error } = await memberClient.from('user_roles').insert({ user_id: otherMemberId, role: 'admin' })
+    expect(error?.code).toBe('42501')
+    expect(await rolesOf(otherMemberId)).toEqual([])
   })
 
   it('still lets a member change their own timezone preference', async () => {
@@ -90,26 +100,22 @@ describe('user_profiles privileged columns', () => {
       .update({ timezone_preference: 'America/Chicago' })
       .eq('id', memberId)
     expect(error).toBeNull()
-    const { data } = await admin.from('user_profiles').select('timezone_preference').eq('id', memberId).single()
-    expect(data?.timezone_preference).toBe('America/Chicago')
+    expect((await profileOf(memberId))?.timezone_preference).toBe('America/Chicago')
   })
 
-  it("still lets an admin session change another user's role", async () => {
-    const { error } = await adminClient.from('user_profiles').update({ role: 'admin' }).eq('id', otherMemberId)
+  it("still lets an admin session change another user's roles", async () => {
+    const { error } = await adminClient.rpc('set_user_roles', { p_user: otherMemberId, p_roles: ['community_manager', 'conversion_specialist'] })
     expect(error).toBeNull()
-    expect((await roleOf(otherMemberId))?.role).toBe('admin')
-    const { error: revertError } = await adminClient
-      .from('user_profiles')
-      .update({ role: 'member' })
-      .eq('id', otherMemberId)
+    expect(await rolesOf(otherMemberId)).toEqual(['community_manager', 'conversion_specialist'])
+    const { error: revertError } = await adminClient.rpc('set_user_roles', { p_user: otherMemberId, p_roles: [] })
     expect(revertError).toBeNull()
-    expect((await roleOf(otherMemberId))?.role).toBe('member')
+    expect(await rolesOf(otherMemberId)).toEqual([])
   })
 
   it('still lets the service role change roles (server-side jobs, invites)', async () => {
-    const { error } = await admin.from('user_profiles').update({ role: 'admin' }).eq('id', memberId)
-    expect(error).toBeNull()
-    expect((await roleOf(memberId))?.role).toBe('admin')
-    await admin.from('user_profiles').update({ role: 'member' }).eq('id', memberId)
+    await giveRoles(admin, memberId, 'admin')
+    expect(await rolesOf(memberId)).toEqual(['admin'])
+    await giveRoles(admin, memberId, 'member')
+    expect(await rolesOf(memberId)).toEqual([])
   })
 })

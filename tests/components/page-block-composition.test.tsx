@@ -23,6 +23,8 @@ import LandingRender from "@/components/landing/LandingRender";
 import { checkLandingPage } from "@/lib/landing/a11y";
 import { installedPageBlockEditors } from "@/modules/editor";
 import { eventsPageBlocks } from "@/modules/events/page-blocks";
+import { bookshelfPageBlocks } from "@/modules/bookshelf/page-blocks";
+import { bookshelfEditorFields } from "@/modules/bookshelf/page-blocks/editor";
 import { eventsEditorFields } from "@/modules/events/page-blocks/editor";
 
 // Puck starts a 500 ms timer when the editor mounts; clear the ones this file starts so none fires after jsdom is gone (see landing-puck-editor.test.tsx).
@@ -162,5 +164,47 @@ describe("with the events integration absent", () => {
 
   it("has nothing to flag in a page whose event blocks are all filled in", () => {
     expect(checkLandingPage(page).filter((i) => i.severity === "error")).toEqual([]);
+  });
+});
+
+describe("the Hedgie Bookshelf block of the bookshelf module", () => {
+  const withBookshelf = createPageBlockRegistry([coreBlocks, bookshelfPageBlocks]);
+  const shelfPage = {
+    content: [
+      { type: "Heading", props: { id: "h", text: "Welcome home", level: "h1", align: "center" } },
+      { type: "HedgieBookshelf", props: { id: "b", heading: "Books by our members", intro: "", genre: "", max: 60, firstShown: 24, emptyText: "Our first books are coming.", live: { books: [{ title: "Planted", author: null, cover: null, href: null, published: "2026-01-01" }] } } },
+    ],
+    root: { props: {} },
+  };
+
+  it("is in the editor with its fields, and in the public renderer", () => {
+    expect(pageBlocks.has("HedgieBookshelf")).toBe(true);
+    expect(renderConfig.components.HedgieBookshelf).toBeDefined();
+    expect(Object.keys(editorConfig.components.HedgieBookshelf.fields ?? {})).toEqual(["heading", "intro", "genre", "max", "firstShown", "emptyText", "padding"]);
+    expect(installedPageBlockEditors).toContain(bookshelfEditorFields);
+    expect(Object.values(editorConfig.categories ?? {}).flatMap((c) => c.components ?? [])).toContain("HedgieBookshelf");
+  });
+
+  it("draws its empty line on the public page when there are no live books, and the page's other blocks too", () => {
+    render(<LandingRender data={{ ...shelfPage, content: shelfPage.content.map((b) => (b.type === "HedgieBookshelf" ? { ...b, props: { ...b.props, live: undefined } } : b)) }} />);
+    expect(screen.getByText("Welcome home")).toBeInTheDocument();
+    expect(screen.getByText("Our first books are coming.")).toBeInTheDocument();
+  });
+
+  it("checks the heading's level with the rest of the page when published", () => {
+    const issues = checkLandingPage({ content: [{ type: "Heading", props: { id: "h", text: "T", level: "h1" } }, { type: "HedgieBookshelf", props: { id: "b", heading: "Books", max: 60 } }], root: { props: {} } });
+    expect(issues.filter((i) => i.severity === "error")).toEqual([]);
+  });
+
+  it("still renders the page without the module: the block draws nothing, and the editor keeps it as stored", () => {
+    const without = createPageBlockRegistry([coreBlocks]);
+    render(<LandingRender registry={without} data={shelfPage} />);
+    expect(screen.getByText("Welcome home")).toBeInTheDocument();
+    expect(screen.queryByText("Our first books are coming.")).toBeNull();
+    const before = JSON.stringify(shelfPage);
+    const config = editorConfigFor({ pageType: "landing", site: null, editing: true }, shelfPage, buildEditorConfig(without, []), without);
+    expect(config.components.HedgieBookshelf.label).toBe("Unavailable: HedgieBookshelf");
+    expect(withBookshelf.has("HedgieBookshelf")).toBe(true);
+    expect(JSON.stringify(shelfPage)).toBe(before);
   });
 });

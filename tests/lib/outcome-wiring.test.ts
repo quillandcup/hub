@@ -16,8 +16,7 @@ vi.mock("@/lib/analytics/server", () => ({
 
 // The admin actions check the caller before they report; here the caller is always an admin.
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} })),
-  requireStaffAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {}, role: "admin", realRole: "admin" })),
+  requireActionPermission: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {}, role: "admin", roles: ["admin"], realRole: "admin", realRoles: ["admin"] })),
 }));
 
 const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]][] = [
@@ -78,10 +77,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "src/app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "src/app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],
+  [() => import("@/app/(admin)/admin/courses/delete-actions"), "src/app/(admin)/admin/courses/delete-actions.ts", [["deleteCourse", "course_deleted"]]],
   [
     () => import("@/app/(admin)/admin/pages/actions"),
     "src/app/(admin)/admin/pages/actions.ts",
-    [["createLandingPage", "landing_page_created"], ["createLandingPageWithAi", "landing_page_ai_built"], ["generateLandingBlocks", "landing_page_ai_added"], ["reviseLandingBlocks", "landing_page_ai_revised"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["resetLandingDraftToPublished", "landing_page_draft_reset"], ["importLandingDraftJson", "landing_page_json_imported"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
+    [["createLandingPage", "landing_page_created"], ["createLandingPageWithAi", "landing_page_ai_built"], ["generateLandingBlocks", "landing_page_ai_added"], ["reviseLandingBlocks", "landing_page_ai_revised"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["resetLandingDraftToPublished", "landing_page_draft_reset"], ["importLandingDraftJson", "landing_page_json_imported"], ["createLandingPageFromJson", "landing_page_created_from_file"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
   ],
   [() => import("@/app/(admin)/admin/pages/design/actions"), "src/app/(admin)/admin/pages/design/actions.ts", [["publishSiteTemplate", "landing_site_published"], ["resetSiteDraft", "landing_site_draft_reset"], ["restoreSiteVersion", "landing_site_version_restored"]]],
   [
@@ -95,12 +95,13 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/api/projects/import/trackbear/route"), "src/app/api/projects/import/trackbear/route.ts", [["POST", "trackbear_imported"]]],
   [() => import("@/app/api/bookshelf/cover/route"), "src/app/api/bookshelf/cover/route.ts", [["POST", "book_cover_uploaded"]]],
   [() => import("@/app/api/profile/photo/route"), "src/app/api/profile/photo/route.ts", [["POST", "profile_photo_uploaded"], ["DELETE", "profile_photo_removed"]]],
+  [() => import("@/app/api/milestone-photos/route"), "src/app/api/milestone-photos/route.ts", [["POST", "milestone_photo_set"], ["DELETE", "milestone_photo_removed"]]],
   [() => import("@/app/api/bookshelf/cover/[assetId]/route"), "src/app/api/bookshelf/cover/[assetId]/route.ts", [["PATCH", "book_cover_edited"]]],
   [() => import("@/app/api/media/route"), "src/app/api/media/route.ts", [["POST", "media_asset_uploaded"]]],
   [() => import("@/app/api/media/[id]/route"), "src/app/api/media/[id]/route.ts", [["PATCH", "media_asset_edited"], ["DELETE", "media_asset_deleted"]]],
   [() => import("@/app/api/media/from-event-photo/route"), "src/app/api/media/from-event-photo/route.ts", [["POST", "media_asset_copied_from_event"]]],
   [() => import("@/app/(admin)/admin/hygiene/zoom-meetings/actions"), "src/app/(admin)/admin/hygiene/zoom-meetings/actions.ts", [["decideZoomMeetings", "zoom_meetings_decided"]]],
-  [() => import("@/app/(member)/settings/milestoneActions"), "src/app/(member)/settings/milestoneActions.ts", [["answerMilestone", "milestone_answered"], ["addMilestone", "milestone_added"], ["takeBackMilestone", "milestone_taken_back"]]],
+  [() => import("@/app/(member)/settings/milestoneActions"), "src/app/(member)/settings/milestoneActions.ts", [["answerMilestone", "milestone_answered"], ["addMilestone", "milestone_added"], ["takeBackMilestone", "milestone_taken_back"], ["setMilestonePhotoAlt", "milestone_photo_alt_set"]]],
   [() => import("@/app/(member)/projects/stageMilestoneActions"), "src/app/(member)/projects/stageMilestoneActions.ts", [["answerStageMilestone", "milestone_stage_answered"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "src/app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];

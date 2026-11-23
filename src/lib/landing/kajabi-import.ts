@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto";
 import { parseFragment, serializeOuter } from "parse5";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
+import { ITEM_LIMITS } from "@/components/landing/item-limits";
+import type { SocialNetwork } from "@/components/landing/social-networks";
 import { safeHref, type LandingData } from "@/lib/landing/data";
 import { presetPadding } from "@/lib/landing/layout";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
@@ -13,9 +16,41 @@ import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
  *
  * What the export does not carry, and so cannot be imported: a page title, the Kajabi form's name and fields (only
  * its id), the footer's "Powered by", fonts beyond the brand's, and anything a block does only at runtime.
+ *
+ * A page's identity: the export has no page id, and the ids it does carry for a section or block belong to the template
+ * or to the page it was cloned from, so two different pages can share their first section and earliest block. The
+ * layout is what tells them apart: the ordered section ids and, in each, the ordered block ids with their types
+ * (`layoutFingerprint`). Text is not in it, so a re-export after edits to the wording is the same page; adding or
+ * removing a block makes a different layout. Two pages cloned from each other and differing only in their text still
+ * share a fingerprint, so a match is only ever a suggestion the admin confirms (kajabi-import-service.ts).
  */
 
 export const PICTURE_PREFIX = "kajabi-import-picture:";
+
+/**
+ * The start of a stored key made by `mapKajabiPage`. The first version of the key (`kajabi:<section>:<block>`) collided
+ * between different pages; keys in that form are never matched again.
+ */
+export const IMPORT_KEY_PREFIX = "kajabi2:";
+
+/** The key a page made from this layout gets; a second page with the same layout gets `#2`, `#3`, ... after it (a key is unique per page). */
+export const layoutKeyOf = (fingerprint: string) => `${IMPORT_KEY_PREFIX}${fingerprint}`;
+
+/** True when a stored key belongs to this layout: the key itself or one of its numbered twins. Old-format keys never do. */
+export function keyHasLayout(storedKey: string | null | undefined, fingerprint: string): boolean {
+  if (!storedKey) return false;
+  const base = layoutKeyOf(fingerprint);
+  return storedKey === base || (storedKey.startsWith(`${base}#`) && /^\d+$/.test(storedKey.slice(base.length + 1)));
+}
+
+/** The first of `base`, `base#2`, `base#3`, ... that is not in `used`. */
+export function freeImportKey(base: string, used: Set<string>): string {
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n++) if (!used.has(`${base}#${n}`)) return `${base}#${n}`;
+}
+
+/** What a page starts with: its first heading and its first few lines of text, to tell one export from another. */
+export type PageStart = { heading: string; lines: string[] };
 
 export type ImportNote = {
   /** "approximated": mapped to the nearest thing we have; "left_out": nothing to map it to; "hidden": hidden in Kajabi, not imported; "todo": to do in the editor. */
@@ -36,7 +71,7 @@ export type KajabiMapOptions = {
 
 export type KajabiMapResult =
   | { ok: false; error: string }
-  | { ok: true; data: LandingData; importKey: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number } };
+  | { ok: true; data: LandingData; layout: string; importKey: string; start: PageStart; suggestedTitle: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number } };
 
 type Settings = Record<string, unknown>;
 type Block = { type?: unknown; name?: unknown; hidden?: unknown; settings?: Settings };
@@ -65,6 +100,16 @@ function rgb(value: unknown): Rgb | null {
   if (fn && (fn[4] === undefined || Number(fn[4]) > 0)) return [Number(fn[1]), Number(fn[2]), Number(fn[3])];
   return null; // empty, transparent or unknown
 }
+/** The opacity of a colour value: 1 for hex and `rgb()`, the alpha of `rgba()`, 0 for empty or transparent. */
+function alphaOf(value: unknown): number {
+  const text = str(value).trim();
+  if (/^#/.test(text)) return rgb(text) ? 1 : 0;
+  const fn = /^rgba?\(\s*\d+[\s,]+\d+[\s,]+\d+(?:[\s,/]+([\d.]+))?\s*\)$/i.exec(text);
+  if (!fn) return 0;
+  return fn[1] === undefined ? 1 : Math.min(1, Math.max(0, Number(fn[1])));
+}
+/** Perceived lightness, 0 (black) to 1 (white). */
+const lightness = (c: Rgb) => (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
 const distance = (a: Rgb, b: Rgb) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 function nearest<K extends string>(color: Rgb, palette: Record<K, Rgb>): { key: K; exact: boolean } {
   let best = { key: Object.keys(palette)[0] as K, d: Infinity };
@@ -107,7 +152,7 @@ class Pictures {
   add(value: unknown): string | null {
     const v = str(value).trim();
     if (!v) return null;
-    const existing = this.list.findIndex((p) => p.zipName === v || p.url === v);
+    const existing = this.list.findIndex((p) => p.zipName === v.replace(/^assets\//, "") || p.url === v);
     if (existing >= 0) return this.list[existing].placeholder;
     const placeholder = `${PICTURE_PREFIX}${this.list.length + 1}`;
     if (/^https:\/\//i.test(v)) this.list.push({ placeholder, url: v });
@@ -131,6 +176,7 @@ function textOf(node: Node5): string {
   if (node.nodeName === "#text") return node.value ?? "";
   if (node.nodeName === "#comment") return "";
   if (node.tagName === "br") return " ";
+  if (node.tagName && NOT_TEXT.has(node.tagName)) return "";
   return (node.childNodes ?? []).map(textOf).join("");
 }
 const attr = (node: Node5, name: string) => node.attrs?.find((a) => a.name === name)?.value ?? "";
@@ -161,11 +207,11 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
         if (clean(node.value ?? "")) pending.push(`<p>${clean(node.value ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</p>`);
         continue;
       }
-      if (tag && /^h[1-4]$/.test(tag)) {
+      if (tag && /^h[1-6]$/.test(tag)) {
         const text = clean(textOf(node));
         if (!text) continue;
         flush();
-        const level = tag === "h1" ? "h1" : tag === "h2" ? "h2" : "h3";
+        const level = tag === "h1" ? "h1" : tag === "h2" ? "h2" : "h3"; // h4 to h6 are our smallest heading
         out.push({ type: "Heading", props: { id: id("Heading"), text, level, align: styleAlign(node) ?? align } });
       } else if (tag === "hr" || (tag === "div" && (node.childNodes ?? []).every((c) => c.tagName === "hr" || (c.nodeName === "#text" && !clean(c.value ?? ""))) && (node.childNodes ?? []).some((c) => c.tagName === "hr"))) {
         flush();
@@ -182,9 +228,312 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
   return out;
 }
 
+// ---- blocks beyond text, pictures and forms ------------------------------------------------------------------
+
+type Ctx = { notes: ImportNote[]; pictures: Pictures; id: (type: string) => string; siteUrl: string; themeRadius: number | null };
+
+const settingsOf = (block: Block): Settings => (isObject(block.settings) ? block.settings : {});
+const isHiddenBlock = (block: Block) => flag(block.hidden) || (flag(settingsOf(block).hide_on_desktop) && flag(settingsOf(block).hide_on_mobile));
+
+/** This block's key and those of the visible blocks of the same kind right after it (hidden ones in between are skipped; another kind ends the run). */
+function sameKind(order: string[], blocks: Record<string, Block>, index: number, kind: string): string[] {
+  const keys: string[] = [];
+  for (const key of order.slice(index)) {
+    if (isHiddenBlock(blocks[key])) continue;
+    if (str(blocks[key].type) !== kind) break;
+    keys.push(key);
+  }
+  return keys;
+}
+
+/** What Kajabi does to a block on one device only, or after a delay, which has no counterpart here. */
+function liveNotes(ctx: Ctx, b: Settings, label: string) {
+  if (flag(b.hide_on_desktop) || flag(b.hide_on_mobile)) ctx.notes.push({ kind: "approximated", text: `"${label}" is hidden on ${flag(b.hide_on_desktop) ? "desktop" : "phones"} only in Kajabi; here it shows everywhere.` });
+  if (str(b.reveal_event)) ctx.notes.push({ kind: "left_out", text: `"${label}" appears after a delay or an event in Kajabi; here it is always shown.` });
+}
+
+/** A link for a button or a card: usable as is, resolved through the Kajabi site, or empty (and said). */
+function checkedLink(ctx: Ctx, label: string, action: unknown, what: string): string {
+  const href = resolveLink(action, ctx.siteUrl);
+  const raw = clean(str(action));
+  if (!href) ctx.notes.push({ kind: "todo", text: `${what} "${label}" has ${raw ? "a link that can't be used here" : "no link"}: set its link in the editor.` });
+  else if (raw.startsWith("/")) ctx.notes.push({ kind: "approximated", text: `${what} "${label}" goes to a Kajabi path (${raw}) through the Kajabi site, which works while Kajabi stays; point it at the final address when the page moves.` });
+  return href;
+}
+
+function makeButton(ctx: Ctx, b: Settings, label: string): Puck {
+  const bg = rgb(b.btn_background_color);
+  const fg = rgb(b.btn_text_color);
+  const outline = str(b.btn_style) === "outline" || (!bg && Boolean(fg));
+  const source = outline ? fg : bg;
+  const picked = source ? nearest(source, BUTTON_COLORS) : { key: "plum" as const, exact: true };
+  if (source && !picked.exact) ctx.notes.push({ kind: "approximated", text: `Button "${label}": its colour is shown as the nearest of our three button colours.` });
+  const href = checkedLink(ctx, label, b.btn_action, "Button");
+  const radius = num(b.btn_border_radius) ?? ctx.themeRadius ?? 100;
+  return {
+    type: "Button",
+    props: { id: ctx.id("Button"), label, href, look: outline ? "outline" : "solid", color: picked.key, shape: radius >= 30 ? "pill" : "rect", align: alignOf(b.text_align) === "left" ? "left" : alignOf(b.text_align) === "right" ? "right" : "center", full: str(b.btn_width) === "full" },
+  };
+}
+
+/** Elements whose content is code or hidden, never words: skipped when reading text. */
+const NOT_TEXT = new Set(["script", "style", "noscript", "template", "iframe", "object", "embed"]);
+const FORMATTING = new Set(["strong", "b", "em", "i", "u", "s", "a", "img", "ul", "ol", "blockquote"]);
+const hasFormatting = (node: Node5): boolean => Boolean(node.tagName && FORMATTING.has(node.tagName)) || (node.childNodes ?? []).some(hasFormatting);
+
+/**
+ * The text of a snippet of HTML as plain lines, for the blocks that hold plain text (a card's words, an answer): the
+ * first heading apart, list items as lines with a bullet. `lossy` says that bold, italics, links or lists were flattened.
+ */
+function readText(html: string): { heading: string; lines: string[]; lossy: boolean } {
+  const lines: string[] = [];
+  let heading = "";
+  let lossy = false;
+  const walk = (nodes: Node5[]) => {
+    for (const node of nodes) {
+      const tag = node.tagName;
+      if (node.nodeName === "#text") {
+        if (clean(node.value ?? "")) lines.push(clean(node.value ?? ""));
+      } else if (!tag || NOT_TEXT.has(tag)) continue;
+      else if (/^h[1-6]$/.test(tag)) {
+        const text = clean(textOf(node));
+        if (!text) continue;
+        if (heading) lines.push(text);
+        else heading = text;
+        lossy ||= hasFormatting(node);
+      } else if (tag === "ul" || tag === "ol") {
+        lossy = true;
+        (node.childNodes ?? []).filter((c) => c.tagName === "li").forEach((li, i) => {
+          const text = clean(textOf(li));
+          if (text) lines.push(`${tag === "ol" ? `${i + 1}.` : "•"} ${text}`);
+        });
+      } else if (tag === "div") walk(node.childNodes ?? []);
+      else {
+        const text = clean(textOf(node));
+        if (text) lines.push(text);
+        lossy ||= hasFormatting(node);
+      }
+    }
+  };
+  walk(parseFragment(html.replace(/&nbsp;| /g, " ")).childNodes as unknown as Node5[]);
+  return { heading, lines, lossy };
+}
+
+const NO_DESCRIPTION = "A picture has no description: add one in the editor (or mark it decorative) before publishing.";
+
+/** A feature: a picture beside its words (Split), or just its words when it has no picture, then its button if it has one. */
+function mapFeature(ctx: Ctx, b: Settings, name: string): Puck[] {
+  const out: Puck[] = [];
+  const text = str(b.text).replace(/&nbsp;| /g, " ");
+  const ref = flag(b.hide_image) ? null : ctx.pictures.add(b.image);
+  if (ref) {
+    const alt = clean(str(b.image_alt));
+    if (!alt) ctx.notes.push({ kind: "todo", text: NO_DESCRIPTION });
+    if (str(b.img_action)) ctx.notes.push({ kind: "left_out", text: "A picture that links somewhere in Kajabi is a plain picture here." });
+    out.push({ type: "Split", props: { id: ctx.id("Split"), imageAssetId: ref, alt, decorative: false, imageSide: "left", html: sanitizeRichText(text).replace(/<p>\s*<\/p>/g, "") } });
+  } else out.push(...textBlocks(text, alignOf(b.text_align), ctx.id));
+  const label = clean(textOfHtml(str(b.btn_text)));
+  if (flag(b.use_btn) && label) out.push(makeButton(ctx, b, label));
+  if (out.length === 0) ctx.notes.push({ kind: "left_out", text: `The feature "${name}" has no text or picture.` });
+  return out;
+}
+
+const gridColumns = (n: number) => String(Math.min(4, Math.max(2, n)));
+
+/** Cards that sit in a row become one Card grid: a picture, a title (the first heading), the rest of the words as plain lines, and the button. */
+function mapCards(ctx: Ctx, cards: Settings[]): Puck[] {
+  let flattened = false;
+  let pictured = false;
+  const items = cards.map((b) => {
+    const text = readText(str(b.description));
+    flattened ||= text.lossy;
+    const title = text.heading || text.lines.shift() || "";
+    const ref = ctx.pictures.add(b.image);
+    if (ref) pictured = true;
+    const label = flag(b.show_cta) ? clean(textOfHtml(str(b.btn_text))) : "";
+    const href = str(b.action) ? checkedLink(ctx, title || "Card", b.action, "Card") : "";
+    if (href && !label) ctx.notes.push({ kind: "todo", text: `Card "${title}" links somewhere in Kajabi as a whole; add a button label to its card in the editor to show the link.` });
+    return { type: "GridCard", props: { id: ctx.id("GridCard"), imageAssetId: ref ?? undefined, alt: "", icon: "", title, description: text.lines.join("\n"), price: "", buttonLabel: label, href } };
+  });
+  if (pictured) ctx.notes.push({ kind: "todo", text: NO_DESCRIPTION });
+  ctx.notes.push({ kind: "approximated", text: `${items.length} card${items.length === 1 ? "" : "s"} became a Card grid in the Hub's card style: their own colours, borders and shadows aren't carried over${flattened ? ", and their text is plain lines (bold, italics, links and lists are not kept)" : ""}.` });
+  return [{ type: "CardGrid", props: { id: ctx.id("CardGrid"), columns: gridColumns(items.length), items } }];
+}
+
+/**
+ * Pricing columns become Pricing blocks (up to three plans each, so a longer row is several blocks): the plan's name, the price
+ * exactly as written, its heading and any plain paragraphs as the description, its list as what is included, and the button with the
+ * export's link. Nothing is added: no price, period or link the export does not have (Kajabi has no billing-period field, so the
+ * period line stays empty unless the price text carries it). A second button follows the block as a button.
+ */
+function mapPricing(ctx: Ctx, plans: Settings[]): Puck[] {
+  const out: Puck[] = [];
+  const extras: Puck[] = [];
+  let flattened = false;
+  let pictures = 0;
+  const items = plans.map((b) => {
+    const name = clean(textOfHtml(str(b.name))) || "Plan";
+    if (flag(b.show_image) && str(b.image)) pictures += 1;
+    const label = flag(b.show_cta) ? clean(textOfHtml(str(b.btn_text))) : "";
+    const href = label ? checkedLink(ctx, label, b.btn_action, "Pricing button") : "";
+    const body = readText(str(b.text));
+    flattened ||= body.lossy;
+    // A list under the price is what is included; any other words follow the heading as the description.
+    const bullet = /^(?:•|\d+\.)\s+/;
+    const features = body.lines.filter((l) => bullet.test(l)).map((l) => l.replace(bullet, ""));
+    const description = [clean(textOfHtml(str(b.heading))), body.heading, ...body.lines.filter((l) => !bullet.test(l))].filter(Boolean).join("\n");
+    const second = flag(b.show_secondary_cta) ? clean(textOfHtml(str(b.secondary_btn_text))) : "";
+    if (second) {
+      const synthesized: Settings = { btn_text: b.secondary_btn_text, btn_action: b.secondary_btn_action, btn_background_color: b.secondary_btn_background_color, btn_text_color: b.secondary_btn_text_color, btn_style: b.secondary_btn_style, btn_width: b.secondary_btn_width, btn_border_radius: b.secondary_btn_border_radius, text_align: "left" };
+      extras.push(makeButton(ctx, synthesized, second));
+    }
+    return { type: "PricingPlan", props: { id: ctx.id("PricingPlan"), name, price: clean(str(b.price)), period: "", description, features: features.join("\n"), badge: "", featured: false, buttonLabel: label, href } };
+  });
+  for (let i = 0; i < items.length; i += ITEM_LIMITS.Pricing) out.push({ type: "Pricing", props: { id: ctx.id("Pricing"), items: items.slice(i, i + ITEM_LIMITS.Pricing) } });
+  const seconds = extras.length;
+  ctx.notes.push({
+    kind: "approximated",
+    text: `${items.length} pricing column${items.length === 1 ? "" : "s"} became ${out.length === 1 ? "a Pricing block" : `${out.length} Pricing blocks`} with each price as written and the button's link from the export; nothing was added, and the billing period line is empty (Kajabi has none). Their colours, borders and shadows are not carried over, and no plan is featured: choose one in the editor if you want one${flattened ? "; the text under each price is plain lines (bold, italics and links are not kept)" : ""}.${seconds > 0 ? ` ${seconds} second button${seconds === 1 ? "" : "s"} follow the block as button${seconds === 1 ? "" : "s"}.` : ""}`,
+  });
+  if (pictures > 0) ctx.notes.push({ kind: "left_out", text: `${pictures} pricing column picture${pictures === 1 ? "" : "s"} not imported: the Pricing block has no picture.` });
+  return [...out, ...extras];
+}
+
+/**
+ * Accordion items in a row become one Accordion: the heading is the title, the body what opens under it as plain lines. Kajabi's accordion
+ * is a generic collapsible list, not a list of questions, so it is not made an FAQ (the FAQ block tells search engines its questions are
+ * questions); someone who knows the items are questions can rebuild them as an FAQ in the editor.
+ */
+function mapAccordion(ctx: Ctx, entries: Settings[]): Puck {
+  let flattened = false;
+  const items = entries.flatMap((b) => {
+    const question = clean(textOfHtml(str(b.heading)));
+    const text = readText(str(b.body));
+    flattened ||= text.lossy;
+    if (!question) {
+      ctx.notes.push({ kind: "left_out", text: "An accordion item has no heading, so it is not imported." });
+      return [];
+    }
+    return [{ type: "AccordionItem", props: { id: ctx.id("AccordionItem"), title: question, text: [text.heading, ...text.lines].filter(Boolean).join("\n"), open: false } }];
+  });
+  if (flattened) ctx.notes.push({ kind: "approximated", text: "The text under each accordion item is plain lines here: bold, italics, links and lists are not kept." });
+  return { type: "Accordion", props: { id: ctx.id("Accordion"), items } };
+}
+
+/** The export names a Kajabi event, not its date, so the countdown has none until it is set in the editor. */
+function mapCountdown(ctx: Ctx, b: Settings, name: string): Puck {
+  const event = clean(str(b.event));
+  ctx.notes.push({ kind: "todo", text: `Countdown "${name}": the export names a Kajabi event${event ? ` (${event})` : ""}, not its date. Set the date in the editor; until then the countdown isn't shown to visitors.` });
+  if (flag(b.enable_end_action) || str(b.end_action)) ctx.notes.push({ kind: "left_out", text: `What Kajabi does when the countdown "${name}" ends (${clean(str(b.end_action)) || "an action"}) is not imported; choose what happens in the editor.` });
+  return { type: "Countdown", props: { id: ctx.id("Countdown"), ...BLOCK_DEFAULTS.Countdown, targetAt: "", heading: "", whenExpired: flag(b.remove_section_on_complete) ? "hide" : "zeros" } };
+}
+
+/** A Kajabi-hosted video is an id in the export, with no address to play it from; the Hub plays YouTube, Vimeo and Mux. */
+function mapVideo(ctx: Ctx, b: Settings): Puck {
+  const video = clean(str(b.video));
+  ctx.notes.push({ kind: "todo", text: `A video${video ? ` (Kajabi video ${video})` : ""} can't be carried over: the export has only its Kajabi id. Paste its YouTube, Vimeo or Mux link into the Video block in the editor.` });
+  return { type: "Video", props: { id: ctx.id("Video"), url: "", title: "" } };
+}
+
+/** Kajabi's networks that the Social icons block has (Kajabi's "twitter" is X); the rest are named in the report. */
+const SOCIAL_FROM_KAJABI: Record<string, SocialNetwork> = { instagram: "instagram", facebook: "facebook", youtube: "youtube", tiktok: "tiktok", twitter: "x", linkedin: "linkedin", pinterest: "pinterest" };
+const SOCIAL_LABELS: Record<string, string> = { facebook: "Facebook", twitter: "Twitter", instagram: "Instagram", youtube: "YouTube", spotify: "Spotify", linkedin: "LinkedIn", pinterest: "Pinterest", tiktok: "TikTok", apple_podcasts: "Apple Podcasts", google_podcasts: "Google Podcasts", itunes: "iTunes", snapchat: "Snapchat", vimeo: "Vimeo", soundcloud: "SoundCloud", github: "GitHub", medium: "Medium", twitch: "Twitch", rss: "RSS" };
+const humanNetwork = (key: string) => SOCIAL_LABELS[key] ?? key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/**
+ * Social icons become a Social icons block: one icon link per network the export gives an address for and the block has (Instagram, Facebook,
+ * YouTube, TikTok, X, LinkedIn, Pinterest), in the export's order, with its alignment and size. A network the block does not have is left out
+ * and named; a link that can't be used here is kept with no address and a to-do.
+ */
+function mapSocialIcons(ctx: Ctx, b: Settings): Puck | null {
+  const given = Object.entries(b)
+    .filter(([key]) => key.startsWith("social_icon_link_"))
+    .map(([key, value]) => ({ key: key.slice("social_icon_link_".length), href: resolveLink(value, ctx.siteUrl), given: clean(str(value)) }))
+    .filter((l) => l.given);
+  if (given.length === 0) return null;
+  const known = given.filter((l) => Object.hasOwn(SOCIAL_FROM_KAJABI, l.key));
+  const unknown = given.filter((l) => !Object.hasOwn(SOCIAL_FROM_KAJABI, l.key));
+  if (unknown.length > 0) ctx.notes.push({ kind: "left_out", text: `Social icons for ${unknown.map((l) => humanNetwork(l.key)).join(", ")} are not imported: the Social icons block has no mark for ${unknown.length === 1 ? "that network" : "those networks"}. Add a Website link if you want one.` });
+  if (known.length === 0) return null;
+  for (const l of known.filter((x) => !x.href)) ctx.notes.push({ kind: "todo", text: `The ${humanNetwork(l.key)} link in the social icons can't be used here: set it in the editor.` });
+  const align = str(b.horizontal) === "left" ? "left" : str(b.horizontal) === "right" ? "right" : "center";
+  const size = /^(small|large)$/.test(str(b.social_icon_size)) ? str(b.social_icon_size) : "medium";
+  const items = known.slice(0, ITEM_LIMITS.SocialIcons).map((l) => ({ type: "SocialLink", props: { id: ctx.id("SocialLink"), network: SOCIAL_FROM_KAJABI[l.key], url: l.href } }));
+  ctx.notes.push({ kind: "approximated", text: `Social icons became a Social icons block (${known.map((l) => humanNetwork(l.key)).join(", ")}) with the Hub's own simple marks and the theme's colours; Kajabi's icon colours and backgrounds are not carried over, and the links open in a new tab.` });
+  return { type: "SocialIcons", props: { id: ctx.id("SocialIcons"), items, align, size } };
+}
+
+/** Why embedded code is not carried over, or null when it is plain markup the rich text rules can hold. Anything that runs or loads something is refused. */
+function unsafeCodeReason(code: string): string | null {
+  if (/<\s*(script|iframe|style|object|embed|form|link|meta|base|svg|math|template|input|button|textarea|frame|applet)\b/i.test(code) || /\son[a-z]+\s*=/i.test(code) || /javascript\s*:/i.test(code)) return "runs a script or loads another site";
+  return null;
+}
+const codeHosts = (code: string) => [...code.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase());
+
+// ---- text colours -----------------------------------------------------------------------------------------
+
+/** The brand plum Kajabi pages use for coloured text (the theme's primary here is a green, but the text colour chosen in the editor is this). */
+const PLUM_TEXT: Rgb = [166, 77, 121];
+
+/** How much of a block's text each colour (from `style="color: ..."`, inherited by what is inside) covers, by number of characters. "" is the page's own colour. */
+function textColourShares(html: string): Map<string, number> {
+  const shares = new Map<string, number>();
+  const walk = (nodes: Node5[], inherited: string) => {
+    for (const node of nodes) {
+      if (node.nodeName === "#text") {
+        const n = clean(node.value ?? "").length;
+        if (n > 0) shares.set(inherited, (shares.get(inherited) ?? 0) + n);
+        continue;
+      }
+      if (!node.tagName || NOT_TEXT.has(node.tagName)) continue;
+      const m = /(?:^|;)\s*color:\s*(#[0-9a-f]{3,6}|rgba?\([^)]*\))/i.exec(attr(node, "style"));
+      walk(node.childNodes ?? [], m && rgb(m[1]) ? m[1].toLowerCase() : inherited);
+    }
+  };
+  walk(parseFragment(html.replace(/&nbsp;|\u00a0/g, " ")).childNodes as unknown as Node5[], "");
+  return shares;
+}
+
+/**
+ * The text tone of a section from the text blocks in it: "plum" when plum covers at least half the words, else the theme's own. Any
+ * other colour that isn't a grey is not carried over, and said once.
+ */
+function sectionTextTone(htmls: string[]): { tone: "auto" | "plum"; others: string[] } {
+  const total = new Map<string, number>();
+  for (const html of htmls) for (const [k, v] of textColourShares(html)) total.set(k, (total.get(k) ?? 0) + v);
+  let all = 0;
+  let plum = 0;
+  const others = new Set<string>();
+  for (const [colour, n] of total) {
+    all += n;
+    const c = colour ? rgb(colour) : null;
+    if (!c) continue;
+    if (distance(c, PLUM_TEXT) <= 60) plum += n;
+    else if (Math.max(...c) - Math.min(...c) > 24) others.add(colour);
+  }
+  return { tone: all > 0 && plum / all >= 0.5 ? "plum" : "auto", others: [...others] };
+}
+
 // ---- the page ------------------------------------------------------------------------------------------------
 
-const idNumber = (id: string) => Number.parseInt(id, 10);
+/** A card's colour and softness from a Kajabi fill: the nearest theme colour (white and solid is the standard card), and a see-through fill lets the picture show faintly. */
+function cardStyle(notes: ImportNote[], fill: unknown): { cardColor: string; cardSoft: boolean } {
+  const color = rgb(fill);
+  if (!color) return { cardColor: "default", cardSoft: false };
+  const alpha = alphaOf(fill);
+  // A see-through fill is judged as it looks over a light page: the colour mixed with white by its opacity.
+  const shown = color.map((c) => Math.round(c * alpha + 255 * (1 - alpha))) as Rgb;
+  const pick = nearest(shown, SECTION_COLORS);
+  if (!pick.exact) notes.push({ kind: "approximated", text: `The card colour ${str(fill)} is shown as the nearest of our colours.` });
+  if (alpha < 0.95) notes.push({ kind: "approximated", text: "A card is a little see-through here (80%), where Kajabi's is a different amount." });
+  return { cardColor: pick.key === "white" && alpha >= 0.95 ? "default" : pick.key, cardSoft: alpha < 0.95 };
+}
+
+/** A Section's padding with no space above and below (the card Section inside a band that has the space already). */
+const zeroVertical = () => {
+  const p = presetPadding("medium");
+  return { paddingDesktop: { ...p.paddingDesktop, top: 0, bottom: 0 }, paddingMobile: { ...p.paddingMobile, top: 0, bottom: 0 } };
+};
 
 export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions): KajabiMapResult {
   const current = isObject(settingsData) && isObject(settingsData.current) ? settingsData.current : null;
@@ -200,13 +549,16 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const root: Record<string, unknown> = { showHeader: false, showFooter: false };
   let blockCount = 0;
   let hiddenCount = 0;
-  const allBlockIds: string[] = [];
   const themeRadius = num(current.btn_border_radius);
+  const ctx: Ctx = { notes, pictures, id, siteUrl: options.siteUrl, themeRadius };
+  /** Embedded code that runs a script or loads another site: never imported, said once for the page. */
+  const leftOutCode = { count: 0, hosts: new Set<string>() };
 
   // The header's logo is the page's first picture (a banner in the page's own colour, as the export has it).
   const header = sections.header;
   const headerHidden = header && isObject(header.settings) && flag(header.settings.hide_on_desktop) && flag(header.settings.hide_on_mobile);
   let headerLogo: Puck | null = null;
+  const headerOverlays = Boolean(header && isObject(header.settings) && str(header.settings.position) === "overlay");
   if (header && !headerHidden) {
     for (const key of Array.isArray(header.block_order) ? (header.block_order as string[]) : []) {
       const b = header.blocks?.[key];
@@ -217,7 +569,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         if (!clean(str(s.image_alt)) || clean(str(s.image_alt)) === "Header Logo") notes.push({ kind: "todo", text: "The picture at the top has no description: add one in the editor (or mark it decorative) before publishing." });
         headerLogo = {
           type: "Image",
-          props: { id: id("Image"), imageAssetId: pictures.add(s.logo), alt: clean(str(s.image_alt)) === "Header Logo" ? "" : clean(str(s.image_alt)), decorative: false, size: width <= 220 ? "small" : width <= 480 ? "medium" : "full", rounded: false, align: str(s.alignment) === "left" ? "left" : str(s.alignment) === "right" ? "right" : "center" },
+          props: { id: id("Image"), imageAssetId: pictures.add(s.logo), alt: clean(str(s.image_alt)) === "Header Logo" ? "" : clean(str(s.image_alt)), decorative: false, size: width <= 320 ? "small" : width <= 480 ? "medium" : "full", rounded: false, align: str(s.alignment) === "left" ? "left" : str(s.alignment) === "right" ? "right" : "center" },
         };
       } else if (b.type === "logo") notes.push({ kind: "left_out", text: "The header shows the site name as text; it is not imported." });
       else notes.push({ kind: "left_out", text: `Header block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported.` });
@@ -234,7 +586,6 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const s = section.settings ?? {};
     const blocks = section.blocks;
     const blockOrder = (Array.isArray(section.block_order) ? section.block_order : Object.keys(blocks)).filter((k): k is string => typeof k === "string" && k in blocks);
-    allBlockIds.push(...blockOrder);
     if (str(section.type) !== "section") {
       notes.push({ kind: "left_out", text: `Section ${sectionId} is a "${str(section.type)}" section, which is not imported (${blockOrder.length} blocks).` });
       continue;
@@ -248,12 +599,22 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const inner: Puck[] = [];
     const widths: number[] = [];
     let boxed = false;
-    if (first && headerLogo) inner.push(headerLogo);
+    let cardFill: unknown = "";
+    // A fill on every block of the section is the section's card; a fill on only some is a card around each of those blocks.
+    const shown = blockOrder.filter((k) => !flag(blocks[k].hidden) && !(flag(settingsOf(blocks[k]).hide_on_desktop) && flag(settingsOf(blocks[k]).hide_on_mobile)));
+    const hasFill = (k: string) => ["text", "form"].includes(str(blocks[k].type)) && rgb(settingsOf(blocks[k]).background_color) !== null;
+    const wholeCard = shown.length > 0 && shown.every(hasFill);
+    const words: string[] = [];
+    // The header's logo is over the page's top picture in Kajabi ("overlay"): where the picture is this section's, it stays out of the card.
+    const logoOutside = first && headerLogo !== null && headerOverlays && str(s.bg_type).includes("image") && Boolean(str(s.bg_image));
+    if (first && headerLogo && !logoOutside) inner.push(headerLogo);
     first = false;
 
-    for (const key of blockOrder) {
+    const consumed = new Set<string>();
+    for (const [index, key] of blockOrder.entries()) {
+      if (consumed.has(key)) continue;
       const block = blocks[key];
-      const b = (isObject(block.settings) ? block.settings : {}) as Settings;
+      const b = settingsOf(block);
       const name = clean(str(block.name)) || str(block.type);
       const type = str(block.type);
       const label = type === "cta" ? clean(textOfHtml(str(b.btn_text))) || name : name;
@@ -263,8 +624,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         notes.push({ kind: "hidden", text: `Hidden in Kajabi, not imported: ${type === "cta" ? `button "${label}"${link ? ` (${link})` : ""}` : `${name} (${type})`}.` });
         continue;
       }
-      if (flag(b.hide_on_desktop) || flag(b.hide_on_mobile)) notes.push({ kind: "approximated", text: `"${label}" is hidden on ${flag(b.hide_on_desktop) ? "desktop" : "phones"} only in Kajabi; here it shows everywhere.` });
-      if (str(b.reveal_event)) notes.push({ kind: "left_out", text: `"${label}" appears after a delay or an event in Kajabi; here it is always shown.` });
+      liveNotes(ctx, b, label);
       const width = num(b.width);
       const before = inner.length;
 
@@ -282,21 +642,61 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         if (str(b.img_action)) notes.push({ kind: "left_out", text: `A picture that links somewhere in Kajabi is a plain picture here.` });
         inner.push({ type: "Image", props: { id: id("Image"), imageAssetId: ref, alt, decorative: false, size: width !== null && width <= 3 ? "small" : width !== null && width <= 8 ? "medium" : "full", rounded: false, align: "center" } });
       } else if (type === "cta") {
-        const bg = rgb(b.btn_background_color);
-        const fg = rgb(b.btn_text_color);
-        const outline = str(b.btn_style) === "outline" || (!bg && Boolean(fg));
-        const source = outline ? fg : bg;
-        const picked = source ? nearest(source, BUTTON_COLORS) : { key: "plum" as const, exact: true };
-        if (source && !picked.exact) notes.push({ kind: "approximated", text: `Button "${label}": its colour is shown as the nearest of our three button colours.` });
-        const href = resolveLink(b.btn_action, options.siteUrl);
-        const raw = clean(str(b.btn_action));
-        if (!href) notes.push({ kind: "todo", text: `Button "${label}" has ${raw ? "a link that can't be used here" : "no link"}: set its link in the editor.` });
-        else if (raw.startsWith("/")) notes.push({ kind: "approximated", text: `Button "${label}" goes to a Kajabi path (${raw}) through the Kajabi site, which works while Kajabi stays; point it at the final address when the page moves.` });
-        const radius = num(b.btn_border_radius) ?? themeRadius ?? 100;
-        inner.push({
-          type: "Button",
-          props: { id: id("Button"), label, href, look: outline ? "outline" : "solid", color: picked.key, shape: radius >= 30 ? "pill" : "rect", align: alignOf(b.text_align) === "left" ? "left" : alignOf(b.text_align) === "right" ? "right" : "center", full: str(b.btn_width) === "full" },
-        });
+        inner.push(makeButton(ctx, b, label));
+      } else if (type === "feature") {
+        inner.push(...mapFeature(ctx, b, name));
+      } else if (type === "card" || type === "pricing") {
+        // Cards (and pricing columns) that follow one another sit in one row in Kajabi: one Card grid here.
+        const group = sameKind(blockOrder, blocks, index, type);
+        for (const k of group.slice(1)) {
+          consumed.add(k);
+          liveNotes(ctx, settingsOf(blocks[k]), clean(str(blocks[k].name)) || type);
+        }
+        inner.push(...(type === "card" ? mapCards(ctx, group.map((k) => settingsOf(blocks[k]))) : mapPricing(ctx, group.map((k) => settingsOf(blocks[k])))));
+      } else if (type === "accordion") {
+        const group = sameKind(blockOrder, blocks, index, type);
+        for (const k of group.slice(1)) {
+          consumed.add(k);
+          liveNotes(ctx, settingsOf(blocks[k]), clean(str(blocks[k].name)) || type);
+        }
+        inner.push(mapAccordion(ctx, group.map((k) => settingsOf(blocks[k]))));
+      } else if (type === "countdown") {
+        inner.push(mapCountdown(ctx, b, name));
+      } else if (type === "video") {
+        inner.push(mapVideo(ctx, b));
+      } else if (type === "link_list") {
+        notes.push({ kind: "todo", text: `Link list "${name}": the export names the Kajabi menu${clean(str(b.menu)) ? ` (${clean(str(b.menu))})` : ""}, not its links. Add the links to this Link list in the editor.` });
+        inner.push({ type: "LinkList", props: { id: id("LinkList"), items: [] } });
+      } else if (type === "social_icons") {
+        const row = mapSocialIcons(ctx, b);
+        if (!row) {
+          notes.push({ kind: "left_out", text: `"${name}" (social icons) has no links to import.` });
+          continue;
+        }
+        inner.push(row);
+      } else if (type === "code") {
+        const code = str(b.code);
+        const unsafe = unsafeCodeReason(code);
+        if (unsafe) {
+          leftOutCode.count++;
+          for (const host of codeHosts(code)) leftOutCode.hosts.add(host);
+          continue;
+        }
+        const made = textBlocks(code, alignOf(b.text_align), id);
+        if (made.length === 0) {
+          notes.push({ kind: "left_out", text: `The embedded code block "${name}" has nothing to show.` });
+          continue;
+        }
+        notes.push({ kind: "approximated", text: `The embedded code block "${name}" was plain HTML; it is now text here (styles, scripts and embeds are never carried over).` });
+        inner.push(...made);
+      } else if (type === "offer") {
+        // The export names the offer by its Kajabi id; its title, price and checkout address are looked up when the page runs.
+        const cta = clean(textOfHtml(str(b.btn_text)));
+        notes.push({ kind: "todo", text: `Offer block "${name}": the export names the Kajabi offer${clean(str(b.offer)) ? ` (${clean(str(b.offer))})` : ""}, not its title, price or checkout link${cta ? `, and its button says "${cta}"` : ""}. Add a card with a button in the editor.` });
+        continue;
+      } else if (type === "blog") {
+        notes.push({ kind: "left_out", text: `The blog block "${name}" is not imported: the blog stays on Kajabi.` });
+        continue;
       } else if (type === "form") {
         inner.push(...textBlocks(str(b.text), alignOf(b.text_align), id));
         const formId = clean(str(b.form));
@@ -312,21 +712,86 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         continue;
       }
       blockCount += inner.length - before;
-      if (width !== null) widths.push(width);
-      if (rgb(b.background_color) && (type === "text" || type === "form")) boxed = true;
+      // The width of a card or pricing column is its share of a row, which the grid takes care of.
+      if (width !== null && type !== "card" && type !== "pricing") widths.push(width);
+      const filled = (type === "text" || type === "form") && rgb(b.background_color) !== null;
+      if (filled && wholeCard) {
+        boxed = true;
+        cardFill ||= b.background_color;
+      } else if (filled) {
+        // Only this block has a fill: it becomes a card of its own, as wide as the block, with its own text colour.
+        const made = inner.splice(before);
+        const own = sectionTextTone([str(b.text)]);
+        if (own.others.length > 0) notes.push({ kind: "approximated", text: `Coloured text (${own.others.join(", ")}) follows the Hub's text colours here; only plum is kept.` });
+        inner.push({
+          type: "Section",
+          props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "none", overlay: "none", width: width !== null && width <= 7 ? "narrow" : width !== null && width <= 9 ? "medium" : "wide", ...zeroVertical(), align: alignOf(b.text_align) === "center" ? "center" : "left", place: "center", card: true, ...cardStyle(notes, b.background_color), textTone: own.tone, content: made },
+        });
+      }
+      if (!filled || wholeCard) {
+        if (type === "text" || type === "form" || type === "feature" || type === "cta") words.push(str(b.text));
+      }
+    }
+
+    if (inner.length === 0) {
+      notes.push({ kind: "left_out", text: `Section ${sectionId} had nothing that could be imported; it is not in the page.` });
+      continue;
     }
 
     // The column: the most common block width (Kajabi sets it per block in twelfths), as the nearest of our widths.
     const counts = new Map<number, number>();
     for (const w of widths) counts.set(w, (counts.get(w) ?? 0) + 1);
     const common = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 12;
-    const bgColor = rgb(s.background_color);
-    const bgPick = bgColor ? nearest(bgColor, SECTION_COLORS) : { key: "white" as const, exact: true };
-    if (bgColor && !bgPick.exact) notes.push({ kind: "approximated", text: `Section background ${str(s.background_color)} is shown as the nearest of our colours.` });
     const bgPicture = str(s.bg_type).includes("image") ? pictures.add(s.bg_image) : null;
     if (str(s.bg_video)) notes.push({ kind: "left_out", text: "A section background video is not imported." });
-    if (bgPicture) notes.push({ kind: "approximated", text: "A dark shade was added over the section's background picture so the text stays readable." });
+    const bgColor = rgb(s.background_color);
+    const tint = bgColor ? { color: bgColor, alpha: alphaOf(s.background_color) } : null;
+    // Over a picture, the section's colour is a tint on it (a light one with a low opacity washes the picture out); without one it is the background.
+    let overlay: "none" | "dark" | "light" | "cream" = "none";
+    if (bgPicture) {
+      if (tint && lightness(tint.color) >= 0.6) overlay = tint.alpha >= 0.6 ? "light" : "cream";
+      else overlay = "dark";
+      notes.push({
+        kind: "approximated",
+        text: tint
+          ? `The section's picture has a ${lightness(tint.color) >= 0.6 ? "light" : "dark"} tint in Kajabi (${str(s.background_color)}); it is a ${overlay === "dark" ? "dark" : overlay === "light" ? "light" : "soft cream"} shade here, which is the nearest we offer (the exact colour and strength are not carried over).`
+          : "A dark shade was added over the section's background picture so the text stays readable.",
+      });
+    }
+    const bgPick = bgColor && !bgPicture ? nearest(bgColor, SECTION_COLORS) : { key: "white" as const, exact: true };
+    if (bgColor && !bgPicture && !bgPick.exact) notes.push({ kind: "approximated", text: `Section background ${str(s.background_color)} is shown as the nearest of our colours.` });
     const padding = ((num(isObject(s.padding_desktop) ? s.padding_desktop.top : 0) ?? 0) + (num(isObject(s.padding_desktop) ? s.padding_desktop.bottom : 0) ?? 0)) / 2;
+
+    // The card: the block's own fill, as the nearest theme colour; a fill with some transparency lets the picture show faintly through.
+    const { cardColor, cardSoft } = boxed ? cardStyle(notes, cardFill) : { cardColor: "default", cardSoft: false };
+    // Text colour: plum is kept where most of the words are plum; the other colours follow the theme.
+    const { tone, others } = sectionTextTone(words);
+    if (others.length > 0) notes.push({ kind: "approximated", text: `Coloured text (${others.join(", ")}) follows the Hub's text colours here; only plum is kept.` });
+    const place = str(s.horizontal) === "left" ? "left" : str(s.horizontal) === "right" ? "right" : "center";
+    const alignCount = new Map<string, number>();
+    for (const k of blockOrder) {
+      const align = str(settingsOf(blocks[k]).text_align);
+      if (align) alignCount.set(align, (alignCount.get(align) ?? 0) + 1);
+    }
+    const textAlign = [...alignCount.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] === "center" ? "center" : "left";
+    // Kajabi's "full width" lets the blocks spread; a block of half the row is still half the page, so only a section of wide blocks is full width.
+    const sectionWidth = flag(s.full_width) && common >= 11 ? "full" : common <= 6 || (boxed && common === 7) ? "narrow" : common <= 9 ? "medium" : "wide";
+    const spacing = presetPadding(padding >= 60 ? "large" : "medium");
+
+    if (logoOutside && headerLogo) {
+      // The picture and its shade are the band; the logo sits on it, and the card is a Section of its own inside, so the logo is not in the card.
+      const logoAlign = place === "center" ? "center" : (headerLogo.props.align as string);
+      headerLogo.props.align = logoAlign;
+      const inside: Puck = {
+        type: "Section",
+        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "none", overlay: "none", width: sectionWidth, ...zeroVertical(), align: textAlign, place, card: boxed, cardColor, cardSoft, textTone: tone, content: inner },
+      };
+      content.push({
+        type: "Section",
+        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: bgPick.key, backgroundImageAssetId: bgPicture ?? undefined, overlay, width: "wide", ...spacing, align: "center", content: [headerLogo, inside] },
+      });
+      continue;
+    }
     content.push({
       type: "Section",
       props: {
@@ -334,16 +799,24 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         id: id("Section"),
         background: bgPick.key,
         backgroundImageAssetId: bgPicture ?? undefined,
-        overlay: bgPicture ? "dark" : "none",
-        width: flag(s.full_width) ? "full" : common <= 6 ? "narrow" : common <= 9 ? "medium" : "wide",
-        ...presetPadding(padding >= 60 ? "large" : "medium"),
-        align: str(s.horizontal) === "left" ? "left" : "center",
+        overlay,
+        width: sectionWidth,
+        ...spacing,
+        align: textAlign,
+        place,
         card: boxed,
+        cardColor,
+        cardSoft,
+        textTone: tone,
         content: inner,
       },
     });
   }
 
+  if (leftOutCode.count > 0) {
+    const hosts = [...leftOutCode.hosts].slice(0, 3).join(", ");
+    notes.push({ kind: "left_out", text: `${leftOutCode.count} embedded code block${leftOutCode.count === 1 ? "" : "s"} ${leftOutCode.count === 1 ? "runs" : "run"} a script or load${leftOutCode.count === 1 ? "s" : ""} another site${hosts ? ` (${hosts})` : ""}, which the Hub never allows on a page. Add what they showed (products, buttons) with our blocks.` });
+  }
   if (content.length === 0) return { ok: false, error: "Nothing in this export could be imported: every section was hidden or of a kind we don't import yet." };
 
   const footer = sections.footer;
@@ -355,14 +828,65 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         root.showFooter = true;
         root.footerText = `© ${options.year} ${clean(str(b.settings?.copyright))}`;
         notes.push({ kind: "approximated", text: "The footer shows the copyright line in the Hub's footer colour; the year is set today and doesn't roll over." });
-      } else notes.push({ kind: "left_out", text: `Footer block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported.` });
+      } else {
+        const why = b.type === "link_list" ? ": the export names the Kajabi menu, not its links" : b.type === "social_icons" ? ": the footer here shows only the copyright line" : "";
+        notes.push({ kind: "left_out", text: `Footer block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported${why}.` });
+      }
     }
   }
   notes.push({ kind: "approximated", text: "Fonts and exact spacing follow the Hub's theme, not Kajabi's." });
 
-  const firstBlock = allBlockIds.map((b) => ({ b, n: idNumber(b) })).filter((x) => Number.isFinite(x.n)).sort((a, b) => a.n - b.n)[0]?.b ?? allBlockIds[0] ?? "";
   const data = sanitizeLandingData({ content, root: { props: root } });
-  return { ok: true, data, importKey: `kajabi:${order[0]}:${firstBlock}`, pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount } };
+  const layout = layoutFingerprint(order, sections);
+  const start = pageStart(data);
+  return { ok: true, data, layout, importKey: layoutKeyOf(layout), start, suggestedTitle: suggestTitle(start), pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount } };
+}
+
+/**
+ * A fingerprint of the page's layout: the ordered sections of the page (id and kind) and each one's ordered blocks
+ * (id and kind). Not the text, the settings, the header or the footer (those belong to the whole site).
+ */
+function layoutFingerprint(order: string[], sections: Record<string, Section>): string {
+  const layout = order.map((sectionId) => {
+    const section = sections[sectionId];
+    if (!section || !isObject(section) || !isObject(section.blocks)) return [sectionId, "missing", []];
+    const blocks = section.blocks;
+    const keys = (Array.isArray(section.block_order) ? section.block_order : Object.keys(blocks)).filter((k): k is string => typeof k === "string" && k in blocks);
+    return [sectionId, str(section.type), keys.map((k) => [k, str(blocks[k]?.type)])];
+  });
+  return createHash("sha256").update(JSON.stringify(layout)).digest("hex").slice(0, 32);
+}
+
+const LINE_MAX = 140;
+const shorten = (text: string) => (text.length > LINE_MAX ? `${text.slice(0, LINE_MAX - 1).trimEnd()}…` : text);
+
+/** The first heading and the first three lines of text of a page's document, in reading order (the blocks inside sections included). */
+export function pageStart(data: LandingData): PageStart {
+  let heading = "";
+  const lines: string[] = [];
+  const walk = (blocks: unknown) => {
+    if (!Array.isArray(blocks)) return;
+    for (const block of blocks) {
+      if (!isObject(block) || !isObject(block.props)) continue;
+      if (block.type === "Heading" && !heading) heading = clean(str(block.props.text));
+      else if (block.type === "RichText" && lines.length < 3) {
+        for (const node of parseFragment(str(block.props.html)).childNodes as unknown as Node5[]) {
+          const line = clean(textOf(node));
+          if (line && lines.length < 3) lines.push(shorten(line));
+        }
+      }
+      for (const value of Object.values(block.props)) walk(value);
+    }
+  };
+  walk(data.content);
+  return { heading: shorten(heading), lines };
+}
+
+/** A starting point for the title the export lacks: its first heading (or first line), in capitals-for-words case if it was shouted. */
+export function suggestTitle(start: PageStart): string {
+  const base = clean(start.heading || start.lines[0] || "");
+  const calm = base === base.toUpperCase() && /[A-Z]/.test(base) ? base.toLowerCase().replace(/(^|\s)(\S)/g, (_, space: string, c: string) => space + c.toUpperCase()) : base;
+  return calm.slice(0, 120).trim();
 }
 
 /** The text of a snippet of HTML (a button label with a `<br>`), whitespace as single spaces. */

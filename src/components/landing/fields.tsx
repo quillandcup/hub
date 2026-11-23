@@ -1,6 +1,7 @@
 "use client";
 
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
+import { documentNonce } from "@/lib/csp-nonce";
 import StarterKit from "@tiptap/starter-kit";
 import { Bold, Italic, Link as LinkIcon, Link2Off, List, ListOrdered, Quote, type LucideIcon } from "lucide-react";
 import { linkAddress } from "@/components/chat/FormatToolbar";
@@ -76,6 +77,7 @@ function Toolbar({ editor }: { editor: Editor }) {
  */
 export function RichTextField({ value, onChange, label }: { value: string; onChange: (html: string) => void; label: string }) {
   const editor = useEditor({
+    injectNonce: documentNonce(), // TipTap's own style tag needs the page's nonce (src/lib/csp-nonce.ts)
     extensions: [StarterKit.configure({ link: { openOnClick: false, autolink: false }, heading: { levels: [2, 3] } })],
     content: value ?? "",
     immediatelyRender: false,

@@ -4,7 +4,7 @@ import type { Repos } from "@/lib/data/repos";
 /** The roles that may own an engagement: admins and the community manager (staff who work Hedgie Care). */
 export const CARE_OWNER_ROLES = ["admin", "community_manager"] as const;
 
-/** A staff user who may own engagements: the auth user id (a uuid, not one of our table ids), the name shown, the role. */
+/** A staff user who may own engagements: the auth user id (a uuid, not one of our table ids), the name shown, and `admin` when they hold admin (else `community_manager`). */
 export type CareOwner = { id: string; name: string; role: string };
 
 const FALLBACK_NAME = "A staff member";
@@ -19,14 +19,14 @@ export async function loadCareOwners(repos: Pick<Repos, "members">, privileged: 
   const staff = await privileged.profiles.byRoles([...CARE_OWNER_ROLES]);
   const members = await Promise.all(staff.map((s) => repos.members.byUserId(s.id)));
   return staff
-    .map((s, i) => ({ id: s.id, role: s.role, name: members[i] ? getMemberDisplayName({ name: members[i]!.name, display_name: members[i]!.displayName }) : FALLBACK_NAME }))
+    .map((s, i) => ({ id: s.id, role: s.roles.includes("admin") ? "admin" : "community_manager", name: members[i] ? getMemberDisplayName({ name: members[i]!.name, display_name: members[i]!.displayName }) : FALLBACK_NAME }))
     .sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1));
 }
 
-/** Whether this auth user may own an engagement. Reads the profile's role, never a token claim. */
+/** Whether this auth user may own an engagement: holds any of the owner roles. Reads the roles from the database, never a token claim. */
 export async function isCareOwner(privileged: Pick<Repos, "profiles">, userId: string): Promise<boolean> {
-  const profile = await privileged.profiles.byId(userId);
-  return !!profile && (CARE_OWNER_ROLES as readonly string[]).includes(profile.role);
+  const roles = await privileged.profiles.rolesOf(userId);
+  return roles.some((role) => (CARE_OWNER_ROLES as readonly string[]).includes(role));
 }
 
 /** The name to show for an owner: from the list, "Unassigned" for none, a neutral label for someone no longer staff. */

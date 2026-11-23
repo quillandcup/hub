@@ -29,7 +29,7 @@ export const SLACK_READ_SYNC_SCOPES = [
   "channels:write",
   "groups:write",
   "mpim:write",
-  // Sending files from the Hub as the member (src/lib/chat/slack-upload.ts); without it the bot uploads.
+  // Sending files from the Hub as the member (src/modules/chat/slack/upload.ts); without it the bot uploads.
   "files:write",
 ];
 

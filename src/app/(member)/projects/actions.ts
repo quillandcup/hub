@@ -718,7 +718,8 @@ async function updateProjectPhaseImpl(
 /**
  * What to ask the member after the status saved (docs/product/FINISHERS.md, "The project-stage prompt"): the milestones this move
  * could mean that the project has no row for yet, in any status (a member who answered, or took one back, is never asked
- * twice), and whether to offer the Publish flow. Never blocks or fails the status change: any trouble reading means no prompt.
+ * twice), including the ones they said "not yet" to when the project has reached a later stage group, and whether to offer the
+ * Publish flow. Never blocks or fails the status change: any trouble reading means no prompt.
  */
 async function stageMilestonePrompt(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -730,7 +731,9 @@ async function stageMilestonePrompt(
     const repos = createRepos(supabase);
     // The dropdown is only offered to a project with no book; a project that has one is never asked for the Bookshelf.
     const hasBook = (await repos.books.mine(memberId)).some((b) => b.project_id === project.id);
-    const move = milestonesToAsk(project.phase, to, hasBook);
+    // "Not yet" answers come back at a later stage group (never twice in one); "not for this work" and answered kinds are filtered below.
+    const snoozes = await repos.milestones.snoozesOf(memberId, project.id);
+    const move = milestonesToAsk(project.phase, to, hasBook, snoozes);
     if (move.kinds.length === 0 && !move.offerPublish) return null;
     const asked = move.kinds.length > 0 ? await repos.milestones.askedKinds(memberId, project.id) : [];
     const kinds = move.kinds.filter((kind) => !asked.includes(kind));

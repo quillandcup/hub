@@ -15,7 +15,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 let auth: { user: { id: string } | null; forbidden?: boolean } = { user: { id: "admin" } };
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => auth }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => auth }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({}) }));
 const listEvents = vi.fn();
 vi.mock("@/lib/google-calendar/client", () => ({ GoogleCalendarClient: class { listEvents = listEvents; } }));

@@ -9,7 +9,6 @@ import {
   MILESTONE_SHOWN,
   SHARE_STORY_DEFAULT,
   SHARE_STORY_LABEL,
-  SHARE_STORY_NOTE,
   SHARE_STORY_TIP,
   describeMilestoneLevel,
   hasStory,
@@ -25,6 +24,9 @@ import {
   orgToday,
   parseMilestoneAnswer,
   parseMilestoneSelfAdd,
+  parseMilestoneDate,
+  datePeriodEnd,
+  reachedWhileMember,
 } from "@/lib/finishers";
 
 const NOW = Date.parse("2026-11-20T15:00:00Z");
@@ -65,6 +67,7 @@ describe("parseMilestoneAnswer", () => {
     expect(parseMilestoneAnswer({ answer: "confirm" }, NOW)).toEqual({
       status: "confirmed",
       achievedOn: null,
+      achievedPrecision: "day",
       storyBefore: null,
       storyAfter: null,
       consent_testimonial: false,
@@ -112,7 +115,7 @@ describe("parseMilestoneSelfAdd", () => {
   it("reads the kind and a confirmed answer, the share consent off unless ticked", () => {
     expect(parseMilestoneSelfAdd({ kind: "the_end" }, NOW)).toEqual({
       kind: "the_end",
-      answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false },
+      answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day", storyBefore: null, storyAfter: null, consent_testimonial: false },
     });
     expect(parseMilestoneSelfAdd({ kind: "publish_ready", achievedOn: "2026-05-01", storyAfter: "Done.", shareStory: true }, NOW)).toMatchObject({
       kind: "publish_ready",
@@ -130,9 +133,9 @@ describe("parseMilestoneSelfAdd", () => {
 describe("the share consent and the visibility words", () => {
   it("keeps the agreed consent wording, with the marketing uses in the tip", () => {
     expect(SHARE_STORY_LABEL).toBe("Share my story to inspire other writers.");
-    expect(SHARE_STORY_NOTE).toMatch(/we may feature it on the Quill & Cup website/);
-    expect(SHARE_STORY_NOTE).toMatch(/you can change your mind any time/);
-    expect(SHARE_STORY_TIP).toBe("For marketing: the Finishers section of our website, and testimonials we share.");
+    expect(SHARE_STORY_TIP).toMatch(/we may feature it on the Quill & Cup website/);
+    expect(SHARE_STORY_TIP).toMatch(/you can change your mind any time/);
+    expect(SHARE_STORY_TIP).toMatch(/We.ll only use what you.ve written here/);
   });
 
   it("says something warm for each milestone and never promises sales or exposure", () => {
@@ -141,7 +144,7 @@ describe("the share consent and the visibility words", () => {
       expect(MILESTONE_CELEBRATION[kind].length).toBeGreaterThan(10);
       expect(MILESTONE_SHOWN[kind].length).toBeGreaterThan(5);
     }
-    expect(`${SHARE_STORY_NOTE} ${SHARE_STORY_TIP}`).not.toMatch(/sales|sell|exposure|famous|guarantee/i);
+    expect(SHARE_STORY_TIP).not.toMatch(/sales|sell|exposure|famous|guarantee/i);
   });
 
   it("offers the globe only where writer profiles are open", () => {
@@ -199,5 +202,69 @@ describe("where a milestone starts", () => {
     expect(answer("everyone")).toEqual({ error: "That choice is not available." });
     expect(parseMilestoneSelfAdd({ kind: "the_end", visibility: "community" }, NOW)).toMatchObject({ kind: "the_end", answer: { visibility: "community" } });
     expect(parseMilestoneSelfAdd({ kind: "the_end", visibility: "nope" }, NOW)).toEqual({ error: "That choice is not available." });
+  });
+});
+
+describe("approximate dates", () => {
+  it("reads a day, a month or a year as the first day of that period, and no date as 'I don't remember'", () => {
+    expect(parseMilestoneDate("2026-05-17", "day", NOW)).toEqual({ achievedOn: "2026-05-17", achievedPrecision: "day" });
+    expect(parseMilestoneDate("2026-05-17", undefined, NOW)).toEqual({ achievedOn: "2026-05-17", achievedPrecision: "day" });
+    expect(parseMilestoneDate("2026-05", "month", NOW)).toEqual({ achievedOn: "2026-05-01", achievedPrecision: "month" });
+    expect(parseMilestoneDate("2024", "year", NOW)).toEqual({ achievedOn: "2024-01-01", achievedPrecision: "year" });
+    for (const blank of [null, undefined, "", "  "]) expect(parseMilestoneDate(blank, "year", NOW)).toEqual({ achievedOn: null, achievedPrecision: "day" });
+  });
+
+  it("refuses a date in the wrong shape for its precision, an impossible one, and one that has not started yet", () => {
+    expect(parseMilestoneDate("2026-05-17", "month", NOW)).toHaveProperty("error");
+    expect(parseMilestoneDate("2026-05", "day", NOW)).toHaveProperty("error");
+    expect(parseMilestoneDate("2026-13", "month", NOW)).toHaveProperty("error");
+    expect(parseMilestoneDate("26", "year", NOW)).toHaveProperty("error");
+    expect(parseMilestoneDate("2026-05", "week", NOW)).toHaveProperty("error");
+    // This month and this year have started, so they are fine; next month and next year are not.
+    expect(parseMilestoneDate("2026-11", "month", NOW)).toMatchObject({ achievedOn: "2026-11-01" });
+    expect(parseMilestoneDate("2026-12", "month", NOW)).toHaveProperty("error");
+    expect(parseMilestoneDate("2026", "year", NOW)).toMatchObject({ achievedOn: "2026-01-01" });
+    expect(parseMilestoneDate("2027", "year", NOW)).toHaveProperty("error");
+  });
+
+  it("keeps the precision in an answer, and drops it to the day when there is no date", () => {
+    expect(parseMilestoneAnswer({ answer: "confirm", achievedOn: "2025-03", achievedPrecision: "month" }, NOW)).toMatchObject({ achievedOn: "2025-03-01", achievedPrecision: "month" });
+    expect(parseMilestoneAnswer({ answer: "confirm", achievedOn: "", achievedPrecision: "year" }, NOW)).toMatchObject({ achievedOn: null, achievedPrecision: "day" });
+    expect(parseMilestoneSelfAdd({ kind: "the_end", achievedOn: "2025", achievedPrecision: "year" }, NOW)).toMatchObject({ answer: { achievedOn: "2025-01-01", achievedPrecision: "year" } });
+    expect(parseMilestoneAnswer({ answer: "confirm", achievedOn: "2025", achievedPrecision: "decade" }, NOW)).toHaveProperty("error");
+  });
+
+  it("says a date as exactly as it is known", () => {
+    expect(milestoneDateWords("2026-05-01")).toBe("May 1, 2026");
+    expect(milestoneDateWords("2026-05-01", "month")).toBe("May 2026");
+    expect(milestoneDateWords("2026-01-01", "year")).toBe("2026");
+  });
+
+  it("ends a period on its last day, leap years and short months included", () => {
+    expect(datePeriodEnd("2026-05-17")).toBe("2026-05-17");
+    expect(datePeriodEnd("2026-05-01", "month")).toBe("2026-05-31");
+    expect(datePeriodEnd("2026-04-01", "month")).toBe("2026-04-30");
+    expect(datePeriodEnd("2026-02-01", "month")).toBe("2026-02-28");
+    expect(datePeriodEnd("2024-02-01", "month")).toBe("2024-02-29");
+    expect(datePeriodEnd("2026-12-01", "month")).toBe("2026-12-31");
+    expect(datePeriodEnd("2026-01-01", "year")).toBe("2026-12-31");
+  });
+
+  it("counts an imprecise date as the last day of its period for 'while a member': it counts if any part of the period is on or after the join day", () => {
+    // Joined on 2026-05-20: May 2026 ends on the 31st, so it counts; April 2026 ends on the 30th of April, before the join day, so it does not.
+    expect(reachedWhileMember("2026-05-01", "2026-05-20", "month")).toBe(true);
+    expect(reachedWhileMember("2026-04-01", "2026-05-20", "month")).toBe(false);
+    // The join day itself: the last day of the month being the join day counts, the day before does not.
+    expect(reachedWhileMember("2026-05-01", "2026-05-31", "month")).toBe(true);
+    expect(reachedWhileMember("2026-05-01", "2026-06-01", "month")).toBe(false);
+    // A year: 2026 counts for anyone who joined during it, up to its last day; 2025 does not.
+    expect(reachedWhileMember("2026-01-01", "2026-12-31", "year")).toBe(true);
+    expect(reachedWhileMember("2026-01-01", "2027-01-01", "year")).toBe(false);
+    expect(reachedWhileMember("2025-01-01", "2026-03-01", "year")).toBe(false);
+    // The same date as an exact day is judged on that day, and no date or no join date still counts.
+    expect(reachedWhileMember("2026-05-01", "2026-05-20", "day")).toBe(false);
+    expect(reachedWhileMember("2026-05-01", "2026-05-20")).toBe(false);
+    expect(reachedWhileMember(null, "2026-05-20", "year")).toBe(true);
+    expect(reachedWhileMember("2001-01-01", null, "year")).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BadgeTypeForm, { type Category } from "../../BadgeTypeForm";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export async function generateMetadata({
   params,
@@ -19,7 +19,7 @@ export async function generateMetadata({
 }
 
 export default async function EditBadgePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdminPage();
+  await requirePermission("badges.manage");
   const { id } = await params;
   const supabase = await createClient();
 
@@ -75,6 +75,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
               icon: badgeType.icon,
               category: badgeType.category as Category, // a check constraint limits the column to these
               hasLevels: badgeType.has_levels,
+              counted: badgeType.counted ?? false,
               levels: (levels ?? []).map((l) => ({
                 level: l.level,
                 name: l.name,

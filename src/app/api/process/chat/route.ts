@@ -1,11 +1,11 @@
-import { rewriteInSlack, shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
+import { rewriteInSlack, shareRecentLessonLinks } from "@/modules/chat/slack/lesson-links";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
-import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
+import { retryUnsentChatMessages } from "@/lib/chat/delivery";
 import { sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
 import { purgeStagedChatFiles } from "@/lib/chat/staging";
 import { clock } from "@/lib/clock";
@@ -37,7 +37,7 @@ type ChannelCounts = { channels?: number; members?: number };
  * in Bronze, so this runs with the service role after the admin check.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const supabase = createServiceRoleClient();
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} daily windows`
     );
 
-    // Lesson addresses pasted into Slack that the webhook did not turn into the shared-video card (src/lib/chat/slack-lesson-links.ts).
+    // Lesson addresses pasted into Slack that the webhook did not turn into the shared-video card (src/modules/chat/slack/lesson-links.ts).
     const lessonLinks = await shareRecentLessonLinks(createRepos(supabase), rewriteInSlack(supabase));
     if (lessonLinks.shared > 0) console.log(`Lesson links in Slack messages shared as videos: ${lessonLinks.shared} of ${lessonLinks.looked} candidates`);
 

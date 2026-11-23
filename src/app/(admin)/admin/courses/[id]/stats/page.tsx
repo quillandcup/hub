@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadCourseWatchStats } from "@/lib/courses/watch-stats-data";
 import { formatClock } from "@/lib/courses/watch-stats";
@@ -28,7 +28,7 @@ export default async function CourseWatchStatsPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ staff?: string }>;
 }) {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   const { id } = await params;
   const includeStaff = (await searchParams).staff === "1";
   const data = await loadCourseWatchStats(createServiceRoleClient(), id, { includeStaff });

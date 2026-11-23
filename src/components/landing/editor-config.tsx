@@ -6,6 +6,7 @@ import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
 import type { PageBlockRegistry } from "./block-registry";
 import { withStandIns } from "./block-placeholder";
 import { buildRenderConfig, pageBlocks, renderConfig, rootConfigFor, type FrameContext } from "./config";
+import { SOCIAL_LOOK_OPTIONS, SOCIAL_NETWORK_OPTIONS } from "./social-networks";
 import { createEditorKit, type EditorKit, type PageBlockEditorContribution } from "./editor-kit";
 import { PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
@@ -45,11 +46,17 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
       { label: "None", value: "none" },
       { label: "Dark (light text)", value: "dark" },
       { label: "Light (dark text)", value: "light" },
+      { label: "Soft cream (dark text, the picture shows more)", value: "cream" },
     ]),
     width: select("Width of the content", WIDTH_OPTIONS),
     align: select("Text alignment", opts("left", "center")),
-    card: toggle("Put the content on a white card"),
+    card: toggle("Put the content on a card"),
+    cardColor: select("Card colour", [{ label: "White", value: "default" }, ...BACKGROUND_OPTIONS.filter((o) => o.value !== "none" && o.value !== "white")]),
+    cardSoft: toggle("Let the picture show faintly through the card"),
+    place: select("Where the content sits when it is narrower than the page", opts("left", "center", "right")),
+    textTone: select("Text colour", [{ label: "Follows the background", value: "auto" }, { label: "Plum", value: "plum" }]),
     fadeIn: toggle("Fade in as it appears"),
+    fill: toggle("Fill the page (on a short page, grow down to the footer)"),
     paddingDesktop: padding("Space inside on desktop", "desktop"),
     paddingMobile: padding("Space inside on mobile", "mobile"),
     hideOnDesktop: toggle("Hide on desktop"),
@@ -73,21 +80,46 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     gap: select("Space between the buttons", opts("small", "medium")),
   },
   RowButton: { label: text("Label"), href: text("Link (https://, or a path on this site)"), look: LOOK, color: COLOR, shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]) },
-  Image: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), size: select("Size", opts("small", "medium", "full")), rounded: toggle("Rounded corners"), align: select("Alignment", opts("left", "center", "right")) },
+  Image: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), size: select("Size", opts("small", "medium", "full")), rounded: toggle("Rounded corners"), align: select("Alignment", opts("left", "center", "right")) , fit: select("Fit", [{ label: "Whole picture", value: "whole" }, { label: "Fill a wide frame (cuts the edges)", value: "crop" }]) },
   Split: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), imageSide: select("Picture on", opts("left", "right")), html: richText("Text") },
   List: {
     items: itemsSlot("List", "Items"),
     align: select("Alignment", opts("left", "center")),
   },
   ListItem: { text: text("Text"), icon: text("Marker (an emoji; a check mark if empty)") },
+  SocialIcons: {
+    items: itemsSlot("SocialIcons", "Links (up to 8)"),
+    align: select("Alignment", opts("left", "center", "right")),
+    size: select("Size", opts("small", "medium", "large")),
+    look: select("Marks", SOCIAL_LOOK_OPTIONS),
+  },
+  SocialLink: { network: select("Network", SOCIAL_NETWORK_OPTIONS), url: text("Link (https://, or mailto:you@example.com for Email)") },
+  Pricing: {
+    items: itemsSlot("Pricing", "Plans (1 to 3)"),
+  },
+  PricingPlan: {
+    name: text("Name of the plan"),
+    price: text("Price, as you want it shown (for example $97)"),
+    period: text("Billing period or note, shown after the price (for example per month)"),
+    description: area("Short description"),
+    features: area("What is included, one line each"),
+    badge: text("Badge (for example Most popular)"),
+    featured: toggle("Feature this plan (heavier border, said aloud to screen readers)"),
+    buttonLabel: text("Button label"),
+    href: text("Button link (https://, or a path on this site)"),
+  },
   Testimonials: {
     items: itemsSlot("Testimonials", "Testimonials"),
   },
   Testimonial: { quote: area("Quote"), name: text("Name"), detail: text("Detail (for example, how long they have been a member)") },
+  Accordion: {
+    items: itemsSlot("Accordion", "Items"),
+  },
+  AccordionItem: { title: text("Title"), text: area("Text that opens under it"), open: toggle("Start open") },
   Faq: {
     items: itemsSlot("Faq", "Questions"),
   },
-  FaqItem: { question: text("Question"), answer: area("Answer") },
+  FaqQuestion: { question: text("Question"), answer: area("Answer") },
   Countdown: { targetAt: dateTime("Counts down to"), heading: text("Heading above the clock"), whenExpired: select("When it reaches zero", [{ label: "Show a message", value: "message" }, { label: "Hide it", value: "hide" }, { label: "Keep showing zeros", value: "zeros" }]), expiredMessage: text("Message") },
   CardGrid: {
     columns: select("Most columns", [{ label: "2", value: "2" }, { label: "3", value: "3" }, { label: "4", value: "4" }]),

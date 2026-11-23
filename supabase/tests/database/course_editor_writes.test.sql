@@ -11,10 +11,13 @@ SELECT plan(13);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e0a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'editor-alice@example.test'),
   ('00000000-0000-4000-a000-00000000e0a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'editor-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e0a1', 'editor-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e0a4', 'editor-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e0a1', 'editor-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000e0a4', 'editor-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000e0a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- A course imported from Kajabi, which no one may write here, and two Hub-owned ones for the admin to
 -- edit and delete. (The audit trigger folds a record's insert, update and delete within one transaction
