@@ -47,6 +47,7 @@
     "changelog:capture": "tsx scripts/changelog-capture.ts",
     "changelog:draft": "tsx scripts/changelog-draft.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
+    "check:licenses": "tsx scripts/check-licenses.ts",
     "disposable-domains:update": "tsx scripts/update-disposable-email-domains.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",
     "test:run": "vitest --config config/vitest.mts run",
