@@ -32,6 +32,8 @@ export type PublishCheckTools = {
   heading: (level: number, text: string) => void;
   /** A button or link with words but no usable address is an error; one that says only "click here" a warning. */
   checkButton: (block: string, label: unknown, href: unknown, what?: string) => void;
+  /** A problem the block's own check finds that is worth a note but does not stop the publish. */
+  warn: (block: string, message: string) => void;
 };
 
 /** How the publish check treats a block whose list is a slot of item blocks: what to call them and which prop shows an item is filled in. */

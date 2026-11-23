@@ -140,21 +140,21 @@ describe("offer", () => {
 describe("accordion", () => {
   const item = (heading: string, body: string, over: Record<string, unknown> = {}) => block("accordion", { width: "8", heading, body, ...over });
 
-  it("turns items in a row into one FAQ", () => {
+  it("turns items in a row into one Accordion (Kajabi's accordion is a generic list, not questions)", () => {
     const { inner, notes } = more({ a1: item("Is it for me?", "<p>Yes.</p><ul><li>Because one</li><li>Because two</li></ul>"), a2: item("How long?", "<p>Ten months.</p>"), a3: block("accordion", { heading: "Hidden?", body: "<p>x</p>" }, { hidden: "true" }) });
     expect(inner).toHaveLength(1);
-    expect(inner[0].type).toBe("Faq");
+    expect(inner[0].type).toBe("Accordion");
     expect(kids(inner[0]).map((k) => k.props)).toEqual([
-      expect.objectContaining({ question: "Is it for me?", answer: "Yes.\n• Because one\n• Because two" }),
-      expect.objectContaining({ question: "How long?", answer: "Ten months." }),
+      expect.objectContaining({ title: "Is it for me?", text: "Yes.\n• Because one\n• Because two", open: false }),
+      expect.objectContaining({ title: "How long?", text: "Ten months." }),
     ]);
-    expect(note(notes, "approximated", "answers in the FAQ are plain lines")).toBe(true);
+    expect(note(notes, "approximated", "text under each accordion item is plain lines")).toBe(true);
   });
 
   it("leaves an item with no heading out, and never lets markup or a script through", () => {
     const { inner, notes, json } = more({ a1: item("", "<p>Orphan</p>"), a2: item("Safe?", '<p>Words <a href="javascript:alert(1)">link</a></p><script>alert(2)</script><iframe src="https://evil.example"></iframe>') });
     expect(kids(inner[0])).toHaveLength(1);
-    expect(kids(inner[0])[0].props.answer).toBe("Words link");
+    expect(kids(inner[0])[0].props.text).toBe("Words link");
     expect(json).not.toMatch(/<script|<iframe|javascript:|alert/i);
     expect(note(notes, "left_out", "no heading")).toBe(true);
   });

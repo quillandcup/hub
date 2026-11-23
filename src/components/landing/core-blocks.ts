@@ -1,6 +1,8 @@
 import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
 import { definePageBlock, type PageBlockCategory, type PageBlockContribution, type PageBlockDefinition } from "./block-registry";
 import {
+  Accordion,
+  AccordionItem,
   Button,
   ButtonRow,
   CardGrid,
@@ -9,7 +11,7 @@ import {
   CtaBanner,
   Divider,
   Faq,
-  FaqItem,
+  FaqQuestion,
   GridCard,
   Heading,
   Hero,
@@ -73,7 +75,8 @@ export const CORE_DEFAULTS = {
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
   Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
-  Faq: { items: [kid("FaqItem", { question: "A question?", answer: "The answer." }), kid("FaqItem", { question: "Another question?", answer: "Another answer." })] },
+  Accordion: { items: [kid("AccordionItem", { title: "A title", text: "What opens under it.", open: false }), kid("AccordionItem", { title: "Another title", text: "What opens under that one.", open: false })] },
+  Faq: { items: [kid("FaqQuestion", { question: "A question?", answer: "The answer." }), kid("FaqQuestion", { question: "Another question?", answer: "Another answer." })] },
   Countdown: { targetAt: "", heading: "Starts in", whenExpired: "message", expiredMessage: "It has started." },
   CardGrid: { columns: "3", items: [kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT)] },
   LinkList: { items: [kid("LinkItem", { label: "A link", href: "", look: "inherit", color: "plum" }), kid("LinkItem", { label: "Another link", href: "", look: "inherit", color: "plum" })] },
@@ -122,7 +125,8 @@ export const CORE_DEFAULTS = {
   RowButton: { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" },
   ListItem: { text: "New item", icon: "✓" },
   Testimonial: { quote: "", name: "", detail: "" },
-  FaqItem: { question: "A question?", answer: "" },
+  AccordionItem: { title: "A title", text: "", open: false },
+  FaqQuestion: { question: "A question?", answer: "" },
   GridCard: { ...GRID_CARD_DEFAULT, title: "New card" },
   LinkItem: { label: "A link", href: "", look: "inherit", color: "plum" },
   OutcomeNumber: { source: "manual", stat: "hours_30d", value: "0", label: "", note: "" },
@@ -138,6 +142,13 @@ export const CORE_DEFAULTS = {
 
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+/** A question with no answer is drawn, but left out of what search engines are told (they need an answer), so say so. */
+const faqCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, rows, warn }) => {
+  const asked = rows(props.items).map((i) => (i.props ?? {}) as Record<string, unknown>);
+  const unanswered = asked.filter((i) => text(i.question) && !text(i.answer)).length;
+  if (unanswered > 0) warn("FAQ", `${unanswered === 1 ? "A question has" : `${unanswered} questions have`} no answer, so ${unanswered === 1 ? "it is" : "they are"} left out of what search engines are told about this FAQ.`);
+};
 
 type CoreType = keyof typeof CORE_DEFAULTS;
 const core = (type: CoreType, label: string, category: PageBlockCategory, order: number, render: PageBlockDefinition["render"], more: Partial<PageBlockDefinition> = {}) =>
@@ -181,7 +192,8 @@ export const coreBlocks: PageBlockContribution = {
     core("Image", "Image", "content", 40, Image),
     core("Video", "Video", "content", 50, Video),
     core("Testimonials", "Testimonials", "content", 60, Testimonials, { slots: holds("Testimonial"), itemRule: { block: "Testimonials", noun: "testimonial", plural: "testimonials", item: "Testimonial", key: "quote" } }),
-    core("Faq", "FAQ", "content", 70, Faq, { slots: holds("FaqItem"), itemRule: { block: "FAQ", noun: "question", plural: "questions", item: "FaqItem", key: "question" } }),
+    core("Accordion", "Accordion", "content", 70, Accordion, { slots: holds("AccordionItem"), itemRule: { block: "Accordion", noun: "item", plural: "items", item: "AccordionItem", key: "title" } }),
+    core("Faq", "FAQ", "content", 75, Faq, { slots: holds("FaqQuestion"), itemRule: { block: "FAQ", noun: "question", plural: "questions", item: "FaqQuestion", key: "question" }, publishCheck: faqCheck }),
     core("Countdown", "Countdown", "content", 80, CountdownBlock),
     // Links
     core("Button", "Button", "links", 10, Button),
@@ -199,7 +211,8 @@ export const coreBlocks: PageBlockContribution = {
     core("RowButton", "Row button", "parts", 80, RowButton),
     core("ListItem", "List item", "parts", 90, ListItem),
     core("Testimonial", "Testimonial", "parts", 100, Testimonial),
-    core("FaqItem", "Question", "parts", 110, FaqItem),
+    core("AccordionItem", "Accordion item", "parts", 110, AccordionItem),
+    core("FaqQuestion", "Question", "parts", 115, FaqQuestion),
     core("GridCard", "Card", "parts", 120, GridCard),
     core("LinkItem", "Link", "parts", 130, LinkItem),
     core("OutcomeNumber", "Outcome number", "parts", 150, OutcomeNumber),

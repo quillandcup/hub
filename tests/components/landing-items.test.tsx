@@ -67,7 +67,7 @@ describe("the table of blocks that hold items", () => {
   it("has a layout limit only for the blocks whose layout has one, and puts the items in the palette under their own group", () => {
     // Steps, Stats... are laid out for a few; a List, FAQ, Testimonials, Card grid or Link list takes any number.
     for (const parent of Object.keys(ITEM_LIMITS)) expect(PARENTS).toContain(parent);
-    for (const parent of ["List", "Testimonials", "Faq", "CardGrid", "LinkList"]) expect(ITEM_LIMITS).not.toHaveProperty(parent);
+    for (const parent of ["List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList"]) expect(ITEM_LIMITS).not.toHaveProperty(parent);
     expect(renderConfig.categories.parts.components).toEqual(ITEM_BLOCKS);
     for (const [group, { components }] of Object.entries(renderConfig.categories)) {
       if (group !== "parts") for (const type of ITEM_BLOCKS) expect(components as string[], group).not.toContain(type);
@@ -169,7 +169,7 @@ describe("a realistic page", () => {
     // Every block with items has some in the sample page, so none is blank.
     const text = JSON.stringify(content);
     // The homepage has no List, FAQ, Testimonials, Card grid, Link list, Steps or Stats; every other block with items is in it.
-    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Faq", "CardGrid", "LinkList"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
+    for (const parent of PARENTS.filter((p) => !["Steps", "Stats", "List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList"].includes(p))) expect(text).toContain(`"type":"${itemType(parent)}"`);
   });
 });
 
@@ -234,7 +234,8 @@ describe("the lists that used to be array fields", () => {
     const cases: [string, Record<string, unknown>, Node[], string[]][] = [
       ["List", { align: "left" }, ["One", "Two"].map((t) => kid("ListItem", { text: t })), ["One", "Two"]],
       ["Testimonials", {}, ["Quote A", "Quote B"].map((q) => kid("Testimonial", { quote: q })), ["Quote A", "Quote B"]],
-      ["Faq", {}, ["Q one", "Q two"].map((q) => kid("FaqItem", { question: q })), ["Q one", "Q two"]],
+      ["Accordion", {}, ["Title one", "Title two"].map((t) => kid("AccordionItem", { title: t })), ["Title one", "Title two"]],
+      ["Faq", {}, ["Q one", "Q two"].map((q) => kid("FaqQuestion", { question: q })), ["Q one", "Q two"]],
       ["CardGrid", { columns: "3" }, ["Card A", "Card B"].map((t) => kid("GridCard", { title: t })), ["Card A", "Card B"]],
       ["LinkList", {}, ["Link A", "Link B"].map((l) => kid("LinkItem", { label: l, href: "/x" })), ["Link A", "Link B"]],
       ["ButtonRow", { align: "left", gap: "medium" }, ["Go A", "Go B"].map((l) => kid("RowButton", { label: l, href: "/x" })), ["Go A", "Go B"]],
@@ -255,7 +256,7 @@ describe("the lists that used to be array fields", () => {
   });
 
   it("hide an empty list on the public page, but not while editing", () => {
-    for (const parent of ["List", "Testimonials", "Faq", "CardGrid", "LinkList", "ButtonRow"] as const) {
+    for (const parent of ["List", "Testimonials", "Accordion", "Faq", "CardGrid", "LinkList", "ButtonRow"] as const) {
       const Parent = renderOf(parent);
       const none = itemsSlot(renderOf(itemType(parent)) as ComponentType<object>, []);
       const live = render(<Parent {...(BLOCK_DEFAULTS[parent] as object)} id="p" items={none} puck={{ isEditing: false }} />);
@@ -282,7 +283,8 @@ describe("the publish check for the second batch", () => {
     ["ButtonRow", "RowButton", { label: "Join", href: "/x" }],
     ["List", "ListItem", { text: "A point" }],
     ["Testimonials", "Testimonial", { quote: "Lovely" }],
-    ["Faq", "FaqItem", { question: "Why?" }],
+    ["Accordion", "AccordionItem", { title: "Why?" }],
+    ["Faq", "FaqQuestion", { question: "Why?" }],
     ["CardGrid", "GridCard", { title: "A card" }],
     ["LinkList", "LinkItem", { label: "Home", href: "/" }],
     ["SchedulePanel", "ScheduleRow", { title: "Morning pages" }],

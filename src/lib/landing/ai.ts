@@ -27,7 +27,7 @@ type Block = { type: string; props: Props };
 export const AI_BLOCKS = ["Section", "Hero", "Heading", "RichText", "Button", "List", "Steps", "Stats", "Faq", "LinkList", "CtaBanner", "CardGrid", "Divider", "Spacer"] as const;
 type AiBlock = (typeof AI_BLOCKS)[number];
 /** The blocks the model writes inside one of those: the items of Steps, Stats, List, FAQ, Link list and Card grid. They are only ever offered in their parent's list, never on their own. */
-const AI_ITEMS = ["Step", "Stat", "ListItem", "FaqItem", "LinkItem", "GridCard"] as const;
+const AI_ITEMS = ["Step", "Stat", "ListItem", "FaqQuestion", "LinkItem", "GridCard"] as const;
 const WRITABLE: readonly string[] = [...AI_BLOCKS, ...AI_ITEMS];
 
 const LOOK = ["inherit", "solid", "outline"];

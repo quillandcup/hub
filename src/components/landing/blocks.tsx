@@ -316,37 +316,62 @@ export function Testimonial({ quote, name, detail, dragRef, editing }: Testimoni
   );
 }
 
-// ---- FAQ -----------------------------------------------------------------------------------------------------
+// ---- Accordion and FAQ ---------------------------------------------------------------------------------------
 
-export type FaqProps = { items: Slot; editing?: boolean };
+export type AccordionProps = { items: Slot; editing?: boolean };
 
-/** A ruled box of questions, each a `FaqItem` in the `items` slot. */
-export function Faq({ items: Items, editing }: FaqProps) {
-  return <Items collisionAxis="y" className={`my-3 divide-y divide-current rounded-lg border border-current ${itemList(null, editing)}`} />;
+const DISCLOSURE_LIST = "my-3 divide-y divide-current rounded-lg border border-current";
+
+/** A ruled box of collapsible items, each an `AccordionItem` in the `items` slot. For anything that folds away; questions and answers are the FAQ. */
+export function Accordion({ items: Items, editing }: AccordionProps) {
+  return <Items collisionAxis="y" className={`${DISCLOSURE_LIST} ${itemList(null, editing)}`} />;
 }
 
-export type FaqItemProps = { question: string; answer: string } & ItemProps;
-
-/** One question and its answer. Native disclosure elements: keyboard and screen reader support without script. */
-export function FaqItem({ question, answer, dragRef, editing }: FaqItemProps) {
-  if (!question && !editing) return null;
+/** One title that opens to its text. Native disclosure elements: keyboard and screen reader support without script. `open` makes it start open. */
+function Disclosure({ title, text, open, dragRef }: { title: string; text: string; open?: boolean; dragRef?: ItemProps["dragRef"] }) {
   return (
-    <details ref={dragRef} className="group p-4">
+    <details ref={dragRef} open={open || undefined} className="group p-4">
       <summary className="cursor-pointer list-none font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
         <span className="flex items-center justify-between gap-3">
-          {question}
+          {title}
           <span aria-hidden="true" className="transition-transform group-open:rotate-45">
             +
           </span>
         </span>
       </summary>
       <div className="mt-2 space-y-2">
-        {(answer ?? "").split(/\n+/).filter(Boolean).map((line, j) => (
+        {(text ?? "").split(/\n+/).filter(Boolean).map((line, j) => (
           <p key={j}>{line}</p>
         ))}
       </div>
     </details>
   );
+}
+
+export type AccordionItemProps = { title: string; text: string; open?: boolean } & ItemProps;
+
+/** One item of an Accordion. Nothing is drawn without its title (the editor shows it). */
+export function AccordionItem({ title, text, open, dragRef, editing }: AccordionItemProps) {
+  if (!title && !editing) return null;
+  return <Disclosure title={title} text={text} open={open} dragRef={dragRef} />;
+}
+
+export type FaqProps = { items: Slot; editing?: boolean };
+
+/**
+ * Questions and their answers, each a `FaqQuestion` in the `items` slot. It looks like an Accordion; what makes it the FAQ is that the
+ * public page also tells search engines about the questions (`faqStructuredData`, src/lib/landing/faq-schema.ts, drawn by `LandingRender`).
+ */
+export function Faq({ items: Items, editing }: FaqProps) {
+  return <Items collisionAxis="y" className={`${DISCLOSURE_LIST} ${itemList(null, editing)}`} />;
+}
+
+export type FaqQuestionProps = { question: string; answer: string } & ItemProps;
+
+/** One question and its answer. Nothing is drawn without the question (the editor shows it). */
+export function FaqQuestion({ question, answer, dragRef, editing }: FaqQuestionProps) {
+  if (!question && !editing) return null;
+  return <Disclosure title={question} text={answer} dragRef={dragRef} />;
 }
 
 // ---- Countdown -----------------------------------------------------------------------------------------------

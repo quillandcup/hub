@@ -84,10 +84,14 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     items: itemsSlot("Testimonials", "Testimonials"),
   },
   Testimonial: { quote: area("Quote"), name: text("Name"), detail: text("Detail (for example, how long they have been a member)") },
+  Accordion: {
+    items: itemsSlot("Accordion", "Items"),
+  },
+  AccordionItem: { title: text("Title"), text: area("Text that opens under it"), open: toggle("Start open") },
   Faq: {
     items: itemsSlot("Faq", "Questions"),
   },
-  FaqItem: { question: text("Question"), answer: area("Answer") },
+  FaqQuestion: { question: text("Question"), answer: area("Answer") },
   Countdown: { targetAt: dateTime("Counts down to"), heading: text("Heading above the clock"), whenExpired: select("When it reaches zero", [{ label: "Show a message", value: "message" }, { label: "Hide it", value: "hide" }, { label: "Keep showing zeros", value: "zeros" }]), expiredMessage: text("Message") },
   CardGrid: {
     columns: select("Most columns", [{ label: "2", value: "2" }, { label: "3", value: "3" }, { label: "4", value: "4" }]),

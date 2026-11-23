@@ -197,3 +197,32 @@ describe("pruneToKnownBlocks", () => {
     expect(Object.keys((pruned.data.content[0] as { props: object }).props)).toEqual(["id", "text"]);
   });
 });
+
+describe("a file exported before the FAQ became the Accordion", () => {
+  it("imports as an Accordion with its words, and keeps every prop of its items through the pruning", () => {
+    const file = JSON.stringify({
+      format: LANDING_EXPORT_FORMAT,
+      version: 1,
+      slug: "old",
+      title: "Old",
+      kind: "published",
+      exportedAt: NOW.toISOString(),
+      data: { schemaVersion: 3, root: { props: {} }, content: [heading, { type: "Faq", props: { id: "faq", items: [{ type: "FaqItem", props: { id: "q1", question: "Why?", answer: "Because." } }] } }] },
+    });
+    const parsed = parseLandingImport(file);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const { data, leftOut, droppedProps } = pruneToKnownBlocks(normalizeLandingData(parsed.document));
+    expect(leftOut).toEqual([]);
+    expect(droppedProps).toBe(0);
+    const accordion = data.content[1] as unknown as { type: string; props: { items: { type: string; props: Record<string, unknown> }[] } };
+    expect(accordion.type).toBe("Accordion");
+    expect(accordion.props.items).toEqual([{ type: "AccordionItem", props: { id: "q1", title: "Why?", text: "Because.", open: false } }]);
+  });
+
+  it("keeps a new FAQ's questions as they are", () => {
+    const faq = { type: "Faq", props: { id: "faq", items: [{ type: "FaqQuestion", props: { id: "q1", question: "Why?", answer: "Because." } }] } };
+    const { data, leftOut } = pruneToKnownBlocks(normalizeLandingData({ ...doc(faq), schemaVersion: LANDING_SCHEMA_VERSION }));
+    expect(leftOut).toEqual([]);
+    expect(data.content[1]).toEqual(faq);
+  });
+});

@@ -374,7 +374,11 @@ function mapPricing(ctx: Ctx, plans: Settings[]): Puck[] {
   return [{ type: "CardGrid", props: { id: ctx.id("CardGrid"), columns: gridColumns(items.length), items } }, ...extras];
 }
 
-/** Accordion items in a row become one FAQ: the heading is the question, the body its answer as plain lines. */
+/**
+ * Accordion items in a row become one Accordion: the heading is the title, the body what opens under it as plain lines. Kajabi's accordion
+ * is a generic collapsible list, not a list of questions, so it is not made an FAQ (the FAQ block tells search engines its questions are
+ * questions); someone who knows the items are questions can rebuild them as an FAQ in the editor.
+ */
 function mapAccordion(ctx: Ctx, entries: Settings[]): Puck {
   let flattened = false;
   const items = entries.flatMap((b) => {
@@ -385,10 +389,10 @@ function mapAccordion(ctx: Ctx, entries: Settings[]): Puck {
       ctx.notes.push({ kind: "left_out", text: "An accordion item has no heading, so it is not imported." });
       return [];
     }
-    return [{ type: "FaqItem", props: { id: ctx.id("FaqItem"), question, answer: [text.heading, ...text.lines].filter(Boolean).join("\n") } }];
+    return [{ type: "AccordionItem", props: { id: ctx.id("AccordionItem"), title: question, text: [text.heading, ...text.lines].filter(Boolean).join("\n"), open: false } }];
   });
-  if (flattened) ctx.notes.push({ kind: "approximated", text: "The answers in the FAQ are plain lines here: bold, italics, links and lists are not kept." });
-  return { type: "Faq", props: { id: ctx.id("Faq"), items } };
+  if (flattened) ctx.notes.push({ kind: "approximated", text: "The text under each accordion item is plain lines here: bold, italics, links and lists are not kept." });
+  return { type: "Accordion", props: { id: ctx.id("Accordion"), items } };
 }
 
 /** The export names a Kajabi event, not its date, so the countdown has none until it is set in the editor. */

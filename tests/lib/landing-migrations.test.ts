@@ -196,7 +196,6 @@ describe("items as child blocks (step 3)", () => {
     ButtonRow: { item: "RowButton", items: [{ label: "Join", href: "/join", look: "solid", color: "plum", shape: "pill" }, { label: "More", href: "", look: "outline", color: "light", shape: "rect" }] },
     List: { item: "ListItem", items: [{ text: "One", icon: "🌱" }, { text: "Two", icon: "✓" }] },
     Testimonials: { item: "Testimonial", items: [{ quote: "Lovely", name: "Ada Example", detail: "Member" }] },
-    Faq: { item: "FaqItem", items: [{ question: "Why?", answer: "Because." }, { question: "How?", answer: "" }] },
     CardGrid: { item: "GridCard", items: [{ alt: "", title: "Card", price: "", buttonLabel: "", href: "", imageAssetId: "media_AAAAAAAAAAA1" }], extra: { columns: "3" } },
     OutcomeNumbers: { item: "OutcomeNumber", items: [{ source: "live", stat: "hours_30d", value: "50+", label: "", note: "" }, { source: "manual", value: "100s", label: "of Finishers", note: "" }] },
   };
@@ -242,8 +241,54 @@ describe("items as child blocks (step 3)", () => {
     expect(normalizeLandingData({ ...(once as object), schemaVersion: 2 })).toEqual(once);
     const section = (once as unknown as { content: N[] }).content[0];
     expect((section.props.content as N[]).every((b) => (b.props.items as N[]).every((i) => typeof i.type === "string"))).toBe(true);
-    const already = { type: "Faq", props: { id: "f", items: [{ type: "FaqItem", props: { id: "x", question: "Q", answer: "" } }] } };
+    const already = { type: "Testimonials", props: { id: "f", items: [{ type: "Testimonial", props: { id: "x", quote: "Q", name: "", detail: "" } }] } };
     const empty = { type: "List", props: { id: "e", items: [] } };
     expect((normalizeLandingData({ content: [already, empty], root: {} }) as unknown as { content: N[] }).content).toEqual([already, empty]);
+  });
+});
+
+// Step 4: the generic "FAQ" list became the Accordion, and "FAQ" is a new block of questions and answers.
+describe("FAQ became the Accordion (step 4)", () => {
+  type N = { type: string; props: Record<string, unknown> };
+  const faqItem = (id: string, question: string, answer: string): N => ({ type: "FaqItem", props: { id, question, answer } });
+  const oldFaq = (items: unknown) => ({ type: "Faq", props: { id: "faq-1", items } });
+  const migrate = (content: unknown[], schemaVersion?: number) => normalizeLandingData({ content, root: {}, ...(schemaVersion === undefined ? {} : { schemaVersion }) }) as unknown as { content: N[]; schemaVersion: number };
+
+  it("renames a stored FAQ and its questions, and keeps their words and order", () => {
+    const out = migrate([oldFaq([faqItem("a", "Why?", "Because."), faqItem("b", "How?", "")])], 3);
+    expect(out.content[0].type).toBe("Accordion");
+    expect(out.content[0].props.id).toBe("faq-1");
+    expect((out.content[0].props.items as N[]).map((i) => [i.type, i.props])).toEqual([
+      ["AccordionItem", { id: "a", title: "Why?", text: "Because.", open: false }],
+      ["AccordionItem", { id: "b", title: "How?", text: "", open: false }],
+    ]);
+    expect(out.schemaVersion).toBe(LANDING_SCHEMA_VERSION);
+  });
+
+  it("converts a FAQ stored before items were blocks (a plain list, schema 0), through steps 3 and 4", () => {
+    const out = migrate([oldFaq([{ question: "Why?", answer: "Because." }])]);
+    expect(out.content[0].type).toBe("Accordion");
+    expect((out.content[0].props.items as N[])[0]).toEqual({ type: "AccordionItem", props: { id: "FaqItem-faq-1-1", title: "Why?", text: "Because.", open: false } });
+  });
+
+  it("reaches a FAQ inside a Section and a Columns block, and leaves an empty one as an empty Accordion", () => {
+    const out = migrate([{ type: "Section", props: { id: "s", content: [oldFaq([faqItem("a", "Q", "A")]), { type: "Columns", props: { id: "c", col1: [{ ...oldFaq([]), props: { id: "faq-2", items: [] } }], col2: [], col3: [] } }] } }], 3);
+    const content = (out.content[0].props.content as N[]);
+    expect(content[0].type).toBe("Accordion");
+    expect(((content[1].props.col1 as N[])[0]).type).toBe("Accordion");
+  });
+
+  it("is idempotent, and never turns a new FAQ (made of FaqQuestion blocks) into an Accordion, even without a version marker", () => {
+    const fresh = { type: "Faq", props: { id: "faq-3", items: [{ type: "FaqQuestion", props: { id: "q", question: "Why?", answer: "Because." } }] } };
+    const once = migrate([oldFaq([faqItem("a", "Q", "A")]), fresh], 3);
+    expect(once.content.map((b) => b.type)).toEqual(["Accordion", "Faq"]);
+    expect(migrate(once.content as unknown[])).toEqual(once);
+    // Marker lost: the new FAQ still stays a FAQ, and an Accordion's items are not touched again.
+    expect(migrate(once.content as unknown[], 0).content).toEqual(once.content);
+  });
+
+  it("does not touch a block called FaqQuestion's props, nor an item that already has a title", () => {
+    const item = { type: "FaqItem", props: { id: "z", title: "T", text: "X", open: true } };
+    expect(migrate([oldFaq([item])], 3).content[0].props.items).toEqual([{ type: "AccordionItem", props: item.props }]);
   });
 });

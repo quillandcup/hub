@@ -131,9 +131,9 @@ describe("the installed registry", () => {
     expect(palette).toEqual({
       layout: ["Section", "Columns", "Split", "CardGrid", "Divider", "Spacer"],
       ready_made: ["Hero", "Steps", "Stats", "CtaBanner"],
-      parts: ["Step", "Stat", "FinisherCard", "TimelineMoment", "WeekDay", "FinishLineCard", "PlanPhase", "RowButton", "ListItem", "Testimonial", "FaqItem", "GridCard", "LinkItem", "ScheduleRow", "OutcomeNumber"],
+      parts: ["Step", "Stat", "FinisherCard", "TimelineMoment", "WeekDay", "FinishLineCard", "PlanPhase", "RowButton", "ListItem", "Testimonial", "AccordionItem", "FaqQuestion", "GridCard", "LinkItem", "ScheduleRow", "OutcomeNumber"],
       homepage: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp", "HedgieBookshelf"],
-      content: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"],
+      content: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Accordion", "Faq", "Countdown"],
       links: ["Button", "ButtonRow", "LinkList", "OptInForm"],
     });
     expect(pageBlocks.categories.layout.title).toBe("Layout");

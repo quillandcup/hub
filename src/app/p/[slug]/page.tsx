@@ -44,5 +44,5 @@ export default async function PublicLandingPage({ params }: Params) {
   // The site's design is the PUBLISHED copy, so a draft of it never reaches a visitor: a website page is framed by its header and footer, and every page takes its style from it unless the page has its own.
   const site = await getServiceRepos().landingSiteTemplate.published();
   // Live blocks get their figures here, for this render only (src/lib/landing/live-data.ts): the stored page is never changed.
-  return <LandingRender data={await withLiveData(page.data)} frame={{ pageType: page.pageType, site }} />;
+  return <LandingRender data={await withLiveData(page.data)} frame={{ pageType: page.pageType, site }} structuredData />;
 }
