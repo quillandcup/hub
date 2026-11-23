@@ -6,7 +6,7 @@ Every doc is either **living** (maintained with the code; if it is wrong, that i
 
 | Folder | Kind | What is in it |
 |---|---|---|
-| `runbooks/` | living | Step-by-step procedures (setup, inviting users, rotating secrets, the changelog process, the quillandcup.com domain move). Reviewed yearly. |
+| `runbooks/` | living | Step-by-step procedures (setup, testing, inviting users, rotating secrets, the changelog process, the quillandcup.com domain move). Reviewed yearly. |
 | `checklists/` | living | Lists to check the project against (Supabase, OpenSSF Best Practices, OSPS Baseline). Reviewed quarterly. |
 | `architecture/` | living | How the data and the code are put together (layers, ERD, data access, identity matching, event log, the chat core and Slack seam). |
 | `infrastructure/` | living | Setup and configuration of the services we run on (Vercel, Sentry, Slack, Mux, Kajabi, webhooks, calendar). |

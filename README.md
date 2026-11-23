@@ -25,8 +25,6 @@ The member platform for [Quill & Cup](https://quillandcup.com), a community of w
   <img alt="src/app/api" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json">
 </p>
 
-Coverage is the unit and db suites merged: the mean of statements, functions and branches covered, the same score the new-code gate uses. The three area badges are `src/lib` (domain logic), `src/components` and `src/app/api` (routes).
-
 ## What it does
 
 **Members** get a place of their own:
@@ -81,14 +79,14 @@ To sign in locally, enter any email on the sign-in page and open the magic link 
 | Supabase Studio | http://127.0.0.1:54323 |
 | Local email | http://127.0.0.1:54324 |
 
-The `pre-commit` hook runs a production build to catch type errors before they are committed (and skips it for docs-only commits). Day-to-day commands are in [`CLAUDE.md`](CLAUDE.md): `pnpm test:unit`, `pnpm test:db`, `pnpm test:pgtap`, `pnpm typecheck` and `pnpm lint`.
+The `pre-commit` hook runs a production build to catch type errors before they are committed (and skips it for docs-only commits). Day-to-day commands are in [`CLAUDE.md`](CLAUDE.md); how the tests fit together is in [`docs/runbooks/TESTING.md`](docs/runbooks/TESTING.md).
 
 ## Documentation
 
 Everything lives under [`docs/`](docs/README.md), sorted by whether a doc is maintained with the code or kept as a snapshot.
 
 - [Product Requirements Document](docs/decisions/PRD.md) and the per-feature docs in [`docs/product/`](docs/product/)
-- [Setup Guide](docs/runbooks/SETUP.md) and the other [runbooks](docs/runbooks/)
+- [Setup Guide](docs/runbooks/SETUP.md), the [Testing guide](docs/runbooks/TESTING.md) (suites, guard tests and the exception lists still to clean up) and the other [runbooks](docs/runbooks/)
 - [Architecture](docs/architecture/) and [Database architecture](supabase/ARCHITECTURE.md)
 - [Infrastructure](docs/infrastructure/) (Vercel, Sentry, Slack, Mux, Kajabi, webhooks) and [Deployment](docs/infrastructure/DEPLOYMENT.md)
 - [Security and privacy posture](docs/trust/)
