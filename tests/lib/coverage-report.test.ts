@@ -62,6 +62,9 @@ describe("isGated / areaKey", () => {
     expect(isGated("src/app/api/process/route.ts")).toBe(true);
     expect(isGated("src/lib/x.test.ts")).toBe(false);
     expect(isGated("src/lib/x.d.ts")).toBe(false);
+    // Generated data, excluded from collection too (config/vitest.mts): a refresh PR must not fail on it.
+    expect(isGated("src/lib/disposable-email-domains.generated.ts")).toBe(false);
+    expect(isGated("src/lib/generated-things.ts")).toBe(true);
     expect(isGated("scripts/x.ts")).toBe(false);
     expect(isGated("next.config.ts")).toBe(false);
   });

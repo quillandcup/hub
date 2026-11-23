@@ -53,7 +53,9 @@ export const AREA_FLOORS: Record<string, Record<"lines" | "statements" | "functi
 };
 // The source folders all live under src/ (the areas below are named without it).
 const SOURCE = /^src\/((app|lib|content|components|emails|modules)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
-const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];
+// `*.generated.*` is also left out of coverage collection (config/vitest.mts), so without this the patch gate counted a
+// regenerated data file's added lines (the weekly temp-mail domain list) as uncovered and failed every refresh PR.
+const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/, /\.generated\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 
 type Loc = { line: number; column: number };
