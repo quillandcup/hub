@@ -1,0 +1,180 @@
+# TEMPORARY, for pull request #page-checks-nightly only: runs the page-check jobs of help-screenshots.yml once on this
+# branch, to measure how long they take on a runner. Deleted in the last commit of that pull request.
+name: Page checks trial
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/page-checks-trial.yml
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_CLI_VERSION: 2.117.0
+  LOCAL_SUPABASE_URL: http://127.0.0.1:54321
+  LOCAL_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+jobs:
+  plan:
+    name: Which combinations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      projects: ${{ steps.pick.outputs.projects }}
+    steps:
+      - id: pick
+        env:
+          ALL: "false"
+        run: |
+          if [ "$ALL" = "true" ]; then
+            echo 'projects=["phone-light","phone-dark","tablet-portrait-light","tablet-portrait-dark","tablet-landscape-light","tablet-landscape-dark","desktop-light","desktop-dark"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'projects=["phone-light","desktop-dark"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  check:
+    name: Check ${{ matrix.project }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.plan.outputs.projects) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: "package.json"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # Authenticated pulls: see the same step in ci.yml.
+      - name: Log in to Docker Hub
+        continue-on-error: true
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Backgrounded so the build below overlaps it; "Wait for local Supabase" blocks until it is up. The
+      # registry and excluded services are explained in ci.yml.
+      - name: Start local Supabase
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+        run: |
+          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
+          disown
+
+      - name: Production build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Wait for local Supabase
+        run: |
+          for i in $(seq 1 180); do
+            [ -f /tmp/supabase-start.exit ] && break
+            sleep 2
+          done
+          if [ "$(cat /tmp/supabase-start.exit 2>/dev/null)" != "0" ]; then
+            echo "supabase start did not finish, or failed"
+            cat /tmp/supabase-start.log
+            exit 1
+          fi
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/rest/v1/" \
+              && curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/auth/v1/health"; then
+              echo "Supabase is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Supabase API gateway did not become reachable in time"
+          cat /tmp/supabase-start.log
+          exit 1
+
+      # An empty database without seed.sql: the only people on screen are the demo's fictional community.
+      - name: Reset to an empty database
+        run: supabase db reset --no-seed
+
+      - name: Start app server
+        run: |
+          pnpm start > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/admin/events 2>/dev/null) || true
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
+              echo "App server is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App server did not become ready in time"
+          cat /tmp/next-server.log
+          exit 1
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Point the demo at this job's stack
+        run: |
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$LOCAL_SUPABASE_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
+          } > tests/demo/.env.demo
+
+      - name: Cache the Playwright browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install the browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Seed the demo community
+        run: pnpm demo:seed
+        env:
+          DEMO_APP_URL: http://localhost:3000
+
+      # The scenes the baseline was made from (not `@published`, which read from the bucket, nor `@changelog`, the
+      # recipes for a changelog entry's screenshots), at this combination only.
+      - name: Open every page the scenes open, and check it
+        run: pnpm demo:capture --project=${{ matrix.project }} --grep-invert "@published|@changelog"
+        env:
+          DEMO_APP_URL: http://localhost:3000
+
+      - name: Check the findings against the baseline
+        run: pnpm demo:baseline --check
+
+      - name: Upload the findings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: page-findings-${{ matrix.project }}
+          path: |
+            tests/demo/out/**/*.findings.json
+          retention-days: 14
+
+      - name: Stop app server
+        if: always()
+        run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop

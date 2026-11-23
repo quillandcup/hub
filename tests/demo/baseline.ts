@@ -6,7 +6,7 @@
  *   pnpm demo:baseline          write it from the findings of the last capture (run with DEMO_CHECKS=report first, so nothing
  *                               fails before the files are written). It replaces what the capture saw (the sizes it ran, the pages
  *                               it opened) and keeps the rest.
- *   pnpm demo:baseline --check  compare the last capture to it, both ways (what CI runs after its capture: see
+ *   pnpm demo:baseline --check  compare the last capture to it, both ways (what the scheduled page-checks workflow runs after its capture: see
  *                               docs/product/DEMO_AND_HELP.md, "Page checks").
  *
  * Fixing a problem and re-running this shrinks the file; it should only ever grow with a reason, in a reviewed diff.
