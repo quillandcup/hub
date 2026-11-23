@@ -4,6 +4,24 @@
 
 How the project is tested, which tests exist to stop a mistake from coming back (the guard tests), and which lists of exceptions still hold work to clean up. The per-area rules for writing tests are in `.claude/rules/testing-requirements.md` and `.claude/rules/tests-with-every-change.md`; this is the map.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [The suites](#the-suites)
+- [What CI enforces](#what-ci-enforces)
+- [Guard tests](#guard-tests)
+  - [Data and access](#data-and-access)
+  - [Outbound requests and security](#outbound-requests-and-security)
+  - [Boundaries between parts of the code](#boundaries-between-parts-of-the-code)
+  - [UI consistency](#ui-consistency)
+  - [Process and tooling](#process-and-tooling)
+- [Exception lists with work left to clean up](#exception-lists-with-work-left-to-clean-up)
+  - [Debt: work left to do](#debt-work-left-to-do)
+  - [Reasoned exceptions: review when you touch them](#reasoned-exceptions-review-when-you-touch-them)
+- [Adding a guard](#adding-a-guard)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## The suites
 
 | Suite | Command | Where | Needs |
