@@ -26,6 +26,7 @@ export default function LifecycleButton({
   withIcon = false,
   label,
   disabled = false,
+  disabledReason,
   className,
   track,
 }: LifecycleContext & {
@@ -35,6 +36,8 @@ export default function LifecycleButton({
   withIcon?: boolean;
   label?: string;
   disabled?: boolean;
+  /** Why it is off, shown as the tooltip while `disabled` (an icon button keeps its name as the tooltip otherwise). */
+  disabledReason?: string;
   className?: string;
   /** Value for `data-track`. */
   track?: string;
@@ -52,7 +55,7 @@ export default function LifecycleButton({
 
   return (
     <>
-      <Tooltip content={variant === "icon" ? name : undefined}>
+      <Tooltip content={disabled && disabledReason ? disabledReason : variant === "icon" ? name : undefined}>
         <button
           type="button"
           aria-label={variant === "icon" ? name : undefined}
