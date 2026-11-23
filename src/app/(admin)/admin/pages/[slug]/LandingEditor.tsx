@@ -17,7 +17,7 @@ import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfigFor } from "@/components/landing/editor-config";
 import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-template";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
-import type { LandingData } from "@/lib/landing/data";
+import { sameLandingPage, type LandingData } from "@/lib/landing/data";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { ITEM_BLOCKS } from "@/components/landing/config";
 import { aiPlugin } from "./AiPanel";
@@ -301,7 +301,7 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
   // Known from the start: a page opened with a draft that already differs from the live copy has changes to publish before anything is edited.
-  const [hasUnpublished, setHasUnpublished] = useState(initial.publishedJson !== null && initial.publishedJson !== JSON.stringify(data));
+  const [hasUnpublished, setHasUnpublished] = useState(initial.publishedJson !== null && !sameLandingPage(JSON.parse(initial.publishedJson), data));
   const [dialog, setDialog] = useState<"details" | "history" | "publish" | null>(null);
   const [issues, setIssues] = useState<A11yIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -350,7 +350,8 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
   const onChange = useCallback(
     (next: Data) => {
       latest.current = JSON.stringify(next);
-      setHasUnpublished(publishedJson.current !== null && publishedJson.current !== latest.current);
+      // Compared as documents: Puck keeps keys in the order it built them, the stored copy comes back with the database's order.
+      setHasUnpublished(publishedJson.current !== null && !sameLandingPage(JSON.parse(publishedJson.current), next));
       if (latest.current === lastSaved.current) return;
       setSave("unsaved");
       window.clearTimeout(timer.current);

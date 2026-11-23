@@ -102,3 +102,36 @@ export function parseEmbed(input: unknown): Embed | null {
   }
   return null;
 }
+
+/** Two documents are the same whatever order their keys come in (the database sorts them). */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+export const sameDocument = (a: unknown, b: unknown) => canonical(a) === canonical(b);
+
+const isEmptyValue = (v: unknown) => v === false || v === "" || v === undefined || v === null || (Array.isArray(v) && v.length === 0);
+
+/**
+ * The page as a reader would see it, for comparing a draft with the live copy. Puck adds an empty `zones` and the page-level
+ * settings at their defaults (all off or empty, the same as absent) to what it hands back, and the version marker depends on when
+ * a copy was last saved; none of them change the page.
+ */
+function comparableLandingData(value: unknown): unknown {
+  const { schemaVersion: _version, zones, root, ...rest } = normalizeLandingData(value) as LandingData & { schemaVersion?: unknown; zones?: Record<string, unknown[]> };
+  const rootRecord = root as { props?: Record<string, unknown> } & Record<string, unknown>;
+  const { props, ...rootRest } = rootRecord;
+  const keptProps = Object.fromEntries(Object.entries(props ?? {}).filter(([, v]) => !isEmptyValue(v)));
+  const keptZones = Object.fromEntries(Object.entries(zones ?? {}).filter(([, list]) => !isEmptyValue(list)));
+  return { ...rest, root: { ...rootRest, ...(Object.keys(keptProps).length ? { props: keptProps } : {}) }, ...(Object.keys(keptZones).length ? { zones: keptZones } : {}) };
+}
+
+/** True when a draft and the live copy are the same page, whatever order their keys are in and whatever defaults one of them spells out. */
+export const sameLandingPage = (a: unknown, b: unknown) => sameDocument(comparableLandingData(a), comparableLandingData(b));

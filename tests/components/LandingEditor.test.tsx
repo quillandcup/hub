@@ -306,6 +306,21 @@ describe("the header", () => {
     expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
   });
 
+  it("treats a live copy with the same content in another key order as unchanged", () => {
+    const reordered = { root: data.root, content: data.content };
+    editor({ status: "published", publishedJson: JSON.stringify(reordered) });
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
+  });
+
+  it("treats a live copy without Puck's empty zones and default page settings as unchanged", () => {
+    const withDefaults = { ...data, zones: {}, root: { props: { showHeader: false, showFooter: false, navLinks: [], footerLinks: [], footerText: "" } } };
+    const published = JSON.stringify({ content: data.content, root: {}, schemaVersion: 3 });
+    render(<LandingEditor page={{ ...page, status: "published", publishedJson: published }} data={withDefaults} versions={[]} replaceChoices={TEMPLATES} />);
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
+  });
+
   it("offers to publish at once when the page opens with a draft that already differs", () => {
     editor({ status: "published", publishedJson: JSON.stringify({ ...data, content: [] }) });
     expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
