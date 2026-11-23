@@ -23,7 +23,7 @@ const CUSTOM_DRAWINGS: Record<string, string> = {
   "src/components/chat/PendingAttachments.tsx": "upload progress ring",
   "src/components/ChannelIcon.tsx": "brand marks (Slack, Zoom and the like)",
   "src/components/member/MemberSocialLinks.tsx": "brand marks of social networks",
-  "src/components/landing/social-marks.tsx": "brand marks of the Social icons block, drawn for the project from plain shapes",
+  "src/components/landing/social-marks.tsx": "brand marks of the Social icons block and the site header and footer: the networks' real marks in brand-icons.generated.ts (simple-icons, CC0-1.0, pnpm brand-icons:update) and the few it lacks drawn by hand in brand-icons.drawn.ts",
 };
 
 /** Files that import lucide-react directly, from before `Icon` wrapped it. */

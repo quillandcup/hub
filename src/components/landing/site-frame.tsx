@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
-import { SIGN_IN_HREF, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
-import { buttonClasses, SOCIAL_SIZE, SocialLink } from "./blocks";
+import { SIGN_IN_HREF, type SiteSocialLook, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
+import { buttonClasses, SOCIAL_LOOK, SOCIAL_SIZE, SocialLink } from "./blocks";
 import { pageImage } from "./theme";
 
 /**
@@ -21,13 +21,14 @@ const SHOW: Record<ItemShow, string> = { both: "", desktop: "hidden @split:block
 /**
  * The site's social links as icon links: the Social icons block's own link and marks (`SocialLink`, `social-marks.tsx`), so a network
  * has one drawing, the accessible name is the network's ("Instagram"), and another site opens in a new tab with `rel="noopener noreferrer"`.
- * The mark is drawn in the text colour of where it sits (white on the footer), with the block's focus ring. Wraps on a narrow screen.
+ * Each mark is the network's own colour on a light round badge (`look` "colour", the default, which reads on the header, the footer and in
+ * dark mode), or its black or white version with no badge, as chosen in Design. The focus ring is the block's. Wraps on a narrow screen.
  */
-function SocialLinks({ links, label, center = false }: { links: SiteSocialLink[]; label: string; center?: boolean }) {
+function SocialLinks({ links, label, look, center = false }: { links: SiteSocialLink[]; label: string; look: SiteSocialLook; center?: boolean }) {
   const shown = links.filter((l) => safeHref(l.href));
   if (shown.length === 0) return null;
   return (
-    <ul className={`flex flex-wrap items-center gap-2 ${center ? "justify-center" : ""} ${SOCIAL_SIZE.medium}`} aria-label={label}>
+    <ul className={`flex flex-wrap items-center gap-2 ${center ? "justify-center" : ""} ${SOCIAL_SIZE.medium} ${SOCIAL_LOOK[look]}`} aria-label={label}>
       {shown.map((l, i) => (
         <SocialLink key={i} network={l.network} url={l.href} />
       ))}
@@ -93,7 +94,7 @@ function Item({ item, fold }: { item: HeaderItem; fold: boolean }): ReactNode {
       );
     }
     case "social":
-      return <SocialLinks links={item.links} label="Social links" />;
+      return <SocialLinks links={item.links} label="Social links" look={item.look} />;
     case "signin":
       if (!item.label) return null;
       return item.look === "link" ? (
@@ -157,7 +158,7 @@ export function SiteFooterView({ footer }: { footer: SiteFooter }) {
       )}
       {hasSocial && (
         <div className="mb-2 flex justify-center">
-          <SocialLinks links={footer.social} label="Social links" center />
+          <SocialLinks links={footer.social} label="Social links" look={footer.socialLook} center />
         </div>
       )}
       {footer.text && <p>{footer.text}</p>}

@@ -10,11 +10,22 @@ describe("normalizeSiteTemplate", () => {
   it("keeps a complete document as it is", () => {
     const site = {
       header: { show: true, align: "center", mobileMenu: "wrap", items: [newHeaderItem("logo"), newHeaderItem("menu"), newHeaderItem("cta"), newHeaderItem("social"), newHeaderItem("signin")] },
-      footer: { show: true, text: "Fern Quills", links: [{ label: "Privacy", href: "/privacy" }], social: [{ network: "youtube", href: "https://example.test/c" }] },
+      footer: { show: true, text: "Fern Quills", links: [{ label: "Privacy", href: "/privacy" }], social: [{ network: "youtube", href: "https://example.test/c" }], socialLook: "light" },
       style: { ...STYLE_DEFAULTS, primary: "teal", fontFamily: "serif" },
       favicon: { assetId: "mda_AAAAAAAAAAA1" },
     };
     expect(normalizeSiteTemplate(JSON.parse(JSON.stringify(site)))).toEqual(site);
+  });
+
+  it("gives a template stored before the social look the default (colour) in the footer and in a header social block, and clamps an unknown one", () => {
+    const old = normalizeSiteTemplate({ header: { show: true, items: [{ id: "s", type: "social", links: [] }] }, footer: { show: true, text: "x", links: [], social: [] } });
+    expect(old.footer.socialLook).toBe("colour");
+    expect(old.header.items[0]).toMatchObject({ type: "social", look: "colour" });
+    const odd = normalizeSiteTemplate({ header: { items: [{ id: "s", type: "social", links: [], look: "neon" }] }, footer: { socialLook: "neon" } });
+    expect(odd.footer.socialLook).toBe("colour");
+    expect(odd.header.items[0]).toMatchObject({ look: "colour" });
+    expect(normalizeSiteTemplate({ footer: { socialLook: "dark" } }).footer.socialLook).toBe("dark");
+    expect(newHeaderItem("social")).toMatchObject({ look: "colour" });
   });
 
   it("clamps choices to their lists, drops unknown blocks, cleans links and caps the sizes", () => {

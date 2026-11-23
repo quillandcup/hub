@@ -5,7 +5,7 @@ import Countdown, { type CountdownProps } from "./Countdown";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
 import { sectionPadding } from "@/lib/landing/layout";
 import { SocialMark } from "./social-marks";
-import { SOCIAL_NETWORKS, socialNetworkOf } from "./social-networks";
+import { SOCIAL_NETWORKS, socialLookOf, socialNetworkOf, type SocialLook } from "./social-networks";
 import { background, BACKGROUNDS, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
 
 /**
@@ -528,7 +528,7 @@ export function PricingPlan({ name, price, period, description, features, badge,
 
 // ---- Social icons --------------------------------------------------------------------------------------------
 
-export type SocialIconsProps = { items: Slot; align: "left" | "center" | "right"; size: "small" | "medium" | "large"; editing?: boolean };
+export type SocialIconsProps = { items: Slot; align: "left" | "center" | "right"; size: "small" | "medium" | "large"; look?: SocialLook; editing?: boolean };
 const SOCIAL_JUSTIFY = { left: "justify-start", center: "justify-center", right: "justify-end" } as const;
 /** The size of every link in the row: the parent sets it, because an item cannot see its block. Full class strings, so Tailwind finds them. */
 export const SOCIAL_SIZE = {
@@ -537,14 +537,26 @@ export const SOCIAL_SIZE = {
   large: "[&_.lp-social]:h-12 [&_.lp-social]:w-12 [&_.lp-social_svg]:h-6 [&_.lp-social_svg]:w-6",
 } as const;
 
-/** A row of round icon links, each a `SocialLink` in the `items` slot (eight at most). The colour is the section's text colour, so it reads on any background the theme offers. */
-export function SocialIcons({ items: Items, align, size, editing }: SocialIconsProps) {
-  return <Items as="ul" collisionAxis="x" className={`my-3 flex flex-wrap gap-3 ${pick(SOCIAL_JUSTIFY, align, "center")} ${pick(SOCIAL_SIZE, size, "medium")} ${itemList(ITEM_LIMITS.SocialIcons, editing)}`} />;
+/**
+ * The look of every link in the row, set by the row for the same reason. `colour` (the default) is what each link is drawn as: the network's own colour
+ * on a white badge with a thin grey ring (so it holds on a light page, a dark one and in dark mode). `dark` and `light` drop the badge and use the
+ * network's black or white version (`!` beats the colour a mark carries).
+ */
+export const SOCIAL_LOOK = {
+  colour: "",
+  dark: "[&_.lp-social]:!border-transparent [&_.lp-social]:!bg-transparent [&_.lp-social_svg]:!text-black",
+  light: "[&_.lp-social]:!border-transparent [&_.lp-social]:!bg-transparent [&_.lp-social_svg]:!text-white",
+} as const;
+
+/** A row of round icon links, each a `SocialLink` in the `items` slot (eight at most). Each mark is in its network's own colour on a light round badge (or its black or white version with no badge, `look`), so it reads on any background. */
+export function SocialIcons({ items: Items, align, size, look, editing }: SocialIconsProps) {
+  return <Items as="ul" collisionAxis="x" className={`my-3 flex flex-wrap gap-3 ${pick(SOCIAL_JUSTIFY, align, "center")} ${pick(SOCIAL_SIZE, size, "medium")} ${SOCIAL_LOOK[socialLookOf(look)]} ${itemList(ITEM_LIMITS.SocialIcons, editing)}`} />;
 }
 
 export type SocialLinkProps = { network: string; url: string } & ItemProps;
 
-const SOCIAL_LINK = "lp-social inline-flex items-center justify-center rounded-full border border-current no-underline transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2";
+// The badge: white with a thin neutral ring (a row's `look` can drop it). The focus ring is the surrounding text colour, so it shows on a light and a dark surface alike.
+const SOCIAL_LINK = "lp-social inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white no-underline transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2";
 
 /**
  * One link of a Social icons block. Its accessible name is the network's ("Instagram"), the picture is decoration. A link to another site

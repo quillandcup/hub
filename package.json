@@ -45,6 +45,7 @@
     "demo:phone-overflow": "playwright test --config tests/demo/playwright.config.ts phone-overflow --project=phone-light",
     "demo:capture": "playwright test --config tests/demo/playwright.config.ts",
     "changelog:capture": "tsx scripts/changelog-capture.ts",
+    "brand-icons:update": "tsx scripts/update-brand-icons.ts",
     "changelog:draft": "tsx scripts/changelog-draft.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
     "disposable-domains:update": "tsx scripts/update-disposable-email-domains.ts",

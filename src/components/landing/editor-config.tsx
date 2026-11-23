@@ -6,7 +6,7 @@ import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
 import type { PageBlockRegistry } from "./block-registry";
 import { withStandIns } from "./block-placeholder";
 import { buildRenderConfig, pageBlocks, renderConfig, rootConfigFor, type FrameContext } from "./config";
-import { SOCIAL_NETWORK_OPTIONS } from "./social-networks";
+import { SOCIAL_LOOK_OPTIONS, SOCIAL_NETWORK_OPTIONS } from "./social-networks";
 import { createEditorKit, type EditorKit, type PageBlockEditorContribution } from "./editor-kit";
 import { PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
@@ -91,6 +91,7 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     items: itemsSlot("SocialIcons", "Links (up to 8)"),
     align: select("Alignment", opts("left", "center", "right")),
     size: select("Size", opts("small", "medium", "large")),
+    look: select("Marks", SOCIAL_LOOK_OPTIONS),
   },
   SocialLink: { network: select("Network", SOCIAL_NETWORK_OPTIONS), url: text("Link (https://, or mailto:you@example.com for Email)") },
   Pricing: {

@@ -81,7 +81,7 @@ export const CORE_DEFAULTS = {
   Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center", fit: "whole" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
-  SocialIcons: { items: [kid("SocialLink", { network: "instagram", url: "" }), kid("SocialLink", { network: "youtube", url: "" })], align: "center", size: "medium" },
+  SocialIcons: { items: [kid("SocialLink", { network: "instagram", url: "" }), kid("SocialLink", { network: "youtube", url: "" })], align: "center", size: "medium", look: "colour" },
   Pricing: { items: [kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "First plan" }), kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "Second plan", badge: "Most popular", featured: true })] },
   Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
   Accordion: { items: [kid("AccordionItem", { title: "A title", text: "What opens under it.", open: false }), kid("AccordionItem", { title: "Another title", text: "What opens under that one.", open: false })] },

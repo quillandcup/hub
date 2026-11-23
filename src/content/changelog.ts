@@ -431,7 +431,7 @@ The import picks them from the Kajabi export: the colour laid over the picture, 
 - **Accordion.** A list of titles that fold open to their text. This is what the old FAQ block was; pages that had one now show an Accordion that looks the same.
 - **FAQ.** Questions and answers. On the published page it also tells search engines about them, so they can show the questions in results. A question with no answer is flagged before you publish.
 - **Pricing.** One to three plans side by side: name, price as you type it, how often it is billed, a short description, what is included, a button and an optional "Most popular" label. A featured plan is marked with a heavier border as well as a label, not by colour alone.
-- **Social icons.** Up to eight round icon links for Instagram, Facebook, YouTube, TikTok, X, LinkedIn, Pinterest, Threads, email and a website. The icons are our own simple drawings, not the networks' logos.
+- **Social icons.** Up to eight round icon links for Instagram, Facebook, YouTube, TikTok, X, LinkedIn, Pinterest, Substack, Threads, email and a website. The social networks show their own logos in their own colours on a light round badge (LinkedIn's is a close drawing of it), or all black or all white with no badge if you choose. The site's header and footer social links use the same icons.
 
 The Kajabi page import now uses these: accordions become an Accordion, pricing columns become Pricing blocks and social icons become a Social icons block, and the report says what was left out.`,
   },
