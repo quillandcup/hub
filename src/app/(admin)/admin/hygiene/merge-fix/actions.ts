@@ -1,11 +1,11 @@
 "use server";
 
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { revalidatePath } from "next/cache";
 import { createRepos } from "@/lib/data/repos";
 
 export async function dismissGroup(groupKey: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.merge");
   if (!auth.ok) return { error: auth.error };
   const { supabase } = auth;
 
@@ -19,7 +19,7 @@ export async function dismissGroup(groupKey: string) {
 }
 
 export async function undismissGroup(groupKey: string) {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.merge");
   if (!auth.ok) return { error: auth.error };
   const { supabase } = auth;
 

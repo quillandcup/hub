@@ -26,6 +26,7 @@ import { addLivePrickleToCalendar, liveCalendarEvent, seedLiveRoom, withLapsedSt
 import { seedChat, seedChatVideoShare } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
 import { seedAliases, seedBooks, seedCheckinHistory, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
+import { giveRoles } from "../helpers/user-roles";
 
 /** Today's date in the org's timezone as YYYY-MM-DD, plus a number of days. */
 export function orgDate(offsetDays: number, now: Date = new Date()): string {
@@ -51,8 +52,9 @@ export async function seed(now: Date = new Date()) {
     }
     // A zone already chosen, so the "Change time zone?" prompt stays out of screenshots.
     // nav_mode back to its default (null): a scene that changed the saved sidebar mode must not leave it for the next screenshot.
-    const { error: profileError } = await admin.from("user_profiles").upsert({ id, email: p.email, role: p.role, timezone_preference: ORG_TIMEZONE, nav_mode: null });
+    const { error: profileError } = await admin.from("user_profiles").upsert({ id, email: p.email, timezone_preference: ORG_TIMEZONE, nav_mode: null });
     if (profileError) throw new Error(`user_profiles ${p.key}: ${profileError.message}`);
+    await giveRoles(admin, id, p.role);
   }
 
   // The community comes from the typed profile (src/lib/data/profiles/community.ts) through the same loader `pnpm seed:local` uses:

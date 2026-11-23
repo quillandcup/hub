@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments' | 'lesson_comment_notifications' | 'writer_profiles';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments' | 'lesson_comment_notifications' | 'writer_profiles' | 'book_visibility_notice';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -116,5 +116,10 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'writer_profiles',
     name: 'Writer profiles on the web',
     description: 'Lets a member have a page of their own on the open web (/w/<handle>), shown to anyone without signing in and listed by search engines. This is decided for the page\'s owner, not for the visitor: for a member it covers (everyone when switched on globally, otherwise members in a linked segment or with their own preview) Settings → Profile shows the page\'s section and they can switch it on. For everyone else the section is hidden, the page and its preview answer as if there were none, and the sitemap leaves it out. Turning this off never deletes or changes a page\'s settings: the page just stops being served, and comes back when the flag is on again',
+  },
+  {
+    key: 'book_visibility_notice',
+    name: 'Tell members their books are on the public Hedgie Bookshelf',
+    description: 'Sends the one-time note that a member\'s published books are on the public Hedgie Bookshelf, with the link to choose who sees each one, for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have told and what it would have said, and writes nothing, so switching it on later starts from a clean slate. Run it from /api/internal/book-visibility-notice',
   },
 ];

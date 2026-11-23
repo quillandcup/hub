@@ -6,7 +6,7 @@ import { isId } from "@/lib/ids";
 import { customEmojiFor, liveCustomEmojiNames } from "@/lib/chat/names";
 import type { EmojiChoice } from "@/lib/chat/emoji-suggest";
 import { loadChannelForMember, loadChannelMembers, loadChatChannels } from "@/lib/chat/load";
-import { slackUserIdsFor } from "@/lib/chat/slack-membership";
+import { chatTransport } from "@/lib/chat/transports";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -74,7 +74,7 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
     .slice(0, MAX_SUGGESTIONS * 4);
   if (people.length === 0) return [];
   // Only people the Hub can name to Slack: no Slack account, nothing to mention.
-  const slackIds = await slackUserIdsFor(createRepos(service), people.map((p) => p.memberId));
+  const slackIds = await chatTransport().externalIdsFor(service, people.map((p) => p.memberId));
   return people
     .filter((p) => slackIds.has(p.memberId))
     .slice(0, MAX_SUGGESTIONS)

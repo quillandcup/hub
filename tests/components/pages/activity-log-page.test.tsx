@@ -12,16 +12,16 @@ const tables: Record<string, unknown[]> = {};
 // Minimal chainable stand-in: every builder method returns itself and awaiting it yields the table's rows.
 function builder(table: string) {
   const b: Record<string, unknown> = {};
-  for (const m of ["select", "order", "range", "in", "eq"]) b[m] = () => b;
+  for (const m of ["select", "order", "range", "in", "eq", "neq"]) b[m] = () => b;
   b.maybeSingle = async () => ({ data: (tables[table] ?? [])[0] ?? null, error: null });
   b.then = (resolve: (v: unknown) => unknown) => resolve({ data: tables[table] ?? [], error: null });
   return b;
 }
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc, from: builder }) }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => ({ id: "admin", email: "a@example.test" })) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => ({ id: "admin", email: "a@example.test" })) }));
 
 const { default: ActivityLogPage } = await import("@/app/(admin)/admin/activity/page");
-const { requireAdminPage } = await import("@/lib/admin-auth");
+const { requirePermission } = await import("@/lib/admin-auth");
 
 const MEMBER_ID = "00000000-0000-4000-a000-0000000000b1";
 
@@ -60,8 +60,9 @@ function feed(rows: ActivityFeedRow[], total = rows.length) {
 beforeEach(() => {
   rpc.mockReset();
   tables.members = [{ id: MEMBER_ID, name: "Fern Quillsby", email: "fern@example.test", user_id: null }];
-  tables.user_profiles = [{ id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test", role: "admin" }];
-  vi.mocked(requireAdminPage).mockClear();
+  tables.user_profiles = [{ id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test" }];
+  tables.user_roles = [{ user_id: "00000000-0000-4000-a000-0000000000a1", role: "admin" }];
+  vi.mocked(requirePermission).mockClear();
 });
 
 describe("/admin/activity", () => {
@@ -69,7 +70,7 @@ describe("/admin/activity", () => {
     feed([base]);
     await renderPage();
 
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_audit_only: true }));
     expect(screen.getByText("Bramble Admin")).toBeInTheDocument();
     await userEvent.click(screen.getByText("changed member — status"));
@@ -84,8 +85,8 @@ describe("/admin/activity", () => {
   it("names a filtered-to actor who isn't staff by their profile's email", async () => {
     const outsider = "00000000-0000-4000-a000-0000000000b2";
     tables.user_profiles = [
-      { id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test", role: "admin" },
-      { id: outsider, email: "outsider@example.test", role: "member" },
+      { id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test" },
+      { id: outsider, email: "outsider@example.test" },
     ];
     feed([base]);
 

@@ -11,7 +11,7 @@ import { NavModeButton, useSidebarMode } from "@/components/useSidebarMode";
 
 interface NavLinksProps {
   enabledFeatures: FeatureKey[];
-  role: string;
+  roles: readonly string[];
   pathname: string | null;
   collapsed: boolean;
   /** Keep headings and labels mounted (hidden while collapsed) so items never move as the rail opens. */
@@ -19,7 +19,7 @@ interface NavLinksProps {
   onNavigate?: () => void;
 }
 
-function NavLinks({ enabledFeatures, role, pathname, collapsed, keepLayout, onNavigate }: NavLinksProps) {
+function NavLinks({ enabledFeatures, roles, pathname, collapsed, keepLayout, onNavigate }: NavLinksProps) {
   const showLabels = keepLayout || !collapsed;
   const labelFade = keepLayout ? `whitespace-nowrap transition-opacity duration-200 ${collapsed ? "opacity-0" : "opacity-100"}` : "";
 
@@ -40,7 +40,7 @@ function NavLinks({ enabledFeatures, role, pathname, collapsed, keepLayout, onNa
 
       {/* Navigation */}
       <nav data-sentry-unmask className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto overflow-x-hidden flex-1">
-        {navGroups("admin", enabledFeatures, role).map((section) => {
+        {navGroups("admin", enabledFeatures, roles).map((section) => {
           const visibleItems = section.items;
 
           const containsActiveItem = visibleItems.some(
@@ -115,14 +115,14 @@ function NavLinks({ enabledFeatures, role, pathname, collapsed, keepLayout, onNa
 }
 
 interface AdminNavigationProps {
-  /** The signed-in staff member's role: a community manager sees only the pages they may open. */
-  role: string;
+  /** The signed-in staff member's roles (the union decides): a community manager sees only the pages they may open. */
+  roles: readonly string[];
   enabledFeatures: FeatureKey[];
   /** The member's saved sidebar mode (one setting for member and admin); null until they choose: pinned open. */
   navMode?: NavMode | null;
 }
 
-export default function AdminNavigation({ role, enabledFeatures, navMode = null }: AdminNavigationProps) {
+export default function AdminNavigation({ roles, enabledFeatures, navMode = null }: AdminNavigationProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const { mode, autoHide, collapsed, railOpen, peekHandlers, setMode } = useSidebarMode(navMode);
@@ -168,7 +168,7 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
 
         <NavLinks
           enabledFeatures={enabledFeatures}
-          role={role}
+          roles={roles}
           pathname={pathname}
           collapsed={false}
           onNavigate={() => setMobileOpen(false)}
@@ -206,7 +206,7 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
 
           <NavLinks
             enabledFeatures={enabledFeatures}
-            role={role}
+            roles={roles}
             pathname={pathname}
             collapsed={autoHide ? !railOpen : collapsed}
             keepLayout={autoHide}

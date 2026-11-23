@@ -210,17 +210,11 @@ jobs:
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
       # assertions out. No Supabase, no app server, no Docker: see config/vitest.mts's
       # "unit" project for exactly which files land here and why.
-      # Runs the unit suite once. On pull requests it runs with v8 coverage: the floors are on the unit and db
-      # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts), which only
-      # runs on pull requests. On main nothing reads the coverage, so it runs without it (less time per run, and
-      # main is where the job came closest to its timeout).
+      # Runs the unit suite once, with v8 coverage: the floors are on the unit and db runs combined, so they
+      # are checked by the Coverage report job (scripts/coverage-report.ts) on pull requests, and on main the
+      # Coverage badge job reads the same numbers for the README badges.
       - name: Run unit test suite (with coverage)
-        if: github.event_name == 'pull_request'
         run: pnpm test:unit:coverage
-
-      - name: Run unit test suite
-        if: github.event_name != 'pull_request'
-        run: pnpm test:unit
 
       - name: Check lint result
         if: ${{ !cancelled() }}
@@ -236,7 +230,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-unit
@@ -537,6 +531,54 @@ jobs:
           fi
           pnpm exec tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
 
+  coverage-badge:
+    name: Coverage badge
+    needs: [test-unit, test-db]
+    # Main only, and nothing depends on it: the deploy does not wait for it and a failure here holds nothing
+    # up. Skipped when the docs-only shortcut skipped the test jobs (the numbers cannot have changed).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test-unit.result == 'success' && needs.test-db.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: coverage-badge
+      cancel-in-progress: true
+    permissions:
+      contents: write # to force-push the badges branch (not main: the main ruleset does not cover it)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: "package.json"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: coverage-unit
+          path: coverage/unit
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: coverage-db
+          path: coverage/db
+
+      # Writes the shields.io endpoint files (overall and per area) outside the checkout, then replaces the
+      # `badges` branch with one orphan commit holding just them. The README badges read the files from
+      # raw.githubusercontent.com. A force push is fine: the branch has no history worth keeping.
+      - name: Publish the coverage badges
+        run: |
+          pnpm exec tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --badges-dir "$RUNNER_TEMP/badges" || true
+          test -f "$RUNNER_TEMP/badges/coverage.json"
+          git switch --orphan badges
+          cp "$RUNNER_TEMP"/badges/*.json .
+          git add ./*.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Coverage badges for $GITHUB_SHA"
+          git push --force origin badges
+
   push-migrations:
     name: Push migrations to production
     needs: [check-migrations, test-unit, test-db]
@@ -606,6 +648,8 @@ jobs:
     needs: push-migrations
     permissions:
       contents: write # moves the `production` tag
+      id-token: write # deploy.yml's attest job (build provenance); the deploy job itself stays at contents: write
+      attestations: write
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
     with:

@@ -40,6 +40,9 @@ jobs:
     environment:
       name: production
       url: ${{ steps.app-url.outputs.url }}
+    outputs:
+      # Whether this run built and deployed (false: a redeploy skipped by the guard). The `attest` job reads it.
+      deployed: ${{ steps.guard.outputs.proceed }}
     steps:
       # A redeploy of an older commit (help-screenshots.yml) must not roll production back past a deploy that
       # landed since it was queued. Deploys are serialized, so this reads the tag after any earlier one finished.
@@ -199,3 +202,68 @@ jobs:
         run: |
           gh api --method PATCH "repos/$REPO/git/refs/tags/production" -f sha="$DEPLOY_SHA" -F force=true \
             || gh api --method POST "repos/$REPO/git/refs" -f ref="refs/tags/production" -f sha="$DEPLOY_SHA"
+
+      # Build provenance inputs (docs/infrastructure/DEPLOYMENT.md, "Verifying what was deployed"). They run after the
+      # deploy and the tag move, and `continue-on-error` keeps a failure here from failing a deploy that already
+      # succeeded; the `attest` job below then has nothing to sign and reports it.
+      #
+      # 1. A manifest of the exact files `vercel deploy --prebuilt` uploaded (`.vercel/output`): one SHA-256 per file,
+      #    sorted, so it is the same bytes for the same output. It is the subject that gets attested. The build output
+      #    itself is not published: a workflow artifact of a public repository can be downloaded by any GitHub user,
+      #    and server bundles are not ours to hand out. Hashes reveal nothing.
+      # 2. A CycloneDX SBOM of the dependencies in pnpm-lock.yaml for this commit (`pnpm sbom` is built in, so no
+      #    extra package to trust); development dependencies are included because the build tools shape the output.
+      - name: Write the build manifest and SBOM
+        if: steps.guard.outputs.proceed == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir provenance
+          (cd .vercel/output && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > provenance/build-output.sha256
+          test -s provenance/build-output.sha256
+          pnpm sbom --sbom-format cyclonedx --sbom-spec-version 1.6 --sbom-type application --lockfile-only --out provenance/sbom.cdx.json
+
+      - name: Upload the manifest and SBOM
+        if: steps.guard.outputs.proceed == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: deploy-provenance
+          path: provenance/
+          if-no-files-found: error
+          retention-days: 90
+
+  # Signs what the deploy job recorded, with GitHub's keyless Sigstore flow (a short-lived certificate tied to this
+  # workflow run's identity; no key to store or rotate). A separate job on purpose:
+  # - the deploy job holds the Vercel and Sentry secrets and stays at `contents: write`; this job gets `id-token` and
+  #   `attestations` and never sees them, and it runs no repository code, only the pinned actions below;
+  # - `continue-on-error` and `needs: deploy` mean a problem signing can never block, fail or roll back a deploy that
+  #   already went out (it shows as a red job on the run, which is the signal to look).
+  # The caller grants these permissions too (ci.yml and help-screenshots.yml): a called workflow can only narrow them.
+  attest:
+    name: Attest build provenance and SBOM
+    needs: deploy
+    if: needs.deploy.result == 'success' && needs.deploy.outputs.deployed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write # the Sigstore certificate request
+      attestations: write # stores the attestations on the repository
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: deploy-provenance
+          path: provenance
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: provenance/build-output.sha256
+
+      - name: Attest the SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: provenance/build-output.sha256
+          sbom-path: provenance/sbom.cdx.json

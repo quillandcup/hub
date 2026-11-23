@@ -98,6 +98,24 @@ describe("ProjectDetailClient published book", () => {
     expect(screen.getByText("Fantasy, Cozy Mystery", { selector: "p" }).textContent).toBe("Fantasy, Cozy Mystery");
   });
 
+  it("draws no empty picture or link for a book with no cover and no purchase link (React warns on an empty src or href)", () => {
+    const bare = {
+      ...project,
+      book: { ...(project as unknown as { book: object }).book, coverUrl: "", editions: [{ format: "print", purchaseUrl: "", price: null }] },
+    } as unknown as WritingProjectRow;
+    const { container } = render(<ProjectDetailClient project={bare} entries={[]} archivedGoals={[]} />);
+    expect(screen.queryByAltText("Cover of The Lantern Keeper")).not.toBeInTheDocument();
+    expect(container.querySelector('img[src=""]')).toBeNull();
+    expect(container.querySelector('a[href=""]')).toBeNull();
+  });
+
+  it("labels the goal form's two date fields, so each can be found by its name", async () => {
+    render(<ProjectDetailClient project={project} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    expect(screen.getByLabelText(/^Start date/)).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText(/^End date/)).toHaveAttribute("type", "date");
+  });
+
   it("links to the Book Shelf page", () => {
     render(<ProjectDetailClient project={project} entries={[]} archivedGoals={[]} />);
     expect(screen.getByRole("link", { name: "View on the Book Shelf" })).toHaveAttribute("href", "/bookshelf");

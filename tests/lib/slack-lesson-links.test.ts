@@ -4,10 +4,10 @@ import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
 import { accessRow, courseRow, lessonRow, videoRow } from "@/tests/helpers/course-fixtures";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
-import { SLACK_LINK_MAX_AGE_MS, rewriteInSlack, shareLessonLinkBySlackTs, shareLessonLinkInMessage, shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
+import { SLACK_LINK_MAX_AGE_MS, rewriteInSlack, shareLessonLinkBySlackTs, shareLessonLinkInMessage, shareRecentLessonLinks } from "@/modules/chat/slack/lesson-links";
 
 const updateInSlack = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: updateInSlack }));
+vi.mock("@/modules/chat/slack/edit", () => ({ updateChatMessageInSlack: updateInSlack }));
 vi.mock("@/lib/data/repos", async (orig) => ({ ...(await orig<typeof import("@/lib/data/repos")>()), createRepos: () => repos }));
 
 const FERN = "mbr_AAAAAAAAAAA1";

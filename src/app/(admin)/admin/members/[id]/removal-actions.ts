@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
@@ -10,7 +10,7 @@ import { previewMemberRemoval, removeMemberOnRequest, type RemovalPreview } from
 
 /** What removing this member would do: a dry run, nothing changes. Staff only. */
 export async function previewRemoval(memberId: string): Promise<{ error: string } | { preview: RemovalPreview }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.remove");
   if (!auth.ok) return { error: auth.error };
   if (!isId(memberId, "mbr")) return { error: "Member not found." };
   try {
@@ -50,7 +50,7 @@ async function removeMemberImpl(adminUserId: string, memberId: string, keepPubli
  * member's name typed to confirm. `keepPublic` is the member's answer about their books and awards on the bookshelf.
  */
 export async function removeMember(memberId: string, keepPublic: boolean, confirmName: string): Promise<RemovalActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.remove");
   if (!auth.ok) return { error: auth.error };
   return withAction("member_removed", () => removeMemberImpl(auth.user.id, memberId, keepPublic, confirmName), (r) => ({ ok: "success" in r }));
 }

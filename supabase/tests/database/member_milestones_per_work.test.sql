@@ -10,17 +10,20 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(32);
+SELECT plan(31);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f6a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pw-pia@example.test'),
   ('00000000-0000-4000-a000-00000000f6a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pw-quinn@example.test'),
   ('00000000-0000-4000-a000-00000000f6a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pw-rae@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f6a1', 'pw-pia@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f6a2', 'pw-quinn@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f6a4', 'pw-rae@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f6a1', 'pw-pia@example.test'),
+  ('00000000-0000-4000-a000-00000000f6a2', 'pw-quinn@example.test'),
+  ('00000000-0000-4000-a000-00000000f6a4', 'pw-rae@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f6a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_pwPia0000001', 'Pia Work', 'pw-pia@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f6a1'),
   ('mbr_pwQuinn00001', 'Quinn Work', 'pw-quinn@example.test', now(), 'active', '00000000-0000-4000-a000-00000000f6a2'),
@@ -112,11 +115,6 @@ SELECT is(
   'Pia''s own milestone for book two stays hers: only publish-ready was proposed there');
 SELECT is((SELECT count(*)::int FROM public.member_milestones WHERE member_id = 'mbr_pwPia0000001' AND book_id = 'book_pwPia00002'), 2, 'one row per kind for that book');
 
--- The old per-member backfill is still there until the contract step and still runs for admins.
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f6a4", "email": "pw-rae@example.test", "role": "authenticated"}', true);
-SELECT lives_ok($$SELECT public.propose_milestones_from_books()$$, 'the old backfill function still runs for an admin');
-RESET ROLE;
 
 -- RLS is unchanged: a member reads only their own, nothing for a visitor.
 SET LOCAL ROLE authenticated;

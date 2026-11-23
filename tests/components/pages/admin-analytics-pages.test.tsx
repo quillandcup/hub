@@ -6,8 +6,8 @@ import { renderServerPage, resetServerPageMocks, useFakeSupabase, type FakeQuery
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 // The builder is a client component with a server action; the page's wiring is what is under test.
 vi.mock("@/app/(admin)/admin/analytics/explore/ExploreForm", () => ({
   ExploreForm: (props: { initialSteps: unknown[]; initialBreakdown: unknown; initialDays: number }) => (
@@ -24,7 +24,7 @@ const rpcCalls = (supabase: ReturnType<typeof useFakeSupabase>, fn: string) =>
 
 beforeEach(() => {
   resetServerPageMocks();
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
 });
 
 describe("/admin/analytics", () => {
@@ -112,7 +112,7 @@ describe("/admin/analytics", () => {
   it("checks the caller is an admin first", async () => {
     useFakeSupabase();
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("links to the explorer", async () => {
@@ -279,7 +279,7 @@ describe("/admin/analytics/explore", () => {
   it("checks the caller is an admin first", async () => {
     useFakeSupabase();
     await renderServerPage(ExploreUsagePage, { searchParams: Promise.resolve({}) });
-    expect(requireAdminPage).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("passes the who-to-count filters to the funnel and the breakdown, and on to the form", async () => {

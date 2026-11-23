@@ -23,4 +23,11 @@ describe("media presets", () => {
     expect(tooSmallFor({ width: 500, height: 800 }, kdp)).toMatch(/500 x 800 px; at least 625 x 1000/);
     expect(tooSmallFor({ width: 10, height: 10 }, PRESETS.thumb)).toBeNull();
   });
+
+  it("has presets that are a largest box rather than a frame, and the frame presets are not", () => {
+    expect(PRESETS.page_image.inside).toBe(true);
+    expect(PRESETS.logo.inside).toBe(true);
+    expect(isPresetName("logo")).toBe(true);
+    for (const name of ["thumb", "event_card", "event_hero", "book_cover_shelf", "book_cover_kdp_ebook"] as const) expect("inside" in PRESETS[name]).toBe(false);
+  });
 });

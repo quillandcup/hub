@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("next/server", () => ({ after: () => {} }));
 const serviceStorage = vi.hoisted(() => ({ remove: async (_paths: string[]): Promise<{ error: { message: string } | null }> => ({ error: null }) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true, storage: { from: () => ({ remove: (paths: string[]) => serviceStorage.remove(paths) }) } }) }));
-vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn() }));
+vi.mock("@/lib/chat/delivery", () => ({ deliverChatMessage: vi.fn() }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: async () => ({ connected: true }) }));
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(async () => []), effectiveMemberHasFeature: async () => true }));
 let dataset: InMemoryDataset;

@@ -33,7 +33,7 @@ const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
   restored_at: null,
   import_key: null,
   imported_at: null,
-  starter_applied_at: null,
+  replaced_at: null,
   created_by: null,
   updated_by: null,
   created_at: "2027-01-01T00:00:00Z",

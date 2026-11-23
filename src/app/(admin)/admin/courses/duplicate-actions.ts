@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
@@ -18,7 +18,7 @@ export type DuplicateResult = { error?: string; id?: string };
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 async function duplicateImpl(auth: Auth, courseId: string): Promise<DuplicateResult> {
   if (!isId(courseId, "crs")) return { error: "Course not found." };
@@ -41,7 +41,7 @@ async function duplicateImpl(auth: Auth, courseId: string): Promise<DuplicateRes
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** Copies a course into a new draft course the Hub owns, and returns the new course's id. */
 export async function duplicateCourse(courseId: string): Promise<DuplicateResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_duplicated", () => duplicateImpl(auth, courseId));
 }

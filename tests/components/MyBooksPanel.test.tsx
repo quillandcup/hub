@@ -4,10 +4,12 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MyBooksPanel from "@/app/(member)/projects/MyBooksPanel";
 import type { MyBookRow } from "@/app/(member)/bookshelf/actions";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
-const { refresh, deleteBook } = vi.hoisted(() => ({
+const { refresh, deleteBook, setBookVisibility } = vi.hoisted(() => ({
   refresh: vi.fn(),
   deleteBook: vi.fn(),
+  setBookVisibility: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -16,6 +18,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/(member)/bookshelf/actions", () => ({
   deleteBook,
+  setBookVisibility,
   addBook: vi.fn(),
   updateBook: vi.fn(),
 }));
@@ -34,6 +37,8 @@ function book(overrides: Partial<MyBookRow>): MyBookRow {
     editions: [{ format: "ebook", purchaseUrl: "https://example.com/buy", price: 4.99 }],
     genres: [],
     projectId: null,
+    visibility: "public",
+    webAuthor: "Ada E.",
     ...overrides,
   } as MyBookRow;
 }
@@ -114,6 +119,63 @@ describe("MyBooksPanel", () => {
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(deleteBook).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  describe("who can see a book", () => {
+    const control = (title: string) => within(rowFor(title)).getByRole("button", { name: /Who can see this book/ });
+
+    it("shows each book's level on a lock, house or globe control with its own words in the tooltip", () => {
+      render(
+        <MyBooksPanel
+          initialBooks={[book({ id: "a", title: "Private One", visibility: "private" }), book({ id: "b", title: "House One", visibility: "community" }), book({ id: "c", title: "Globe One", visibility: "public" })]}
+          projectTitles={{}}
+        />,
+      );
+      expect(control("Private One")).toHaveAccessibleName("Who can see this book: Only me");
+      expect(control("House One")).toHaveAccessibleName("Who can see this book: Other members");
+      expect(control("Globe One")).toHaveAccessibleName("Who can see this book: Everyone");
+      expect(control("Private One").querySelector("svg.lucide-lock")).not.toBeNull();
+      expect(tooltipText(control("Globe One"))).toBe("Anyone can see this book on the web, on the public Hedgie Bookshelf. Click to hide it from everyone but you.");
+      expect(tooltipText(control("Private One"))).toBe("Only you can see this book. Click to show it to other members only.");
+      // No browser tooltip on the control.
+      expect(control("Globe One")).not.toHaveAttribute("title");
+    });
+
+    it("saves the next level on a click, shows it at once and refreshes", async () => {
+      setBookVisibility.mockResolvedValue({ success: true });
+      const user = userEvent.setup();
+      render(<MyBooksPanel initialBooks={[book({ id: "b-solo", title: "Salt and Starlight", visibility: "public" })]} projectTitles={{}} />);
+      await user.click(control("Salt and Starlight"));
+      expect(setBookVisibility).toHaveBeenCalledWith("b-solo", "private");
+      expect(control("Salt and Starlight")).toHaveAccessibleName("Who can see this book: Only me");
+      expect(refresh).toHaveBeenCalled();
+    });
+
+    it("puts the level back and says why when it could not be saved", async () => {
+      setBookVisibility.mockResolvedValue({ error: "Only the member can change who sees their book." });
+      const user = userEvent.setup();
+      render(<MyBooksPanel initialBooks={[book({ id: "b-solo", title: "Salt and Starlight", visibility: "community" })]} projectTitles={{}} />);
+      await user.click(control("Salt and Starlight"));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Only the member can change who sees their book.");
+      expect(control("Salt and Starlight")).toHaveAccessibleName("Who can see this book: Other members");
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("tells a member that a book at the globe with no name on it shows no author, and only then", () => {
+      render(
+        <MyBooksPanel
+          initialBooks={[
+            book({ id: "a", title: "Nameless Globe", visibility: "public", webAuthor: null }),
+            book({ id: "b", title: "Nameless Private", visibility: "private", webAuthor: null }),
+            book({ id: "c", title: "Named Globe", visibility: "public", webAuthor: "Ada E." }),
+          ]}
+          projectTitles={{}}
+        />,
+      );
+      expect(within(rowFor("Nameless Globe")).getByTestId("book-no-web-author")).toHaveTextContent("sees this book with no author name");
+      expect(within(rowFor("Nameless Private")).queryByTestId("book-no-web-author")).not.toBeInTheDocument();
+      expect(within(rowFor("Named Globe")).queryByTestId("book-no-web-author")).not.toBeInTheDocument();
+    });
   });
 
   it("deletes the book and refreshes when the member confirms", async () => {

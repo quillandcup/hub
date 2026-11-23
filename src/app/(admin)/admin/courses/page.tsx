@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadAdminCourses } from "@/lib/courses/admin";
 import { accessLabel } from "@/lib/courses/access-options";
@@ -12,7 +12,7 @@ import Tooltip from "@/components/Tooltip";
 export const metadata: Metadata = { title: "Courses" };
 
 export default async function AdminCoursesPage() {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   const supabase = await createClient();
   const courses = await loadAdminCourses(createRepos(supabase));
 

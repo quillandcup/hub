@@ -12,7 +12,7 @@ vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: m.features, ef
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: (_n: string, f: () => unknown) => f() }));
-vi.mock("@/lib/chat/slack-dms", () => ({ openSlackDm: vi.fn() }));
+vi.mock("@/modules/chat/slack/dms", () => ({ openSlackDm: vi.fn() }));
 vi.mock("@/lib/data/repos", () => ({
   createRepos: () => ({
     directory: { matching: async (typed: string) => m.rows.filter((r) => r.name.toLowerCase().includes(typed.toLowerCase())) },

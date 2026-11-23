@@ -13,14 +13,14 @@ import {
   type HiatusWindow,
 } from "@/lib/member-tenure";
 import HedgieversariesTable, { type HedgieversaryRow } from "./HedgieversariesTable";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Hedgieversaries",
 };
 
 export default async function HedgieversariesPage() {
-  await requireAdminPage();
+  await requirePermission("community.manage");
   const supabase = await createClient();
 
   const user = await getCurrentUser();

@@ -4,14 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
 import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Unmatched Zoom Names",
 };
 
 export default async function AliasSearchPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   // Get members, aliases, ignored names, and staff in parallel; paginate zoom_attendees separately

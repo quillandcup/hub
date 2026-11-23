@@ -187,7 +187,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         status: "inPlace",
         reads: ["dm-what", "dm-who", "dm-stop"],
         how: "Each member's own Slack token lists and reads their DMs (on opening chat, on a live event and nightly) into a service-role-only store, and a private restricted conversation is made for the members who pulled it. A non-member's messages are kept under their Slack name and nothing else about them.",
-        evidence: ["src/lib/chat/slack-dms.ts", "src/lib/chat/slack-dm-events.ts", "src/app/api/reconcile/slack-dms/route.ts", "tests/lib/slack-dms.test.ts", "tests/lib/slack-dm-events.test.ts", "docs/product/SLACK_BRIDGED_CHAT.md"],
+        evidence: ["src/modules/chat/slack/dms.ts", "src/modules/chat/slack/dm-events.ts", "src/app/api/reconcile/slack-dms/route.ts", "tests/lib/slack-dms.test.ts", "tests/lib/slack-dm-events.test.ts", "docs/product/SLACK_BRIDGED_CHAT.md"],
         checked: "2026-11-18",
         open: ["The page's DM statements must change with this code. The feature is on for every member (the flag has been on globally since 2026-11-13, read from production), so the page no longer says it is rolling out; if it is ever switched off again for some members, put that back."],
       },

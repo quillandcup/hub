@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { aiConfigured } from "@/lib/landing/ai";
 import { createClient } from "@/lib/supabase/server";
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "New page · Pages" };
 export const maxDuration = 120;
 
 export default async function NewLandingPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  await requireAdminPage();
+  await requirePermission("pages.edit");
   const { type } = await searchParams;
   const templates = await createRepos(await createClient()).landingPages.usableTemplates();
   return (

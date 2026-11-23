@@ -5,7 +5,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 let admin = true;
 let dbError: string | null = null;
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (admin ? { ok: true, supabase: {} } : { ok: false, error: "Forbidden" }),
+  requireActionPermission: async () => (admin ? { ok: true, supabase: {} } : { ok: false, error: "Forbidden" }),
 }));
 const reprocess = vi.hoisted(() => vi.fn(async () => ({ processed: [{ table: "calendar", success: true }] as { table: string; success: boolean; error?: string }[] })));
 vi.mock("@/lib/processing/trigger", () => ({ triggerPrickleTypeReprocessing: reprocess }));

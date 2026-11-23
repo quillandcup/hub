@@ -1,13 +1,13 @@
 # OpenSSF Best Practices: where we stand
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
 The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels. **We are not applying for the badge**: the Passing level requires a FLOSS license and ours is proprietary (`LICENSE`). This page uses the checklist as a list of good practice and records how we score, so we know what is already done and what is worth doing anyway.
 
 **The source of truth is OpenSSF's own criteria**, which change over time; if this page disagrees with them, they win:
 [Passing](https://www.bestpractices.dev/en/criteria/0) · [Silver](https://www.bestpractices.dev/en/criteria/1) · [Gold](https://www.bestpractices.dev/en/criteria/2) · [source text](https://github.com/coreinfrastructure/best-practices-badge/blob/main/docs/criteria.md) and [Silver/Gold text](https://github.com/coreinfrastructure/best-practices-badge/blob/main/docs/other.md).
 
-Last assessed 2026-11-20 against the criteria as published that day. A different tool, the [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub), grades automatically; see `docs/TODO.md`, "External security scanners: what is left" for its findings.
+Last assessed 2026-11-20 against the criteria as published that day. A different tool, the [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub), grades automatically; see `docs/TODO.md`, "External security scanners: what is left" for its findings. The newer [OSPS Baseline](https://baseline.openssf.org) is mapped control by control in `docs/checklists/OSPS_BASELINE.md`.
 
 **Status words.** *Met*: done, with where to look. *Partly*: some of it. *Not met*. *N/A*: the criterion doesn't apply (for example, no native binaries). *Unverified*: believed true but not checked against the repo or the live setting. A level word in brackets is the criterion's own: MUST, SHOULD or SUGGESTED. Names in `code font` are the criterion ids on bestpractices.dev.
 

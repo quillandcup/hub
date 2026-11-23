@@ -4,6 +4,8 @@
 --
 --   1. No function in public (definer or not, callable or not) lacks a pinned search_path. A later CREATE OR REPLACE
 --      without the SET clause silently drops it, and the advisor's function_search_path_mutable then fires.
+--   1b. A SECURITY DEFINER function pins `search_path = public, pg_temp` (or an empty one): new ones must; the older
+--      ones that do not are on a shrink-only list (decision D2 in the review).
 --   2. A callable definer function builds SQL dynamically (EXECUTE, format, query_to_xml, set_config, SET ROLE, quote_*,
 --      dblink) only if it is on the reviewed list below. Dynamic SQL in a function that skips row level security is
 --      where injection would live, so each one is read by a person: what it is built from, who can call it.
@@ -17,7 +19,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(7);
+SELECT plan(9);
 
 -- 1. search_path pinned everywhere in public ---------------------------------------------------------------------
 SELECT is(
@@ -31,9 +33,117 @@ SELECT is(
   ARRAY[]::text[],
   'every function in public pins its search_path (a CREATE OR REPLACE must repeat the SET clause)');
 
+-- 1b. search_path of a SECURITY DEFINER function names pg_temp (or is empty) -----------------------------------------
+-- With `search_path = public` Postgres searches the temporary schema first for tables, so a caller who could create
+-- a temp table could shadow one a definer function reads. It is not reachable through PostgREST, and the 80 functions
+-- below predate the rule, so they were left as they are on purpose (docs/trust/SECURITY_DEFINER_REVIEW.md, D2). The
+-- list only shrinks: a NEW definer function must use `SET search_path = public, pg_temp` (or `""` with every name
+-- schema-qualified). A function that is fixed later is removed from the list (the second check fails on a stale entry).
+CREATE TEMP TABLE unpinned_temp_allowed (sig text PRIMARY KEY) ON COMMIT DROP;
+INSERT INTO unpinned_temp_allowed (sig) VALUES
+  ('admin_chat_adoption_people(timestamp with time zone)'),
+  ('admin_chat_adoption_weekly(timestamp with time zone,text)'),
+  ('audit_row_change()'),
+  ('can_open_lesson(text)'),
+  ('care_log_messages_read(text)'),
+  ('chat_add_message_files(text,jsonb)'),
+  ('chat_adopt_posted_file_message()'),
+  ('chat_adopt_posted_message()'),
+  ('chat_apply_slack_read(text,text,text)'),
+  ('chat_can_read_content(text)'),
+  ('chat_can_see_channel(text)'),
+  ('chat_claim_slack_dm_pull(text,integer)'),
+  ('chat_claim_slack_read_pull(text,integer)'),
+  ('chat_delete_file(text,text)'),
+  ('chat_delete_message(text)'),
+  ('chat_dm_apps(text)'),
+  ('chat_dm_counterparts(text)'),
+  ('chat_dm_in_care_plan(text)'),
+  ('chat_edit_message(text,text)'),
+  ('chat_is_channel_member(text)'),
+  ('chat_mark_message_failed(text)'),
+  ('chat_mark_message_sent(text,text)'),
+  ('chat_mark_read(text,timestamp with time zone)'),
+  ('chat_mark_unread(text,text)'),
+  ('chat_post_message(text,text,text,jsonb)'),
+  ('chat_post_shared_video(text,text,text,boolean,text,integer)'),
+  ('chat_post_shared_video(text,text,text,boolean,text)'),
+  ('chat_reactions_set_channel()'),
+  ('chat_set_notify_setting(text,text)'),
+  ('chat_toggle_reaction(text,text)'),
+  ('chat_touch_channel_last_message()'),
+  ('chat_unread_channel_ids(text)'),
+  ('chat_visible_channel_ids()'),
+  ('claim_chat_gap_fill(text,text,text,text,interval)'),
+  ('copy_course_lesson_files(text,text)'),
+  ('count_activity_feed(boolean,text[],uuid,text,boolean,timestamp with time zone,timestamp with time zone,integer,text[],boolean,boolean)'),
+  ('course_address_redirects_guard()'),
+  ('courses_address_and_publication()'),
+  ('create_user_profile()'),
+  ('current_acting_as_member_id()'),
+  ('current_member_id()'),
+  ('duplicate_course(text)'),
+  ('edit_member_admin_note(text,text,integer)'),
+  ('get_access_sessions(uuid,integer,integer)'),
+  ('get_activity_feed(boolean,text[],uuid,text,boolean,timestamp with time zone,timestamp with time zone,integer,integer,integer,text[],boolean,boolean)'),
+  ('get_recent_login_sessions(timestamp with time zone,timestamp with time zone)'),
+  ('get_record_history(text[],text,integer,text,boolean)'),
+  ('has_course_access(text)'),
+  ('is_admin()'),
+  ('is_community_manager()'),
+  ('is_conversion_specialist()'),
+  ('lesson_comments_check_parent()'),
+  ('lesson_comments_guard_update()'),
+  ('member_owned_row_counts(text)'),
+  ('mentorship_counts()'),
+  ('moderate_lesson_comment(text,text)'),
+  ('move_course_lesson(text,text)'),
+  ('my_mentorships(text)'),
+  ('prickle_checkins_log_activity()'),
+  ('recompute_course_states(text)'),
+  ('reorder_course_children(text,text,text,text[])'),
+  ('reorder_writing_goals(text,text,text[])'),
+  ('reorder_writing_projects(text,text[])'),
+  ('revoke_user_sessions(uuid)'),
+  ('scrub_restricted_slack_channel_activities()'),
+  ('set_course_item_status(text,text,text)'),
+  ('set_mentorship_note(uuid,text)'),
+  ('slack_bot_token_get()'),
+  ('slack_bot_token_save(text,text,timestamp with time zone)'),
+  ('slack_connection_delete_secrets(text)'),
+  ('slack_connection_revoke(text)'),
+  ('slack_connection_save(text,text,text,text[],text,text,timestamp with time zone)'),
+  ('slack_connection_tokens(text)'),
+  ('slack_connection_update_tokens(text,text,text,timestamp with time zone)'),
+  ('slack_token_refresh_claim(text,integer)'),
+  ('slack_token_refresh_release(text)'),
+  ('staff_member_ids()'),
+  ('sync_chat_channel_restricted()'),
+  ('sync_member_email_aliases_on_member_email_change()'),
+  ('take_over_kajabi_course(text)');
+
+CREATE TEMP TABLE unpinned_temp_fns ON COMMIT DROP AS
+SELECT p.oid::regprocedure::text AS sig
+  FROM pg_proc p
+ WHERE p.pronamespace = 'public'::regnamespace AND p.prokind IN ('f', 'p') AND p.prosecdef
+   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+   AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, ARRAY[]::text[])) c
+                    WHERE c LIKE 'search_path=%' AND (c LIKE '%pg_temp%' OR c = 'search_path=""'));
+
+SELECT is(
+  ARRAY(SELECT sig FROM unpinned_temp_fns WHERE sig NOT IN (SELECT sig FROM unpinned_temp_allowed) ORDER BY 1),
+  ARRAY[]::text[],
+  'a new SECURITY DEFINER function pins search_path = public, pg_temp (or an empty one); only the listed older ones do not');
+SELECT is(
+  ARRAY(SELECT sig FROM unpinned_temp_allowed WHERE sig NOT IN (SELECT sig FROM unpinned_temp_fns) ORDER BY 1),
+  ARRAY[]::text[],
+  'every function on the older-functions list still lacks pg_temp (remove the ones that were fixed or dropped)');
+
 -- 2. Dynamic SQL in callable definer functions ---------------------------------------------------------------------
 CREATE TEMP TABLE reviewed_dynamic (sig text PRIMARY KEY, reason text NOT NULL) ON COMMIT DROP;
 INSERT INTO reviewed_dynamic (sig, reason) VALUES
+  ('delete_course(text)',
+   'only set_config(''app.audit_skip_course'', <the course id the caller named, checked to exist and be a Hub draft first>, true): a fixed key, transaction-local, reset at the end; admin or service role only (reviewed 2026-11-23)'),
   ('duplicate_course(text)',
    'only set_config(''app.audit_skip_course'', <new course id>, true): a fixed key, a value the function generates, transaction-local; admin or service role only (reviewed 2026-11-21)'),
   ('member_owned_row_counts(text)',
@@ -64,11 +174,14 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000d0a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'review-ada@example.test'),
   ('00000000-0000-4000-a000-00000000d0a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'review-bea@example.test'),
   ('00000000-0000-4000-a000-00000000d0a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'review-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000d0a1', 'review-ada@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000d0a2', 'review-bea@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000d0a3', 'review-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000d0a1', 'review-ada@example.test'),
+  ('00000000-0000-4000-a000-00000000d0a2', 'review-bea@example.test'),
+  ('00000000-0000-4000-a000-00000000d0a3', 'review-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000d0a3', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO auth.sessions (id, user_id) VALUES
   ('00000000-0000-4000-a000-0000000051a1', '00000000-0000-4000-a000-00000000d0a1'),
   ('00000000-0000-4000-a000-0000000051b1', '00000000-0000-4000-a000-00000000d0a2');

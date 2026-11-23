@@ -12,7 +12,7 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: vi.fn() }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 const fetchWithAttachments = vi.hoisted(() => vi.fn());
 const deleteContact = vi.hoisted(() => vi.fn());
@@ -21,7 +21,7 @@ vi.mock("@/lib/kajabi/client", async (importOriginal) => ({
   createKajabiClient: () => ({ fetchContactWithAttachments: fetchWithAttachments, deleteContact }),
 }));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { POST } from "@/app/api/admin/members/[id]/delete-empty-kajabi-contact/route";
 
 const ME = "mbr_AAAAAAAAAAA1";
@@ -40,7 +40,7 @@ async function post(body: unknown, id = ME) {
 beforeEach(() => {
   fetchWithAttachments.mockReset().mockResolvedValue(contact("new@example.com"));
   deleteContact.mockReset().mockResolvedValue(undefined);
-  vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" }, forbidden: false, supabase: {} } as never);
+  vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" }, forbidden: false, supabase: {} } as never);
   repos = createInMemoryRepos(
     new InMemoryDataset({
       members: [
@@ -61,9 +61,9 @@ describe("deleting an empty duplicate Kajabi contact", () => {
   });
 
   it("refuses without an admin, and for a malformed request", async () => {
-    vi.mocked(requireAdmin).mockResolvedValueOnce({ user: null } as never);
+    vi.mocked(requireApiPermission).mockResolvedValueOnce({ user: null } as never);
     expect((await post({ contactId: "dup1", email: "new@example.com" })).status).toBe(401);
-    vi.mocked(requireAdmin).mockResolvedValueOnce({ user: { id: "x" }, forbidden: true } as never);
+    vi.mocked(requireApiPermission).mockResolvedValueOnce({ user: { id: "x" }, forbidden: true } as never);
     expect((await post({ contactId: "dup1", email: "new@example.com" })).status).toBe(403);
 
     expect((await post("{not json")).status).toBe(400);

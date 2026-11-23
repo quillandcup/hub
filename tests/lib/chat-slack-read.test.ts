@@ -30,7 +30,7 @@ vi.mock("@/lib/slack-connect", async (original) => ({
 const resolveNotifications = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/chat/notifications", () => ({ resolveChatNotifications: resolveNotifications }));
 
-import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack, slackReadCovers, slackTsBefore } from "@/lib/chat/slack-read";
+import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack, slackReadCovers, slackTsBefore } from "@/modules/chat/slack/read";
 
 /** The conversation the member read in the Hub (`chan-1`), and the newest Slack message in it at or before `through`. */
 let channel: Record<string, unknown> | null;

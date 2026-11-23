@@ -355,7 +355,7 @@ export interface ChatRepository {
   sharedSourcesBySlackRef(refs: { slackChannelId: string; slackTs: string }[]): Promise<Map<string, SharedSourceRow>>;
   /**
    * The newest live Slack-origin messages whose text names a course lesson's page (`.../lessons/les_...`), newest first, up to `limit`:
-   * the candidates for turning a lesson address someone pasted into Slack into the shared-video card (`src/lib/chat/slack-lesson-links.ts`).
+   * the candidates for turning a lesson address someone pasted into Slack into the shared-video card (`src/modules/chat/slack/lesson-links.ts`).
    * Service role (it reads every conversation's text). Whether a message already shares a video is for the caller to ask `ChatVideoRepository`.
    */
   slackMessagesLinkingLessons(limit: number): Promise<LessonLinkCandidate[]>;

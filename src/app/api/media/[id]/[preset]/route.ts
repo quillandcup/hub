@@ -42,7 +42,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let servedToAnyone = false;
   if (user) asset = await createRepos(await createClient()).media.byId(id).catch(() => null);
   if (!asset || asset.deleted_at) {
-    asset = await assetForVisitor(createRepos(service).media, id, preset);
+    const serviceRepos = createRepos(service);
+    asset = await assetForVisitor({ media: serviceRepos.media, books: serviceRepos.books }, id, preset);
     servedToAnyone = asset !== null;
   }
   if (!asset) return new NextResponse("Not found", { status: 404 });

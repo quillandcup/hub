@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createRepos } from "@/lib/data/repos";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse, after } from "next/server";
@@ -25,7 +25,7 @@ async function run(query: PromiseLike<{ error: unknown }>) {
  * whoever it matches now.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "member.split");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;

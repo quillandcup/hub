@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireStaffPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { staffCan } from "@/lib/staff-access";
 import MemberDetailPage, { memberTabMetadata } from "../MemberDetailPage";
 
@@ -11,8 +11,8 @@ export const generateMetadata = memberTabMetadata("activity");
  * feature the tab is not hers, so she goes to the member's Overview.
  */
 export default async function MemberActivityPage({ params, searchParams }: PageProps<"/admin/members/[id]/activity">) {
-  const { role } = await requireStaffPage();
+  const staff = await requirePermission("members.read");
   const { id } = await params;
-  if (!staffCan(role, "member.activity_tab") && !staffCan(role, "member.activity_tab_limited")) redirect(`/admin/members/${id}`);
+  if (!staffCan(staff, "member.activity_tab") && !staffCan(staff, "member.activity_tab_limited")) redirect(`/admin/members/${id}`);
   return <MemberDetailPage id={id} tab="activity" searchParams={await searchParams} />;
 }

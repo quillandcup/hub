@@ -6,7 +6,7 @@ import { renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helper
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: async () => undefined }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: async () => undefined }));
 const client = vi.hoisted(() => vi.fn((_props: { memberId?: string }) => null));
 vi.mock("@/app/(admin)/admin/feedback/FeedbackClient", () => ({ default: (props: { memberId?: string }) => client(props) }));
 

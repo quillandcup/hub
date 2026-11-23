@@ -6,5 +6,5 @@ test("the sign-in page offers a code from the email @changelog", async ({ page }
   await expect(page.getByLabel(/code/i).first()).toBeVisible();
   // Next's development badge and the app's environment badge are not part of the product.
   await page.addStyleTag({ content: "nextjs-portal, div.fixed.bottom-4.right-4 { display: none !important; }" });
-  await shot(page, testInfo, "sign-in-code", { checks: false });
+  await shot(page, testInfo, "sign-in-code");
 });

@@ -1,10 +1,10 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectCareFromDms } from "@/lib/care-dm";
-import { DMS_STALE_HOURS, pullDmsForCoveredMembers } from "@/lib/chat/slack-dms";
-import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { DMS_STALE_HOURS, pullDmsForCoveredMembers } from "@/modules/chat/slack/dms";
+import { chatSlackWritesEnabled } from "@/modules/chat/slack/post";
 import { clock } from "@/lib/clock";
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
@@ -28,7 +28,7 @@ const CARE_BUDGET_MS = 270_000;
  * last on each open Slack DM engagement, from Bronze metadata only (who wrote and when). Idempotent: it only moves times forward.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

@@ -11,10 +11,13 @@ SELECT plan(8);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000bb0a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'kpp-member@example.test'),
   ('00000000-0000-4000-a000-0000000bb0a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'kpp-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-0000000bb0a1', 'kpp-member@example.test', 'member'),
-  ('00000000-0000-4000-a000-0000000bb0a2', 'kpp-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-0000000bb0a1', 'kpp-member@example.test'),
+  ('00000000-0000-4000-a000-0000000bb0a2', 'kpp-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-0000000bb0a2', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO bronze.kajabi_product_progress (course_kajabi_id, email, percent, logins, started_on, import_batch)
 VALUES ('pgtap-course', 'ada@example.test', 62.5, 3, '2026-01-05', 'batch-1');

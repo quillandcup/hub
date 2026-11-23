@@ -70,7 +70,7 @@ describe("StageMilestoneDialog: one question", () => {
     expect(screen.getByText("Is A Fake Novel ready to publish?")).toBeInTheDocument();
   });
 
-  it("remembers 'Not yet', says it is fine, and closes on Done without asking again", async () => {
+  it("remembers 'Not yet', says it is fine, and closes on Done without answering again", async () => {
     const user = userEvent.setup();
     const { onClose } = renderDialog();
     await user.click(screen.getByRole("button", { name: "Not yet" }));
@@ -90,10 +90,10 @@ describe("StageMilestoneDialog: one question", () => {
     await user.type(screen.getByLabelText(/And how does it feel now/), "Finally here.");
     const share = screen.getByRole("checkbox");
     expect(share).not.toBeChecked();
-    await user.type(screen.getByLabelText(/When did it happen/), "2026-05-01");
+    await user.type(screen.getByLabelText("The day"), "2026-05-01");
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", storyBefore: "", storyAfter: "Finally here.", shareStory: false, visibility: "public" }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: "2026-05-01", achievedPrecision: "day", storyBefore: "", storyAfter: "Finally here.", shareStory: false, visibility: "public" }),
     );
     expect(await screen.findByTestId("stage-celebration")).toHaveTextContent(MILESTONE_CELEBRATION.the_end);
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -120,7 +120,7 @@ describe("StageMilestoneDialog: one question", () => {
     await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
     await user.click(screen.getByRole("button", { name: "Save it" }));
     await waitFor(() =>
-      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, storyBefore: "", storyAfter: "", shareStory: false, visibility: "public" }),
+      expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "yes", achievedOn: null, achievedPrecision: "day", storyBefore: "", storyAfter: "", shareStory: false, visibility: "public" }),
     );
   });
 
@@ -136,6 +136,26 @@ describe("StageMilestoneDialog: one question", () => {
     await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
     await user.click(screen.getByRole("button", { name: "Save it" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("That date is still ahead of us.");
+  });
+
+  it("offers 'Not for this work' beside 'Not yet', saves it as the answer that is never asked again, and says so", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderDialog();
+    expect(screen.getByRole("button", { name: "Not yet" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Not for this work" }));
+    expect(answerStageMilestone).toHaveBeenCalledWith({ projectId: PROJECT, kind: "the_end", answer: "not_for_this_work" });
+    expect(await screen.findByText(STAGE_PROMPT.notForThisWorkNote)).toBeInTheDocument();
+    // The question is answered: closing says nothing more.
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(answerStageMilestone).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells the member 'Not yet' means we will ask again at a later stage", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+    expect(await screen.findByText(/We'll ask again at a later stage/)).toBeInTheDocument();
   });
 
   it("shows why 'Not yet' failed and keeps the question open", async () => {
@@ -290,5 +310,12 @@ describe("the project page and the prompt", () => {
     await user.selectOptions(screen.getByRole("combobox"), "revising");
     await waitFor(() => expect(updateProjectPhase).toHaveBeenCalled());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("StageMilestoneDialog: the project's milestones", () => {
+  it("links to the project's own milestones, which is where the member can find them again", () => {
+    renderDialog();
+    expect(screen.getByRole("link", { name: /See this project.s milestones/ })).toHaveAttribute("href", `/projects/${PROJECT}#milestones`);
   });
 });

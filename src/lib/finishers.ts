@@ -74,9 +74,18 @@ export const SHARE_STORY_DEFAULT = false;
  */
 export const MILESTONE_DEFAULT_VISIBILITY: Visibility = "public";
 export const SHARE_STORY_LABEL = "Share my story to inspire other writers.";
-export const SHARE_STORY_NOTE =
-  "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here, and you can change your mind any time.";
-export const SHARE_STORY_TIP = "For marketing: the Finishers section of our website, and testimonials we share.";
+/** Behind the info icon beside the share tick (not repeated under every work): what ticking it means. */
+export const SHARE_STORY_TIP =
+  "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here and, if you've added one, the photo, and you can change your mind any time.";
+
+/** What a strip calls a work whose name the viewer may not see (a project that is private to them). Never the title itself. */
+export const ANOTHER_WORK_TITLE = "Another work";
+
+/** A step in a row, once, in plain words: "You wrote THE END · Finisher". The stamp ("THE END", "FINAL DRAFT") is already in the words. */
+export function milestoneRowHeading(kind: MilestoneKind): string {
+  return `${MILESTONE_CLAIMS[kind]} · ${MILESTONE_TITLES[kind]}`;
+}
+export const PUBLISHED_ROW_HEADING = `${PUBLISHED_CLAIM} · ${PUBLISHED_TITLE}`;
 
 /** What a member is told right after they confirm a milestone, before anything else. */
 export const MILESTONE_CELEBRATION: Record<MilestoneKind, string> = {
@@ -90,9 +99,32 @@ export const MILESTONE_SHOWN: Record<MilestoneKind, string> = {
   publish_ready: "Manuscript ready to publish",
 };
 
-/** A calendar date a member picked ("2026-05-01"), as words. It is a day, not an instant, so no zone is applied. */
-export function milestoneDateWords(value: string): string {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" }).format(new Date(`${value}T00:00:00Z`));
+/**
+ * How exactly a milestone's date is known: the day, only the month and year, or only the year. A member who does not remember has
+ * no date at all (`achievedOn` null). `achievedOn` always holds the first day of the period, so it is a real date for every reader.
+ */
+export const MILESTONE_DATE_PRECISIONS = ["day", "month", "year"] as const;
+export type MilestoneDatePrecision = (typeof MILESTONE_DATE_PRECISIONS)[number];
+
+export function isDatePrecision(value: unknown): value is MilestoneDatePrecision {
+  return typeof value === "string" && (MILESTONE_DATE_PRECISIONS as readonly string[]).includes(value);
+}
+
+/** A calendar date a member picked ("2026-05-01"), as words: "May 1, 2026", "May 2026" or "2026". It is a day, not an instant, so no zone is applied. */
+export function milestoneDateWords(value: string, precision: MilestoneDatePrecision = "day"): string {
+  const options: Intl.DateTimeFormatOptions =
+    precision === "year" ? { year: "numeric" } : precision === "month" ? { year: "numeric", month: "long" } : { year: "numeric", month: "long", day: "numeric" };
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...options }).format(new Date(`${value}T00:00:00Z`));
+}
+
+/** The last day (YYYY-MM-DD) of the period a date stands for: the day itself, the end of its month, or the end of its year. */
+export function datePeriodEnd(value: string, precision: MilestoneDatePrecision = "day"): string {
+  if (precision === "day") return value;
+  const year = Number(value.slice(0, 4));
+  if (precision === "year") return `${String(year).padStart(4, "0")}-12-31`;
+  const month = Number(value.slice(5, 7));
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
 }
 
 /**
@@ -135,6 +167,48 @@ export function hasStory(m: { storyBefore: string | null; storyAfter: string | n
   return Boolean(m.storyBefore?.trim() || m.storyAfter?.trim());
 }
 
+/** Whether there is something of the member's to share: a story they wrote, or a photo they added (docs/product/FINISHERS.md, "Photos"). */
+export function hasSomethingToShare(m: { storyBefore: string | null; storyAfter: string | null; photo?: unknown }): boolean {
+  return hasStory(m) || Boolean(m.photo);
+}
+
+/**
+ * What a photo shows when its owner wrote no description: said once per step, in plain words, so a picture is never a nameless
+ * image to someone using a screen reader.
+ */
+export const MILESTONE_PHOTO_ALT: Record<MilestoneKind | "published", string> = {
+  the_end: "A photo from the day they wrote THE END",
+  publish_ready: "A photo from the day their manuscript was ready to publish",
+  published: "A photo of the author holding their published book",
+};
+
+/** The prompt that opens the photo on a step, so the member knows what is welcome (and that it is optional). */
+export const MILESTONE_PHOTO_PROMPT: Record<MilestoneKind | "published", string> = {
+  the_end: "A photo from the day you wrote THE END, if you have one.",
+  publish_ready: "A photo from the day your manuscript was ready to publish, if you have one.",
+  published: "A photo of you holding your book, printed or on a Kindle, if you have one.",
+};
+
+/**
+ * Who can see a photo, in a sentence beside it. A photo has the level of its milestone and never more: the globe line never
+ * promises more than will happen (the web needs writer profiles open to the member and their page on). The team sees a photo only
+ * when the member ticked "Share my story".
+ */
+export function milestonePhotoLine(visibility: Visibility, page: { available: boolean; on: boolean }): string {
+  if (visibility === "private") return "Only you can see this photo, because this milestone is private.";
+  if (visibility !== "public") return "Other members can see this photo on your profile, the same as this milestone. It is not on the web.";
+  if (!page.available) return "Other members can see this photo on your profile. It is not on the web, because writer profiles are not open to you yet.";
+  if (!page.on) return "Other members can see this photo on your profile. It goes on the web once your writer profile is on.";
+  return "Anyone on the internet can see this photo on your writer profile, the same as this milestone.";
+}
+
+/** The line under the photo on the Published step, which is derived from your Bookshelf: the photo has the level of the book and never more. */
+export function publishedPhotoLine(page: { available: boolean; on: boolean }, level: Visibility = "public"): string {
+  if (level === "private") return "Only you can see this photo, because this book is private.";
+  if (level !== "public") return "Other members can see this photo on your profile, the same as this book. It is not on the web.";
+  return milestonePhotoLine("public", page);
+}
+
 export const MAX_STORY_LENGTH = 2000;
 
 /** Who will see a milestone at each level, in the sentence beside the story fields. The globe line never promises more than will happen. */
@@ -149,17 +223,24 @@ export type MilestoneAnswerInput = {
   answer: "confirm" | "decline";
   /** Who sees it. Left out, a milestone confirmed for the first time starts at `MILESTONE_DEFAULT_VISIBILITY`. */
   visibility?: string | null;
+  /** The date as the form gives it: "YYYY-MM-DD" for a day, "YYYY-MM" for a month, "YYYY" for a year; blank or null for "I don't remember". */
   achievedOn?: string | null;
+  /** How exactly `achievedOn` is known (default: the day). */
+  achievedPrecision?: string | null;
   storyBefore?: string | null;
   storyAfter?: string | null;
-  /** The share tick. It only counts when a story is written. */
+  /** The share tick. It only counts when a story is written, or the milestone has a photo (`hasPhoto`). */
   shareStory?: boolean;
+  /** Whether the milestone already has a photo, which the server looks up (never taken from the member's form). */
+  hasPhoto?: boolean;
 };
 
 /** A confirmed answer: what the repository stores when the member says "yes, this is me" (or adds the milestone themselves). */
 export type ConfirmedMilestoneAnswer = {
   status: "confirmed";
+  /** The first day of the period the member gave (the day itself for a day); null when they do not remember. */
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   consent_testimonial: boolean;
@@ -188,6 +269,29 @@ const clean = (value: string | null | undefined): string | null => {
   return trimmed ? trimmed : null;
 };
 
+const MONTH = /^\d{4}-\d{2}$/;
+const YEAR = /^\d{4}$/;
+
+/**
+ * Reads the date a member gave and how exactly they know it. A day is "YYYY-MM-DD", a month "YYYY-MM", a year "YYYY"; the result
+ * always holds the first day of that period, so a month or a year is a real date that other code can sort and compare. Blank means
+ * "I don't remember": no date, precision day. A period that has not started yet is refused (this month and this year are fine).
+ */
+export function parseMilestoneDate(
+  value: string | null | undefined,
+  precision: string | null | undefined,
+  nowMs: number,
+): { achievedOn: string | null; achievedPrecision: MilestoneDatePrecision } | { error: string } {
+  const text = clean(value);
+  if (precision != null && !isDatePrecision(precision)) return { error: "That date doesn't look right. Pick a day, a month or a year, or leave it blank." };
+  const kind: MilestoneDatePrecision = precision ?? "day";
+  if (text === null) return { achievedOn: null, achievedPrecision: "day" };
+  const start = kind === "day" ? text : kind === "month" ? (MONTH.test(text) ? `${text}-01` : "") : YEAR.test(text) ? `${text}-01-01` : "";
+  if (!realDate(start)) return { error: "That date doesn't look right. Use the date picker, or leave it blank." };
+  if (start > orgToday(nowMs)) return { error: "That date is still ahead of us. Pick today or earlier, or leave it blank." };
+  return { achievedOn: start, achievedPrecision: kind };
+}
+
 /**
  * Reads a member's answer. A confirmed answer keeps the optional date and stories (blank means none) and the share tick (off
  * unless ticked, and off when no story was written); a decline keeps nothing. `{ error }` is a sentence for the member.
@@ -196,20 +300,18 @@ export function parseMilestoneAnswer(input: MilestoneAnswerInput, nowMs: number)
   if (input.answer === "decline") return { status: "declined" };
   if (input.answer !== "confirm") return { error: "Choose whether this is you." };
 
-  const achievedOn = clean(input.achievedOn);
-  if (achievedOn !== null) {
-    if (!realDate(achievedOn)) return { error: "That date doesn't look right. Use the date picker, or leave it blank." };
-    if (achievedOn > orgToday(nowMs)) return { error: "That date is still ahead of us. Pick today or earlier, or leave it blank." };
-  }
+  const date = parseMilestoneDate(input.achievedOn, input.achievedPrecision, nowMs);
+  if ("error" in date) return date;
+  const { achievedOn, achievedPrecision } = date;
   const storyBefore = clean(input.storyBefore);
   const storyAfter = clean(input.storyAfter);
   for (const story of [storyBefore, storyAfter]) {
     if (story !== null && story.length > MAX_STORY_LENGTH) return { error: `Please keep each story under ${MAX_STORY_LENGTH} characters.` };
   }
-  const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null);
+  const consent_testimonial = input.shareStory === true && (storyBefore !== null || storyAfter !== null || input.hasPhoto === true);
   if (input.visibility != null && !isVisibility(input.visibility)) return { error: "That choice is not available." };
   const visibility = input.visibility != null ? input.visibility : undefined;
-  return { status: "confirmed", achievedOn, storyBefore, storyAfter, consent_testimonial, ...(visibility ? { visibility } : {}) };
+  return { status: "confirmed", achievedOn, achievedPrecision, storyBefore, storyAfter, consent_testimonial, ...(visibility ? { visibility } : {}) };
 }
 
 /**
@@ -237,24 +339,35 @@ export function milestoneLabel(kind: string): string {
 export type MilestoneBadgeCounts = Record<MilestoneKind, number>;
 
 /**
- * The one rule for "while a member of the community": a milestone counts toward a badge when it has no date (the member did
- * not say when) or its date is on or after the day the member first joined. A member with no join date has nothing to compare
- * with, so a dated milestone counts too. The milestone itself still shows on the profile whatever its date; this only decides
- * the Finisher and Author badges. Dates are plain days (YYYY-MM-DD), compared as text.
+ * The one rule for "while a member of the community", for milestones and for books: something counts when it has no date (the
+ * member did not say when), or its date is on or after the day the member first joined (the join day counts); a month or a year counts as its last day, so it counts if any part of it is on or after the join day. A member with no
+ * join date has nothing to compare with, so everything counts. The reason: it separates what happened in the Hedgie house from what
+ * happened outside it. A milestone or a book still shows on the profile and the Bookshelf whatever its date; this decides what
+ * counts for the Finisher, Author and Published Author badges, the Published step in the strips and the summary line. Dates are
+ * plain days (YYYY-MM-DD), compared as text.
  */
-export function reachedWhileMember(achievedOn: string | null, firstJoinedAt: string | null): boolean {
+export function reachedWhileMember(achievedOn: string | null, firstJoinedAt: string | null, precision: MilestoneDatePrecision = "day"): boolean {
   if (achievedOn === null || firstJoinedAt === null) return true;
-  return achievedOn >= firstJoinedAt.slice(0, 10);
+  // An imprecise date counts as the LAST day of its period: it counts if any part of the period is on or after the join day.
+  return datePeriodEnd(achievedOn, precision) >= firstJoinedAt.slice(0, 10);
 }
 
 /**
  * The counts behind the Finisher and Author badges: one per milestone (the database allows one per work and kind), counting
  * only those reached while a member. The caller passes only milestones that are confirmed and that the viewer may see.
  */
-export function milestoneBadgeCounts(milestones: readonly { kind: string; achievedOn: string | null }[], firstJoinedAt: string | null): MilestoneBadgeCounts {
+export function milestoneBadgeCounts(
+  milestones: readonly { kind: string; achievedOn: string | null; achievedPrecision?: MilestoneDatePrecision }[],
+  firstJoinedAt: string | null,
+): MilestoneBadgeCounts {
   const counts: MilestoneBadgeCounts = { the_end: 0, publish_ready: 0 };
   for (const m of milestones) {
-    if (isMilestoneKind(m.kind) && reachedWhileMember(m.achievedOn, firstJoinedAt)) counts[m.kind] += 1;
+    if (isMilestoneKind(m.kind) && reachedWhileMember(m.achievedOn, firstJoinedAt, m.achievedPrecision)) counts[m.kind] += 1;
   }
   return counts;
+}
+
+/** How many of a member's books count as published while a member: the published days of their live books, through `reachedWhileMember`. */
+export function publishedBookCount(publishedDates: readonly (string | null)[], firstJoinedAt: string | null): number {
+  return publishedDates.filter((date) => reachedWhileMember(date, firstJoinedAt)).length;
 }

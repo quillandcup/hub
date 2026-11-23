@@ -9,8 +9,8 @@ import { SECURITY_EFFECTIVE, SECURITY_ITEMS } from "@/content/security";
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 
-const requireAdminPage = vi.fn<() => Promise<unknown>>();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn<() => Promise<unknown>>();
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 import SecurityPage from "@/app/security/page";
 import AdminSecurityPage from "@/app/(admin)/admin/security/page";
@@ -58,14 +58,14 @@ describe("/security (members)", () => {
 
 describe("/admin/security (staff)", () => {
   beforeEach(() => {
-    requireAdminPage.mockReset();
-    requireAdminPage.mockResolvedValue({ id: "admin" });
+    requirePermission.mockReset();
+    requirePermission.mockResolvedValue({ id: "admin" });
   });
 
   it("checks for an admin first and shows nothing when the check redirects", async () => {
-    requireAdminPage.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    requirePermission.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(AdminSecurityPage()).rejects.toThrow("NEXT_REDIRECT");
-    expect(requireAdminPage).toHaveBeenCalledTimes(1);
+    expect(requirePermission).toHaveBeenCalledTimes(1);
   });
 
   it("shows every row with the member text, how it works, where it is enforced and when it was checked", async () => {

@@ -61,7 +61,7 @@ const data = { content: [heading], root: {} };
 const TEMPLATE_ID = "lpg_TEMPLATEAAA1";
 const TEMPLATES = [{ key: TEMPLATE_ID, label: "Launch kit", description: "A template you published." }];
 
-function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null }[] = []) {
+function editor(over: Partial<EditorPage> = {}, versions: { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_replace"; by?: string; note?: string | null }[] = []) {
   return render(<LandingEditor page={{ ...page, ...over }} data={data} versions={versions} replaceChoices={TEMPLATES} />);
 }
 
@@ -297,11 +297,27 @@ describe("the header", () => {
     expect(screen.getByRole("button", { name: "Publish changes" })).toHaveTextContent("Publish changes");
   });
 
-  it("notes changes that aren't published yet", () => {
+  it("only offers to publish when the draft differs from the live page", () => {
     editor({ status: "published", publishedJson: JSON.stringify(data) });
-    expect(screen.queryByText("Changes not published yet")).toBeNull();
+    const button = screen.getByRole("button", { name: "Publish changes" });
+    expect(button).toBeDisabled();
+    expect(tooltipText(button)).toBe("Nothing to publish: the draft is the same as the live page.");
     edit("Different");
-    expect(screen.getByText("Changes not published yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
+  });
+
+  it("offers to publish at once when the page opens with a draft that already differs", () => {
+    editor({ status: "published", publishedJson: JSON.stringify({ ...data, content: [] }) });
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reset to published" })).toBeInTheDocument();
+  });
+
+  it("shows unpublished changes through the Publish and Reset buttons, with no note of its own", () => {
+    editor({ status: "published", publishedJson: JSON.stringify(data) });
+    expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
+    edit("Different");
+    expect(screen.getByRole("button", { name: "Reset to published" })).toBeInTheDocument();
+    expect(screen.queryByText("Changes not published yet")).toBeNull();
   });
 });
 
@@ -444,7 +460,7 @@ describe("reset to published", () => {
 describe("history and details", () => {
   it("shows who made each version, when, how it came to be and the note, and says Someone when it can't tell", () => {
     editor({}, [
-      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_starter", by: "Bramble Admin", note: "Replaced by the template “Launch kit”" },
+      { id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-02T00:00:00Z", kind: "before_replace", by: "Bramble Admin", note: "Replaced by the template “Launch kit”" },
       { id: "lpgv_AAAAAAAAAAA1", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", note: null },
     ]);
     fireEvent.click(screen.getByRole("button", { name: "History" }));
@@ -464,6 +480,7 @@ describe("history and details", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    edit("Another change");
     fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));
     expect(screen.getByLabelText("What changed? (optional)")).toHaveValue("");
   });
@@ -561,7 +578,7 @@ describe("history and details", () => {
     });
 
     it("names a draft kept before starting over in the list", () => {
-      editor({}, [{ id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", kind: "before_starter" }]);
+      editor({}, [{ id: "lpgv_AAAAAAAAAAA2", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z", kind: "before_replace" }]);
       fireEvent.click(screen.getByRole("button", { name: "History" }));
       expect(screen.getByText(/Your draft before it was replaced/, { selector: "time" })).toBeInTheDocument();
     });

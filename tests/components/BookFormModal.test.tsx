@@ -28,6 +28,24 @@ describe("BookFormModal", () => {
     expect(screen.getByRole("heading", { name: "Add a Book" })).toBeInTheDocument();
   });
 
+  it("tells a member adding or publishing a new book that it will be on the public Hedgie Bookshelf, and says where to change that; not when editing", () => {
+    const { unmount } = render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} />);
+    expect(screen.getByTestId("book-public-note")).toHaveTextContent("This book will be on the Hedgie Bookshelf, which anyone can see. You can hide it or limit it to members in My Writing any time.");
+    unmount();
+    const published = render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} projectId="project-1" projectTitle="My Novel" />);
+    expect(screen.getByTestId("book-public-note")).toBeInTheDocument();
+    published.unmount();
+    render(
+      <BookFormModal
+        isOpen
+        onClose={() => {}}
+        onSaved={() => {}}
+        book={{ id: "book-1", title: "My Book", description: null, coverUrl: "https://example.com/c.jpg", publishedDate: "2026-03-15", editions: [{ format: "print", purchaseUrl: "https://example.com/b", price: null }], genres: [], penName: null, projectId: null, coverAsset: null }}
+      />,
+    );
+    expect(screen.queryByTestId("book-public-note")).not.toBeInTheDocument();
+  });
+
   it("hides the disclaimer when publishing a tracked project (projectId present)", () => {
     render(
       <BookFormModal

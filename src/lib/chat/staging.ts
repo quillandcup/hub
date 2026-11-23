@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MAX_SLACK_FILE_BYTES, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET, MAX_CHAT_FILE_BYTES } from "@/lib/chat/file-limits";
 
 /**
  * Files a member attached in the composer wait in the private slack-files bucket under `staging/`
@@ -9,7 +9,7 @@ import { MAX_SLACK_FILE_BYTES, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
  */
 
 export const MAX_CHAT_FILES = 10;
-export const MAX_CHAT_FILE_BYTES = MAX_SLACK_FILE_BYTES;
+export { MAX_CHAT_FILE_BYTES };
 export const STAGING_PREFIX = "staging";
 /** Staged files nobody sent (a cancelled attachment, a message that never went out) are deleted after this long. */
 const STAGING_KEEP_DAYS = 3;
@@ -41,7 +41,7 @@ export function isOwnStagingPath(memberId: string, path: string): boolean {
  * a draft still lists). Returns how many it removed.
  */
 export async function purgeStagedChatFiles(storage: SupabaseClient, nowMs: number, keep: ReadonlySet<string> = new Set()): Promise<number> {
-  const bucket = storage.storage.from(SLACK_FILES_BUCKET);
+  const bucket = storage.storage.from(CHAT_FILES_BUCKET);
   const cutoff = new Date(nowMs - STAGING_KEEP_DAYS * 86_400_000).toISOString().slice(0, 10);
   const { data: days } = await bucket.list(STAGING_PREFIX, { limit: 1000 });
   let removed = 0;

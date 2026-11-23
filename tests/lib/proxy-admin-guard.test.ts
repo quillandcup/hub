@@ -2,7 +2,7 @@
  * src/proxy.ts → src/lib/supabase/middleware.ts: the optimistic /admin pre-filter.
  * Anonymous → /login (existing behaviour), signed-in non-admin → /no-access,
  * admin (sudo or not) → through. The secure check behind it is
- * requireAdminPage() (tests/components/pages/admin-auth.test.tsx).
+ * requirePermission() (tests/components/pages/admin-auth.test.tsx).
  *
  * The role comes only from the access token's `app_role` claim (custom access
  * token hook); a missing claim is not-admin. The proxy never reads
@@ -66,11 +66,14 @@ function request(path: string, cookies: Record<string, string> = {}) {
   return req;
 }
 
-/** Sign in with a token whose `app_role` claim is `appRole` (NO_CLAIM leaves it out). */
+/** Sign in with a token whose `app_roles` claim holds the role `appRole` (null: none; NO_CLAIM leaves the claim out; anything else is passed as is). */
 function signIn(user: { id: string } | null, appRole: unknown = NO_CLAIM) {
   state.user = user;
   state.tokenClaims = user ? { sub: user.id, role: "authenticated", session_id: "s1" } : null;
-  if (user && appRole !== NO_CLAIM) state.tokenClaims = { ...state.tokenClaims, app_role: appRole };
+  if (user && appRole !== NO_CLAIM) {
+    const roles = appRole === null ? [] : typeof appRole === "string" ? [appRole] : appRole;
+    state.tokenClaims = { ...state.tokenClaims, app_roles: roles };
+  }
 }
 
 /** Location path of a redirect, or null when the request passes through. */
@@ -106,9 +109,9 @@ describe("proxy admin guard", () => {
     }
   );
 
-  it("sends an assistant claim to /no-access", async () => {
+  it.each(["/admin", "/admin/members", "/admin/users", "/admin/changelog", "/admin/a-page-nobody-listed"])("lets an assistant claim through to %s, like an admin's", async (path) => {
     signIn(MEMBER, "assistant");
-    expect(await redirectedTo("/admin/members")).toBe("/no-access");
+    expect(await redirectedTo(path)).toBeNull();
   });
 
   it("drops the admin query string on the /no-access redirect", async () => {
@@ -183,6 +186,23 @@ describe("proxy community manager and role preview", () => {
   it.each(["/admin/users", "/admin/members/network", "/admin/members/m1/identity", "/admin/activity"])("sends a community manager on %s to /no-access", async (path) => {
     signIn(MEMBER, "community_manager");
     expect(await redirectedTo(path)).toBe("/no-access");
+  });
+
+  it.each(["/admin", "/admin/pages", "/admin/pages/new", "/admin/pages/some-page", "/admin/pages/some-page/preview", "/admin/outreach", "/admin/outreach/prospects"])("lets a conversion specialist claim through to %s", async (path) => {
+    signIn(MEMBER, "conversion_specialist");
+    expect(await redirectedTo(path)).toBeNull();
+  });
+
+  it.each(["/admin/members", "/admin/members/m1", "/admin/members/network", "/admin/changelog", "/admin/changelog/an-entry", "/admin/users", "/admin/at-risk", "/admin/stats", "/admin/media", "/admin/a-page-nobody-listed"])("sends a conversion specialist on %s to /no-access", async (path) => {
+    signIn(MEMBER, "conversion_specialist");
+    expect(await redirectedTo(path)).toBe("/no-access");
+  });
+
+  it("checks an admin previewing the conversion specialist as that role, and sends them to its home", async () => {
+    signIn(ADMIN, "admin");
+    const preview = { staff_preview_role: "conversion_specialist" };
+    expect(await redirectedTo("/admin/pages", preview)).toBeNull();
+    expect(await redirectedTo("/admin/members", preview)).toBe("/admin/pages");
   });
 
   it("checks an admin previewing the role as that role, and sends them to its home, not /no-access", async () => {
@@ -312,5 +332,61 @@ describe("proxy second sign-in step for staff (src/lib/staff-mfa.ts)", () => {
   it("still sends a member claim to /no-access, not the code screen", async () => {
     signInStaff("member", { aal: "aal1", factors: TOTP });
     expect(await redirectedTo("/admin/members")).toBe("/no-access");
+  });
+});
+
+describe("proxy admin guard, several roles in the token (app_roles)", () => {
+  /** Sign in with a token carrying the hook's `app_roles` array (and the primary `app_role`). */
+  function signInWithRoles(roles: unknown, appRole: unknown = NO_CLAIM) {
+    signIn(MEMBER, appRole);
+    state.tokenClaims = { ...state.tokenClaims, app_roles: roles };
+  }
+
+  it("opens a page that any one of the roles opens (the union)", async () => {
+    signInWithRoles(["community_manager", "conversion_specialist"], "community_manager");
+    expect(await redirectedTo("/admin/at-risk")).toBeNull(); // community manager's
+    expect(await redirectedTo("/admin/pages")).toBeNull(); // conversion specialist's
+    expect(await redirectedTo("/admin/members/m1/account")).toBe("/no-access"); // neither's
+    expect(await redirectedTo("/admin/users")).toBe("/no-access");
+  });
+
+  it("keeps a page closed to a single role closed to it, and opens it to the same person with a second role", async () => {
+    signIn(MEMBER, "conversion_specialist");
+    expect(await redirectedTo("/admin/at-risk")).toBe("/no-access");
+    signInWithRoles(["community_manager", "conversion_specialist"], "community_manager");
+    expect(await redirectedTo("/admin/at-risk")).toBeNull();
+  });
+
+  it("lets an unlisted page through only when the admin or the assistant is among the roles", async () => {
+    signInWithRoles(["community_manager", "conversion_specialist"]);
+    expect(await redirectedTo("/admin/a-page-nobody-listed")).toBe("/no-access");
+    signInWithRoles(["community_manager", "assistant"]);
+    expect(await redirectedTo("/admin/a-page-nobody-listed")).toBeNull();
+  });
+
+  it("prefers app_roles over app_role, and reads an empty list as no role", async () => {
+    signInWithRoles([], "admin");
+    expect(await redirectedTo("/admin")).toBe("/no-access");
+    signInWithRoles(["admin"], "member");
+    expect(await redirectedTo("/admin/users")).toBeNull();
+  });
+
+  it("ignores values in app_roles that are not staff roles, and a malformed claim", async () => {
+    signInWithRoles(["member", "owner", 7], "member");
+    expect(await redirectedTo("/admin")).toBe("/no-access");
+    signInWithRoles("admin", "member");
+    expect(await redirectedTo("/admin")).toBe("/no-access");
+  });
+
+  it("previews one role at a time for someone holding admin, and sends them to that role's home", async () => {
+    signInWithRoles(["admin", "community_manager"], "admin");
+    expect(await redirectedTo("/admin/users", { staff_preview_role: "conversion_specialist" })).toBe("/admin/pages");
+    expect(await redirectedTo("/admin/pages", { staff_preview_role: "conversion_specialist" })).toBeNull();
+    expect(await redirectedTo("/admin/users")).toBeNull();
+  });
+
+  it("ignores a preview cookie for anyone who does not hold admin", async () => {
+    signInWithRoles(["community_manager", "conversion_specialist"], "community_manager");
+    expect(await redirectedTo("/admin/at-risk", { staff_preview_role: "conversion_specialist" })).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { BOT_STATE_PREFIX, completeBotInstall } from "@/lib/slack-bot-install";
 import { getCurrentUser } from "@/lib/auth";
 import { clearNextPath, takeNextPath } from "@/lib/next-path-cookie";
@@ -77,7 +77,7 @@ const page = (title: string, body: string, status: number) =>
 
 /** Where an admin lands after approving Billie Bot's install in Slack: checks it, stores the token pair, says what happened. */
 async function finishBotInstall(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.integrations.manage");
   if (!auth.user || auth.forbidden) return page("Admins only", "Only an admin can install the Slack bot.", 403);
   if (!isSlackConnectConfigured()) return page("Not configured", "SLACK_CLIENT_ID and SLACK_CLIENT_SECRET are not set.", 503);
 

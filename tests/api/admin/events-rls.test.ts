@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 import { createRepos } from '@/lib/data/repos'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * Exercises RLS on events / event_attendees / event_photos directly over PostgREST (not through
- * the requireAdmin-gated API routes): reads stay open to any signed-in user, but writes are
+ * the requireApiPermission-gated API routes): reads stay open to any signed-in user, but writes are
  * admin-only. See 20260926000400_restrict_event_writes_to_admins.sql.
  *
  * Note RLS semantics: a blocked INSERT returns an error, but a blocked UPDATE/DELETE just
@@ -29,7 +30,7 @@ describe('events / event_attendees / event_photos RLS', () => {
     const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create test user: ${error?.message}`)
     authUserIds.push(data.user.id)
-    await service.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(service, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in: ${signInError.message}`)

@@ -8,7 +8,7 @@ import { computePlaySessions, computeVideoWatchStats, type PlaySession, type Vid
 
 /**
  * What the staff watch-stats pages read: each lesson's video, and how it was watched. Takes a
- * service-role client (the pages sit behind `requireAdminPage()`), so it reads every member's
+ * service-role client (the pages sit behind `requirePermission(...)`), so it reads every member's
  * segments; nothing here is shown to members.
  */
 

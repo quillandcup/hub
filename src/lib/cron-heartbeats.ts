@@ -61,6 +61,7 @@ export const CRON_HEARTBEATS = {
     path: "/api/reconcile/slack-dms",
     scheduler: "vercel",
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_SLACK_DMS",
+    unmonitored: "Checkly plan limit of 10 uptime monitors reached",
     ...daily,
   },
   "reconcile-members": {
@@ -82,8 +83,9 @@ export const CRON_HEARTBEATS = {
     path: "/api/reconcile/email",
     scheduler: "vercel",
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_EMAIL",
-    // The Hobby plan allows 10 uptime monitors and the 9 heartbeats and the site's uptime check use all of
-    // them (checked 2026-11-03: a deploy with this one failed with "Uptime Monitors limit").
+    // The Hobby plan allows 10 uptime monitors and the 9 monitored heartbeats and the site's uptime check use all
+    // of them (a deploy with this one failed with "Uptime Monitors limit"; tests/lib/cron-heartbeats.test.ts
+    // keeps the count within the limit).
     unmonitored: "Checkly plan limit of 10 uptime monitors reached",
     ...daily,
   },

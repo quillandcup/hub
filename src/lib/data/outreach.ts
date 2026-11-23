@@ -14,7 +14,7 @@ export type OutreachTouchRow = Row<"outreach_touches">;
 
 /**
  * Outreach to people who are not (or are no longer) members: the temperature of each lead and the log of touches
- * (`outreach_leads`, `outreach_touches`). Local data, admin-only. The Instagram prospects have their own
+ * (`outreach_leads`, `outreach_touches`). Local data, staff-only (admin and conversion specialist). The Instagram prospects have their own
  * repository (`ProspectRepository`). Every method throws on a database error; scans are paginated.
  */
 export interface OutreachRepository {

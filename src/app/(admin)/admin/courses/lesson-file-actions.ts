@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { COURSE_FILES_BUCKET, MAX_COURSE_FILE_BYTES, UPLOADED_FILE_KEY, contentTypeFor, parseLessonFileUpload, storagePathFor } from "@/lib/courses/files";
 import { createRepos } from "@/lib/data/repos";
@@ -17,7 +17,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * are written with the service role, after the admin check.
  */
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 export type FileUploadStart = { error?: string; fileKey?: string; path?: string; token?: string };
 export type FileResult = { error?: string; id?: string };
 
@@ -112,21 +112,21 @@ async function removeImpl(auth: Auth, courseId: string, lessonId: string, fileId
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** A one-use address to send a file to, and the key that names it. */
 export async function startLessonFileUpload(courseId: string, lessonId: string, file: { filename: string; size: number }): Promise<FileUploadStart> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_file_upload_started", () => startImpl(auth, courseId, lessonId, file));
 }
 
 /** Records a file that has arrived in the bucket as one of the lesson's downloads. */
 export async function finishLessonFileUpload(courseId: string, lessonId: string, file: { fileKey: string; filename: string; type: string }): Promise<FileResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_file_added", () => finishImpl(auth, courseId, lessonId, file));
 }
 
 /** Removes one of the lesson's downloads, from the bucket and the lesson. */
 export async function removeLessonFile(courseId: string, lessonId: string, fileId: string): Promise<FileResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_file_removed", () => removeImpl(auth, courseId, lessonId, fileId));
 }

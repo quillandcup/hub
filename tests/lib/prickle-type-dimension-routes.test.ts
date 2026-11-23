@@ -33,7 +33,7 @@ vi.mock("@/lib/data/repos", async () => ({
   },
 }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 const triggers = vi.hoisted(() => ({ recent: vi.fn(async () => {}), wide: vi.fn(async () => {}) }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: triggers.recent, triggerPrickleTypeReprocessing: triggers.wide }));

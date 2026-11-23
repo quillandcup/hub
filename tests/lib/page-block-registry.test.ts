@@ -3,6 +3,7 @@ import { createPageBlockRegistry, definePageBlock, unregisteredTypes, type PageB
 import { pageBlocks } from "@/components/landing/config";
 import { coreBlocks } from "@/components/landing/core-blocks";
 import { eventsPageBlocks } from "@/modules/events/page-blocks";
+import { bookshelfPageBlocks } from "@/modules/bookshelf/page-blocks";
 import { installedPageBlocks } from "@/modules";
 
 const Nothing = () => null;
@@ -116,15 +117,24 @@ describe("the installed registry", () => {
     expect(eventsPageBlocks.blocks.map((b) => b.type).sort()).toEqual([...EVENT_TYPES].sort());
   });
 
+  it("registers the Hedgie Bookshelf block from the bookshelf module, in the Homepage group, with its defaults", () => {
+    expect(pageBlocks.ownerOf("HedgieBookshelf")).toBe("bookshelf");
+    expect(pageBlocks.contributions).toContain("bookshelf");
+    expect(coreBlocks.blocks.some((b) => b.type === "HedgieBookshelf")).toBe(false);
+    expect(bookshelfPageBlocks.blocks.map((b) => b.type)).toEqual(["HedgieBookshelf"]);
+    expect(pageBlocks.get("HedgieBookshelf")?.category).toBe("homepage");
+    expect(pageBlocks.defaults.HedgieBookshelf).toMatchObject({ max: 60, firstShown: 24, genre: "" });
+  });
+
   it("keeps the palette the admins know: the same groups, in the same order", () => {
     const palette = Object.fromEntries(Object.entries(pageBlocks.categories).map(([key, group]) => [key, group.components]));
     expect(palette).toEqual({
       layout: ["Section", "Columns", "Split", "CardGrid", "Divider", "Spacer"],
-      ready_made: ["Hero", "Steps", "Stats", "CtaBanner"],
-      parts: ["Step", "Stat", "FinisherCard", "TimelineMoment", "WeekDay", "FinishLineCard", "PlanPhase", "RowButton", "ListItem", "Testimonial", "FaqItem", "GridCard", "LinkItem", "ScheduleRow", "OutcomeNumber"],
-      homepage: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp"],
-      content: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"],
-      links: ["Button", "ButtonRow", "LinkList", "OptInForm"],
+      ready_made: ["Hero", "Steps", "Stats", "CtaBanner", "Pricing"],
+      parts: ["Step", "Stat", "FinisherCard", "TimelineMoment", "WeekDay", "FinishLineCard", "PlanPhase", "RowButton", "ListItem", "Testimonial", "AccordionItem", "FaqQuestion", "GridCard", "LinkItem", "ScheduleRow", "OutcomeNumber", "PricingPlan", "SocialLink"],
+      homepage: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp", "HedgieBookshelf"],
+      content: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Accordion", "Faq", "Countdown"],
+      links: ["Button", "ButtonRow", "LinkList", "OptInForm", "SocialIcons"],
     });
     expect(pageBlocks.categories.layout.title).toBe("Layout");
     expect(pageBlocks.categories.parts.title).toBe("Parts of a block");

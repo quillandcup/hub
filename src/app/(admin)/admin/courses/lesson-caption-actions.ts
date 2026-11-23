@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { captionLanguageName, isCaptionLanguage, parseCaptionUpload } from "@/lib/courses/captions";
 import { COURSE_FILES_BUCKET } from "@/lib/courses/file-format";
@@ -18,7 +18,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * `video_text_tracks` is written with the service role, after the admin check, as `videos` is.
  */
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 export type CaptionResult = { error?: string; id?: string };
 
 const NOT_EDITABLE = "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi.";
@@ -135,21 +135,21 @@ async function removeImpl(auth: Auth, courseId: string, lessonId: string, trackI
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** Adds a WebVTT or SubRip file as captions on the lesson's video. */
 export async function addLessonCaptions(courseId: string, lessonId: string, input: { language: string; label: string; text: string }): Promise<CaptionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_captions_added", () => addImpl(auth, courseId, lessonId, input));
 }
 
 /** Has Mux write subtitles for the lesson's video from its audio. */
 export async function generateLessonCaptions(courseId: string, lessonId: string, language: string): Promise<CaptionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_captions_generated", () => generateImpl(auth, courseId, lessonId, language));
 }
 
 /** Removes a caption track from the lesson's video. */
 export async function removeLessonCaptions(courseId: string, lessonId: string, trackId: string): Promise<CaptionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_captions_removed", () => removeImpl(auth, courseId, lessonId, trackId));
 }

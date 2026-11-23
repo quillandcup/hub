@@ -13,10 +13,10 @@ SELECT ok(has_function_privilege('authenticated', 'chat_delete_file(text, text)'
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fea1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'df-fern@example.test'),
   ('00000000-0000-4000-a000-00000000fea2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'df-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fea1', 'df-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000fea2', 'df-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fea1', 'df-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000fea2', 'df-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAfeA1', 'Df Fern', 'df-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAfeA2', 'Df Gale', 'df-gale@example.test', now(), 'active');

@@ -42,14 +42,14 @@ export const PRIVACY_EFFECTIVE = "2026-11-18";
  *   commitment for the rare case, not a screen: there is no in-app tool yet, so anything done under it is done
  *   by hand and has to follow what that section promises (docs/product/SLACK_BRIDGED_CHAT.md).
  * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/product/SLACK_BRIDGED_CHAT.md), on for every member since 2026-11-13 (production flag): their
- *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `src/lib/chat/slack-dms.ts`,
- *   `src/lib/chat/slack-dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
+ *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `src/modules/chat/slack/dms.ts`,
+ *   `src/modules/chat/slack/dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
  *   the chat as a private, restricted `dm` conversation: the Hub members in it who have pulled their own DMs (each is
  *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
  *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
  *   change with that code, in particular if the feature is ever switched off for some members again.
  * - Hedgie Care plan messages (decided 2026-11-12, docs/product/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
- *   community managers (never an assistant: `requireStaffAction()`, `care.write`) see, inside Hedgie Care, the full text of the
+ *   community managers (never an assistant: `requireActionPermission("care.member_activity.read")`) see, inside Hedgie Care, the full text of the
  *   one-on-one Slack DM(s) tracked with a member (`care_tracked_dms`; tracking comes automatically with a care plan and nothing
  *   untracks it), sent in the window of each of that member's care plans (the plan's start to its close, or now while open), across all
  *   the member's plans and owners; read with the service role from Bronze by `src/lib/care-messages.ts`, deleted messages left out. No chat

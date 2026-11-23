@@ -31,6 +31,9 @@ import WriterProfilePreview, { metadata as previewMetadata } from "@/app/(member
 import sitemap, { generateSitemaps } from "@/app/w/sitemap";
 import robots from "@/app/robots";
 
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const params = (handle: string) => ({ params: Promise.resolve({ handle }) });
 const NOW = new Date("2027-03-01T12:00:00Z");
 const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_profiles", enabled_globally, created_at: NOW.toISOString(), updated_at: NOW.toISOString() });
@@ -74,7 +77,7 @@ describe("/w/[handle]", () => {
           kind,
           work: { projectId: null, bookId: null, title },
           createdBy: "11111111-1111-4111-8111-111111111111",
-          answer: { status: "confirmed", achievedOn: extra.achievedOn ?? null, storyBefore: null, storyAfter: extra.storyAfter ?? null, consent_testimonial: false },
+          answer: { status: "confirmed", achievedOn: extra.achievedOn ?? null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: extra.storyAfter ?? null, consent_testimonial: false },
         },
         NOW,
       );
@@ -118,7 +121,7 @@ describe("/w/[handle]", () => {
       const projectWork = { projectId: novel, bookId: null, title: null };
       for (const kind of ["publish_ready", "the_end"] as const) {
         await state.repos.milestones.addOwn(
-          { memberId: ADA, kind, work: projectWork, createdBy: "11111111-1111-4111-8111-111111111111", answer: { status: "confirmed", achievedOn: null, storyBefore: null, storyAfter: null, consent_testimonial: false } },
+          { memberId: ADA, kind, work: projectWork, createdBy: "11111111-1111-4111-8111-111111111111", answer: { status: "confirmed", achievedOn: null, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, consent_testimonial: false } },
           NOW,
         );
       }
@@ -143,6 +146,30 @@ describe("/w/[handle]", () => {
       expect(screen.getByTestId("milestone-strip")).toHaveTextContent("A Fake Book");
       expect(screen.getByTestId("milestone-strip")).toHaveTextContent("Published Author · Published");
       expect(screen.getByTestId("milestone-strip")).toHaveTextContent("September 1, 2026");
+    });
+
+    it("leaves out Published for a book published before the owner first joined, on the page and in the preview, and keeps the one on the join day", async () => {
+      await makePage("ada-example");
+      state.dataset.members[0].firstJoinedAt = "2026-09-01T15:00:00Z";
+      book("book_AAAAAAAAAAA1", "An Earlier Fake Book", null, "2026-08-31");
+      book("book_AAAAAAAAAAA2", "A Join Day Fake Book", null, "2026-09-01");
+      const page = await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("A Join Day Fake Book");
+      expect(screen.getByTestId("milestone-strip")).not.toHaveTextContent("An Earlier Fake Book");
+      page.unmount();
+
+      signInAs({ id: "user-ada", email: "ada.private@example.test" } as never, { memberId: ADA, memberName: "Ada", memberEmail: "ada.private@example.test", isSudo: false });
+      await renderServerPage(WriterProfilePreview, {});
+      expect(screen.getByTestId("milestone-strip")).toHaveTextContent("A Join Day Fake Book");
+      expect(screen.getByTestId("milestone-strip")).not.toHaveTextContent("An Earlier Fake Book");
+    });
+
+    it("draws no strip when every book is from before the owner joined", async () => {
+      await makePage("ada-example");
+      state.dataset.members[0].firstJoinedAt = "2026-09-01";
+      book("book_AAAAAAAAAAA1", "An Earlier Fake Book", null, "2020-01-01");
+      await renderServerPage(WriterProfile, params("ada-example"));
+      expect(screen.queryByTestId("milestone-strip")).not.toBeInTheDocument();
     });
 
     it("draws no Published for a deleted book", async () => {

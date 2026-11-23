@@ -7,7 +7,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => undefined) }));
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),

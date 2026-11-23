@@ -128,7 +128,7 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:slack_unfurl_removal_failed:${alert.reason}`,
       title: "Slack kept a link preview an author removed",
       // No message id or address: this goes to Slack. The Vercel log line has the message id.
-      text: `A member removed a link preview from a message they wrote in Hub Chat, and the update that takes it off the Slack copy failed (${alert.reason}). The Hub no longer shows the card; Slack readers may still see it. Look for "taking a preview off the Slack copy" in the Vercel logs (src/lib/chat/slack-unfurl-removal.ts).`,
+      text: `A member removed a link preview from a message they wrote in Hub Chat, and the update that takes it off the Slack copy failed (${alert.reason}). The Hub no longer shows the card; Slack readers may still see it. Look for "taking a preview off the Slack copy" in the Vercel logs (src/modules/chat/slack/unfurl-removal.ts).`,
     };
   }
 

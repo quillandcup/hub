@@ -47,8 +47,9 @@ SELECT is((SELECT count(*) FROM chat_gap_fills WHERE slack_channel_id = 'PGTAP_G
 -- Admins read the log; members don't.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fea1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'gf-member@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES ('00000000-0000-4000-a000-00000000fea1', 'gf-member@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fea1', 'gf-member@example.test')
+ON CONFLICT (id) DO NOTHING;
 CREATE TEMP TABLE seen(n bigint) ON COMMIT DROP;
 GRANT INSERT ON seen TO authenticated;
 SET LOCAL ROLE authenticated;

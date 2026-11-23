@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { ADMIN_NOTE_EDIT_MINUTES } from "@/lib/config";
 import { MAX_ADMIN_NOTE_LENGTH } from "@/lib/data/admin-notes";
@@ -57,21 +57,21 @@ async function deleteNoteImpl(memberId: string, noteId: string): Promise<NoteAct
 
 /** Adds a staff note to a member's profile, dated now and attributed to the signed-in admin. Staff only. */
 export async function addMemberNote(memberId: string, body: string): Promise<NoteActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.notes_write");
   if (!auth.ok) return { error: auth.error };
   return withAction("admin_note_added", () => addNoteImpl(auth.user.id, memberId, body), (r) => ({ ok: "success" in r }));
 }
 
 /** Corrects a staff note's text: its author only, and only in the first few minutes (`ADMIN_NOTE_EDIT_MINUTES`). Staff only. */
 export async function editMemberNote(memberId: string, noteId: string, body: string): Promise<NoteActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.notes_write");
   if (!auth.ok) return { error: auth.error };
   return withAction("admin_note_edited", () => editNoteImpl(memberId, noteId, body), (r) => ({ ok: "success" in r }));
 }
 
 /** Removes a note from a member's profile (kept in the database, hidden everywhere). Staff only. */
 export async function deleteMemberNote(memberId: string, noteId: string): Promise<NoteActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.notes_write");
   if (!auth.ok) return { error: auth.error };
   return withAction("admin_note_deleted", () => deleteNoteImpl(memberId, noteId), (r) => ({ ok: "success" in r }));
 }

@@ -3,46 +3,12 @@
 import { useState, useTransition } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import Modal from "@/components/Modal";
-import { buildLandingExport, MAX_LANDING_BYTES, type ExportKind } from "@/lib/landing/json-transfer";
+import { buildLandingExport, type ExportKind } from "@/lib/landing/json-transfer";
 import type { JsonImportResult, JsonImportSummary } from "../actions";
-import IssueList from "./IssueList";
+import JsonImportInput from "../JsonImportInput";
 
 const SECONDARY = "rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 const DANGER = "rounded bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50";
-const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-900";
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** The plain-words account of what an import would do, from the dry run's summary. */
-function Preview({ summary }: { summary: JsonImportSummary }) {
-  const leftOutCount = summary.leftOut.reduce((sum, l) => sum + l.count, 0);
-  return (
-    <div className="space-y-2 text-sm" aria-live="polite">
-      <p>
-        The file has {plural(summary.blocksAfter, "block", "blocks")}. Your draft has {plural(summary.blocksBefore, "block", "blocks")}.
-      </p>
-      {summary.identical && <p className="font-medium">This is the same as your draft, so nothing would change.</p>}
-      {leftOutCount > 0 && (
-        <p className="text-amber-800 dark:text-amber-300">
-          {plural(leftOutCount, "block the builder doesn't have was", "blocks the builder doesn't have were")} left out: {summary.leftOut.map((l) => (l.count > 1 ? `${l.type} (${l.count})` : l.type)).join(", ")}.
-        </p>
-      )}
-      {summary.droppedProps > 0 && (
-        <p className="text-amber-800 dark:text-amber-300">{plural(summary.droppedProps, "setting a block doesn't have was", "settings blocks don't have were")} left out.</p>
-      )}
-      {summary.removedPictures > 0 && (
-        <p className="text-amber-800 dark:text-amber-300">{plural(summary.removedPictures, "picture was", "pictures were")} not found in this media library and {summary.removedPictures === 1 ? "was" : "were"} removed.</p>
-      )}
-      {summary.issues.length > 0 && (
-        <div className="space-y-1">
-          <p className="font-medium">The publish check would say:</p>
-          <IssueList issues={summary.issues} />
-        </div>
-      )}
-      {summary.issues.length === 0 && !summary.identical && <p>The publish check finds nothing to fix.</p>}
-    </div>
-  );
-}
 
 /**
  * Export and import of the page's JSON, in the History dialog (docs/product/LANDING_PAGES.md, "Export and import"). Export is built here
@@ -69,9 +35,9 @@ export default function JsonTransfer({
   const [kind, setKind] = useState<ExportKind>("draft");
   const [exportNote, setExportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [summary, setSummary] = useState<JsonImportSummary | null>(null);
+  const [ready, setReady] = useState<{ text: string; summary: JsonImportSummary } | null>(null);
+  // Bumped on close so the import section starts clean next time.
+  const [round, setRound] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const { ask, dialog } = useConfirm();
@@ -106,41 +72,12 @@ export default function JsonTransfer({
     }
   }
 
-  function reset() {
-    setText("");
-    setFileName(null);
-    setSummary(null);
-    setError(null);
-  }
-
   function close() {
     if (pending) return;
-    reset();
+    setReady(null);
+    setError(null);
+    setRound((n) => n + 1);
     setOpen(false);
-  }
-
-  function check(body: string) {
-    setSummary(null);
-    setError(null);
-    start(async () => {
-      const result = await onPreview(body);
-      if (result.error || !result.summary) return setError(result.error ?? "Couldn't read that.");
-      setSummary(result.summary);
-    });
-  }
-
-  async function chooseFile(file: File | undefined) {
-    if (!file) return;
-    setSummary(null);
-    setError(null);
-    if (file.size > MAX_LANDING_BYTES) {
-      setFileName(null);
-      return setError("That file is over the 2 MB limit, so it can't be a page from the builder.");
-    }
-    const body = await file.text();
-    setText(body);
-    setFileName(file.name);
-    check(body);
   }
 
   async function replace() {
@@ -150,9 +87,9 @@ export default function JsonTransfer({
       confirmLabel: "Replace draft",
       tone: "danger",
     });
-    if (!ok) return;
+    if (!ok || !ready) return;
     start(async () => {
-      const failure = await onApply(text);
+      const failure = await onApply(ready.text);
       if (failure) setError(failure);
     });
   }
@@ -192,32 +129,15 @@ export default function JsonTransfer({
       <Modal isOpen={open} onClose={close} title="Import a page from JSON" maxWidth="lg">
         <div className="space-y-3">
           <p className="text-sm">Choose a file exported from the page builder, or paste its text. You see what would change before anything does.</p>
-          <label className="block text-sm font-medium">
-            File
-            <input type="file" accept=".json,application/json" disabled={pending} onChange={(e) => void chooseFile(e.target.files?.[0])} className="mt-1 block w-full text-sm" />
-          </label>
-          {fileName && <p className="text-sm">Using {fileName}.</p>}
-          <label className="block text-sm font-medium">
-            Or paste the JSON
-            <textarea
-              value={fileName ? "" : text}
-              disabled={Boolean(fileName)}
-              rows={6}
-              onChange={(e) => {
-                setText(e.target.value);
-                setSummary(null);
-                setError(null);
-              }}
-              className={`mt-1 ${INPUT}`}
-              spellCheck={false}
-            />
-          </label>
-          {!fileName && (
-            <button type="button" disabled={pending || !text.trim()} onClick={() => check(text)} className={SECONDARY}>
-              Check the JSON
-            </button>
-          )}
-          {summary && <Preview summary={summary} />}
+          <JsonImportInput
+            key={round}
+            onPreview={onPreview}
+            onReady={(next) => {
+              setReady(next);
+              setError(null);
+            }}
+            disabled={pending}
+          />
           {error && (
             <p role="alert" className="text-sm text-red-700 dark:text-red-400">
               {error}
@@ -227,7 +147,7 @@ export default function JsonTransfer({
             <button type="button" onClick={close} disabled={pending} className={SECONDARY}>
               Cancel
             </button>
-            <button type="button" disabled={pending || !summary || summary.identical} onClick={() => void replace()} className={DANGER}>
+            <button type="button" disabled={pending || !ready || ready.summary.identical} onClick={() => void replace()} className={DANGER}>
               Replace draft
             </button>
           </div>

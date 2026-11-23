@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 import { getMonthStart, getNextMonthStart } from '@/lib/prickle-schedules'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * Exercises the prickle_schedules RLS policy directly (not through the Next.js
@@ -36,7 +37,7 @@ describe('prickle_schedules RLS', () => {
 
     // New users default to role='member' already, but set it explicitly so
     // this test doesn't depend on that default staying what it is today.
-    await admin.from('user_profiles').update({ role: 'member' }).eq('id', hostAuthUserId)
+    await giveRoles(admin, hostAuthUserId, 'member')
 
     // Second user, promoted to role='admin' (the on_auth_user_created trigger
     // defaults new users to 'member' as of 20260514000001_change_role_default_to_member.sql),
@@ -52,7 +53,7 @@ describe('prickle_schedules RLS', () => {
     })
     if (adminError || !adminAuth.user) throw new Error(`Failed to create admin test user: ${adminError?.message}`)
     adminAuthUserId = adminAuth.user.id
-    await admin.from('user_profiles').update({ role: 'admin' }).eq('id', adminAuthUserId)
+    await giveRoles(admin, adminAuthUserId, 'admin')
 
     adminClient = getTestSupabaseClient()
     const { error: adminSignInError } = await adminClient.auth.signInWithPassword({ email: adminEmail, password })

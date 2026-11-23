@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => ({
+  requireActionPermission: async () => ({
     ok: true,
     user: { id: ADMIN_ID },
     supabase: {},

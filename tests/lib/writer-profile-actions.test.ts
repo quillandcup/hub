@@ -37,6 +37,9 @@ import { claimWriterHandle, getMyWriterProfile, loadHandleStatus, saveWriterProf
 
 import { WRITER_PROFILES_NOT_AVAILABLE, WRITER_PROFILE_NAME_NEEDED } from "@/lib/writer-profiles-access";
 
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AT = "2027-01-01T00:00:00Z";
 const flagRow = (enabled_globally: boolean) => ({ feature_key: "writer_profiles", enabled_globally, created_at: AT, updated_at: AT });

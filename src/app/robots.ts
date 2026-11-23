@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 import { WRITER_PROFILES } from "@/lib/config";
 import { getServiceRepos } from "@/lib/data/server";
+import { PUBLIC_SITE_LIVE } from "@/lib/config";
 import { isRootHost } from "@/lib/root-routing";
 import { sitemapIds, sitemapUrl } from "@/lib/writer-sitemap";
 
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const rules = { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/"] };
-  if (!isRootHost((await headers()).get("host"))) return { rules };
+  if (PUBLIC_SITE_LIVE && !isRootHost((await headers()).get("host"))) return { rules };
   const count = await getServiceRepos()
     .writerProfiles.publicCount()
     .catch(() => 0);

@@ -3,14 +3,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import ProgramsClient from "./ProgramsClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Programs",
 };
 
 export default async function ProgramsPage() {
-  await requireAdminPage();
+  await requirePermission("programs.manage");
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

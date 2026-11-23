@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import type { ModerationAction } from "@/lib/data/course-comments";
 import { notifyLessonComment } from "@/lib/courses/comment-notifications";
@@ -18,7 +18,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * their name, with no comment text. The result carries no text either.
  */
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 export type ModerationResult = { error?: string; /** False when it was already so (nothing was written). */ changed?: boolean };
 
 const NOT_FOUND = "That comment isn't there any more";
@@ -48,42 +48,42 @@ async function moderateImpl(auth: Auth, courseId: string, commentId: string, act
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** Hides a comment from members (they see "Comment removed"); staff still read it, and it can be shown again. Settles its reports. */
 export async function hideLessonComment(courseId: string, commentId: string): Promise<ModerationResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("lesson_comment_hidden", () => moderateImpl(auth, courseId, commentId, "hide"));
 }
 
 /** Shows a hidden comment again. */
 export async function unhideLessonComment(courseId: string, commentId: string): Promise<ModerationResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("lesson_comment_unhidden", () => moderateImpl(auth, courseId, commentId, "unhide"));
 }
 
 /** Deletes a comment (a soft delete: the row stays for its retention period). Settles its reports. */
 export async function deleteLessonCommentAsStaff(courseId: string, commentId: string): Promise<ModerationResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("lesson_comment_deleted_by_staff", () => moderateImpl(auth, courseId, commentId, "delete"));
 }
 
 /** Releases a comment that was held for review: everyone with access to the lesson can read it. */
 export async function approveHeldLessonComment(courseId: string, commentId: string): Promise<ModerationResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("lesson_comment_approved", () => moderateImpl(auth, courseId, commentId, "approve"));
 }
 
 /** Marks a question as needing no answer, so it leaves the unanswered list. */
 export async function markLessonCommentHandled(courseId: string, commentId: string): Promise<ModerationResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("lesson_comment_handled", () => moderateImpl(auth, courseId, commentId, "handle"));
 }
 
 /** Closes the open reports on a comment and leaves the comment as it is. */
 export async function dismissLessonCommentReports(courseId: string, commentId: string): Promise<ModerationResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("lesson_comment_reports_dismissed", () => moderateImpl(auth, courseId, commentId, "dismiss"));
 }

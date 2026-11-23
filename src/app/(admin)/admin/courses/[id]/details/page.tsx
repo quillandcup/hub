@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import CourseAdminPage, { courseTabMetadata } from "../CourseAdminPage";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -8,6 +8,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 /** The course's Details tab. */
 export default async function AdminCourseDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   return <CourseAdminPage idParam={(await params).id} tab="details" />;
 }

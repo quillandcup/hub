@@ -4,7 +4,7 @@ import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { createRepos } from "@/lib/data/repos";
 import { isFeatureOnForEveryone, membersWithFeatureForOutreach } from "@/lib/features.server";
 import { postChangelogToChannel, sendChangelogDigest } from "@/lib/changelog/digest";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const maxDuration = 300;
@@ -19,7 +19,7 @@ export const maxDuration = 300;
  * The channel post goes out only when the flag is on for everyone.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.internal.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

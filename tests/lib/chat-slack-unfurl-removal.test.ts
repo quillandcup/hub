@@ -20,8 +20,8 @@ vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: (...args: unkno
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
-import { hubMessageMetadata } from "@/lib/chat/slack-post";
-import { removeSlackUnfurl, splitAttachments } from "@/lib/chat/slack-unfurl-removal";
+import { hubMessageMetadata } from "@/modules/chat/slack/post";
+import { removeSlackUnfurl, splitAttachments } from "@/modules/chat/slack/unfurl-removal";
 import { shareRemoveKey } from "@/lib/chat/shared-message";
 import { normalizeLinkForMatch } from "@/lib/chat/unfurl-dedupe";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";

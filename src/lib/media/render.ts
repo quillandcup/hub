@@ -24,6 +24,8 @@ export interface RenderSettings {
 
 export function settingsFor(asset: RenderSource, name: PresetName): RenderSettings {
   const preset = PRESETS[name];
+  // A largest-box preset shows the whole picture whatever the asset's fit or focal point say, so they must not change its cache key.
+  if ("inside" in preset && preset.inside) return { fit: "crop", focal: null };
   const chosen = asset.fits && typeof asset.fits === "object" ? (asset.fits as Record<string, unknown>)[name] : undefined;
   return {
     fit: chooseFit(asset, preset, chosen),
@@ -58,6 +60,8 @@ export interface RenderSpec {
   height: number;
   format: "webp" | "jpeg" | "png";
   quality?: number;
+  /** The size is a largest box: scale down to fit it, keep the shape and any transparency, never enlarge (see `Preset.inside`). */
+  inside?: boolean;
 }
 
 export const FORMAT_INFO = {
@@ -77,7 +81,10 @@ export async function renderImage(original: Buffer, spec: RenderSpec, settings: 
   const open = (input: Buffer) => sharp(input, { limitInputPixels: MAX_PIXELS }).rotate().toColourspace("srgb");
 
   let fitted: Buffer;
-  if (settings.fit === "crop" && settings.focal) {
+  if (spec.inside) {
+    // Whole picture at its own shape: no crop, no padding, no enlarging. The alpha channel stays (a JPEG output flattens it below).
+    fitted = await open(original).resize(tw, th, { fit: "inside", withoutEnlargement: true }).toBuffer();
+  } else if (settings.fit === "crop" && settings.focal) {
     // Scale until the picture covers the frame, then cut a window centred on the focal point (kept inside the picture).
     const meta = await open(original).toBuffer({ resolveWithObject: true });
     const scale = Math.max(tw / meta.info.width, th / meta.info.height);

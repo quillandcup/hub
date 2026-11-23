@@ -20,6 +20,9 @@ vi.mock("@supabase/ssr", () => ({
 
 import { proxy } from "@/proxy";
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in the "not live" tests (tests/lib/public-site-flag.test.ts lists them).
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const APP_HOST = new URL(APP_URL).host;
 
 function call(host: string, pathAndQuery: string, method = "GET") {
@@ -68,7 +71,7 @@ describe("root host", () => {
       const res = await call(ROOT_HOST, p);
       expect(res.headers.get("location"), p).toBeNull();
       expect(res.status, p).toBe(200);
-      expect(res.headers.get("content-security-policy-report-only"), p).toBeTruthy();
+      expect(res.headers.get("content-security-policy"), p).toBeTruthy();
     }
     expect(getUser).not.toHaveBeenCalled();
   });

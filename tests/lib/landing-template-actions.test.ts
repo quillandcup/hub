@@ -8,7 +8,7 @@ const revalidated: string[] = [];
 vi.mock("next/cache", () => ({ revalidatePath: (path: string) => revalidated.push(path) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }));
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
+  requireActionPermission: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
 }));
 vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => false, generateLandingPage: async () => undefined, reviseLandingPage: async () => undefined }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
@@ -139,7 +139,7 @@ describe("saveLandingTemplate: replace a template's draft with a page", () => {
     expect(words(after, "published_data")).toBe("Version one");
     expect(after.status).toBe("published");
     const versions = await state.repos.landingPages.versions(template.id);
-    expect(versions.map((v) => v.kind)).toEqual(["before_starter", "published"]);
+    expect(versions.map((v) => v.kind)).toEqual(["before_replace", "published"]);
     expect(versions[0].note).toBe("Replaced by the page “Page spring”");
     expect(JSON.stringify(versions.filter((v) => v.kind === "published"))).toBe(JSON.stringify(JSON.parse(versionsBefore)));
     expect(words({ draft_data: await state.repos.landingPages.versionData(versions[0].id) })).toBe("Unpublished edits");
@@ -273,7 +273,7 @@ describe("using a template", () => {
     expect(words(after, "published_data")).toBe("My own words");
     expect(after).toMatchObject({ title: "Live page", slug: "live", status: "published" });
     const versions = await state.repos.landingPages.versions(live.id);
-    expect(versions[0].kind).toBe("before_starter");
+    expect(versions[0].kind).toBe("before_replace");
     expect(versions[0].note).toBe("Replaced by the template “Kit”");
     expect(JSON.stringify(await state.repos.landingPages.versionData(versions[0].id))).toContain("Unpublished edits");
   });
@@ -293,7 +293,7 @@ describe("using a template", () => {
     const template = await published("Kit words");
     await page("live", "Words");
     const live = (await state.repos.landingPages.bySlug("live"))!;
-    vi.spyOn(state.repos.landingPages, "keepDraftBeforeStarter").mockRejectedValueOnce(new Error("boom"));
+    vi.spyOn(state.repos.landingPages, "keepDraftBeforeReplace").mockRejectedValueOnce(new Error("boom"));
     expect(await replaceLandingDraftWithTemplate(live.id, template.id)).toEqual({ error: "Couldn't replace the draft." });
     vi.spyOn(state.repos.landingPages, "usableTemplateData").mockRejectedValueOnce(new Error("boom"));
     expect(await createLandingPage({ title: "X", template: template.id })).toEqual({ error: "Couldn't create the page." });

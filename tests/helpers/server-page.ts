@@ -126,9 +126,18 @@ export function createFakeSupabase(tables: FakeTables = {}) {
     const query: FakeQuery = { table, calls: [] };
     queries.push(query);
 
+    // A test that fakes `user_profiles` with a role also holds that role: the database's sync trigger makes a `user_roles` row of it,
+    // and the app reads roles from `user_roles` only. So `user_roles` answers from the `user_profiles` entry unless the test fakes it itself.
+    const rolesFromProfiles = table === "user_roles" && !("user_roles" in tables) && "user_profiles" in tables;
     const resolve = () => {
-      const entry = tables[table];
-      const res = (typeof entry === "function" ? entry(query) : entry) ?? {};
+      const entry = tables[rolesFromProfiles ? "user_profiles" : table];
+      const asked: FakeQuery = rolesFromProfiles
+        ? { table: "user_profiles", calls: query.calls.map((c) => ({ method: c.method, args: c.args[0] === "user_id" ? ["id", ...c.args.slice(1)] : c.args })) }
+        : query;
+      const raw = (typeof entry === "function" ? entry(asked) : entry) ?? {};
+      const res = rolesFromProfiles && raw.data && typeof raw.data === "object"
+        ? { ...raw, data: (Array.isArray(raw.data) ? raw.data : [raw.data]).map((row: Record<string, unknown>) => ({ ...row, user_id: row.id })) }
+        : raw;
       const single = query.calls.some((c) => c.method === "single" || c.method === "maybeSingle");
       const range = query.calls.find((c) => c.method === "range");
       let data = res.data ?? (single ? null : []);

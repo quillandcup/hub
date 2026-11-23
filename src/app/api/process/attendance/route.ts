@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchAttendeeToMember, type MatchResult, type MemberEmailAlias } from "@/lib/member-matching";
 import {
@@ -166,7 +166,7 @@ function timeIntersection(
  * 6. Inserts attendance records (Silver - inferred data)
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;

@@ -4,7 +4,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(10);
+SELECT plan(9);
 
 SELECT ok(NOT has_function_privilege('anon', 'chat_add_message_files(text, jsonb)', 'EXECUTE'), 'anon cannot add files');
 SELECT ok(has_function_privilege('authenticated', 'chat_add_message_files(text, jsonb)', 'EXECUTE'), 'authenticated can');
@@ -12,10 +12,10 @@ SELECT ok(has_function_privilege('authenticated', 'chat_add_message_files(text, 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000fab1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'af-fern@example.test'),
   ('00000000-0000-4000-a000-00000000fab2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'af-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000fab1', 'af-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000fab2', 'af-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000fab1', 'af-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000fab2', 'af-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAfbA1', 'Af Fern', 'af-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAfbA2', 'Af Gale', 'af-gale@example.test', now(), 'active');
@@ -65,7 +65,7 @@ SELECT is((SELECT files FROM chat_message_contents WHERE message_id = 'msg_AAAAA
 SELECT is((SELECT files::text FROM chat_message_contents WHERE message_id = 'msg_AAAAAAAAfbd5') || (SELECT has_files::text FROM chat_messages WHERE id = 'msg_AAAAAAAAfbd5'), '[{"id": "F9"}]true', 'a message without files gets its first, and is marked as having files');
 SELECT is(
   (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('others', 'notice', 'deleted', 'empty')),
-  'chat_edit: bad_files,chat_edit: not_yours,chat_edit: not_yours,chat_edit: not_yours',
+  'chat_edit: not_yours,chat_edit: bad_files,chat_edit: not_yours,chat_edit: not_yours',  -- deleted, empty, notice, others (by label)
   'someone else''s, a Slack notice, a deleted message and an empty list are refused'
 );
 SELECT is((SELECT count(*)::int FROM chat_message_contents WHERE message_id IN ('msg_AAAAAAAAfbd2', 'msg_AAAAAAAAfbd3', 'msg_AAAAAAAAfbd4') AND files IS NULL), 3, 'the refused messages are untouched');

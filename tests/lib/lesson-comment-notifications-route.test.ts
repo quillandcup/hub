@@ -4,8 +4,8 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
 // The daily route on the in-memory repositories, with auth, Slack and the heartbeat faked.
-const requireAdmin = vi.fn();
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: (r: unknown) => requireAdmin(r) }));
+const requireApiPermission = vi.fn();
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: (r: unknown) => requireApiPermission(r) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 const heartbeat = vi.fn();
 vi.mock("@/lib/cron-heartbeats", () => ({
@@ -61,7 +61,7 @@ beforeEach(() => {
   heartbeat.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
-  requireAdmin.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
+  requireApiPermission.mockResolvedValue({ user: { id: "cron" }, forbidden: false });
   setup(true);
 });
 
@@ -69,9 +69,9 @@ afterEach(() => vi.useRealTimers());
 
 describe("GET /api/internal/lesson-comment-notifications", () => {
   it("refuses a visitor who is signed out, and one who is not an admin", async () => {
-    requireAdmin.mockResolvedValueOnce({ user: null });
+    requireApiPermission.mockResolvedValueOnce({ user: null });
     expect((await GET(request())).status).toBe(401);
-    requireAdmin.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
+    requireApiPermission.mockResolvedValueOnce({ user: { id: "u" }, forbidden: true });
     expect((await GET(request())).status).toBe(403);
     expect(heartbeat).not.toHaveBeenCalled();
   });

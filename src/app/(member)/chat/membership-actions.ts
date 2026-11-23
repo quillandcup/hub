@@ -5,9 +5,7 @@ import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller, type ChatCaller } from "@/lib/chat/caller";
 import { isId } from "@/lib/ids";
 import { loadChannelForMember } from "@/lib/chat/load";
-import { inviteAsMember, inviteToSlackChannel, joinAsMember, kickAsMember, kickFromSlackChannel, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
-import { getSlackUserToken } from "@/lib/slack-connect";
-import type { AsMemberResult } from "@/lib/chat/slack-membership";
+import { chatTransport } from "@/lib/chat/transports";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { clock } from "@/lib/clock";
@@ -109,35 +107,7 @@ async function alreadyIn(channelId: string, memberIds: string[]): Promise<Set<st
   return createRepos(createServiceRoleClient()).chat.presentMembers(channelId, memberIds).catch(() => new Set<string>());
 }
 
-const RECONNECT_HINT = " Reconnect Slack in Settings to do this as yourself.";
 const RECONNECT_NOTICE = "Your Slack connection stopped working, so Billie Bot did this for you. Reconnect Slack in Settings.";
-
-/**
- * Do something in Slack as the acting member when they've connected their account (so Slack attributes it to
- * them and applies its rules to them), and as the bot when they haven't or their token can't do it. Slack's own
- * refusal to the member's account is returned as is, not overridden by the bot. A token Slack says is dead is
- * revoked so Settings stops saying it's connected, and `reconnect` says to tell the member.
- */
-async function asMemberElseBot(
-  service: ReturnType<typeof createServiceRoleClient>,
-  actorId: string,
-  own: (token: string) => Promise<AsMemberResult>,
-  bot: () => Promise<{ ok: true } | { ok: false; error: string }>
-): Promise<{ result: { ok: true } | { ok: false; error: string }; reconnect: boolean }> {
-  let reconnect = false;
-  const connection = await getSlackUserToken(service, actorId);
-  if (connection) {
-    const tried = await own(connection.token);
-    if (tried.ok) return { result: tried, reconnect };
-    if (!tried.retryWithBot) return { result: tried, reconnect };
-    if (tried.deadToken) {
-      await service.rpc("slack_connection_revoke", { p_member: actorId });
-      reconnect = true;
-    }
-  }
-  const result = await bot();
-  return { result: !result.ok && reconnect ? { ok: false, error: result.error + RECONNECT_HINT } : result, reconnect };
-}
 
 /** Add `memberIds` (the member's own id to join a public channel). */
 async function addMembersImpl(channelId: string, memberIds: string[]): Promise<MembershipResult> {
@@ -167,7 +137,7 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
   const notActive = wanted.filter((id) => !activeIds.has(id));
   if (notActive.length > 0) return { ok: false, error: "Only active members can be added." };
 
-  const slackIds = await slackUserIdsFor(createRepos(service), wanted);
+  const slackIds = await chatTransport().externalIdsFor(service, wanted);
   const withoutSlack = wanted.filter((id) => !slackIds.has(id));
   if (channel.isPrivate && withoutSlack.length > 0) {
     const names = await namesOf(withoutSlack);
@@ -178,13 +148,13 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
   }
 
   const slackUserIds = wanted.flatMap((id) => (slackIds.has(id) ? [slackIds.get(id)!] : []));
-  const done = await asMemberElseBot(
-    service,
-    self,
-    // Joining yourself to a public channel is a join, not an invite; adding others is an invite by you.
-    (token) => (onlySelf && !channel.joined ? joinAsMember({ channel: channel.slackChannelId, token }) : inviteAsMember({ channel: channel.slackChannelId, userIds: slackUserIds, token })),
-    () => inviteToSlackChannel({ channel: channel.slackChannelId, userIds: slackUserIds })
-  );
+  // Joining yourself to a public channel is a join, not an invite; adding others is an invite by you.
+  const done = await chatTransport().addToConversation(service, {
+    actorMemberId: self,
+    channelRef: channel.slackChannelId,
+    externalUserIds: slackUserIds,
+    selfJoin: onlySelf && !channel.joined,
+  });
   if (!done.result.ok) return done.result;
 
   await recordJoined(channelId, wanted.map((memberId) => ({ memberId, source: slackIds.has(memberId) ? ("slack" as const) : ("app" as const) })));
@@ -224,17 +194,14 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
   let slackAnnounces = false;
   // In Slack too, unless the Hub alone knows they were in it.
   if (row.source !== "app") {
-    const slackUser = (await slackUserIdsFor(createRepos(service), [memberId])).get(memberId);
+    const slackUser = (await chatTransport().externalIdsFor(service, [memberId])).get(memberId);
     if (slackUser) {
-      const done = await asMemberElseBot(
-        service,
-        caller.identity.memberId,
-        (token) =>
-          isSelf
-            ? leaveSlackChannelAsMember({ channel: channel.slackChannelId, token })
-            : kickAsMember({ channel: channel.slackChannelId, userId: slackUser, token }),
-        () => kickFromSlackChannel({ channel: channel.slackChannelId, userId: slackUser })
-      );
+      const done = await chatTransport().removeFromConversation(service, {
+        actorMemberId: caller.identity.memberId,
+        channelRef: channel.slackChannelId,
+        externalUserId: slackUser,
+        self: isSelf,
+      });
       if (!done.result.ok) return done.result;
       reconnect = done.reconnect;
       slackAnnounces = isSelf;
@@ -274,7 +241,7 @@ export async function searchMembersToAdd(channelId: string, query: string): Prom
   const [candidates, present, slackIds] = await Promise.all([
     createRepos(service).members.byIds(ids),
     alreadyIn(channelId, ids),
-    slackUserIdsFor(createRepos(service), ids),
+    chatTransport().externalIdsFor(service, ids),
   ]);
   const activeIds = new Set(candidates.filter((m) => m.status === "active").map((m) => m.id));
   return matches

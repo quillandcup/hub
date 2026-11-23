@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor, type JSONContent } from "@tiptap/react";
+import { documentNonce } from "@/lib/csp-nonce";
 import type { EditorView } from "@tiptap/pm/view";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { suggestCustomEmoji, suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
@@ -266,6 +267,7 @@ export default function MessageBox({
   // What the editor starts with (read once: later changes to `value` come in through the effect below).
   const [initialContent] = useState(() => mrkdwnToDoc(value, (name) => customEmoji?.[name] ?? null) as JSONContent);
   const editor = useEditor({
+    injectNonce: documentNonce(), // TipTap's own style tag needs the page's nonce (src/lib/csp-nonce.ts)
     extensions,
     content: initialContent,
     // Rendered on the client only: the editor builds its document from the browser's DOM.

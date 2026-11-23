@@ -1,12 +1,11 @@
 // Content-Security-Policy for every response. Imported by next.config.ts, so it uses relative imports only.
 //
-// Enforcing since 2026-11-17, after a week of Report-Only reports showed one missing picture host (now in config/app.ts).
-// Violations are still sent to Sentry, so a picture host we forgot shows up as a report.
-// Scripts and styles are covered by a second policy with a per-request nonce (scriptStyleCsp), sent by src/proxy.ts in
-// report-only mode first (docs/TODO.md, "CSP for scripts and styles").
+// One enforcing policy per request, sent by src/proxy.ts (enforcedCsp): scripts and styles with a per-request nonce, pictures,
+// plugins, base tag, forms, framing, and where requests, frames, media and fonts may come from. Violations are still sent to Sentry,
+// so a host we forgot shows up as a report (docs/TODO.md, "CSP for scripts and styles").
+// Paths the proxy skips (static files, pictures, the Sentry tunnel, the service worker) get the picture policy (buildCsp) from next.config.ts.
 
 export const CSP_HEADER = "Content-Security-Policy";
-export const CSP_REPORT_ONLY_HEADER = "Content-Security-Policy-Report-Only";
 /** The request header that carries the nonce to Server Components (`headers().get(NONCE_HEADER)`). */
 export const NONCE_HEADER = "x-nonce";
 
@@ -17,7 +16,7 @@ export interface CspInputs {
   imageHosts: readonly string[];
   /** The Sentry DSN, whose ingest host also takes CSP reports. Without one, violations are not reported anywhere. */
   sentryDsn?: string;
-  /** Report-only for now: where requests may go (config/app.ts `csp.connectHosts`), what may be framed, where media loads from. */
+  /** Where requests may go (config/app.ts `csp.connectHosts`), what may be framed, where media loads from. */
   connectHosts?: readonly string[];
   frameHosts?: readonly string[];
   mediaHosts?: readonly string[];
@@ -108,24 +107,19 @@ function scriptStyleDirectives(nonce: string, dev: boolean): string[] {
   ];
 }
 
-export function scriptStyleCsp({ nonce, sentryDsn, dev = false }: { nonce: string; sentryDsn?: string; dev?: boolean }): string {
-  const directives = scriptStyleDirectives(nonce, dev);
-  const report = sentryReportUri(sentryDsn);
-  if (report) directives.push(`report-uri ${report}`);
-  return directives.join("; ");
-}
-
 /** An https origin's WebSocket twin (Supabase Realtime). */
 function websocketOf(origin: string | null): string | null {
   return origin?.startsWith("https://") ? `wss://${origin.slice("https://".length)}` : null;
 }
 
 /**
- * The whole policy, sent report-only by src/proxy.ts: scripts and styles (with the nonce), everything the enforced picture policy says
- * (so violations of it are reported even though pages enforce it through a meta tag, which cannot report), and connection, frame,
- * media and font sources, which nothing enforces yet. Reports go to Sentry; nothing is blocked by this header.
+ * The policy a page is held to, sent by src/proxy.ts as `Content-Security-Policy` on the request (Next reads the nonce out of it and
+ * puts it on its own scripts and styles) and on the response: scripts and styles with the nonce, the picture, plugin, base, form and
+ * framing directives, and connection, frame, media and font sources from `config/app.ts` `csp.*Hosts` (Supabase and Sentry are added
+ * from the environment). It must be the only `content-security-policy` header a page request carries: Vercel copies such a header
+ * onto the request, and Next takes the nonce from the first one it finds (docs/TODO.md, "CSP for scripts and styles").
  */
-export function reportOnlyCsp(inputs: CspInputs & { nonce: string; dev?: boolean }): string {
+export function enforcedCsp(inputs: CspInputs & { nonce: string; dev?: boolean }): string {
   const supabase = originOf(inputs.supabaseUrl);
   const sentry = originOf(inputs.sentryDsn);
   const list = (...sources: (string | null | undefined)[]) => [...new Set(sources.filter((v): v is string => Boolean(v)))].join(" ");
@@ -140,18 +134,4 @@ export function reportOnlyCsp(inputs: CspInputs & { nonce: string; dev?: boolean
   const report = sentryReportUri(inputs.sentryDsn);
   if (report) directives.push(`report-uri ${report}`);
   return directives.join("; ");
-}
-
-/**
- * The enforcing policy as a `<meta http-equiv>` tag for pages (src/app/layout.tsx), for now. Why not the header: Next takes the script
- * nonce from the request's `content-security-policy` header, and on Vercel any such header, from next.config.ts or from the proxy,
- * is copied onto the request and hides the nonce that sits in the report-only one (diagnosed 2026-11-18, docs/TODO.md, "CSP for
- * scripts and styles"). A meta tag has no such side effect. It cannot carry `frame-ancestors` (X-Frame-Options says the same) or
- * `report-uri`, so those are left out. Goes away when one header carries the picture and script policies.
- */
-export function buildMetaCsp(inputs: CspInputs): string {
-  return buildCsp({ ...inputs, sentryDsn: undefined })
-    .split("; ")
-    .filter((d) => !d.startsWith("frame-ancestors"))
-    .join("; ");
 }

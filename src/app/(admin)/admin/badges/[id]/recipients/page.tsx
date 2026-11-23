@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import { getBadgeRecipients, type BadgeLevel, type BadgeType } from "@/lib/badges";
 import BadgeRecipientsTable from "./BadgeRecipientsTable";
 import AwardBadgeForm from "./AwardBadgeForm";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export async function generateMetadata({
   params,
@@ -20,7 +20,7 @@ export async function generateMetadata({
 }
 
 export default async function BadgeRecipientsPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdminPage();
+  await requirePermission("badges.manage");
   const { id } = await params;
   const supabase = await createClient();
 

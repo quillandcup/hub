@@ -3,7 +3,7 @@ import type { AuthUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 import { getSlackUserToken } from "@/lib/slack-connect";
-import { isMemberTokenConversation } from "@/lib/chat/slack-dm-events";
+import { isMemberTokenConversation } from "@/modules/chat/slack/dm-events";
 import { ensureSlackFileCopied, type EnsuredSlackFile } from "@/lib/slack-capture";
 
 /**

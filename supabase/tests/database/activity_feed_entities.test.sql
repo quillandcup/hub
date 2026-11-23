@@ -10,8 +10,12 @@ SELECT plan(6);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f3a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ent-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES ('00000000-0000-4000-a000-00000000f3a1', 'ent-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f3a1', 'ent-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f3a1', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES ('mbr_EntAAAAAAAA1', 'Ent Ada', 'ent-ada@example.test', now(), 'active');
 INSERT INTO public.member_activities (member_id, activity_type, activity_category, title, occurred_at, source, related_id) VALUES
   ('mbr_EntAAAAAAAA1', 'prickle_attended', 'event', 'Attended', now() - interval '5 hours', 'prickle_attendance', 'prkl_EntAAAAAAA01'),

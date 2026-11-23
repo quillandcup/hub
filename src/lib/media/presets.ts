@@ -6,6 +6,10 @@
  * edges (around the focal point when the asset has one), `extend` keeps the whole picture and continues
  * its edge pixels into the empty space, `white` keeps the whole picture on white. A picture within
  * `SAME_SHAPE` of the preset's shape is always cropped, since that cuts almost nothing.
+ *
+ * A preset marked `inside` is not a frame but a largest box (`page_image`, `logo`): the picture is scaled down to fit
+ * inside it at its own shape, never cropped, never padded, never enlarged, and keeps its transparency. Use one wherever
+ * the whole picture must show (a logo, a wordmark, a picture the author placed on a page).
  */
 
 export type FitMode = "crop" | "extend" | "white";
@@ -17,6 +21,8 @@ export interface Preset {
   height: number;
   format: "webp" | "jpeg";
   quality: number;
+  /** `width` x `height` is the largest box, not the frame: the picture keeps its own shape and is never cropped, padded or enlarged. */
+  inside?: boolean;
   /** What a picture of another shape gets unless the asset says otherwise: covers hold text, so they keep the whole picture. */
   defaultFit: FitMode;
   /** A source smaller than this is refused rather than blown up (a store would reject it). */
@@ -32,6 +38,10 @@ export const PRESETS = {
   thumb: { width: 320, height: 320, format: "webp", quality: 80, defaultFit: "crop" },
   event_card: { width: 800, height: 450, format: "webp", quality: 82, defaultFit: "crop" },
   event_hero: { width: 1600, height: 900, format: "webp", quality: 82, defaultFit: "crop" },
+  // Whole picture at its own shape, at most 1600 px a side (a picture placed on a page); alpha is kept.
+  page_image: { width: 1600, height: 1600, format: "webp", quality: 85, defaultFit: "crop", inside: true },
+  // Whole picture at its own shape, at most 480 px a side: a logo in the header (shown 48 px high, so 2x with room to spare).
+  logo: { width: 480, height: 480, format: "webp", quality: 90, defaultFit: "crop", inside: true },
   // The Bookshelf shows covers at 145x215 CSS pixels (src/lib/bookCover.ts); this is that at 2x.
   book_cover_shelf: { width: 290, height: 430, format: "webp", quality: 85, defaultFit: "extend" },
   // Amazon KDP ebook cover (https://kdp.amazon.com/en_US/help/topic/G6GTK3T3NUHKLEFX): JPEG, ideally

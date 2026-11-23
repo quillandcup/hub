@@ -3,7 +3,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), arrivals: vi.fn(), introduce: vi.fn(), service: vi.fn(), revalidate: vi.fn() }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: mocks.auth }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: mocks.auth }));
 vi.mock("@/lib/arrivals", () => ({ getArrivals: mocks.arrivals }));
 vi.mock("@/lib/mentorship-intro", () => ({ sendMatchIntroductions: mocks.introduce }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: mocks.service }));

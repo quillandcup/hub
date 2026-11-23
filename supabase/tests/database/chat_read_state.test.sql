@@ -14,10 +14,10 @@ SELECT ok(has_function_privilege('authenticated', 'chat_mark_read(text, timestam
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f6a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'read-fern@example.test'),
   ('00000000-0000-4000-a000-00000000f6a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'read-gale@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f6a1', 'read-fern@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f6a2', 'read-gale@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f6a1', 'read-fern@example.test'),
+  ('00000000-0000-4000-a000-00000000f6a2', 'read-gale@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAf6A1', 'Read Fern', 'read-fern@example.test', now(), 'active'),
   ('mbr_AAAAAAAAf6A2', 'Read Gale', 'read-gale@example.test', now(), 'active');

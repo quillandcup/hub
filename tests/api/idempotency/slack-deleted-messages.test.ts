@@ -44,14 +44,14 @@ vi.mock('@slack/web-api', () => ({
   },
 }))
 
-vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
+vi.mock('@/lib/supabase/api-auth', () => ({ requireApiPermission: vi.fn() }))
 vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }))
 vi.mock('@/lib/supabase/service', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
   return { createServiceRoleClient: () => getTestSupabaseAdminClient() }
 })
 
-import { requireAdmin } from '@/lib/supabase/api-auth'
+import { requireApiPermission } from '@/lib/supabase/api-auth'
 import { POST } from '@/app/api/import/slack-api/route'
 
 const supabase = getTestSupabaseAdminClient()
@@ -105,7 +105,7 @@ describe('Slack import: messages deleted in Slack', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.stubEnv('SLACK_BOT_TOKEN', 'xoxb-test')
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
     slack.history = []
     slack.replies = new Map()
     await cleanup()

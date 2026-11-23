@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isId } from "@/lib/ids";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 const PAGE_SIZE = 50;
 // Regenerated on every page load, so this only matters if an admin leaves
@@ -9,7 +9,7 @@ const PAGE_SIZE = 50;
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "system.feedback.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;

@@ -1971,6 +1971,7 @@ export type Database = {
       badge_types: {
         Row: {
           category: string
+          counted: boolean
           created_at: string
           description: string | null
           event_id: string | null
@@ -1985,6 +1986,7 @@ export type Database = {
         }
         Insert: {
           category?: string
+          counted?: boolean
           created_at?: string
           description?: string | null
           event_id?: string | null
@@ -1999,6 +2001,7 @@ export type Database = {
         }
         Update: {
           category?: string
+          counted?: boolean
           created_at?: string
           description?: string | null
           event_id?: string | null
@@ -3957,13 +3960,13 @@ export type Database = {
           page_type: string
           published_at: string | null
           published_data: Json | null
+          replaced_at: string | null
           restored_at: string | null
           restored_from_version_id: string | null
           seo_description: string | null
           seo_title: string | null
           slug: string
           social_image_asset_id: string | null
-          starter_applied_at: string | null
           status: string
           title: string
           updated_at: string
@@ -3982,13 +3985,13 @@ export type Database = {
           page_type?: string
           published_at?: string | null
           published_data?: Json | null
+          replaced_at?: string | null
           restored_at?: string | null
           restored_from_version_id?: string | null
           seo_description?: string | null
           seo_title?: string | null
           slug: string
           social_image_asset_id?: string | null
-          starter_applied_at?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -4007,13 +4010,13 @@ export type Database = {
           page_type?: string
           published_at?: string | null
           published_data?: Json | null
+          replaced_at?: string | null
           restored_at?: string | null
           restored_from_version_id?: string | null
           seo_description?: string | null
           seo_title?: string | null
           slug?: string
           social_image_asset_id?: string | null
-          starter_applied_at?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -4734,6 +4737,48 @@ export type Database = {
           },
         ]
       }
+      member_book_photos: {
+        Row: {
+          book_id: string
+          created_at: string
+          member_id: string
+          photo_alt: string | null
+          photo_path: string
+          updated_at: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          member_id: string
+          photo_alt?: string | null
+          photo_path: string
+          updated_at?: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          member_id?: string
+          photo_alt?: string | null
+          photo_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_book_photos_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: true
+            referencedRelation: "member_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_book_photos_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_books: {
         Row: {
           cover_asset_id: string | null
@@ -4750,6 +4795,7 @@ export type Database = {
           project_id: string | null
           published_date: string
           title: string
+          visibility: string
           book_member: {
             bio: string | null
             display_name: string | null
@@ -4780,6 +4826,7 @@ export type Database = {
           project_id?: string | null
           published_date: string
           title: string
+          visibility?: string
         }
         Update: {
           cover_asset_id?: string | null
@@ -4796,6 +4843,7 @@ export type Database = {
           project_id?: string | null
           published_date?: string
           title?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -5144,9 +5192,55 @@ export type Database = {
           },
         ]
       }
+      member_milestone_snoozes: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          member_id: string
+          project_id: string
+          stage_group: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          member_id: string
+          project_id: string
+          stage_group: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          member_id?: string
+          project_id?: string
+          stage_group?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_milestone_snoozes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_milestone_snoozes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "writing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_milestones: {
         Row: {
           achieved_on: string | null
+          achieved_precision: string
           book_id: string | null
           confirmed_at: string | null
           consent_homepage: boolean
@@ -5158,6 +5252,8 @@ export type Database = {
           id: string
           kind: string
           member_id: string
+          photo_alt: string | null
+          photo_path: string | null
           project_id: string | null
           source: string
           status: string
@@ -5169,6 +5265,7 @@ export type Database = {
         }
         Insert: {
           achieved_on?: string | null
+          achieved_precision?: string
           book_id?: string | null
           confirmed_at?: string | null
           consent_homepage?: boolean
@@ -5180,6 +5277,8 @@ export type Database = {
           id?: string
           kind: string
           member_id: string
+          photo_alt?: string | null
+          photo_path?: string | null
           project_id?: string | null
           source: string
           status?: string
@@ -5191,6 +5290,7 @@ export type Database = {
         }
         Update: {
           achieved_on?: string | null
+          achieved_precision?: string
           book_id?: string | null
           confirmed_at?: string | null
           consent_homepage?: boolean
@@ -5202,6 +5302,8 @@ export type Database = {
           id?: string
           kind?: string
           member_id?: string
+          photo_alt?: string | null
+          photo_path?: string | null
           project_id?: string | null
           source?: string
           status?: string
@@ -7147,7 +7249,6 @@ export type Database = {
           email: string
           id: string
           nav_mode: string | null
-          role: string
           secondary_timezone: string | null
           timezone_preference: string | null
           updated_at: string | null
@@ -7158,7 +7259,6 @@ export type Database = {
           email: string
           id: string
           nav_mode?: string | null
-          role?: string
           secondary_timezone?: string | null
           timezone_preference?: string | null
           updated_at?: string | null
@@ -7169,12 +7269,43 @@ export type Database = {
           email?: string
           id?: string
           nav_mode?: string | null
-          role?: string
           secondary_timezone?: string | null
           timezone_preference?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       video_text_tracks: {
         Row: {
@@ -8558,6 +8689,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      delete_course: { Args: { p_course_id: string }; Returns: undefined }
       delete_stale_calendar_events: {
         Args: {
           p_current_google_ids: string[]
@@ -8756,6 +8888,7 @@ export type Database = {
       has_course_access: { Args: { p_course_id: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_community_manager: { Args: never; Returns: boolean }
+      is_conversion_specialist: { Args: never; Returns: boolean }
       is_prickle_schedule_month_locked: {
         Args: { target_month: string }
         Returns: boolean
@@ -8840,10 +8973,11 @@ export type Database = {
           total: number
         }[]
       }
-      member_works_shown: {
+      member_works_dated: {
         Args: { p_levels: string[]; p_member_id: string }
         Returns: {
           achieved_on: string
+          achieved_precision: string
           kind: string
           story_after: string
           story_before: string
@@ -8852,10 +8986,11 @@ export type Database = {
           work_title: string
         }[]
       }
-      member_works_shown_on_web: {
+      member_works_dated_on_web: {
         Args: { p_member_id: string }
         Returns: {
           achieved_on: string
+          achieved_precision: string
           kind: string
           story_after: string
           story_before: string
@@ -8864,11 +8999,57 @@ export type Database = {
           work_title: string
         }[]
       }
-      member_works_shown_to_members: {
+      member_works_dated_to_members: {
         Args: { p_member_id: string }
         Returns: {
           achieved_on: string
+          achieved_precision: string
           kind: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_pictured: {
+        Args: { p_levels: string[]; p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          photo_alt: string
+          photo_token: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_pictured_on_web: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          photo_alt: string
+          photo_token: string
+          story_after: string
+          story_before: string
+          visibility: string
+          work_no: number
+          work_title: string
+        }[]
+      }
+      member_works_pictured_to_members: {
+        Args: { p_member_id: string }
+        Returns: {
+          achieved_on: string
+          achieved_precision: string
+          kind: string
+          photo_alt: string
+          photo_token: string
           story_after: string
           story_before: string
           visibility: string
@@ -8883,28 +9064,6 @@ export type Database = {
           last_started_on: string
           member_id: string
           mentored_count: number
-        }[]
-      }
-      milestones_shown_on_web: {
-        Args: { p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_title: string
-        }[]
-      }
-      milestones_shown_to_members: {
-        Args: { p_member_id: string }
-        Returns: {
-          achieved_on: string
-          kind: string
-          story_after: string
-          story_before: string
-          visibility: string
-          work_title: string
         }[]
       }
       moderate_lesson_comment: {
@@ -9033,7 +9192,6 @@ export type Database = {
           proposals: number
         }[]
       }
-      propose_milestones_from_books: { Args: never; Returns: number }
       publish_announced_event_covers: { Args: never; Returns: number }
       publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
       publish_landing_page_with_note: {
@@ -9241,6 +9399,10 @@ export type Database = {
         Args: { p_mentorship_id: string; p_note: string }
         Returns: boolean
       }
+      set_user_roles: {
+        Args: { p_roles: string[]; p_user: string }
+        Returns: undefined
+      }
       set_writer_handle: {
         Args: {
           p_handle: string
@@ -9326,6 +9488,7 @@ export type Database = {
         Returns: undefined
       }
       staff_member_ids: { Args: never; Returns: string[] }
+      staff_role_rank: { Args: { p_role: string }; Returns: number }
       sync_event_badge_awards: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -9334,6 +9497,7 @@ export type Database = {
         Args: { p_course_id: string }
         Returns: undefined
       }
+      top_role_rank: { Args: { p_user: string }; Returns: number }
       upsert_ambiguous_zoom_name: {
         Args: {
           p_candidate_member_ids: string[]
@@ -9342,6 +9506,10 @@ export type Database = {
           p_zoom_name: string
         }
         Returns: string
+      }
+      user_has_any_role: {
+        Args: { p_roles: string[]; p_user: string }
+        Returns: boolean
       }
       valid_ask_me_about_topics: {
         Args: { topics: string[] }

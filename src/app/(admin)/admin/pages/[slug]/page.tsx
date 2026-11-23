@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { normalizeLandingData } from "@/lib/landing/data";
 import { isValidSlug } from "@/lib/landing/slug";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Edit page · Pages" };
 
 /** The editor. Addressed by the page's slug, not its id: an admin URL counts as exposed, and page ids never are (docs/decisions/SHORT_IDS_PLAN.md, Tier 2). */
 export default async function EditLandingPage({ params }: { params: Promise<{ slug: string }> }) {
-  await requireAdminPage();
+  await requirePermission("pages.edit");
   const { slug } = await params;
   if (!isValidSlug(slug)) notFound();
   const repos = createRepos(await createClient());
@@ -43,7 +43,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
       }}
       site={(await repos.landingSiteTemplate.state()).draft}
       data={normalizeLandingData(page.draft_data)}
-      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_starter" ? v.kind : "published" }))}
+      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, by: (v.published_by && names.get(v.published_by)) || UNKNOWN_EDITOR, note: v.note, kind: v.kind === "before_import" || v.kind === "before_replace" ? v.kind : "published" }))}
       replaceChoices={[
         // Only a published template is offered, and what is copied is its published copy. A template is never offered to itself.
         ...templates.filter((t) => t.id !== page.id).map((t) => ({ key: t.id, label: t.title, description: "A template you published.", group: "template" as const })),

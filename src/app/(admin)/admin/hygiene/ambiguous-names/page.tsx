@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AmbiguousNamesResolver from "./AmbiguousNamesResolver";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 import { prickleTitle } from "@/lib/domain/prickle";
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AmbiguousNamesPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   const repos = createRepos(supabase);

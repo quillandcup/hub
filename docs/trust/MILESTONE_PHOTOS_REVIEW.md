@@ -1,0 +1,52 @@
+# Photos on milestones: security review
+
+> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+
+Written with the feature (`docs/product/FINISHERS.md`, "Photos"). A photo of a member on the day they wrote THE END, or holding their book, is personal data that a member may make public one level at a time. This is what was decided, why, and which test pins each point. It is a review of design and code, not a penetration test; nothing was run against production.
+
+## What is protected
+
+A picture a member added to a milestone or to a Bookshelf book. The member chooses who sees it by the milestone's level (the lock, the house or the globe); the picture never has more reach than its milestone, and a member can take it away at any time. It must not be reachable by anyone the level excludes, not by guessing an address, not from a cache, not from the Activity Log, and not by staff beyond what the member consented to.
+
+## The design, and why
+
+| Decision | Chosen | Why not the alternative |
+|---|---|---|
+| Where the files live | A **private** storage bucket (`milestone-photos`) with **no storage policy at all**. The bucket is not public, takes only a WebP of at most 5 MB, and is read and written only by the server's key. | The existing `member-photos` bucket is public by design (profile photos, Slack-style copies): a public address cannot be withdrawn. A bucket with a read policy for members would put the level rule into storage policies, away from the one place that knows the writer-profile flag and page state. |
+| How a picture is served | `GET /api/milestone-photos/<token>` **streams the bytes** after checking the viewer on that request. | A redirect to a signed URL would hand out a second address that keeps working, for its whole lifetime, after the member lowers the level or takes the photo back, and that can be forwarded. Streaming keeps one decision point, with no address that outlives it. The cost (the function carries the bytes, at most 5 MB, typically under 300 KB, usually cached for the web case) is acceptable at this size. |
+| The address | A random token, 128 bits of hex, which is also the file's name: `<member id>/<token>.webp`. The member id is in the stored path but **never in the address**; the address is not an id of ours (`resource-ids.md`). | A content hash (as the profile photo uses) lets anyone with the picture work out its address and see whether it is on the site; an id in the address would expose a Tier 2 id and the member's id on the public web. Replacing a photo gives a new random address. |
+| What the row stores | The object **path** (`photo_path`), never a URL, plus the description (`photo_alt`). The readers return only the token and description, and only for a row the viewer may see. | A stored URL would freeze a host and make a public address look normal. |
+| Who writes the path | Only the server, after checking the bytes. A member has **no UPDATE grant** on `photo_path`; a trigger refuses a path on a member's own INSERT (the table-wide INSERT grant would reach it); a CHECK keeps the path in the member's own folder and a `.webp`. The member may write only the description, a column grant. | Letting the client name a path would let a member point their milestone at another member's file. |
+| Who may read | One function, `decidePhotoAccess`, used by the route and tested at every level and viewer (see below). | A rule copied into the route, the strips and the admin page drifts. |
+| Staff | Staff who are not the member see a photo **only when the member ticked "Share my story"**, at any level. A staff member viewing as the member (sudo) is that member, as everywhere else. The admin list shows the picture only with the tick, and otherwise only that one exists. | Staff can already read the milestone rows (RLS), but the photo is more personal than the row, and the member was told the team may use what they chose to share. |
+| Caching | `private, no-store` unless a visitor could have the photo too; then `public, max-age=60, s-maxage=60`. Never `public` for a photo a visitor could not get, even when the viewer who triggered the response was a signed-in member. | A long `public` cache would keep serving a withdrawn globe photo; any `public` cache on a house photo would serve it to a visitor. |
+| Removal | A photo is deleted with its replacement, its removal, a take-back or a "not me", and a member's removal request deletes the rows (`member_data_handling`) and the whole folder in the bucket. | A leftover file is unreachable (the route needs a live, confirmed row) but is still personal data. |
+
+## Threats considered
+
+| Threat | Mitigation | Pinned by |
+|---|---|---|
+| Guessing or enumerating an address to see a lock or house photo | 128-bit random token; the route also checks the level, so a found token is no better than none; a malformed token is rejected before any query (the lookup uses a `LIKE`, so only hex of the right length ever reaches it) | `milestone-photo-serve-route.test.ts`, `milestone-photos.test.ts` |
+| A visitor sees a house photo, or a globe photo of a page that is off, or when the `writer_profiles` flag is off | `decidePhotoAccess` takes `webOn` (flag and the page being on, decided by the caller); a visitor never gets less than the page's own rule | same, and the contract test for `isOnForMember` |
+| A hidden photo is told apart from one that does not exist (existence oracle) | Same 404, same body and headers, no cache | `milestone-photo-serve-route.test.ts` |
+| A private photo in a shared cache, then served to someone else | Cache-Control as above; the "web" kind only when the visitor rule itself passes | `milestone-photos.test.ts` (a property over every level, viewer and flag), serve route test |
+| Someone lists, reads, signs or writes the bucket through the API with a member's session or no session | No storage policy; the bucket is private | `supabase/tests/database/milestone_photos.test.sql`, `tests/api/milestone-photos-storage.test.ts` (against the real storage service) |
+| A member points their photo at someone else's file, or names a path when adding a milestone | No column grant; INSERT guard; own-folder CHECK; the upload route stores in `<own member id>/` and acts only on the member's own live, confirmed milestone or live book | pgTAP, `milestone-photos-route.test.ts`, repository contract |
+| A member writes another member's description | RLS (own row) and the repository filter by member | pgTAP, contract |
+| A malicious upload: script in an SVG, an animation, a decompression bomb, a polyglot, a huge file | Size refused (declared and real) before decoding; type decided by sniffing, JPEG, PNG or WebP only; pixel cap (`MAX_PIXELS`) on decode; the output is a fresh re-encode, so nothing of the original survives; the bucket accepts only `image/webp`; served with `nosniff`, `Content-Disposition: inline`, `Content-Security-Policy: default-src 'none'; sandbox` | `milestone-photos-route.test.ts` |
+| Location and camera details leak (EXIF, GPS) | The re-encode drops all metadata; tested with a picture that carries a copyright, a description and a GPS tag | `milestone-photos-route.test.ts` |
+| The path or the description in the Activity Log | Both are redacted by the audit trigger; the log says only that a photo changed | pgTAP, `activity-feed.test.ts` |
+| A SECURITY DEFINER reader that returns a private row | The new readers (`member_works_pictured*`) filter by level before they return a row, so a private milestone is not returned whoever calls, an admin included; the member reader needs a signed-in session, the web reader is service role only; the shared body is callable by nobody | pgTAP (private never leaks, the grants, each caller) |
+| Staff browse photos members did not agree to share | Admin list shows the picture only with the tick; the route enforces the same; the admin read returns no token without it | contract test, `FinishersClient.test.tsx`, serve route test |
+| A taken-back or declined milestone, or a deleted book, still serves its photo | The route and the readers need a live, confirmed row (a live book); the file and the path are deleted with the take-back | contract, serve route, `milestone-photo-actions.test.ts` |
+| A staff member changes a photo while viewing as a member | 403 in the upload route, refused in the action; the database policy for the book photo description refuses it too | route and action tests, pgTAP |
+| The member's removal leaves their pictures | Rows are deleted by the removal catalog, and the whole folder by `removeMemberOnRequest` | `member-removal.test.ts`, pgTAP (catalog) |
+
+## Residual risks and what we accept
+
+- **A minute at the edge.** A globe photo that is withdrawn can still be served from a shared cache for up to `webCacheSeconds` (60). Accepted: the alternative is no CDN help for a page that is public by the member's choice. The number is one config value.
+- **The Published photo has no level of its own.** It is at the globe like the Published step itself (a Bookshelf book is public). The member is told so beside it. When a book gets a level, the readers and `photoByToken` are the one place to change, noted in `docs/TODO.md`. Staff cannot see this photo (it has no consent), which errs on the side of the member.
+- **A copy someone saves.** Anyone who may see a picture can save it; nothing here, or anywhere on the web, prevents that. The page says who can see it, not that it cannot be copied.
+- **Moderation.** Nothing looks at what a picture shows. A member can add any photo of their own to their own milestone; it reaches only the audience they chose, and the team sees it only with the consent. A report and takedown path is in `docs/TODO.md`.
+- **Orphan files.** A crash between storing a file and saving its row, or a failed delete, leaves an unreachable file. The code deletes what it stored when the save fails, and logs a failed delete; a sweep is not built (`docs/TODO.md`). A book removed from the Bookshelf keeps its photo file and row until the member is removed; neither is reachable.
+- **No malware scan.** The picture is decoded and re-encoded by libvips (sharp), which is the defense; the original is never stored or served.

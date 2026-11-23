@@ -14,7 +14,7 @@ let failWith: Error | null = null;
 
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async (request: NextRequest) =>
+  requireApiPermission: async (request: NextRequest) =>
     request.headers.get("authorization") === "Bearer cron"
       ? { user: { id: "cron" }, forbidden: false, supabase: {} }
       : request.headers.get("authorization") === "Bearer member"

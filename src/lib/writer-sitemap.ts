@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import type { Repos } from "@/lib/data/repos";
 import { ownersWithWriterProfiles } from "@/lib/writer-profiles-access";
-import { SITE_URL } from "@/lib/config";
+import { PUBLIC_PAGES_URL } from "@/lib/config";
 import { WRITER_PROFILE_PATH, writerProfileUrl } from "@/lib/writer-profile";
 
 /** The sitemap ids for this many public pages: at least one (an empty sitemap is valid), then one per page of `pageSize`. */
@@ -11,7 +11,7 @@ export function sitemapIds(count: number, pageSize: number): number[] {
 
 /** The address of one of the sitemap files, on the public site like the pages it lists. */
 export function sitemapUrl(id: number): string {
-  return `${SITE_URL}${WRITER_PROFILE_PATH}/sitemap/${id}.xml`;
+  return `${PUBLIC_PAGES_URL}${WRITER_PROFILE_PATH}/sitemap/${id}.xml`;
 }
 
 /**

@@ -14,7 +14,7 @@ import {
   type PrickleRow,
   type AttRow,
 } from "@/lib/community-stats"
-import { requireStaffPage } from "@/lib/admin-auth"
+import { requirePermission } from "@/lib/admin-auth"
 import { createRepos } from "@/lib/data/repos"
 import { statsAttendanceRow } from "@/lib/attendance-view"
 
@@ -84,7 +84,7 @@ export default async function CommunityStatsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  await requireStaffPage()
+  await requirePermission("analytics.community.read")
   const supabase = await createClient()
   const user = await getCurrentUser()
   if (!user) redirect("/login")

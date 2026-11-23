@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
-import { hideHubPreviewsRemovedInSlack, removedAttachmentAddresses } from "@/lib/chat/slack-side-unfurl-removal";
+import { hideHubPreviewsRemovedInSlack, removedAttachmentAddresses } from "@/modules/chat/slack/side-unfurl-removal";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { parseUnfurls } from "@/lib/chat/unfurls";
 

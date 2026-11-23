@@ -10,10 +10,13 @@ SELECT plan(8);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000bc0b1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'klc-member@example.test'),
   ('00000000-0000-4000-a000-0000000bc0b2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'klc-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-0000000bc0b1', 'klc-member@example.test', 'member'),
-  ('00000000-0000-4000-a000-0000000bc0b2', 'klc-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-0000000bc0b1', 'klc-member@example.test'),
+  ('00000000-0000-4000-a000-0000000bc0b2', 'klc-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-0000000bc0b2', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO bronze.kajabi_lesson_comments (course_kajabi_id, lesson_kajabi_id, comment_key, author_name, body)
 VALUES ('pgtap-course', '111', '1', 'Ada Example', 'Hello');

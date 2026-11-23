@@ -17,6 +17,7 @@ This is the first and so far only contribution point (page blocks). It is delibe
 | Live data plumbing (`PageDataLoader`, `resolveLiveBlocks`) and the server entry (`withLiveData`) | `src/lib/landing/live-data.ts`, `live-server.ts` | server only |
 | Composition root | `src/modules/index.ts` (blocks), `editor.ts` (fields), `server.ts` (data loaders) | one file per side |
 | The events module's contribution | `src/modules/events/page-blocks/` (`index.ts`, `blocks.tsx`, `editor.tsx`, `server.ts`, `live-*.ts`) | one file per side |
+| The bookshelf module's contribution (the Hedgie Bookshelf block: the books members show on the web) | `src/modules/bookshelf/page-blocks/` (`index.ts`, `blocks.tsx`, `BookGrid.tsx` (the one client part), `editor.tsx`, `server.ts`, `live-loader.ts`, `live-books.ts`) | one file per side |
 
 A contribution has up to three parts, because the three sides must not load each other's code: the **blocks** (a `PageBlockContribution`: definitions with components, safe for the server and the browser, so the public page ships no editor), the **editor fields** (a `PageBlockEditorContribution`, client only: the fields carry TipTap and the media picker) and the **data loaders** (`PageDataLoader`, server only: they read the database). The composition root lists each side's contributions in its own file.
 

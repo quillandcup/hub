@@ -11,9 +11,9 @@ SELECT ok(has_function_privilege('authenticated', 'public.search_member_aliases(
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000a1a51', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'alias-fern@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-0000000a1a51', 'alias-fern@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-0000000a1a51', 'alias-fern@example.test')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, display_name, email, joined_at, status, user_id) VALUES
   ('mbr_AAAAAAAa1A51', 'Alias Fern', NULL, 'alias-fern@example.test', now(), 'active', '00000000-0000-4000-a000-0000000a1a51'),
   ('mbr_AAAAAAAa1A52', 'Alias Gale', 'Gale Pen', 'alias-gale@example.test', now(), 'active', NULL);

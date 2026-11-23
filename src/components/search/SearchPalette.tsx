@@ -500,13 +500,14 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         onClick={() => openPalette("button")}
         data-track="search-open"
         className="sm:mr-auto flex h-10 min-w-0 max-sm:w-10 max-sm:flex-shrink-0 max-sm:justify-center max-sm:px-0 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
-        aria-label="Search pages, members, chat…"
         aria-keyshortcuts="Meta+K Control+K"
       >
         <SearchIcon className="h-4 w-4 flex-shrink-0" />
-        <span className="hidden sm:inline flex-1 truncate text-left">Search pages, members, chat…</span>
+        {/* The name comes from this text (on a phone it is only for screen readers), not from an aria-label: a label
+            has to contain every visible word (WCAG label-in-name), and the shortcut hint beside it is visible too. */}
+        <span className="max-sm:sr-only sm:flex-1 truncate text-left">Search pages, members, chat…</span>
         {/* The shortcut is announced by aria-keyshortcuts; the visible hint is aria-hidden, so it stays out of the
-            button's name (WCAG label-in-name). */}
+            button's name. */}
         <Kbd keys={["mod", "K"]} />
       </button>
 

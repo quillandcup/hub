@@ -13,11 +13,14 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000b7a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outc-alice@example.test'),
   ('00000000-0000-4000-a000-00000000b7a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outc-bob@example.test'),
   ('00000000-0000-4000-a000-00000000b7a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outc-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000b7a1', 'outc-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b7a2', 'outc-bob@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b7a3', 'outc-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000b7a1', 'outc-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000b7a2', 'outc-bob@example.test'),
+  ('00000000-0000-4000-a000-00000000b7a3', 'outc-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000b7a3', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Other tests' rows may share the DB, so every assertion looks only at this test's actions and kinds
 -- (they start with "tt_").

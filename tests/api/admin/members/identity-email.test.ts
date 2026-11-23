@@ -8,7 +8,7 @@ import { getTestSupabaseAdminClient } from "../../../helpers/supabase";
  * sticks: Kajabi is updated first and Bronze agrees, so a members reprocess
  * keeps the new email instead of putting the Kajabi one back.
  */
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: vi.fn() }));
 
 const updateContactMock = vi.fn();
 const fetchContactMock = vi.fn();
@@ -31,7 +31,7 @@ vi.mock("next/server", async (importOriginal) => {
 const sendEmailMock = vi.fn();
 vi.mock("@/lib/email", () => ({ sendEmail: (...args: unknown[]) => sendEmailMock(...args) }));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { PATCH } from "@/app/api/admin/members/[id]/route";
 import { POST as processMembers } from "@/app/api/process/members/route";
 
@@ -112,7 +112,7 @@ async function cleanup() {
 beforeEach(async () => {
   vi.clearAllMocks();
   afterCallbacks.length = 0;
-  vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase } as any);
+  vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase } as any);
   updateContactMock.mockResolvedValue({});
   fetchContactMock.mockImplementation(async (id: string) => kajabiContact(id, updateContactMock.mock.calls.at(-1)?.[1]?.email));
   await cleanup();

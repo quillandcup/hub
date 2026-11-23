@@ -79,7 +79,7 @@ function MemberRow({ member }: { member: ResubscribingMember }) {
               <span className="text-slate-500 dark:text-slate-400 text-xs">Cancelled</span> {formatDate(event.cancelledAt)}
               <span className="mx-2 text-slate-300 dark:text-slate-600">→</span>
               <span className="text-slate-500 dark:text-slate-400 text-xs">Rejoined</span>{" "}
-              <span className="text-green-600 dark:text-green-400 font-medium">{formatDate(event.resubscribedAt)}</span>
+              <span className="text-green-700 dark:text-green-400 font-medium">{formatDate(event.resubscribedAt)}</span>
               <GapBadge days={event.gapDays} />
             </div>
           ))}

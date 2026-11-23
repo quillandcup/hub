@@ -6,11 +6,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
-import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
+import { MEMBER_IDENTITY, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
+vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
+vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 
 const store = vi.hoisted(() => ({ repos: undefined as unknown as import("@/lib/data/repos").Repos }));
 vi.mock("@/lib/data/repos", async (importOriginal) => {
@@ -34,6 +37,7 @@ import BookshelfPage from "@/app/(member)/bookshelf/page";
 
 beforeEach(() => {
   resetServerPageMocks();
+  signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: "mbr_AAAAAAAAAAA2" });
 });
 
 describe("BookshelfPage", () => {
@@ -61,5 +65,43 @@ describe("BookshelfPage", () => {
       "Penned by A. Example",
       "Oldest by Ada E.",
     ]);
+  });
+
+  describe("a book's level", () => {
+    const seed = () =>
+      createInMemoryRepos(
+        new InMemoryDataset({
+          members: [
+            { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E." },
+            { id: "mbr_AAAAAAAAAAA2", name: "Bo Example" },
+          ],
+          memberBooks: [
+            { id: "book_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAA1", title: "Ada Private", published_date: "2026-01-01", cover_asset_id: null, visibility: "private" },
+            { id: "book_AAAAAAAAAAA2", member_id: "mbr_AAAAAAAAAAA1", title: "Ada House", published_date: "2026-02-01", cover_asset_id: null, visibility: "community" },
+            { id: "book_AAAAAAAAAAA3", member_id: "mbr_AAAAAAAAAAA2", title: "Bo Private", published_date: "2026-03-01", cover_asset_id: null, visibility: "private" },
+          ],
+        }),
+      );
+
+    it("keeps a private book off everyone else's shelf and on its owner's own", async () => {
+      store.repos = seed();
+      await renderServerPage(BookshelfPage, {});
+      expect(screen.getAllByTestId("book").map((li) => li.textContent)).toEqual(["Bo Private by Bo Example", "Ada House by Ada E."]);
+    });
+
+    it("shows the shelf of the member being acted as, so staff in sudo see that member's private books and not their own", async () => {
+      store.repos = seed();
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: "mbr_AAAAAAAAAAA1", isSudo: true });
+      await renderServerPage(BookshelfPage, {});
+      expect(screen.getAllByTestId("book").map((li) => li.textContent)).toEqual(["Ada House by Ada E.", "Ada Private by Ada E."]);
+    });
+
+    it("sends someone who is not signed in to the sign-in page, and an admin with no member record to the admin area", async () => {
+      store.repos = seed();
+      signInAs(null);
+      await expectRedirect(BookshelfPage, {}, "/login");
+      signInAs(MEMBER_USER, null);
+      await expectRedirect(BookshelfPage, {}, "/admin");
+    });
   });
 });

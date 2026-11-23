@@ -7,7 +7,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 // The admin event page lists attendees by display name, with the legal name beside it when it differs.
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 const repos = createInMemoryRepos(
   new InMemoryDataset({

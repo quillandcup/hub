@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireStaffAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import {
   CARE_ENDED_HOW_LABELS,
@@ -44,7 +44,7 @@ import { staffCan } from "@/lib/staff-access";
 
 /**
  * Server actions for the Hedgie Care page (docs/product/HEDGIE_CARE.md). Staff, not admin-only: the community manager writes
- * here, so each action starts with requireStaffAction() and then asks for the `care.write` feature (src/lib/staff-access.ts).
+ * here, so each action starts with requireActionPermission("care.write") and then asks for the `care.write` feature (src/lib/staff-access.ts).
  * They run as the signed-in user, so row-level security is the second check.
  */
 
@@ -435,8 +435,8 @@ async function deleteImpl(repos: Repos, id: string): Promise<CareActionResult> {
 
 /** Finds members by name or email for the "start an engagement" picker. Staff with the write feature only. */
 export async function searchCareMembers(query: string) {
-  const auth = await requireStaffAction();
-  if (!auth.ok || !staffCan(auth.role, "care.write")) return [];
+  const auth = await requireActionPermission("care.write");
+  if (!auth.ok || !staffCan(auth, "care.write")) return [];
   const words = String(query).trim().slice(0, 60).split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
   const found = await createRepos(auth.supabase).members.search({ words, limit: 10 });
@@ -445,9 +445,9 @@ export async function searchCareMembers(query: string) {
 
 /** Starts a care plan with a member. One open care plan per member. */
 export async function startEngagement(input: StartEngagementInput): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction(
     "care_engagement_started",
     async () => {
@@ -460,9 +460,9 @@ export async function startEngagement(input: StartEngagementInput): Promise<Care
 
 /** Changes the day an engagement started (a conversation entered after the fact). Today or earlier; the care plan's last day moves with it. */
 export async function changeEngagementStart(id: string, startedOn: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction(
     "care_start_date_changed",
     () => changeStartImpl(createRepos(auth.supabase), getServiceRepos(), auth.user.id, id, startedOn),
@@ -472,33 +472,33 @@ export async function changeEngagementStart(id: string, startedOn: string): Prom
 
 /** Logs that the member replied (`member`) or that she did (`staff`), just now. */
 export async function logCareMessage(id: string, direction: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_message_logged", () => logMessageImpl(createRepos(auth.supabase), id, direction), (r) => ({ ok: "success" in r }));
 }
 
 /** Changes an engagement's reason, notes, next step or follow-up day. */
 export async function updateEngagement(id: string, input: UpdateEngagementInput): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_engagement_updated", () => updateImpl(createRepos(auth.supabase), id, input), (r) => ({ ok: "success" in r }));
 }
 
 /** Closes an engagement with how it ended. */
 export async function closeEngagement(id: string, endedHow: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_engagement_closed", () => closeImpl(createRepos(auth.supabase), auth.user.id, id, endedHow), (r) => ({ ok: "success" in r }));
 }
 
 /** Renews an engagement: closes this period as renewed and opens the next, in one step. `reason` (what happens next) is required and becomes the new period's note. */
 export async function renewEngagement(id: string, reason: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_engagement_renewed", () => renewImpl(createRepos(auth.supabase), auth.user.id, id, reason), (r) => ({ ok: "success" in r }));
 }
 
@@ -507,41 +507,41 @@ export async function renewEngagement(id: string, reason: string): Promise<CareA
  * and the database refuses any other change of owner. By the owner, or an admin acting for them.
  */
 export async function proposeCareHandover(id: string, toUserId: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_handover_proposed", () => proposeImpl(createRepos(auth.supabase), auth.user.id, id, toUserId), (r) => ({ ok: "success" in r }));
 }
 
 /** The receiver accepts a hand-over: they own the care plan now, and their own DM with the member is read for it. */
 export async function acceptCareHandover(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_handover_accepted", () => acceptImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
 }
 
 /** The receiver declines a hand-over: the owner stays. */
 export async function declineCareHandover(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_handover_declined", () => declineImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
 /** Takes a pending hand-over back: whoever proposed it, the owner, or an admin. */
 export async function cancelCareHandover(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_handover_cancelled", () => cancelImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
 /** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. An admin taking it from an owner is `takeOverCarePlan`. */
 export async function claimCarePlan(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_plan_claimed", () => claimImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
 }
 
@@ -551,24 +551,24 @@ export async function claimCarePlan(id: string): Promise<CareActionResult> {
  * the member is not read any more and the admin's is. Admins only: a community manager needs the receiver's agreement.
  */
 export async function takeOverCarePlan(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.takeover");
   if (!auth.ok) return { error: auth.error };
-  if (auth.role !== "admin" || !staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_plan_taken_over", () => takeOverImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
 }
 
 /** The previous owner dismisses the notice that an admin took their care plan over. Only they can. */
 export async function dismissCareTakeoverNotice(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_takeover_notice_dismissed", () => dismissNoticeImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
 /** Who cared for this member before, when it is someone else: the start form says so (information, nothing changes hands). Staff with the write feature only. */
 export async function loadPreviousCareOwner(memberId: string): Promise<{ name: string | null }> {
-  const auth = await requireStaffAction();
-  if (!auth.ok || !staffCan(auth.role, "care.write")) return { name: null };
+  const auth = await requireActionPermission("care.write");
+  if (!auth.ok || !staffCan(auth, "care.write")) return { name: null };
   try {
     return await previousCarerOf(createRepos(auth.supabase), memberId, auth.user.id);
   } catch (error) {
@@ -579,17 +579,17 @@ export async function loadPreviousCareOwner(memberId: string): Promise<{ name: s
 
 /** Removes an engagement from the lists (kept in the database, hidden everywhere). */
 export async function deleteEngagement(id: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_engagement_deleted", () => deleteImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
 }
 
 /** An engagement's measured results (before, during, after), counted on request from the member's own activity. */
 export async function getEngagementResults(id: string): Promise<{ error: string } | { results: CareResults }> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.write");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   if (!isCareId(id)) return { error: MISSING };
   const repos = createRepos(auth.supabase);
   try {
@@ -605,15 +605,15 @@ export async function getEngagementResults(id: string): Promise<{ error: string 
 
 /**
  * The messages of a member's care plans, a page at a time (docs/product/HEDGIE_CARE.md, "Plan messages"): the full text of the DM(s) tracked for
- * the member's plans, sent inside the plans' windows, read with the service role. Staff only (`care.write`: admins and community
+ * the member's plans, sent inside the plans' windows, read with the service role. Staff only (`care.member_activity.read` and `care.write`: admins and community
  * managers, never an assistant). The read is put on record in the audit log with the reader's own client BEFORE anything is read, and
  * nothing is shown if it cannot be. Which conversations and messages is decided in `src/lib/care-messages.ts` from the database, never from
  * what is passed here (a member id and a cursor).
  */
 export async function getCareMessages(memberId: string, before?: string | null): Promise<{ error: string } | { page: CareMessagesPage }> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.member_activity.read");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   if (!isId(memberId, "mbr")) return { error: "That member isn't available." };
   try {
     if (!(await createRepos(auth.supabase).care.logMessagesRead(memberId))) return { error: NOT_AUTHORIZED };
@@ -649,9 +649,9 @@ export type PlanActivityPage = {
  * used). A plan's window is its own, so an earlier plan lists its own stretch. Never any text of a message.
  */
 export async function loadCarePlanActivity(id: string, page = 1): Promise<{ error: string } | PlanActivityPage> {
-  const auth = await requireStaffAction();
+  const auth = await requireActionPermission("care.member_activity.read");
   if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!staffCan(auth, "care.write")) return { error: NOT_AUTHORIZED };
   if (!isCareId(id)) return { error: MISSING };
   const repos = createRepos(auth.supabase);
   try {

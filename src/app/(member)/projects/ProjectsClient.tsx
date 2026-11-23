@@ -12,15 +12,22 @@ import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
 import { MEASURE_LABELS, PHASE_LABELS, isMissedGoal } from "@/lib/writing-projects";
 import { reorderMyProjects, type WritingProjectRow } from "./actions";
+import { MilestoneSummary, OtherWorks, ProjectMilestonesToggle, type MilestoneWebState } from "@/components/writing/Milestones";
+import { otherWorks, workOfProject, type Work } from "@/lib/finishers-works";
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
   pastProjects?: WritingProjectRow[];
+  /** Every work of the member (docs/product/FINISHERS.md): a project's own milestones sit on its card, the rest under "Other works". */
+  works?: Work[];
+  web?: MilestoneWebState;
+  /** Viewing as the member (sudo): milestones can be looked at, not changed. */
+  readOnly?: boolean;
 }
 
 const REORDER_FAILED = "Couldn't save the new order. Please try again.";
 
-export default function ProjectsClient({ initialProjects, pastProjects = [] }: ProjectsClientProps) {
+export default function ProjectsClient({ initialProjects, pastProjects = [], works = [], web = { available: false, on: false }, readOnly = false }: ProjectsClientProps) {
   const router = useRouter();
   const [showNewProject, setShowNewProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -33,6 +40,9 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
     REORDER_FAILED,
     () => router.refresh()
   );
+
+  const others = otherWorks(works, new Set(initialProjects.map((p) => p.id)));
+  const waiting = works.some((w) => Object.values(w.milestones).some((m) => m.status === "proposed"));
 
   function handleChanged() {
     // Re-render the page's server data in place. Not window.location.reload(): that cancels the server action's
@@ -73,6 +83,10 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
         <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />
       </div>
       <PastProjects projects={pastProjects} />
+      <div className="max-w-3xl mx-auto mt-6 space-y-4">
+        <MilestoneSummary works={works} waiting={waiting} />
+        <OtherWorks works={others} readOnly={readOnly} web={web} />
+      </div>
       </>
     );
   }
@@ -98,6 +112,8 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
           New project
         </button>
       </div>
+
+      <MilestoneSummary works={works} waiting={waiting} />
 
       {orderError && (
         <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
@@ -194,6 +210,11 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                 ))}
               </div>
             )}
+
+            {(() => {
+              const work = workOfProject(works, project.id);
+              return work ? <ProjectMilestonesToggle work={work} readOnly={readOnly} web={web} /> : null;
+            })()}
             </>
             )}
           </SortableRow>
@@ -202,6 +223,8 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
       </SortableList>
 
       <PastProjects projects={pastProjects} />
+
+      <OtherWorks works={others} readOnly={readOnly} web={web} />
 
       <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
       <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />

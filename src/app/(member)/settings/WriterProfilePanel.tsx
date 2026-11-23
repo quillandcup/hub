@@ -169,7 +169,7 @@ export function WriterProfilePanel({
       {(error || message) && (
         <div role="status" className="text-sm">
           {error && <span className="text-red-600 dark:text-red-400">{error}</span>}
-          {!error && message && <span className="text-green-600 dark:text-green-400">{message}</span>}
+          {!error && message && <span className="text-green-700 dark:text-green-400">{message}</span>}
         </div>
       )}
 

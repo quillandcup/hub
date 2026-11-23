@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../config/app";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, reportOnlyCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, enforcedCsp, generateNonce, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -101,9 +101,11 @@ describe("next.config redirects", () => {
   });
 });
 
-describe("scriptStyleCsp", () => {
+describe("enforcedCsp", () => {
   const nonce = generateNonce();
-  const policy = scriptStyleCsp({ nonce, sentryDsn: DSN });
+  const inputs = { supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts, sentryDsn: DSN };
+  const policy = enforcedCsp({ ...inputs, nonce });
+  const directive = (name: string, p = policy) => p.split("; ").find((d) => d.startsWith(`${name} `));
 
   it("allows scripts and styles only from us or with the nonce", () => {
     expect(policy).toContain(`script-src 'nonce-${nonce}' 'strict-dynamic'`);
@@ -114,22 +116,24 @@ describe("scriptStyleCsp", () => {
 
   it("trusts scripts through the nonce alone: no 'self', host or scheme source in script-src", () => {
     // 'strict-dynamic' makes browsers ignore those anyway (MDN), so they would only add noise to the policy.
-    const scriptSrc = policy.split("; ").find((d) => d.startsWith("script-src "))!;
-    expect(scriptSrc.split(" ").slice(1)).toEqual([`'nonce-${nonce}'`, "'strict-dynamic'"]);
+    expect(directive("script-src")!.split(" ").slice(1)).toEqual([`'nonce-${nonce}'`, "'strict-dynamic'"]);
   });
 
   it("only adds 'unsafe-eval' to script-src in development", () => {
-    const dev = scriptStyleCsp({ nonce, sentryDsn: DSN, dev: true }).split("; ").find((d) => d.startsWith("script-src "))!;
-    expect(dev).toBe(`script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`);
+    expect(directive("script-src", enforcedCsp({ ...inputs, nonce, dev: true }))).toBe(`script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`);
   });
 
-  it("allows eval only in development", () => {
-    expect(scriptStyleCsp({ nonce, dev: true })).toContain("'unsafe-eval'");
+  it("carries every picture, plugin, base, form and framing directive of the policy the proxy-skipped paths get", () => {
+    for (const d of buildCsp({ ...inputs, sentryDsn: undefined }).split("; ")) expect(policy.split("; ")).toContain(d);
   });
 
-  it("reports to Sentry when there is a DSN", () => {
-    expect(policy).toContain("report-uri ");
-    expect(scriptStyleCsp({ nonce })).not.toContain("report-uri");
+  it("also enforces connection, frame, media and font sources", () => {
+    for (const name of ["connect-src", "frame-src", "media-src", "font-src"]) expect(directive(name)).toBeDefined();
+  });
+
+  it("reports to Sentry once when there is a DSN, and not otherwise", () => {
+    expect(policy.match(/report-uri/g)).toHaveLength(1);
+    expect(enforcedCsp({ imageHosts: [], nonce })).not.toContain("report-uri");
   });
 
   it("makes a new nonce each time, in a form Next accepts", () => {
@@ -138,25 +142,9 @@ describe("scriptStyleCsp", () => {
   });
 });
 
-describe("buildMetaCsp", () => {
-  const meta = buildMetaCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts, sentryDsn: DSN });
-
-  it("keeps the picture, plugin, base and form directives", () => {
-    for (const part of ["img-src ", "object-src 'none'", "base-uri 'none'", "form-action 'self'"]) expect(meta).toContain(part);
-    expect(meta).toContain("https://project.supabase.co");
-  });
-
-  it("leaves out what a meta tag cannot carry", () => {
-    expect(meta).not.toContain("frame-ancestors");
-    expect(meta).not.toContain("report-uri");
-    expect(meta).not.toMatch(/script-src/);
-  });
-});
-
-describe("reportOnlyCsp", () => {
-  const nonce = generateNonce();
-  const policy = reportOnlyCsp({
-    nonce,
+describe("enforcedCsp: connection, frame, media and font sources", () => {
+  const policy = enforcedCsp({
+    nonce: generateNonce(),
     supabaseUrl: "https://project.supabase.co/",
     imageHosts: appConfig.csp.imageHosts,
     connectHosts: appConfig.csp.connectHosts,
@@ -165,16 +153,6 @@ describe("reportOnlyCsp", () => {
     sentryDsn: DSN,
   });
   const directive = (name: string) => policy.split("; ").find((d) => d.startsWith(`${name} `));
-
-  it("carries the script and style policy with the nonce", () => {
-    expect(directive("script-src")).toContain(`'nonce-${nonce}'`);
-    expect(directive("style-src")).toContain(`'nonce-${nonce}'`);
-  });
-
-  it("repeats the enforced picture, plugin, base, form and framing directives so their violations are reported", () => {
-    const enforced = buildCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts }).split("; ");
-    for (const d of enforced) expect(policy.split("; ")).toContain(d);
-  });
 
   it("adds connection, frame, media and font sources from the config, with Supabase's websocket and Sentry's host", () => {
     expect(directive("connect-src")).toContain("wss://project.supabase.co");
@@ -213,7 +191,8 @@ describe("reportOnlyCsp", () => {
     expect(allows(appConfig.csp.imageHosts, "https://region1.google-analytics.com/g/collect?v=2")).toBe(true);
     expect(allows(appConfig.csp.imageHosts, "https://www.google-analytics.com/g/collect?v=2")).toBe(true);
     expect(allows(appConfig.csp.imageHosts, "https://google-analytics.com.evil.example/x.gif")).toBe(false);
-    expect(directive("img-src")).toContain("https://*.google-analytics.com");
+    const enforced = enforcedCsp({ imageHosts: appConfig.csp.imageHosts, nonce: generateNonce() });
+    expect(enforced.split("; ").find((d) => d.startsWith("img-src "))).toContain("https://*.google-analytics.com");
   });
 
   it("lets video load Mux stills as media", () => {
@@ -238,7 +217,7 @@ describe("reportOnlyCsp", () => {
   });
 
   it("works with no hosts and no Supabase or Sentry settings", () => {
-    const bare = reportOnlyCsp({ nonce, imageHosts: [] });
+    const bare = enforcedCsp({ imageHosts: [], nonce: generateNonce() });
     expect(bare).toContain("connect-src 'self'");
     expect(bare).not.toContain("report-uri");
   });

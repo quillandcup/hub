@@ -74,7 +74,6 @@ export interface IssuedSlackSignIn {
 interface ProfileRow {
   id: string;
   email: string | null;
-  role: string | null;
 }
 
 function sha256(value: string): string {
@@ -106,7 +105,7 @@ async function fetchSlackEmail(slackUserId: string): Promise<string | null> {
 
 async function findProfileById(service: SupabaseClient, userId: string): Promise<ProfileRow | null> {
   const profile = await createRepos(service).profiles.byId(userId).catch(() => null);
-  return profile ? { id: profile.id, email: profile.email, role: profile.role } : null;
+  return profile ? { id: profile.id, email: profile.email } : null;
 }
 
 /**
@@ -134,7 +133,7 @@ async function findProfileForSlackEmail(
   };
 
   const direct = await lookup("user_profiles", () => repos.profiles.uniqueByEmail(email));
-  if (direct) return { profile: { id: direct.id, email: direct.email, role: direct.role }, via: "email_match" };
+  if (direct) return { profile: { id: direct.id, email: direct.email }, via: "email_match" };
 
   const memberUserId = await lookup("members", async () => {
     const hits = await repos.members.search({ emailEquals: email, limit: 2 });
@@ -172,7 +171,7 @@ async function adminOptedIn(service: SupabaseClient, userId: string): Promise<bo
 
 async function toResolution(service: SupabaseClient, profile: ProfileRow | null): Promise<SlackSignInResolution> {
   if (!profile?.email) return { status: "no_account" };
-  if (profile.role === "admin") {
+  if (await createRepos(service).profiles.isAdmin(profile.id)) {
     if (!(await adminOptedIn(service, profile.id))) return { status: "admin" };
     return { status: "ok", userId: profile.id, email: profile.email, admin: true };
   }

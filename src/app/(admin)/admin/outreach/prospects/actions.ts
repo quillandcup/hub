@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction, type AdminActionAuth } from "@/lib/admin-auth";
+import { requireActionPermission, type ActionAuth } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
 import { PROSPECT_STATUSES, isProspectId, type ProspectStatus } from "@/lib/data/prospects";
@@ -14,7 +14,7 @@ const MAX_REASON_LENGTH = 200;
 
 export type ImportResult = { error: string } | { summary: ImportSummary };
 
-type Auth = Extract<AdminActionAuth, { ok: true }>;
+type Auth = Extract<ActionAuth, { ok: true }>;
 
 async function importProspectsImpl(auth: Auth, text: string): Promise<ImportResult> {
   if (!text.trim()) return { error: "Paste at least one handle or profile link." };
@@ -44,19 +44,19 @@ async function searchForProspectsImpl(auth: Auth): Promise<{ error: string } | {
 
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 export async function importProspects(text: string): Promise<ImportResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("outreach.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("prospects_imported", () => importProspectsImpl(auth, text));
 }
 
 export async function reviewProspect(id: string, status: string, rejectReason?: string): Promise<{ error: string } | { ok: true }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("outreach.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("prospect_reviewed", () => reviewProspectImpl(auth, id, status, rejectReason));
 }
 
 export async function searchForProspects(): Promise<{ error: string } | { summaries: SourceRunSummary[] }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("outreach.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("prospects_searched", () => searchForProspectsImpl(auth));
 }

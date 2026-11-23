@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { createHmac } from "crypto";
 import { InMemoryDataset } from "@/lib/data/in-memory";
-import { hubMessageMetadata } from "@/lib/chat/slack-post";
+import { hubMessageMetadata } from "@/modules/chat/slack/post";
 
 /**
- * The webhook's wiring of src/lib/chat/slack-side-unfurl-removal.ts: the author of a message written in the Hub removes Slack's link preview
+ * The webhook's wiring of src/modules/chat/slack/side-unfurl-removal.ts: the author of a message written in the Hub removes Slack's link preview
  * inside Slack, Slack sends the message again with an attachment fewer, and the Hub hides its own preview of that link (the same mark as
  * its X). Runs over the in-memory repositories; the function itself is covered in chat-slack-side-unfurl-removal.test.ts.
  */
@@ -16,7 +16,7 @@ vi.mock("next/server", async (importOriginal) => {
 });
 vi.mock("@/lib/slack-activity-projection", () => ({ projectSlackActivity: vi.fn(async () => ({ messages: 0, reactions: 0 })) }));
 vi.mock("@/lib/chat-projection", () => ({ projectChatMessage: vi.fn(async () => false) }));
-vi.mock("@/lib/chat/gap-fill", () => ({ fillMessageGap: vi.fn(), fillThreadIfRootMissing: vi.fn() }));
+vi.mock("@/modules/chat/slack/gap-fill", () => ({ fillMessageGap: vi.fn(), fillThreadIfRootMissing: vi.fn() }));
 vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessageBySlackTs: vi.fn() }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 

@@ -16,7 +16,21 @@ vi.mock("@/lib/sudo", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
+
+const recorded = vi.hoisted(() => [] as Array<{ action: string; outcome: unknown }>);
+vi.mock("@/lib/analytics/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/analytics/server")>();
+  return {
+    ...actual,
+    withAction: async (action: string, run: () => Promise<unknown>, classify: (r: unknown) => unknown = actual.actionOutcome) => {
+      const result = await run();
+      recorded.push({ action, outcome: classify(result) });
+      return result;
+    },
+  };
+});
 
 const store = vi.hoisted(() => ({ repos: undefined as unknown as import("@/lib/data/repos").Repos }));
 vi.mock("@/lib/data/repos", async (importOriginal) => {
@@ -43,10 +57,10 @@ vi.mock("@/lib/slack", () => ({
   celebrateNewBook: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { getMyBooks, getMyPenNameOptions, addBook, updateBook, deleteBook, type BookInput } from "@/app/(member)/bookshelf/actions";
+import { getMyBooks, getMyPenNameOptions, addBook, updateBook, deleteBook, setBookVisibility, type BookInput } from "@/app/(member)/bookshelf/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { celebrateNewBook } from "@/lib/slack";
 import { getPenNameOptions } from "@/lib/book-pen-name";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
@@ -91,6 +105,7 @@ const book = (id: string) => data.memberBooks.find((b) => b.id === id);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  recorded.length = 0;
   data = new InMemoryDataset({
     members: [
       { id: "member-1", name: "Member One" },
@@ -153,6 +168,8 @@ describe("getMyBooks", () => {
         penName: null,
         projectId: "project-1",
         coverAsset: null,
+        visibility: "public",
+        webAuthor: null,
       },
     ]);
   });
@@ -405,5 +422,108 @@ describe("library covers", () => {
 
     expect(await updateBook("book-1", VALID_INPUT)).toEqual({ error: "Book not found" });
     expect(releaseReplacedCover).not.toHaveBeenCalled();
+  });
+});
+
+describe("setBookVisibility", () => {
+  it("saves the level on the member's own book, revalidates what shows it, drops the public cache, and records the level", async () => {
+    shelve();
+    expect(await setBookVisibility("book-1", "private")).toEqual({ success: true });
+    expect(book("book-1")?.visibility).toBe("private");
+    expect(await setBookVisibility("book-1", "community")).toEqual({ success: true });
+    expect(book("book-1")?.visibility).toBe("community");
+    expect(await setBookVisibility("book-1", "public")).toEqual({ success: true });
+    expect(book("book-1")?.visibility).toBe("public");
+    expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
+    expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
+    expect(revalidateTag).toHaveBeenCalledWith("landing-live", { expire: 0 });
+    expect(recorded).toEqual([
+      { action: "book_visibility_set", outcome: { ok: true, detail: "private" } },
+      { action: "book_visibility_set", outcome: { ok: true, detail: "community" } },
+      { action: "book_visibility_set", outcome: { ok: true, detail: "public" } },
+    ]);
+  });
+
+  it("changes nothing else about the book, and writes nothing when the level is already that one", async () => {
+    shelve({ title: "Keep Me", description: "Words.", pen_name: "A. Pen" });
+    const before = JSON.stringify(book("book-1"));
+    expect(await setBookVisibility("book-1", "public")).toEqual({ success: true });
+    expect(JSON.stringify(book("book-1"))).toBe(before);
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(revalidateTag).not.toHaveBeenCalled();
+    await setBookVisibility("book-1", "private");
+    expect(book("book-1")).toMatchObject({ title: "Keep Me", description: "Words.", pen_name: "A. Pen", visibility: "private" });
+  });
+
+  it("refuses a level that is not private, community or public", async () => {
+    shelve();
+    expect(await setBookVisibility("book-1", "everyone")).toEqual({ error: "That choice is not available." });
+    expect(await setBookVisibility("book-1", "")).toEqual({ error: "That choice is not available." });
+    expect(book("book-1")?.visibility ?? "public").toBe("public");
+    expect(recorded.at(-1)).toEqual({ action: "book_visibility_set", outcome: { ok: false, detail: undefined } });
+  });
+
+  it("refuses a book that is not the member's own, or is gone, or does not exist, and writes nothing", async () => {
+    shelve({ id: "book-theirs", member_id: "member-2" });
+    shelve({ id: "book-gone", deleted_at: "2026-04-01T00:00:00Z" });
+    for (const id of ["book-theirs", "book-gone", "book-nope", ""]) {
+      expect(await setBookVisibility(id, "private")).toEqual({ error: "Book not found" });
+    }
+    expect(book("book-theirs")?.visibility ?? "public").toBe("public");
+    expect(book("book-gone")?.visibility ?? "public").toBe("public");
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("is refused in sudo: staff acting as the member can look but not choose what the member shows the web", async () => {
+    shelve({ member_id: "sudo-target-member" });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(SUDO_IDENTITY);
+    expect(await setBookVisibility("book-1", "private")).toEqual({ error: "Only the member can change who sees their book." });
+    expect(book("book-1")?.visibility ?? "public").toBe("public");
+  });
+
+  it("rejects when nobody is signed in or there is no member record", async () => {
+    shelve();
+    signedOut();
+    expect(await setBookVisibility("book-1", "private")).toEqual({ error: "Not authenticated" });
+    supabase.auth.getClaims = vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect(await setBookVisibility("book-1", "private")).toEqual({ error: "No member record" });
+  });
+
+  it("says it could not save, without the database's words, when the write fails", async () => {
+    shelve();
+    vi.spyOn(store.repos.books, "update").mockRejectedValue(new Error("connection reset by peer"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await setBookVisibility("book-1", "private")).toEqual({ error: "We couldn't save that. Please try again in a moment." });
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("reports a book removed between the read and the write as not found", async () => {
+    shelve();
+    vi.spyOn(store.repos.books, "update").mockResolvedValue(false);
+    expect(await setBookVisibility("book-1", "private")).toEqual({ error: "Book not found" });
+  });
+});
+
+describe("a book removed or edited reaches the public Bookshelf at once", () => {
+  it("drops the cached public books after an edit, a removal and an addition", async () => {
+    shelve();
+    await updateBook("book-1", VALID_INPUT);
+    await deleteBook("book-1");
+    await addBook(VALID_INPUT);
+    expect(vi.mocked(revalidateTag).mock.calls.filter(([tag]) => tag === "landing-live")).toHaveLength(3);
+  });
+});
+
+describe("getMyBooks: the name a book has on the web", () => {
+  it("is the book's pen name, else the member's display name, else null (never the account name)", async () => {
+    data.members.find((m) => m.id === "member-1")!.displayName = "Ada Display";
+    shelve({ id: "a", pen_name: "A. Pen" });
+    shelve({ id: "b" });
+    expect((await getMyBooks()).map((b) => [b.id, b.webAuthor]).sort()).toEqual([["a", "A. Pen"], ["b", "Ada Display"]]);
+    data.members.find((m) => m.id === "member-1")!.displayName = null;
+    expect((await getMyBooks()).map((b) => [b.id, b.webAuthor]).sort()).toEqual([["a", "A. Pen"], ["b", null]]);
   });
 });

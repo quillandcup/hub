@@ -24,7 +24,7 @@ const supabase = {
 };
 let auth: { user: { id: string } | null; forbidden?: boolean; supabase: typeof supabase } = { user: { id: "admin" }, supabase };
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => auth,
+  requireApiPermission: async () => auth,
   createApiAuth: async () => auth,
 }));
 

@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/members/merge/route";
 
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: vi.fn() }));
 // The two members come from the members repository, in memory; the writes go to the fake client below.
 let members: { id: string; name: string; email: string; kajabiId: string | null; stripeCustomerId: string | null; userId: string | null }[] = [];
 vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => members)));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 type Call = { table: string; op: string; payload?: unknown; filters: [string, string, unknown][] };
 
@@ -39,7 +39,7 @@ describe("POST /api/admin/members/merge -- external ids", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as never, forbidden: false, supabase: mock as never });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as never, forbidden: false, supabase: mock as never });
   });
 
   it("gives the primary the Kajabi, Stripe and account ids it was missing from the secondary", async () => {

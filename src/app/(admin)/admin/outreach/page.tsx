@@ -9,7 +9,8 @@ import Link from "next/link";
 import OutreachTable, { type OutreachLead, type LeadStatus } from "./OutreachTable";
 import { createRepos } from "@/lib/data/repos";
 import { etDate } from "@/lib/community-stats";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
+import { can } from "@/lib/permissions";
 
 export const metadata: Metadata = {
   title: "Outreach",
@@ -23,7 +24,7 @@ const IDEAL_HEDGIE_TAG = "Ideal Hedgie";
 const OUTREACH_STATUSES = ["lead", "cancelled"];
 
 export default async function OutreachPage() {
-  await requireAdminPage();
+  const staff = await requirePermission("outreach.manage");
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -67,7 +68,7 @@ export default async function OutreachPage() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4 relative">
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="outreach_lead" label="outreach leads" />
+            {can(staff, "member.record_history") && <RecordHistoryButton entityType="outreach_lead" label="outreach leads" />}
           </div>
           <Link href="/admin" className="text-plum-600 dark:text-plum-400 hover:underline mb-2 inline-block">
             ← Back to Dashboard

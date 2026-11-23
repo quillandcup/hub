@@ -3,7 +3,7 @@
  * that member, sent inside the windows of the member's care plans, shown in Hedgie Care to admins and community managers.
  *
  * What makes this safe to read with the service role (Slack content is service role only):
- * - **Who asks is checked first**, by the caller (`requireStaffAction()` and `staffCan(role, "care.write")`), which also puts the read on
+ * - **Who asks is checked first**, by the caller (`requireActionPermission("care.member_activity.read")` and `staffCan(role, "care.write")`), which also puts the read on
  *   record (`CareRepository.logMessagesRead`) before anything is read. This file never decides who may read.
  * - **Which conversations** comes from the database, never from the request: the live `care_tracked_dms` with THIS member. Since tracking
  *   exists only because a care plan does (made when a plan is started, a hand-over accepted or an ownerless plan claimed, and by the

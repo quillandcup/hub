@@ -1,5 +1,6 @@
 import type { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { CHAT_FILES_BUCKET, MAX_CHAT_FILE_BYTES } from "@/lib/chat/file-limits";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import type { SlackFile, SlackFileChange } from "@/lib/data/slack-messages";
@@ -395,9 +396,9 @@ export async function applySlackEmojiEvent(
 // Files
 // ---------------------------------------------------------------------------
 
-export const SLACK_FILES_BUCKET = "slack-files";
+export const SLACK_FILES_BUCKET = CHAT_FILES_BUCKET;
 /** Larger files stay in Slack only: the function holds each file in memory. */
-export const MAX_SLACK_FILE_BYTES = 20 * 1024 * 1024;
+export const MAX_SLACK_FILE_BYTES = MAX_CHAT_FILE_BYTES;
 
 export interface SlackFileRow {
   file_id: string;

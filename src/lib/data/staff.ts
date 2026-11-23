@@ -20,15 +20,15 @@ export interface StaffRepository {
   linkMembers(links: StaffMemberLink[]): Promise<void>;
   /**
    * The ids of the members who are staff: THE definition, used wherever the question is asked (Hedgie Care leaves them out of
-   * the DMs it offers). A member linked in the `staff` roster, or the member behind an admin, assistant or community manager
-   * account (`user_profiles.role`). Who may READ something is a separate question, decided by role where it is asked. Service role in the database (the function behind it, `staff_member_ids`, refuses a
+   * the DMs it offers). A member linked in the `staff` roster, or the member behind an admin, assistant, community manager or conversion specialist
+   * account (`user_roles`). Who may READ something is a separate question, decided by role where it is asked. Service role in the database (the function behind it, `staff_member_ids`, refuses a
    * signed-in user); the staff list is a handful of people, so it is read in one call.
    */
   memberIds(): Promise<Set<string>>;
 }
 
 /** The roles of the accounts whose members are staff: the in-memory twin's copy of `staff_member_ids()`; the contract suite keeps them equal. */
-const STAFF_ACCOUNT_ROLES = ["admin", "assistant", "community_manager"];
+const STAFF_ACCOUNT_ROLES = ["admin", "assistant", "community_manager", "conversion_specialist"];
 
 const byNameThenId = (a: StaffRow, b: StaffRow) => compareText(a.name, b.name) || compareText(a.id, b.id);
 
@@ -75,9 +75,9 @@ export class InMemoryStaffRepository implements StaffRepository {
 }
 
 /** The staff members of a dataset (the twin of `staff_member_ids()`), for the twins that need to ask the same question. */
-export function staffMemberIdsOf(data: Pick<InMemoryDataset, "staff" | "userProfiles" | "members">): Set<string> {
+export function staffMemberIdsOf(data: Pick<InMemoryDataset, "staff" | "userProfiles" | "members"> & Partial<Pick<InMemoryDataset, "userRoles">>): Set<string> {
   const ids = new Set(data.staff.map((s) => s.member_id).filter((id): id is string => !!id));
-  const staffAccounts = new Set(data.userProfiles.filter((p) => STAFF_ACCOUNT_ROLES.includes(p.role ?? "member")).map((p) => p.id));
+  const staffAccounts = new Set([...data.userProfiles.filter((p) => STAFF_ACCOUNT_ROLES.includes(p.role ?? "member")).map((p) => p.id), ...(data.userRoles ?? []).filter((r) => STAFF_ACCOUNT_ROLES.includes(r.role)).map((r) => r.user_id)]);
   for (const m of data.members) if (m.userId && staffAccounts.has(m.userId)) ids.add(m.id);
   return ids;
 }

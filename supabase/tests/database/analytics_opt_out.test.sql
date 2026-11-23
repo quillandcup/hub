@@ -12,10 +12,10 @@ SELECT plan(4);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'optout-alice@example.test'),
   ('00000000-0000-4000-a000-00000000e1a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'optout-bob@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e1a1', 'optout-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e1a2', 'optout-bob@example.test', 'member')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, analytics_opt_out_at = NULL;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e1a1', 'optout-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000e1a2', 'optout-bob@example.test')
+ON CONFLICT (id) DO NOTHING;
 
 CREATE TEMP TABLE result(label text, value jsonb) ON COMMIT DROP;
 GRANT INSERT ON result TO authenticated;

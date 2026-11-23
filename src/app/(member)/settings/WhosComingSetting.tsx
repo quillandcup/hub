@@ -63,7 +63,7 @@ export function WhosComingSetting() {
         </span>
       </label>
       {status && (
-        <p role="status" className={`mt-1 ml-6 text-xs ${status.error ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+        <p role="status" className={`mt-1 ml-6 text-xs ${status.error ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>
           {status.text}
         </p>
       )}

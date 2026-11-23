@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderServerPage } from "@/tests/helpers/server-page";
 const admin = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: admin }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: admin }));
 vi.mock("@/app/(admin)/admin/mentorship/MentorshipPage", () => ({ default: ({ tab, prefill }: { tab: string; prefill?: { newMemberId?: string } }) => <div data-testid="panel" data-tab={tab} data-member={prefill?.newMemberId} /> }));
 import MatchesPage from "@/app/(admin)/admin/mentorship/page";
 import VolunteersPage from "@/app/(admin)/admin/mentorship/volunteers/page";

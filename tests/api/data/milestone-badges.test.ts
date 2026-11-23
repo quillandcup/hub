@@ -85,7 +85,7 @@ describe("Finisher and Author badges (local database)", () => {
     const levels = (await repos.badges.levels()).filter((l) => l.badge_type_id === type.id) as BadgeLevel[];
     const recipients = await getBadgeRecipients(repos, type, levels);
     expect(recipients.find((r) => r.memberId === memberId)).toMatchObject({ occurrences: 3, levelName: "3x Finisher" });
-    expect(recipients.find((r) => r.memberId === otherId)).toMatchObject({ occurrences: 1_001, levelName: "10x Finisher" });
+    expect(recipients.find((r) => r.memberId === otherId)).toMatchObject({ occurrences: 1_001, levelName: "1001x Finisher", level: 1_001 });
     expect(await repos.milestones.allShownToMembers().then((all) => all.filter((m) => m.memberId === otherId).length)).toBe(1_001);
   }, 120_000);
 });

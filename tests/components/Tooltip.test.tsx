@@ -47,6 +47,12 @@ const hover = (el: Element, pointerType = "mouse") => fireEvent.pointerEnter(el,
 const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
 
 describe("Tooltip", () => {
+  it("shows a child that is not an element (a lazy reference from the server) as it is, instead of failing the page", () => {
+    const lazyChild = { $$typeof: Symbol.for("react.lazy"), _payload: { status: "fulfilled", value: <span>from the server</span> }, _init: (p: { value: unknown }) => p.value };
+    render(<Tooltip content="A name">{lazyChild as never}</Tooltip>);
+    expect(screen.getByText("from the server")).toBeInTheDocument();
+  });
+
   it("renders nothing until it is shown, and adds no element around the control", () => {
     const { container } = render(
       <Tooltip content="Pin to my dashboard">

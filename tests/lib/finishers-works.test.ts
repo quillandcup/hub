@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, isFeaturedWork, isPastDrafting, parseWork, summarizeTitles, workKey } from "@/lib/finishers-works";
-import { PROJECT_PHASES } from "@/lib/writing-projects";
+import { MAX_WORK_TITLE_LENGTH, buildWorks, groupShownWorks, stepsCountedWhileMember, otherWorks, workOfProject, parseWork, summarizeWorks, workKey } from "@/lib/finishers-works";
 import type { Milestone, ShownWorkStep } from "@/lib/data/milestones";
 
 const row = (overrides: Partial<Milestone> = {}): Milestone => ({
@@ -13,10 +12,12 @@ const row = (overrides: Partial<Milestone> = {}): Milestone => ({
   status: "confirmed",
   source: "member",
   achievedOn: null,
+  achievedPrecision: "day",
   storyBefore: null,
   storyAfter: null,
   visibility: "community",
   consentTestimonial: false,
+  photo: null,
   confirmedAt: "2026-11-20T12:00:00Z",
   createdAt: "2026-11-20T12:00:00Z",
   ...overrides,
@@ -41,17 +42,6 @@ describe("parseWork", () => {
     expect(parseWork({ title: " " })).toHaveProperty("error");
     expect(parseWork({ title: "x".repeat(MAX_WORK_TITLE_LENGTH) })).toMatchObject({ title: "x".repeat(MAX_WORK_TITLE_LENGTH) });
     expect(parseWork({ title: "x".repeat(MAX_WORK_TITLE_LENGTH + 1) })).toHaveProperty("error");
-  });
-});
-
-describe("isPastDrafting", () => {
-  it("is true from the first read-through on, false before, and for hibernating or no phase", () => {
-    const drafting = PROJECT_PHASES.indexOf("drafting");
-    for (const [i, phase] of PROJECT_PHASES.entries()) {
-      expect(isPastDrafting(phase)).toBe(i > drafting && phase !== "hibernating");
-    }
-    expect(isPastDrafting(null)).toBe(false);
-    expect(isPastDrafting("not a phase")).toBe(false);
   });
 });
 
@@ -97,18 +87,24 @@ describe("buildWorks", () => {
     expect(works).toHaveLength(5);
   });
 
-  it("features works with a milestone, a book or a later phase, and not the rest", () => {
-    const works = buildWorks(
-      [...projects, { id: "wpr_3", title: "Three", phase: "hibernating" }, { id: "wpr_4", title: "Four", phase: "drafting" }],
-      [],
-      [row({ projectId: "wpr_4" })],
+  it("gives a project its own work, and lists the rest as other works: books with no project, titles, rows with no work, put-away projects with something on them", () => {
+    const all = buildWorks(
+      [...projects, { id: "wpr_3", title: "Put away", phase: "hibernating" }, { id: "wpr_4", title: "Put away, empty", phase: "hibernating" }],
+      [{ id: "book_loose", title: "A Loose Book", projectId: null }, { id: "book_1", title: "One Book", projectId: "wpr_1" }],
+      [row({ id: "t", title: "A Title Only Fake Work" }), row({ id: "u", projectId: "wpr_3" })],
     );
-    expect(works.filter(isFeaturedWork).map((w) => w.title)).toEqual(["One", "Four"]);
+    const active = new Set(projects.map((p) => p.id));
+    expect(workOfProject(all, "wpr_1")?.published).toBe(true);
+    expect(workOfProject(all, "wpr_2")?.title).toBe("Two");
+    expect(workOfProject(all, "wpr_nope")).toBeUndefined();
+    expect(otherWorks(all, active).map((w) => w.title).sort()).toEqual(["A Loose Book", "A Title Only Fake Work", "Put away"]);
+    // A project with a book is its project's work, never listed twice.
+    expect(otherWorks(all, active).some((w) => w.projectId === "wpr_1")).toBe(false);
   });
 });
 
-describe("summarizeTitles", () => {
-  it("counts each work once at its highest rung, from confirmed milestones and the Bookshelf only", () => {
+describe("summarizeWorks", () => {
+  it("counts each work once at its highest step, in plain counts with no title words, from confirmed milestones and the Bookshelf only", () => {
     const works = buildWorks(
       [
         { id: "wpr_1", title: "One", phase: "revising" },
@@ -126,20 +122,39 @@ describe("summarizeTitles", () => {
         row({ id: "f", projectId: "wpr_4", kind: "publish_ready", status: "declined", confirmedAt: null }),
       ],
     );
-    expect(summarizeTitles(works)).toBe("Published Author of 1 work · Author of 1 work · Finisher of 1 work");
+    expect(summarizeWorks(works)).toBe("3 works · 1 published · 1 ready to publish · 1 finished");
   });
 
   it("never says Author for a work that is not publish-ready, and says nothing when there is nothing to say", () => {
     const works = buildWorks([{ id: "wpr_1", title: "One", phase: "revising" }], [], [row({ projectId: "wpr_1" })]);
-    expect(summarizeTitles(works)).toBe("Finisher of 1 work");
-    expect(summarizeTitles(works)).not.toMatch(/Author/);
-    expect(summarizeTitles(buildWorks([], [], [row({ status: "proposed", confirmedAt: null })]))).toBeNull();
-    expect(summarizeTitles([])).toBeNull();
+    expect(summarizeWorks(works)).toBe("1 work · 1 finished");
+    expect(summarizeWorks(works)).not.toMatch(/Author|Finisher|ready to publish/);
+    expect(summarizeWorks(buildWorks([], [], [row({ status: "proposed", confirmedAt: null })]))).toBeNull();
+    expect(summarizeWorks([])).toBeNull();
+  });
+
+  it("says where each work stands, once, as the badges' counts would not: a published work is also a finished one but is counted only as published", () => {
+    const projects = [1, 2, 3, 4, 5, 6].map((n) => ({ id: `wpr_${n}`, title: `Work ${n}`, phase: "revising" }));
+    const works = buildWorks(
+      projects,
+      [{ id: "book_1", title: "Book 1", projectId: "wpr_1" }],
+      [
+        row({ id: "a", projectId: "wpr_1" }),
+        row({ id: "b", projectId: "wpr_1", kind: "publish_ready" }),
+        row({ id: "c", projectId: "wpr_2", kind: "publish_ready" }),
+        row({ id: "d", projectId: "wpr_2" }),
+        row({ id: "e", projectId: "wpr_3", kind: "publish_ready" }),
+        row({ id: "f", projectId: "wpr_4" }),
+        row({ id: "g", projectId: "wpr_5" }),
+        row({ id: "h", projectId: "wpr_6" }),
+      ],
+    );
+    expect(summarizeWorks(works)).toBe("6 works · 1 published · 2 ready to publish · 3 finished");
   });
 
   it("uses the plural for several works", () => {
     const works = buildWorks([], [], [row({ id: "a", title: "A" }), row({ id: "b", title: "B" })]);
-    expect(summarizeTitles(works)).toBe("Finisher of 2 works");
+    expect(summarizeWorks(works)).toBe("2 works · 2 finished");
   });
 });
 
@@ -149,6 +164,7 @@ describe("groupShownWorks (the strips)", () => {
     kind: "the_end",
     workTitle: "A Fake Novel",
     achievedOn: null,
+    achievedPrecision: "day",
     storyBefore: null,
     storyAfter: null,
     visibility: "public",
@@ -195,5 +211,36 @@ describe("groupShownWorks (the strips)", () => {
     expect(works[0].title).toBe("A Fake Novel");
     expect(works[0].steps.filter((s) => s.kind === "published")).toHaveLength(1);
     expect(works[0].steps.find((s) => s.kind === "published")?.achievedOn).toBe("2026-02-01");
+  });
+});
+
+describe("the date rule for Published (books published before the member joined)", () => {
+  const books = [
+    { id: "book_old", title: "An Earlier Fake Book", projectId: null, publishedDate: "2026-02-28" },
+    { id: "book_join", title: "A Join Day Fake Book", projectId: null, publishedDate: "2026-03-01" },
+    { id: "book_new", title: "A Later Fake Book", projectId: "wpr_1", publishedDate: "2026-09-01" },
+  ];
+  const projects = [{ id: "wpr_1", title: "A Fake Novel", phase: "revising" }];
+  const published = (joined: string | null) => buildWorks(projects, books, [], joined).filter((w) => w.published).map((w) => w.title).sort();
+
+  it("keeps a book from before off the Published list (it is still a work), counts the join day and later, and counts all with no join date", () => {
+    expect(published("2026-03-01T15:00:00Z")).toEqual(["A Fake Novel", "A Join Day Fake Book"]);
+    expect(buildWorks(projects, books, [], "2026-03-01").map((w) => w.title)).toContain("An Earlier Fake Book");
+    expect(published(null)).toEqual(["A Fake Novel", "A Join Day Fake Book", "An Earlier Fake Book"]);
+  });
+
+  it("leaves a book with no date counted, and the summary line says Published Author only for the books that count", () => {
+    expect(buildWorks([], [{ id: "book_x", title: "An Undated Fake Book", projectId: null }], [], "2026-03-01")[0].published).toBe(true);
+    expect(summarizeWorks(buildWorks(projects, books, [], "2026-03-01"))).toBe("2 works · 2 published");
+    expect(summarizeWorks(buildWorks(projects, books, [], "2027-01-01"))).toBeNull();
+  });
+
+  it("drops the Published step of an earlier book from a strip, never a milestone, and keeps everything with no join date", () => {
+    const step = (kind: "the_end" | "published", achievedOn: string | null) => ({ workNo: 1, kind, workTitle: "A Fake Novel", achievedOn, achievedPrecision: "day" as const, storyBefore: null, storyAfter: null, visibility: "public" as const });
+    const steps = [step("the_end", "2020-01-01"), step("published", "2026-02-28")];
+    expect(stepsCountedWhileMember(steps, "2026-03-01").map((s) => s.kind)).toEqual(["the_end"]);
+    expect(stepsCountedWhileMember([step("the_end", null), step("published", "2026-03-01")], "2026-03-01").map((s) => s.kind)).toEqual(["the_end", "published"]);
+    expect(stepsCountedWhileMember(steps, null)).toHaveLength(2);
+    expect(groupShownWorks(stepsCountedWhileMember([step("published", "2026-02-28")], "2026-03-01"))).toEqual([]);
   });
 });

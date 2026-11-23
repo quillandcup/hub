@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
@@ -19,7 +19,7 @@ const REBUILD_WINDOW_DAYS = 7;
  * message text (to find mentions), so it runs with the service role after the admin check.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const supabase = createServiceRoleClient();

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import appConfig from "@/config/app";
 import { SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import {
@@ -16,6 +16,9 @@ import {
   writerProfilePath,
   writerProfileUrl,
 } from "@/lib/writer-profile";
+
+// The state after the cutover (config/app.ts publicSiteLive true); tests/lib/public-site-flag-off.test.ts has the state before.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const { handleMinLength: MIN, handleMaxLength: MAX } = WRITER_PROFILES;
 

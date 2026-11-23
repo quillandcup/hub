@@ -15,7 +15,7 @@ vi.mock("@/lib/data/repos", async () => ({
 const rpc = vi.fn(async () => ({ error: null }));
 let auth: { user: { id: string } | null; forbidden?: boolean } = { user: { id: "admin-user" } };
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (auth.user ? { ...auth, supabase: { rpc } } : { user: null }),
+  requireApiPermission: async () => (auth.user ? { ...auth, supabase: { rpc } } : { user: null }),
 }));
 
 import { POST as createType } from "@/app/api/badge-types/create/route";

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import { LandingPageSlugTakenError } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
@@ -23,7 +23,7 @@ import { TEMPLATE_NAME_MAX } from "@/lib/landing/templates";
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 export type TemplateResult = { error?: string; templateId?: string; slug?: string; name?: string; published?: boolean };
 
-type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
+type Auth = Extract<Awaited<ReturnType<typeof requireActionPermission>>, { ok: true }>;
 
 const NAME_TAKEN = "A template with that name already exists. Choose another name, or replace that template's draft.";
 
@@ -67,9 +67,9 @@ async function saveImpl(auth: Auth, data: unknown, input: SaveTemplateInput): Pr
       if (!isLandingPageId(input.replaceId)) return { error: TEMPLATE_GONE };
       const existing = await repo.byId(input.replaceId);
       if (!existing || existing.kind !== "template") return { error: TEMPLATE_GONE };
-      // The template's draft as it is now is kept in its History first (the same kept version as before a starter), so this can be undone with Bring back.
-      if (!(await repo.keepDraftBeforeStarter(existing.id, auth.user.id, `Replaced by ${from ? `the page “${from.title}”` : "a page"}`))) return { error: TEMPLATE_GONE };
-      template = await repo.replaceDraftWithStarter(existing.id, clean, auth.user.id);
+      // The template's draft as it is now is kept in its History first (the same kept version as before a template or import replaced it), so this can be undone with Bring back.
+      if (!(await repo.keepDraftBeforeReplace(existing.id, auth.user.id, `Replaced by ${from ? `the page “${from.title}”` : "a page"}`))) return { error: TEMPLATE_GONE };
+      template = await repo.replaceDraft(existing.id, clean, auth.user.id);
       if (!template) return { error: TEMPLATE_GONE };
     } else {
       const name = text(input?.name);
@@ -102,7 +102,7 @@ async function saveImpl(auth: Auth, data: unknown, input: SaveTemplateInput): Pr
  * published unless `publish` is set). The page itself is not changed. The content is cleaned like a save and size-capped.
  */
 export async function saveLandingTemplate(data: unknown, input: SaveTemplateInput): Promise<TemplateResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_template_saved", () => saveImpl(auth, data, input), (r) => ({ ok: !r.error, detail: r.error ? undefined : input?.replaceId ? "replaced" : "created" }));
 }
@@ -116,9 +116,9 @@ async function applyImpl(auth: Auth, pageId: string, templateId: string): Promis
     if (JSON.stringify(draft.data).length > MAX_LANDING_BYTES) return { error: "This template is too large to use." };
     const target = await repos.landingPages.byId(pageId);
     if (!target) return { error: "That page no longer exists." };
-    // The draft as it is now is kept in History first (the same version as before a starter), so the replacement can be undone with Bring back.
-    if (!(await repos.landingPages.keepDraftBeforeStarter(pageId, auth.user.id, `Replaced by the template “${draft.name}”`))) return { error: "That page no longer exists." };
-    const page = await repos.landingPages.replaceDraftWithStarter(pageId, draft.data, auth.user.id);
+    // The draft as it is now is kept in History first (the same version as before a template or import replaced it), so the replacement can be undone with Bring back.
+    if (!(await repos.landingPages.keepDraftBeforeReplace(pageId, auth.user.id, `Replaced by the template “${draft.name}”`))) return { error: "That page no longer exists." };
+    const page = await repos.landingPages.replaceDraft(pageId, draft.data, auth.user.id);
     if (!page) return { error: "That page no longer exists." };
     revalidatePath("/admin/pages");
     return { slug: page.slug };
@@ -128,11 +128,11 @@ async function applyImpl(auth: Auth, pageId: string, templateId: string): Promis
 }
 
 /**
- * Replaces a page's (or another template's) draft with a published template's PUBLISHED copy, as "Start over from a starter" does with
+ * Replaces a page's (or another template's) draft with a published template's PUBLISHED copy, as "Start over from a template" does with
  * a built-in one: the old draft is kept in History, the published copy, title, address and search settings are untouched, and nothing goes live.
  */
 export async function replaceLandingDraftWithTemplate(pageId: string, templateId: string): Promise<{ error?: string; slug?: string }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("pages.edit");
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_template_applied", () => applyImpl(auth, pageId, templateId));
 }

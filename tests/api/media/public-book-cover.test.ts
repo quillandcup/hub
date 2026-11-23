@@ -4,13 +4,6 @@ import { apiFetch } from "../../helpers/api-fetch";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
 import { solidImage } from "../../helpers/media-fixtures";
 
-const config = vi.hoisted(() => ({ public: false }));
-vi.mock("@/lib/config", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/config")>()),
-  get BOOKSHELF_PUBLIC() {
-    return config.public;
-  },
-}));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/supabase/server", async () => {
   const { getTestSupabaseAdminClient } = await import("../../helpers/supabase");
@@ -23,7 +16,7 @@ vi.mock("@/lib/supabase/service", async () => {
 
 import { getCurrentUser } from "@/lib/auth";
 
-/** A book's cover is served to visitors who aren't signed in only while the Bookshelf is public. */
+/** A book's cover is served to visitors who aren't signed in only while a live book at the globe uses it. */
 const db = getTestSupabaseAdminClient();
 const RUN = Date.now();
 let memberId: string;
@@ -58,8 +51,8 @@ beforeAll(async () => {
   projectIds.push(project.data.id);
 });
 
-beforeEach(() => {
-  config.public = false;
+beforeEach(async () => {
+  await db.from("member_books").update({ visibility: "public" }).in("id", bookIds);
   vi.mocked(getCurrentUser).mockResolvedValue(null);
 });
 
@@ -79,12 +72,14 @@ afterAll(async () => {
 const shelf = (key: string) => apiFetch(`/api/media/${assets[key].id}/book_cover_shelf`);
 
 describe("a book's cover for a visitor who isn't signed in", () => {
-  it("is not served while the Bookshelf isn't public", async () => {
+  it("is not served while the book is private or for members only", async () => {
+    await db.from("member_books").update({ visibility: "private" }).in("id", bookIds);
+    expect((await shelf("book")).status).toBe(404);
+    await db.from("member_books").update({ visibility: "community" }).in("id", bookIds);
     expect((await shelf("book")).status).toBe(404);
   });
 
-  it("is served at the shelf size, publicly cacheable, once the Bookshelf is public", async () => {
-    config.public = true;
+  it("is served at the shelf size, publicly cacheable, while the book is at the globe", async () => {
     const res = await shelf("book");
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toContain("public");
@@ -93,7 +88,6 @@ describe("a book's cover for a visitor who isn't signed in", () => {
   });
 
   it("is still refused at other sizes, and for a project's cover or an image nothing uses", async () => {
-    config.public = true;
     expect((await apiFetch(`/api/media/${assets.book.id}/book_cover_kdp_ebook`)).status).toBe(404);
     expect((await apiFetch(`/api/media/${assets.book.id}/thumb`)).status).toBe(404);
     expect((await apiFetch(`/api/media/${assets.book.id}/custom?width=100&height=100`)).status).toBe(404);
@@ -102,7 +96,6 @@ describe("a book's cover for a visitor who isn't signed in", () => {
   });
 
   it("is refused once the book no longer uses the image, or the image is deleted", async () => {
-    config.public = true;
     await db.from("media_assets").update({ deleted_at: new Date().toISOString() }).eq("id", assets.book.id);
     expect((await shelf("book")).status).toBe(404);
     await db.from("media_assets").update({ deleted_at: null }).eq("id", assets.book.id);
@@ -112,10 +105,8 @@ describe("a book's cover for a visitor who isn't signed in", () => {
     await db.from("member_books").update({ cover_asset_id: assets.book.id }).in("id", bookIds);
   });
 
-  it("makes no difference to a signed-in member, who reads a book's cover either way", async () => {
+  it("makes no difference to a signed-in member, who reads a book's cover at the globe", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "u", email: "m@example.com" });
-    expect((await shelf("book")).status).toBe(200);
-    config.public = true;
     expect((await shelf("book")).status).toBe(200);
   });
 });

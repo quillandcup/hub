@@ -15,6 +15,8 @@ import { createRepos } from "@/lib/data/repos";
  * already show it. These are not the app's pages, so the page checks are off.
  */
 test("every notification kind, as members receive it", async ({ page }, testInfo) => {
+  // Six pictures for every kind: more than the default 30 seconds on a busy machine, and nothing here waits on the app.
+  test.setTimeout(180_000);
   const env = loadDemoEnv();
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } });
   const theme = testInfo.project.use.colorScheme === "dark" ? "dark" : "light";

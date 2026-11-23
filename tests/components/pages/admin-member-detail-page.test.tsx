@@ -61,7 +61,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
 }));
 vi.mock("@/app/(admin)/admin/members/[id]/MergeButton", () => ({ default: () => null }));
 const staff = vi.hoisted(() => ({ role: "admin" }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => ({})), requireStaffPage: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role })) }));
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role, roles: [staff.role] })) }));
 vi.mock("@/app/actions/sudo", () => ({ startSudo: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "UTC") }));
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
@@ -70,7 +70,7 @@ vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.f
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 import { loadPushDevices } from "@/lib/channels/web-push";
 import ActivityRoute, { generateMetadata as activityMetadata } from "@/app/(admin)/admin/members/[id]/activity/page";
-import { COMMUNITY_MANAGER_FEATURES, type StaffFeature } from "@/lib/staff-access";
+import { withdrawCommunityManagerFeatures } from "../../helpers/community-manager-permissions";
 import AccountRoute, { generateMetadata as accountMetadata } from "@/app/(admin)/admin/members/[id]/account/page";
 import NotificationsRoute, { generateMetadata as notificationsMetadata } from "@/app/(admin)/admin/members/[id]/notifications/page";
 import { getMemberBadges } from "@/lib/badges";
@@ -338,16 +338,14 @@ describe("MemberDetailPage", () => {
 
   it("reads no activity feed for a role that has neither Activity tab feature", async () => {
     staff.role = "community_manager";
-    const features = COMMUNITY_MANAGER_FEATURES as StaffFeature[];
-    const saved = [...features];
-    features.splice(0, features.length, "care.write");
+    const restore = withdrawCommunityManagerFeatures(["care.write"]);
     try {
       const supabase = useFakeSupabase(memberTables());
       await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
       expect(screen.getByText("activity unavailable")).toBeInTheDocument();
       expect(supabase.queries.some((q) => q.table === "rpc:get_activity_feed" || q.table === "rpc:count_activity_feed")).toBe(false);
     } finally {
-      features.splice(0, features.length, ...saved);
+      restore();
     }
   });
 
@@ -361,13 +359,11 @@ describe("MemberDetailPage", () => {
     staff.role = "community_manager";
     expect((await ActivityRoute({ params, searchParams } as never)).props).toMatchObject({ id: MEMBER.id, tab: "activity" });
 
-    const features = COMMUNITY_MANAGER_FEATURES as StaffFeature[];
-    const saved = [...features];
-    features.splice(0, features.length, "care.write");
+    const restore = withdrawCommunityManagerFeatures(["care.write"]);
     try {
       await expectRedirect(ActivityRoute, { params, searchParams }, `/admin/members/${MEMBER.id}`);
     } finally {
-      features.splice(0, features.length, ...saved);
+      restore();
     }
   });
 
