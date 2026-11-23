@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
+import { documentNonce } from "@/lib/csp-nonce";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { Bold, Italic, Link as LinkIcon, Link2Off, List, ListOrdered, Quote, Redo2, Strikethrough, Underline, Undo2, type LucideIcon } from "lucide-react";
@@ -98,6 +99,8 @@ export default function LessonTextEditor({ courseId, lessonId, initialHtml }: { 
   const { setDirty, setHandler, setMessage } = useLessonSave();
 
   const editor = useEditor({
+    // The policy allows TipTap's own style tag only with the page's nonce (src/lib/csp-nonce.ts).
+    injectNonce: documentNonce(),
     // StarterKit has headings, lists, quotes and links; images stay so a lesson that has one isn't stripped of it on save.
     extensions: [StarterKit.configure({ link: { openOnClick: false, autolink: false } }), Image],
     content: initialHtml ?? "",
