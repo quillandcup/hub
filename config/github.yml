@@ -14,6 +14,14 @@ settings:
   allow_auto_merge: true
   delete_branch_on_merge: true
 
+# Default permission of a workflow's GITHUB_TOKEN (Settings, Actions, General), applied with
+# PUT /repos/{repo}/actions/permissions/workflow. `read` means a workflow gets write access only
+# where it declares `permissions:` itself (every workflow here does). can_approve_pull_request_reviews
+# stays true: some workflows (for example the disposable-email-domains refresh) may rely on it.
+workflow_permissions:
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: true
+
 # One ruleset on the default branch. Required checks are the job names in
 # .github/workflows/ci.yml; a check skipped by its `if:` (Coverage report on a push to main)
 # counts as passing, so only pull requests wait on it; that is also how a docs-only change gets
