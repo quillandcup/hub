@@ -80,6 +80,20 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     align: select("Alignment", opts("left", "center")),
   },
   ListItem: { text: text("Text"), icon: text("Marker (an emoji; a check mark if empty)") },
+  Pricing: {
+    items: itemsSlot("Pricing", "Plans (1 to 3)"),
+  },
+  PricingPlan: {
+    name: text("Name of the plan"),
+    price: text("Price, as you want it shown (for example $97)"),
+    period: text("Billing period or note, shown after the price (for example per month)"),
+    description: area("Short description"),
+    features: area("What is included, one line each"),
+    badge: text("Badge (for example Most popular)"),
+    featured: toggle("Feature this plan (heavier border, said aloud to screen readers)"),
+    buttonLabel: text("Button label"),
+    href: text("Button link (https://, or a path on this site)"),
+  },
   Testimonials: {
     items: itemsSlot("Testimonials", "Testimonials"),
   },

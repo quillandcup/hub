@@ -21,6 +21,8 @@ import {
   List,
   ListItem,
   OptInFormBlock,
+  Pricing,
+  PricingPlan,
   RichText,
   RowButton,
   Section,
@@ -62,6 +64,7 @@ import { ITEM_LIMITS } from "./item-limits";
 const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { ...props } });
 const FINISHER_DEFAULT = { alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" };
 const GRID_CARD_DEFAULT = { alt: "", icon: "", title: "A title", description: "A line about it.", price: "", buttonLabel: "", href: "" };
+const PRICING_PLAN_DEFAULT = { name: "A plan", price: "$0", period: "one time", description: "", features: "A thing that is included\nAnother thing", badge: "", featured: false, buttonLabel: "Join now", href: "" };
 const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
 
 export const CORE_DEFAULTS = {
@@ -74,6 +77,7 @@ export const CORE_DEFAULTS = {
   Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
+  Pricing: { items: [kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "First plan" }), kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "Second plan", badge: "Most popular", featured: true })] },
   Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
   Accordion: { items: [kid("AccordionItem", { title: "A title", text: "What opens under it.", open: false }), kid("AccordionItem", { title: "Another title", text: "What opens under that one.", open: false })] },
   Faq: { items: [kid("FaqQuestion", { question: "A question?", answer: "The answer." }), kid("FaqQuestion", { question: "Another question?", answer: "Another answer." })] },
@@ -130,6 +134,7 @@ export const CORE_DEFAULTS = {
   GridCard: { ...GRID_CARD_DEFAULT, title: "New card" },
   LinkItem: { label: "A link", href: "", look: "inherit", color: "plum" },
   OutcomeNumber: { source: "manual", stat: "hours_30d", value: "0", label: "", note: "" },
+  PricingPlan: PRICING_PLAN_DEFAULT,
   JourneyMap: {
     stages: [
       { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
@@ -148,6 +153,20 @@ const faqCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str
   const asked = rows(props.items).map((i) => (i.props ?? {}) as Record<string, unknown>);
   const unanswered = asked.filter((i) => text(i.question) && !text(i.answer)).length;
   if (unanswered > 0) warn("FAQ", `${unanswered === 1 ? "A question has" : `${unanswered} questions have`} no answer, so ${unanswered === 1 ? "it is" : "they are"} left out of what search engines are told about this FAQ.`);
+};
+
+/** More than one featured plan defeats the point of featuring one. */
+const pricingCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { rows, warn }) => {
+  const featured = rows(props.items).filter((i) => ((i.props ?? {}) as Record<string, unknown>).featured === true).length;
+  if (featured > 1) warn("Pricing", `${featured} plans are marked featured; feature one, so it stands out.`);
+};
+
+/** A plan's name is a heading (an h3, under the section's), and its button needs a link like any other. The words by the plan's place are in `what`. */
+const planCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, heading, checkButton, warn }) => {
+  const name = text(props.name);
+  if (name) heading(3, name);
+  checkButton("Pricing", props.buttonLabel, props.href, name ? `The button of the "${name}" plan` : "A plan's button");
+  if (!text(props.buttonLabel) && text(props.href)) warn("Pricing", `${name ? `The "${name}" plan has` : "A plan has"} a link but no button label, so the link is not shown.`);
 };
 
 type CoreType = keyof typeof CORE_DEFAULTS;
@@ -172,6 +191,12 @@ export const coreBlocks: PageBlockContribution = {
     core("Steps", "Steps", "ready_made", 20, Steps, { slots: holds("Step"), itemLimit: ITEM_LIMITS.Steps, itemRule: { block: "Steps", noun: "step", plural: "steps", item: "Step", key: "title" } }),
     core("Stats", "Stats", "ready_made", 30, Stats, { slots: holds("Stat"), itemLimit: ITEM_LIMITS.Stats, itemRule: { block: "Stats", noun: "figure", plural: "figures", item: "Stat", key: "value" } }),
     core("CtaBanner", "Call-to-action banner", "ready_made", 40, CtaBanner),
+    core("Pricing", "Pricing", "ready_made", 50, Pricing, {
+      slots: holds("PricingPlan"),
+      itemLimit: ITEM_LIMITS.Pricing,
+      itemRule: { block: "Pricing", noun: "plan", plural: "plans", item: "PricingPlan", key: "name" },
+      publishCheck: pricingCheck,
+    }),
     // Homepage (the blocks about events are the events integration's)
     // A figure that is live shows with no typed value.
     core("OutcomeNumbers", "Outcome numbers", "homepage", 30, OutcomeNumbers, {
@@ -215,6 +240,7 @@ export const coreBlocks: PageBlockContribution = {
     core("FaqQuestion", "Question", "parts", 115, FaqQuestion),
     core("GridCard", "Card", "parts", 120, GridCard),
     core("LinkItem", "Link", "parts", 130, LinkItem),
+    core("PricingPlan", "Plan", "parts", 160, PricingPlan, { publishCheck: planCheck }),
     core("OutcomeNumber", "Outcome number", "parts", 150, OutcomeNumber),
   ],
 };

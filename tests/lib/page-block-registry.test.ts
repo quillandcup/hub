@@ -130,8 +130,8 @@ describe("the installed registry", () => {
     const palette = Object.fromEntries(Object.entries(pageBlocks.categories).map(([key, group]) => [key, group.components]));
     expect(palette).toEqual({
       layout: ["Section", "Columns", "Split", "CardGrid", "Divider", "Spacer"],
-      ready_made: ["Hero", "Steps", "Stats", "CtaBanner"],
-      parts: ["Step", "Stat", "FinisherCard", "TimelineMoment", "WeekDay", "FinishLineCard", "PlanPhase", "RowButton", "ListItem", "Testimonial", "AccordionItem", "FaqQuestion", "GridCard", "LinkItem", "ScheduleRow", "OutcomeNumber"],
+      ready_made: ["Hero", "Steps", "Stats", "CtaBanner", "Pricing"],
+      parts: ["Step", "Stat", "FinisherCard", "TimelineMoment", "WeekDay", "FinishLineCard", "PlanPhase", "RowButton", "ListItem", "Testimonial", "AccordionItem", "FaqQuestion", "GridCard", "LinkItem", "ScheduleRow", "OutcomeNumber", "PricingPlan"],
       homepage: ["AnnouncementStrip", "SchedulePanel", "OutcomeNumbers", "FinisherCards", "Timeline", "WeekStrip", "FinishLineCards", "PlanPhases", "JourneyMap", "ComingUp", "HedgieBookshelf"],
       content: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Accordion", "Faq", "Countdown"],
       links: ["Button", "ButtonRow", "LinkList", "OptInForm"],

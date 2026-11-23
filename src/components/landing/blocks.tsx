@@ -424,6 +424,74 @@ export function GridCard({ imageAssetId, alt, icon, title, description, price, b
   );
 }
 
+// ---- Pricing -------------------------------------------------------------------------------------------------
+
+export type PricingProps = { items: Slot; editing?: boolean };
+
+/** One to three plans side by side (stacked on a narrow container), each a `PricingPlan` in the `items` slot. Cards are as wide as they need and no wider, so one or two plans stay centred. */
+export function Pricing({ items: Items, editing }: PricingProps) {
+  return <Items as="ul" collisionAxis="dynamic" className={`grid grid-cols-1 gap-5 py-4 text-left @pair:grid-cols-[repeat(auto-fit,minmax(16rem,22rem))] @pair:justify-center ${itemList(ITEM_LIMITS.Pricing, editing)}`} />;
+}
+
+export type PricingPlanProps = { name: string; price: string; period: string; description: string; features: string; badge: string; featured: boolean; buttonLabel: string; href: string } & ItemProps;
+
+/**
+ * One plan: its name, the price exactly as typed (never parsed or computed) with its billing period or note right after it in the same
+ * line, so a screen reader says "$97 per month", a short description, what is included (one line each) and a button. The featured plan
+ * is shown by a heavier border and shadow and a "Featured" label for screen readers, not by colour alone; its badge ("Most popular")
+ * is words. A button with no usable link is not drawn for a visitor (the publish check asks for the link); the editor shows it disabled.
+ */
+export function PricingPlan({ name, price, period, description, features, badge, featured, buttonLabel, href: link, dragRef, editing }: PricingPlanProps) {
+  if (!name && !price && !editing) return null;
+  const href = safeHref(link);
+  const included = (features ?? "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const look = featured ? "inherit" : "outline";
+  return (
+    <li ref={dragRef} className={`flex flex-col gap-3 rounded-xl bg-tile p-6 text-ink ${featured ? "border-4 border-accent shadow-xl" : "border border-current shadow-sm"}`}>
+      {(badge || featured) && (
+        <p className="self-start rounded-full border border-current px-3 py-0.5 text-xs font-semibold text-accent-ink">
+          {featured && <span className="sr-only">Featured plan. </span>}
+          {badge}
+        </p>
+      )}
+      <h3 className="font-display text-xl font-semibold">{name}</h3>
+      {(price || period) && (
+        <p>
+          <span className="font-display text-4xl font-bold">{price}</span>
+          {price && period ? " " : ""}
+          {period && <span className="text-sm text-ink-muted">{period}</span>}
+        </p>
+      )}
+      {description && <p className="whitespace-pre-line text-sm">{description}</p>}
+      {included.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {included.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span aria-hidden="true" className="shrink-0">
+                ✓
+              </span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {buttonLabel && (href || editing) && (
+        <div className="mt-auto pt-2">
+          {href ? (
+            <a href={href} className={buttonClasses(look, "plum", "pill", true)}>
+              {buttonLabel}
+            </a>
+          ) : (
+            <span aria-disabled="true" className={`${buttonClasses(look, "plum", "pill", true)} opacity-50`}>
+              {buttonLabel}
+            </span>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 // ---- Link list -----------------------------------------------------------------------------------------------
 
 export type LinkListProps = { items: Slot; editing?: boolean };
