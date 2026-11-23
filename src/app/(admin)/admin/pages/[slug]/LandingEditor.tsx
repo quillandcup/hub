@@ -277,7 +277,8 @@ function EditorHeader({
           noun="page"
           label={published ? "Publish changes" : undefined}
           onRun={onPublish}
-          disabled={busy}
+          disabled={busy || (published && !hasUnpublished)}
+          disabledReason={published && !hasUnpublished ? "Nothing to publish: the draft is the same as the live page." : undefined}
           className={PRIMARY}
         />
       </div>
@@ -300,7 +301,8 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
   }, [initial.pageType, site]);
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
-  const [hasUnpublished, setHasUnpublished] = useState(false);
+  // Known from the start: a page opened with a draft that already differs from the live copy has changes to publish before anything is edited.
+  const [hasUnpublished, setHasUnpublished] = useState(initial.publishedJson !== null && initial.publishedJson !== JSON.stringify(data));
   const [dialog, setDialog] = useState<"details" | "history" | "publish" | null>(null);
   const [issues, setIssues] = useState<A11yIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);

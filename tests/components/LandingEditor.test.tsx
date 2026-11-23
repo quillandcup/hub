@@ -297,6 +297,21 @@ describe("the header", () => {
     expect(screen.getByRole("button", { name: "Publish changes" })).toHaveTextContent("Publish changes");
   });
 
+  it("only offers to publish when the draft differs from the live page", () => {
+    editor({ status: "published", publishedJson: JSON.stringify(data) });
+    const button = screen.getByRole("button", { name: "Publish changes" });
+    expect(button).toBeDisabled();
+    expect(tooltipText(button)).toBe("Nothing to publish: the draft is the same as the live page.");
+    edit("Different");
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
+  });
+
+  it("offers to publish at once when the page opens with a draft that already differs", () => {
+    editor({ status: "published", publishedJson: JSON.stringify({ ...data, content: [] }) });
+    expect(screen.getByText("Changes not published yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
+  });
+
   it("notes changes that aren't published yet", () => {
     editor({ status: "published", publishedJson: JSON.stringify(data) });
     expect(screen.queryByText("Changes not published yet")).toBeNull();
@@ -464,6 +479,7 @@ describe("history and details", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    edit("Another change");
     fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));
     expect(screen.getByLabelText("What changed? (optional)")).toHaveValue("");
   });
