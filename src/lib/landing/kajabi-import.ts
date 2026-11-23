@@ -140,7 +140,7 @@ class Pictures {
   add(value: unknown): string | null {
     const v = str(value).trim();
     if (!v) return null;
-    const existing = this.list.findIndex((p) => p.zipName === v || p.url === v);
+    const existing = this.list.findIndex((p) => p.zipName === v.replace(/^assets\//, "") || p.url === v);
     if (existing >= 0) return this.list[existing].placeholder;
     const placeholder = `${PICTURE_PREFIX}${this.list.length + 1}`;
     if (/^https:\/\//i.test(v)) this.list.push({ placeholder, url: v });
@@ -164,6 +164,7 @@ function textOf(node: Node5): string {
   if (node.nodeName === "#text") return node.value ?? "";
   if (node.nodeName === "#comment") return "";
   if (node.tagName === "br") return " ";
+  if (node.tagName && NOT_TEXT.has(node.tagName)) return "";
   return (node.childNodes ?? []).map(textOf).join("");
 }
 const attr = (node: Node5, name: string) => node.attrs?.find((a) => a.name === name)?.value ?? "";
@@ -215,6 +216,226 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
   return out;
 }
 
+// ---- blocks beyond text, pictures and forms ------------------------------------------------------------------
+
+type Ctx = { notes: ImportNote[]; pictures: Pictures; id: (type: string) => string; siteUrl: string; themeRadius: number | null };
+
+const settingsOf = (block: Block): Settings => (isObject(block.settings) ? block.settings : {});
+const isHiddenBlock = (block: Block) => flag(block.hidden) || (flag(settingsOf(block).hide_on_desktop) && flag(settingsOf(block).hide_on_mobile));
+
+/** This block's key and those of the visible blocks of the same kind right after it (hidden ones in between are skipped; another kind ends the run). */
+function sameKind(order: string[], blocks: Record<string, Block>, index: number, kind: string): string[] {
+  const keys: string[] = [];
+  for (const key of order.slice(index)) {
+    if (isHiddenBlock(blocks[key])) continue;
+    if (str(blocks[key].type) !== kind) break;
+    keys.push(key);
+  }
+  return keys;
+}
+
+/** What Kajabi does to a block on one device only, or after a delay, which has no counterpart here. */
+function liveNotes(ctx: Ctx, b: Settings, label: string) {
+  if (flag(b.hide_on_desktop) || flag(b.hide_on_mobile)) ctx.notes.push({ kind: "approximated", text: `"${label}" is hidden on ${flag(b.hide_on_desktop) ? "desktop" : "phones"} only in Kajabi; here it shows everywhere.` });
+  if (str(b.reveal_event)) ctx.notes.push({ kind: "left_out", text: `"${label}" appears after a delay or an event in Kajabi; here it is always shown.` });
+}
+
+/** A link for a button or a card: usable as is, resolved through the Kajabi site, or empty (and said). */
+function checkedLink(ctx: Ctx, label: string, action: unknown, what: string): string {
+  const href = resolveLink(action, ctx.siteUrl);
+  const raw = clean(str(action));
+  if (!href) ctx.notes.push({ kind: "todo", text: `${what} "${label}" has ${raw ? "a link that can't be used here" : "no link"}: set its link in the editor.` });
+  else if (raw.startsWith("/")) ctx.notes.push({ kind: "approximated", text: `${what} "${label}" goes to a Kajabi path (${raw}) through the Kajabi site, which works while Kajabi stays; point it at the final address when the page moves.` });
+  return href;
+}
+
+function makeButton(ctx: Ctx, b: Settings, label: string): Puck {
+  const bg = rgb(b.btn_background_color);
+  const fg = rgb(b.btn_text_color);
+  const outline = str(b.btn_style) === "outline" || (!bg && Boolean(fg));
+  const source = outline ? fg : bg;
+  const picked = source ? nearest(source, BUTTON_COLORS) : { key: "plum" as const, exact: true };
+  if (source && !picked.exact) ctx.notes.push({ kind: "approximated", text: `Button "${label}": its colour is shown as the nearest of our three button colours.` });
+  const href = checkedLink(ctx, label, b.btn_action, "Button");
+  const radius = num(b.btn_border_radius) ?? ctx.themeRadius ?? 100;
+  return {
+    type: "Button",
+    props: { id: ctx.id("Button"), label, href, look: outline ? "outline" : "solid", color: picked.key, shape: radius >= 30 ? "pill" : "rect", align: alignOf(b.text_align) === "left" ? "left" : alignOf(b.text_align) === "right" ? "right" : "center", full: str(b.btn_width) === "full" },
+  };
+}
+
+/** Elements whose content is code or hidden, never words: skipped when reading text. */
+const NOT_TEXT = new Set(["script", "style", "noscript", "template", "iframe", "object", "embed"]);
+const FORMATTING = new Set(["strong", "b", "em", "i", "u", "s", "a", "img", "ul", "ol", "blockquote"]);
+const hasFormatting = (node: Node5): boolean => Boolean(node.tagName && FORMATTING.has(node.tagName)) || (node.childNodes ?? []).some(hasFormatting);
+
+/**
+ * The text of a snippet of HTML as plain lines, for the blocks that hold plain text (a card's words, an answer): the
+ * first heading apart, list items as lines with a bullet. `lossy` says that bold, italics, links or lists were flattened.
+ */
+function readText(html: string): { heading: string; lines: string[]; lossy: boolean } {
+  const lines: string[] = [];
+  let heading = "";
+  let lossy = false;
+  const walk = (nodes: Node5[]) => {
+    for (const node of nodes) {
+      const tag = node.tagName;
+      if (node.nodeName === "#text") {
+        if (clean(node.value ?? "")) lines.push(clean(node.value ?? ""));
+      } else if (!tag || NOT_TEXT.has(tag)) continue;
+      else if (/^h[1-6]$/.test(tag)) {
+        const text = clean(textOf(node));
+        if (!text) continue;
+        if (heading) lines.push(text);
+        else heading = text;
+        lossy ||= hasFormatting(node);
+      } else if (tag === "ul" || tag === "ol") {
+        lossy = true;
+        (node.childNodes ?? []).filter((c) => c.tagName === "li").forEach((li, i) => {
+          const text = clean(textOf(li));
+          if (text) lines.push(`${tag === "ol" ? `${i + 1}.` : "•"} ${text}`);
+        });
+      } else if (tag === "div") walk(node.childNodes ?? []);
+      else {
+        const text = clean(textOf(node));
+        if (text) lines.push(text);
+        lossy ||= hasFormatting(node);
+      }
+    }
+  };
+  walk(parseFragment(html.replace(/&nbsp;| /g, " ")).childNodes as unknown as Node5[]);
+  return { heading, lines, lossy };
+}
+
+const NO_DESCRIPTION = "A picture has no description: add one in the editor (or mark it decorative) before publishing.";
+
+/** A feature: a picture beside its words (Split), or just its words when it has no picture, then its button if it has one. */
+function mapFeature(ctx: Ctx, b: Settings, name: string): Puck[] {
+  const out: Puck[] = [];
+  const text = str(b.text).replace(/&nbsp;| /g, " ");
+  const ref = flag(b.hide_image) ? null : ctx.pictures.add(b.image);
+  if (ref) {
+    const alt = clean(str(b.image_alt));
+    if (!alt) ctx.notes.push({ kind: "todo", text: NO_DESCRIPTION });
+    if (str(b.img_action)) ctx.notes.push({ kind: "left_out", text: "A picture that links somewhere in Kajabi is a plain picture here." });
+    out.push({ type: "Split", props: { id: ctx.id("Split"), imageAssetId: ref, alt, decorative: false, imageSide: "left", html: sanitizeRichText(text).replace(/<p>\s*<\/p>/g, "") } });
+  } else out.push(...textBlocks(text, alignOf(b.text_align), ctx.id));
+  const label = clean(textOfHtml(str(b.btn_text)));
+  if (flag(b.use_btn) && label) out.push(makeButton(ctx, b, label));
+  if (out.length === 0) ctx.notes.push({ kind: "left_out", text: `The feature "${name}" has no text or picture.` });
+  return out;
+}
+
+const gridColumns = (n: number) => String(Math.min(4, Math.max(2, n)));
+
+/** Cards that sit in a row become one Card grid: a picture, a title (the first heading), the rest of the words as plain lines, and the button. */
+function mapCards(ctx: Ctx, cards: Settings[]): Puck[] {
+  let flattened = false;
+  let pictured = false;
+  const items = cards.map((b) => {
+    const text = readText(str(b.description));
+    flattened ||= text.lossy;
+    const title = text.heading || text.lines.shift() || "";
+    const ref = ctx.pictures.add(b.image);
+    if (ref) pictured = true;
+    const label = flag(b.show_cta) ? clean(textOfHtml(str(b.btn_text))) : "";
+    const href = str(b.action) ? checkedLink(ctx, title || "Card", b.action, "Card") : "";
+    if (href && !label) ctx.notes.push({ kind: "todo", text: `Card "${title}" links somewhere in Kajabi as a whole; add a button label to its card in the editor to show the link.` });
+    return { type: "GridCard", props: { id: ctx.id("GridCard"), imageAssetId: ref ?? undefined, alt: "", icon: "", title, description: text.lines.join("\n"), price: "", buttonLabel: label, href } };
+  });
+  if (pictured) ctx.notes.push({ kind: "todo", text: NO_DESCRIPTION });
+  ctx.notes.push({ kind: "approximated", text: `${items.length} card${items.length === 1 ? "" : "s"} became a Card grid in the Hub's card style: their own colours, borders and shadows aren't carried over${flattened ? ", and their text is plain lines (bold, italics, links and lists are not kept)" : ""}.` });
+  return [{ type: "CardGrid", props: { id: ctx.id("CardGrid"), columns: gridColumns(items.length), items } }];
+}
+
+/**
+ * Pricing columns become a Card grid as well: the plan's name, the price as written, its heading and the button with the
+ * export's link. Nothing is added: no price or link the export does not have. What a card has no room for (the list under the
+ * price, a second button) follows the grid, so no words are lost.
+ */
+function mapPricing(ctx: Ctx, plans: Settings[]): Puck[] {
+  const extras: Puck[] = [];
+  const items = plans.map((b) => {
+    const title = clean(textOfHtml(str(b.name))) || "Plan";
+    const ref = flag(b.show_image) ? ctx.pictures.add(b.image) : null;
+    if (ref) ctx.notes.push({ kind: "todo", text: NO_DESCRIPTION });
+    const label = flag(b.show_cta) ? clean(textOfHtml(str(b.btn_text))) : "";
+    const href = label ? checkedLink(ctx, label, b.btn_action, "Pricing button") : "";
+    const escaped = title.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    extras.push(...textBlocks(`<h4>${escaped}</h4>${str(b.text)}`, "left", ctx.id));
+    const second = flag(b.show_secondary_cta) ? clean(textOfHtml(str(b.secondary_btn_text))) : "";
+    if (second) {
+      const synthesized: Settings = { btn_text: b.secondary_btn_text, btn_action: b.secondary_btn_action, btn_background_color: b.secondary_btn_background_color, btn_text_color: b.secondary_btn_text_color, btn_style: b.secondary_btn_style, btn_width: b.secondary_btn_width, btn_border_radius: b.secondary_btn_border_radius, text_align: "left" };
+      extras.push(makeButton(ctx, synthesized, second));
+    }
+    return { type: "GridCard", props: { id: ctx.id("GridCard"), imageAssetId: ref ?? undefined, alt: "", icon: "", title, description: clean(textOfHtml(str(b.heading))), price: clean(str(b.price)), buttonLabel: label, href } };
+  });
+  ctx.notes.push({ kind: "approximated", text: `${items.length} pricing column${items.length === 1 ? "" : "s"} became a Card grid with each price as written and the button's link from the export; nothing was added. The list under each price, and any second button, follow the grid as text and buttons.` });
+  return [{ type: "CardGrid", props: { id: ctx.id("CardGrid"), columns: gridColumns(items.length), items } }, ...extras];
+}
+
+/** Accordion items in a row become one FAQ: the heading is the question, the body its answer as plain lines. */
+function mapAccordion(ctx: Ctx, entries: Settings[]): Puck {
+  let flattened = false;
+  const items = entries.flatMap((b) => {
+    const question = clean(textOfHtml(str(b.heading)));
+    const text = readText(str(b.body));
+    flattened ||= text.lossy;
+    if (!question) {
+      ctx.notes.push({ kind: "left_out", text: "An accordion item has no heading, so it is not imported." });
+      return [];
+    }
+    return [{ type: "FaqItem", props: { id: ctx.id("FaqItem"), question, answer: [text.heading, ...text.lines].filter(Boolean).join("\n") } }];
+  });
+  if (flattened) ctx.notes.push({ kind: "approximated", text: "The answers in the FAQ are plain lines here: bold, italics, links and lists are not kept." });
+  return { type: "Faq", props: { id: ctx.id("Faq"), items } };
+}
+
+/** The export names a Kajabi event, not its date, so the countdown has none until it is set in the editor. */
+function mapCountdown(ctx: Ctx, b: Settings, name: string): Puck {
+  const event = clean(str(b.event));
+  ctx.notes.push({ kind: "todo", text: `Countdown "${name}": the export names a Kajabi event${event ? ` (${event})` : ""}, not its date. Set the date in the editor; until then the countdown isn't shown to visitors.` });
+  if (flag(b.enable_end_action) || str(b.end_action)) ctx.notes.push({ kind: "left_out", text: `What Kajabi does when the countdown "${name}" ends (${clean(str(b.end_action)) || "an action"}) is not imported; choose what happens in the editor.` });
+  return { type: "Countdown", props: { id: ctx.id("Countdown"), ...BLOCK_DEFAULTS.Countdown, targetAt: "", heading: "", whenExpired: flag(b.remove_section_on_complete) ? "hide" : "zeros" } };
+}
+
+/** A Kajabi-hosted video is an id in the export, with no address to play it from; the Hub plays YouTube, Vimeo and Mux. */
+function mapVideo(ctx: Ctx, b: Settings): Puck {
+  const video = clean(str(b.video));
+  ctx.notes.push({ kind: "todo", text: `A video${video ? ` (Kajabi video ${video})` : ""} can't be carried over: the export has only its Kajabi id. Paste its YouTube, Vimeo or Mux link into the Video block in the editor.` });
+  return { type: "Video", props: { id: ctx.id("Video"), url: "", title: "" } };
+}
+
+const SOCIAL_LABELS: Record<string, string> = { facebook: "Facebook", twitter: "Twitter", instagram: "Instagram", youtube: "YouTube", spotify: "Spotify", linkedin: "LinkedIn", pinterest: "Pinterest", tiktok: "TikTok", apple_podcasts: "Apple Podcasts", google_podcasts: "Google Podcasts", itunes: "iTunes", snapchat: "Snapchat", vimeo: "Vimeo", soundcloud: "SoundCloud", github: "GitHub", medium: "Medium", twitch: "Twitch", rss: "RSS" };
+
+/** Social icons become a row of text links (up to three buttons, else a link list): the networks that have an address. */
+function mapSocialIcons(ctx: Ctx, b: Settings): Puck | null {
+  const links = Object.entries(b)
+    .filter(([key]) => key.startsWith("social_icon_link_"))
+    .map(([key, value]) => {
+      const network = key.slice("social_icon_link_".length);
+      return { label: SOCIAL_LABELS[network] ?? network.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), href: resolveLink(value, ctx.siteUrl), given: clean(str(value)) };
+    })
+    .filter((l) => l.given);
+  if (links.length === 0) return null;
+  for (const l of links.filter((x) => !x.href)) ctx.notes.push({ kind: "todo", text: `The ${l.label} link in the social icons can't be used here: set it in the editor.` });
+  ctx.notes.push({ kind: "approximated", text: `Social icons became ${links.length <= 3 ? "a row of text buttons" : "a list of links"} (${links.map((l) => l.label).join(", ")}): the Hub has no icon block yet.` });
+  if (links.length <= 3) {
+    return {
+      type: "ButtonRow",
+      props: { id: ctx.id("ButtonRow"), align: str(b.horizontal) === "center" ? "center" : "left", gap: "medium", items: links.map((l) => ({ type: "RowButton", props: { id: ctx.id("RowButton"), label: l.label, href: l.href, look: "outline", color: "plum", shape: "pill" } })) },
+    };
+  }
+  return { type: "LinkList", props: { id: ctx.id("LinkList"), items: links.map((l) => ({ type: "LinkItem", props: { id: ctx.id("LinkItem"), label: l.label, href: l.href, look: "inherit", color: "plum" } })) } };
+}
+
+/** Why embedded code is not carried over, or null when it is plain markup the rich text rules can hold. Anything that runs or loads something is refused. */
+function unsafeCodeReason(code: string): string | null {
+  if (/<\s*(script|iframe|style|object|embed|form|link|meta|base|svg|math|template|input|button|textarea|frame|applet)\b/i.test(code) || /\son[a-z]+\s*=/i.test(code) || /javascript\s*:/i.test(code)) return "runs a script or loads another site";
+  return null;
+}
+const codeHosts = (code: string) => [...code.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase());
+
 // ---- the page ------------------------------------------------------------------------------------------------
 
 export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions): KajabiMapResult {
@@ -232,6 +453,9 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   let blockCount = 0;
   let hiddenCount = 0;
   const themeRadius = num(current.btn_border_radius);
+  const ctx: Ctx = { notes, pictures, id, siteUrl: options.siteUrl, themeRadius };
+  /** Embedded code that runs a script or loads another site: never imported, said once for the page. */
+  const leftOutCode = { count: 0, hosts: new Set<string>() };
 
   // The header's logo is the page's first picture (a banner in the page's own colour, as the export has it).
   const header = sections.header;
@@ -280,9 +504,11 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     if (first && headerLogo) inner.push(headerLogo);
     first = false;
 
-    for (const key of blockOrder) {
+    const consumed = new Set<string>();
+    for (const [index, key] of blockOrder.entries()) {
+      if (consumed.has(key)) continue;
       const block = blocks[key];
-      const b = (isObject(block.settings) ? block.settings : {}) as Settings;
+      const b = settingsOf(block);
       const name = clean(str(block.name)) || str(block.type);
       const type = str(block.type);
       const label = type === "cta" ? clean(textOfHtml(str(b.btn_text))) || name : name;
@@ -292,8 +518,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         notes.push({ kind: "hidden", text: `Hidden in Kajabi, not imported: ${type === "cta" ? `button "${label}"${link ? ` (${link})` : ""}` : `${name} (${type})`}.` });
         continue;
       }
-      if (flag(b.hide_on_desktop) || flag(b.hide_on_mobile)) notes.push({ kind: "approximated", text: `"${label}" is hidden on ${flag(b.hide_on_desktop) ? "desktop" : "phones"} only in Kajabi; here it shows everywhere.` });
-      if (str(b.reveal_event)) notes.push({ kind: "left_out", text: `"${label}" appears after a delay or an event in Kajabi; here it is always shown.` });
+      liveNotes(ctx, b, label);
       const width = num(b.width);
       const before = inner.length;
 
@@ -311,21 +536,61 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         if (str(b.img_action)) notes.push({ kind: "left_out", text: `A picture that links somewhere in Kajabi is a plain picture here.` });
         inner.push({ type: "Image", props: { id: id("Image"), imageAssetId: ref, alt, decorative: false, size: width !== null && width <= 3 ? "small" : width !== null && width <= 8 ? "medium" : "full", rounded: false, align: "center" } });
       } else if (type === "cta") {
-        const bg = rgb(b.btn_background_color);
-        const fg = rgb(b.btn_text_color);
-        const outline = str(b.btn_style) === "outline" || (!bg && Boolean(fg));
-        const source = outline ? fg : bg;
-        const picked = source ? nearest(source, BUTTON_COLORS) : { key: "plum" as const, exact: true };
-        if (source && !picked.exact) notes.push({ kind: "approximated", text: `Button "${label}": its colour is shown as the nearest of our three button colours.` });
-        const href = resolveLink(b.btn_action, options.siteUrl);
-        const raw = clean(str(b.btn_action));
-        if (!href) notes.push({ kind: "todo", text: `Button "${label}" has ${raw ? "a link that can't be used here" : "no link"}: set its link in the editor.` });
-        else if (raw.startsWith("/")) notes.push({ kind: "approximated", text: `Button "${label}" goes to a Kajabi path (${raw}) through the Kajabi site, which works while Kajabi stays; point it at the final address when the page moves.` });
-        const radius = num(b.btn_border_radius) ?? themeRadius ?? 100;
-        inner.push({
-          type: "Button",
-          props: { id: id("Button"), label, href, look: outline ? "outline" : "solid", color: picked.key, shape: radius >= 30 ? "pill" : "rect", align: alignOf(b.text_align) === "left" ? "left" : alignOf(b.text_align) === "right" ? "right" : "center", full: str(b.btn_width) === "full" },
-        });
+        inner.push(makeButton(ctx, b, label));
+      } else if (type === "feature") {
+        inner.push(...mapFeature(ctx, b, name));
+      } else if (type === "card" || type === "pricing") {
+        // Cards (and pricing columns) that follow one another sit in one row in Kajabi: one Card grid here.
+        const group = sameKind(blockOrder, blocks, index, type);
+        for (const k of group.slice(1)) {
+          consumed.add(k);
+          liveNotes(ctx, settingsOf(blocks[k]), clean(str(blocks[k].name)) || type);
+        }
+        inner.push(...(type === "card" ? mapCards(ctx, group.map((k) => settingsOf(blocks[k]))) : mapPricing(ctx, group.map((k) => settingsOf(blocks[k])))));
+      } else if (type === "accordion") {
+        const group = sameKind(blockOrder, blocks, index, type);
+        for (const k of group.slice(1)) {
+          consumed.add(k);
+          liveNotes(ctx, settingsOf(blocks[k]), clean(str(blocks[k].name)) || type);
+        }
+        inner.push(mapAccordion(ctx, group.map((k) => settingsOf(blocks[k]))));
+      } else if (type === "countdown") {
+        inner.push(mapCountdown(ctx, b, name));
+      } else if (type === "video") {
+        inner.push(mapVideo(ctx, b));
+      } else if (type === "link_list") {
+        notes.push({ kind: "todo", text: `Link list "${name}": the export names the Kajabi menu${clean(str(b.menu)) ? ` (${clean(str(b.menu))})` : ""}, not its links. Add the links to this Link list in the editor.` });
+        inner.push({ type: "LinkList", props: { id: id("LinkList"), items: [] } });
+      } else if (type === "social_icons") {
+        const row = mapSocialIcons(ctx, b);
+        if (!row) {
+          notes.push({ kind: "left_out", text: `"${name}" (social icons) has no links to import.` });
+          continue;
+        }
+        inner.push(row);
+      } else if (type === "code") {
+        const code = str(b.code);
+        const unsafe = unsafeCodeReason(code);
+        if (unsafe) {
+          leftOutCode.count++;
+          for (const host of codeHosts(code)) leftOutCode.hosts.add(host);
+          continue;
+        }
+        const made = textBlocks(code, alignOf(b.text_align), id);
+        if (made.length === 0) {
+          notes.push({ kind: "left_out", text: `The embedded code block "${name}" has nothing to show.` });
+          continue;
+        }
+        notes.push({ kind: "approximated", text: `The embedded code block "${name}" was plain HTML; it is now text here (styles, scripts and embeds are never carried over).` });
+        inner.push(...made);
+      } else if (type === "offer") {
+        // The export names the offer by its Kajabi id; its title, price and checkout address are looked up when the page runs.
+        const cta = clean(textOfHtml(str(b.btn_text)));
+        notes.push({ kind: "todo", text: `Offer block "${name}": the export names the Kajabi offer${clean(str(b.offer)) ? ` (${clean(str(b.offer))})` : ""}, not its title, price or checkout link${cta ? `, and its button says "${cta}"` : ""}. Add a card with a button in the editor.` });
+        continue;
+      } else if (type === "blog") {
+        notes.push({ kind: "left_out", text: `The blog block "${name}" is not imported: the blog stays on Kajabi.` });
+        continue;
       } else if (type === "form") {
         inner.push(...textBlocks(str(b.text), alignOf(b.text_align), id));
         const formId = clean(str(b.form));
@@ -341,8 +606,14 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         continue;
       }
       blockCount += inner.length - before;
-      if (width !== null) widths.push(width);
+      // The width of a card or pricing column is its share of a row, which the grid takes care of.
+      if (width !== null && type !== "card" && type !== "pricing") widths.push(width);
       if (rgb(b.background_color) && (type === "text" || type === "form")) boxed = true;
+    }
+
+    if (inner.length === 0) {
+      notes.push({ kind: "left_out", text: `Section ${sectionId} had nothing that could be imported; it is not in the page.` });
+      continue;
     }
 
     // The column: the most common block width (Kajabi sets it per block in twelfths), as the nearest of our widths.
@@ -373,6 +644,10 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     });
   }
 
+  if (leftOutCode.count > 0) {
+    const hosts = [...leftOutCode.hosts].slice(0, 3).join(", ");
+    notes.push({ kind: "left_out", text: `${leftOutCode.count} embedded code block${leftOutCode.count === 1 ? "" : "s"} ${leftOutCode.count === 1 ? "runs" : "run"} a script or load${leftOutCode.count === 1 ? "s" : ""} another site${hosts ? ` (${hosts})` : ""}, which the Hub never allows on a page. Add what they showed (products, buttons) with our blocks.` });
+  }
   if (content.length === 0) return { ok: false, error: "Nothing in this export could be imported: every section was hidden or of a kind we don't import yet." };
 
   const footer = sections.footer;
@@ -384,7 +659,10 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         root.showFooter = true;
         root.footerText = `© ${options.year} ${clean(str(b.settings?.copyright))}`;
         notes.push({ kind: "approximated", text: "The footer shows the copyright line in the Hub's footer colour; the year is set today and doesn't roll over." });
-      } else notes.push({ kind: "left_out", text: `Footer block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported.` });
+      } else {
+        const why = b.type === "link_list" ? ": the export names the Kajabi menu, not its links" : b.type === "social_icons" ? ": the footer here shows only the copyright line" : "";
+        notes.push({ kind: "left_out", text: `Footer block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported${why}.` });
+      }
     }
   }
   notes.push({ kind: "approximated", text: "Fonts and exact spacing follow the Hub's theme, not Kajabi's." });

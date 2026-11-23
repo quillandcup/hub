@@ -133,13 +133,13 @@ describe("mapKajabiPage", () => {
     const settings = exportSettings({
       order: ["main_section", "extra"],
       sections: {
-        extra: { type: "carousel", settings: {}, block_order: ["1600000000900_0"], blocks: { "1600000000900_0": block("card", {}) } },
+        extra: { type: "carousel", settings: {}, block_order: ["1600000000900_0"], blocks: { "1600000000900_0": block("social_share", {}) } },
       },
     });
-    (settings.current.sections as Record<string, { block_order: string[]; blocks: Record<string, unknown> }>).main_section.blocks["1600000000700_0"] = block("countdown", {});
+    (settings.current.sections as Record<string, { block_order: string[]; blocks: Record<string, unknown> }>).main_section.blocks["1600000000700_0"] = block("multi_video", {});
     (settings.current.sections as Record<string, { block_order: string[] }>).main_section.block_order.push("1600000000700_0");
     const { notes } = map(settings);
-    expect(notes.some((n) => n.kind === "left_out" && n.text.includes("countdown"))).toBe(true);
+    expect(notes.some((n) => n.kind === "left_out" && n.text.includes("multi_video"))).toBe(true);
     expect(notes.some((n) => n.kind === "left_out" && n.text.includes("carousel"))).toBe(true);
   });
 
