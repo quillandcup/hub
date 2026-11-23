@@ -2,7 +2,9 @@ import { KAJABI_PHOTO_HOSTS, KAJABI_SITE_URL } from "@/lib/config";
 import { LandingPageSlugTakenError, type LandingPage, type LandingPageRepository, type LandingPageSummary } from "@/lib/data/landing-pages";
 import type { MediaRepository } from "@/lib/data/media";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
-import { mapAssetIds, normalizeLandingData } from "@/lib/landing/data";
+import { mapAssetIds, normalizeLandingData, sameDocument, sameLandingPage } from "@/lib/landing/data";
+
+export { sameDocument };
 import { freeImportKey, keyHasLayout, mapKajabiPage, pageStart, type ImportNote, type PageStart, type PictureSource } from "@/lib/landing/kajabi-import";
 import { readKajabiZip } from "@/lib/landing/kajabi-zip";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
@@ -101,26 +103,13 @@ export type ImportOutcome =
       counts: { blocks: number; hidden: number; pictures: number; picturesFailed: number };
     };
 
-/** Two documents are the same whatever order their keys come in (the database sorts them). */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-export const sameDocument = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 
 const isEmptyDocument = (d: unknown) => normalizeLandingData(d).content.length === 0;
 
 /** What the admin is told about a page the import would replace: where it stands, so they see what the replacement would lose. */
 export function matchOf(page: LandingPage): PageMatch {
   const published = page.status === "published";
-  const sameAsLive = published && sameDocument(page.draft_data, page.published_data);
+  const sameAsLive = published && sameLandingPage(page.draft_data, page.published_data);
   return {
     id: page.id,
     title: page.title,
