@@ -387,7 +387,7 @@ export function GridCard({ imageAssetId, alt, icon, title, description, price, b
           </span>
         )}
         <h3 className="font-display text-lg font-semibold">{title}</h3>
-        {description && <p className="text-sm">{description}</p>}
+        {description && <p className="whitespace-pre-line text-sm">{description}</p>}
         {price && <p className="font-semibold text-accent-ink">{price}</p>}
         {buttonLabel && href && (
           <a href={href} className={`${buttonClasses("inherit", "plum", "pill", false)} mt-auto !px-4 !py-2 !text-sm text-center`}>
