@@ -1,6 +1,6 @@
 # Moving quillandcup.com from Kajabi to the Hub
 
-> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
 
 A checklist to follow by hand. Target: **Dec 3 to 5, 2026** (the retreat is Dec 12, so there is a week of buffer). Where this says "verify in your dashboard", nobody has checked that screen while writing this page, so trust what the screen says over this page.
 
@@ -129,13 +129,11 @@ Note: once Kajabi's name servers are no longer used, a record Kajabi adds later 
 
 ## Part 4. Code (before the cutover)
 
-Two draft pull requests; read each description before merging.
-- **PR #1648**: the redirect fallback, the root homepage, the config map for explicit redirects, the "Still on Kajabi?" link, and `pnpm check:redirects`. Base: `main`.
-- **PR #1651**: public pages (writer profiles, landing pages) get the root as their address, and the same pages on `hub.quillandcup.com` redirect to it. Base: PR #1648 (change the base to `main` after #1648 merges).
+Three pull requests, stacked (#1648, then #1651 on it, then #1717 on that). **All three are safe to merge to `main` at any time, in that order, long before the cutover**, because everything that depends on the root domain sits behind one switch: `publicSiteLive` in `config/app.ts`, `false` until the cutover.
 
-Both are inactive on the root domain until DNS points at Vercel. Merging **PR #1648 shortly before the cutover** (the morning of) is the plan. Between that merge and the DNS change, the "Join the waitlist" link in the Hub's Courses page points at `courses.quillandcup.com`, which does not work until Part 5, step 6; that window should be under an hour.
-
-`joinUrl` is `https://quillandcup.com/free-trial` for now (it lands on Kajabi's free-trial page through the redirect); change it in `config/app.ts` when the Join page moves. The root homepage is the published landing page with the slug `home`, built in the Hub at `/admin/pages/home`; if no published `home` page exists the root shows a plain fallback, so publish `home` before the cutover. Merge #1648 when the checks are green and watch the `main` run until it deploys.
+- **While it is `false`** (the committed state): nothing changes for members or visitors. The Hub host keeps serving `/p/<slug>`, `/w/<handle>` and their sitemaps itself; their canonical addresses, sitemaps and `robots.txt` name the Hub host; the Kajabi site, the Courses waitlist link, the importer and `joinUrl` keep today's `www.quillandcup.com` addresses; the login page and the trailing-slash behavior are as before. The root and `www` hosts are not this app's yet, so their rules (the redirect fallback to Kajabi, the `www` alias, the bare `/<slug>` landing page address, `pnpm check:redirects`) are off.
+- **Before the flip, in the Hub**: publish the landing page with the slug `home` (built at `/admin/pages/home`; with none published the root shows a plain fallback), and any page that should take over an old Kajabi address (the slug is the address).
+- **The flip** is Part 5, step 8: a one-line PR that sets `publicSiteLive` to `true`. It changes `kajabiSiteUrl` to `https://courses.quillandcup.com` and `siteUrl` to `https://quillandcup.com` (and everything derived: the Courses waitlist link, the importer, the Kajabi sign-in link, `joinUrl`), turns the root-host rules on, makes the Hub host send `/w` and `/p` to the root host, and moves the public pages' canonical addresses to the root. `joinUrl` is `<siteUrl>/free-trial`: it lands on Kajabi's free-trial page through the redirect fallback until a Hub page with the slug `free-trial` is published.
 
 ---
 
@@ -154,10 +152,10 @@ Keep the gap, between Kajabi leaving the root and the Hub taking over, to a few 
    Leave every other record alone, especially MX, SPF, DKIM, Stripe and Resend.
 6. **Kajabi: back in Kajabi click Done, then "verify domain"** (the wording may differ; verify in your dashboard). Kajabi says most connections finish within 24 hours, but with the record in place it is usually minutes; its setup-error grace period for a CNAME is about 60 minutes. Load `https://courses.quillandcup.com` when it is ready. Kajabi gives the certificate (through Cloudflare); no timing is promised.
 7. In Vercel → Domains, wait for both domains to turn to "Valid Configuration" and the certificate to be issued (usually a couple of minutes).
-8. **Merge PR #1651** (after changing its base to `main`), and watch the `main` run until it deploys (`gh run list --branch main --limit 3`).
+8. **Flip the switch**: open a PR that sets `publicSiteLive` to `true` in `config/app.ts` (nothing else), let it merge, and watch the `main` run until it deploys (`gh run list --branch main --limit 3`). Only now does the root host redirect old addresses to Kajabi and the Hub host send public pages to the root. Until it deploys, a request to the root domain that already reaches Vercel is answered like the Hub host (a sign-in page), so have the PR ready and merge it right after step 7.
 9. Run the checks in Part 7.
 
-**Undo (Part 5):** in Kajabi remove `courses` and reconnect `www` by the CNAME method (Kajabi → Settings → Site settings → Domain → Set up custom domain → Create subdomain for Kajabi site, with the subdomain `www`), and in Squarespace DNS set `www` back to the CNAME `endpoint.mykajabi.com` (or the target Kajabi shows). With a 5-minute TTL it is back in about 5 to 10 minutes plus Kajabi's own verification time. If the Hub code is the problem and DNS is fine, revert the PR instead.
+**Undo (Part 5):** if the Hub side is the problem and DNS is fine, revert the flip PR (`publicSiteLive` back to `false`): the Hub host serves everything again as before. In Kajabi remove `courses` and reconnect `www` by the CNAME method (Kajabi → Settings → Site settings → Domain → Set up custom domain → Create subdomain for Kajabi site, with the subdomain `www`), and in Squarespace DNS set `www` back to the CNAME `endpoint.mykajabi.com` (or the target Kajabi shows). With a 5-minute TTL it is back in about 5 to 10 minutes plus Kajabi's own verification time. If the Hub code is the problem and DNS is fine, revert the PR instead.
 
 ---
 

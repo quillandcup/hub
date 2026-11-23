@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   DEFAULT_ROUTING,
   decideRoute,
@@ -11,6 +11,9 @@ import {
 } from "@/lib/root-routing";
 import { APP_URL, KAJABI_SITE_URL, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
 import { matchRedirect, fillTarget, ROOT_REDIRECTS } from "@/lib/root-redirects";
+
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in the "not live" tests (tests/lib/public-site-flag.test.ts lists them).
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const KAJABI = new URL(KAJABI_SITE_URL).origin;
 

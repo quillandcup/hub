@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { APP_URL, KAJABI_SITE_URL, SITE_URL } from "@/lib/config";
 import { decideRoute } from "@/lib/root-routing";
 import { ROOT_HOST } from "@/lib/config";
 import { expectedFor, formatTable, parseArgs, parseUrlList, rowOk, sameLocation, type Row } from "@/scripts/root-redirect-check";
+
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in the "not live" tests (tests/lib/public-site-flag.test.ts lists them).
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const LIST = path.resolve(__dirname, "../../scripts/data/redirect-check-urls.txt");
 

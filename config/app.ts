@@ -9,11 +9,42 @@
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
 
-// The Kajabi site (courses, checkout, library) moved to its own subdomain when the root domain came to the Hub.
-const kajabiSiteUrl = "https://courses.quillandcup.com";
-const siteUrl = "https://quillandcup.com";
+/**
+ * THE CUTOVER SWITCH. Whether the public site (the root domain, quillandcup.com) is served by this deployment. Same in every
+ * environment, so it is config, not an env var; flipping it is a one-line PR, made on the day the root and `www` domains are
+ * pointed at this Vercel project and Kajabi's custom domain is moved to its subdomain (docs/infrastructure/DEPLOYMENT.md,
+ * "One deployment, three hosts", and docs/runbooks/DOMAIN_MIGRATION.md).
+ *
+ *   - false (until then): nothing changes for anyone. The Hub host serves everything, including the public pages (`/p/<slug>`,
+ *     `/w/<handle>`, their sitemaps), and their canonical addresses, sitemaps and robots.txt name the Hub host. The root
+ *     host's own behavior (the `www` alias, the redirects to Kajabi, the bare `/<slug>` address, `/p/home` going to `/`) is
+ *     off, and every address below keeps the value it has today: the public site and the Kajabi site are both
+ *     www.quillandcup.com, which is Kajabi's.
+ *   - true: the root host is this app's public site, the Kajabi site moves to its subdomain, the Hub host sends the public
+ *     pages to the root host, and their canonical addresses name it.
+ *
+ * Read in src/lib/config.ts (`PUBLIC_SITE_LIVE`, `publicSite`), which everything else reads (src/lib/root-routing.ts, src/proxy.ts,
+ * the public pages' canonical addresses, robots.txt and the sitemaps, the layout, the login page), and in next.config.ts.
+ * tests/lib/public-site-flag.test.ts lists them.
+ */
+export const publicSiteLive: boolean = false;
+
+/**
+ * The addresses that change with `publicSiteLive`. Before the cutover both are www.quillandcup.com (Kajabi's site: it is where the
+ * public site and the Kajabi site are today). After, the Kajabi site (courses, checkout, library) is on its own subdomain and the
+ * root domain is the Hub's public site.
+ */
+export function publicSiteConfig(live: boolean) {
+  return live
+    ? { kajabiSiteUrl: "https://courses.quillandcup.com", siteUrl: "https://quillandcup.com" }
+    : { kajabiSiteUrl: "https://www.quillandcup.com", siteUrl: "https://www.quillandcup.com" };
+}
+const { kajabiSiteUrl, siteUrl } = publicSiteConfig(publicSiteLive);
 
 export const appConfig = {
+  /** Whether the public site is served by this deployment (see `publicSiteLive` above). */
+  publicSiteLive,
+
   /** The app's name as shown when installed to a home screen (the web app manifest, the iOS title). */
   appName: "Hedgie Hub",
 

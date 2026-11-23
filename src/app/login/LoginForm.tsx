@@ -6,7 +6,7 @@ import Link from "next/link";
 import { resendPendingInvite } from "./actions";
 import CodeEntry from "./CodeEntry";
 import SlackSignIn from "./SlackSignIn";
-import { KAJABI_LOGIN_URL } from "@/lib/config";
+import { KAJABI_LOGIN_URL, PUBLIC_SITE_LIVE } from "@/lib/config";
 
 const LAST_EMAIL_KEY = "hedgiehub:lastEmail";
 
@@ -185,13 +185,16 @@ export default function LoginForm({
           </div>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="kajabi-sign-in-note">
-          Still on Kajabi?{" "}
-          <a href={KAJABI_LOGIN_URL} className="font-medium text-plum-700 underline underline-offset-2 hover:text-plum-800 dark:text-plum-300 dark:hover:text-plum-200">
-            Sign in there
-          </a>
-          . You will need it to update your billing while you are on hiatus.
-        </p>
+        {/* Only once the public site is live (config/app.ts publicSiteLive): until then the login page is as it was. */}
+        {PUBLIC_SITE_LIVE && (
+          <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="kajabi-sign-in-note">
+            Still on Kajabi?{" "}
+            <a href={KAJABI_LOGIN_URL} className="font-medium text-plum-700 underline underline-offset-2 hover:text-plum-800 dark:text-plum-300 dark:hover:text-plum-200">
+              Sign in there
+            </a>
+            . You will need it to update your billing while you are on hiatus.
+          </p>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,9 @@ import userEvent from '@testing-library/user-event'
 import LoginForm from '@/app/login/LoginForm'
 import { KAJABI_LOGIN_URL } from '@/lib/config'
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in the "not live" tests (tests/lib/public-site-flag.test.ts lists them).
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const LAST_EMAIL_KEY = 'hedgiehub:lastEmail'
 
 const signInWithOtp = vi.fn()

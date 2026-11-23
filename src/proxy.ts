@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { continueSignedOut, updateSession } from './lib/supabase/middleware'
 import { decideRoute } from './lib/root-routing'
+import { PUBLIC_SITE_LIVE } from './lib/config'
 import appConfig from '../config/app'
 import { CSP_HEADER, NONCE_HEADER, enforcedCsp, generateNonce } from './lib/csp'
 
@@ -16,7 +17,8 @@ export async function proxy(request: NextRequest) {
   if (route.action === 'redirect') return NextResponse.redirect(route.location, route.status)
   // next.config.ts sets skipTrailingSlashRedirect so that Next doesn't 308 "/products/x/" to "/products/x" before this proxy can send it to
   // Kajabi with its slash intact. For everything the Hub serves, this keeps what Next did itself: a trailing slash is dropped (308).
-  if (request.nextUrl.pathname.length > 1 && request.nextUrl.pathname.endsWith('/')) {
+  // Only once the public site is live (config/app.ts publicSiteLive); before, next.config.ts leaves Next's own redirect on.
+  if (PUBLIC_SITE_LIVE && request.nextUrl.pathname.length > 1 && request.nextUrl.pathname.endsWith('/')) {
     // Built from text: setting pathname on a clone of nextUrl puts the slash back.
     const { origin, pathname, search } = request.nextUrl
     return NextResponse.redirect(new URL(`${pathname.replace(/\/+$/, '') || '/'}${search}`, origin), 308)
