@@ -2,11 +2,12 @@
  * Step B of the Kajabi course migration (docs/product/COURSES.md): captures each lesson's HTML, thumbnail,
  * video source and downloads from Kajabi's admin lesson editor into Bronze.
  *
- * None of that is in Kajabi's public API. The editor loads it as JSON, and that API only answers
+ * None of that is in Kajabi's public API. The editor gets it from Kajabi's admin, which only answers
  * the editor's own authenticated requests (a plain request with the session cookies gets 401). So
  * this opens a real Chrome window, lets you log in to Kajabi yourself, then opens each lesson's
- * editor and records the two responses it loads. The script never sees or stores a password or a
- * token; the login lives in the browser profile directory.
+ * editor and records what it loads (the lesson as an API response or embedded in the editor page,
+ * whichever Kajabi serves; the downloads as an API response). The script never sees or stores a
+ * password or a token; the login lives in the browser profile directory.
  *
  * With --hero it also looks for the course's hero banner (the image behind the course title). That is experimental and
  * finds nothing today: the admin product page doesn't carry it; the banner is on the member-facing course page.
@@ -36,6 +37,7 @@ import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { chromium, type BrowserContext, type Page, type Response } from "playwright";
 import {
+  parseEmbeddedPost,
   parseLessonContent,
   saveLessonContent,
   selectLessons,
@@ -194,30 +196,51 @@ async function captureHero(context: BrowserContext, courseId: string): Promise<v
   }
 }
 
-/** Moves the open page to the lesson's editor through the app's router and records its JSON. */
+/**
+ * Moves the open page to the lesson's editor through the app's router and records what it loads.
+ *
+ * The lesson itself arrives one of two ways, and either is accepted: the editor's own
+ * `/api/admin/posts/{id}` call (how Kajabi's admin worked until November 2026), or the editor page,
+ * fetched as HTML with the same document embedded in it (`parseEmbeddedPost`). The downloads are
+ * still their own `/downloads` call.
+ */
 async function capture(page: Page, lessonId: string): Promise<{ post: EditorPost; downloads: EditorDownloads }> {
-  const wait = (suffix: string) =>
-    page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === `/api/admin/posts/${lessonId}${suffix}`, {
-      timeout: RESPONSE_TIMEOUT_MS,
-    });
-  const postResponse = wait("");
-  const downloadsResponse = wait("/downloads");
+  const wait = (path: string) =>
+    page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === path, { timeout: RESPONSE_TIMEOUT_MS });
+  const checked = (r: Response) => {
+    if (r.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+    if (r.status() === 404) throw new Error("Kajabi has no such lesson (404)");
+    if (!r.ok()) throw new Error(`Kajabi answered ${r.status()}`);
+    return r;
+  };
+  const apiResponse = wait(`/api/admin/posts/${lessonId}`);
+  const pageResponse = wait(`/admin/posts/${lessonId}/edit`);
+  const downloadsResponse = wait(`/api/admin/posts/${lessonId}/downloads`);
   // A response that never arrives would otherwise be an unhandled rejection.
-  postResponse.catch(() => undefined);
-  downloadsResponse.catch(() => undefined);
+  for (const pending of [apiResponse, pageResponse, downloadsResponse]) pending.catch(() => undefined);
 
   await page.evaluate((id) => {
     history.pushState({}, "", `/admin/posts/${id}/edit`);
     window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
   }, lessonId);
-  const [post, downloads] = await Promise.all([postResponse, downloadsResponse]);
 
-  for (const r of [post, downloads]) {
-    if (r.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
-    if (r.status() === 404) throw new Error("Kajabi has no such lesson (404)");
-    if (!r.ok()) throw new Error(`Kajabi answered ${r.status()}`);
-  }
-  return { post: (await post.json()) as EditorPost, downloads: (await downloads.json()) as EditorDownloads };
+  const fromApi = apiResponse.then(async (r) => (await checked(r).json()) as EditorPost);
+  const fromPage = pageResponse.then(async (r) => {
+    const post = parseEmbeddedPost(await checked(r).text());
+    if (!post) throw new Error("the lesson page came back without its lesson data (is the login still valid?)");
+    return post;
+  });
+  const [post, downloads] = await Promise.all([
+    Promise.any([fromApi, fromPage]).catch((error: unknown) => {
+      if (!(error instanceof AggregateError)) throw error;
+      // A session problem is the useful thing to say, whichever source reported it.
+      const expired = error.errors.find((e) => e instanceof SessionExpiredError);
+      if (expired) throw expired;
+      throw new Error(`no lesson data arrived, neither from /api/admin/posts/{id} nor in the lesson page (${error.errors.map((e) => (e instanceof Error ? e.message : String(e))).join("; ")})`);
+    }),
+    downloadsResponse,
+  ]);
+  return { post, downloads: (await checked(downloads).json()) as EditorDownloads };
 }
 
 interface LessonResult {

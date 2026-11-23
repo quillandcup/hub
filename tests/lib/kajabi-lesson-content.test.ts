@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   linksNeedRefresh,
+  parseEmbeddedPost,
   parseLessonContent,
   presignedExpiry,
   URL_REFRESH_WINDOW_MS,
@@ -55,6 +56,48 @@ describe("presignedExpiry", () => {
     expect(presignedExpiry("https://example.test/a.jpg")).toBeNull();
     expect(presignedExpiry("not a url")).toBeNull();
     expect(presignedExpiry(null)).toBeNull();
+  });
+});
+
+// What Kajabi's admin serves now: the lesson page, with the same document inside a JSON script tag.
+const page = (...scripts: string[]) => `<!doctype html><html><head><title>x</title></head><body><div id="app"></div>${scripts.join("")}</body></html>`;
+const store = (doc: unknown) => `<script type="application/json" id="kjb-redux-store-data">${JSON.stringify(doc)}</script>`;
+
+describe("parseEmbeddedPost", () => {
+  it("reads the lesson document out of the page, exactly as the API used to return it", () => {
+    const post = makePost({ body: "<p>Hi</p>" });
+    const embedded = parseEmbeddedPost(page(store(post)));
+
+    expect(embedded).toEqual(post);
+    // Same lesson content from either source, hash included.
+    const downloads = makeDownloads({ id: "f1", name: "guide.pdf" });
+    expect(parseLessonContent(embedded!, downloads)).toEqual(parseLessonContent(post, downloads));
+  });
+
+  it("skips the page's other stores and finds the one that holds the lesson", () => {
+    const other = { data: { id: "9", attributes: { title: "not a lesson" } }, included: [] };
+    expect(parseEmbeddedPost(page(store(other), store(makePost())))?.data.id).toBe("5001");
+  });
+
+  it("keeps a lesson with an empty body", () => {
+    expect(parseEmbeddedPost(page(store(makePost({ body: "" }))))?.data.attributes.body).toBe("");
+  });
+
+  it("reads a body that itself contains a script tag, which the page escapes inside the JSON", () => {
+    const body = '<p>a</p><script>alert("x")</script><p>b</p>';
+    // A script tag can't hold a literal "</script>", so the page writes it as "<\/script>", which is still valid JSON.
+    const escaped = JSON.stringify(makePost({ body })).split("</").join("<\\/");
+    const html = page(`<script type="application/json" id="kjb-redux-store-data">${escaped}</script>`);
+    expect(parseEmbeddedPost(html)?.data.attributes.body).toBe(body);
+  });
+
+  it.each([
+    ["a page with no store (a login page, say)", page()],
+    ["a store that isn't JSON", page('<script type="application/json" id="kjb-redux-store-data">{not json</script>')],
+    ["a store without a lesson in it", page(store({ foo: 1 }))],
+    ["nothing at all", ""],
+  ])("is null for %s", (_name, html) => {
+    expect(parseEmbeddedPost(html)).toBeNull();
   });
 });
 

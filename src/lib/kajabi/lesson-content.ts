@@ -78,6 +78,29 @@ export interface LessonContent {
   contentHash: string;
 }
 
+/**
+ * The lesson as Kajabi's admin now delivers it: the editor page carries the same document the
+ * `/api/admin/posts/{id}` call used to return, embedded in a JSON script tag (`kjb-redux-store-data`),
+ * and moving to a lesson inside the app fetches that page's HTML instead of making the API call.
+ * Returns null when the page has no such document (a login page, an unrelated page, a changed layout).
+ */
+export function parseEmbeddedPost(html: string): EditorPost | null {
+  for (const match of html.matchAll(/<script\b[^>]*\bid="kjb-redux-store-data"[^>]*>([\s\S]*?)<\/script>/g)) {
+    let doc: unknown;
+    try {
+      doc = JSON.parse(match[1]);
+    } catch {
+      continue;
+    }
+    const data = (doc as { data?: { id?: unknown; attributes?: unknown } } | null)?.data;
+    // Other stores on the page hold something else; the lesson is the one with a body field.
+    if (typeof data?.id === "string" && data.attributes && typeof data.attributes === "object" && "body" in data.attributes) {
+      return doc as EditorPost;
+    }
+  }
+  return null;
+}
+
 /** When a presigned URL stops working, from its X-Amz-Date and X-Amz-Expires; null if not presigned. */
 export function presignedExpiry(url: string | null | undefined): string | null {
   if (!url) return null;
