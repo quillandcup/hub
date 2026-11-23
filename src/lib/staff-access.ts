@@ -33,6 +33,7 @@ export const STAFF_FEATURES = [
   "prickle.alias_form",
   "prickle.insights_link",
   "care.write",
+  "care.member_activity.read",
 ] as const satisfies readonly Permission[];
 export type StaffFeature = (typeof STAFF_FEATURES)[number];
 

@@ -314,6 +314,26 @@ describe("the Active tab", () => {
   });
 });
 
+describe("an admin previewing as an assistant", () => {
+  it("keeps the plan controls but not Messages or Activity during this plan, which the privacy page keeps from an assistant", async () => {
+    preview.role = "assistant";
+    signInAs(ADMIN_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const card = cards()[0];
+    expect(within(card).getByRole("button", { name: "Results" })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Messages" })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Activity during this plan" })).not.toBeInTheDocument();
+  });
+
+  it("still offers both to the admin themselves", async () => {
+    signInAs(ADMIN_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const card = cards()[0];
+    expect(within(card).getByRole("button", { name: "Messages" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Activity during this plan" })).toBeInTheDocument();
+  });
+});
+
 describe("the Earlier tab", () => {
   it("lists closed and lapsed engagements, the one that ended most recently first, and leaves out removed ones", async () => {
     signInAs(CM_USER);

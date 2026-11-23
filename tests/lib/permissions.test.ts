@@ -306,8 +306,11 @@ describe("the staff features are permissions", () => {
   it("gives an admin every feature, and a community manager only the ones in its bundle", () => {
     expect(staffFeaturesFor({ roles: ["admin"] })).toEqual(STAFF_FEATURES);
     expect(staffCan({ roles: ["admin"] }, "member.sudo")).toBe(true);
-    expect(staffFeaturesFor({ roles: ["community_manager"] })).toEqual(["member.activity_tab_limited", "care.write"].sort((a, b) => STAFF_FEATURES.indexOf(a as never) - STAFF_FEATURES.indexOf(b as never)));
+    expect(staffFeaturesFor({ roles: ["community_manager"] })).toEqual(["member.activity_tab_limited", "care.write", "care.member_activity.read"].sort((a, b) => STAFF_FEATURES.indexOf(a as never) - STAFF_FEATURES.indexOf(b as never)));
     expect(staffCan({ roles: ["community_manager"] }, "member.activity_tab")).toBe(false);
+    // The assistant has the rest of Hedgie Care but not the DM text and activity, so those controls are hidden from it.
+    expect(staffCan({ roles: ["assistant"] }, "care.write")).toBe(true);
+    expect(staffCan({ roles: ["assistant"] }, "care.member_activity.read")).toBe(false);
   });
 
   it.each(["member", "conversion_specialist", null, undefined, ""])("gives the role %s no feature", (role) => {

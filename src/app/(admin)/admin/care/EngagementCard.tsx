@@ -63,7 +63,7 @@ const STATUS_STYLE: Record<CareStatus, string> = {
 type Panel = "edit" | "close" | "renew" | "results" | "messages" | "activity" | "handover" | "start";
 
 /** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over to someone who accepts it, set a follow-up, change its start, close, see results). */
-export default function EngagementCard({ card, canWrite, owners, meId }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[]; meId: string }) {
+export default function EngagementCard({ card, canWrite, canSeeMemberActivity, owners, meId }: { card: EngagementCardData; canWrite: boolean; canSeeMemberActivity: boolean; owners: readonly CareOwner[]; meId: string }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CareResults | null>(null);
@@ -296,12 +296,16 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("results")}>
             Results
           </button>
-          <button type="button" data-track="care-plan-messages" className={BUTTON} aria-expanded={panel === "messages"} disabled={pending} onClick={() => open("messages")}>
-            Messages
-          </button>
-          <button type="button" className={BUTTON} aria-expanded={panel === "activity"} disabled={pending} onClick={() => open("activity")}>
-            Activity during this plan
-          </button>
+          {canSeeMemberActivity && (
+            <>
+              <button type="button" data-track="care-plan-messages" className={BUTTON} aria-expanded={panel === "messages"} disabled={pending} onClick={() => open("messages")}>
+                Messages
+              </button>
+              <button type="button" className={BUTTON} aria-expanded={panel === "activity"} disabled={pending} onClick={() => open("activity")}>
+                Activity during this plan
+              </button>
+            </>
+          )}
           {card.controls.canPropose && (
             <button type="button" data-track="care-handover-open" className={BUTTON} disabled={pending} onClick={() => open("handover")}>
               Hand over to…
@@ -349,9 +353,9 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
         </>
       )}
 
-      {canWrite && panel === "messages" && <CarePlanMessages memberId={card.memberId} />}
+      {canWrite && canSeeMemberActivity && panel === "messages" && <CarePlanMessages memberId={card.memberId} />}
 
-      {canWrite && panel === "activity" && <EngagementActivity planId={card.id} />}
+      {canWrite && canSeeMemberActivity && panel === "activity" && <EngagementActivity planId={card.id} />}
 
       {canWrite && panel === "start" && (
         <div className="mt-3 space-y-2">
