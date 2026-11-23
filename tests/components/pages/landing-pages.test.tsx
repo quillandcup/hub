@@ -33,7 +33,7 @@ vi.mock("next/cache", () => ({ unstable_cache: (fn: (...args: never[]) => unknow
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
 import PublicLandingPage, { generateMetadata } from "@/app/p/[slug]/page";
-import PreviewLandingPage from "@/app/(admin)/admin/pages/[slug]/preview/page";
+import PreviewLandingPage from "@/app/(admin-bare)/admin/pages/[slug]/preview/page";
 
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
 const doc = (text: string) => ({ content: [{ type: "Heading", props: { id: "h", text, level: "h1", align: "center" } }], root: {} });

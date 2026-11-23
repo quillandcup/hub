@@ -17,7 +17,8 @@ const walk = (dir: string): string[] =>
   (fs.readdirSync(path.join(repoRoot, dir), { recursive: true }) as string[]).map((f) => path.join(dir, f)).filter((f) => fs.statSync(path.join(repoRoot, f)).isFile());
 
 const srcFiles = walk("src").filter((f) => /\.(ts|tsx)$/.test(f));
-const adminFiles = walk("src/app/(admin)");
+// (admin-bare) is the staff area without the app shell (the draft preview): the same guards apply.
+const adminFiles = [...walk("src/app/(admin)"), ...walk("src/app/(admin-bare)")];
 
 // The route a page file serves: "src/app/(admin)/admin/members/[id]/slack/page.tsx" → "/admin/members/x/slack".
 // Route groups, parallel slots and intercepting markers are not part of the URL.
