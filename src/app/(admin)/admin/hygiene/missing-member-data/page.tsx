@@ -65,7 +65,7 @@ export default async function MissingMemberDataPage() {
             {missingStripe && missingStripe.length > 0 ? (
               <MissingStripeTable rows={missingStripe} />
             ) : (
-              <div className="px-6 py-8 text-center text-sm text-green-600 dark:text-green-400 font-medium">
+              <div className="px-6 py-8 text-center text-sm text-green-700 dark:text-green-400 font-medium">
                 All active members have a Stripe customer ID.
               </div>
             )}

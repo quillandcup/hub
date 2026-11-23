@@ -5,5 +5,5 @@ test("staff open the Privacy detail page @changelog", async ({ page, signInAs },
   await signInAs("admin");
   await page.goto("/admin/privacy");
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-  await shot(page, testInfo, "privacy-detail", { checks: false });
+  await shot(page, testInfo, "privacy-detail");
 });

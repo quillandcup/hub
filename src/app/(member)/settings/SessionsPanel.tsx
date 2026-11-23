@@ -141,7 +141,7 @@ export function SessionsPanel() {
       <div role="status" className="min-h-[1.25rem] mb-2 text-sm">
         {error && <span className="text-red-600 dark:text-red-400">{error}</span>}
         {!error && message && (
-          <span className="text-green-600 dark:text-green-400">{message}</span>
+          <span className="text-green-700 dark:text-green-400">{message}</span>
         )}
       </div>
 

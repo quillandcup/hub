@@ -130,7 +130,7 @@ export default function FeedbackWidget({ open: isOpen, onClose }: { open: boolea
             </div>
 
             {submitStatus === "sent" && (
-              <div className="text-xs text-green-600 dark:text-green-400">✓ Sent — thank you!</div>
+              <div className="text-xs text-green-700 dark:text-green-400">✓ Sent — thank you!</div>
             )}
             {submitStatus === "error" && (
               <div className="text-xs text-red-600 dark:text-red-400">

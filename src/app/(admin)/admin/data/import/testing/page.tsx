@@ -50,11 +50,11 @@ export default async function TestingImportPage() {
                   How to Export from Kajabi
                 </summary>
                 <div className="mt-2 pl-4 space-y-2">
-                  <p className="font-semibold text-green-600 dark:text-green-400">Members Export</p>
+                  <p className="font-semibold text-green-700 dark:text-green-400">Members Export</p>
                   <p className="pl-4"><a href="https://app.kajabi.com/admin/sites/2147577478/contacts?segment_id=members&is_member=true" target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 underline">Open Customers in Kajabi</a> → Select All → Bulk Action "Export"</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Expected columns: Name, Email, Products, Tags, Member Created At</p>
 
-                  <p className="mt-3 font-semibold text-green-600 dark:text-green-400">Subscriptions Export</p>
+                  <p className="mt-3 font-semibold text-green-700 dark:text-green-400">Subscriptions Export</p>
                   <p className="pl-4">Go to <a href="https://app.kajabi.com/admin/sites/2147577478/payments/subscriptions" target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 underline">Payments → Subscriptions</a> → Click the three dots (...) → Export subscriptions</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Expected columns: Customer Name, Customer Email, Status, Created At, Offer Title</p>
                 </div>

@@ -104,11 +104,12 @@ export default function Modal({
               type="button"
               onClick={onClose}
               className="flex items-center gap-2 text-2xl leading-none text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0"
-              aria-label="Close"
               aria-keyshortcuts="Escape"
             >
               <Kbd keys={["esc"]} />
-              ✕
+              <span aria-hidden="true">✕</span>
+              {/* The name comes from this text, not an aria-label: a label has to contain every visible word (WCAG label-in-name), and the shortcut hint is visible. */}
+              <span className="sr-only">Close</span>
             </button>
           </div>
         </div>

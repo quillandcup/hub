@@ -29,6 +29,17 @@ describe("BookshelfClient publish link", () => {
   });
 });
 
+describe("BookshelfClient book without a cover", () => {
+  it("draws no empty picture or link (React warns on an empty src or href)", () => {
+    const bare = { ...book("bare", []), coverUrl: "", editions: [{ format: "print" as const, purchaseUrl: "", price: null }] };
+    const { container } = render(<BookshelfClient shelf={[bare]} />);
+    expect(screen.getByText("Title bare")).toBeInTheDocument();
+    expect(screen.queryByAltText("Cover of Title bare")).not.toBeInTheDocument();
+    expect(container.querySelector('img[src=""]')).toBeNull();
+    expect(container.querySelector('a[href=""]')).toBeNull();
+  });
+});
+
 describe("BookshelfClient genre filter", () => {
   it("lists each genre once with its count, case-insensitively, most common first", () => {
     render(<BookshelfClient shelf={SHELF} />);

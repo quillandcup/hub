@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from "react";
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /**
@@ -140,7 +140,9 @@ export default function Tooltip({ content, touchContent, children, delayMs = SHO
   const clear = useCallback(() => setPending(null), []);
   const dismiss = useCallback(() => hideAfter(0), [hideAfter]);
 
-  if (content === null || content === undefined || content === false || content === "") return children;
+  // A child that is not an element yet (a server component's output that reached the client as a lazy reference) has no
+  // props to hand handlers to: show it as it is, without a tip, rather than fail the whole page.
+  if (content === null || content === undefined || content === false || content === "" || !isValidElement(children)) return children;
 
   const own = children.props;
   const describedBy = [own["aria-describedby"], open ? tipId : null].filter(Boolean).join(" ") || undefined;

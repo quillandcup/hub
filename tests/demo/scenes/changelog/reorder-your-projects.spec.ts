@@ -6,5 +6,5 @@ test("a member sees her projects with their grips @changelog", async ({ page, si
   await page.goto("/projects");
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /^Reorder / }).first()).toBeVisible();
-  await shot(page, testInfo, "projects-with-grips", { checks: false });
+  await shot(page, testInfo, "projects-with-grips");
 });
