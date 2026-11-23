@@ -8,7 +8,7 @@
 
 // Relative, not "@/": also loaded outside Next (scripts/render-email-templates.ts via
 // supabase/emails/layout.tsx).
-import appConfig from "../../config/app";
+import appConfig, { publicSiteConfig } from "../../config/app";
 
 /**
  * Environment type
@@ -330,3 +330,47 @@ export const config = {
 } as const;
 
 export default config;
+
+/**
+ * Everything that depends on whether the public site is live (config/app.ts `publicSiteLive`), computed for either state so a test
+ * can ask for both (tests/helpers/public-site.ts). The constants below are this for the committed state.
+ *   - `PUBLIC_PAGES_URL`: the origin of the public pages (landing pages, writer profiles) in their canonical and Open Graph
+ *     addresses, sitemaps, robots.txt, "copy link" and the address Settings shows: the root host once live, the Hub host before.
+ *   - `ROOT_HOST` and `SITE_ALIAS_HOSTS`: the hosts src/lib/root-routing.ts treats as the public site (only once live).
+ *   - the Kajabi site, its login and the join link keep today's address (www.quillandcup.com) until live.
+ */
+export function publicSite(live: boolean) {
+  const { siteUrl, kajabiSiteUrl } = publicSiteConfig(live);
+  const site = siteUrl.replace(/\/+$/, "");
+  return {
+    live,
+    SITE_URL: site,
+    KAJABI_SITE_URL: kajabiSiteUrl,
+    KAJABI_LOGIN_URL: `${kajabiSiteUrl}/login`,
+    JOIN_URL: `${site}/free-trial`,
+    FEATURED_COURSE_OFFER_URL: `${kajabiSiteUrl}/waitlist`,
+    ROOT_HOST: new URL(site).host,
+    SITE_ALIAS_HOSTS: appConfig.siteAliasHosts as readonly string[],
+    PUBLIC_PAGES_URL: live ? site : APP_URL,
+  };
+}
+
+const site = publicSite(appConfig.publicSiteLive);
+
+/** Whether the public site (the root domain) is served by this deployment: the cutover switch (config/app.ts `publicSiteLive`). */
+export const PUBLIC_SITE_LIVE: boolean = site.live;
+
+/** Where the public pages live, for their canonical addresses, sitemaps and links: see `publicSite`. */
+export const PUBLIC_PAGES_URL: string = site.PUBLIC_PAGES_URL;
+
+/** Where a member who still needs Kajabi signs in (config/app.ts `kajabiLoginUrl`). */
+export const KAJABI_LOGIN_URL: string = site.KAJABI_LOGIN_URL;
+
+/** Where the homepage's "Join" link goes (config/app.ts `joinUrl`). */
+export const JOIN_URL: string = site.JOIN_URL;
+
+/** The hosts that serve the Hub's public site and the app (src/lib/root-routing.ts decides per host). */
+export const ROOT_HOST = site.ROOT_HOST;
+export const APP_HOST = new URL(APP_URL).host;
+/** Other hosts of the public site that redirect to `SITE_URL` (config/app.ts `siteAliasHosts`). */
+export const SITE_ALIAS_HOSTS: readonly string[] = site.SITE_ALIAS_HOSTS;

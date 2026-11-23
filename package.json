@@ -48,6 +48,7 @@
     "brand-icons:update": "tsx scripts/update-brand-icons.ts",
     "changelog:draft": "tsx scripts/changelog-draft.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
+    "check:redirects": "tsx scripts/check-root-redirects.ts",
     "check:licenses": "tsx scripts/check-licenses.ts",
     "disposable-domains:update": "tsx scripts/update-disposable-email-domains.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",

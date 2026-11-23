@@ -1,0 +1,47 @@
+# URLs for `pnpm check:redirects` (scripts/check-root-redirects.ts). One per line: <path and query> <expected outcome>.
+# The expected outcome is one of:
+#   kajabi  307 to the same path and query on the Kajabi site (config/app.ts kajabiSiteUrl)
+#   hub     307 to the same path and query on the app host (appUrl): a signed-in Hub path
+#   login   307 to the Hub login (appUrl + /login), query kept
+#   serve   the root host answers itself (200), no redirect
+# The first block is the site's real top pages (paths only). When the Hub takes a page over (/about, say), change its outcome here.
+# The rest are generic Kajabi patterns and query-string cases with made-up slugs and ids. Lines starting with # and blank lines are ignored.
+
+# Top pages
+/ serve
+/login login
+/library kajabi
+/products/quill-cup-membership kajabi
+/products/the-ready-writer kajabi
+/products/the-ready-writer/categories/2160891046 kajabi
+/waitlist kajabi
+/free-trial kajabi
+/hedgie-books kajabi
+/blog kajabi
+/about kajabi
+
+# Generic Kajabi patterns, made-up slugs
+/library/categories/example kajabi
+/products/example-course/categories/123/posts/456 kajabi
+/offers/ExAmPlE/checkout kajabi
+/offers/ExAmPlE kajabi
+/pages/example-landing-page kajabi
+/blog/example-post kajabi
+/blog/example-post/ kajabi
+/resource_redirect/landing_pages/123 kajabi
+/forms/example kajabi
+
+# Query strings and encoding
+/login?utm_source=email login
+/free-trial?utm_source=instagram&utm_medium=social kajabi
+/products/example-course?utm_source=instagram&utm_medium=social kajabi
+/offers/ExAmPlE/checkout?coupon=EXAMPLE20 kajabi
+/offers/ExAmPlE?coupon=EXAMPLE20&utm_source=instagram kajabi
+/waitlist?email=reader%40example.com&note=a%20b kajabi
+
+# The Hub, public and signed in
+/dashboard hub
+/dashboard?utm_source=email hub
+/admin hub
+/privacy serve
+/robots.txt serve

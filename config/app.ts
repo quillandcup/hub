@@ -9,7 +9,42 @@
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
 
+/**
+ * THE CUTOVER SWITCH. Whether the public site (the root domain, quillandcup.com) is served by this deployment. Same in every
+ * environment, so it is config, not an env var; flipping it is a one-line PR, made on the day the root and `www` domains are
+ * pointed at this Vercel project and Kajabi's custom domain is moved to its subdomain (docs/infrastructure/DEPLOYMENT.md,
+ * "One deployment, three hosts", and docs/runbooks/DOMAIN_MIGRATION.md).
+ *
+ *   - false (until then): nothing changes for anyone. The Hub host serves everything, including the public pages (`/p/<slug>`,
+ *     `/w/<handle>`, their sitemaps), and their canonical addresses, sitemaps and robots.txt name the Hub host. The root
+ *     host's own behavior (the `www` alias, the redirects to Kajabi, the bare `/<slug>` address, `/p/home` going to `/`) is
+ *     off, and every address below keeps the value it has today: the public site and the Kajabi site are both
+ *     www.quillandcup.com, which is Kajabi's.
+ *   - true: the root host is this app's public site, the Kajabi site moves to its subdomain, the Hub host sends the public
+ *     pages to the root host, and their canonical addresses name it.
+ *
+ * Read in src/lib/config.ts (`PUBLIC_SITE_LIVE`, `publicSite`), which everything else reads (src/lib/root-routing.ts, src/proxy.ts,
+ * the public pages' canonical addresses, robots.txt and the sitemaps, the layout, the login page), and in next.config.ts.
+ * tests/lib/public-site-flag.test.ts lists them.
+ */
+export const publicSiteLive: boolean = false;
+
+/**
+ * The addresses that change with `publicSiteLive`. Before the cutover both are www.quillandcup.com (Kajabi's site: it is where the
+ * public site and the Kajabi site are today). After, the Kajabi site (courses, checkout, library) is on its own subdomain and the
+ * root domain is the Hub's public site.
+ */
+export function publicSiteConfig(live: boolean) {
+  return live
+    ? { kajabiSiteUrl: "https://courses.quillandcup.com", siteUrl: "https://quillandcup.com" }
+    : { kajabiSiteUrl: "https://www.quillandcup.com", siteUrl: "https://www.quillandcup.com" };
+}
+const { kajabiSiteUrl, siteUrl } = publicSiteConfig(publicSiteLive);
+
 export const appConfig = {
+  /** Whether the public site is served by this deployment (see `publicSiteLive` above). */
+  publicSiteLive,
+
   /** The app's name as shown when installed to a home screen (the web app manifest, the iOS title). */
   appName: "Hedgie Hub",
 
@@ -131,7 +166,7 @@ export const appConfig = {
    * The course the Courses page offers to a member who has none: its name, and the public waitlist
    * page where members sign up for it.
    */
-  featuredCourse: { title: "The Ready Writer", offerUrl: "https://www.quillandcup.com/waitlist" },
+  featuredCourse: { title: "The Ready Writer", offerUrl: `${kajabiSiteUrl}/waitlist` },
 
   /**
    * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
@@ -181,13 +216,35 @@ export const appConfig = {
   kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
 
   /**
-   * The public address of the Kajabi site, where its landing pages live today. A link in an imported page that is a
-   * Kajabi path (`/resource_redirect/...`) is resolved against it (src/lib/landing/kajabi-import.ts); retire it with Kajabi.
+   * The public address of the Kajabi site, where its landing pages, checkout and courses live (a subdomain of the public
+   * site: the root domain is the Hub's, see `siteUrl`). A link in an imported page that is a Kajabi path
+   * (`/resource_redirect/...`) is resolved against it (src/lib/landing/kajabi-import.ts), and the root host sends every
+   * path the Hub doesn't serve to the same path here (src/lib/root-routing.ts). Kajabi's custom domain must be this host.
    */
-  kajabiSiteUrl: "https://www.quillandcup.com",
+  kajabiSiteUrl,
 
-  /** The public site members arrive from, no trailing slash: where the footer of a writer profile links to. */
-  siteUrl: "https://www.quillandcup.com",
+  /** Where a member who still needs Kajabi signs in (a member on hiatus updates billing there). */
+  kajabiLoginUrl: `${kajabiSiteUrl}/login`,
+
+  /**
+   * The public site, no trailing slash: the root domain, the canonical address of public pages (the homepage today),
+   * and where the footer of a writer profile links to. The same deployment answers this host and `appUrl`
+   * (src/lib/root-routing.ts decides per host).
+   */
+  siteUrl,
+
+  /**
+   * Other hosts of the public site that redirect (307, same path and query) to `siteUrl`. The apex is canonical today, so
+   * `www` redirects to it; to make `www` canonical instead, swap `siteUrl` and this list (one line each).
+   */
+  siteAliasHosts: ["www.quillandcup.com"],
+
+  /**
+   * Where the homepage's "Join" link goes: the free trial page on the public site. It works before the cutover (the root
+   * host is still Kajabi's, which has the page) and after it (the root host sends it to Kajabi's page, see
+   * src/lib/root-routing.ts) until the Hub has a page of its own at that address.
+   */
+  joinUrl: `${siteUrl}/free-trial`,
 
   /**
    * Writer profiles (src/lib/writer-profile.ts, docs/product/WRITER_PROFILES.md), at `/w/<handle>`.

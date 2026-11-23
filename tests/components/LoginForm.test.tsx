@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import LoginForm from '@/app/login/LoginForm'
+import { KAJABI_LOGIN_URL } from '@/lib/config'
+
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in the "not live" tests (tests/lib/public-site-flag.test.ts lists them).
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
 
 const LAST_EMAIL_KEY = 'hedgiehub:lastEmail'
 
@@ -40,6 +44,13 @@ async function submit(email: string) {
 }
 
 describe('LoginForm', () => {
+  it('always offers the Kajabi sign-in to members who are still on Kajabi, including those on hiatus', () => {
+    render(<LoginForm slackHomeUrl={null} />)
+
+    expect(screen.getByRole('link', { name: 'Sign in there' })).toHaveAttribute('href', KAJABI_LOGIN_URL)
+    expect(screen.getByTestId('kajabi-sign-in-note')).toHaveTextContent(/Still on Kajabi\?.*hiatus/)
+  })
+
   it('pre-fills the email input from a previously saved address', () => {
     window.localStorage.setItem(LAST_EMAIL_KEY, 'returning@example.com')
 
