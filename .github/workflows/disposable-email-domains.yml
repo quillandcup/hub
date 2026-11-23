@@ -6,7 +6,7 @@ name: Refresh temp-mail domain list
 # something fails. The script refuses a list that is suspiciously short or that names a mainstream provider (Gmail,
 # Outlook, ...), so a bad upstream edit fails this job instead of reaching members.
 #
-# Opens the PR with GH_TOKEN_REFRESH_PR (a fine-grained personal token of its own, so it can be rotated or
+# Opens the PR with GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS (a fine-grained personal token of its own, so it can be rotated or
 # revoked without touching auto-merge.yml's), not the built-in GITHUB_TOKEN:
 # a PR opened by GITHUB_TOKEN does not trigger the pull_request workflows, so its required checks would never run
 # and it could not merge. Rotate it per docs/runbooks/SECRET_ROTATION.md. At most one refresh PR is open at a time.
@@ -24,11 +24,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN_REFRESH_PR }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          token: ${{ secrets.GH_TOKEN_REFRESH_PR }}
+          token: ${{ secrets.GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS }}
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 

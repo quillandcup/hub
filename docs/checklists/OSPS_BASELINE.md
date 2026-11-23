@@ -13,8 +13,8 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 | Result | Count |
 |---|---|
 | Met | 39 |
-| Partly | 6 |
-| Not met | 5 |
+| Partly | 5 |
+| Not met | 6 |
 | N/A | 15 |
 | Total | 65 |
 
@@ -118,9 +118,9 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 | `OSPS-VM-03.01` Private vulnerability reporting | 2 | Met | Private vulnerability reporting is enabled on the repository (live: `gh api repos/quillandcup/hub/private-vulnerability-reporting`). |
 | `OSPS-VM-04.01` Publish data about discovered vulnerabilities | 2 | N/A | No reports so far; zero published advisories (live). The policy is to publish a GitHub advisory for a confirmed one. |
 | `OSPS-VM-04.02` Non-affecting vulnerabilities in a VEX document | 3 | Partly | No VEX. Accepted findings are recorded with a reason and expiry in `config/osv-scanner.toml`. |
-| `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Partly | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed", says a Critical or High dependency finding is fixed before a pull request merges. Only CodeQL is enforced by a required check; a new vulnerable dependency is not blocked (`OSPS-VM-05.03`). |
+| `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Not met | Nothing stops a pull request that adds a vulnerable dependency (`OSPS-VM-05.03`); only CodeQL alerts block a merge. The scheduled scans report weekly (`docs/trust/THREAT_MODEL.md`), which is not a gate. |
 | `OSPS-VM-05.03` Dependency changes checked against a policy and blocked | 3 | Not met | OSV-Scanner and `pnpm audit` only report on pull requests (`osv-scan.yml`, `audit.yml`); neither is a required check, because an unfixable advisory would stop every PR. |
-| `OSPS-VM-05.04` Remediation threshold for vulnerable dependencies | 3 | Met | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed": Critical 7 days, High 30, Medium 60, Low 90. |
+| `OSPS-VM-05.04` Remediation threshold for vulnerable dependencies | 3 | Met | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed": Critical 10 days, High 30, Medium 60, Low 90. |
 | `OSPS-VM-05.05` Remediation threshold for license findings | 3 | Not met | No license scanning and no threshold. |
 | `OSPS-VM-06.01` Remediation threshold for static analysis findings | 3 | Met | The same table covers CodeQL alerts; CodeQL also blocks new alerts in a pull request (required check). |
 | `OSPS-VM-06.02` Automated enforcement against new weaknesses | 3 | Met | CodeQL is a required check on every pull request (`config/github.yml`), plus ESLint and TypeScript in CI. |

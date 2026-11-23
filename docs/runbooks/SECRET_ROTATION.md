@@ -120,10 +120,10 @@ management).
   `.env.shared`, run `pnpm env:sync:github` (it writes both the Actions and the Dependabot
   secret), then delete the old token. Once it expires, new PRs stop getting auto-merge
   enabled (the Auto-merge workflow fails).
-- `GH_TOKEN_REFRESH_PR`: the same page and the same settings as `GH_TOKEN_AUTO_MERGE`, as a
+- `GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS`: the same page and the same settings as `GH_TOKEN_AUTO_MERGE`, as a
   separate token. It is used only by `disposable-email-domains.yml` (the weekly temp-mail
   domain refresh PR), so it can be rotated or revoked without touching auto-merge. Put it in
-  `.env.shared`, run `pnpm env:sync:github --only=GH_TOKEN_REFRESH_PR` (Actions secret only),
+  `.env.shared`, run `pnpm env:sync:github --only=GH_TOKEN_DISPOSABLE_EMAIL_DOMAINS` (Actions secret only),
   then delete the old token. Once it expires, the weekly refresh job fails and no PR is opened.
 
 ### Sentry
