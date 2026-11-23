@@ -1261,6 +1261,15 @@ location instead.
 
 GUAC (Graph for Understanding Artifact Composition, from OpenSSF) ingests SBOMs, attestations and scanner output from many projects into one graph to answer supply-chain questions. Not planned: this is a single project with no corpus of SBOMs or attestations to analyze, and OSV-Scanner, Dependabot and `pnpm audit` already answer "which of our dependencies are known-vulnerable". Revisit if the number of repositories or published artifacts grows, or once SBOMs and build attestations exist for more than one thing.
 
+### Deploy provenance: what is left _(Needs Scheduling)_
+
+**Resolved (2026-11-23):** the deploy signs a build-provenance statement and a CycloneDX SBOM statement for each production deploy (`attest` job in `.github/workflows/deploy.yml`, how to verify in `docs/infrastructure/DEPLOYMENT.md`, "Verifying what was deployed"). The first run on `main` passed and both `gh attestation verify` commands succeed.
+
+**Still open:**
+- **A policy gate.** Nothing checks an attestation before or after a deploy; the signature is a record, not a control. Worth doing if a deploy path other than CI appears, or when a second consumer needs to trust the build. Start with `gh attestation verify` in a post-deploy step and the `--signer-workflow` check.
+- **A reproducible build.** Needed for anything above SLSA Build L2 (the claim in `DEPLOYMENT.md` is L1 plus the signing properties of L2). Worth doing only if a requirement asks for L3; the build runs in an ordinary workflow job today.
+- **Matching a signed manifest to a deployment's files** is manual. Worth automating if anyone starts relying on the manifest.
+
 ### Repo Security Settings and Scans _(Needs Scheduling)_
 Found 2026-10-22 by comparing the live repo's `security_and_analysis` (read with
 `gh api repos/quillandcup/hub`) against what GitHub offers for public repos. Secret scanning and push
