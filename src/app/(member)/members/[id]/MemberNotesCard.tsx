@@ -78,7 +78,7 @@ export default function MemberNotesCard({
           {error ? (
             <span className="text-red-600 dark:text-red-400">{error}</span>
           ) : justSaved ? (
-            <span className="text-green-600 dark:text-green-400">{savedBody ? "Saved." : "Note deleted."}</span>
+            <span className="text-green-700 dark:text-green-400">{savedBody ? "Saved." : "Note deleted."}</span>
           ) : updatedAt && !dirty ? (
             <span className="text-slate-500 dark:text-slate-400">Last edited {formatSavedAt(updatedAt)}</span>
           ) : null}

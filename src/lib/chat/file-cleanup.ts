@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 
 export type FileBytesResult = "removed" | "kept" | "nothing" | "failed";
 
@@ -41,9 +41,9 @@ export async function removeChatFileBytes(
 
 async function dropBytes(service: SupabaseClient, fileId: string, path: string | null): Promise<boolean> {
   if (path) {
-    const { error } = await service.storage.from(SLACK_FILES_BUCKET).remove([path]);
+    const { error } = await service.storage.from(CHAT_FILES_BUCKET).remove([path]);
     if (error) {
-      console.error("removing %s from the %s bucket failed:", path, SLACK_FILES_BUCKET, error);
+      console.error("removing %s from the %s bucket failed:", path, CHAT_FILES_BUCKET, error);
       return false;
     }
   }

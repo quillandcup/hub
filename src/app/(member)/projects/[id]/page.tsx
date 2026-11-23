@@ -5,6 +5,9 @@ import { ReturnToTabLink } from "@/components/ReturnToTab";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getProject, getArchivedGoals } from "../actions";
 import ProjectDetailView from "./ProjectDetailView";
+import { loadMilestoneContext } from "../milestoneData";
+import { buildWorks, workOfProject } from "@/lib/finishers-works";
+import { ProjectMilestonesSection } from "@/components/writing/Milestones";
 
 export async function generateMetadata({
   params,
@@ -44,7 +47,11 @@ export default async function ProjectDetailPage({
     );
   }
 
-  const archivedGoals = await getArchivedGoals(id);
+  const [archivedGoals, ms] = await Promise.all([getArchivedGoals(id), loadMilestoneContext(effectiveIdentity.memberId)]);
+  const work = workOfProject(
+    buildWorks([{ id: result.project.id, title: result.project.title, phase: result.project.phase }], ms.books, ms.milestones, ms.firstJoinedAt),
+    result.project.id,
+  );
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -59,6 +66,7 @@ export default async function ProjectDetailPage({
 
       <main className="container mx-auto px-6 py-8">
         <ProjectDetailView viewKey={`${result.project.phase}:${result.project.visibility}`} project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
+        {work && <ProjectMilestonesSection work={work} readOnly={effectiveIdentity.isSudo} web={ms.web} />}
       </main>
     </div>
   );

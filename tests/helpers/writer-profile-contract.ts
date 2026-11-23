@@ -304,6 +304,17 @@ export function defineWriterProfileContract(name: string, setup: () => WriterPro
         expect(await ctx.profiles().publicByHandle(handle)).toEqual(await ctx.profiles().publicByHandle(ctx.unique("nobody")));
       });
 
+      it("says whether the member's page is on right now, which a photo for the web asks", async () => {
+        const handle = ctx.unique("ada");
+        expect(await ctx.profiles().isOnForMember(ada)).toBe(false);
+        await claim(ada, handle);
+        expect(await ctx.profiles().isOnForMember(ada)).toBe(false);
+        await ctx.profiles().update(ada, { isPublic: true });
+        expect(await ctx.profiles().isOnForMember(ada)).toBe(true);
+        await ctx.profiles().update(ada, { isPublic: false });
+        expect(await ctx.profiles().isOnForMember(ada)).toBe(false);
+      });
+
       it("previews their own page whether or not it is on", async () => {
         const handle = ctx.unique("ada");
         expect(await ctx.profiles().previewOfMember(ada)).toBeNull();

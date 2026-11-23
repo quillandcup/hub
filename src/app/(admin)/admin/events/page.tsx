@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import EventsClient from "./EventsClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Events",
 };
 
 export default async function EventsPage() {
-  await requireAdminPage();
+  await requirePermission("events.manage");
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

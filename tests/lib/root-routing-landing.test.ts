@@ -8,6 +8,9 @@ import { DEFAULT_ROUTING, decideRoute, resolveLandingRoute, type LandingCandidat
 import { APP_URL, KAJABI_SITE_URL, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
 import { RESERVED_SLUGS } from "@/lib/landing/slug";
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const KAJABI = new URL(KAJABI_SITE_URL).origin;
 const kajabi = (rest: string) => ({ action: "redirect", location: `${KAJABI}${rest}`, status: 307 });
 const root = (pathname: string, search = ""): RouteRequest => ({ host: ROOT_HOST, method: "GET", pathname, search });

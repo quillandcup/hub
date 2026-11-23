@@ -18,6 +18,9 @@ import { ZonedDateTimeField } from "@/components/landing/fields";
 import { BLOCK_DEFAULTS, ITEM_BLOCKS } from "@/components/landing/config";
 import { editorConfig } from "@/components/landing/editor-config";
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
   id: "lpg_AAAAAAAAAAA1",
   slug: "spring",
@@ -34,7 +37,7 @@ const row = (over: Partial<LandingPageSummary>): LandingPageSummary => ({
   restored_at: null,
   import_key: null,
   imported_at: null,
-  starter_applied_at: null,
+  replaced_at: null,
   created_by: null,
   updated_by: null,
   created_at: "2027-01-01T00:00:00Z",

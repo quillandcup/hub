@@ -12,7 +12,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 
 ## Repo layout
 
-- Application code is under `src/`: `src/app/`, `src/components/`, `src/lib/`, `src/emails/`, `src/content/`, `src/modules/` (the composition root and the modules that contribute to the host, today the events integration for the page builder: `docs/architecture/PAGE_BLOCKS.md`; the pages code never imports a module, lint enforces it), plus `src/proxy.ts`, `src/instrumentation.ts` and `src/instrumentation-client.ts`. `@/` means `src/` (so `@/lib/x` is `src/lib/x.ts`); `@/config`, `@/scripts` and `@/tests` still reach those root folders. `public/` stays at the root. Always write a path with its `src/` (`tests/lib/source-layout.test.ts` fails on `lib/x.ts` for `src/lib/x.ts`), and test files go in `tests/`, not next to the code.
+- Application code is under `src/`: `src/app/`, `src/components/`, `src/lib/`, `src/emails/`, `src/content/`, `src/modules/` (the composition root and the modules that contribute to the host, today the events integration for the page builder: `docs/architecture/PAGE_BLOCKS.md`; the pages code never imports a module, lint enforces it; `src/modules/chat/slack` is the Slack adapter of chat, and chat core in `src/lib/chat` and `src/components/chat` reaches it only through the transport port: `docs/architecture/CHAT_MODULE.md`, lint enforces it too), plus `src/proxy.ts`, `src/instrumentation.ts` and `src/instrumentation-client.ts`. `@/` means `src/` (so `@/lib/x` is `src/lib/x.ts`); `@/config`, `@/scripts` and `@/tests` still reach those root folders. `public/` stays at the root. Always write a path with its `src/` (`tests/lib/source-layout.test.ts` fails on `lib/x.ts` for `src/lib/x.ts`), and test files go in `tests/`, not next to the code.
 - `src/app/(member)/`, `src/app/(admin)/admin/`, `src/app/api/` (process, import, reconcile, webhooks, internal), `src/app/actions/`
 - `src/lib/` (domain logic), `src/lib/data/` (repositories, the only place that queries tables), `src/components/`, `src/emails/`
 - `config/` (app.ts and env-vars.ts, the config-as-code YAML for GitHub, Sentry, Slack, Vercel and Mux, Sentry init, vitest, eslint, tailwind, squawk, knip, jscpd, osv-scanner, gitleaks, a PostCSS plugin), `supabase/migrations/`, `supabase/tests/database/` (pgTAP), `tests/` (`lib`, `api`, `components`), `docs/`
@@ -26,7 +26,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 - **Batch database work** in API routes (load reference data with `Promise.all`, process in memory, write in chunks); no sequential queries in loops.
 - **Member data in member pages** comes from `getEffectiveIdentity`, so sudo works.
 - **Show members by `getMemberDisplayName`**, not `member.name`.
-- **Admin pages and actions** start with `requireAdminPage()` / `requireAdminAction()`.
+- **Staff pages, actions and routes** start with `requirePermission("<permission>")` / `requireActionPermission(...)` / `requireApiPermission(request, ...)`: access is by permission, roles are bundles (`src/lib/permissions.ts`, `docs/architecture/PERMISSIONS.md`).
 - **Anything sent to a member on the app's initiative** goes through `createNotifier`, never a direct Slack call.
 - **New tables** get `id text DEFAULT public.new_id('<prefix>')`, grants in the same migration, and a repository. Never expose a Tier 2 id.
 - **Migrations never remove what live code still uses** (expand, then contract in a second PR).
@@ -51,6 +51,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 | `tabbed-pages.md`, `ui-layout.md` | tabs are paths, container queries, named z-layers |
 | `resource-ids.md`, `business-facts.md` | id tiers and prefixes, derive don't assume |
 | `admin-route-protection.md` | admin pages/actions, community manager, preview role |
+| `permissions-for-resources.md` | a new resource or operation defines its permissions: verbs, role decisions, guard, RLS, audit, tests |
 | `migrations.md`, `config-as-code.md` | numbering, expand/contract, squawk; Supabase, GitHub, Sentry, Slack manifest as code |
 | `testing-requirements.md` | integration, route, component, pgTAP, fake clock |
 

@@ -4,7 +4,9 @@ import { ITEM_LIMITS } from "./item-limits";
 import Countdown, { type CountdownProps } from "./Countdown";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
 import { sectionPadding } from "@/lib/landing/layout";
-import { background, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
+import { SocialMark } from "./social-marks";
+import { SOCIAL_NETWORKS, socialLookOf, socialNetworkOf, type SocialLook } from "./social-networks";
+import { background, BACKGROUNDS, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
 
 /**
  * The page builder's blocks as plain components: the same ones render in the editor's canvas and on the public page
@@ -30,6 +32,7 @@ const CAP_CLASS: Record<number, string> = {
   5: "[&>:nth-child(n+6)]:hidden",
   6: "[&>:nth-child(n+7)]:hidden",
   7: "[&>:nth-child(n+8)]:hidden",
+  8: "[&>:nth-child(n+9)]:hidden",
   12: "[&>:nth-child(n+13)]:hidden",
 };
 
@@ -63,12 +66,20 @@ const alignClass = (a: unknown) => pick(ALIGN, a, "left");
 
 // ---- Section -------------------------------------------------------------------------------------------------
 
-const OVERLAY = { none: "", dark: "bg-black/55", light: "bg-white/70" } as const;
+/** The shade over a Section's picture. `cream` is the soft light one (the brand's cream at half strength), for a picture that should stay visible. */
+const OVERLAY = { none: "", dark: "bg-black/55", light: "bg-white/70", cream: "bg-cream/50" } as const;
+/** Light shades keep dark text, whatever the picture. */
+const LIGHT_OVERLAYS: readonly string[] = ["light", "cream"];
+
+/** Where the content sits in the band when it is narrower than the page: on the left, in the middle (the default) or on the right. */
+const PLACE = { left: "mr-auto", center: "mx-auto", right: "ml-auto" } as const;
+/** A card in one of the theme's colours, solid or softened (80%) so the picture shows faintly through. Full class strings, so Tailwind finds them. */
+const CARD_SOFT = { white: "bg-white/80", cream: "bg-cream/80", blush: "bg-blush/80", mist: "bg-mist-200/80", plum: "bg-plum-700/80", brownMid: "bg-brown/80", brown: "bg-brown-deep/80", charcoal: "bg-cup/80" } as const;
 
 export type SectionProps = {
   background: string;
   backgroundImageAssetId?: string;
-  overlay: "none" | "dark" | "light";
+  overlay: "none" | "dark" | "light" | "cream";
   width: string;
   /** Inner space in px, per size (src/lib/landing/layout.ts); a missing or invalid side takes the default. */
   paddingDesktop?: unknown;
@@ -77,7 +88,17 @@ export type SectionProps = {
   hideOnMobile?: boolean;
   align: "left" | "center";
   card: boolean;
+  /** The card's colour: a theme background (`BACKGROUNDS`), or `default` for the standard card. */
+  cardColor?: string;
+  /** Let the picture show faintly through the card (80% solid). */
+  cardSoft?: boolean;
+  /** Where the content sits when it is narrower than the page. Unset means the middle. */
+  place?: "left" | "center" | "right";
+  /** `plum` sets the text in the brand's plum; `auto` leaves it to the background. */
+  textTone?: "auto" | "plum";
   fadeIn: boolean;
+  /** Grow to take the free height between the site header and footer on a short page; the content stays in the middle. Off unless it is exactly `true`. */
+  fill?: boolean;
   content: Slot;
   /** Set by the editor's canvas only: a hidden section is dimmed there instead of hidden. */
   editing?: boolean;
@@ -87,27 +108,38 @@ export type SectionProps = {
 const SECTION_GRID = "grid grid-cols-12 gap-x-4 @split:gap-x-6";
 
 /** A full-width band with a background colour or picture, and a 12-column grid of other blocks inside it. */
-export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, fadeIn, content: Content, editing }: SectionProps) {
+export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, fill, content: Content, editing }: SectionProps) {
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
-  const text = image && overlay === "dark" ? "text-white" : image && overlay === "light" ? "text-ink" : theme.text;
-  const scope = image ? (overlay === "light" ? "landing-light" : "") : theme.scope;
+  const light = LIGHT_OVERLAYS.includes(overlay);
+  const text = image && overlay === "dark" ? "text-white" : image && light ? "text-ink" : theme.text;
+  const scope = image ? (light ? "landing-light" : "") : theme.scope;
+  const tone = textTone === "plum" ? "text-accent-ink" : "";
+  // A card in a theme colour carries its own readable text (and keeps light text light in dark mode); the standard card is the page's white.
+  const cardTheme = cardColor && cardColor !== "default" && cardColor in BACKGROUNDS ? background(cardColor) : null;
+  const cardClass = cardTheme ? `${cardSoft ? CARD_SOFT[cardColor as keyof typeof CARD_SOFT] : cardTheme.bg} ${cardTheme.text} ${cardTheme.scope}` : `${cardSoft ? "bg-card/80" : "bg-card"} text-ink`;
+  // Content narrower than the page sits at `place`: the frame is the wide column and the content is its left, middle or right.
+  const placed = place === "left" || place === "right";
+  const body = card ? (
+    <div className={`rounded-xl p-6 shadow-lg @pair:p-10 ${cardClass}`}>
+      <Content className={SECTION_GRID} collisionAxis="dynamic" />
+    </div>
+  ) : (
+    <Content className={SECTION_GRID} collisionAxis="dynamic" />
+  );
   const space = sectionPadding({ paddingDesktop, paddingMobile });
+  // "Fill the page": the section is a column that centres its content, and `lp-fill` lets src/app/globals.css grow it (and the wrappers around it) into the free height. A section hidden on a size shows as `flex`, not `block`, when it comes back.
+  const fills = fill === true;
+  const hide = hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing));
   return (
     <section
-      className={`relative ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing))} ${fadeIn ? "landing-fade-in" : ""}`}
+      className={`relative ${fills ? "lp-fill flex flex-col justify-center" : ""} ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${fills ? hide.replace("@split:block", "@split:flex") : hide} ${fadeIn ? "landing-fade-in" : ""}`}
       style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}
     >
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}
-      <div className={`relative mx-auto ${pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")}`}>
-        {card ? (
-          <div className="rounded-xl bg-card p-6 text-ink shadow-lg @pair:p-10">
-            <Content className={SECTION_GRID} collisionAxis="dynamic" />
-          </div>
-        ) : (
-          <Content className={SECTION_GRID} collisionAxis="dynamic" />
-        )}
+      <div className={`relative mx-auto ${fills ? "w-full" : ""} ${placed ? WIDTHS.wide.cls : pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")} ${tone}`}>
+        {placed ? <div className={`${pick(WIDTHS, width, "wide").cls} ${pick(PLACE, place, "center")}`}>{body}</div> : body}
       </div>
     </section>
   );
@@ -235,16 +267,18 @@ export function RowButton({ label, href, look, color, shape, dragRef, editing }:
 
 // ---- Image ---------------------------------------------------------------------------------------------------
 
-export type ImageProps = { imageAssetId?: string; alt: string; decorative: boolean; size: "small" | "medium" | "full"; rounded: boolean; align: "left" | "center" | "right" };
+export type ImageProps = { imageAssetId?: string; alt: string; decorative: boolean; size: "small" | "medium" | "full"; rounded: boolean; align: "left" | "center" | "right"; fit?: "whole" | "crop" };
 const IMAGE_SIZE = { small: "max-w-xs", medium: "max-w-xl", full: "max-w-full" } as const;
 const IMAGE_ALIGN = { left: "mr-auto", center: "mx-auto", right: "ml-auto" } as const;
 
-export function Image({ imageAssetId, alt, decorative, size, rounded, align }: ImageProps) {
-  const src = pageImage(imageAssetId, "event_hero");
+/** The whole picture at its own shape by default (a logo or a wide banner must not lose its ends); `fit: "crop"` fills a 16:9 frame instead. */
+export function Image({ imageAssetId, alt, decorative, size, rounded, align, fit }: ImageProps) {
+  const crop = fit === "crop";
+  const src = pageImage(imageAssetId, crop ? "event_hero" : "page_image");
   if (!src) return noImage;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-    <img src={src} alt={decorative ? "" : alt} loading="lazy" className={`my-3 h-auto w-full ${pick(IMAGE_SIZE, size, "medium")} ${pick(IMAGE_ALIGN, align, "center")} ${rounded ? "rounded-2xl" : ""}`} />
+    <img src={src} alt={decorative ? "" : alt} loading="lazy" className={`my-3 h-auto w-full ${crop ? "aspect-video object-cover" : ""} ${pick(IMAGE_SIZE, size, "medium")} ${pick(IMAGE_ALIGN, align, "center")} ${rounded ? "rounded-2xl" : ""}`} />
   );
 }
 
@@ -253,7 +287,7 @@ export function Image({ imageAssetId, alt, decorative, size, rounded, align }: I
 export type SplitProps = { imageAssetId?: string; alt: string; decorative: boolean; imageSide: "left" | "right"; html: string };
 /** Picture and words side by side once there is room (`@split`), stacked (picture first) below it; `imageSide` only matters side by side. */
 export function Split({ imageAssetId, alt, decorative, imageSide, html }: SplitProps) {
-  const src = pageImage(imageAssetId, "event_hero");
+  const src = pageImage(imageAssetId, "page_image");
   return (
     <div className="grid items-center gap-6 py-4 @split:grid-cols-2 @split:gap-10">
       {src && (
@@ -316,37 +350,62 @@ export function Testimonial({ quote, name, detail, dragRef, editing }: Testimoni
   );
 }
 
-// ---- FAQ -----------------------------------------------------------------------------------------------------
+// ---- Accordion and FAQ ---------------------------------------------------------------------------------------
 
-export type FaqProps = { items: Slot; editing?: boolean };
+export type AccordionProps = { items: Slot; editing?: boolean };
 
-/** A ruled box of questions, each a `FaqItem` in the `items` slot. */
-export function Faq({ items: Items, editing }: FaqProps) {
-  return <Items collisionAxis="y" className={`my-3 divide-y divide-current rounded-lg border border-current ${itemList(null, editing)}`} />;
+const DISCLOSURE_LIST = "my-3 divide-y divide-current rounded-lg border border-current";
+
+/** A ruled box of collapsible items, each an `AccordionItem` in the `items` slot. For anything that folds away; questions and answers are the FAQ. */
+export function Accordion({ items: Items, editing }: AccordionProps) {
+  return <Items collisionAxis="y" className={`${DISCLOSURE_LIST} ${itemList(null, editing)}`} />;
 }
 
-export type FaqItemProps = { question: string; answer: string } & ItemProps;
-
-/** One question and its answer. Native disclosure elements: keyboard and screen reader support without script. */
-export function FaqItem({ question, answer, dragRef, editing }: FaqItemProps) {
-  if (!question && !editing) return null;
+/** One title that opens to its text. Native disclosure elements: keyboard and screen reader support without script. `open` makes it start open. */
+function Disclosure({ title, text, open, dragRef }: { title: string; text: string; open?: boolean; dragRef?: ItemProps["dragRef"] }) {
   return (
-    <details ref={dragRef} className="group p-4">
+    <details ref={dragRef} open={open || undefined} className="group p-4">
       <summary className="cursor-pointer list-none font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
         <span className="flex items-center justify-between gap-3">
-          {question}
+          {title}
           <span aria-hidden="true" className="transition-transform group-open:rotate-45">
             +
           </span>
         </span>
       </summary>
       <div className="mt-2 space-y-2">
-        {(answer ?? "").split(/\n+/).filter(Boolean).map((line, j) => (
+        {(text ?? "").split(/\n+/).filter(Boolean).map((line, j) => (
           <p key={j}>{line}</p>
         ))}
       </div>
     </details>
   );
+}
+
+export type AccordionItemProps = { title: string; text: string; open?: boolean } & ItemProps;
+
+/** One item of an Accordion. Nothing is drawn without its title (the editor shows it). */
+export function AccordionItem({ title, text, open, dragRef, editing }: AccordionItemProps) {
+  if (!title && !editing) return null;
+  return <Disclosure title={title} text={text} open={open} dragRef={dragRef} />;
+}
+
+export type FaqProps = { items: Slot; editing?: boolean };
+
+/**
+ * Questions and their answers, each a `FaqQuestion` in the `items` slot. It looks like an Accordion; what makes it the FAQ is that the
+ * public page also tells search engines about the questions (`faqStructuredData`, src/lib/landing/faq-schema.ts, drawn by `LandingRender`).
+ */
+export function Faq({ items: Items, editing }: FaqProps) {
+  return <Items collisionAxis="y" className={`${DISCLOSURE_LIST} ${itemList(null, editing)}`} />;
+}
+
+export type FaqQuestionProps = { question: string; answer: string } & ItemProps;
+
+/** One question and its answer. Nothing is drawn without the question (the editor shows it). */
+export function FaqQuestion({ question, answer, dragRef, editing }: FaqQuestionProps) {
+  if (!question && !editing) return null;
+  return <Disclosure title={question} text={answer} dragRef={dragRef} />;
 }
 
 // ---- Countdown -----------------------------------------------------------------------------------------------
@@ -387,7 +446,7 @@ export function GridCard({ imageAssetId, alt, icon, title, description, price, b
           </span>
         )}
         <h3 className="font-display text-lg font-semibold">{title}</h3>
-        {description && <p className="text-sm">{description}</p>}
+        {description && <p className="whitespace-pre-line text-sm">{description}</p>}
         {price && <p className="font-semibold text-accent-ink">{price}</p>}
         {buttonLabel && href && (
           <a href={href} className={`${buttonClasses("inherit", "plum", "pill", false)} mt-auto !px-4 !py-2 !text-sm text-center`}>
@@ -395,6 +454,131 @@ export function GridCard({ imageAssetId, alt, icon, title, description, price, b
           </a>
         )}
       </div>
+    </li>
+  );
+}
+
+// ---- Pricing -------------------------------------------------------------------------------------------------
+
+export type PricingProps = { items: Slot; editing?: boolean };
+
+/** One to three plans side by side (stacked on a narrow container), each a `PricingPlan` in the `items` slot. Cards are as wide as they need and no wider, so one or two plans stay centred. */
+export function Pricing({ items: Items, editing }: PricingProps) {
+  return <Items as="ul" collisionAxis="dynamic" className={`grid grid-cols-1 gap-5 py-4 text-left @pair:grid-cols-[repeat(auto-fit,minmax(16rem,22rem))] @pair:justify-center ${itemList(ITEM_LIMITS.Pricing, editing)}`} />;
+}
+
+export type PricingPlanProps = { name: string; price: string; period: string; description: string; features: string; badge: string; featured: boolean; buttonLabel: string; href: string } & ItemProps;
+
+/**
+ * One plan: its name, the price exactly as typed (never parsed or computed) with its billing period or note right after it in the same
+ * line, so a screen reader says "$97 per month", a short description, what is included (one line each) and a button. The featured plan
+ * is shown by a heavier border and shadow and a "Featured" label for screen readers, not by colour alone; its badge ("Most popular")
+ * is words. A button with no usable link is not drawn for a visitor (the publish check asks for the link); the editor shows it disabled.
+ */
+export function PricingPlan({ name, price, period, description, features, badge, featured, buttonLabel, href: link, dragRef, editing }: PricingPlanProps) {
+  if (!name && !price && !editing) return null;
+  const href = safeHref(link);
+  const included = (features ?? "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const look = featured ? "inherit" : "outline";
+  return (
+    <li ref={dragRef} className={`flex flex-col gap-3 rounded-xl bg-tile p-6 text-ink ${featured ? "border-4 border-accent shadow-xl" : "border border-current shadow-sm"}`}>
+      {(badge || featured) && (
+        <p className="self-start rounded-full border border-current px-3 py-0.5 text-xs font-semibold text-accent-ink">
+          {featured && <span className="sr-only">Featured plan. </span>}
+          {badge}
+        </p>
+      )}
+      <h3 className="font-display text-xl font-semibold">{name}</h3>
+      {(price || period) && (
+        <p>
+          <span className="font-display text-4xl font-bold">{price}</span>
+          {price && period ? " " : ""}
+          {period && <span className="text-sm text-ink-muted">{period}</span>}
+        </p>
+      )}
+      {description && <p className="whitespace-pre-line text-sm">{description}</p>}
+      {included.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {included.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span aria-hidden="true" className="shrink-0">
+                ✓
+              </span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {buttonLabel && (href || editing) && (
+        <div className="mt-auto pt-2">
+          {href ? (
+            <a href={href} className={buttonClasses(look, "plum", "pill", true)}>
+              {buttonLabel}
+            </a>
+          ) : (
+            <span aria-disabled="true" className={`${buttonClasses(look, "plum", "pill", true)} opacity-50`}>
+              {buttonLabel}
+            </span>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// ---- Social icons --------------------------------------------------------------------------------------------
+
+export type SocialIconsProps = { items: Slot; align: "left" | "center" | "right"; size: "small" | "medium" | "large"; look?: SocialLook; editing?: boolean };
+const SOCIAL_JUSTIFY = { left: "justify-start", center: "justify-center", right: "justify-end" } as const;
+/** The size of every link in the row: the parent sets it, because an item cannot see its block. Full class strings, so Tailwind finds them. */
+export const SOCIAL_SIZE = {
+  small: "[&_.lp-social]:h-8 [&_.lp-social]:w-8 [&_.lp-social_svg]:h-4 [&_.lp-social_svg]:w-4",
+  medium: "[&_.lp-social]:h-10 [&_.lp-social]:w-10 [&_.lp-social_svg]:h-5 [&_.lp-social_svg]:w-5",
+  large: "[&_.lp-social]:h-12 [&_.lp-social]:w-12 [&_.lp-social_svg]:h-6 [&_.lp-social_svg]:w-6",
+} as const;
+
+/**
+ * The look of every link in the row, set by the row for the same reason. `colour` (the default) is what each link is drawn as: the network's own colour
+ * on a white badge with a thin grey ring (so it holds on a light page, a dark one and in dark mode). `dark` and `light` drop the badge and use the
+ * network's black or white version (`!` beats the colour a mark carries).
+ */
+export const SOCIAL_LOOK = {
+  colour: "",
+  dark: "[&_.lp-social]:!border-transparent [&_.lp-social]:!bg-transparent [&_.lp-social_svg]:!text-black",
+  light: "[&_.lp-social]:!border-transparent [&_.lp-social]:!bg-transparent [&_.lp-social_svg]:!text-white",
+} as const;
+
+/** A row of round icon links, each a `SocialLink` in the `items` slot (eight at most). Each mark is in its network's own colour on a light round badge (or its black or white version with no badge, `look`), so it reads on any background. */
+export function SocialIcons({ items: Items, align, size, look, editing }: SocialIconsProps) {
+  return <Items as="ul" collisionAxis="x" className={`my-3 flex flex-wrap gap-3 ${pick(SOCIAL_JUSTIFY, align, "center")} ${pick(SOCIAL_SIZE, size, "medium")} ${SOCIAL_LOOK[socialLookOf(look)]} ${itemList(ITEM_LIMITS.SocialIcons, editing)}`} />;
+}
+
+export type SocialLinkProps = { network: string; url: string } & ItemProps;
+
+// The badge: white with a thin neutral ring (a row's `look` can drop it). The focus ring is the surrounding text colour, so it shows on a light and a dark surface alike.
+const SOCIAL_LINK = "lp-social inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white no-underline transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2";
+
+/**
+ * One link of a Social icons block. Its accessible name is the network's ("Instagram"), the picture is decoration. A link to another site
+ * opens in a new tab with `noopener noreferrer`; a `mailto:` does not. With no usable address a visitor sees nothing (the publish
+ * check asks for it) and the editor shows the icon disabled.
+ */
+export function SocialLink({ network, url, dragRef, editing }: SocialLinkProps) {
+  const kind = socialNetworkOf(network);
+  const label = SOCIAL_NETWORKS[kind];
+  const href = safeHref(url);
+  if (!href && !editing) return null;
+  return (
+    <li ref={dragRef}>
+      {href ? (
+        <a href={href} aria-label={label} className={SOCIAL_LINK} {...(/^https?:/i.test(href) ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+          <SocialMark network={kind} />
+        </a>
+      ) : (
+        <span role="img" aria-label={`${label} (no link yet)`} aria-disabled="true" className={`${SOCIAL_LINK} opacity-50`}>
+          <SocialMark network={kind} />
+        </span>
+      )}
     </li>
   );
 }

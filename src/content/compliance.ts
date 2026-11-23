@@ -171,7 +171,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Sign-in is by invitation. The database enforces who can read each row, staff access is limited by role, and admin pages check it again on every request. Connections are encrypted, and each member's chat connection is stored encrypted and used only by the Hub's server. The Security page has the detail.",
-        evidence: ["src/lib/supabase/middleware.ts", "src/lib/admin-auth.ts", "src/lib/staff-access.ts", "/admin/security has the full detail"],
+        evidence: ["src/lib/supabase/middleware.ts", "src/lib/admin-auth.ts", "src/lib/permissions.ts", "/admin/security has the full detail"],
         checked: "2026-11-17",
         open: [],
       },
@@ -179,10 +179,10 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         name: "Browser protections (Content-Security-Policy)",
         about: "A header that tells browsers which sources a page may load from.",
         status: "inPlace",
-        detail: "We send it on every page. It limits which sources pictures may load from, where forms may send data, and whether other sites may show Hub pages inside their own. It does not limit scripts or styles yet. We also send the headers that stop browsers guessing file types, limit what is shared when you follow a link, and keep pages from using your camera, microphone or location.",
+        detail: "We send it on every page. It limits which scripts may run (only the Hub's own, and what they load), which sources pictures and styles may load from, where forms may send data, and whether other sites may show Hub pages inside their own. It also limits where a page may connect to and which frames, media and fonts it loads. We also send the headers that stop browsers guessing file types, limit what is shared when you follow a link, and keep pages from using your camera, microphone or location.",
         evidence: ["next.config.ts", "src/proxy.ts", "src/lib/csp.ts", "tests/lib/csp.test.ts"],
-        checked: "2026-11-17",
-        open: ["The policy for scripts, styles, connections, frames, media and fonts is being tested in report-only mode and is not enforced yet (docs/TODO.md, CSP for scripts and styles)."],
+        checked: "2026-11-23",
+        open: ["Inline style attributes are still allowed; they cannot run script (docs/TODO.md, CSP for scripts and styles)."],
       },
       {
         name: "Error monitoring and privacy",

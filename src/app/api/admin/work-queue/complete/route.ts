@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 const QUEUE_TYPES = ["welcome_back", "hedgieversary", "hiatus_nudge", "big_sister"] as const;
@@ -9,7 +9,7 @@ const STATUSES = ["completed", "opted_out", "postponed"] as const;
 const STATUSES_REQUIRING_HEDGIEVERSARY = ["opted_out", "postponed"] as const;
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "community.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase, user } = auth;

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getBadgeRecipients, getPublishedBookCount, type BadgeLevel, type BadgeType } from "@/lib/badges";
+import { getBadgeRecipients, getMemberBadges, getPublishedBookCount, type BadgeLevel, type BadgeType } from "@/lib/badges";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 import { createRepos } from "@/lib/data/repos";
 
@@ -51,7 +51,37 @@ describe("published book counts (local database)", () => {
   });
 
   it("counts a member's live books only", async () => {
-    expect(await getPublishedBookCount(createRepos(supabase as SupabaseClient), memberId)).toBe(1);
+    expect(await getPublishedBookCount(createRepos(supabase as SupabaseClient), memberId, null)).toBe(1);
+  });
+
+  it("marks the three counting badges as counted, and no other automatic one", async () => {
+    const { data, error } = await supabase.from("badge_types").select("key, counted").eq("counted", true);
+    if (error) throw new Error(error.message);
+    expect((data ?? []).map((t) => t.key).sort()).toEqual(["author", "finisher", "published_author"]);
+  });
+
+  it("counts a book only if it was published on or after the member's first join day (the live book is dated 2026-03-05)", async () => {
+    const repos = createRepos(supabase as SupabaseClient);
+    expect(await getPublishedBookCount(repos, memberId, "2026-03-05T12:00:00Z")).toBe(1);
+    expect(await getPublishedBookCount(repos, memberId, "2026-03-06")).toBe(0);
+    expect(await getPublishedBookCount(repos, memberId, null)).toBe(1);
+    const badges = await getMemberBadges(repos, memberId, 0, "2026-03-05");
+    expect(badges.find((b) => b.badgeType.key === "published_author")?.levelName).toBe("Published Author");
+    expect((await getMemberBadges(repos, memberId, 0, "2026-03-06")).find((b) => b.badgeType.key === "published_author")).toBeUndefined();
+  });
+
+  it("counts a private book for the member's own view only, in the one-member count and in the all-members scan", async () => {
+    const repos = createRepos(supabase as SupabaseClient);
+    const { data, error } = await supabase.from("member_books").insert({ ...book(`Private ${RUN}`, null), visibility: "private" }).select("id").single();
+    if (error) throw new Error(error.message);
+    expect(await getPublishedBookCount(repos, memberId, null, "self")).toBe(2);
+    expect(await getPublishedBookCount(repos, memberId, null, "others")).toBe(1);
+    expect(await getPublishedBookCount(repos, memberId, null)).toBe(1);
+    const recipients = await getBadgeRecipients(repos, badgeType, levels);
+    expect(recipients.find((r) => r.memberId === memberId)?.occurrences).toBe(1);
+    await supabase.from("member_books").update({ visibility: "community" }).eq("id", data.id);
+    expect(await getPublishedBookCount(repos, memberId, null, "others")).toBe(2);
+    await supabase.from("member_books").delete().eq("id", data.id);
   });
 
   it("counts live books only in the all-members scan the badge page uses", async () => {

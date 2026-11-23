@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { PageFrame, DESIGN_HREF } from "@/components/landing/config";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
-import { EMPTY_SITE_TEMPLATE, normalizeSiteTemplate } from "@/lib/landing/site-template";
+import { EMPTY_SITE_TEMPLATE, SOCIAL_NETWORKS, normalizeSiteTemplate } from "@/lib/landing/site-template";
 
 const full = normalizeSiteTemplate({
   header: {
@@ -32,7 +32,27 @@ describe("the site header", () => {
     expect(screen.getByRole("link", { name: "Join us" })).toHaveAttribute("href", "/join");
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: "Instagram" })).toHaveAttribute("href", "https://example.test/ig");
+    expect(screen.getByRole("link", { name: "Instagram" }).querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("link", { name: "Instagram" }).textContent).toBe("");
     expect(screen.queryByRole("link", { name: "X" })).toBeNull();
+  });
+
+  it("shows the logo whole: the logo preset, its height fixed, never a crop frame", () => {
+    render(<>{SiteHeaderView({ header: full.header })}</>);
+    const img = screen.getByRole("img", { name: "Quill & Cup" });
+    expect(img.getAttribute("src")).toBe("/api/media/mda_AAAAAAAAAAA1/logo");
+    expect(img).toHaveAttribute("height", "48");
+    expect(img.className).toContain("h-12");
+    expect(img.className).toContain("w-auto");
+    expect(img.className).not.toMatch(/aspect-|object-cover/);
+  });
+
+  it("gives every link the same box, so the sign-in link lines up with the menu links", () => {
+    render(<>{SiteHeaderView({ header: full.header })}</>);
+    const signIn = screen.getByRole("link", { name: "Sign in" });
+    const menuLink = within(screen.getAllByRole("navigation", { name: "Site" })[0]).getAllByRole("link", { name: "Schedule" })[0];
+    expect(signIn.className).toContain("block");
+    expect(signIn.className).toBe(menuLink.className);
   });
 
   it("folds the menu into a Menu disclosure on a narrow page, and wraps the links when asked to", () => {
@@ -73,6 +93,32 @@ describe("the site footer", () => {
     expect(screen.getByText("Fern Quills")).toBeInTheDocument();
   });
 
+  it("draws every social network as an icon link named for it, not as text", () => {
+    const networks = SOCIAL_NETWORKS.map((n) => n.value);
+    const footer = normalizeSiteTemplate({ footer: { show: true, text: "", links: [], social: networks.map((network) => ({ network, href: `https://example.test/${network}` })) } }).footer;
+    const { container } = render(<>{SiteFooterView({ footer })}</>);
+    const list = screen.getByRole("list", { name: "Social links" });
+    for (const n of SOCIAL_NETWORKS) {
+      const link = within(list).getByRole("link", { name: n.label });
+      expect(link).toHaveAttribute("href", `https://example.test/${n.value}`);
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+      expect(link.textContent).toBe("");
+      expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(link.className).toContain("focus-visible:ring-2");
+    }
+    expect(new Set([...container.querySelectorAll("a svg")].map((s) => s.innerHTML)).size).toBe(networks.length);
+    expect(list.className).toContain("flex-wrap");
+    expect(list.className).toContain("justify-center");
+    expect(container.querySelector("footer")!.className).toContain("text-white");
+  });
+
+  it("skips a social link with no usable address", () => {
+    const footer = normalizeSiteTemplate({ footer: { show: true, text: "x", links: [], social: [{ network: "substack", href: "" }, { network: "pinterest", href: "javascript:x" }] } }).footer;
+    render(<>{SiteFooterView({ footer })}</>);
+    expect(screen.queryByRole("list", { name: "Social links" })).toBeNull();
+  });
+
   it("draws nothing when it is off or empty", () => {
     expect(SiteFooterView({ footer: { ...full.footer, show: false } })).toBeNull();
     expect(SiteFooterView({ footer: EMPTY_SITE_TEMPLATE.footer })).toBeNull();
@@ -93,6 +139,23 @@ describe("PageFrame", () => {
     expect(screen.queryByText("Own link")).toBeNull();
     expect(screen.queryByText("Own footer")).toBeNull();
     expect(screen.getByText("Body")).toBeInTheDocument();
+  });
+
+  it("is a column as tall as the screen with the page taking the slack, so a footer on a short page rests at the bottom with nothing under it", () => {
+    const { container } = render(
+      <PageFrame {...own} frame={{ pageType: "website", site: full }}>
+        <p>Body</p>
+      </PageFrame>,
+    );
+    const frame = container.querySelector("[data-lp-frame]")!;
+    for (const cls of ["flex", "flex-col", "min-h-screen"]) expect(frame.className.split(" ")).toContain(cls);
+    expect(container.querySelector("main")!.className).toContain("flex-1");
+    expect(frame.lastElementChild!.tagName).toBe("FOOTER");
+  });
+
+  it("uses the logo preset for a landing page's own header logo too", () => {
+    render(<PageFrame {...own} logoAssetId="mda_AAAAAAAAAAA1" logoAlt="Mark" frame={{ pageType: "landing", site: full }} />);
+    expect(screen.getByRole("img", { name: "Mark" }).getAttribute("src")).toBe("/api/media/mda_AAAAAAAAAAA1/logo");
   });
 
   it("frames a website page with nothing before the site has been published", () => {

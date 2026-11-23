@@ -21,6 +21,9 @@ vi.mock("@/lib/landing/published-addresses", () => ({ isPublishedAddress: (slug:
 
 import { proxy } from "@/proxy";
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 const APP_HOST = new URL(APP_URL).host;
 const call = (host: string, pathAndQuery: string, method = "GET") => proxy(new NextRequest(`http://${host}${pathAndQuery}`, { method, headers: { host } }));
 
@@ -40,7 +43,7 @@ describe("root host: a published page at /<slug>", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("location")).toBeNull();
     expect(new URL(rewrittenTo(res)!).pathname + new URL(rewrittenTo(res)!).search).toBe("/p/ada-example-challenge?utm_source=x");
-    expect(res.headers.get("content-security-policy-report-only")).toBeTruthy();
+    expect(res.headers.get("content-security-policy")).toBeTruthy();
     expect(getUser).not.toHaveBeenCalled();
   });
 

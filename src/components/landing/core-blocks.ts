@@ -1,6 +1,9 @@
+import { safeHref } from "@/lib/landing/data";
 import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
 import { definePageBlock, type PageBlockCategory, type PageBlockContribution, type PageBlockDefinition } from "./block-registry";
 import {
+  Accordion,
+  AccordionItem,
   Button,
   ButtonRow,
   CardGrid,
@@ -9,7 +12,7 @@ import {
   CtaBanner,
   Divider,
   Faq,
-  FaqItem,
+  FaqQuestion,
   GridCard,
   Heading,
   Hero,
@@ -19,9 +22,13 @@ import {
   List,
   ListItem,
   OptInFormBlock,
+  Pricing,
+  PricingPlan,
   RichText,
   RowButton,
   Section,
+  SocialIcons,
+  SocialLink,
   Spacer,
   Split,
   Stat,
@@ -48,6 +55,7 @@ import {
   WeekStrip,
 } from "./homepage-blocks";
 import { ITEM_LIMITS } from "./item-limits";
+import { SOCIAL_NETWORKS, socialNetworkOf } from "./social-networks";
 
 /**
  * The blocks the pages code owns, registered through `definePageBlock` like any module's (block-registry.ts). A block is: a component
@@ -60,20 +68,24 @@ import { ITEM_LIMITS } from "./item-limits";
 const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { ...props } });
 const FINISHER_DEFAULT = { alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" };
 const GRID_CARD_DEFAULT = { alt: "", icon: "", title: "A title", description: "A line about it.", price: "", buttonLabel: "", href: "" };
+const PRICING_PLAN_DEFAULT = { name: "A plan", price: "$0", period: "one time", description: "", features: "A thing that is included\nAnother thing", badge: "", featured: false, buttonLabel: "Join now", href: "" };
 const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
 
 export const CORE_DEFAULTS = {
-  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, fadeIn: false },
+  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, cardColor: "default", cardSoft: false, place: "center", textTone: "auto", fadeIn: false, fill: false },
   Columns: { count: "2", gap: "medium", verticalAlign: "top" },
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },
   Button: { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill", align: "center", full: false },
   ButtonRow: { items: [kid("RowButton", { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill" }), kid("RowButton", { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" })], align: "left", gap: "medium" },
-  Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
+  Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center", fit: "whole" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
+  SocialIcons: { items: [kid("SocialLink", { network: "instagram", url: "" }), kid("SocialLink", { network: "youtube", url: "" })], align: "center", size: "medium", look: "colour" },
+  Pricing: { items: [kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "First plan" }), kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "Second plan", badge: "Most popular", featured: true })] },
   Testimonials: { items: [kid("Testimonial", { quote: "What a difference this made.", name: "A member", detail: "Member since 2024" }), kid("Testimonial", { quote: "I finally finished my draft.", name: "Another member", detail: "" })] },
-  Faq: { items: [kid("FaqItem", { question: "A question?", answer: "The answer." }), kid("FaqItem", { question: "Another question?", answer: "Another answer." })] },
+  Accordion: { items: [kid("AccordionItem", { title: "A title", text: "What opens under it.", open: false }), kid("AccordionItem", { title: "Another title", text: "What opens under that one.", open: false })] },
+  Faq: { items: [kid("FaqQuestion", { question: "A question?", answer: "The answer." }), kid("FaqQuestion", { question: "Another question?", answer: "Another answer." })] },
   Countdown: { targetAt: "", heading: "Starts in", whenExpired: "message", expiredMessage: "It has started." },
   CardGrid: { columns: "3", items: [kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT), kid("GridCard", GRID_CARD_DEFAULT)] },
   LinkList: { items: [kid("LinkItem", { label: "A link", href: "", look: "inherit", color: "plum" }), kid("LinkItem", { label: "Another link", href: "", look: "inherit", color: "plum" })] },
@@ -122,10 +134,13 @@ export const CORE_DEFAULTS = {
   RowButton: { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" },
   ListItem: { text: "New item", icon: "✓" },
   Testimonial: { quote: "", name: "", detail: "" },
-  FaqItem: { question: "A question?", answer: "" },
+  AccordionItem: { title: "A title", text: "", open: false },
+  FaqQuestion: { question: "A question?", answer: "" },
   GridCard: { ...GRID_CARD_DEFAULT, title: "New card" },
   LinkItem: { label: "A link", href: "", look: "inherit", color: "plum" },
   OutcomeNumber: { source: "manual", stat: "hours_30d", value: "0", label: "", note: "" },
+  PricingPlan: PRICING_PLAN_DEFAULT,
+  SocialLink: { network: "instagram", url: "" },
   JourneyMap: {
     stages: [
       { name: "Idea", helps: "Membership", current: false, note: "", link: { label: "", href: "" }, offers: [{ status: "open", statusLabel: "", title: "Membership", text: "", buttonLabel: "", href: "" }] },
@@ -138,6 +153,33 @@ export const CORE_DEFAULTS = {
 
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+/** A question with no answer is drawn, but left out of what search engines are told (they need an answer), so say so. */
+const faqCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, rows, warn }) => {
+  const asked = rows(props.items).map((i) => (i.props ?? {}) as Record<string, unknown>);
+  const unanswered = asked.filter((i) => text(i.question) && !text(i.answer)).length;
+  if (unanswered > 0) warn("FAQ", `${unanswered === 1 ? "A question has" : `${unanswered} questions have`} no answer, so ${unanswered === 1 ? "it is" : "they are"} left out of what search engines are told about this FAQ.`);
+};
+
+/** More than one featured plan defeats the point of featuring one. */
+const pricingCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { rows, warn }) => {
+  const featured = rows(props.items).filter((i) => ((i.props ?? {}) as Record<string, unknown>).featured === true).length;
+  if (featured > 1) warn("Pricing", `${featured} plans are marked featured; feature one, so it stands out.`);
+};
+
+/** A plan's name is a heading (an h3, under the section's), and its button needs a link like any other. The words by the plan's place are in `what`. */
+const planCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, heading, checkButton, warn }) => {
+  const name = text(props.name);
+  if (name) heading(3, name);
+  checkButton("Pricing", props.buttonLabel, props.href, name ? `The button of the "${name}" plan` : "A plan's button");
+  if (!text(props.buttonLabel) && text(props.href)) warn("Pricing", `${name ? `The "${name}" plan has` : "A plan has"} a link but no button label, so the link is not shown.`);
+};
+
+/** A link with an address that can't be used (a script, a bare email address with no mailto:) is an error, like a button with no link. A link with no address at all draws nothing, which the generic empty-list check already warns about. */
+const socialLinkCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, error }) => {
+  const url = text(props.url);
+  if (url && !safeHref(url)) error("Social icons", `The ${SOCIAL_NETWORKS[socialNetworkOf(props.network)]} link has an address that can't be used. Use https://, or mailto: for an email address.`);
+};
 
 type CoreType = keyof typeof CORE_DEFAULTS;
 const core = (type: CoreType, label: string, category: PageBlockCategory, order: number, render: PageBlockDefinition["render"], more: Partial<PageBlockDefinition> = {}) =>
@@ -161,6 +203,12 @@ export const coreBlocks: PageBlockContribution = {
     core("Steps", "Steps", "ready_made", 20, Steps, { slots: holds("Step"), itemLimit: ITEM_LIMITS.Steps, itemRule: { block: "Steps", noun: "step", plural: "steps", item: "Step", key: "title" } }),
     core("Stats", "Stats", "ready_made", 30, Stats, { slots: holds("Stat"), itemLimit: ITEM_LIMITS.Stats, itemRule: { block: "Stats", noun: "figure", plural: "figures", item: "Stat", key: "value" } }),
     core("CtaBanner", "Call-to-action banner", "ready_made", 40, CtaBanner),
+    core("Pricing", "Pricing", "ready_made", 50, Pricing, {
+      slots: holds("PricingPlan"),
+      itemLimit: ITEM_LIMITS.Pricing,
+      itemRule: { block: "Pricing", noun: "plan", plural: "plans", item: "PricingPlan", key: "name" },
+      publishCheck: pricingCheck,
+    }),
     // Homepage (the blocks about events are the events integration's)
     // A figure that is live shows with no typed value.
     core("OutcomeNumbers", "Outcome numbers", "homepage", 30, OutcomeNumbers, {
@@ -181,13 +229,19 @@ export const coreBlocks: PageBlockContribution = {
     core("Image", "Image", "content", 40, Image),
     core("Video", "Video", "content", 50, Video),
     core("Testimonials", "Testimonials", "content", 60, Testimonials, { slots: holds("Testimonial"), itemRule: { block: "Testimonials", noun: "testimonial", plural: "testimonials", item: "Testimonial", key: "quote" } }),
-    core("Faq", "FAQ", "content", 70, Faq, { slots: holds("FaqItem"), itemRule: { block: "FAQ", noun: "question", plural: "questions", item: "FaqItem", key: "question" } }),
+    core("Accordion", "Accordion", "content", 70, Accordion, { slots: holds("AccordionItem"), itemRule: { block: "Accordion", noun: "item", plural: "items", item: "AccordionItem", key: "title" } }),
+    core("Faq", "FAQ", "content", 75, Faq, { slots: holds("FaqQuestion"), itemRule: { block: "FAQ", noun: "question", plural: "questions", item: "FaqQuestion", key: "question" }, publishCheck: faqCheck }),
     core("Countdown", "Countdown", "content", 80, CountdownBlock),
     // Links
     core("Button", "Button", "links", 10, Button),
     core("ButtonRow", "Buttons", "links", 20, ButtonRow, { slots: holds("RowButton"), itemLimit: ITEM_LIMITS.ButtonRow, itemRule: { block: "Buttons", noun: "button", plural: "buttons", item: "RowButton", key: "label" } }),
     core("LinkList", "Link list", "links", 30, LinkList, { slots: holds("LinkItem"), itemRule: { block: "Link list", noun: "link", plural: "links", item: "LinkItem", key: "label" } }),
     core("OptInForm", "Sign-up form", "links", 40, OptInFormBlock),
+    core("SocialIcons", "Social icons", "links", 50, SocialIcons, {
+      slots: holds("SocialLink"),
+      itemLimit: ITEM_LIMITS.SocialIcons,
+      itemRule: { block: "Social icons", noun: "link", plural: "links", item: "SocialLink", key: "url" },
+    }),
     // Parts of a block: the items of the blocks above, each its own block, dropped into its parent's `items` slot.
     core("Step", "Step", "parts", 10, Step),
     core("Stat", "Figure", "parts", 20, Stat),
@@ -199,9 +253,12 @@ export const coreBlocks: PageBlockContribution = {
     core("RowButton", "Row button", "parts", 80, RowButton),
     core("ListItem", "List item", "parts", 90, ListItem),
     core("Testimonial", "Testimonial", "parts", 100, Testimonial),
-    core("FaqItem", "Question", "parts", 110, FaqItem),
+    core("AccordionItem", "Accordion item", "parts", 110, AccordionItem),
+    core("FaqQuestion", "Question", "parts", 115, FaqQuestion),
     core("GridCard", "Card", "parts", 120, GridCard),
     core("LinkItem", "Link", "parts", 130, LinkItem),
+    core("PricingPlan", "Plan", "parts", 160, PricingPlan, { publishCheck: planCheck }),
+    core("SocialLink", "Social link", "parts", 170, SocialLink, { publishCheck: socialLinkCheck }),
     core("OutcomeNumber", "Outcome number", "parts", 150, OutcomeNumber),
   ],
 };

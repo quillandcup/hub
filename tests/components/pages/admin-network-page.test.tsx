@@ -7,8 +7,8 @@ import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSu
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn(async () => undefined);
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 // The graph itself is a client component with its own tests; here it shows what the page hands it.
 vi.mock("@/app/(admin)/admin/members/network/NetworkGraph", () => ({
   default: ({ nodes, edges }: { nodes: unknown[]; edges: unknown[] }) => <pre data-testid="graph">{JSON.stringify({ nodes: nodes.length, edges })}</pre>,
@@ -46,7 +46,7 @@ const rpcArgs = () => fake.queries.find((q) => q.table === "rpc:member_interacti
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(ADMIN_USER);
-  requireAdminPage.mockClear();
+  requirePermission.mockClear();
   members = MEMBERS;
   pairRows = [];
   fake = useFakeSupabase({
@@ -59,7 +59,7 @@ beforeEach(() => {
 describe("admin member network page", () => {
   it("is for admins", async () => {
     await renderPage();
-    expect(requireAdminPage).toHaveBeenCalledTimes(1);
+    expect(requirePermission).toHaveBeenCalledTimes(1);
   });
 
   it("starts with prickles and public chat over the last 90 days, merged into the edges", async () => {

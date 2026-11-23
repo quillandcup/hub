@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { enforceNetworkRetention, NETWORK_RETENTION_BUDGET_MS } from "@/lib/retention/network-details";
 import { rollUpAndPruneUsageEvents } from "@/lib/retention/usage-events";
@@ -21,7 +21,7 @@ export const maxDuration = 300; // 5 minutes (max for Hobby tier)
  * Scheduled to run daily at 4:00am via Vercel Cron. Vercel Cron always invokes via GET.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

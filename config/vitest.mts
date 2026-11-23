@@ -28,7 +28,7 @@ const DB_ROOT_FILES = [
 // source-string assertions) despite living under tests/api/.
 const UNIT_EXCEPTIONS_UNDER_API = [
   'tests/api/process-members-trigger.test.ts',
-  'tests/api/require-admin.test.ts',
+  'tests/api/require-api-permission.test.ts',
 ]
 // tests/lib/** files that actually require the local Supabase instance despite living
 // under tests/lib/.

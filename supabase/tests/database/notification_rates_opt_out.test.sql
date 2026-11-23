@@ -13,11 +13,12 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f8a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rates-in@example.test'),
   ('00000000-0000-4000-a000-00000000f8a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rates-out@example.test'),
   ('00000000-0000-4000-a000-00000000f8a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rates-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role, analytics_opt_out_at) VALUES
-  ('00000000-0000-4000-a000-00000000f8a1', 'rates-in@example.test', 'member', NULL),
-  ('00000000-0000-4000-a000-00000000f8a2', 'rates-out@example.test', 'member', now()),
-  ('00000000-0000-4000-a000-00000000f8a3', 'rates-admin@example.test', 'admin', NULL)
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, analytics_opt_out_at = EXCLUDED.analytics_opt_out_at;
+INSERT INTO public.user_profiles (id, email, analytics_opt_out_at) VALUES
+  ('00000000-0000-4000-a000-00000000f8a1', 'rates-in@example.test', NULL),
+  ('00000000-0000-4000-a000-00000000f8a2', 'rates-out@example.test', now()),
+  ('00000000-0000-4000-a000-00000000f8a3', 'rates-admin@example.test', NULL)
+ON CONFLICT (id) DO UPDATE SET analytics_opt_out_at = EXCLUDED.analytics_opt_out_at;
+INSERT INTO public.user_roles (user_id, role) VALUES ('00000000-0000-4000-a000-00000000f8a3', 'admin') ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Both members were sent the same notification; only the member who stayed in opened it.
 INSERT INTO public.analytics_events (message_id, user_id, session_id, source, event, properties, occurred_at, sudo) VALUES

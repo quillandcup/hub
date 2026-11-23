@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { fetchRecordHistory, type ActivityFeedRow, type HistoryScope } from "@/lib/activity-feed";
 
 /** The change history behind a record's clock icon (src/components/RecordHistoryButton.tsx). */
@@ -9,7 +9,7 @@ export async function loadRecordHistory(
   entityId: string | null,
   scope: HistoryScope = {}
 ): Promise<{ rows: ActivityFeedRow[] } | { error: string }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("member.record_history");
   if (!auth.ok) return { error: auth.error };
 
   try {

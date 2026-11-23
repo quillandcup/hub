@@ -24,7 +24,7 @@ import { MENTORSHIP_BASE_PATH, MENTORSHIP_TAB_LABELS, MENTORSHIP_TITLE, type Men
 import { isId } from "@/lib/ids";
 
 /** Shared by the base page and each tab's route (src/lib/tab-routes.ts). Callers have already run
- * requireAdminPage(). Behind the `big_sisters` feature preview. */
+ * requirePermission(...). Behind the `big_sisters` feature preview. */
 export default async function MentorshipPage({
   tab,
   prefill,

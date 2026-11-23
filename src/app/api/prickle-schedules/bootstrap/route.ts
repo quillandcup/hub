@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { bootstrapMonthFromCalendar, getMonthStart } from "@/lib/prickle-schedules";
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
@@ -15,7 +15,7 @@ import { createRepos } from "@/lib/data/repos";
 //   dryRun                  true -> return the counts without writing anything
 //   confirmMatchingProposed true -> also confirm existing `proposed` rows the calendar matches
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "prickles.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase, user } = auth;

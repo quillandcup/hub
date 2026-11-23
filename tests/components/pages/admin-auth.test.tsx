@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 /**
- * The secure admin checks behind src/proxy.ts's optimistic /admin pre-filter (src/lib/admin-auth.ts):
- * requireAdminPage() in the admin layout and every admin page, requireAdminAction() in every
- * admin server action. Signed-in non-admins end at /no-access.
+ * The secure staff checks behind src/proxy.ts's optimistic /admin pre-filter (src/lib/admin-auth.ts):
+ * requirePermission() in the admin layout and every admin page, requireActionPermission() in every
+ * server action. Signed-in people without the permission end at /no-access. Which file calls which guard is
+ * checked for every file in tests/lib/permission-guards.test.ts.
  */
-import fs from "node:fs";
-import path from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import {
   ADMIN_USER,
   MEMBER_USER,
@@ -48,8 +47,7 @@ vi.mock("@/components/UserMenu", () => ({
 vi.mock("@/components/FeedbackWidget", () => ({ default: () => null }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign Out</button> }));
 
-import { MFA_REQUIRED_ERROR, requireAdminAction, requireAdminPage, requireStaffAction, requireStaffPage } from "@/lib/admin-auth";
-import { isCommunityManagerPath } from "@/lib/staff-access";
+import { MFA_REQUIRED_ERROR, requireActionPermission, requirePermission } from "@/lib/admin-auth";
 import AdminLayout from "@/app/(admin)/layout";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
 import StreaksPage from "@/app/(member)/streaks/page";
@@ -58,7 +56,15 @@ import { dismissGroup, undismissGroup } from "@/app/(admin)/admin/hygiene/merge-
 import { SUPPORT_EMAIL } from "@/lib/config"
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member", [CM_USER.id]: "community_manager" };
+const CS_USER = { id: "user-conversion-specialist", email: "cs@example.test" };
+const ASSISTANT_USER = { id: "user-assistant", email: "assistant@example.test" };
+const ROLES: Record<string, string> = {
+  [ADMIN_USER.id]: "admin",
+  [MEMBER_USER.id]: "member",
+  [CM_USER.id]: "community_manager",
+  [CS_USER.id]: "conversion_specialist",
+  [ASSISTANT_USER.id]: "assistant",
+};
 const userProfiles = (q: FakeQuery) => {
   const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
   return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
@@ -68,7 +74,11 @@ const SUDO_IDENTITY = { memberId: "member-fern", memberName: "Fern", memberEmail
 const layoutProps = { children: <p>admin page body</p> };
 // expectRedirect() takes a page-shaped function; wrap the helper as one.
 const guardedPage = async () => {
-  await requireAdminPage();
+  await requirePermission("system.users.manage");
+  return null;
+};
+const pageNeeding = (permission: Parameters<typeof requirePermission>[0]) => async () => {
+  await requirePermission(permission);
   return null;
 };
 
@@ -79,16 +89,36 @@ beforeEach(() => {
   useFakeSupabase({ user_profiles: userProfiles });
 });
 
-describe("requireAdminPage", () => {
-  it("returns the signed-in admin", async () => {
+describe("requirePermission", () => {
+  it("returns the signed-in admin with their role", async () => {
     signInAs(ADMIN_USER, null);
-    await expect(requireAdminPage()).resolves.toEqual(ADMIN_USER);
+    await expect(requirePermission("system.users.manage")).resolves.toEqual({ ...ADMIN_USER, role: "admin", roles: ["admin"], realRole: "admin", realRoles: ["admin"] });
     expect(redirect).not.toHaveBeenCalled();
   });
 
   it("returns the admin while they're in sudo mode as a member", async () => {
     signInAs(ADMIN_USER, SUDO_IDENTITY);
-    await expect(requireAdminPage()).resolves.toEqual(ADMIN_USER);
+    await expect(requirePermission("system.users.manage")).resolves.toMatchObject({ role: "admin" });
+  });
+
+  it("lets the assistant through everything the admin may open", async () => {
+    signInAs(ASSISTANT_USER, null);
+    await expect(requirePermission("system.users.manage")).resolves.toEqual({ ...ASSISTANT_USER, role: "assistant", roles: ["assistant"], realRole: "assistant", realRoles: ["assistant"] });
+  });
+
+  it("returns a community manager only for what the role holds", async () => {
+    signInAs(CM_USER, null);
+    await expect(requirePermission("members.read")).resolves.toEqual({ ...CM_USER, role: "community_manager", roles: ["community_manager"], realRole: "community_manager", realRoles: ["community_manager"] });
+    await expectRedirect(guardedPage, undefined, "/no-access");
+  });
+
+  it("returns a conversion specialist for the landing pages and outreach, and keeps them out of the members area and the changelog", async () => {
+    signInAs(CS_USER, null);
+    await expect(requirePermission("pages.edit")).resolves.toEqual({ ...CS_USER, role: "conversion_specialist", roles: ["conversion_specialist"], realRole: "conversion_specialist", realRoles: ["conversion_specialist"] });
+    await expect(requirePermission("outreach.manage")).resolves.toMatchObject({ role: "conversion_specialist" });
+    for (const permission of ["members.read", "changelog.read", "member.sudo", "system.users.manage"] as const) {
+      await expectRedirect(pageNeeding(permission), undefined, "/no-access");
+    }
   });
 
   it("sends a signed-out visitor to /login", async () => {
@@ -105,50 +135,45 @@ describe("requireAdminPage", () => {
     signInAs({ id: "user-no-profile", email: "nobody@example.test" }, null);
     await expectRedirect(guardedPage, undefined, "/no-access");
   });
+
+  it("sends a user whose profile can't be read to /no-access", async () => {
+    useFakeSupabase({ user_profiles: () => ({ error: { message: "database is down" } }) });
+    signInAs(ADMIN_USER, null);
+    await expectRedirect(guardedPage, undefined, "/no-access");
+  });
 });
 
-describe("requireStaffPage", () => {
-  it("returns an admin with their role", async () => {
-    signInAs(ADMIN_USER, null);
-    await expect(requireStaffPage()).resolves.toEqual({ ...ADMIN_USER, role: "admin", realRole: "admin" });
-  });
-
-  it("returns a community manager with their role", async () => {
-    signInAs(CM_USER, null);
-    await expect(requireStaffPage()).resolves.toEqual({ ...CM_USER, role: "community_manager", realRole: "community_manager" });
-  });
-
-  it("treats an admin previewing the role as a community manager, and refuses admin pages and actions", async () => {
+describe("previewing a role", () => {
+  it("treats an admin previewing the community manager as that role, sending them home from a page the role may not open", async () => {
     preview.role = "community_manager";
     signInAs(ADMIN_USER, null);
-    await expect(requireStaffPage()).resolves.toEqual({ ...ADMIN_USER, role: "community_manager", realRole: "admin" });
+    await expect(requirePermission("members.read")).resolves.toEqual({ ...ADMIN_USER, role: "community_manager", roles: ["community_manager"], realRole: "admin", realRoles: ["admin"] });
     await expectRedirect(guardedPage, undefined, "/admin/at-risk");
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
   });
 
-  it("leaves a real community manager as themselves even with the cookie set", async () => {
+  it("treats an admin previewing the conversion specialist as that role", async () => {
+    preview.role = "conversion_specialist";
+    signInAs(ADMIN_USER, null);
+    await expect(requirePermission("pages.edit")).resolves.toEqual({ ...ADMIN_USER, role: "conversion_specialist", roles: ["conversion_specialist"], realRole: "admin", realRoles: ["admin"] });
+    await expectRedirect(pageNeeding("members.read"), undefined, "/admin/pages");
+    await expectRedirect(pageNeeding("changelog.read"), undefined, "/admin/pages");
+    await expect(requireActionPermission("members.write")).resolves.toEqual({ ok: false, error: "Not authorized" });
+    await expect(requireActionPermission("pages.publish")).resolves.toMatchObject({ ok: true, role: "conversion_specialist", realRole: "admin" });
+  });
+
+  it("leaves a real community manager or specialist as themselves even with the cookie set", async () => {
+    preview.role = "conversion_specialist";
+    signInAs(CM_USER, null);
+    await expect(requirePermission("members.read")).resolves.toMatchObject({ role: "community_manager", realRole: "community_manager" });
+    signInAs(CS_USER, null);
+    await expectRedirect(pageNeeding("members.read"), undefined, "/no-access");
+    await expect(requirePermission("pages.edit")).resolves.toMatchObject({ role: "conversion_specialist", realRole: "conversion_specialist" });
+  });
+
+  it("refuses an admin's actions that the previewed role may not do", async () => {
     preview.role = "community_manager";
-    signInAs(CM_USER, null);
-    await expect(requireStaffPage()).resolves.toMatchObject({ role: "community_manager", realRole: "community_manager" });
-  });
-
-  it("keeps a community manager out of requireAdminPage and requireAdminAction", async () => {
-    signInAs(CM_USER, null);
-    await expectRedirect(guardedPage, undefined, "/no-access");
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
-  });
-
-  it("sends a signed-out visitor to /login, and a member or a user with no profile to /no-access", async () => {
-    const staffPage = async () => {
-      await requireStaffPage();
-      return null;
-    };
-    signInAs(null);
-    await expectRedirect(staffPage, undefined, "/login");
-    signInAs(MEMBER_USER, null);
-    await expectRedirect(staffPage, undefined, "/no-access");
-    signInAs({ id: "user-no-profile", email: "nobody@example.test" }, null);
-    await expectRedirect(staffPage, undefined, "/no-access");
+    signInAs(ADMIN_USER, null);
+    await expect(requireActionPermission("system.users.manage")).resolves.toEqual({ ok: false, error: "Not authorized" });
   });
 });
 
@@ -167,11 +192,21 @@ describe("admin layout", () => {
     expect(screen.queryByText(/Previewing as/)).not.toBeInTheDocument();
   });
 
-  it("renders the shell for a community manager, without the admin-only menu", async () => {
-    signInAs(CM_USER, null);
+  it("renders the shell for a community manager and a conversion specialist", async () => {
+    for (const user of [CM_USER, CS_USER]) {
+      signInAs(user, null);
+      await renderServerPage(AdminLayout, layoutProps);
+      expect(screen.getByTestId("admin-nav")).toBeInTheDocument();
+      expect(screen.getByText("admin page body")).toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it("names the previewed role in the banner", async () => {
+    preview.role = "conversion_specialist";
+    signInAs(ADMIN_USER, null);
     await renderServerPage(AdminLayout, layoutProps);
-    expect(screen.getByTestId("admin-nav")).toBeInTheDocument();
-    expect(screen.getByText("admin page body")).toBeInTheDocument();
+    expect(screen.getByText(/Previewing as/)).toHaveTextContent("Conversion Specialist");
   });
 
   it("renders the admin shell and page for an admin", async () => {
@@ -245,121 +280,95 @@ describe("/no-access", () => {
   });
 });
 
-describe("requireAdminAction", () => {
-  it("returns the admin and a client", async () => {
+describe("requireActionPermission", () => {
+  it("returns the admin with their role and a client", async () => {
     signInAs(ADMIN_USER, null);
-    const auth = await requireAdminAction();
-    expect(auth).toMatchObject({ ok: true, user: ADMIN_USER });
+    await expect(requireActionPermission("system.users.manage")).resolves.toMatchObject({ ok: true, user: ADMIN_USER, role: "admin", realRole: "admin" });
   });
 
   it("allows an admin in sudo mode", async () => {
     signInAs(ADMIN_USER, SUDO_IDENTITY);
-    await expect(requireAdminAction()).resolves.toMatchObject({ ok: true });
+    await expect(requireActionPermission("system.users.manage")).resolves.toMatchObject({ ok: true, role: "admin" });
   });
 
-  it("rejects a signed-out caller", async () => {
-    signInAs(null);
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authenticated" });
+  it("allows the assistant what the admin may do", async () => {
+    signInAs(ASSISTANT_USER, null);
+    await expect(requireActionPermission("system.users.manage")).resolves.toMatchObject({ ok: true, role: "assistant" });
   });
 
-  it("rejects a member and a user with no profile row", async () => {
-    signInAs(MEMBER_USER, null);
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
-    signInAs({ id: "user-no-profile" }, null);
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
-  });
-});
-
-describe("requireStaffAction", () => {
-  it("returns an admin with their role and the client", async () => {
-    signInAs(ADMIN_USER, null);
-    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, user: ADMIN_USER, role: "admin", realRole: "admin" });
-  });
-
-  it("returns a community manager, which requireAdminAction refuses", async () => {
+  it("returns a community manager for Hedgie Care, which the admin-only actions refuse", async () => {
     signInAs(CM_USER, null);
-    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, user: CM_USER, role: "community_manager", realRole: "community_manager" });
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+    await expect(requireActionPermission("care.write")).resolves.toMatchObject({ ok: true, user: CM_USER, role: "community_manager", realRole: "community_manager" });
+    await expect(requireActionPermission("system.users.manage")).resolves.toEqual({ ok: false, error: "Not authorized" });
   });
 
-  it("allows an admin in sudo mode", async () => {
-    signInAs(ADMIN_USER, SUDO_IDENTITY);
-    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, role: "admin" });
-  });
-
-  it("treats an admin previewing the community manager as that role, so what the role may not do is refused", async () => {
-    preview.role = "community_manager";
-    signInAs(ADMIN_USER, null);
-    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, role: "community_manager", realRole: "admin" });
-  });
-
-  it("leaves a real community manager as themselves even with the preview cookie set", async () => {
-    preview.role = "community_manager";
-    signInAs(CM_USER, null);
-    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, role: "community_manager", realRole: "community_manager" });
+  it("returns a conversion specialist for landing pages and outreach, and refuses the members area, the changelog and exports", async () => {
+    signInAs(CS_USER, null);
+    for (const permission of ["pages.edit", "pages.publish", "outreach.manage", "email.send"] as const) {
+      await expect(requireActionPermission(permission), permission).resolves.toMatchObject({ ok: true, role: "conversion_specialist" });
+    }
+    for (const permission of ["pages.delete", "members.write", "member.sudo", "member.merge", "member.notes_write", "changelog.edit", "data.export", "system.users.manage"] as const) {
+      await expect(requireActionPermission(permission), permission).resolves.toEqual({ ok: false, error: "Not authorized" });
+    }
   });
 
   it("rejects a signed-out caller, and a member or a user with no profile row", async () => {
     signInAs(null);
-    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authenticated" });
+    await expect(requireActionPermission("care.write")).resolves.toEqual({ ok: false, error: "Not authenticated" });
     signInAs(MEMBER_USER, null);
-    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+    await expect(requireActionPermission("care.write")).resolves.toEqual({ ok: false, error: "Not authorized" });
     signInAs({ id: "user-no-profile" }, null);
-    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+    await expect(requireActionPermission("care.write")).resolves.toEqual({ ok: false, error: "Not authorized" });
   });
 
   it("rejects when the profile can't be read", async () => {
     useFakeSupabase({ user_profiles: () => ({ error: { message: "database is down" } }) });
     signInAs(CM_USER, null);
-    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+    await expect(requireActionPermission("care.write")).resolves.toEqual({ ok: false, error: "Not authorized" });
   });
 });
 
 describe("the second sign-in step (src/lib/staff-mfa.ts)", () => {
   const MFA_GATE = "/mfa?staff=required&next=%2Fadmin%2Fmembers";
-  const staffPage = async () => {
-    await requireStaffPage();
-    return null;
-  };
 
-  it.each(["ok", "suggest"] as const)("lets an admin through all three guards when the state is %s", async (state) => {
+  it.each(["ok", "suggest"] as const)("lets an admin through both guards when the state is %s", async (state) => {
     mfa.state = state;
     signInAs(ADMIN_USER, null);
-    await expect(requireAdminPage()).resolves.toEqual(ADMIN_USER);
-    await expect(requireStaffPage()).resolves.toMatchObject({ role: "admin" });
-    await expect(requireAdminAction()).resolves.toMatchObject({ ok: true });
-    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true });
+    await expect(requirePermission("system.users.manage")).resolves.toMatchObject({ role: "admin" });
+    await expect(requireActionPermission("system.users.manage")).resolves.toMatchObject({ ok: true });
   });
 
-  it.each(["challenge", "enrol"] as const)("sends an admin on a page to /mfa with their destination when the state is %s", async (state) => {
+  it.each(["challenge", "enrol"] as const)("sends staff on a page to /mfa with their destination when the state is %s", async (state) => {
     mfa.state = state;
-    signInAs(ADMIN_USER, null);
-    await expectRedirect(guardedPage, undefined, MFA_GATE);
-    await expectRedirect(staffPage, undefined, MFA_GATE);
+    for (const user of [ADMIN_USER, CM_USER, CS_USER]) {
+      signInAs(user, null);
+      await expectRedirect(pageNeeding("staff.access"), undefined, MFA_GATE);
+    }
   });
 
-  it.each(["challenge", "enrol"] as const)("refuses an admin's and a community manager's server actions when the state is %s", async (state) => {
+  it.each(["challenge", "enrol"] as const)("refuses every staff role's server actions when the state is %s", async (state) => {
     mfa.state = state;
     signInAs(ADMIN_USER, null);
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
-    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
+    await expect(requireActionPermission("system.users.manage")).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
     signInAs(CM_USER, null);
-    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
-    await expectRedirect(staffPage, undefined, MFA_GATE);
+    await expect(requireActionPermission("care.write")).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
+    signInAs(CS_USER, null);
+    await expect(requireActionPermission("pages.edit")).resolves.toEqual({ ok: false, error: MFA_REQUIRED_ERROR });
   });
 
-  it("keeps sending a non-admin to /no-access, not to /mfa", async () => {
+  it("keeps sending someone without the permission to /no-access, not to /mfa", async () => {
     mfa.state = "enrol";
     signInAs(MEMBER_USER, null);
     await expectRedirect(guardedPage, undefined, "/no-access");
-    await expectRedirect(staffPage, undefined, "/no-access");
-    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+    signInAs(CS_USER, null);
+    await expectRedirect(pageNeeding("members.read"), undefined, "/no-access");
+    await expect(requireActionPermission("system.users.manage")).resolves.toEqual({ ok: false, error: "Not authorized" });
   });
 
   it("keeps sudo working: an admin at the second level in sudo mode still passes", async () => {
     signInAs(ADMIN_USER, SUDO_IDENTITY);
-    await expect(requireAdminPage()).resolves.toEqual(ADMIN_USER);
-    await expect(requireAdminAction()).resolves.toMatchObject({ ok: true });
+    await expect(requirePermission("system.users.manage")).resolves.toMatchObject({ role: "admin" });
+    await expect(requireActionPermission("system.users.manage")).resolves.toMatchObject({ ok: true });
   });
 
   it("shows staff without a second step a banner in the admin layout, and nobody else", async () => {
@@ -393,80 +402,5 @@ describe("merge-fix dismiss actions", () => {
     await expect(dismissGroup("m1|m2")).resolves.toEqual({ success: true });
     const write = supabase.queries.find((q) => q.table === "dismissed_duplicate_groups");
     expect(write?.calls[0]).toEqual({ method: "insert", args: [{ group_key: "m1|m2" }] });
-  });
-});
-
-// Conformance: these catch a new admin page / admin action added without its check. (Source
-// scans, unlike the behavioural tests above, because the point is "every file", not one flow.)
-const repoRoot = path.resolve(__dirname, "../../..");
-const adminRoot = path.join(repoRoot, "src/app/(admin)");
-const adminFiles = (fs.readdirSync(adminRoot, { recursive: true }) as string[]).map((f) =>
-  path.join("src/app/(admin)", f)
-);
-const read = (file: string) => fs.readFileSync(path.join(repoRoot, file), "utf8");
-
-// The route a page file serves: "src/app/(admin)/admin/members/[id]/slack/page.tsx" → "/admin/members/x/slack".
-const routeOf = (file: string) =>
-  file.replace("src/app/(admin)", "").replace(/\/page\.tsx$/, "").replace(/\[[^\]]+\]/g, "x") || "/";
-
-describe("every admin page calls requireAdminPage(), or requireStaffPage() when a community manager may open it", () => {
-  // Layouts don't re-run on client navigation and don't stop a page segment from rendering.
-  const pages = adminFiles.filter((f) => f.endsWith("page.tsx"));
-
-  it("finds the admin pages", () => {
-    expect(pages.length).toBeGreaterThan(40);
-  });
-
-  it.each(pages)("%s", (file) => {
-    // Admin-only unless src/lib/staff-access.ts lists the route: a page can't open to a community manager
-    // without the allowlist (proxy and sidebar) agreeing, nor be listed there without its page check.
-    const open = isCommunityManagerPath(routeOf(file));
-    expect(read(file)).toMatch(open ? /await requireStaffPage\(\)/ : /await requireAdminPage\(\)/);
-  });
-});
-
-describe("every admin server action calls requireAdminAction(), or requireStaffAction() where a community manager may write", () => {
-  // Server actions are directly callable POST endpoints: the page's guard doesn't cover them.
-  // Admin-only action modules outside src/app/(admin) are listed explicitly.
-  const ADMIN_ACTION_FILES_ELSEWHERE = ["src/app/actions/sudo.ts"];
-  // Exported actions that are deliberately not admin-only, with the reason.
-  const NOT_ADMIN_ONLY: Record<string, string> = {
-    // Only clears the caller's own sudo cookies; must keep working even if the role was revoked.
-    "src/app/actions/sudo.ts#exitSudo": "clears own cookies",
-    "src/app/actions/sudo.ts#exitSudoToAdmin": "clears own cookies, then opens /admin (which checks the role itself)",
-  };
-  const actionFiles = [
-    ...adminFiles.filter((f) => /\.tsx?$/.test(f) && /^\s*["']use server["']/m.test(read(f))),
-    ...ADMIN_ACTION_FILES_ELSEWHERE,
-  ];
-  const actions = actionFiles.flatMap((file) => {
-    const src = read(file);
-    const starts = [...src.matchAll(/^export (?:async )?function (\w+)/gm)];
-    return starts.map((m, i) => {
-      const body = src.slice(m.index, starts[i + 1]?.index ?? src.length);
-      return [`${file}#${m[1]}`, body] as const;
-    });
-  });
-
-  it("finds the admin actions", () => {
-    expect(actions.map(([id]) => id)).toEqual(
-      expect.arrayContaining([
-        "src/app/(admin)/admin/hygiene/merge-fix/actions.ts#dismissGroup",
-        "src/app/(admin)/admin/hygiene/merge-fix/actions.ts#undismissGroup",
-        "src/app/actions/sudo.ts#startSudo",
-      ])
-    );
-  });
-
-  // Action modules a community manager may call, each export opening with requireStaffAction() and then asking for
-  // its staff feature (src/lib/staff-access.ts), with the reason. Everything else stays admin-only.
-  const STAFF_ACTION_FILES: Record<string, string> = {
-    "src/app/(admin)/admin/care/actions.ts": "the community manager writes Hedgie Care (feature care.write)",
-  };
-
-  it.each(actions.filter(([id]) => !(id in NOT_ADMIN_ONLY)))("%s", (id, body) => {
-    const staffAction = id.split("#")[0] in STAFF_ACTION_FILES;
-    expect(body).toMatch(staffAction ? /await requireStaffAction\(\)/ : /await requireAdminAction\(\)/);
-    if (staffAction) expect(body).toMatch(/staffCan\(auth\.role, "[a-z_.]+"\)/);
   });
 });

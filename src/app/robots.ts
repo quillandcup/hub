@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
-import { SITE_URL, WRITER_PROFILES } from "@/lib/config";
+import { PUBLIC_SITE_LIVE, SITE_URL, WRITER_PROFILES } from "@/lib/config";
 import { landingSitemapUrl } from "@/lib/landing/sitemap";
 import { getServiceRepos } from "@/lib/data/server";
+
 import { isRootHost } from "@/lib/root-routing";
 import { sitemapIds, sitemapUrl } from "@/lib/writer-sitemap";
 
@@ -17,9 +18,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const rules = { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/"] };
-  if (!isRootHost((await headers()).get("host"))) return { rules };
+  if (PUBLIC_SITE_LIVE && !isRootHost((await headers()).get("host"))) return { rules };
   const count = await getServiceRepos()
     .writerProfiles.publicCount()
     .catch(() => 0);
-  return { rules, sitemap: [landingSitemapUrl(SITE_URL), ...sitemapIds(count, WRITER_PROFILES.sitemapPageSize).map(sitemapUrl)] };
+  return { rules, sitemap: [...(PUBLIC_SITE_LIVE ? [landingSitemapUrl(SITE_URL)] : []), ...sitemapIds(count, WRITER_PROFILES.sitemapPageSize).map(sitemapUrl)] };
 }

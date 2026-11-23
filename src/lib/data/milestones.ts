@@ -1,6 +1,8 @@
-import { MILESTONE_DEFAULT_VISIBILITY, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
-import { workKey, type WorkRef } from "@/lib/finishers-works";
-import { isShownToMembers, type Visibility } from "@/lib/writing-visibility";
+import type { Snooze, StageGroup } from "@/lib/milestone-prompts";
+import { MILESTONE_DEFAULT_VISIBILITY, type MilestoneDatePrecision, type ConfirmedMilestoneAnswer, type MilestoneAnswer, type MilestoneKind, type MilestoneSource, type MilestoneStatus } from "@/lib/finishers";
+import { stepsCountedWhileMember, workKey, type WorkRef } from "@/lib/finishers-works";
+import { isShownToMembers, visibilityOf, type Visibility } from "@/lib/writing-visibility";
+import { isPhotoToken, tokenOfPath, type PhotoTarget, type StepPhoto } from "@/lib/milestone-photos";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { fetchAllRows } from "@/lib/supabase/paginate";
@@ -21,13 +23,17 @@ export type Milestone = {
   title: string | null;
   status: MilestoneStatus;
   source: MilestoneSource;
+  /** When it happened: the day, or the first day of the month or year the member gave (`achievedPrecision`); null when they do not remember. */
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   /** Who can see it (and the story with it): only the member, other members, or the web. Only a confirmed milestone is more than private. */
   visibility: Visibility;
   /** "Share my story to inspire other writers": the one marketing consent. Only on a confirmed milestone. */
   consentTestimonial: boolean;
+  /** The member's photo for this step (docs/product/FINISHERS.md, "Photos"), shown at the milestone's own level; null when there is none. */
+  photo: StepPhoto | null;
   confirmedAt: string | null;
   createdAt: string;
 };
@@ -38,34 +44,44 @@ export type ShownMilestone = {
   /** The title the member wrote, or the book's; null for a milestone of a project (a project's name follows the project's own level). */
   workTitle: string | null;
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   visibility: Visibility;
 };
 
-/** A step on a work as the strips show it: a stored milestone, or Published (derived from a Bookshelf book, always at the globe). */
+/** A step on a work as the strips show it: a stored milestone, or Published (derived from a Bookshelf book, at that book's own level). */
 export type ShownStepKind = MilestoneKind | "published";
 
 /**
  * One row of a member's works as the strips read it: `workNo` numbers the works (1, 2, 3...) so rows of the same work can be
  * grouped without an id. `workTitle` is the work's name as the viewer may know it: the book's title or the one the member wrote,
- * null for a project that is not on the Bookshelf (a project's name follows the project's own level).
+ * the project's title when the viewer may see the project itself (its own level), else null and the strip says "Another work".
  */
 export type ShownWorkStep = {
   workNo: number;
   kind: ShownStepKind;
   workTitle: string | null;
   achievedOn: string | null;
+  achievedPrecision: MilestoneDatePrecision;
   storyBefore: string | null;
   storyAfter: string | null;
   visibility: Visibility;
+  /** The photo of this step, present only when the viewer may see the step (a photo never outlives its row's level). */
+  photo?: StepPhoto | null;
 };
 
 /** A shown milestone as the Finisher and Author badges read it: no id, no work, no stories. */
-export type BadgeMilestone = { memberId: string; kind: MilestoneKind; achievedOn: string | null };
+export type BadgeMilestone = { memberId: string; kind: MilestoneKind; achievedOn: string | null; achievedPrecision: MilestoneDatePrecision };
 
 /** A milestone as the staff list shows it: the member's names, never the stories. */
 export type StaffMilestone = Pick<Milestone, "id" | "memberId" | "kind" | "status" | "source" | "achievedOn" | "createdAt"> & {
+  /** "Share my story to inspire other writers" (a confirmed milestone only). */
+  consentTestimonial: boolean;
+  /** Whether a confirmed milestone has a photo. */
+  hasPhoto: boolean;
+  /** The photo staff may look at: only a confirmed milestone whose member ticked the consent (a private photo is not the team's to see otherwise). */
+  photo: StepPhoto | null;
   /** What the milestone is about: the project's or book's title, or the title the member wrote; null for a row with no work. */
   workTitle: string | null;
   name: string;
@@ -86,13 +102,25 @@ export type MilestoneProposal = {
 };
 
 const COLUMNS =
-  "id, member_id, kind, project_id, book_id, title, status, source, achieved_on, story_before, story_after, visibility, consent_testimonial, confirmed_at, created_at";
+  "id, member_id, kind, project_id, book_id, title, status, source, achieved_on, achieved_precision, story_before, story_after, visibility, consent_testimonial, photo_path, photo_alt, confirmed_at, created_at";
 
 type MilestoneColumns = Pick<
   MilestoneRow,
-  | "id" | "member_id" | "kind" | "project_id" | "book_id" | "title" | "status" | "source" | "achieved_on" | "story_before" | "story_after"
-  | "visibility" | "consent_testimonial" | "confirmed_at" | "created_at"
+  | "id" | "member_id" | "kind" | "project_id" | "book_id" | "title" | "status" | "source" | "achieved_on" | "achieved_precision" | "story_before" | "story_after"
+  | "visibility" | "consent_testimonial" | "photo_path" | "photo_alt" | "confirmed_at" | "created_at"
 >;
+
+/** The photo of a row: its token (the file's name) and what the member said it shows. */
+function photoOf(path: string | null | undefined, alt: string | null | undefined): StepPhoto | null {
+  const token = tokenOfPath(path);
+  return token ? { token, alt: alt ?? null } : null;
+}
+
+/** What the staff list says about a row's photo: that there is one (a confirmed row), and the picture itself only with the member's consent to share. */
+function staffPhoto(status: string, consent: boolean, path: string | null | undefined, alt: string | null | undefined) {
+  const photo = status === "confirmed" ? photoOf(path, alt) : null;
+  return { consentTestimonial: status === "confirmed" && consent, hasPhoto: photo !== null, photo: photo && consent ? photo : null };
+}
 
 // The check constraints hold kind, status and source to these values; the generated types see plain text.
 function toMilestone(r: MilestoneColumns): Milestone {
@@ -106,18 +134,20 @@ function toMilestone(r: MilestoneColumns): Milestone {
     status: r.status as MilestoneStatus,
     source: r.source as MilestoneSource,
     achievedOn: r.achieved_on,
+    achievedPrecision: r.achieved_precision as MilestoneDatePrecision,
     storyBefore: r.story_before,
     storyAfter: r.story_after,
     visibility: r.visibility as Visibility,
     consentTestimonial: r.consent_testimonial,
+    photo: photoOf(r.photo_path, r.photo_alt),
     confirmedAt: r.confirmed_at,
     createdAt: r.created_at,
   };
 }
 
-type ShownColumns = { kind: string; work_title: string | null; achieved_on: string | null; story_before: string | null; story_after: string | null; visibility: string };
+type ShownColumns = { kind: string; work_title: string | null; achieved_on: string | null; achieved_precision: string; story_before: string | null; story_after: string | null; visibility: string };
 
-type WorkStepColumns = ShownColumns & { work_no: number };
+type WorkStepColumns = ShownColumns & { work_no: number; photo_token: string | null; photo_alt: string | null };
 
 function toWorkStep(r: WorkStepColumns): ShownWorkStep {
   return {
@@ -125,14 +155,16 @@ function toWorkStep(r: WorkStepColumns): ShownWorkStep {
     kind: r.kind as ShownStepKind,
     workTitle: r.work_title,
     achievedOn: r.achieved_on,
+    achievedPrecision: r.achieved_precision as MilestoneDatePrecision,
     storyBefore: r.story_before,
     storyAfter: r.story_after,
     visibility: r.visibility as Visibility,
+    photo: r.photo_token ? { token: r.photo_token, alt: r.photo_alt } : null,
   };
 }
 
 function toShown(r: ShownColumns): ShownMilestone {
-  return { kind: r.kind as MilestoneKind, workTitle: r.work_title, achievedOn: r.achieved_on, storyBefore: r.story_before, storyAfter: r.story_after, visibility: r.visibility as Visibility };
+  return { kind: r.kind as MilestoneKind, workTitle: r.work_title, achievedOn: r.achieved_on, achievedPrecision: r.achieved_precision as MilestoneDatePrecision, storyBefore: r.story_before, storyAfter: r.story_after, visibility: r.visibility as Visibility };
 }
 
 const STATUSES: readonly MilestoneStatus[] = ["proposed", "confirmed", "declined"];
@@ -153,8 +185,11 @@ export type MilestoneSelfAdd = {
   source?: "member" | "project_stage";
 };
 
-/** What the member says to "not yet" when a project moved forward and we asked (docs/product/FINISHERS.md, "The project-stage prompt"). */
-export type MilestoneNotYet = { memberId: string; kind: MilestoneKind; projectId: string; createdBy: string };
+/** What the member says to "Not for this work" when a project moved forward and we asked (docs/product/FINISHERS.md, "The project-stage prompt"). */
+export type MilestoneNotForThisWork = { memberId: string; kind: MilestoneKind; projectId: string; createdBy: string };
+
+/** What the member says to "Not yet": the kind, the project, and the stage group the project is in now. */
+export type MilestoneSnooze = { memberId: string; kind: MilestoneKind; projectId: string; stageGroup: StageGroup };
 
 /** The sources of a milestone the member made themselves, so they may take it back. */
 const MEMBER_MADE_SOURCES: readonly string[] = ["member", "project_stage"];
@@ -174,6 +209,7 @@ function answerColumns(answer: MilestoneAnswer, nowIso: string) {
     status: "confirmed",
     confirmed_at: nowIso,
     achieved_on: answer.achievedOn,
+    achieved_precision: answer.achievedPrecision,
     story_before: answer.storyBefore,
     story_after: answer.storyAfter,
     consent_testimonial: answer.consent_testimonial,
@@ -210,16 +246,25 @@ export interface MilestoneRepository {
    */
   addOwn(add: MilestoneSelfAdd, now: Date): Promise<{ result: "added" | "exists"; milestone: Milestone }>;
   /**
-   * "Not yet" to the prompt when a project moved forward: a declined row for that project, source `project_stage`, which is how
-   * the Hub remembers it asked (it does not ask again, and the staff backfill never proposes that kind for the work). "exists"
-   * when the work already has a live milestone of that kind in any status; nothing is written then.
+   * "Not for this work" to the prompt when a project moved forward: a declined row for that project, source `project_stage`, which
+   * is how the Hub remembers never to ask again (and the staff backfill never proposes that kind for the work). "exists" when the
+   * work already has a live milestone of that kind in any status; nothing is written then. ("Not yet" is `snooze`.)
    */
-  recordNotYet(notYet: MilestoneNotYet, now: Date): Promise<"recorded" | "exists">;
+  recordNotForThisWork(notYet: MilestoneNotForThisWork, now: Date): Promise<"recorded" | "exists">;
   /**
    * The kinds the member already has a row for on this project, in any status and taken-back ones too: the prompt asks once per
    * project and kind, and a member who took one back has already answered.
    */
   askedKinds(memberId: string, projectId: string): Promise<MilestoneKind[]>;
+  /**
+   * "Not yet" to the prompt: remembers the stage group the project was in (`stageGroupOf`), so the prompt comes back once the project
+   * reaches a later group and not before. Not a milestone: it is never counted as declined, and the staff backfill still proposes the
+   * kind for the work. "exists" when the project already has a milestone row of that kind (any status): nothing is written then. A
+   * second "not yet" moves the remembered group forward, never back.
+   */
+  snooze(snooze: MilestoneSnooze, now: Date): Promise<"snoozed" | "exists">;
+  /** The kinds the member said "not yet" to on this project, with the stage group each was said in. */
+  snoozesOf(memberId: string, projectId: string): Promise<Snooze[]>;
   /** The member takes back a milestone they made themselves, on the card or from the prompt (a soft delete). False when they have no such live one. */
   takeBack(id: string, memberId: string, now: Date): Promise<boolean>;
   /** The member answers (or changes their answer). False when the member has no such live milestone. */
@@ -236,18 +281,56 @@ export interface MilestoneRepository {
   /** What a visitor of the web sees on this member's writer profile: only the milestones at the globe. Service role; the page checks that the profile is on. */
   /**
    * The strip on this member's profile for other members: their works, each with its milestones at community or public level
-   * and Published (derived from the live Bookshelf books, at the globe), in order. Never a private milestone, whoever asks.
+   * and Published (derived from the live Bookshelf books at community or public level, each at its own level), in order. Never a private milestone or a private book, whoever asks.
    */
-  worksShownToMembers(memberId: string): Promise<ShownWorkStep[]>;
+  worksShownToMembers(memberId: string, firstJoinedAt: string | null): Promise<ShownWorkStep[]>;
   /** The strip on the writer profile on the web: the works with their milestones at the globe and Published. Service role; the page checks the profile is on. */
-  worksShownOnWeb(memberId: string): Promise<ShownWorkStep[]>;
+  worksShownOnWeb(memberId: string, firstJoinedAt: string | null): Promise<ShownWorkStep[]>;
   /**
    * Every member's confirmed, live milestones at community or public level, for the Finisher and Author badges of many members
    * at once (kind and date only, paged past 1,000 rows). Never a private one, an admin's client included. It reads the table, so
    * it needs a staff or service client; under a member's own client it returns only their own.
    */
   allShownToMembers(): Promise<BadgeMilestone[]>;
+  /**
+   * Photos (docs/product/FINISHERS.md, "Photos"). The path is written by the server only (service role: a member has no grant on the
+   * column), after the file is stored in the member's own folder. Each method acts for one member: another member's id is "nothing found".
+   *
+   * Puts the photo on the member's live, confirmed milestone and returns the path it replaces (null when it had none); null when the
+   * member has no such milestone. The description given replaces the old one (null clears it).
+   */
+  setPhoto(id: string, memberId: string, path: string, alt: string | null, now: Date): Promise<{ previousPath: string | null } | null>;
+  /** Takes the photo off a milestone of the member (live or not, so a taken-back milestone's file is still found) and returns the path it had; null when there is no such milestone, previousPath null when it had no photo. */
+  removePhoto(id: string, memberId: string, now: Date): Promise<{ previousPath: string | null } | null>;
+  /** The member describes their own photo (empty clears the description). False when the milestone has no photo. */
+  setPhotoAlt(id: string, memberId: string, alt: string | null, now: Date): Promise<boolean>;
+  /** The photos on the member's Bookshelf books (the Published step), one per book. */
+  bookPhotosOf(memberId: string): Promise<BookPhoto[]>;
+  /** Puts the "holding my book" photo on one of the member's live books and returns the path it replaces; null when it is not their live book. */
+  setBookPhoto(bookId: string, memberId: string, path: string, alt: string | null, now: Date): Promise<{ previousPath: string | null } | null>;
+  /** Takes the photo off a book of the member and returns its path; null when the book has none (or is not theirs). */
+  removeBookPhoto(bookId: string, memberId: string): Promise<{ previousPath: string } | null>;
+  /** The member describes the photo on one of their books. False when it has none. */
+  setBookPhotoAlt(bookId: string, memberId: string, alt: string | null, now: Date): Promise<boolean>;
+  /**
+   * What a picture's address points at (service role): whose it is, where the file is, and what decides who may see it. Only a live,
+   * confirmed milestone, or a live book (the Published step, at the globe). Null for anything else, a taken-back milestone included.
+   */
+  photoByToken(token: string): Promise<PhotoRecord | null>;
 }
+
+/** The photo on one Bookshelf book. */
+export type BookPhoto = { bookId: string; token: string; alt: string | null };
+
+/** What a picture's address leads to, and what decides who may have it. */
+export type PhotoRecord = {
+  target: PhotoTarget;
+  ownerId: string;
+  path: string;
+  /** The milestone's level; for a book, the globe (the Published step is derived and public). */
+  level: Visibility;
+  consentTestimonial: boolean;
+};
 
 export class SupabaseMilestoneRepository implements MilestoneRepository {
   constructor(private readonly db: Db) {}
@@ -282,7 +365,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
   async page({ status, limit, offset }: { status?: MilestoneStatus; limit: number; offset: number }) {
     let query = this.db
       .from("member_milestones")
-      .select("id, member_id, kind, status, source, achieved_on, created_at, title, project:writing_projects(title), book:member_books(title), member:members(name, display_name)")
+      .select("id, member_id, kind, status, source, achieved_on, created_at, title, consent_testimonial, photo_path, photo_alt, project:writing_projects(title), book:member_books(title), member:members(name, display_name)")
       .is("deleted_at", null);
     if (status) query = query.eq("status", status);
     const { data, error } = await query
@@ -301,6 +384,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       workTitle: r.title ?? r.project?.title ?? r.book?.title ?? null,
       name: r.member?.name ?? "",
       displayName: r.member?.display_name ?? null,
+      ...staffPhoto(r.status, r.consent_testimonial, r.photo_path, r.photo_alt),
     }));
   }
 
@@ -371,6 +455,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
         source: add.source ?? "member",
         created_by: add.createdBy,
         achieved_on: add.answer.achievedOn,
+        achieved_precision: add.answer.achievedPrecision,
         story_before: add.answer.storyBefore,
         story_after: add.answer.storyAfter,
         status: "confirmed",
@@ -405,7 +490,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
     return data !== null;
   }
 
-  async recordNotYet(n: MilestoneNotYet, now: Date) {
+  async recordNotForThisWork(n: MilestoneNotForThisWork, now: Date) {
     const existing = await this.liveOfWork(n.memberId, n.kind, { projectId: n.projectId, bookId: null, title: null });
     if (existing) return "exists";
     const { error } = await this.db.from("member_milestones").insert({
@@ -423,6 +508,54 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       throw new Error(error.message);
     }
     return "recorded";
+  }
+
+  async snooze(n: MilestoneSnooze, now: Date) {
+    // Any row for the project and kind, answered or taken back, means the prompt has nothing left to remind about.
+    if ((await this.askedKinds(n.memberId, n.projectId)).includes(n.kind)) return "exists";
+    const iso = now.toISOString();
+    // Explicit read-then-write (a member may update only the group, so no upsert): a second "not yet" moves the group forward.
+    const move = async () => {
+      const { data, error } = await this.db
+        .from("member_milestone_snoozes")
+        .update({ stage_group: n.stageGroup, updated_at: iso })
+        .eq("member_id", n.memberId)
+        .eq("project_id", n.projectId)
+        .eq("kind", n.kind)
+        .lt("stage_group", n.stageGroup)
+        .select("id");
+      if (error) throw new Error(error.message);
+      return (data ?? []).length > 0;
+    };
+    const { data: existing, error: readError } = await this.db
+      .from("member_milestone_snoozes")
+      .select("id")
+      .eq("member_id", n.memberId)
+      .eq("project_id", n.projectId)
+      .eq("kind", n.kind);
+    if (readError) throw new Error(readError.message);
+    if ((existing ?? []).length > 0) {
+      await move();
+      return "snoozed";
+    }
+    const { error } = await this.db
+      .from("member_milestone_snoozes")
+      .insert({ member_id: n.memberId, project_id: n.projectId, kind: n.kind, stage_group: n.stageGroup, updated_at: iso });
+    if (error) {
+      // Two taps at once: the other one won, and this one only moves it forward.
+      if (error.code === "23505") {
+        await move();
+        return "snoozed";
+      }
+      throw new Error(error.message);
+    }
+    return "snoozed";
+  }
+
+  async snoozesOf(memberId: string, projectId: string) {
+    const { data, error } = await this.db.from("member_milestone_snoozes").select("kind, stage_group").eq("member_id", memberId).eq("project_id", projectId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ kind: r.kind as MilestoneKind, stageGroup: r.stage_group }));
   }
 
   async askedKinds(memberId: string, projectId: string) {
@@ -475,29 +608,131 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
   }
 
   async shownToMembers(memberId: string) {
-    return (must(await this.db.rpc("milestones_shown_to_members", { p_member_id: memberId })) ?? []).map(toShown);
+    // The works reader carries the date precision; the badges want the milestones only, never the derived Published rows.
+    return (must(await this.db.rpc("member_works_dated_to_members", { p_member_id: memberId })) ?? []).filter((r) => r.kind !== "published").map(toShown);
   }
 
-  async worksShownToMembers(memberId: string) {
-    return (must(await this.db.rpc("member_works_shown_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep);
+  async worksShownToMembers(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember((must(await this.db.rpc("member_works_pictured_to_members", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
   }
 
-  async worksShownOnWeb(memberId: string) {
-    return (must(await this.db.rpc("member_works_shown_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep);
+  async worksShownOnWeb(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember((must(await this.db.rpc("member_works_pictured_on_web", { p_member_id: memberId })) ?? []).map(toWorkStep), firstJoinedAt);
   }
 
   async allShownToMembers() {
-    const rows = await fetchAllRows<{ member_id: string; kind: string; achieved_on: string | null }>((from, to) =>
+    const rows = await fetchAllRows<{ member_id: string; kind: string; achieved_on: string | null; achieved_precision: string }>((from, to) =>
       this.db
         .from("member_milestones")
-        .select("member_id, kind, achieved_on")
+        .select("member_id, kind, achieved_on, achieved_precision")
         .eq("status", "confirmed")
         .is("deleted_at", null)
         .in("visibility", ["community", "public"])
         .order("id")
         .range(from, to),
     );
-    return rows.map((r) => ({ memberId: r.member_id, kind: r.kind as MilestoneKind, achievedOn: r.achieved_on }));
+    return rows.map((r) => ({ memberId: r.member_id, kind: r.kind as MilestoneKind, achievedOn: r.achieved_on, achievedPrecision: r.achieved_precision as MilestoneDatePrecision }));
+  }
+
+  async setPhoto(id: string, memberId: string, path: string, alt: string | null, now: Date) {
+    const { data: before, error: readError } = await this.db
+      .from("member_milestones")
+      .select("photo_path")
+      .eq("id", id)
+      .eq("member_id", memberId)
+      .eq("status", "confirmed")
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!before) return null;
+    const { error } = await this.db
+      .from("member_milestones")
+      .update({ photo_path: path, photo_alt: alt, updated_at: now.toISOString() })
+      .eq("id", id)
+      .eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+    return { previousPath: before.photo_path };
+  }
+
+  async removePhoto(id: string, memberId: string, now: Date) {
+    const { data: before, error: readError } = await this.db.from("member_milestones").select("photo_path").eq("id", id).eq("member_id", memberId).maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!before) return null;
+    if (!before.photo_path) return { previousPath: null };
+    const { error } = await this.db.from("member_milestones").update({ photo_path: null, photo_alt: null, updated_at: now.toISOString() }).eq("id", id).eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+    return { previousPath: before.photo_path };
+  }
+
+  async setPhotoAlt(id: string, memberId: string, alt: string | null, now: Date) {
+    const { data, error } = await this.db
+      .from("member_milestones")
+      .update({ photo_alt: alt, updated_at: now.toISOString() })
+      .eq("id", id)
+      .eq("member_id", memberId)
+      .not("photo_path", "is", null)
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data !== null;
+  }
+
+  async bookPhotosOf(memberId: string) {
+    const { data, error } = await this.db.from("member_book_photos").select("book_id, photo_path, photo_alt").eq("member_id", memberId).order("book_id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).flatMap((r) => {
+      const photo = photoOf(r.photo_path, r.photo_alt);
+      return photo ? [{ bookId: r.book_id, token: photo.token, alt: photo.alt }] : [];
+    });
+  }
+
+  async setBookPhoto(bookId: string, memberId: string, path: string, alt: string | null, now: Date) {
+    const { data: book, error: bookError } = await this.db.from("member_books").select("id").eq("id", bookId).eq("member_id", memberId).is("deleted_at", null).maybeSingle();
+    if (bookError) throw new Error(bookError.message);
+    if (!book) return null;
+    const { data: before, error: readError } = await this.db.from("member_book_photos").select("photo_path").eq("book_id", bookId).maybeSingle();
+    if (readError) throw new Error(readError.message);
+    const { error } = await this.db
+      .from("member_book_photos")
+      .upsert({ book_id: bookId, member_id: memberId, photo_path: path, photo_alt: alt, updated_at: now.toISOString() }, { onConflict: "book_id" });
+    if (error) throw new Error(error.message);
+    return { previousPath: before?.photo_path ?? null };
+  }
+
+  async removeBookPhoto(bookId: string, memberId: string) {
+    const { data, error } = await this.db.from("member_book_photos").delete().eq("book_id", bookId).eq("member_id", memberId).select("photo_path").maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? { previousPath: data.photo_path } : null;
+  }
+
+  async setBookPhotoAlt(bookId: string, memberId: string, alt: string | null, now: Date) {
+    const { data, error } = await this.db.from("member_book_photos").update({ photo_alt: alt, updated_at: now.toISOString() }).eq("book_id", bookId).eq("member_id", memberId).select("book_id").maybeSingle();
+    if (error) throw new Error(error.message);
+    return data !== null;
+  }
+
+  async photoByToken(token: string) {
+    // The token is part of a LIKE pattern: only the shape it can have is looked up.
+    if (!isPhotoToken(token)) return null;
+    const { data: milestone, error } = await this.db
+      .from("member_milestones")
+      .select("member_id, photo_path, visibility, consent_testimonial")
+      .like("photo_path", `%/${token}.webp`)
+      .eq("status", "confirmed")
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (milestone?.photo_path) {
+      return { target: "milestone" as const, ownerId: milestone.member_id, path: milestone.photo_path, level: milestone.visibility as Visibility, consentTestimonial: milestone.consent_testimonial };
+    }
+    const { data: bookPhoto, error: bookPhotoError } = await this.db.from("member_book_photos").select("book_id, member_id, photo_path").like("photo_path", `%/${token}.webp`).maybeSingle();
+    if (bookPhotoError) throw new Error(bookPhotoError.message);
+    if (!bookPhoto) return null;
+    const { data: book, error: bookError } = await this.db.from("member_books").select("id, visibility").eq("id", bookPhoto.book_id).is("deleted_at", null).maybeSingle();
+    if (bookError) throw new Error(bookError.message);
+    // A photo has the level of its book, and never more.
+    return book ? { target: "book" as const, ownerId: bookPhoto.member_id, path: bookPhoto.photo_path, level: book.visibility as Visibility, consentTestimonial: false } : null;
   }
 }
 
@@ -544,6 +779,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
             null,
           name: member?.name ?? "",
           displayName: member?.displayName ?? null,
+          ...staffPhoto(m.status, m.consent_testimonial, m.photo_path, m.photo_alt),
         };
       });
   }
@@ -558,6 +794,9 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       book_id: work.bookId,
       title: work.title,
       achieved_on: achievedOn,
+      achieved_precision: "day",
+      photo_path: null,
+      photo_alt: null,
       story_before: null,
       story_after: null,
       source: "staff",
@@ -636,6 +875,9 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       book_id: bookId,
       title: add.work.title,
       achieved_on: add.answer.achievedOn,
+      achieved_precision: add.answer.achievedPrecision,
+      photo_path: null,
+      photo_alt: null,
       story_before: add.answer.storyBefore,
       story_after: add.answer.storyAfter,
       source: add.source ?? "member",
@@ -661,7 +903,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return true;
   }
 
-  async recordNotYet(n: MilestoneNotYet, now: Date) {
+  async recordNotForThisWork(n: MilestoneNotForThisWork, now: Date) {
     if (!this.data.members.some((m) => m.id === n.memberId)) throw new Error("violates foreign key constraint on member_id");
     // What the insert policy checks: the project is the member's own and live.
     if (!this.data.writingProjects.some((p) => p.id === n.projectId && p.member_id === n.memberId && !p.deleted_at)) {
@@ -677,6 +919,9 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       book_id: null,
       title: null,
       achieved_on: null,
+      achieved_precision: "day",
+      photo_path: null,
+      photo_alt: null,
       story_before: null,
       story_after: null,
       source: "project_stage",
@@ -692,6 +937,38 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
       deleted_at: null,
     });
     return "recorded" as const;
+  }
+
+  async snooze(n: MilestoneSnooze, now: Date) {
+    if (!this.data.members.some((m) => m.id === n.memberId)) throw new Error("violates foreign key constraint on member_id");
+    // What the insert policy checks: the project is the member's own and live.
+    if (!this.data.writingProjects.some((p) => p.id === n.projectId && p.member_id === n.memberId && !p.deleted_at)) {
+      throw new Error("new row violates row-level security policy for table member_milestone_snoozes");
+    }
+    if ((await this.askedKinds(n.memberId, n.projectId)).includes(n.kind)) return "exists" as const;
+    const iso = now.toISOString();
+    const row = this.data.memberMilestoneSnoozes.find((r) => r.project_id === n.projectId && r.kind === n.kind);
+    if (row) {
+      if (n.stageGroup > row.stage_group) Object.assign(row, { stage_group: n.stageGroup, updated_at: iso });
+    } else {
+      this.data.memberMilestoneSnoozes.push({
+        id: `msnz_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+        member_id: n.memberId,
+        project_id: n.projectId,
+        kind: n.kind,
+        stage_group: n.stageGroup,
+        created_at: iso,
+        updated_at: iso,
+      });
+    }
+    return "snoozed" as const;
+  }
+
+  async snoozesOf(memberId: string, projectId: string) {
+    return this.data.memberMilestoneSnoozes
+      .filter((r) => r.member_id === memberId && r.project_id === projectId)
+      .sort(byKeyThenId<Row<"member_milestone_snoozes">>((r) => r.kind, (r) => r.id))
+      .map((r) => ({ kind: r.kind as MilestoneKind, stageGroup: r.stage_group }));
   }
 
   async askedKinds(memberId: string, projectId: string) {
@@ -732,74 +1009,149 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return true;
   }
 
-  private shown(memberId: string, levels: readonly string[]): ShownMilestone[] {
-    return this.live()
-      .filter((m) => m.member_id === memberId && m.status === "confirmed" && levels.includes(m.visibility))
-      .sort(byKeyThenId<MilestoneRow>((m) => m.kind, (m) => m.id, true))
-      .map((m) => ({
-        kind: m.kind as MilestoneKind,
-        workTitle: m.title ?? this.data.memberBooks.find((b) => b.id === m.book_id && (b.deleted_at ?? null) === null)?.title ?? null,
-        achievedOn: m.achieved_on,
-        storyBefore: m.story_before,
-        storyAfter: m.story_after,
-        visibility: m.visibility as Visibility,
-      }));
-  }
-
   async shownToMembers(memberId: string) {
-    return this.shown(memberId, ["community", "public"]);
+    // Read through the works reader, as the database does: the milestones only (never the derived Published rows), named as the viewer may know them.
+    return this.works(memberId, ["community", "public"])
+      .filter((w) => w.kind !== "published")
+      .map((w) => ({ kind: w.kind as MilestoneKind, workTitle: w.workTitle, achievedOn: w.achievedOn, achievedPrecision: w.achievedPrecision, storyBefore: w.storyBefore, storyAfter: w.storyAfter, visibility: w.visibility }));
   }
 
-  /** The same grouping as `member_works_shown`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
+  /** The same grouping as `member_works_pictured`: works keyed by project, else book, else title; Published per live book; numbered by first row. */
   private works(memberId: string, levels: readonly string[]): ShownWorkStep[] {
-    const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null);
-    type Item = ShownWorkStep & { key: string; step: number; createdAt: string };
+    // Only the books the viewer may see (the book's own level is one this read serves, `member_works_dated`): a hidden one names no work and has no Published step.
+    const books = this.data.memberBooks.filter((b) => (b.deleted_at ?? null) === null && levels.includes(b.visibility ?? "public"));
+    type Item = ShownWorkStep & { key: string; step: number; createdAt: string; titleRank: number };
     const items: Item[] = [];
     for (const m of this.live()) {
       if (m.member_id !== memberId || m.status !== "confirmed" || !levels.includes(m.visibility)) continue;
       const book = m.book_id ? books.find((b) => b.id === m.book_id) : undefined;
+      // The project's title counts only when the viewer may see the project itself: its own level is one this read serves.
+      const project = this.data.writingProjects.find((p) => p.id === (m.project_id ?? book?.project_id) && !p.deleted_at && levels.includes(visibilityOf(p)));
       items.push({
         key: book?.project_id ?? m.project_id ?? m.book_id ?? workKey({ projectId: null, bookId: null, title: m.title }),
         step: m.kind === "the_end" ? 1 : 2,
         createdAt: m.created_at,
+        titleRank: m.title !== null ? 1 : book?.title ? 2 : 3,
         workNo: 0,
         kind: m.kind as MilestoneKind,
-        workTitle: m.title ?? book?.title ?? null,
+        workTitle: m.title ?? book?.title ?? project?.title ?? null,
         achievedOn: m.achieved_on,
+        achievedPrecision: m.achieved_precision as MilestoneDatePrecision,
         storyBefore: m.story_before,
         storyAfter: m.story_after,
         visibility: m.visibility as Visibility,
+        photo: photoOf(m.photo_path, m.photo_alt),
       });
     }
     for (const b of books.filter((x) => x.member_id === memberId)) {
-      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, storyBefore: null, storyAfter: null, visibility: "public" });
+      items.push({ key: b.project_id ?? b.id, step: 3, createdAt: b.created_at ?? "", titleRank: 2, workNo: 0, kind: "published", workTitle: b.title, achievedOn: b.published_date ?? null, achievedPrecision: "day", storyBefore: null, storyAfter: null, visibility: (b.visibility ?? "public") as Visibility, photo: this.bookPhotoOf(b.id) });
     }
     const first = new Map<string, string>();
+    for (const i of items) if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);
+    // The work's name: the first title by rank (the member's own, the book's, the project's), then by age, as the SQL window reads it.
     const title = new Map<string, string | null>();
-    for (const i of items) {
-      if (!first.has(i.key) || i.createdAt < first.get(i.key)!) first.set(i.key, i.createdAt);
-      // The largest title among the work's rows, as the SQL window's max() reads it.
-      const seen = title.get(i.key) ?? null;
-      if (i.workTitle !== null && (seen === null || i.workTitle > seen)) title.set(i.key, i.workTitle);
+    for (const key of first.keys()) {
+      const named = items.filter((i) => i.key === key && i.workTitle !== null).sort((a, b) => a.titleRank - b.titleRank || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+      title.set(key, named[0]?.workTitle ?? null);
     }
     const order = [...first.keys()].sort((a, b) => (first.get(a)! < first.get(b)! ? -1 : first.get(a)! > first.get(b)! ? 1 : a < b ? -1 : a > b ? 1 : 0));
     return items
       .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key) || a.step - b.step || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
-      .map(({ key, step: _step, createdAt: _createdAt, ...rest }) => ({ ...rest, workNo: order.indexOf(key) + 1, workTitle: title.get(key) ?? null }));
+      .map(({ key, step: _step, createdAt: _createdAt, titleRank: _titleRank, ...rest }) => ({ ...rest, workNo: order.indexOf(key) + 1, workTitle: title.get(key) ?? null }));
   }
 
-  async worksShownToMembers(memberId: string) {
-    return this.works(memberId, ["community", "public"]);
+  async worksShownToMembers(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember(this.works(memberId, ["community", "public"]), firstJoinedAt);
   }
 
-  async worksShownOnWeb(memberId: string) {
-    return this.works(memberId, ["public"]);
+  async worksShownOnWeb(memberId: string, firstJoinedAt: string | null) {
+    return stepsCountedWhileMember(this.works(memberId, ["public"]), firstJoinedAt);
   }
 
   async allShownToMembers() {
     return this.live()
       .filter((m) => m.status === "confirmed" && isShownToMembers(m.visibility as Visibility))
       .sort(byKeyThenId<MilestoneRow>((m) => m.id, (m) => m.id))
-      .map((m) => ({ memberId: m.member_id, kind: m.kind as MilestoneKind, achievedOn: m.achieved_on }));
+      .map((m) => ({ memberId: m.member_id, kind: m.kind as MilestoneKind, achievedOn: m.achieved_on, achievedPrecision: m.achieved_precision as MilestoneDatePrecision }));
+  }
+
+  private bookPhotoOf(bookId: string): StepPhoto | null {
+    const row = this.data.memberBookPhotos.find((p) => p.book_id === bookId);
+    return row ? photoOf(row.photo_path, row.photo_alt) : null;
+  }
+
+  async setPhoto(id: string, memberId: string, path: string, alt: string | null, now: Date) {
+    const row = this.live().find((m) => m.id === id && m.member_id === memberId && m.status === "confirmed");
+    if (!row) return null;
+    // What the table's CHECK says: the file is in the member's own folder.
+    if (!path.startsWith(`${memberId}/`)) throw new Error("violates check constraint member_milestones_photo_path_own_folder");
+    const previousPath = row.photo_path;
+    Object.assign(row, { photo_path: path, photo_alt: alt, updated_at: now.toISOString() });
+    return { previousPath };
+  }
+
+  async removePhoto(id: string, memberId: string, now: Date) {
+    const row = this.data.memberMilestones.find((m) => m.id === id && m.member_id === memberId);
+    if (!row) return null;
+    const previousPath = row.photo_path;
+    if (previousPath) Object.assign(row, { photo_path: null, photo_alt: null, updated_at: now.toISOString() });
+    return { previousPath };
+  }
+
+  async setPhotoAlt(id: string, memberId: string, alt: string | null, now: Date) {
+    const row = this.live().find((m) => m.id === id && m.member_id === memberId && m.photo_path !== null);
+    if (!row) return false;
+    Object.assign(row, { photo_alt: alt, updated_at: now.toISOString() });
+    return true;
+  }
+
+  async bookPhotosOf(memberId: string) {
+    return this.data.memberBookPhotos
+      .filter((p) => p.member_id === memberId)
+      .sort(byKeyThenId<Row<"member_book_photos">>((p) => p.book_id, (p) => p.book_id))
+      .flatMap((p) => {
+        const photo = photoOf(p.photo_path, p.photo_alt);
+        return photo ? [{ bookId: p.book_id, token: photo.token, alt: photo.alt }] : [];
+      });
+  }
+
+  async setBookPhoto(bookId: string, memberId: string, path: string, alt: string | null, now: Date) {
+    if (!this.data.memberBooks.some((b) => b.id === bookId && b.member_id === memberId && (b.deleted_at ?? null) === null)) return null;
+    if (!path.startsWith(`${memberId}/`)) throw new Error("violates check constraint member_book_photos_photo_path_check");
+    const iso = now.toISOString();
+    const existing = this.data.memberBookPhotos.find((p) => p.book_id === bookId);
+    if (existing) {
+      const previousPath = existing.photo_path;
+      Object.assign(existing, { photo_path: path, photo_alt: alt, updated_at: iso });
+      return { previousPath };
+    }
+    this.data.memberBookPhotos.push({ book_id: bookId, member_id: memberId, photo_path: path, photo_alt: alt, created_at: iso, updated_at: iso });
+    return { previousPath: null };
+  }
+
+  async removeBookPhoto(bookId: string, memberId: string) {
+    const index = this.data.memberBookPhotos.findIndex((p) => p.book_id === bookId && p.member_id === memberId);
+    if (index < 0) return null;
+    const [removed] = this.data.memberBookPhotos.splice(index, 1);
+    return { previousPath: removed.photo_path };
+  }
+
+  async setBookPhotoAlt(bookId: string, memberId: string, alt: string | null, now: Date) {
+    const row = this.data.memberBookPhotos.find((p) => p.book_id === bookId && p.member_id === memberId);
+    if (!row) return false;
+    Object.assign(row, { photo_alt: alt, updated_at: now.toISOString() });
+    return true;
+  }
+
+  async photoByToken(token: string) {
+    if (!isPhotoToken(token)) return null;
+    const milestone = this.live().find((m) => m.status === "confirmed" && tokenOfPath(m.photo_path) === token);
+    if (milestone?.photo_path) {
+      return { target: "milestone" as const, ownerId: milestone.member_id, path: milestone.photo_path, level: milestone.visibility as Visibility, consentTestimonial: milestone.consent_testimonial };
+    }
+    const bookPhoto = this.data.memberBookPhotos.find((p) => tokenOfPath(p.photo_path) === token);
+    if (!bookPhoto) return null;
+    const book = this.data.memberBooks.find((b) => b.id === bookPhoto.book_id && (b.deleted_at ?? null) === null);
+    return book ? { target: "book" as const, ownerId: bookPhoto.member_id, path: bookPhoto.photo_path, level: (book.visibility ?? "public") as Visibility, consentTestimonial: false } : null;
   }
 }

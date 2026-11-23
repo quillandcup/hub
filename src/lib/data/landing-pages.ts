@@ -63,7 +63,7 @@ const importStamp = (importKey: string) => {
   return { import_key: importKey, imported_at: now, updated_at: now };
 };
 const SUMMARY_COLUMNS =
-  "id, slug, title, kind, page_type, status, seo_title, seo_description, social_image_asset_id, first_published_at, published_at, restored_from_version_id, restored_at, import_key, imported_at, starter_applied_at, created_by, updated_by, created_at, updated_at, deleted_at";
+  "id, slug, title, kind, page_type, status, seo_title, seo_description, social_image_asset_id, first_published_at, published_at, restored_from_version_id, restored_at, import_key, imported_at, replaced_at, created_by, updated_by, created_at, updated_at, deleted_at";
 const VERSION_COLUMNS = "id, page_id, title, kind, note, published_by, created_at";
 
 /**
@@ -94,16 +94,16 @@ export interface LandingPageRepository {
   publishedAddresses(): Promise<PublishedAddress[]>;
   /** The live page made by an import with this key (docs/product/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
   byImportKey(importKey: string): Promise<LandingPage | null>;
-  /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. Throws `LandingPageSlugTakenError`. */
-  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage>;
+  /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. `fromFile` marks a page made from a JSON file: it stamps `replaced_at`, so the one Activity Log entry for the insert says so. Throws `LandingPageSlugTakenError`. */
+  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage>;
   /** Keeps the page's draft as it is now in its history, as a "before import" version (restorable like any version). Null when the page is gone. */
   keepDraftBeforeImport(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
-  /** An import again: replaces the draft document and stamps `imported_at` (one audit entry). Never touches the published copy, title, address or versions. Null when the page is gone. */
-  replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null>;
-  /** Keeps the page's draft as it is now in its history, as a "before starter" version (restorable like any version). Null when the page is gone. */
-  keepDraftBeforeStarter(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
-  /** "Replace with starter": replaces the draft document and stamps `starter_applied_at` (one audit entry). Never touches the published copy, title, address, SEO or versions. Null when the page is gone. */
-  replaceDraftWithStarter(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null>;
+  /** An import again: replaces the draft document and stamps `imported_at` (one audit entry); an `importKey` also sets the page's key (the one a page made before the key changed gets the new one). Never touches the published copy, title, address or versions. Null when the page is gone. */
+  replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null, importKey?: string): Promise<LandingPage | null>;
+  /** Keeps the page's draft as it is now in its history, as a "before replace" version (restorable like any version). Null when the page is gone. */
+  keepDraftBeforeReplace(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
+  /** Replaces the draft document and stamps `replaced_at` (one audit entry). Never touches the published copy, title, address, SEO or versions. Null when the page is gone. */
+  replaceDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null>;
   /** Autosave: replaces the draft document. Not audited. Returns the save time, or null when the page is gone. */
   saveDraft(id: string, data: LandingData, updatedBy: string | null): Promise<string | null>;
   /** Title, address and SEO. Audited. Null when the page is gone; throws `LandingPageSlugTakenError`. */
@@ -203,7 +203,7 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     return must(await this.db.from("landing_pages").select("*").eq("import_key", importKey).is("deleted_at", null).maybeSingle());
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage> {
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage> {
     const { data, error } = await this.db
       .from("landing_pages")
       .insert({
@@ -213,6 +213,7 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
         slug: input.slug,
         draft_data: asJson(input.data ?? EMPTY_LANDING_DATA),
         ...(input.importKey ? importStamp(input.importKey) : {}),
+        ...(input.fromFile ? { replaced_at: new Date().toISOString() } : {}),
         created_by: input.createdBy,
         updated_by: input.createdBy,
       })
@@ -229,23 +230,23 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     return must(await this.db.from("landing_page_versions").insert({ page_id: id, title: page.title, data: page.draft_data, kind: "before_import", published_by: updatedBy, note: cleanNote(note) }).select(VERSION_COLUMNS).single());
   }
 
-  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null, importKey?: string): Promise<LandingPage | null> {
     const now = new Date().toISOString();
     return must(
-      await this.db.from("landing_pages").update({ draft_data: asJson(data), imported_at: now, updated_by: updatedBy, updated_at: now }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
+      await this.db.from("landing_pages").update({ draft_data: asJson(data), imported_at: now, updated_by: updatedBy, updated_at: now, ...(importKey ? { import_key: importKey } : {}) }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
     );
   }
 
-  async keepDraftBeforeStarter(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null> {
+  async keepDraftBeforeReplace(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null> {
     const page = must(await this.db.from("landing_pages").select("title, draft_data").eq("id", id).is("deleted_at", null).maybeSingle());
     if (!page) return null;
-    return must(await this.db.from("landing_page_versions").insert({ page_id: id, title: page.title, data: page.draft_data, kind: "before_starter", published_by: updatedBy, note: cleanNote(note) }).select(VERSION_COLUMNS).single());
+    return must(await this.db.from("landing_page_versions").insert({ page_id: id, title: page.title, data: page.draft_data, kind: "before_replace", published_by: updatedBy, note: cleanNote(note) }).select(VERSION_COLUMNS).single());
   }
 
-  async replaceDraftWithStarter(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+  async replaceDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
     const now = new Date().toISOString();
     return must(
-      await this.db.from("landing_pages").update({ draft_data: asJson(data), starter_applied_at: now, updated_by: updatedBy, updated_at: now }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
+      await this.db.from("landing_pages").update({ draft_data: asJson(data), replaced_at: now, updated_by: updatedBy, updated_at: now }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
     );
   }
 
@@ -405,33 +406,33 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return version;
   }
 
-  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null, importKey?: string): Promise<LandingPage | null> {
     const page = this.find(id);
     if (!page) return null;
     const now = new Date().toISOString();
-    Object.assign(page, { draft_data: asJson(structuredClone(data)), imported_at: now, updated_by: updatedBy, updated_at: now });
+    Object.assign(page, { draft_data: asJson(structuredClone(data)), imported_at: now, updated_by: updatedBy, updated_at: now, ...(importKey ? { import_key: importKey } : {}) });
     return structuredClone(page);
   }
 
-  async keepDraftBeforeStarter(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null> {
+  async keepDraftBeforeReplace(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null> {
     const page = this.find(id);
     if (!page) return null;
-    const row = { id: newId("lpgv"), page_id: id, title: page.title, data: structuredClone(page.draft_data), kind: "before_starter", note: cleanNote(note), published_by: updatedBy, created_at: new Date().toISOString() };
+    const row = { id: newId("lpgv"), page_id: id, title: page.title, data: structuredClone(page.draft_data), kind: "before_replace", note: cleanNote(note), published_by: updatedBy, created_at: new Date().toISOString() };
     this.data.landingPageVersions.push(row);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the document is left out of a version's summary
     const { data: _document, ...version } = row;
     return version;
   }
 
-  async replaceDraftWithStarter(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+  async replaceDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
     const page = this.find(id);
     if (!page) return null;
     const now = new Date().toISOString();
-    Object.assign(page, { draft_data: asJson(structuredClone(data)), starter_applied_at: now, updated_by: updatedBy, updated_at: now });
+    Object.assign(page, { draft_data: asJson(structuredClone(data)), replaced_at: now, updated_by: updatedBy, updated_at: now });
     return structuredClone(page);
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType }): Promise<LandingPage> {
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage> {
     if (this.live().some((p) => p.slug === input.slug || (input.importKey && p.import_key === input.importKey))) throw new LandingPageSlugTakenError(input.slug);
     const now = new Date().toISOString();
     const page: LandingPage = {
@@ -452,7 +453,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
       restored_at: null,
       import_key: input.importKey ?? null,
       imported_at: input.importKey ? now : null,
-      starter_applied_at: null,
+      replaced_at: input.fromFile ? now : null,
       created_by: input.createdBy,
       updated_by: input.createdBy,
       created_at: now,

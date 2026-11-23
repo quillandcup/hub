@@ -6,12 +6,29 @@ import { getServiceRepos } from "@/lib/data/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { clock } from "@/lib/clock";
-import { hasStory, parseMilestoneAnswer, parseMilestoneSelfAdd, type MilestoneAnswerInput } from "@/lib/finishers";
+import { hasSomethingToShare, parseMilestoneAnswer, parseMilestoneSelfAdd, type MilestoneAnswerInput } from "@/lib/finishers";
 import { parseWork } from "@/lib/finishers-works";
 import { isVisibility } from "@/lib/writing-visibility";
 import { WRITER_PROFILES_NOT_AVAILABLE, memberHasWriterProfiles } from "@/lib/writer-profiles-access";
 import { revalidateMilestoneSurfaces } from "@/lib/milestone-revalidate";
 import { actionOutcome, withAction } from "@/lib/analytics/server";
+import { parsePhotoAlt, type PhotoTarget } from "@/lib/milestone-photos";
+import { discardPhoto, milestonePhotoStore } from "@/lib/members/milestone-photo";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+
+/**
+ * A milestone that stops being the member's claim (taken back, or answered "not me") takes its photo with it: the row stops being
+ * served at once (the route reads only live, confirmed rows), and the file and its path go too, so a picture is never kept for
+ * something the member no longer says is theirs. Best effort after the change itself has worked.
+ */
+async function dropPhotoOf(id: string, memberId: string): Promise<void> {
+  try {
+    const removed = await getServiceRepos().milestones.removePhoto(id, memberId, new Date(clock.now()));
+    await discardPhoto(milestonePhotoStore(createServiceRoleClient()), removed?.previousPath);
+  } catch (error) {
+    console.error("milestones.dropPhoto failed", error instanceof Error ? error.message : String(error));
+  }
+}
 
 /**
  * A member answers a milestone staff or a course proposed (docs/product/FINISHERS.md): "yes, this is me" with an optional date,
@@ -26,13 +43,15 @@ async function answerMilestoneImpl(input: { id: string } & MilestoneAnswerInput)
   if (identity.isSudo) return { error: "Only the member can answer this." };
   if (!input.id) return { error: "We couldn't find that milestone." };
 
-  const answer = parseMilestoneAnswer(input, clock.now());
-  if ("error" in answer) return { error: answer.error };
-
   try {
     const repos = createRepos(await createClient());
+    // Whether the milestone has a photo is read here, never taken from the form: a photo is something to share, like a story.
+    const hasPhoto = input.shareStory === true && input.answer === "confirm" ? (await repos.milestones.ofMember(identity.memberId)).some((m) => m.id === input.id && m.photo !== null) : false;
+    const answer = parseMilestoneAnswer({ ...input, hasPhoto }, clock.now());
+    if ("error" in answer) return { error: answer.error };
     const saved = await repos.milestones.answer(input.id, identity.memberId, answer, new Date(clock.now()));
     if (!saved) return { error: "We couldn't find that milestone. It may have been taken back." };
+    if (answer.status === "declined") await dropPhotoOf(input.id, identity.memberId);
     await revalidateMilestoneSurfaces(repos, identity.memberId);
   } catch (error) {
     console.error("milestones.answer failed", error instanceof Error ? error.message : String(error));
@@ -109,6 +128,7 @@ async function takeBackMilestoneImpl(id: string): Promise<{ success: true } | { 
     const repos = createRepos(await createClient());
     const done = await repos.milestones.takeBack(id, identity.memberId, new Date(clock.now()));
     if (!done) return { error: "We couldn't find that milestone. It may already be taken back." };
+    await dropPhotoOf(id, identity.memberId);
     await revalidateMilestoneSurfaces(repos, identity.memberId);
   } catch (error) {
     console.error("milestones.takeBack failed", error instanceof Error ? error.message : String(error));
@@ -173,7 +193,7 @@ async function setMilestoneShareImpl(id: string, share: boolean): Promise<{ succ
     const repos = createRepos(await createClient());
     if (share) {
       const mine = (await repos.milestones.ofMember(identity.memberId)).find((m) => m.id === id);
-      if (mine && !hasStory(mine)) return { error: "Write a story first, and then you can share it." };
+      if (mine && !hasSomethingToShare(mine)) return { error: "Write a story or add a photo first, and then you can share it." };
     }
     const saved = await repos.milestones.setShareStory(id, identity.memberId, share === true, new Date(clock.now()));
     if (!saved) return { error: "We couldn't find that milestone. It may have been taken back, or you haven't confirmed it yet." };
@@ -190,4 +210,36 @@ export async function setMilestoneShare(...args: Parameters<typeof setMilestoneS
     ...actionOutcome(result),
     detail: args[1] ? "shared" : "withdrawn",
   }));
+}
+
+/**
+ * A member describes what their photo shows (the alt text people who cannot see it hear): "milestone" for THE END or publish-ready,
+ * "book" for the Published step. Optional, plain text, at most `altMaxLength` characters; empty clears it. Never in sudo. The photo
+ * itself is added or replaced by `POST /api/milestone-photos`, which checks and re-encodes it.
+ */
+async function setMilestonePhotoAltImpl(target: PhotoTarget, id: string, alt: string): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Please sign in again." };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "We couldn't find your member record." };
+  if (identity.isSudo) return { error: "Only you can change this." };
+  if (!id || (target !== "milestone" && target !== "book")) return { error: "We couldn't find that photo." };
+  const parsed = parsePhotoAlt(alt);
+  if ("error" in parsed) return { error: parsed.error };
+
+  try {
+    const repos = createRepos(await createClient());
+    const now = new Date(clock.now());
+    const saved = target === "milestone" ? await repos.milestones.setPhotoAlt(id, identity.memberId, parsed.alt, now) : await repos.milestones.setBookPhotoAlt(id, identity.memberId, parsed.alt, now);
+    if (!saved) return { error: "We couldn't find that photo. It may have been taken away." };
+    await revalidateMilestoneSurfaces(repos, identity.memberId);
+  } catch (error) {
+    console.error("milestones.setPhotoAlt failed", error instanceof Error ? error.message : String(error));
+    return { error: "We couldn't save that. Please try again in a moment." };
+  }
+  return { success: true };
+}
+
+export async function setMilestonePhotoAlt(...args: Parameters<typeof setMilestonePhotoAltImpl>) {
+  return withAction("milestone_photo_alt_set", () => setMilestonePhotoAltImpl(...args), (result) => actionOutcome(result));
 }

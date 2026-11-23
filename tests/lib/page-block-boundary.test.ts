@@ -61,7 +61,7 @@ describe("the pages code's imports", () => {
   });
 
   it("never reach into events code or a module's internals", () => {
-    const banned = /^@\/(lib\/events-|lib\/event-|lib\/events\/|lib\/calendar-|lib\/data\/events$|components\/EventArt$|app\/.*\/events\/)|^@\/modules\/(?!(index|editor|server)$).+/;
+    const banned = /^@\/(lib\/events-|lib\/event-|lib\/events\/|lib\/calendar-|lib\/data\/events$|components\/EventArt$|app\/.*\/events\/)|^@\/modules\/(?!(index|editor|server|chat-transport)$).+/;
     const found = pages.flatMap((file) => importsOf(file).filter((spec) => banned.test(spec)).map((spec) => `${file} imports ${spec}`));
     expect(found).toEqual([]);
   });
@@ -75,7 +75,15 @@ describe("the pages code's imports", () => {
 describe("the modules", () => {
   it("are imported by the composition root alone, outside their own folder", () => {
     const outside = [...sourceFiles("src"), ...sourceFiles("scripts")].filter((f) => !f.startsWith("src/modules/"));
-    const found = outside.flatMap((file) => importsOf(file).filter((spec) => /^@\/modules\/(?!(index|editor|server)$)/.test(spec)).map((spec) => `${file} imports ${spec}`));
+    // The Slack-side files still outside the adapter's folder, and the chat core files in the baseline, may use the adapter's helpers (config/eslint.mjs).
+    const baseline = Object.keys(JSON.parse(readFileSync(path.join(ROOT, "config/chat-core-baseline.json"), "utf8")).files);
+    const slackSide = (file: string) =>
+      baseline.includes(file) || /^src\/lib\/prickle-checkin-dm-close\.ts$|^src\/app\/api\/(reconcile\/slack-dms|webhooks\/slack|import\/slack-api)\//.test(file);
+    const found = outside.flatMap((file) =>
+      importsOf(file)
+        .filter((spec) => /^@\/modules\/(?!(index|editor|server|chat-transport)$)/.test(spec) && !(slackSide(file) && spec.startsWith("@/modules/chat/slack/")))
+        .map((spec) => `${file} imports ${spec}`)
+    );
     expect(found).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { coverageState, loadOfferCoverage } from "@/lib/offer-coverage";
@@ -9,7 +9,7 @@ import OffersTable from "./OffersTable";
 export const metadata: Metadata = { title: "Kajabi Offers" };
 
 export default async function AdminOffersPage() {
-  await requireAdminPage();
+  await requirePermission("offers.manage");
   const supabase = await createClient();
   const rows = await loadOfferCoverage(createRepos(supabase));
   const counts = { mapped: 0, unmapped: 0, multiple: 0 };

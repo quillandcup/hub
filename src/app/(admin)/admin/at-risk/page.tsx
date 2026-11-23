@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { requireStaffPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { formatDateOnly } from "@/lib/formatters";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ function shownName(m: { name: string; displayName: string | null }) {
 }
 
 export default async function AtRiskPage() {
-  await requireStaffPage();
+  await requirePermission("members.at_risk.read");
   const supabase = await createClient();
 
   const user = await getCurrentUser();

@@ -796,6 +796,71 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(await repo.courseBySlug(`${deep.slug}-copy`)).toBeNull();
     });
 
+    it("counts what members have on a course, for the delete check", async () => {
+      const repo = ctx.courses();
+      const [m1, m2] = await ctx.members();
+      const course = newCourse("used", { is_draft: true });
+      await ctx.seed.courses([course]);
+      expect(await repo.memberDataOf(course.id)).toEqual({ members: 0, activity: 0 });
+      const lesson = lessonRow({ id: newCourseId("les"), course_id: course.id, title: "L", source: "hub" });
+      await ctx.seed.lessons([lesson]);
+      await ctx.seed.access([accessRow({ member_id: m1, course_id: course.id })]);
+      await ctx.seed.grants([grantRow({ id: randomUUID(), member_id: m2, course_id: course.id })]);
+      await ctx.seed.progress([progressRow({ member_id: m1, lesson_id: lesson.id })]);
+      expect(await repo.memberDataOf(course.id)).toEqual({ members: 2, activity: 1 });
+      expect(await repo.memberDataOf(newCourseId("crs"))).toEqual({ members: 0, activity: 0 });
+    });
+
+    it("deletes an unused Hub draft course with its modules, lessons and downloads, and leaves other courses alone", async () => {
+      const repo = ctx.courses();
+      const course = newCourse("del", { is_draft: true });
+      const other = newCourse("del-other", { is_draft: true });
+      await ctx.seed.courses([course, other]);
+      const mod = moduleRow({ id: newCourseId("mod"), course_id: course.id, title: "M", source: "hub" });
+      const otherMod = moduleRow({ id: newCourseId("mod"), course_id: other.id, title: "M2", source: "hub" });
+      await ctx.seed.modules([mod, otherMod]);
+      const lesson = lessonRow({ id: newCourseId("les"), course_id: course.id, module_id: mod.id, title: "L", source: "hub" });
+      const loose = lessonRow({ id: newCourseId("les"), course_id: course.id, module_id: null, title: "Loose", source: "hub" });
+      const otherLesson = lessonRow({ id: newCourseId("les"), course_id: other.id, title: "L2", source: "hub" });
+      await ctx.seed.lessons([lesson, loose, otherLesson]);
+      await ctx.seed.files([fileRow({ id: newCourseId("file"), lesson_id: lesson.id, filename: "a.pdf", source_key: ctx.unique("kf"), storage_path: `${ctx.unique("path")}/a.pdf` })]);
+
+      await repo.deleteCourse(course.id);
+
+      expect(await repo.courseById(course.id)).toBeNull();
+      expect(await repo.modulesOf([course.id], { includeHidden: true })).toEqual([]);
+      expect(await repo.lessonsOf([course.id], { includeHidden: true })).toEqual([]);
+      expect(await repo.filesOfLessons([lesson.id])).toEqual([]);
+      expect(ids(await repo.modulesOf([other.id], { includeHidden: true }))).toEqual([otherMod.id]);
+      expect(ids(await repo.lessonsOf([other.id], { includeHidden: true }))).toEqual([otherLesson.id]);
+      expect(await repo.courseById(other.id)).not.toBeNull();
+    });
+
+    it("won't delete a course that isn't there, comes from Kajabi, is published, or that members use", async () => {
+      const repo = ctx.courses();
+      const [m1, m2] = await ctx.members();
+      const kajabi = newCourse("del-kajabi", { source: "kajabi", source_key: ctx.unique("kj"), is_draft: true });
+      const published = newCourse("del-published", { is_draft: false });
+      const withAccess = newCourse("del-access", { is_draft: true });
+      const withGrant = newCourse("del-grant", { is_draft: true });
+      const withProgress = newCourse("del-progress", { is_draft: true });
+      await ctx.seed.courses([kajabi, published, withAccess, withGrant, withProgress]);
+      const lesson = lessonRow({ id: newCourseId("les"), course_id: withProgress.id, title: "L", source: "hub" });
+      await ctx.seed.lessons([lesson]);
+      await ctx.seed.access([accessRow({ member_id: m1, course_id: withAccess.id })]);
+      await ctx.seed.grants([grantRow({ id: randomUUID(), member_id: m2, course_id: withGrant.id })]);
+      await ctx.seed.progress([progressRow({ member_id: m1, lesson_id: lesson.id })]);
+      const refusal = (id: string) => repo.deleteCourse(id).then(() => "deleted", (e: Error) => e.message);
+
+      expect(await refusal(newCourseId("crs"))).toBe("not_found");
+      expect(await refusal(kajabi.id)).toBe("not_deletable");
+      expect(await refusal(published.id)).toBe("published");
+      expect(await refusal(withAccess.id)).toBe("has_members");
+      expect(await refusal(withGrant.id)).toBe("has_members");
+      expect(await refusal(withProgress.id)).toBe("has_activity");
+      for (const c of [kajabi, published, withAccess, withGrant, withProgress]) expect(await repo.courseById(c.id)).not.toBeNull();
+    });
+
     it("records and clears the library image of a course, its banner, a module and a lesson", async () => {
       const course = newCourse("images");
       await ctx.seed.courses([course]);

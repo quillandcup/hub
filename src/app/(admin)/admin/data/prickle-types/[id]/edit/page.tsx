@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import EditPrickleTypeForm from "./EditPrickleTypeForm";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import type { PrickleTypePurpose } from "@/lib/prickle-picker";
 import { createRepos } from "@/lib/data/repos";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -45,7 +45,7 @@ export default async function EditPrickleTypePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdminPage();
+  await requirePermission("prickles.manage");
   const { id } = await params;
 
   const user = await getCurrentUser();

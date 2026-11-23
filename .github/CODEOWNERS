@@ -1,0 +1,7 @@
+# The engineering team owns the whole repository. GitHub requests a review from the owners of
+# the files a pull request touches (never from the author). Review is not required to merge: the
+# `main` ruleset in config/github.yml keeps `require_code_owner_review` off, with zero approvals
+# and auto-merge. If that is ever turned on, every pull request will need a member of this team.
+# The team needs Write access on the repository, or GitHub ignores the line.
+
+* @quillandcup/eng

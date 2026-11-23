@@ -3,7 +3,7 @@ import { zipSync } from "fflate";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 import { PENDING_FILE_PREFIX, parseChatFiles } from "@/lib/chat/files";
 import { uniqueZipNames } from "@/lib/chat/zip-names";
 import { createRepos } from "@/lib/data/repos";
@@ -59,7 +59,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       }
       path = copy.path;
     }
-    const { data: blob, error } = await service.storage.from(SLACK_FILES_BUCKET).download(path);
+    const { data: blob, error } = await service.storage.from(CHAT_FILES_BUCKET).download(path);
     if (error || !blob) {
       console.error(`[chat] zip: file ${file.id} missing from the bucket: ${error?.message}`);
       continue;

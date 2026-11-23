@@ -7,7 +7,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 // The routes that link Kajabi offers to an event and list its buyers, over the in-memory repositories.
 
 const auth = vi.hoisted(() => ({ current: { user: { id: "admin" }, supabase: {} } as { user: { id: string } | null; forbidden?: boolean; supabase: object } }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => auth.current }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => auth.current }));
 
 const state = vi.hoisted(() => ({ repos: null as unknown, kajabi: null as null | { fetchContactWithAttachments: (id: string) => Promise<unknown> } }));
 vi.mock("@/lib/kajabi/client", async () => ({

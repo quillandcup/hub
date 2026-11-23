@@ -21,7 +21,7 @@ const session = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/supabase/api-auth', () => ({
-  requireAdmin: async () => ({ user: { id: 'admin-user' }, forbidden: false, supabase: session.limited }),
+  requireApiPermission: async () => ({ user: { id: 'admin-user' }, forbidden: false, supabase: session.limited }),
 }))
 vi.mock('@/lib/supabase/service', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')

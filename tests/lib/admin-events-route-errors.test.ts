@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 
 const remove = vi.fn();
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: { storage: { from: () => ({ remove }) } } }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, supabase: { storage: { from: () => ({ remove }) } } }),
 }));
 
 let calendarSource: unknown = null;

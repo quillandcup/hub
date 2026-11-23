@@ -11,10 +11,13 @@ SELECT plan(8);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000c1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pj-member@example.test'),
   ('00000000-0000-4000-a000-00000000c1a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pj-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000c1a1', 'pj-member@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000c1a4', 'pj-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000c1a1', 'pj-member@example.test'),
+  ('00000000-0000-4000-a000-00000000c1a4', 'pj-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000c1a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- One setting already in effect and one scheduled for the future.
 INSERT INTO public.prickle_join_settings (id, join_url, passcode, effective_from) VALUES

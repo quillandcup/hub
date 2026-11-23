@@ -14,6 +14,14 @@ All changes land through a pull request. Required checks (unit and database test
 
 Two-factor authentication is required for the GitHub organization, Vercel and Supabase.
 
+## Access
+
+Access to sensitive resources (the repository's administration, the production accounts, the secrets in `docs/runbooks/SECRET_ROTATION.md`) is granted only by an owner, one person at a time, after the owners have reviewed who the person is and why they need it. New collaborators start with the lowest permission that does the job (the organization's default repository permission is read) and are raised only for a stated need; two-factor authentication is required first. Access is reviewed when someone's role changes and removed when they leave. The current list is the repository's collaborators page and the members of each provider account, not a document in the repository, because the repository is public.
+
+## Dependencies
+
+Dependencies are chosen by the maintainer when a change needs them and enter only through a pull request that changes `package.json` and `pnpm-lock.yaml`; installs in CI use the frozen lockfile. Dependabot proposes updates weekly (npm and GitHub Actions), and `pnpm audit`, OSV-Scanner and CodeQL watch for known problems (`docs/trust/THREAT_MODEL.md`, "Scheduled scanners"). How fast a finding is fixed depends on its severity, from 10 days for a critical one to 90 for a low one (same document, "How fast findings are fixed").
+
 ## Roadmap
 
 The plan and the list of known gaps are in `docs/TODO.md`; what members have received is in the changelog (`docs/runbooks/CHANGELOG_PROCESS.md`).

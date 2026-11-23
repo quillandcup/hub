@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { findMembersWithDisposableEmail } from "@/lib/disposable-email-members";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function TemporaryEmailsPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
   const repos = createRepos(supabase);
 
@@ -39,7 +39,7 @@ export default async function TemporaryEmailsPage() {
       </div>
 
       {flagged.length === 0 ? (
-        <p className="text-sm text-green-600 dark:text-green-400">No temporary-mail addresses ✓</p>
+        <p className="text-sm text-green-700 dark:text-green-400">No temporary-mail addresses ✓</p>
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800">
           {flagged.map((m) => {

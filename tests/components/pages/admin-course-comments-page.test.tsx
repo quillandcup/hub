@@ -10,8 +10,8 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 const track = vi.fn();
 vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...a) }));
 
-const requireAdminPage = vi.fn();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn();
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 const actions = {
   hideLessonComment: vi.fn(),
@@ -78,7 +78,7 @@ beforeEach(() => {
   track.mockReset();
   routerMock.refresh.mockReset();
   for (const fn of Object.values(actions)) fn.mockReset().mockResolvedValue({ changed: true });
-  requireAdminPage.mockReset().mockResolvedValue(undefined);
+  requirePermission.mockReset().mockResolvedValue(undefined);
   unanswered.mockReset().mockResolvedValue([]);
   openReports.mockReset().mockResolvedValue([]);
   heldComments.mockReset().mockResolvedValue([]);
@@ -87,7 +87,7 @@ beforeEach(() => {
 
 describe("admin course comments page", () => {
   it("checks for an admin first, and stops when that redirects", async () => {
-    requireAdminPage.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    requirePermission.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(renderServerPage(CourseCommentsPage, params())).rejects.toThrow();
     expect(unanswered).not.toHaveBeenCalled();
   });
@@ -160,7 +160,7 @@ describe("admin course comments page", () => {
 
 describe("admin course comments moderation page", () => {
   it("checks for an admin first", async () => {
-    requireAdminPage.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    requirePermission.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(renderServerPage(CourseCommentsModerationPage, params())).rejects.toThrow();
     expect(openReports).not.toHaveBeenCalled();
   });

@@ -3,9 +3,9 @@ import { NextRequest } from "next/server";
 
 const sweep = vi.fn();
 vi.mock("@/lib/chat/file-cleanup", () => ({ sweepDeletedFileBytes: (...a: unknown[]) => sweep(...a) }));
-vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => ({ user: { id: "u" }, forbidden: false }) }));
+vi.mock("@/lib/supabase/api-auth", () => ({ requireApiPermission: async () => ({ user: { id: "u" }, forbidden: false }) }));
 vi.mock("@/lib/slack-matching", () => ({ loadVerifiedSlackLinks: async () => [], matchSlackUsersToMembers: async () => [] }));
-vi.mock("@/lib/chat/slack-post", () => ({ retryUnsentChatMessages: async () => ({ sent: 0, failed: 0, expired: 0 }) }));
+vi.mock("@/lib/chat/delivery", () => ({ retryUnsentChatMessages: async () => ({ sent: 0, failed: 0, expired: 0 }) }));
 vi.mock("@/lib/chat/staging", () => ({ purgeStagedChatFiles: async () => 0 }));
 
 const empty = () => {

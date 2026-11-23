@@ -7,6 +7,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { APP_URL, ROOT_HOST, SITE_URL } from "@/lib/config";
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 // Imported only so the layout module loads in a node test; none of it runs here.
 vi.mock("next/font/google", () => ({ Playfair_Display: () => ({ variable: "", className: "" }) }));
 const state = vi.hoisted(() => ({ host: "" }));

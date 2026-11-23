@@ -4,10 +4,10 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { DELETE } from "@/app/api/admin/aliases/[id]/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: vi.fn(),
+  requireApiPermission: vi.fn(),
 }));
 
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 // The alias comes from the in-memory alias repository; the member's display name is still the fake client's.
 let aliasData = new InMemoryDataset();
@@ -53,7 +53,7 @@ function makeSupabaseMock({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireAdmin).mockResolvedValue({
+  vi.mocked(requireApiPermission).mockResolvedValue({
     user: { id: "admin-1" } as any,
     forbidden: false,
     supabase: {} as any,
@@ -62,20 +62,20 @@ beforeEach(() => {
 
 describe("DELETE /api/admin/aliases/[id]", () => {
   it("returns 401 when unauthenticated", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: null, forbidden: false, supabase: {} as any });
     const response = await DELETE(makeRequest(), { params: Promise.resolve({ id: "alias-1" }) });
     expect(response.status).toBe(401);
   });
 
   it("returns 403 when not an admin", async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "u1" } as any, forbidden: true, supabase: {} as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "u1" } as any, forbidden: true, supabase: {} as any });
     const response = await DELETE(makeRequest(), { params: Promise.resolve({ id: "alias-1" }) });
     expect(response.status).toBe(403);
   });
 
   it("returns 404 when the alias doesn't exist", async () => {
     const mock = makeSupabaseMock({ alias: null });
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await DELETE(makeRequest(), { params: Promise.resolve({ id: "alias-1" }) });
     expect(response.status).toBe(404);
@@ -83,7 +83,7 @@ describe("DELETE /api/admin/aliases/[id]", () => {
 
   it("returns 404 with the database's message when the alias can't be read", async () => {
     const mock = makeSupabaseMock({ failLookup: "db down" });
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await DELETE(makeRequest(), { params: Promise.resolve({ id: "alias-1" }) });
 
@@ -93,7 +93,7 @@ describe("DELETE /api/admin/aliases/[id]", () => {
 
   it("deletes the alias and clears display_name if it matched", async () => {
     const mock = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await DELETE(makeRequest(), { params: Promise.resolve({ id: "alias-1" }) });
 
@@ -106,7 +106,7 @@ describe("DELETE /api/admin/aliases/[id]", () => {
 
   it("returns 500 when the delete fails", async () => {
     const mock = makeSupabaseMock({ failDelete: "db error" });
-    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
+    vi.mocked(requireApiPermission).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await DELETE(makeRequest(), { params: Promise.resolve({ id: "alias-1" }) });
     expect(response.status).toBe(500);

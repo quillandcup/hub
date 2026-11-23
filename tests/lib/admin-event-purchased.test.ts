@@ -8,7 +8,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 // linked offers' purchases (not stored on the attendee).
 
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
+  requireApiPermission: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 const repos = createInMemoryRepos(
   new InMemoryDataset({

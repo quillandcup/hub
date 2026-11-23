@@ -18,15 +18,23 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000ed05', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ho-plain@example.test'),
   ('00000000-0000-4000-a000-00000000ed07', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ho-leaving@example.test'),
   ('00000000-0000-4000-a000-00000000ed08', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ho-leaving2@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000ed01', 'ho-manager@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000ed02', 'ho-manager2@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000ed03', 'ho-admin@example.test', 'admin'),
-  ('00000000-0000-4000-a000-00000000ed04', 'ho-assistant@example.test', 'assistant'),
-  ('00000000-0000-4000-a000-00000000ed05', 'ho-plain@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000ed07', 'ho-leaving@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000ed08', 'ho-leaving2@example.test', 'community_manager')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000ed01', 'ho-manager@example.test'),
+  ('00000000-0000-4000-a000-00000000ed02', 'ho-manager2@example.test'),
+  ('00000000-0000-4000-a000-00000000ed03', 'ho-admin@example.test'),
+  ('00000000-0000-4000-a000-00000000ed04', 'ho-assistant@example.test'),
+  ('00000000-0000-4000-a000-00000000ed05', 'ho-plain@example.test'),
+  ('00000000-0000-4000-a000-00000000ed07', 'ho-leaving@example.test'),
+  ('00000000-0000-4000-a000-00000000ed08', 'ho-leaving2@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000ed01', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000ed02', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000ed03', 'admin'),
+  ('00000000-0000-4000-a000-00000000ed04', 'assistant'),
+  ('00000000-0000-4000-a000-00000000ed07', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000ed08', 'community_manager')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_HandoverAAA1', 'Ada Example', 'ho-ada@example.test', now(), 'active'),

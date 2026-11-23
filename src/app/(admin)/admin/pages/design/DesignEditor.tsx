@@ -6,6 +6,7 @@ import MediaPicker from "@/components/media/MediaPicker";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 import { FaviconField, StyleFields } from "@/components/landing/style-fields";
+import { SOCIAL_LOOK_OPTIONS } from "@/components/landing/social-networks";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
 import {
   HEADER_ALIGNMENTS,
@@ -20,6 +21,7 @@ import {
   type HeaderItemType,
   type SiteLink,
   type SiteSocialLink,
+  type SiteSocialLook,
   type SiteTemplate,
 } from "@/lib/landing/site-template";
 import type { SiteVersionSummary } from "@/lib/landing/site-versions";
@@ -80,6 +82,21 @@ function LinkRows({ links, onChange, noun }: { links: SiteLink[]; onChange: (nex
         Add a {noun}
       </button>
     </div>
+  );
+}
+
+/** How the social marks look (the Social icons block's `look`): the networks' own colours on a light badge, or their black or white version. */
+function SocialLookField({ value, onChange }: { value: SiteSocialLook; onChange: (next: SiteSocialLook) => void }) {
+  return (
+    <Field label="Marks">
+      <select value={value} onChange={(e) => onChange(e.target.value as SiteSocialLook)} className={INPUT}>
+        {SOCIAL_LOOK_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </Field>
   );
 }
 
@@ -155,7 +172,12 @@ function ItemFields({ item, onChange }: { item: HeaderItem; onChange: (next: Hea
         </div>
       );
     case "social":
-      return <SocialRows links={item.links} onChange={(links) => onChange({ ...item, links })} />;
+      return (
+        <div className="space-y-3">
+          <SocialRows links={item.links} onChange={(links) => onChange({ ...item, links })} />
+          <SocialLookField value={item.look} onChange={(look) => onChange({ ...item, look })} />
+        </div>
+      );
     case "signin":
       return (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
@@ -444,6 +466,9 @@ export default function DesignEditor({
         <div>
           <h3 className="mb-2 text-sm font-semibold">Social links</h3>
           <SocialRows links={site.footer.social} onChange={(social) => setFooter({ social })} />
+          <div className="mt-3">
+            <SocialLookField value={site.footer.socialLook} onChange={(socialLook) => setFooter({ socialLook })} />
+          </div>
         </div>
       </section>
 

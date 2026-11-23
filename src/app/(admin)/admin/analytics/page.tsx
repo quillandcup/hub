@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { FUNNELS, WINDOW_DAYS, parseWindowDays } from "@/lib/analytics/funnels";
 import { FunnelBars } from "@/components/admin/FunnelBars";
 import { AudienceFilter } from "@/components/admin/AudienceFilter";
@@ -72,7 +72,7 @@ function wholeNumber(value: string | undefined, fallback: number, min: number): 
 const formatRate = (clicked: number, seen: number) => (seen > 0 ? `${Math.round((clicked / seen) * 100)}%` : "–");
 
 export default async function FeatureUsagePage({ searchParams }: { searchParams: Promise<Params> }) {
-  await requireAdminPage();
+  await requirePermission("analytics.usage.read");
   const params = await searchParams;
   const days = parseWindowDays(params.days);
   // Staff clicking around the admin area would drown out what members do, so it starts hidden.

@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import Modal from "@/components/Modal";
 import { MILESTONE_CELEBRATION, type MilestoneKind } from "@/lib/finishers";
 import { STAGE_PROMPT, type StageMilestonePrompt } from "@/lib/milestone-prompts";
-import { MilestoneForm } from "@/app/(member)/settings/MilestonesPanel";
+import { MilestoneForm } from "@/components/writing/Milestones";
 import { answerStageMilestone } from "../stageMilestoneActions";
 
 const PRIMARY = "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
 const SECONDARY = "px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50";
 
-/** Where each step is: waiting for an answer, filling in the form, said yes (saved), or said "not yet" (remembered). */
-type Step = "asking" | "form" | "yes" | "not_yet";
+/** Where each step is: waiting for an answer, filling in the form, said yes (saved), said "not yet" (we ask again later) or "not for this work" (never again). */
+type Step = "asking" | "form" | "yes" | "not_yet" | "not_for_this_work";
 
 function StepRow({
   projectId,
@@ -30,12 +31,12 @@ function StepRow({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const notYet = () =>
+  const say = (answer: "not_yet" | "not_for_this_work") =>
     startTransition(async () => {
       setError(null);
-      const result = await answerStageMilestone({ projectId, kind, answer: "not_yet" });
+      const result = await answerStageMilestone({ projectId, kind, answer });
       if ("error" in result) setError(result.error);
-      else onStep("not_yet");
+      else onStep(answer);
     });
 
   return (
@@ -51,8 +52,11 @@ function StepRow({
           <button type="button" onClick={() => onStep("form")} disabled={pending} className={PRIMARY} data-track={`stage-milestone-yes-${kind}`}>
             {STAGE_PROMPT.yes[kind]}
           </button>
-          <button type="button" onClick={notYet} disabled={pending} className={SECONDARY} data-track={`stage-milestone-not-yet-${kind}`}>
+          <button type="button" onClick={() => say("not_yet")} disabled={pending} className={SECONDARY} data-track={`stage-milestone-not-yet-${kind}`}>
             {STAGE_PROMPT.notYet}
+          </button>
+          <button type="button" onClick={() => say("not_for_this_work")} disabled={pending} className={SECONDARY} data-track={`stage-milestone-not-for-this-work-${kind}`}>
+            {STAGE_PROMPT.notForThisWork}
           </button>
         </div>
       )}
@@ -62,7 +66,7 @@ function StepRow({
           initial={null}
           submitLabel="Save it"
           run={(i) =>
-            answerStageMilestone({ projectId, kind, answer: "yes", achievedOn: i.achievedOn, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })
+            answerStageMilestone({ projectId, kind, answer: "yes", achievedOn: i.achievedOn, achievedPrecision: i.achievedPrecision, storyBefore: i.storyBefore, storyAfter: i.storyAfter, shareStory: i.shareStory, visibility: i.visibility })
           }
           onDone={(saved) => onStep(saved ? "yes" : "asking")}
           readOnly={false}
@@ -75,6 +79,7 @@ function StepRow({
         </p>
       )}
       {step === "not_yet" && <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{STAGE_PROMPT.notYetNote}</p>}
+      {step === "not_for_this_work" && <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{STAGE_PROMPT.notForThisWorkNote}</p>}
       {error && (
         <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">
           {error}
@@ -97,7 +102,7 @@ export default function StageMilestoneDialog({ prompt, onClose, onPublish }: { p
   const stepOf = (kind: MilestoneKind): Step => steps[kind] ?? "asking";
   const open = kinds.filter((k) => stepOf(k) === "asking" || stepOf(k) === "form");
 
-  // Leaving with a question unanswered counts as "not yet": it is remembered, and the card in Settings is still there.
+  // Leaving with a question unanswered counts as "not yet": we ask again at a later stage, and the project's milestones are still there.
   const leave = (then: () => void) => {
     startTransition(async () => {
       await Promise.all(open.map((kind) => answerStageMilestone({ projectId, kind, answer: "not_yet" }).catch(() => null)));
@@ -143,7 +148,15 @@ export default function StageMilestoneDialog({ prompt, onClose, onPublish }: { p
             </div>
           </div>
         )}
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/projects/${projectId}#milestones`}
+            onClick={() => leave(onClose)}
+            data-track="stage-milestone-see-milestones"
+            className="text-sm text-plum-700 underline dark:text-plum-300"
+          >
+            See this project&rsquo;s milestones
+          </Link>
           <button type="button" onClick={() => leave(onClose)} className={allAnswered ? PRIMARY : SECONDARY} data-track="stage-milestone-close">
             {allAnswered ? STAGE_PROMPT.done : STAGE_PROMPT.notNow}
           </button>

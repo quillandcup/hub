@@ -6,7 +6,7 @@ import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/supabase/api-auth';
+import { requireApiPermission } from '@/lib/supabase/api-auth';
 import { extractSlackImageUrl } from '@/lib/member-avatar';
 import { markRemovedSlackReactions } from '@/lib/slack-reactions';
 import {
@@ -23,7 +23,7 @@ import {
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 import { clock } from '@/lib/clock';
-import { hideHubPreviewsRemovedInSlack } from '@/lib/chat/slack-side-unfurl-removal';
+import { hideHubPreviewsRemovedInSlack } from '@/modules/chat/slack/side-unfurl-removal';
 import { createServiceRoleClient } from '@/lib/supabase/service';
 import {
   copySlackFiles,
@@ -57,7 +57,7 @@ interface SlackApiImportRequest {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   // The caller is a verified admin (or the cron). Message content in Bronze is

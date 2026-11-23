@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { AudienceFilter } from "@/components/admin/AudienceFilter";
 import { audienceRpcArgs, parseAudience } from "@/lib/analytics/audience";
 import { describeEvents } from "@/lib/analytics/events";
@@ -29,7 +29,7 @@ interface BreakdownRow {
 }
 
 export default async function ExploreUsagePage({ searchParams }: { searchParams: Promise<Params> }) {
-  await requireAdminPage();
+  await requirePermission("analytics.usage.read");
   const params = await searchParams;
   const days = parseWindowDays(params.days);
   const steps = parseSteps(params.step);

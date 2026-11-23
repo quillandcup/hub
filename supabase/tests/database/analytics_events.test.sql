@@ -13,11 +13,14 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000b1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'analytics-alice@example.test'),
   ('00000000-0000-4000-a000-00000000b1a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'analytics-bob@example.test'),
   ('00000000-0000-4000-a000-00000000b1a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'analytics-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000b1a1', 'analytics-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b1a2', 'analytics-bob@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000b1a3', 'analytics-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000b1a1', 'analytics-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000b1a2', 'analytics-bob@example.test'),
+  ('00000000-0000-4000-a000-00000000b1a3', 'analytics-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000b1a3', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- Alice, visit 1: opened while live, then joined. Visit 2: opened while off air, never joined.
 -- Bob: joined without opening first (no step 1, so not in the funnel). Admin in sudo: opened and

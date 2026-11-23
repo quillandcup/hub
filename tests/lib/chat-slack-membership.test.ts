@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { writesEnabled } = vi.hoisted(() => ({ writesEnabled: vi.fn(() => true) }));
-vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
+vi.mock("@/modules/chat/slack/post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
 vi.mock("@slack/web-api", () => ({ WebClient: vi.fn() }));
 let repos = createInMemoryRepos();
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { inviteToSlackChannel, kickFromSlackChannel, inviteAsMember, joinAsMember, kickAsMember, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
+import { inviteToSlackChannel, kickFromSlackChannel, inviteAsMember, joinAsMember, kickAsMember, leaveSlackChannelAsMember, slackUserIdsFor } from "@/modules/chat/slack/membership";
 
 const stub = () => {
   const slack = {

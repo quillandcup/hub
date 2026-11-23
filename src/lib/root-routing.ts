@@ -1,4 +1,4 @@
-import { APP_HOST, APP_URL, KAJABI_SITE_URL, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
+import { APP_HOST, APP_URL, KAJABI_SITE_URL, PUBLIC_SITE_LIVE, ROOT_HOST, SITE_ALIAS_HOSTS, SITE_URL } from "@/lib/config";
 import { HOME_SLUG, isValidSlug } from "@/lib/landing/slug";
 import { ROOT_REDIRECTS, fillTarget, matchRedirect, type RootRedirect } from "@/lib/root-redirects";
 
@@ -112,6 +112,8 @@ export interface LandingCandidate {
 }
 
 export interface RoutingConfig {
+  /** config/app.ts `publicSiteLive`: false means nothing here applies and every request is the app host's. */
+  live: boolean;
   rootHost: string;
   appHost: string;
   aliasHosts: readonly string[];
@@ -126,6 +128,7 @@ export interface RoutingConfig {
 }
 
 export const DEFAULT_ROUTING: RoutingConfig = {
+  live: PUBLIC_SITE_LIVE,
   rootHost: ROOT_HOST,
   appHost: APP_HOST,
   aliasHosts: SITE_ALIAS_HOSTS,
@@ -190,6 +193,9 @@ function ownedByHub(pathname: string, segment: string, config: RoutingConfig): b
 /** What to do with a request, by host and path. See the top of this file. */
 export function decideRoute(req: RouteRequest, config: RoutingConfig = DEFAULT_ROUTING): RouteDecision {
   const host = normalizeHost(req.host);
+  // Before the cutover (config/app.ts `publicSiteLive`) the root and www hosts are Kajabi's, not this app's: no request here is for
+  // them, and every request behaves as it always did.
+  if (!config.live) return { action: "pass", host: "app" };
 
   if (config.aliasHosts.includes(host)) {
     return { action: "redirect", location: sameLocation(config.siteUrl, req.pathname, req.search), status: 307 };
@@ -255,5 +261,5 @@ export async function resolveLandingRoute(
 
 /** True when this request is for the root host (the public site), where the homepage renders instead of the dashboard redirect. */
 export function isRootHost(host: string | null | undefined, config: RoutingConfig = DEFAULT_ROUTING): boolean {
-  return normalizeHost(host) === config.rootHost;
+  return config.live && normalizeHost(host) === config.rootHost;
 }

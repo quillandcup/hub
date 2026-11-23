@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
 import MissingStripeTable from "./MissingStripeTable";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function MissingMemberDataPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   const missingStripe = (await createRepos(supabase).members.list({ status: "active", orderBy: "name" }))
@@ -65,7 +65,7 @@ export default async function MissingMemberDataPage() {
             {missingStripe && missingStripe.length > 0 ? (
               <MissingStripeTable rows={missingStripe} />
             ) : (
-              <div className="px-6 py-8 text-center text-sm text-green-600 dark:text-green-400 font-medium">
+              <div className="px-6 py-8 text-center text-sm text-green-700 dark:text-green-400 font-medium">
                 All active members have a Stripe customer ID.
               </div>
             )}

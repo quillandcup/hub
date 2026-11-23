@@ -13,7 +13,7 @@ const adminPage = vi.hoisted(() => ({ allowed: true }));
 vi.mock("@/lib/admin-auth", async () => {
   const { redirect } = await import("@/tests/helpers/server-page");
   return {
-    requireAdminPage: vi.fn(async () => {
+    requirePermission: vi.fn(async () => {
       if (!adminPage.allowed) redirect("/no-access");
     }),
   };

@@ -19,7 +19,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (adminOk ? { user: { id: "admin" }, supabase: {} } : { user: null }),
+  requireApiPermission: async () => (adminOk ? { user: { id: "admin" }, supabase: {} } : { user: null }),
 }));
 vi.mock("@/lib/google-photos-picker/redirect-uri", () => ({ redirectUriFor: () => "http://localhost/cb" }));
 vi.mock("@/lib/google-photos-picker/client", () => ({

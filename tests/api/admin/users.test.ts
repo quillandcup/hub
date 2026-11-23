@@ -141,19 +141,74 @@ describe('Admin Users API', () => {
     const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'admin' }),
+      body: JSON.stringify({ roles: ['admin'] }),
     })
 
     expect(res.ok).toBe(true)
 
     // Confirm the change is reflected in the DB
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', testUserId)
-      .single()
+    const { data: held } = await supabase.from('user_roles').select('role').eq('user_id', testUserId)
 
-    expect(profile?.role).toBe('admin')
+    expect((held ?? []).map((r) => r.role)).toEqual(['admin'])
+  })
+
+  describe('PATCH roles — a person can hold several', () => {
+    const patchRoles = (roles: unknown) =>
+      apiFetch(`${base}/api/admin/users/${testUserId}`, {
+        method: 'PATCH',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roles }),
+      })
+
+    const stored = async () => {
+      const { data: held } = await supabase.from('user_roles').select('role').eq('user_id', testUserId)
+      return { roles: (held ?? []).map((r) => r.role).sort() }
+    }
+
+    it('stores each role', async () => {
+      const res = await patchRoles(['conversion_specialist', 'community_manager'])
+      expect(res.ok).toBe(true)
+      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'] })
+    })
+
+    it('GET lists every role held, and the primary one as `role`', async () => {
+      await patchRoles(['conversion_specialist', 'community_manager'])
+      const res = await apiFetch(`${base}/api/admin/users`, { headers: getTestAuthHeaders() })
+      const found = (await res.json()).users.find((u: any) => u.id === testUserId)
+      expect(found.roles).toEqual(['community_manager', 'conversion_specialist'])
+      expect(found.role).toBe('community_manager')
+    })
+
+    it('replaces the set, and an empty list makes the person a member', async () => {
+      await patchRoles(['assistant', 'community_manager'])
+      expect(await stored()).toEqual({ roles: ['assistant', 'community_manager'] })
+      await patchRoles(['community_manager'])
+      expect(await stored()).toEqual({ roles: ['community_manager'] })
+      const res = await patchRoles([])
+      expect(res.ok).toBe(true)
+      expect(await stored()).toEqual({ roles: [] })
+    })
+
+    it('refuses an unknown role and a malformed list, and changes nothing', async () => {
+      await patchRoles(['community_manager'])
+      expect((await patchRoles(['superuser'])).status).toBe(400)
+      expect((await patchRoles('admin')).status).toBe(400)
+      expect((await patchRoles([7])).status).toBe(400)
+      expect(await stored()).toEqual({ roles: ['community_manager'] })
+      await patchRoles([])
+    })
+
+    it('ignores a lone `role`: roles are set only as a list', async () => {
+      await patchRoles(['community_manager', 'conversion_specialist'])
+      const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
+        method: 'PATCH',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'assistant' }),
+      })
+      expect(res.ok).toBe(true)
+      expect(await stored()).toEqual({ roles: ['community_manager', 'conversion_specialist'] })
+      await patchRoles([])
+    })
   })
 
   it('PATCH updates feature flags (add)', async () => {
@@ -213,17 +268,17 @@ describe('Admin Users API', () => {
     const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'member', features: ['member_overrides'] }),
+      body: JSON.stringify({ roles: [], features: ['member_overrides'] }),
     })
 
     expect(res.ok).toBe(true)
 
-    const [{ data: profile }, { data: rows }] = await Promise.all([
-      supabase.from('user_profiles').select('role').eq('id', testUserId).single(),
+    const [{ data: held }, { data: rows }] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', testUserId),
       supabase.from('user_feature_previews').select('feature_key').eq('user_id', testUserId),
     ])
 
-    expect(profile?.role).toBe('member')
+    expect(held ?? []).toEqual([])
     expect((rows ?? []).map((r) => r.feature_key)).toEqual(['member_overrides'])
   })
 

@@ -43,7 +43,7 @@ const decide = (fields: Record<string, unknown>) =>
   });
 let admin = true;
 vi.mock("@/lib/admin-auth", () => ({
-  requireAdminAction: async () => (admin ? { ok: true, supabase, user: { id: "u1" } } : { ok: false, error: "Not authorized" }),
+  requireActionPermission: async () => (admin ? { ok: true, supabase, user: { id: "u1" } } : { ok: false, error: "Not authorized" }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));

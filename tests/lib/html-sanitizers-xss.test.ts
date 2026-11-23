@@ -4,8 +4,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
-import { RichHtml } from "@/components/landing/blocks";
+import { Button, LinkItem, RichHtml } from "@/components/landing/blocks";
 import { safeHref } from "@/lib/landing/data";
+import { allowedHtmlHref } from "@/lib/sanitize-urls";
+import { checkLandingPage } from "@/lib/landing/a11y";
+import { IMAGE_ROUTE_PREFIXES } from "@/lib/courses/image-urls";
 
 /**
  * Both stored-HTML sanitizers against a wide payload set (OWASP XSS filter-evasion style, mutation XSS, scheme tricks,
@@ -37,6 +40,20 @@ const PAYLOADS: [string, string][] = [
   ["img lowsrc", '<img lowsrc="javascript:alert(1)">'],
   ["img style expression", '<img style="width:expression(alert(1))" src="https://example.test/a.png">'],
   ["img protocol relative", '<img src="//evil.test/a.png">'],
+  ["img api path", '<img src="/api/admin/anything?x=1">'],
+  ["img site page path", '<img src="/courses/some-course">'],
+  ["img backslash path", '<img src="/\\evil.test/x.png">'],
+  ["img backslash pair", '<img src="\\\\evil.test/x.png">'],
+  ["img dot segments out of the prefix", '<img src="/api/media/../admin/x">'],
+  ["img encoded dot segments", '<img src="/api/media/%2e%2e/admin/x">'],
+  ["img encoded slash", '<img src="/api/courses/image/%2f..%2f..%2fadmin">'],
+  ["img relative without slash", '<img src="api/admin/x">'],
+  ["img tab in path", '<img src="/api/media/a\tb">'],
+  ["a api path", '<a href="/api/admin/anything">x</a>'],
+  ["a api path upper case", '<a href="/API/admin/anything">x</a>'],
+  ["a api path with dot segments", '<a href="/courses/../api/admin/x">x</a>'],
+  ["a backslash path", '<a href="/\\evil.test">x</a>'],
+  ["a encoded dot segments", '<a href="/%2e%2e/api/admin/x">x</a>'],
   ["a javascript href", '<a href="javascript:alert(1)">x</a>'],
   ["a javascript uppercase", '<a href="JAVASCRIPT:alert(1)">x</a>'],
   ["a javascript tab", '<a href="java\tscript:alert(1)">x</a>'],
@@ -204,11 +221,13 @@ function assertSafe(html: string, kind: "lesson" | "rich") {
         const scheme = schemeOf(attr.value);
         expect(scheme === null || ["http", "https", "mailto"].includes(scheme), `href ${attr.value} in: ${html}`).toBe(true);
         expect(attr.value.trim().startsWith("//"), `protocol relative href in: ${html}`).toBe(false);
+        expect(/^\/api(\/|$)/i.test(attr.value.trim()), `api path href in: ${html}`).toBe(false);
       } else if (attr.name === "src") {
         expect(n.tagName).toBe("img");
-        // A path on this site is allowed (the lesson editor keeps images by our own address); any other scheme is not.
+        // http(s), or a path under one of our image routes; any other scheme or path is not.
         const scheme = schemeOf(attr.value);
         expect(scheme === null || ["http", "https"].includes(scheme), `src ${attr.value} in: ${html}`).toBe(true);
+        if (scheme === null) expect(IMAGE_ROUTE_PREFIXES.some((p) => attr.value.startsWith(p)), `site path src ${attr.value} in: ${html}`).toBe(true);
         expect(attr.value.trim().startsWith("//"), `protocol relative src in: ${html}`).toBe(false);
       } else if (n.tagName === "a") {
         expect(["target", "rel"], `a attribute ${attr.name} in: ${html}`).toContain(attr.name);
@@ -293,11 +312,39 @@ describe("what each sanitizer allows beyond the other", () => {
     expect(sanitizeRichText(html)).not.toContain("<pre");
   });
 
-  it("keeps relative links on the same site and drops protocol-relative ones", () => {
+  it("keeps page links on the same site and drops protocol-relative ones", () => {
     expect(sanitizeLessonHtml('<a href="/courses">x</a>')).toContain('href="/courses"');
     expect(sanitizeRichText('<a href="/courses">x</a>')).toContain('href="/courses"');
     expect(sanitizeLessonHtml('<a href="//evil.test">x</a>')).not.toContain("evil.test");
     expect(sanitizeRichText('<a href="//evil.test">x</a>')).not.toContain("evil.test");
+  });
+
+  it("keeps unchanged every address shape production uses (and our own image routes), in both sanitizers", () => {
+    // Production on 2026-11-21: lesson images and links were all absolute http(s) (links also mailto); landing rich text had no links or images.
+    const link = (href: string) => `<a href="${href}" target="_blank" rel="noopener noreferrer">x</a>`;
+    const links = ["https://example.test/a/b?c=1&amp;d=2", "http://example.test", "mailto:ada@example.test", "/courses", "/courses/some-course/lessons/abc", "/privacy#top", "#section"];
+    for (const href of links) {
+      expect(sanitizeLessonHtml(link(href))).toBe(link(href));
+      expect(sanitizeRichText(link(href))).toBe(link(href));
+    }
+    const images = [
+      '<img src="https://example.test/a.png" width="600" height="300" />',
+      '<img src="http://example.test/a.png" />',
+      '<img src="/api/courses/image/lesson/les_abc123" alt="A" />',
+      '<img src="/api/media/med_abc123/lesson_body?v=2026-11-21T10%3A00%3A00Z" alt="B" />',
+    ];
+    for (const img of images) expect(sanitizeLessonHtml(`<p>Intro</p>${img}`)).toBe(`<p>Intro</p>${img}`);
+  });
+
+  it("drops a site path in an image src that is not one of our image routes, and an /api/ path in a link", () => {
+    for (const src of ["/api/admin/anything", "/api/courses/watch", "/courses/x", "//evil.example/x.png", "/\\evil.example/x.png", "javascript:alert(1)"]) {
+      expect(sanitizeLessonHtml(`<p>t</p><img src="${src}">`), src).toBe("<p>t</p>");
+    }
+    for (const sanitize of [sanitizeLessonHtml, sanitizeRichText]) {
+      for (const href of ["/api/admin/anything", "/api", "/api?x=1", "//evil.example/x", "/\\evil.example", "javascript:alert(1)", "courses/x"]) {
+        expect(sanitize(`<a href="${href}">x</a>`), href).toBe('<a target="_blank" rel="noopener noreferrer">x</a>');
+      }
+    }
   });
 
   it("sanitizeRichText gives an empty string for anything that is not text", () => {
@@ -321,5 +368,53 @@ describe("link props on landing data (safeHref)", () => {
 
   it("keeps http(s), mailto, paths and anchors", () => {
     for (const ok of ["https://example.test/a", "http://example.test", "mailto:a@example.test", "/courses", "#top"]) expect(safeHref(ok)).toBe(ok);
+  });
+
+  // The same rule as the links in stored HTML: a landing link can never point at /api.
+  const API_AND_ESCAPES = [
+    "/api/members", "/api", "/API/members", "/api?x=1", "/api#x", "/api/../x", "/p/../x", "/%2e%2e/x", "/p/%2E%2e/x", "/p%2fq", "/p%5cq", "/api%2fmembers",
+    "//evil.example", "/\\evil", "\\\\evil", "/p\\q", "/p\u0000q", "javascript:alert(1)",
+  ];
+
+  it.each(API_AND_ESCAPES)("drops %j from a structured link, in every prop, through the save path", (href) => {
+    expect(safeHref(href)).toBe("");
+    const data = sanitizeLandingData({
+      content: [
+        { type: "ButtonRow", props: { id: "a", items: [{ type: "RowButton", props: { id: "b", label: "Go", href } }] } },
+        { type: "Hero", props: { id: "h", primary: { label: "Go", href } } },
+      ],
+      root: {},
+    });
+    const row = data.content[0] as unknown as { props: { items: { props: { href: string } }[] } };
+    const hero = data.content[1] as unknown as { props: { primary: { href: string } } };
+    expect(row.props.items[0].props.href).toBe("");
+    expect(hero.props.primary.href).toBe("");
+  });
+
+  it.each(["/api/members", "/api/../x", "//evil.example", "/\\evil", "javascript:alert(1)", "/%2e%2e/x"])("renders %j as a disabled button, never a link", (href) => {
+    const button = renderToStaticMarkup(createElement(Button, { label: "Go", href } as never));
+    expect(button).not.toContain("href=");
+    expect(button).toContain('aria-disabled="true"');
+    expect(renderToStaticMarkup(createElement(LinkItem, { label: "Go", href } as never))).not.toContain("href=");
+  });
+
+  it("flags a button to /api in the editor's publish check as having no link", () => {
+    const page = { content: [{ type: "Button", props: { id: "a", label: "Members", href: "/api/members" } }], root: {} };
+    expect(checkLandingPage(page).some((i) => i.severity === "error" && i.message.includes("has no link"))).toBe(true);
+    const ok = { content: [{ type: "Button", props: { id: "a", label: "Privacy", href: "/privacy" } }], root: {} };
+    expect(checkLandingPage(ok).some((i) => i.message.includes("has no link"))).toBe(false);
+  });
+
+  it("uses one implementation: safeHref agrees with the HTML link rule on every shape", () => {
+    for (const v of [...API_AND_ESCAPES, "https://example.test/a", "mailto:a@example.test", "/courses", "#top", "/", "/p/spring?x=1#y", "  /privacy  "]) expect(safeHref(v)).toBe(allowedHtmlHref(v));
+  });
+
+  it("keeps every address shape that production and the repo's templates use, unchanged", () => {
+    // Production (2026-11-22): site page paths only (/security, /login, /privacy, /compliance); the repo's defaults use "/" and anchors.
+    for (const ok of ["/", "/security", "/login", "/privacy", "/compliance", "/p/spring", "/courses/intro?x=1", "#faq", "#", "https://example.test/a", "mailto:a@example.test"]) {
+      expect(safeHref(ok)).toBe(ok);
+      const data = sanitizeLandingData({ content: [{ type: "Button", props: { id: "a", href: ok } }], root: {} });
+      expect((data.content[0] as unknown as { props: { href: string } }).props.href).toBe(ok);
+    }
   });
 });

@@ -238,6 +238,20 @@ html[data-animations="off"] *::after {
     animation: landing-fade-in 0.7s ease-out both;
   }
 }
+/* A Section with "Fill the page" (`lp-fill`, src/components/landing/blocks.tsx) takes the free height between the site header and footer.
+   The frame is a column at least a screen tall (`PageFrame`), and the section sits inside wrappers the page builder adds (its drop zone, the
+   block box, and more in the editor's canvas), so every ancestor between `main` and the section is made a growing column too, whatever
+   those wrappers are. Only a section placed on the page itself counts (not one inside another Section), and only pages that have one are touched. */
+[data-lp-frame] main:has(.lp-fill:not(section *)),
+[data-lp-frame] main :not(section *):has(.lp-fill:not(section *)) {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+[data-lp-frame] main .lp-fill:not(section *) {
+  flex-grow: 1;
+}
 /* The pulsing dot of the homepage's announcement strip and "live" chip: same rule, motion only when the visitor allows it. */
 @media (prefers-reduced-motion: no-preference) {
   .landing-pulse {

@@ -18,6 +18,11 @@ export type LandingMigration = {
   blocks?: Record<string, (props: Props) => Props>;
   /** The page frame's props (`root.props`). */
   root?: (props: Props) => Props;
+  /**
+   * Gives a block a new type name, from its old type and props (undefined keeps it). `blocks` is still looked up by the OLD type, and
+   * its result is the props of the renamed block. A rename must be safe to run again (see step 4).
+   */
+  retype?: (type: string, props: Props) => string | undefined;
 };
 
 const isObject = (v: unknown): v is Props => !!v && typeof v === "object" && !Array.isArray(v);
@@ -97,6 +102,19 @@ function scheduleRowsToChildBlocks(props: Props): Props {
   return itemsToChildBlocks("ScheduleRow")({ ...rest, items: Array.isArray(rows) ? rows : [] });
 }
 
+/**
+ * Step 4. The block called "FAQ" was a generic collapsible list, so it is now the Accordion (`Faq` -> `Accordion`, `FaqItem` -> `AccordionItem`,
+ * the item's `question` and `answer` -> `title` and `text`), and `Faq` is a new block of questions and answers (its items are `FaqQuestion`).
+ * Only a `Faq` that holds the old items (`FaqItem`, or none) is renamed, so a new FAQ is never turned into an Accordion by running this
+ * step on a document that lost its version marker: that is what makes the step idempotent.
+ */
+const isOldFaq = (props: Props): boolean => !Array.isArray(props.items) || props.items.every((i) => !isObject(i) || i.type !== "FaqQuestion");
+function faqItemToAccordionItem(props: Props): Props {
+  if (!("question" in props) && !("answer" in props)) return props;
+  const { question, answer, ...rest } = props;
+  return { ...rest, title: question ?? "", text: answer ?? "", open: false };
+}
+
 /** Append a step to change a block's props; never edit or remove an earlier one. */
 export const LANDING_MIGRATIONS: LandingMigration[] = [
   {
@@ -118,6 +136,12 @@ export const LANDING_MIGRATIONS: LandingMigration[] = [
       SchedulePanel: scheduleRowsToChildBlocks,
     },
   },
+  {
+    // The generic "FAQ" list becomes the Accordion; "FAQ" is now a block of questions and answers that search engines are told about too.
+    version: 4,
+    retype: (type, props) => (type === "FaqItem" ? "AccordionItem" : type === "Faq" && isOldFaq(props) ? "Accordion" : undefined),
+    blocks: { FaqItem: faqItemToAccordionItem },
+  },
 ];
 
 export const LANDING_SCHEMA_VERSION = LANDING_MIGRATIONS.length;
@@ -129,7 +153,8 @@ function migrateNode(node: { type: string; props: Props }, step: LandingMigratio
   // Own entries only: the type comes from stored JSON, and "constructor" or "toString" must not find a function on the prototype.
   const transform = step.blocks && Object.hasOwn(step.blocks, node.type) ? step.blocks[node.type] : undefined;
   const props = transform ? transform(node.props) : node.props;
-  return { ...node, props: migrateSlots(props, step) };
+  const type = step.retype?.(node.type, node.props) ?? node.type;
+  return { ...node, type, props: migrateSlots(props, step) };
 }
 
 /** Blocks nested in a prop (a Section's `content` slot) are migrated too. */

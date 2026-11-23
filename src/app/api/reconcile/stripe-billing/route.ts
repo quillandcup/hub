@@ -4,7 +4,7 @@ import { createRepos } from "@/lib/data/repos";
 import { importStripeBilling, type StripeBillingResult } from "@/lib/stripe/billing-import";
 import { importStripeCore, type StripeCoreResult } from "@/lib/stripe/core-import";
 import { createStripeClient } from "@/lib/stripe/client";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 
 export const maxDuration = 300;
 
@@ -22,7 +22,7 @@ export const maxDuration = 300;
  * none is, for now (src/lib/cron-heartbeats.ts, `unmonitored`).
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "data.pipeline.run");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

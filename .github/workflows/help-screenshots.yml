@@ -10,8 +10,8 @@
 # if it ran after the publish, otherwise the next run does. Skipped entirely when nothing the screens depend on
 # changed since the newest set (HELP_IMAGE_INPUTS in scripts/help-images-version.ts); `force` runs it anyway.
 #
-# A failing scene, a new page problem (tests/demo/baseline.json) or an article that shows a screenshot no scene
-# captured fails this workflow, and GitHub emails the failure. Nothing blocks a merge on it any more, so watch for
+# A failing scene or an article that shows a screenshot no scene
+# captured fails this workflow (page problems are the page-checks job's, below, so they never hold the screenshots back), and GitHub emails the failure. Nothing blocks a merge on it any more, so watch for
 # it; production keeps showing the previous set meanwhile.
 name: Help screenshots
 
@@ -22,6 +22,10 @@ on:
     inputs:
       force:
         description: "Capture even if the screens haven't changed since the newest set"
+        type: boolean
+        default: false
+      all:
+        description: "Page checks at all eight size and theme combinations (the nightly run does two; Sunday's does all)"
         type: boolean
         default: false
 
@@ -196,15 +200,21 @@ jobs:
         env:
           DEMO_APP_URL: http://localhost:3000
 
-      # Every scene at every size, light and dark, with the page checks. `@published` scenes read screenshots
-      # from the bucket, which this output is what fills, so they run locally against a published stack and are
-      # skipped here. `@changelog` scenes are the recipe for a changelog entry's frozen screenshots (run on demand
-      # with `pnpm changelog:capture <slug>`); this run tracks the current UI, so it leaves them out.
+      # Every scene at desktop light, the one size and theme the articles show (PUBLISHED_PROJECT in
+      # tests/demo/publish.ts). It used to capture all eight size and theme combinations, with the page checks, in this
+      # one job: about 3.8 minutes each on the runner, so the matrix reached scene 287 of 320 when the job's 30
+      # minute limit cancelled it, every day from 2026-11-17, and nothing was published. The page checks now run in
+      # the page-checks jobs below (a job per combination), so a page problem no longer holds the screenshots back
+      # (DEMO_CHECKS=off). `@published` scenes read screenshots from the bucket, which this output is what fills, so
+      # they run locally against a published stack and are skipped here. `@changelog` scenes are the recipe for a
+      # changelog entry's frozen screenshots (run on demand with `pnpm changelog:capture <slug>`); this run tracks the
+      # current UI, so it leaves them out.
       - name: Capture the scenes
         if: steps.run.outputs.capture == 'true'
-        run: pnpm demo:capture --grep-invert "@published|@changelog"
+        run: pnpm demo:capture --project=desktop-light --grep-invert "@published|@changelog"
         env:
           DEMO_APP_URL: http://localhost:3000
+          DEMO_CHECKS: "off"
 
       - name: Check every article screenshot was captured
         if: steps.run.outputs.capture == 'true'
@@ -238,6 +248,202 @@ jobs:
         if: always() && steps.run.outputs.capture == 'true'
         run: supabase stop
 
+  # The page checks (tests/demo/checks.ts, docs/product/DEMO_AND_HELP.md, "Page checks"): every page the scenes open is
+  # checked for console errors and warnings, accessibility violations (axe) and sideways overflow, against the shrink-only
+  # baseline tests/demo/baseline.json (`pnpm demo:baseline --check`). They used to run inside the capture job above, all
+  # eight size and theme combinations one after another (about 4 minutes each on a runner): the job reached scene 287 of 320
+  # when its 30 minute limit cancelled it, every day from 2026-11-17, so nothing was checked or published. Now each
+  # combination is its own job, in parallel with the capture and at the same commit (the `production` tag, with its
+  # own baseline): nightly a phone and a desktop combination, on Sundays all eight (or on demand with `all`). Not a
+  # required check; the alert job below reports a failure or a timeout.
+  plan:
+    name: Which combinations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      projects: ${{ steps.pick.outputs.projects }}
+    steps:
+      - id: pick
+        env:
+          ALL: ${{ inputs.all }}
+        run: |
+          # Sunday (UTC) is the weekly full matrix; the other nights run a phone and a desktop combination.
+          if [ "$(date -u +%u)" = "7" ] || [ "$ALL" = "true" ]; then
+            echo 'projects=["phone-light","phone-dark","tablet-portrait-light","tablet-portrait-dark","tablet-landscape-light","tablet-landscape-dark","desktop-light","desktop-dark"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'projects=["phone-light","desktop-dark"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  page-checks:
+    name: Page checks ${{ matrix.project }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.plan.outputs.projects) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: production # the tag the deploy moves to the commit it deployed
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: "package.json"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # Authenticated pulls: see the same step in ci.yml.
+      - name: Log in to Docker Hub
+        continue-on-error: true
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Backgrounded so the build below overlaps it; "Wait for local Supabase" blocks until it is up. The
+      # registry and excluded services are explained in ci.yml.
+      - name: Start local Supabase
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+        run: |
+          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
+          disown
+
+      - name: Production build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Wait for local Supabase
+        run: |
+          for i in $(seq 1 180); do
+            [ -f /tmp/supabase-start.exit ] && break
+            sleep 2
+          done
+          if [ "$(cat /tmp/supabase-start.exit 2>/dev/null)" != "0" ]; then
+            echo "supabase start did not finish, or failed"
+            cat /tmp/supabase-start.log
+            exit 1
+          fi
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/rest/v1/" \
+              && curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/auth/v1/health"; then
+              echo "Supabase is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Supabase API gateway did not become reachable in time"
+          cat /tmp/supabase-start.log
+          exit 1
+
+      # An empty database without seed.sql: the only people on screen are the demo's fictional community.
+      - name: Reset to an empty database
+        run: supabase db reset --no-seed
+
+      - name: Start app server
+        run: |
+          pnpm start > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/admin/events 2>/dev/null) || true
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
+              echo "App server is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App server did not become ready in time"
+          cat /tmp/next-server.log
+          exit 1
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Point the demo at this job's stack
+        run: |
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$LOCAL_SUPABASE_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
+          } > tests/demo/.env.demo
+
+      - name: Cache the Playwright browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install the browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Seed the demo community
+        run: pnpm demo:seed
+        env:
+          DEMO_APP_URL: http://localhost:3000
+
+      # The scenes the baseline was made from (not `@published`, which read from the bucket, nor `@changelog`, the
+      # recipes for a changelog entry's screenshots), at this combination only.
+      - name: Open every page the scenes open, and check it
+        run: pnpm demo:capture --project=${{ matrix.project }} --grep-invert "@published|@changelog"
+        env:
+          DEMO_APP_URL: http://localhost:3000
+
+      - name: Check the findings against the baseline
+        run: pnpm demo:baseline --check
+
+      - name: Upload the findings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: page-findings-${{ matrix.project }}
+          path: |
+            tests/demo/out/**/*.findings.json
+          retention-days: 14
+
+      - name: Stop app server
+        if: always()
+        run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+  # A failed run emails whoever GitHub notifies for a scheduled workflow, but a run that is CANCELLED (the 30 minute limit
+  # did that for weeks) sends nothing, so this job also posts to the alerts channel when the capture or a page-check
+  # job failed or was cancelled. The same incoming webhook as audit.yml (SLACK_ALERTS_WEBHOOK_URL); not set, or a
+  # fork: it does nothing. A job that was skipped (nothing changed since the newest set) is not a problem.
+  alert:
+    name: Tell the alerts channel
+    needs: [capture, page-checks]
+    if: ${{ always() && (contains(fromJSON('["failure","cancelled"]'), needs.capture.result) || contains(fromJSON('["failure","cancelled"]'), needs.page-checks.result)) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Post to Slack
+        env:
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CAPTURE: ${{ needs.capture.result }}
+          CHECKS: ${{ needs.page-checks.result }}
+        run: |
+          if [ -z "$SLACK_ALERTS_WEBHOOK_URL" ]; then echo "SLACK_ALERTS_WEBHOOK_URL is not set; not posting."; exit 0; fi
+          curl -sS --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\": \"Nightly help screenshots: screenshot capture $CAPTURE, page checks $CHECKS (a new page problem, a fixed one still in tests/demo/baseline.json, or a run that timed out). Details: $RUN_URL\"}" \
+            "$SLACK_ALERTS_WEBHOOK_URL"
+
   # The set reaches production when a build picks it up (see the top of this file). Skipped unless a set was published.
   deploy:
     name: Redeploy with the new set
@@ -245,6 +451,8 @@ jobs:
     if: needs.capture.outputs.published == 'true'
     permissions:
       contents: write # moves the `production` tag
+      id-token: write # deploy.yml's attest job (build provenance); the deploy job itself stays at contents: write
+      attestations: write
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
     with:

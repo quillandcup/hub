@@ -6,7 +6,7 @@ import { groupByCanonical, type ConflictGroup, type ConflictEntry } from "@/lib/
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ExternalConflictsPage() {
-  await requireAdminPage();
+  await requirePermission("data.hygiene.manage");
   const supabase = await createClient();
 
   const billing = createRepos(supabase).billing;

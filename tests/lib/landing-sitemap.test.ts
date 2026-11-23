@@ -16,6 +16,9 @@ vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => state.repos }));
 
 import sitemap from "@/app/sitemap";
 
+// The state after the cutover (config/app.ts publicSiteLive true); the state before it is in tests/lib/public-site-flag.test.ts and the "not live" tests it lists.
+vi.mock("@/lib/config", () => import("@/tests/helpers/public-site").then((m) => m.liveConfigModule()));
+
 async function publish(slug: string, extra: { kind?: "page" | "template"; publish?: boolean } = {}) {
   const page = await state.repos.landingPages.create({ title: slug, slug, createdBy: null, kind: extra.kind });
   if (extra.publish !== false) await state.repos.landingPages.publish(page.id);
@@ -123,6 +126,7 @@ describe("publishedAddresses past 1000 rows", () => {
       restored_at: null,
       import_key: null,
       imported_at: null,
+      replaced_at: null,
       starter_applied_at: null,
       created_by: null,
       updated_by: null,

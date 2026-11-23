@@ -29,7 +29,7 @@ describe("slugs", () => {
 describe("links", () => {
   it("keeps http(s), mailto, site paths and anchors, and drops everything else", () => {
     for (const ok of ["https://example.com/a", "http://example.com", "mailto:a@example.com", "/p/spring", "#faq"]) expect(safeHref(ok)).toBe(ok);
-    for (const bad of ["javascript:alert(1)", " JaVaScRiPt:alert(1)", "java\tscript:alert(1)", "//evil.example", "data:text/html,x", "ftp://x", "/\\evil", ""]) expect(safeHref(bad)).toBe("");
+    for (const bad of ["javascript:alert(1)", " JaVaScRiPt:alert(1)", "java\tscript:alert(1)", "//evil.example", "data:text/html,x", "ftp://x", "/\\evil", "/api/members", "/api/../x", "/%2e%2e/x", ""]) expect(safeHref(bad)).toBe("");
     expect(safeHref(42)).toBe("");
   });
 

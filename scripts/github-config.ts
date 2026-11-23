@@ -5,7 +5,9 @@
 //   tsx scripts/github-config.ts diff   show what a push would change (read-only)
 //   tsx scripts/github-config.ts push   apply the declared settings and create or update the declared rulesets
 //
-// Two things are managed: `settings` (repository settings such as allow_auto_merge, the fields
+// Three things are managed: `workflow_permissions` (the default GITHUB_TOKEN permission and
+// whether workflows may approve pull requests; PUT /repos/{repo}/actions/permissions/workflow),
+// `settings` (repository settings such as allow_auto_merge, the fields
 // of PATCH /repos/{repo}; only the keys the file declares are compared or written) and
 // `rulesets` (matched by name; others are left alone; a push replaces a declared ruleset's
 // settings wholesale). Runs through the `gh` CLI, so it needs
@@ -14,6 +16,8 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
 const CONFIG_FILE = "config/github.yml";
@@ -36,15 +40,21 @@ function repoName(): string {
   return process.env.GITHUB_REPOSITORY || gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
 }
 
-function declared(): { settings: { [key: string]: Json }; rulesets: Ruleset[] } {
-  const raw = parseYaml(readFileSync(CONFIG_FILE, "utf8")) as { settings?: { [key: string]: Json }; rulesets?: Ruleset[] } | null;
+function declared(): { settings: { [key: string]: Json }; workflowPermissions: { [key: string]: Json }; rulesets: Ruleset[] } {
+  const raw = parseYaml(readFileSync(CONFIG_FILE, "utf8")) as {
+    settings?: { [key: string]: Json };
+    workflow_permissions?: { [key: string]: Json };
+    rulesets?: Ruleset[];
+  } | null;
   const settings = raw?.settings ?? {};
+  const workflowPermissions = raw?.workflow_permissions ?? {};
+  if (typeof workflowPermissions !== "object" || Array.isArray(workflowPermissions)) fail(`${CONFIG_FILE}: workflow_permissions must be a map`);
   const rulesets = raw?.rulesets ?? [];
   if (typeof settings !== "object" || Array.isArray(settings)) fail(`${CONFIG_FILE}: settings must be a map`);
   if (!Array.isArray(rulesets) || rulesets.some((r) => typeof r?.name !== "string")) {
     fail(`${CONFIG_FILE}: rulesets must be a list of objects with a name`);
   }
-  return { settings, rulesets };
+  return { settings, workflowPermissions, rulesets };
 }
 
 const identity = (v: Json): string =>
@@ -116,11 +126,16 @@ function structDiff(have: Json | undefined, need: Json | undefined, path = ""): 
   return JSON.stringify(have) === JSON.stringify(need) ? [] : [`~ ${path}: ${show(have)} -> ${show(need)}`];
 }
 
-function main(): void {
+/** The differences between the live workflow permissions and the declared ones, for the declared keys only. */
+export function workflowPermissionsDiff(live: Json, want: { [key: string]: Json }): string[] {
+  return structDiff(canonical(project(live, want)), canonical(want));
+}
+
+export function main(): void {
   const mode = process.argv[2];
   if (mode !== "diff" && mode !== "push") fail("usage: github-config.ts diff|push");
   const repo = repoName();
-  const { settings, rulesets } = declared();
+  const { settings, workflowPermissions, rulesets } = declared();
   let changes = 0;
 
   if (Object.keys(settings).length > 0) {
@@ -133,6 +148,17 @@ function main(): void {
       changes++;
       console.log(`~ settings: differ (- live only, + ${CONFIG_FILE} only)\n${diff.join("\n")}`);
       if (mode === "push") gh(["api", "-X", "PATCH", `repos/${repo}`, "--input", "-"], JSON.stringify(settings));
+    }
+  }
+
+  if (Object.keys(workflowPermissions).length > 0) {
+    const diff = workflowPermissionsDiff(JSON.parse(gh(["api", `repos/${repo}/actions/permissions/workflow`])) as Json, workflowPermissions);
+    if (diff.length === 0) {
+      console.log("= workflow_permissions: up to date");
+    } else {
+      changes++;
+      console.log(`~ workflow_permissions: differ (- live only, + ${CONFIG_FILE} only)\n${diff.join("\n")}`);
+      if (mode === "push") gh(["api", "-X", "PUT", `repos/${repo}/actions/permissions/workflow`, "--input", "-"], JSON.stringify(workflowPermissions));
     }
   }
 
@@ -161,4 +187,4 @@ function main(): void {
   console.log(changes === 0 ? "No changes." : mode === "push" ? `Applied ${changes} change(s) to ${repo}.` : `${changes} change(s) to apply (run push).`);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) main();

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction, type AdminActionAuth } from "@/lib/admin-auth";
+import { requireActionPermission, type ActionAuth } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { withAction } from "@/lib/analytics/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
@@ -20,7 +20,7 @@ const MAX_TARGETS = 500;
 
 type Result = { success: true; decided: number; reprocessError?: string } | { error: string };
 
-async function decideZoomMeetingsImpl(auth: Extract<AdminActionAuth, { ok: true }>, input: DecideZoomMeetingsInput): Promise<Result> {
+async function decideZoomMeetingsImpl(auth: Extract<ActionAuth, { ok: true }>, input: DecideZoomMeetingsInput): Promise<Result> {
   const { supabase, user } = auth;
 
   if (!["kept", "ignored", "undecided"].includes(input?.choice) || !["instance", "series"].includes(input?.scope)) {
@@ -78,7 +78,7 @@ async function decideZoomMeetingsImpl(auth: Extract<AdminActionAuth, { ok: true 
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).
 /** Keeps or ignores Zoom meetings (or every occurrence of a link) and reprocesses the attendance they cover. */
 export async function decideZoomMeetings(input: DecideZoomMeetingsInput): Promise<Result> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("data.hygiene.manage");
   if (!auth.ok) return { error: auth.error };
   return withAction("zoom_meetings_decided", () => decideZoomMeetingsImpl(auth, input));
 }

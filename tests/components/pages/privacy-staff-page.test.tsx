@@ -9,8 +9,8 @@ import { SUPPORT_EMAIL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 
-const requireAdminPage = vi.fn<() => Promise<unknown>>();
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
+const requirePermission = vi.fn<() => Promise<unknown>>();
+vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission() }));
 
 import AdminPrivacyPage from "@/app/(admin)/admin/privacy/page";
 import { containsText } from "@/tests/helpers/contains-text";
@@ -19,14 +19,14 @@ const ROWS = PRIVACY_GROUPS.flatMap((g) => g.rows);
 
 describe("/admin/privacy (staff)", () => {
   beforeEach(() => {
-    requireAdminPage.mockReset();
-    requireAdminPage.mockResolvedValue({ id: "admin" });
+    requirePermission.mockReset();
+    requirePermission.mockResolvedValue({ id: "admin" });
   });
 
   it("checks for an admin first and renders nothing when the check redirects", async () => {
-    requireAdminPage.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    requirePermission.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(AdminPrivacyPage()).rejects.toThrow("NEXT_REDIRECT");
-    expect(requireAdminPage).toHaveBeenCalledTimes(1);
+    expect(requirePermission).toHaveBeenCalledTimes(1);
   });
 
   it("links to the public Privacy page and has a section for each group, with only its own rows", async () => {

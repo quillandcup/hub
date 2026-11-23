@@ -11,10 +11,13 @@ SELECT plan(30);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000d1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dupcourse-alice@example.test'),
   ('00000000-0000-4000-a000-00000000d1a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dupcourse-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000d1a1', 'dupcourse-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000d1a4', 'dupcourse-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000d1a1', 'dupcourse-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000d1a4', 'dupcourse-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000d1a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO public.programs (id, name, slug) VALUES ('prg_DupCourse001', 'Dup program', 'pgtap-dup-program');
 INSERT INTO public.videos (id, source_kind, source_key, status) VALUES ('00000000-0000-4000-a000-00000000d1b1', 'kajabi', 'pgtap-dup-video', 'ready');

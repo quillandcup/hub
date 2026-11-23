@@ -1,0 +1,66 @@
+{
+  "_comment": "Dependency license policy, read by scripts/check-licenses.ts (run by .github/workflows/license-scan.yml and `pnpm check:licenses`). A package whose license is not on the list for where it runs, and has no exception below, is a finding. An exception needs a reason and an expiry date (YYYY-MM-DD, at most 12 months out); when it passes, the package is a finding again. `package` matches a name, or a prefix when it ends in `*`. Policy and reasoning: docs/trust/THREAT_MODEL.md, 'How fast findings are fixed'.",
+  "allowedProduction": [
+    "MIT",
+    "MIT-0",
+    "ISC",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "BlueOak-1.0.0",
+    "CC0-1.0",
+    "MPL-2.0"
+  ],
+  "allowedDevelopmentOnly": ["Python-2.0"],
+  "exceptions": [
+    {
+      "package": "libheif-js",
+      "license": "LGPL-3.0",
+      "expires": "2027-05-23",
+      "reason": "Weak copyleft, used unmodified as a library in a hosted app we do not distribute, so its obligations on distributed copies are not triggered. Revisit if we ever ship the code to users."
+    },
+    {
+      "package": "@img/sharp-libvips-*",
+      "license": "LGPL-3.0-or-later",
+      "expires": "2027-05-23",
+      "reason": "Prebuilt libvips that sharp loads dynamically, unmodified, in a hosted app we do not distribute."
+    },
+    {
+      "package": "sentry",
+      "license": "FSL-1.1-Apache-2.0",
+      "expires": "2027-05-23",
+      "reason": "Fair Source: the only restriction is offering a competing product, which we do not; it becomes Apache-2.0 after two years."
+    },
+    {
+      "package": "caniuse-lite",
+      "license": "CC-BY-4.0",
+      "expires": "2027-05-23",
+      "reason": "Browser-support data, attribution only; permissive in effect."
+    },
+    {
+      "package": "url-template",
+      "license": "BSD",
+      "expires": "2027-05-23",
+      "reason": "Declares a bare 'BSD' with no clause count; a BSD-style permissive license, checked by reading the package license file."
+    },
+    {
+      "package": "eslint-plugin-sonarjs",
+      "license": "LGPL-3.0-only",
+      "expires": "2027-05-23",
+      "reason": "Lint plugin that runs only on developer machines and in CI; nothing of it is in the production build."
+    },
+    {
+      "package": "@sonarsource/analyzer-commons-configurations",
+      "license": "LGPL-3.0-only",
+      "expires": "2027-05-23",
+      "reason": "Dependency of eslint-plugin-sonarjs; development only, not in the production build."
+    },
+    {
+      "package": "@vercel/cli-auth",
+      "license": "Unknown",
+      "expires": "2027-02-20",
+      "reason": "No license declared in the package metadata; a dependency of the dev-only vercel CLI, not in the production build. Re-check when the CLI upgrades."
+    }
+  ]
+}

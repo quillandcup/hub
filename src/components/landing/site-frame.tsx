@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
-import { SIGN_IN_HREF, SOCIAL_NETWORKS, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
-import { buttonClasses } from "./blocks";
+import { SIGN_IN_HREF, type SiteSocialLook, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
+import { buttonClasses, SOCIAL_LOOK, SOCIAL_SIZE, SocialLink } from "./blocks";
 import { pageImage } from "./theme";
 
 /**
@@ -11,25 +11,26 @@ import { pageImage } from "./theme";
  * viewport, so the editor's phone preview shows what a phone shows.
  */
 
-const LINK = "px-2 py-1 text-sm underline-offset-4 hover:underline";
+// `block` so a link is the same box wherever it sits (a flex item of the header, or inside a list item): otherwise the sign-in link, a flex item, rides higher than the menu links, which are inline in their list items.
+const LINK = "block px-2 py-1 text-sm underline-offset-4 hover:underline";
 const LIST = "flex flex-wrap items-center gap-1";
 
 /** Which sizes an item is on: a wide header only (`desktop`), a narrow one only (`mobile`), or both. Hidden items take no room. */
 const SHOW: Record<ItemShow, string> = { both: "", desktop: "hidden @split:block", mobile: "@split:hidden" };
 
-const networkLabel = (value: string) => SOCIAL_NETWORKS.find((n) => n.value === value)?.label ?? value;
-
-function SocialLinks({ links, label }: { links: SiteSocialLink[]; label: string }) {
+/**
+ * The site's social links as icon links: the Social icons block's own link and marks (`SocialLink`, `social-marks.tsx`), so a network
+ * has one drawing, the accessible name is the network's ("Instagram"), and another site opens in a new tab with `rel="noopener noreferrer"`.
+ * Each mark is the network's own colour on a light round badge (`look` "colour", the default, which reads on the header, the footer and in
+ * dark mode), or its black or white version with no badge, as chosen in Design. The focus ring is the block's. Wraps on a narrow screen.
+ */
+function SocialLinks({ links, label, look, center = false }: { links: SiteSocialLink[]; label: string; look: SiteSocialLook; center?: boolean }) {
   const shown = links.filter((l) => safeHref(l.href));
   if (shown.length === 0) return null;
   return (
-    <ul className={LIST} aria-label={label}>
+    <ul className={`flex flex-wrap items-center gap-2 ${center ? "justify-center" : ""} ${SOCIAL_SIZE.medium} ${SOCIAL_LOOK[look]}`} aria-label={label}>
       {shown.map((l, i) => (
-        <li key={i}>
-          <a href={safeHref(l.href)} className={LINK} rel="noopener">
-            {networkLabel(l.network)}
-          </a>
-        </li>
+        <SocialLink key={i} network={l.network} url={l.href} />
       ))}
     </ul>
   );
@@ -58,7 +59,7 @@ function Menu({ links, fold }: { links: { label: string; href: string }[]; fold:
         <ul className="mt-2 flex flex-col gap-1">
           {shown.map((l, i) => (
             <li key={i}>
-              <a href={safeHref(l.href)} className={`${LINK} block`}>
+              <a href={safeHref(l.href)} className={LINK}>
                 {l.label}
               </a>
             </li>
@@ -72,12 +73,12 @@ function Menu({ links, fold }: { links: { label: string; href: string }[]; fold:
 function Item({ item, fold }: { item: HeaderItem; fold: boolean }): ReactNode {
   switch (item.type) {
     case "logo": {
-      const src = pageImage(item.logoAssetId, "event_card");
+      const src = pageImage(item.logoAssetId, "logo");
       if (!src) return null;
       return (
         <a href={safeHref(item.href) || "/"} className="shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route */}
-          <img src={src} alt={item.alt} className="h-12 w-auto" />
+          <img src={src} alt={item.alt} height={48} decoding="async" className="h-12 w-auto max-w-full object-contain" />
         </a>
       );
     }
@@ -93,7 +94,7 @@ function Item({ item, fold }: { item: HeaderItem; fold: boolean }): ReactNode {
       );
     }
     case "social":
-      return <SocialLinks links={item.links} label="Social links" />;
+      return <SocialLinks links={item.links} label="Social links" look={item.look} />;
     case "signin":
       if (!item.label) return null;
       return item.look === "link" ? (
@@ -157,7 +158,7 @@ export function SiteFooterView({ footer }: { footer: SiteFooter }) {
       )}
       {hasSocial && (
         <div className="mb-2 flex justify-center">
-          <SocialLinks links={footer.social} label="Social links" />
+          <SocialLinks links={footer.social} label="Social links" look={footer.socialLook} center />
         </div>
       )}
       {footer.text && <p>{footer.text}</p>}

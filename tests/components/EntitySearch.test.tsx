@@ -279,7 +279,7 @@ describe("wrappers feed it their own data", () => {
   });
 
   it("StaffSearch shows email and role and returns the staff user", async () => {
-    const staff = [{ id: "u1", name: "Bramble Admin", email: "bramble@example.test", role: "admin" }];
+    const staff = [{ id: "u1", name: "Bramble Admin", email: "bramble@example.test", roles: ["admin"] }];
     const onSelect = vi.fn();
     render(<StaffSearch staff={staff} selectedUserId={null} onSelect={onSelect} placeholder="Staff" />);
     await userEvent.type(screen.getByPlaceholderText("Staff"), "bram");

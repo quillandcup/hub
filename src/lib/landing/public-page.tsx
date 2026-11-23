@@ -39,5 +39,5 @@ export async function landingPageMetadata(page: PublishedLandingPage, canonical:
 /** The page as visitors see it. The site's design is the PUBLISHED copy, so a draft of it never reaches a visitor; live blocks get their figures for this render only. */
 export async function publicLandingElement(page: PublishedLandingPage) {
   const site = await getServiceRepos().landingSiteTemplate.published();
-  return <LandingRender data={await withLiveData(page.data)} frame={{ pageType: page.pageType, site }} />;
+  return <LandingRender data={await withLiveData(page.data)} frame={{ pageType: page.pageType, site }} structuredData />;
 }

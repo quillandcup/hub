@@ -62,6 +62,113 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "delete-a-course",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "new",
+    title: "Delete a course nobody uses, such as a draft copy",
+    summary: "On a course's admin page, Delete course removes a course made in the Hub that is still a draft and that no member has used.",
+    body: [
+      "Open a course in Admin, Courses, then the **Course actions** menu, and press **Delete course**. The dialog names the course and says how many modules and lessons go with it. Deleting can't be undone.",
+      [
+        "- **Only a draft made in the Hub:** a course imported from Kajabi can't be deleted here, because the next import would bring it back (remove it in Kajabi first). A published course has to be unpublished first.",
+        "- **Only when no member uses it:** a course that members have access to, or that has progress or comments on it, stays. The menu item shows the reason when it is off.",
+        "- **What goes with it:** its modules, lessons, download list and old addresses. Videos and pictures stay in the library, since a copy may share them.",
+      ].join("\n"),
+      "The audit log records one entry for the course, saying how many modules and lessons went with it.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "private-photos-for-milestones",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "new",
+    title: "Photos a member adds to a milestone live in a private bucket and are served only to a viewer its level allows",
+    summary: "A picture on THE END, publish-ready or the Published step is kept where no one can reach it by address, and a route decides on every request whether this viewer may have it, at the milestone's own level.",
+    body: `A member's photo is personal, so it never has a public address. The files are in the private \`milestone-photos\` bucket, which has no storage policy at all; only the server's key reads or writes it. A route (\`GET /api/milestone-photos/<token>\`) streams a picture after \`decidePhotoAccess\` (\`src/lib/milestone-photos.ts\`) has checked the viewer against the milestone's lock, house or globe, with the writer-profile flag and page state for a visitor. A hidden photo is the same 404 as one that does not exist, and a shared cache may hold only a photo a visitor could have.
+
+- **Rule.** Show a member's picture through that route and that function, never a stored URL or a signed link; a row keeps the object path, and the readers return only a random token.
+- **Upload.** \`POST /api/milestone-photos\` sniffs the bytes, re-encodes to a WebP and drops all metadata, EXIF and GPS included; only the server writes the path.
+- **Hooks.** The readers \`member_works_pictured*\` return a photo only with a step the viewer may see; the Published photo sits in \`member_book_photos\`, one per book, until a book has a level of its own.
+- **Detail.** \`docs/product/FINISHERS.md\`, "Photos", and the review in \`docs/trust/MILESTONE_PHOTOS_REVIEW.md\`.`,
+  },
+  {
+    slug: "choose-who-sees-each-of-your-books",
+    held: true,
+    audience: "product",
+    category: "new",
+    title: "Choose who can see each of your books",
+    summary: "Each book in My Writing now has a setting for who can see it: only you, other members, or anyone on the web.",
+    body: `In **My Writing**, under **Books**, each book has a small lock, house or globe beside it. Click it to change who can see that book:
+
+- **Lock:** only you.
+- **House:** other members, on the Hedgie Bookshelf and on your profile.
+- **Globe:** anyone on the web, on the public Hedgie Bookshelf.
+
+Books already on the Hedgie Bookshelf start at the globe, because that list was already public. You can change any of them whenever you like.
+
+A book set to the lock is hidden from other members: it is not on the Bookshelf, on your profile or in search, and it does not count toward your Published Author badge for anyone else.
+
+On the public Hedgie Bookshelf, a book shows its cover, its title, the author name you chose for it and a link to where to get it. That name is the pen name for the book, or else your display name. If you have neither, the book shows with no author name, and you can add a display name in Settings.`,
+  },
+  {
+    slug: "book-visibility-and-public-bookshelf",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "new",
+    title: "Each book has a level, and the public Hedgie Bookshelf is a page block",
+    summary: "A Bookshelf book now has the lock, house and globe of a project, and the first public surface for books is a block of the page builder.",
+    body: `A book (\`member_books.visibility\`, default public, since the list it came from was public) is private, community or public, and the web gets books through a page block, the \`bookshelf\` module's Hedgie Bookshelf, instead of a route of its own.
+
+- **Rule.** Every reader of books holds the level back, whoever asks. Readers take the viewer, the member being acted as: \`BookRepository.shelf\`, \`ofMember\` and \`search\`; counts and the Published step leave private books out, and the Published Author badge counts every book only for the member's own view. A public reader uses \`publicShelf\` and \`isPublicCover\` with the service role and never reads the legal name: the author is the book's pen name, else the display name, else none.
+- **Hooks.** The module (\`src/modules/bookshelf/page-blocks/\`), \`VisibilityControl\` with \`describeBookLevel\`, and the one-time heads-up, the \`book_visibility_notice\` kind, which starts in dry run behind its flag.
+- **Detail.** \`docs/product/WRITER_PROFILES.md\`, "The public Hedgie Bookshelf".`,
+  },
+  {
+    slug: "page-checks-in-ci",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "improved",
+    title: "Every page a browser test opens is checked, with a shrink-only baseline",
+    summary: "Each page the Playwright scenes open now gets the same console, accessibility and overflow checks, and a nightly workflow fails on a finding that the committed baseline does not list or that has since been fixed.",
+    body: `The checks that used to run only on a screenshot (\`tests/demo/checks.ts\`: axe, sideways overflow, console errors and warnings) now run on every page a scene opens with \`page.goto\`, from one fixture (\`tests/demo/fixtures.ts\`). A finding belongs to a page and a rule, and \`tests/demo/baseline.json\` counts what is known per size, page and rule.
+
+- **Rule.** A finding beyond the baseline fails. So does a baseline entry that a run no longer finds on a page it opened, so the file only shrinks; \`pnpm demo:baseline --check\` does the second half.
+- **Where.** Nightly, not on pull requests (jobs of \`help-screenshots.yml\`): a phone and a desktop combination, all eight on Sundays, one job each. A failure or a timeout posts to the alerts channel.
+- **Hooks.** A new page needs a scene that opens it. \`checkPage()\` checks a state a click reached.
+- **Detail.** \`docs/product/DEMO_AND_HELP.md\`, "Page checks".`,
+  },
+  {
+    slug: "chat-transport-port",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "A transport port between chat and Slack",
+    summary: "Chat now asks a transport port to deliver, change, react to and read-sync messages, and Slack is the adapter registered behind it, so chat core no longer calls Slack code for those jobs.",
+    body: `Chat core (messages, channels, reactions, files, rich text, previews, unread) talks to one interface, \`ChatTransport\` (\`src/lib/chat/transport.ts\`), and gets the installed transport from \`chatTransport()\`. Slack is the adapter (\`src/modules/chat/slack\`), listed in the composition root \`src/modules/chat-transport.ts\`. With no transport installed every call is a no-op and chat stays Hub-only.
+
+- **Rule.** Chat core does not import \`src/lib/slack-*\`, the adapter's files or \`@slack/*\`; lint enforces it. Files that still do are in \`config/chat-core-baseline.json\`, which a test keeps shrink-only.
+- **Hooks.** A new transport implements the port and is added to the root; what it reports back to core is \`ChatInboundSink\`. Behavior for members is unchanged.
+- **Detail.** \`docs/architecture/CHAT_MODULE.md\`.`,
+  },
+  {
+    slug: "roles-page",
+    date: "2026-11-21",
+    audience: "staff",
+    category: "new",
+    title: "A Roles page that shows who can do what in the staff area",
+    summary: "Admins and assistants can now open Roles in the System menu to see every permission and which staff roles hold it.",
+    body: `**Roles** (System menu) lists every permission with a short description, grouped by area, and a column for each role: Admin, Assistant, Community Manager and Conversion Specialist. A check mark means the role has it, a dash means it doesn't, and each mark also has text for screen readers.
+
+- **Summary.** At the top, each role has a sentence on what it is for and how many permissions it holds.
+- **Reserved.** A permission marked Reserved is not used by any page or button yet, so holding it changes nothing today.
+- **Withheld.** The one permission the Assistant is kept from on purpose is marked, with the reason.
+- **Search.** Type a permission word, or a role name to see what that role may do.
+- **On a phone.** The table scrolls sideways and the permission names stay in view.
+
+The page is read-only and always matches the code, so changing a role is still a change to the code.`,
+  },
+  {
     slug: "page-block-registry",
     date: "2026-11-21",
     audience: "engineering",
@@ -75,13 +182,51 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Detail.** \`docs/architecture/PAGE_BLOCKS.md\`.`,
   },
   {
+    slug: "staff-permissions-registry",
+    date: "2026-11-21",
+    audience: "engineering",
+    category: "new",
+    title: "Staff access by permission: operations in code, roles as bundles, one check",
+    summary: "Every staff page, action and route now asks for a named permission, and each staff role is a list of them, so a new role is a decision about permissions instead of a new set of checks.",
+    body: "Access to the staff area used to be \"admin or not\", plus a community manager allowlist. It is now a registry of permissions defined in code (`<area>.<action>`), roles as named bundles of them, and one check, `can(actor, permission)`. The guards are `requirePermission` (pages), `requireActionPermission` (server actions) and `requireApiPermission` (route handlers); the proxy and the sidebar read the same page-to-permission table, so a link is offered only where the page would open. The admin holds everything, the assistant is derived from the admin's list, and the community manager and the conversion specialist hold what is listed for them: a new permission is in nobody's bundle but the admin's until it is granted on purpose. Permissions are the application's gate; row-level security still decides what a role's own client reads (`is_<role>()` beside `is_admin()`, never a widened `is_admin()`). Two tests keep it honest: a role-by-permission table written out in full, and a scan that fails on a page, action or staff route without a guard, or a permission nothing uses. Adding a permission or a role: `docs/architecture/PERMISSIONS.md`.",
+  },
+  {
+    slug: "several-staff-roles",
+    date: "2026-11-22",
+    audience: "engineering",
+    category: "new",
+    title: "A person can hold several staff roles; what they may do is the union",
+    summary: "Staff roles are now a set per user instead of one value, so someone can be a conversion specialist and help with community management, and every check answers for all their roles.",
+    body: `Roles live in \`user_roles\` (a user, a role) and nowhere else: the old \`user_profiles.role\` column is gone. The first role held in priority order (admin, assistant, community manager, conversion specialist) is the primary one, which decides where a person lands. \`set_user_roles()\` replaces a person's set as the person who calls it, so the Activity Log names them.
+
+- **Rule.** \`can(actor, permission)\` takes the actor's roles and answers true if any role holds it; the admin implies all, and what is withheld from the assistant stays withheld unless another role held grants it. The roles in effect are \`roles\` (the primary is \`role\`), from the guards, \`decideStaff\` and the proxy's \`app_roles\` claim, which is still only a pre-filter. Previewing stays one role at a time. Nobody can escalate: an actor changes only roles below their own highest (an assistant manages community manager and conversion specialist only), never their own admin role or the last admin, enforced in the database (\`enforce_user_role_changes\`).
+- **Hooks.** \`staffRolesIn\`, \`primaryRole\`, \`rolesOf\` (\`src/lib/permissions.ts\`); \`profiles.rolesOf\` and \`setRoles\`; in SQL \`user_has_any_role()\` behind \`is_admin()\` and the other helpers (none of them widened).
+- **Detail.** \`docs/architecture/PERMISSIONS.md\`, "A person can hold several roles".`,
+  },
+  {
+    slug: "conversion-specialist-role",
+    date: "2026-11-21",
+    audience: "staff",
+    category: "new",
+    title: "A Conversion Specialist role for marketing: landing pages and outreach, nothing of the members area",
+    summary: "Staff can now be given the Conversion Specialist role. They build, edit and publish landing pages and run outreach, and cannot see members, notes or the changelog.",
+    body: `In **Users**, a staff account can now be set to **Conversion Specialist**. When they sign in they land on **Pages** and see only what their work needs:
+
+- **Pages.** They create and edit landing and website pages, and publish or take them down. They can't delete a page.
+- **Outreach.** They work the outreach list of leads and former members and find new prospects.
+- **Media.** They can pick from the media library when they build a page.
+- **Not for them.** The member list and member pages, staff notes, contact details, merges, overrides, signing in as a member, the activity log, the changelog and the data tools.
+
+To check what they see, an admin opens the user menu, chooses **Preview as...**, picks **Conversion Specialist** and presses **Start preview**; **Exit preview** in the banner goes back. The preview shows the pages and buttons the role has, while data is still read with your own access.`,
+  },
+  {
     slug: "project-stage-milestone-prompt",
     date: "2026-11-21",
     audience: "engineering",
     category: "new",
     title: "The project-stage prompt: asking about a milestone when a project moves forward",
     summary: "Moving a project to a stage that means a milestone asks the member, once, whether to record it, with the milestone card's own form.",
-    body: "When a member moves a project forward, the status saves first and then a dialog asks about the milestone that stage may mean (THE END on leaving Drafting, publish-ready on reaching Publishing, both for a jump, an offer of the Publish flow on Complete). The rules to follow: it never blocks or fails the status change, it asks once per project and kind, it never asks in sudo, and nothing a member did is cancelled when a project goes back or to Hibernating. \"Not yet\" is remembered as a declined milestone row for that project (source project_stage), so the one-row-per-work rules, the backfill and the card's \"Actually, it is me\" already cover it; \"Yes\" reuses the card's answer form and confirms the row as the member's own action. Hooks: `milestonesToAsk` (`src/lib/milestone-prompts.ts`, the table of every stage pair), `MilestoneRepository.askedKinds` and `recordNotYet`, and `StageMilestoneDialog`, which sits above the project page's keyed view so a status save does not close it. Detail: `docs/product/FINISHERS.md`, \"The project-stage prompt\".",
+    body: "When a member moves a project forward, the status saves first and then a dialog asks about the milestone that stage may mean (THE END on leaving Drafting, publish-ready on reaching Publishing, both for a jump, an offer of the Publish flow on Complete). The rules to follow: it never blocks or fails the status change, it never asks again for a kind the project has a row for, asks at most once per stage group after a \"not yet\", it never asks in sudo, and nothing a member did is cancelled when a project goes back or to Hibernating. The prompt has two ways to say no: \"Not for this work\" is a declined milestone row for that project (source project_stage) and is final, so the one-row-per-work rules, the backfill and the \"Actually, it is me\" step cover it; \"Not yet\" is a snooze in its own table (`member_milestone_snoozes`), which is not a milestone, is never counted as declined and never stops the staff backfill, and brings the question back once the project reaches a later stage group (`stageGroupOf`, at most once per group: THE END put off at First read-through returns at Publishing with publish-ready); \"Yes\" reuses the card's answer form and confirms the row as the member's own action. Hooks: `milestonesToAsk` (`src/lib/milestone-prompts.ts`, the table of every stage pair and snooze), `MilestoneRepository.askedKinds`, `snooze`, `snoozesOf` and `recordNotForThisWork`, and `StageMilestoneDialog`, which sits above the project page's keyed view so a status save does not close it. Detail: `docs/product/FINISHERS.md`, \"The project-stage prompt\".",
   },
   {
     slug: "upload-your-own-photo",
@@ -104,8 +249,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "engineering",
     category: "new",
     title: "Finisher and Author badges, computed from confirmed milestones",
-    summary: "Two automatic leveled badges count a member's confirmed THE END and publish-ready milestones, for the viewer who is looking.",
-    body: "Finisher and Author are automatic badge types levelled at 1, 3, 5 and 10, built like Published Author: nothing is stored per member, the level is computed when a profile is read, so no award row exists and nothing is sent when one first appears. They count milestones, one per work, and the rules live in one place each. `reachedWhileMember` (`src/lib/finishers.ts`) decides \"while a member\": undated counts, a dated milestone counts from the member's first join date on. Viewer awareness is a parameter of `getMemberBadges`: \"self\" counts every confirmed milestone, \"others\" (the default) counts only those the member showed to members, read through `shownToMembers` for one member and `allShownToMembers` (paged, kind and date only) for the admin recipients list. A new automatic badge that depends on private-able data should take the same viewer. Detail: `docs/product/FINISHERS.md`, \"The Finisher and Author badges\".",
+    summary: "Finisher, Author and Published Author are automatic counted badges that show the real number, computed on read for the viewer who is looking.",
+    body: "Finisher, Author and Published Author are automatic badge types with `badge_types.counted` set: the label is made in code from the real count (\"Finisher\", \"2x Finisher\", \"7x Finisher\"; `countedBadgeName`, `automaticBadgeLevel` in `src/lib/badges.ts`) and `badge_levels` is not read for them. Other leveled badges (hosted quarters, prickle milestones) keep their steps. Nothing is stored per member: the label is computed when a profile is read, so no award row exists and nothing is sent when a count changes. Milestones count one per work, and the rules live in one place each. `reachedWhileMember` (`src/lib/finishers.ts`) decides \"while a member\" for milestones and for books alike (`publishedBookCount`, the Published step of the strips, the settings summary): undated counts, the join day counts, and a book or milestone dated before the member's first join date does not (it still shows on the Bookshelf and profile). Viewer awareness is a parameter of `getMemberBadges`: \"self\" counts every confirmed milestone, \"others\" (the default) counts only those the member showed to members, read through `shownToMembers` for one member and `allShownToMembers` (paged, kind and date only) for the admin recipients list. A new automatic badge that depends on private-able data should take the same viewer. Detail: `docs/product/FINISHERS.md`, \"The Finisher and Author badges\".",
   },
   {
     slug: "milestones-on-your-profile",
@@ -115,16 +260,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Show your writing milestones on your profile",
     summary: "Mark when you wrote THE END or got your manuscript ready to publish. You choose who sees each one: only you, other members, or anyone on the internet through your writer profile, once that is open to you.",
     image: { src: "/changelog/milestones-on-your-profile/06-one-work-3-published-profile.webp", alt: "The Milestones list on a profile: one book with THE END, ready to publish and published, each with its date and a few words from the writer" },
-    body: `In **Settings, Profile, Your milestones**, each of your projects and books has its own steps: you wrote THE END (that makes you a Finisher), your manuscript is ready to publish (an Author), and it is published (a Published Author). You mark the first two yourself. The third comes by itself once the book is on your Bookshelf of published books.
+    body: `In **My Writing**, each of your projects has its own **Milestones** (open it on the project's card or on its page), and books and works that are not projects are under **Other works**. Each has its own steps: you wrote THE END (that makes you a Finisher), your manuscript is ready to publish (an Author), and it is published (a Published Author). You mark the first two yourself. The third comes by itself once the book is on your Bookshelf of published books.
 
 ![The Milestones list on a profile: one book with THE END, ready to publish and published, each with its date and a few words from the writer](/changelog/milestones-on-your-profile/06-one-work-3-published-profile.webp)
 
-- **Choose who sees each step.** The lock: only you. The house: other members, on your profile. The globe: other members too, and also your writer profile on the web, once writer profiles are open to you and yours is switched on. A step you confirm starts at the globe, and you can change it with the icon next to it any time.
-- **Look before you go public.** When you switch your writer profile on, you see a short list of everything anyone on the internet will see, each with the same icon to change it.
+- **Choose who sees each step.** The lock: only you. The house: other members, on your profile. The globe: other members too, and also your writer profile on the web, once writer profiles are open to you and yours is switched on. A step you confirm starts at the globe, and you can change it with the icon next to it any time. A project that is not shared with them and not on your Bookshelf shows to others as "Another work", without its name.
+- **A clear note when you go public.** When you switch your writer profile on, you see your page's address and a reminder that anything marked with the globe is on it, with a button to view it as a visitor would.
+- **Say when, as well as you remember.** Give the day, only the month and year, only the year, or leave it out.
 - **Add your story**, how it felt before and how it feels now. It shows under that step, for the same people who can see the step.
-- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story on the Quill & Cup website. It starts unticked, and you can untick it any time.
+- **Add a photo** to a step: the day you wrote THE END, the day your manuscript was ready to publish, or you holding your published book. A photo on THE END or ready to publish is seen only by the people who can see that step, and you can change or remove it any time. The one of you holding your book goes with the Published step, which is public like your book: anyone on the internet can see it once your writer profile is on. We take out the details saved inside a photo, like where it was taken.
+- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story, and the photo you added, on the Quill & Cup website. It starts unticked, and you can untick it any time.
 
-![Your milestones in Settings, for a book whose three steps are done, with the globe on each and the share box](/changelog/milestones-on-your-profile/07-one-work-3-published-settings.webp)
+![A project's milestones, for a book whose three steps are done, with the globe on each and the share box](/changelog/milestones-on-your-profile/07-one-work-3-published-project.webp)
 
 **One book, step by step.** After THE END, then after ready to publish:
 
@@ -132,15 +279,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 
 ![A profile with two steps: THE END and ready to publish](/changelog/milestones-on-your-profile/04-one-work-2-publish-ready-profile.webp)
 
-**Several books at once.** Each book has its own steps, and each step has its own icon. A step on the lock is visible only to you, in Settings. A step on the house is on your profile for other members. Only a step on the globe is on the web.
+**Several books at once.** Each book has its own steps, and each step has its own icon. A step on the lock is visible only to you. A step on the house is on your profile for other members. Only a step on the globe is on the web.
 
-![Your milestones in Settings for several books, with the globe, the house and the lock](/changelog/milestones-on-your-profile/10-many-works-settings.webp)
+![Other works: books and writing that are not projects, each with its own steps](/changelog/milestones-on-your-profile/11-many-works-other-works.webp)
 
 ![What other members see on that profile](/changelog/milestones-on-your-profile/09-many-works-profile.webp)
 
-![What anyone on the web sees on the writer profile](/changelog/milestones-on-your-profile/11-many-works-web.webp)
+![What anyone on the web sees on the writer profile](/changelog/milestones-on-your-profile/12-many-works-web.webp)
 
-![The list shown when you switch your writer profile on](/changelog/milestones-on-your-profile/12-switch-on-review.webp)`,
+![The note shown when you switch your writer profile on](/changelog/milestones-on-your-profile/13-switch-on-note.webp)`,
   },
   {
     slug: "page-editor-one-panel-drilldown",
@@ -189,7 +336,21 @@ The sign-in link doesn't know whether someone is already signed in. Custom code 
     category: "new",
     title: "The Finisher record: milestones a member confirms, and who sees them",
     summary: "Writing milestones have a record of their own, proposed by staff and confirmed by the member, with a lock, house or globe for who sees each one and one marketing consent.",
-    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own record, one per work (a project and/or a Bookshelf book, or a title the member wrote); the third, published, is derived from the Bookshelf and never stored. The rules to follow: staff and courses only propose, and the member alone confirms (or adds their own, already confirmed). Who sees a milestone is the same lock, house or globe as everywhere, one level per milestone with its story. A confirmed milestone starts at the globe (`MILESTONE_DEFAULT_VISIBILITY`, kept in step with the database trigger by a test), and the answer form shows the level next to the story so the default is a visible one-click choice; turning the writer profile on shows who sees what in one place, with the same controls. The globe reaches the web only when writer profiles are open to the member and the page is on. Other members and the web read only through readers that hold back anything private, whoever asks (staff included), so a new surface uses `worksShownToMembers` or `worksShownOnWeb`, never the table: they return each work with its milestones in order plus Published, derived from the live Bookshelf books at the globe, grouped by an opaque work number rather than an id. There is one marketing consent, off by default, and whatever reads it must check it when it renders. Hooks: `MilestoneRepository` (`src/lib/data/milestones.ts`), wording and parsing in `src/lib/finishers.ts`, `groupShownWorks` and `MilestoneStrip` for the strips, and the member's card in Settings, Profile. Detail, including how a withdrawal reaches the cached web page: `docs/product/FINISHERS.md`.",
+    body: "A writer's milestones (wrote THE END, revised until publish-ready) live in their own record, one per work (a project and/or a Bookshelf book, or a title the member wrote); the third, published, is derived from the Bookshelf and never stored. The rules to follow: staff and courses only propose, and the member alone confirms (or adds their own, already confirmed). Who sees a milestone is the same lock, house or globe as everywhere, one level per milestone with its story. A confirmed milestone starts at the globe (`MILESTONE_DEFAULT_VISIBILITY`, kept in step with the database trigger by a test), and the answer form shows the level next to the story so the default is a visible one-click choice; turning the writer profile on shows a short note (the address, that the globe means it is on the page, where to change each, a preview link) and nothing else, since every item has its own control where it lives. The globe reaches the web only when writer profiles are open to the member and the page is on. Other members and the web read only through readers that hold back anything private, whoever asks (staff included), so a new surface uses `worksShownToMembers` or `worksShownOnWeb`, never the table (they carry the precision of each date): they return each work with its milestones in order plus Published, derived from the live Bookshelf books at the globe, grouped by an opaque work number rather than an id. A work is named by the title the member wrote, else its book's title, else its project's title only when the project's own level is one the viewer's read serves; otherwise the strip says \"Another work\", so a private project's title never leaves the database. There is one marketing consent, off by default, and whatever reads it must check it when it renders. Hooks: `MilestoneRepository` (`src/lib/data/milestones.ts`), wording and parsing in `src/lib/finishers.ts`, `groupShownWorks` and `MilestoneStrip` for the strips, and the member's milestones, which sit with each project in My Writing (a closed row on the card, a section on the project's page, \"Other works\" for the rest; `src/components/writing/Milestones.tsx`). A date may be a day, a month or a year (`achieved_precision`; the stored date is the first day of the period); \"while a member\" reads an imprecise date as the last day of its period, in the one shared `reachedWhileMember`. Detail, including how a withdrawal reaches the cached web page: `docs/product/FINISHERS.md`.",
+  },
+  {
+    slug: "enforcing-script-policy",
+    date: "2026-11-23",
+    audience: "engineering",
+    category: "improved",
+    title: "The Hub enforces a nonce-based script and style policy",
+    summary: "Pages now run only scripts that carry the request's nonce, and the policy has one header instead of a meta tag plus a report-only copy.",
+    body: [
+      "`src/proxy.ts` makes a fresh nonce for every page request and sends one enforcing `Content-Security-Policy` header (`enforcedCsp` in `src/lib/csp.ts`): `script-src` is the nonce plus `'strict-dynamic'` (no host list to keep), `style-src` is our own files and nonced tags, and the picture, plugin, base, form and framing directives and the Sentry report address ride along. Next reads the nonce from the request's copy of that header and puts it on its own scripts, so **it must be the only `content-security-policy` header a page request carries** (Vercel copies one from `next.config.ts` onto the request too, which is why that file sets it only for the paths the proxy skips).",
+      "The same header limits connection, frame, media and font sources, from `config/app.ts` `csp.*Hosts` (Supabase and Sentry come from the environment). Style attributes stay allowed (`style-src-attr`); they cannot carry a nonce.",
+      "**Rule: a library that adds a `<style>` or `<script>` from the browser gets the page's nonce.** TipTap's base editor CSS is one (`injectNonce: documentNonce()` from `src/lib/csp-nonce.ts` on every `useEditor`; a test fails on one without it). The helper reads the nonce from the nonced scripts of the loaded page, not from the layout, which hands over a newer nonce when it renders again.",
+      "**Rule: the policy is checked in CI.** `tests/lib/csp-evaluator.test.ts` runs it through Google's CSP Evaluator (the `csp_evaluator` package behind csp-evaluator.withgoogle.com) and fails on anything above info severity. A change that adds a host to `config/app.ts` `csp.*Hosts` needs no other step; a violation shows up in Sentry (`docs/infrastructure/CSP_ALERTS.md`).",
+    ].join("\n\n"),
   },
   {
     slug: "csp-rollout-alerts",
@@ -274,6 +435,38 @@ The check only lists them; nothing happens to the member or the import.`,
 Desktop and mobile follow the room the page has, so the phone and tablet previews match a real phone. Pages built with the old Small, Medium and Large section space show the standard space until you set it again.`,
   },
   {
+    slug: "kajabi-import-looks-like-the-original",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "improved",
+    title: "Kajabi page import: pages look much more like the original",
+    summary: "An imported Kajabi page now keeps its light wash over the top picture, the colour and side of its text card, the logo above the card at a modest size, and plum text.",
+    body: `The page builder's Section block gained a few options, and the import uses them.
+
+- **Soft cream shade** over a section's picture, for a picture that should stay visible.
+- **Card colour**, and a card that lets the picture show faintly through, instead of only a white card.
+- **Left, middle or right** for content narrower than the page.
+- **Plum text** for a section.
+
+The import picks them from the Kajabi export: the colour laid over the picture, the colour of the text block's background, which side the block sits on, how wide it is, and the logo's size. The logo sits on the picture, outside the card. Fonts and exact spacing still follow the Hub's theme, and the import report lists what was approximated.`,
+  },
+  {
+    slug: "page-builder-accordion-faq-pricing-social",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "new",
+    title: "Page builder: Accordion, FAQ, Pricing and Social icons blocks",
+    summary: "The page builder has four blocks for common page parts: a folding list (Accordion), questions and answers that search engines can read (FAQ), plans with prices and buttons (Pricing), and a row of social icons.",
+    body: `Add them from the Add list in the Pages editor.
+
+- **Accordion.** A list of titles that fold open to their text. This is what the old FAQ block was; pages that had one now show an Accordion that looks the same.
+- **FAQ.** Questions and answers. On the published page it also tells search engines about them, so they can show the questions in results. A question with no answer is flagged before you publish.
+- **Pricing.** One to three plans side by side: name, price as you type it, how often it is billed, a short description, what is included, a button and an optional "Most popular" label. A featured plan is marked with a heavier border as well as a label, not by colour alone.
+- **Social icons.** Up to eight round icon links for Instagram, Facebook, YouTube, TikTok, X, LinkedIn, Pinterest, Substack, Threads, email and a website. The social networks show their own logos in their own colours on a light round badge (LinkedIn's is a close drawing of it), or all black or all white with no badge if you choose. The site's header and footer social links use the same icons.
+
+The Kajabi page import now uses these: accordions become an Accordion, pricing columns become Pricing blocks and social icons become a Social icons block, and the report says what was left out.`,
+  },
+  {
     slug: "landing-page-drag-items",
     date: "2026-11-20",
     audience: "staff",
@@ -315,6 +508,23 @@ Pages built before this are converted when they are opened; the starter homepage
 - **Expand step.** \`show_on_profile\` stays, kept equal to \`visibility <> 'private'\` by triggers, so old readers keep working until it is dropped (\`docs/TODO.md\`, "Drop show_on_profile").
 - **Hooks.** \`src/components/writing/VisibilityControl.tsx\` (reuse it for the next thing a writer owns, with \`noun\`), \`src/lib/writing-visibility.ts\` (levels, cycle, the twin's copy of the triggers), \`setProjectVisibility\` and \`setGoalVisibility\`, and the \`community\` icon (house) beside the lock and globe.
 - **Detail.** "Writer profiles" in \`docs/TODO.md\`.`,
+  },
+  {
+    slug: "page-builder-templates",
+    date: "2026-11-20",
+    audience: "staff",
+    category: "new",
+    title: "Page builder: save a page as a template and start new pages from it",
+    summary: "When a page works well, save it as a template and start the next page, or start over on an existing one, from a copy of it. Templates are never on the public site.",
+    body: `In the admin Pages list, the **Templates** tab holds your templates next to Website and Landing.
+
+- **Save a page as a template.** Open the page's History and choose **Save as template**. Make a new template from the page, or replace an existing template's draft with it (you are asked first, and the old draft stays in the template's History). You can publish the template in the same step. The page itself is not changed.
+- **A template is a page.** It has its own draft that saves as you type, a published copy, and **Reset to published**. Publishing it checks the page the way a page is checked, but as warnings only, so a template can keep placeholders and empty links. A template is only ever opened by staff in the editor; it has no public address.
+- **Every version is kept.** Each publish keeps a version that cannot be changed or deleted. History shows who saved it and when, with a short note: type one in the Publish box ("What changed?"), or the Hub writes one, such as "Saved from the page ..." or "Replaced by the template ...". **Bring back** puts a version into the draft, and nothing goes live until you publish.
+- **Start a new page from a template.** In New page, **Start from** lists the published templates for the kind of page you are making. The page gets a copy of the template's published version, never its unpublished draft.
+- **Start over an existing page.** In the page's History, **Start over from a template** replaces its draft after you confirm. The draft it had is kept in History as "Your draft before it was replaced", so Bring back undoes it. The published page, its title and its address are not touched.
+- **Move a page as a file.** History also exports a page's draft or published copy as JSON, and imports a file back. Import shows what would change first, and keeps the old draft in History too.
+- **Activity Log.** Creating, publishing, taking down, renaming, deleting, bringing back and replacing the draft of a template show up in the Activity Log in plain sentences, without the page's contents.`,
   },
   {
     slug: "landing-page-templates",
@@ -668,12 +878,12 @@ Detail: "Phase 2 (moderation), as built" in \`docs/product/COURSES.md\`.`,
     audience: "engineering",
     category: "new",
     title: "Import a Kajabi page export as a draft landing page",
-    summary: "Pages has an Import from Kajabi item beside New page: upload a Kajabi page export (zip) and get an unpublished draft built from our blocks, with a report of what was approximated or left out. Importing the same page again replaces only its draft.",
+    summary: "Pages has an Import from Kajabi item beside New page: upload a Kajabi page export (zip) and get an unpublished draft built from our blocks, with a report of what was approximated or left out. Replacing a page keeps its published copy and history.",
     body: `Kajabi has no content API, but its page export is structured (sections with typed blocks and their settings), so the move is a mapping and not a model.
 
-- **Deterministic mapper.** \`mapKajabiPage\` (\`src/lib/landing/kajabi-import.ts\`) is a pure function from the export's settings to Puck JSON: text becomes headings, dividers and cleaned rich text, call-to-action blocks become buttons, forms become the sign-up block, the header logo and footer copyright come across. Whatever has no counterpart is returned as a note (approximated, left out, hidden in Kajabi, still to do) and shown on a results screen. No AI, no new dependency.
+- **Deterministic mapper.** \`mapKajabiPage\` (\`src/lib/landing/kajabi-import.ts\`) is a pure function from the export's settings to Puck JSON: text becomes headings, dividers and cleaned rich text, call-to-action blocks become buttons, forms become the sign-up block, features, cards, pricing, accordions, countdowns, videos, link lists and social links map to the nearest of our blocks (never inventing a price, a link or a date the export lacks), plain embedded code becomes text while anything that runs a script is refused, the header logo and footer copyright come across. Whatever has no counterpart is returned as a note (approximated, left out, hidden in Kajabi, still to do) and shown on a results screen. No AI, no new dependency.
 - **Untrusted upload.** The zip is read in memory by \`readKajabiZip\`: only the settings file and the images are inflated, each counted as it unpacks against size limits, with path and entry-count checks. Pictures go to the media library, private until a page that shows them is published. Everything passes the same sanitiser as any save.
-- **Idempotent and safe on live pages.** The export has no page id, so a key is derived from ids it does carry; the same page imported again replaces only the draft (never the published copy or versions), asks first when the draft holds edits the import would lose, and keeps the old draft in the page's history as a "before import" version you can bring back.
+- **Safe on live pages.** The export has no page id, and the ids it does carry are shared by pages made from the same Kajabi template, so a page is recognised by its layout (the sections and blocks with their kinds, not the words). A page that looks the same is only offered: the admin chooses a new page or replacing that page's draft, and a replace changes only the draft (never the published copy or versions) and keeps the old one in the page's history as a "before import" version you can bring back. Several exports can be imported in one go, each shown with what it starts with.
 - **Extension point.** A new Kajabi block type is one more branch in the mapper and a test.
 
 How to use it, what is not handled and the model: "Importing from Kajabi" in \`docs/product/LANDING_PAGES.md\`.`,

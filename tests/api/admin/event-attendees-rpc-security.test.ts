@@ -1,9 +1,10 @@
 import { insertEvent } from '../../helpers/event-db'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
- * Calls the event-attendee RPCs directly over PostgREST (not through the requireAdmin-gated
+ * Calls the event-attendee RPCs directly over PostgREST (not through the requireApiPermission-gated
  * API routes), since that's the path the Supabase Security Advisor flagged: they used to be
  * SECURITY DEFINER + executable by anon, so anyone with the public anon key could award
  * badges. See 20260926000300_harden_security_advisor_findings.sql.
@@ -24,7 +25,7 @@ describe('event attendee RPCs: direct-call authorization', () => {
   async function signedInClient(email: string, role: 'member' | 'admin') {
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create test user: ${error?.message}`)
-    await admin.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(admin, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in: ${signInError.message}`)

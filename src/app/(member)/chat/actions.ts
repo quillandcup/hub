@@ -8,23 +8,18 @@ import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/feature
 import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
-import { syncReactionToSlack } from "@/lib/chat/slack-react";
-import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack } from "@/lib/chat/slack-read";
-import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { notifyChatMessage, resolveChatNotifications } from "@/lib/chat/notifications";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
-import { keepCopies } from "@/lib/chat/slack-upload";
 import type { Json } from "@/lib/data/database.types";
-import { removeSlackUnfurl, type SlackUnfurlRemoval } from "@/lib/chat/slack-unfurl-removal";
-import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
-import { getSlackConnectionStatus } from "@/lib/slack-connect";
+import { chatTransport } from "@/lib/chat/transports";
+import { deliverChatMessage } from "@/lib/chat/delivery";
+import type { PreviewRemoval } from "@/lib/chat/transport";
 import { isId } from "@/lib/ids";
 import { ownDraftFiles } from "@/lib/chat/draft-files";
 import type { DraftFile } from "@/lib/data/chat-drafts";
 import { PENDING_FILE_PREFIX, parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
-import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 import { clock } from "@/lib/clock";
 import {
   buildMessageViews,
@@ -72,7 +67,7 @@ export async function saveChatDraft(channelId: string, threadRootId: string | nu
     const still = new Set(kept.map((f) => f.path));
     const removed = (before?.files ?? []).map((f) => f.path).filter((path) => !still.has(path) && isOwnStagingPath(memberId, path));
     if (removed.length > 0) {
-      const { error } = await createServiceRoleClient().storage.from(SLACK_FILES_BUCKET).remove(removed);
+      const { error } = await createServiceRoleClient().storage.from(CHAT_FILES_BUCKET).remove(removed);
       if (error) console.error("removing a draft's staged files failed:", error.message);
     }
   } catch (e) {
@@ -103,7 +98,7 @@ export async function markChatRead(channelId: string, through: string): Promise<
     return;
   }
   // Slack stops showing it as unread too, once the response is out (members who connected Slack only).
-  after(() => pushReadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, through }).catch((e) => console.error("pushReadToSlack failed:", e)));
+  after(() => chatTransport().pushRead(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, through }).catch((e) => console.error("pushReadToSlack failed:", e)));
   // Read here means read for notifications too: the conversation's in-app notifications are marked read.
   after(() => resolveChatNotifications(createRepos(createServiceRoleClient()), caller.identity.memberId, channelId));
 }
@@ -134,7 +129,7 @@ async function markChatUnreadImpl(channelId: string, messageId: string): Promise
   if (!marker) return { ok: false, error: "That message isn't available." };
 
   after(() =>
-    pushUnreadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, messageId, marker: marker as string }).catch((e) =>
+    chatTransport().pushUnread(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, messageId, marker: marker as string }).catch((e) =>
       console.error("pushUnreadToSlack failed:", e)
     )
   );
@@ -163,13 +158,13 @@ export async function syncChatReadFromSlack(openChannelId: string | null): Promi
   if (await effectiveMemberHasFeature("slack_dm_bridge", caller.identity, await getUserFeaturePreviews(caller.userId))) {
     after(async () => {
       try {
-        await pullMemberDms(createServiceRoleClient(), memberId);
+        await chatTransport().pullDirectConversations(createServiceRoleClient(), memberId);
       } catch (error) {
         console.error("pullMemberDms threw for %s:", memberId, error);
       }
     });
   }
-  const pulled = await pullReadFromSlack(createServiceRoleClient(), caller.identity.memberId, { exceptChannelId }).catch((e) => {
+  const pulled = await chatTransport().pullRead(createServiceRoleClient(), caller.identity.memberId, { exceptChannelId }).catch((e) => {
     console.error("pullReadFromSlack failed:", e);
     return false;
   });
@@ -344,7 +339,7 @@ export async function prepareChatUploads(files: { name: string; size: number }[]
   if (files.some((f) => typeof f?.name !== "string" || !f.name || !(f.size >= 0) || f.size > MAX_CHAT_FILE_BYTES)) {
     return { ok: false, error: `Files can be up to ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB each.` };
   }
-  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const bucket = createServiceRoleClient().storage.from(CHAT_FILES_BUCKET);
   const uploads: { path: string; token: string }[] = [];
   for (const f of files) {
     const path = newStagingPath(caller.identity.memberId, f.name, clock.now(), crypto.randomUUID());
@@ -364,7 +359,7 @@ export async function prepareChatUploads(files: { name: string; size: number }[]
  */
 async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promise<Record<string, unknown>[] | null> {
   if (!Array.isArray(uploads) || uploads.length > MAX_CHAT_FILES) return null;
-  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const bucket = createServiceRoleClient().storage.from(CHAT_FILES_BUCKET);
   const files: Record<string, unknown>[] = [];
   for (const u of uploads) {
     if (typeof u?.path !== "string" || typeof u.name !== "string" || !u.name || !isOwnStagingPath(memberId, u.path)) return null;
@@ -420,7 +415,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   const hubOnly = (await createRepos(supabase).chat.bridgeState(channelId).catch(() => null))?.bridge_mode === "app_only";
   // Messages are posted as the member, with their own Slack token, and there is no bot fallback: without a
   // connection nothing would reach Slack, so say so now instead of saving a message that can only fail.
-  if (!hubOnly && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+  if (!hubOnly && !(await chatTransport().isConnected(createServiceRoleClient(), caller.identity.memberId))) {
     return { ok: false, error: "Connect Slack in Settings to post: your messages are posted as you." };
   }
 
@@ -480,7 +475,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   if (hubOnly) return { ok: true, id: messageId };
   after(async () => {
     try {
-      await sendChatMessageToSlack(createServiceRoleClient(), messageId);
+      await deliverChatMessage(createServiceRoleClient(), messageId);
     } catch (error) {
       console.error("sendChatMessageToSlack threw for %s:", messageId, error);
     }
@@ -534,7 +529,7 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
   // Reactions go to Slack as the member (their own token; the bot can't react under a name), and there is no
   // Hub-only fallback: without a connection one would be hidden here and never reach Slack, and a reaction
   // the member made in Slack could not be taken back from here. So say what to do instead.
-  if (!hubOnly && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+  if (!hubOnly && !(await chatTransport().isConnected(createServiceRoleClient(), caller.identity.memberId))) {
     return { ok: false, error: "Connect Slack in Settings to react: your reactions are sent as you." };
   }
 
@@ -550,7 +545,7 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
   const memberId = caller.identity.memberId;
   after(async () => {
     try {
-      await syncReactionToSlack(createServiceRoleClient(), { messageId, memberId, emoji, active: data });
+      await chatTransport().syncReaction(createServiceRoleClient(), { messageId, memberId, emoji, active: data });
     } catch (error) {
       console.error("syncReactionToSlack threw:", error);
     }
@@ -571,10 +566,10 @@ async function retryChatMessageImpl(messageId: string): Promise<SendChatResult> 
     return { ok: false, error: "That message can't be retried." };
   }
   const service = createServiceRoleClient();
-  if (!(await getSlackConnectionStatus(service, caller.identity.memberId)).connected) {
+  if (!(await chatTransport().isConnected(service, caller.identity.memberId))) {
     return { ok: false, error: "Connect Slack in Settings, then retry: your messages are posted as you." };
   }
-  const result = await sendChatMessageToSlack(service, messageId);
+  const result = await deliverChatMessage(service, messageId);
   return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
 }
 
@@ -625,7 +620,7 @@ async function editChatMessageImpl(messageId: string, body: string, uploads: Sta
     existingIds = parseChatFiles(current?.files).map((f) => f.id);
     if (existingIds.length + staged.length > MAX_CHAT_FILES) return { ok: false, error: `A message can have up to ${MAX_CHAT_FILES} files.` };
     for (const f of staged) {
-      const { data } = await service.storage.from(SLACK_FILES_BUCKET).download(f.staged as string);
+      const { data } = await service.storage.from(CHAT_FILES_BUCKET).download(f.staged as string);
       if (!data) return { ok: false, error: "Couldn't read an uploaded file. Try again." };
       bytes.push({ staged: f.staged as string, file: Buffer.from(await data.arrayBuffer()), filename: f.name as string });
     }
@@ -635,7 +630,7 @@ async function editChatMessageImpl(messageId: string, body: string, uploads: Sta
   // A Hub-only message (in a direct message) has no Slack copy to change first.
   let fileIds: string[] = [];
   if (!hubOnly) {
-    const inSlack = await updateChatMessageInSlack(service, {
+    const inSlack = await chatTransport().editMessage(service, {
       messageId,
       memberId: caller.identity.memberId,
       body: text,
@@ -654,18 +649,13 @@ async function editChatMessageImpl(messageId: string, body: string, uploads: Sta
     const files = added.map((f, i) => ({ id: fileIds[i], name: f.name, mimetype: f.mimetype, size: f.size }));
     const { error: addError } = await supabase.rpc("chat_add_message_files", { p_message_id: messageId, p_files: files as Json });
     if (addError) return { ok: false, error: changeError(addError, "edit") };
-    // The bytes are in hand: keep them as the permanent copies, so the Hub never asks Slack for its own upload.
-    const target = await createRepos(service).chat.slackTarget(messageId).catch(() => null);
-    if (target?.slackChannelId && target.slackTs) {
-      await keepCopies(
-        service,
-        files as ChatFile[],
-        files.map((_, i) => ({ id: "", name: null, mimetype: null, size: null, width: null, height: null, staged: bytes[i].staged })),
-        new Map(bytes.map((b) => [b.staged, b.file])),
-        target.slackChannelId,
-        target.slackTs
-      );
-    }
+    // The bytes are in hand: keep them as the permanent copies, so the Hub never asks the transport for its own upload.
+    await chatTransport().keepFileCopies(service, {
+      messageId,
+      sent: files as ChatFile[],
+      staged: files.map((_, i) => ({ id: "", name: null, mimetype: null, size: null, width: null, height: null, staged: bytes[i].staged })),
+      bytes: new Map(bytes.map((b) => [b.staged, b.file])),
+    });
   }
   return { ok: true };
 }
@@ -678,7 +668,7 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
 
   const supabase = await createClient();
   if (!(await isHubOnlyMessage(createRepos(supabase).chat, messageId))) {
-    const inSlack = await deleteChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId });
+    const inSlack = await chatTransport().deleteMessage(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId });
     if (!inSlack.ok) return inSlack;
   }
 
@@ -697,7 +687,7 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
  * An edit that fetches the preview again finds the mark by its address, so the card does not come back.
  */
 export type HideChatUnfurlResult =
-  | { ok: true; slack: SlackUnfurlRemoval; /** Only when a block was asked for: whether the rule was saved. */ blocked?: boolean; /** Set when it was not: the card is removed all the same. */ blockError?: string }
+  | { ok: true; slack: PreviewRemoval; /** Only when a block was asked for: whether the rule was saved. */ blocked?: boolean; /** Set when it was not: the card is removed all the same. */ blockError?: string }
   | { ok: false; error: string };
 
 /**
@@ -733,7 +723,7 @@ async function hideChatUnfurlImpl(messageId: string, key: string, scope?: BlockS
     }
   }
   // The Hub's own removal stands whatever Slack says. Service role: the author's token is looked up for them, never another member's.
-  const slack = await removeSlackUnfurl(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, key });
+  const slack = await chatTransport().removePreview(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, key });
   return { ok: true, slack, ...blocked };
 }
 
@@ -770,7 +760,7 @@ async function deleteChatFileImpl(messageId: string, fileId: string): Promise<Ch
   if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
 
   const service = createServiceRoleClient();
-  const inSlack = await deleteChatFileInSlack(service, { messageId, memberId: caller.identity.memberId, fileId });
+  const inSlack = await chatTransport().deleteFile(service, { messageId, memberId: caller.identity.memberId, fileId });
   if (!inSlack.ok) return inSlack;
 
   const supabase = await createClient();

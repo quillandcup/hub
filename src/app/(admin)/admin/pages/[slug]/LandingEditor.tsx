@@ -59,7 +59,7 @@ export type EditorPage = {
   pageType?: "website" | "landing";
 };
 /** One version in History: who made it (a display name, never a user id), what it is, and the note (what changed, or what replaced the draft it kept). */
-export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_starter"; by?: string; note?: string | null };
+export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" | "before_replace"; by?: string; note?: string | null };
 
 type SaveState = "saved" | "unsaved" | "saving" | "error";
 
@@ -185,7 +185,6 @@ function EditorHeader({
         </Tooltip>
       </div>
       <LifecycleStatusChip published={published} />
-      {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}
       {resetError && (
         <span role="alert" className="text-xs text-red-700 dark:text-red-400">
           {resetError}
@@ -278,7 +277,8 @@ function EditorHeader({
           noun="page"
           label={published ? "Publish changes" : undefined}
           onRun={onPublish}
-          disabled={busy}
+          disabled={busy || (published && !hasUnpublished)}
+          disabledReason={published && !hasUnpublished ? "Nothing to publish: the draft is the same as the live page." : undefined}
           className={PRIMARY}
         />
       </div>
@@ -301,7 +301,8 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
   }, [initial.pageType, site]);
   const [save, setSave] = useState<SaveState>("saved");
   const publishedJson = useRef(initial.publishedJson);
-  const [hasUnpublished, setHasUnpublished] = useState(false);
+  // Known from the start: a page opened with a draft that already differs from the live copy has changes to publish before anything is edited.
+  const [hasUnpublished, setHasUnpublished] = useState(initial.publishedJson !== null && initial.publishedJson !== JSON.stringify(data));
   const [dialog, setDialog] = useState<"details" | "history" | "publish" | null>(null);
   const [issues, setIssues] = useState<A11yIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -564,7 +565,7 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
             return importLandingDraftJson(page.id, text, { dryRun: true });
           }}
           onApply={async (text) => {
-            // Same as a starter: the draft kept in History is the one on screen, and autosave can't write it back over the import.
+            // Same as a template replacement: the draft kept in History is the one on screen, and autosave can't write it back over the import.
             if (!(await flush())) return "Couldn't save your latest changes first. Try again in a moment.";
             const result = await importLandingDraftJson(page.id, text);
             if (result.error) return result.error;
@@ -665,7 +666,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
             <span className="min-w-0">
               {v.title}
               <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
-                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_starter" ? "Your draft before it was replaced" : "Published"} by {v.by ?? "Someone"}, {new Date(v.createdAt).toLocaleString()}
+                {v.kind === "before_import" ? "Your draft before an import" : v.kind === "before_replace" ? "Your draft before it was replaced" : "Published"} by {v.by ?? "Someone"}, {new Date(v.createdAt).toLocaleString()}
               </time>
               {v.note && <span className="block text-xs">“{v.note}”</span>}
             </span>

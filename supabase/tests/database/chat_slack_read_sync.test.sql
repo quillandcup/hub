@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(9);
+SELECT plan(8);
 
 SELECT ok(
   NOT has_function_privilege('authenticated', 'chat_apply_slack_read(text, text, text)', 'EXECUTE')

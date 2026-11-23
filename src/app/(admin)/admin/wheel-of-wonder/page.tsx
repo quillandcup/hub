@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import Link from "next/link";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function WheelOfWonderAdminPage() {
-  await requireAdminPage();
+  await requirePermission("analytics.usage.read");
   const supabase = await createClient();
 
   const matches = await createRepos(supabase).wheelOfWonder.recent(1000);

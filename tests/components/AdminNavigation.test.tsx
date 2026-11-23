@@ -12,7 +12,7 @@ vi.mock("@/app/(member)/settings/actions", () => ({ updateNavMode: (mode: string
 
 describe("AdminNavigation", () => {
   it("is unmasked in Session Replay, so recordings show which page was opened", () => {
-    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} />);
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
     expect(sidebar.querySelector("nav")).toHaveAttribute("data-sentry-unmask");
   });
@@ -21,7 +21,7 @@ describe("AdminNavigation", () => {
     render(
       <>
         <MobileMenuButton />
-        <AdminNavigation role="admin" enabledFeatures={[]} />
+        <AdminNavigation roles={["admin"]} enabledFeatures={[]} />
       </>
     );
     // The drawer is aria-hidden until opened, so its close button isn't in the accessibility tree.
@@ -39,7 +39,7 @@ describe("AdminNavigation drawer and keyboard focus", () => {
     render(
       <>
         <MobileMenuButton />
-        <AdminNavigation role="admin" enabledFeatures={[]} />
+        <AdminNavigation roles={["admin"]} enabledFeatures={[]} />
       </>
     );
     const drawer = () => document.querySelector("aside.fixed") as HTMLElement;
@@ -57,7 +57,7 @@ describe("AdminNavigation sidebar mode", () => {
 
   it("is pinned open by default and picks auto-show, collapsed and back, saving each choice", async () => {
     updateNavMode.mockClear();
-    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} />);
     expect(sidebar()).toHaveClass("w-64");
 
     await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
@@ -82,12 +82,12 @@ describe("AdminNavigation sidebar mode", () => {
   });
 
   it("starts in the saved mode", () => {
-    render(<AdminNavigation role="admin" enabledFeatures={[]} navMode="auto" />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} navMode="auto" />);
     expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
   });
 
   it("keeps folded sections folded in auto-hide, with the same rows at rest and open", () => {
-    render(<AdminNavigation role="admin" enabledFeatures={[]} navMode="auto" />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} navMode="auto" />);
     const folds = () => Array.from(sidebar().querySelectorAll("details"));
     const rows = () => sidebar().querySelectorAll("summary, h2, li").length;
 
@@ -106,7 +106,7 @@ describe("AdminNavigation sidebar mode", () => {
   });
 
   it("shows a community manager only the pages they may open, and an admin all of them", () => {
-    const { unmount } = render(<AdminNavigation role="community_manager" enabledFeatures={[]} />);
+    const { unmount } = render(<AdminNavigation roles={["community_manager"]} enabledFeatures={[]} />);
     const hrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
@@ -116,10 +116,48 @@ describe("AdminNavigation sidebar mode", () => {
     expect(hrefs).not.toContain("/admin/outreach");
     unmount();
 
-    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    render(<AdminNavigation roles={["admin"]} enabledFeatures={[]} />);
     const adminHrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
     expect(adminHrefs).toContain("/admin/users");
   });
 });
+
+describe("AdminNavigation by role (the sidebar shows what the role's permissions open)", () => {
+  const hrefsFor = (role: string) => {
+    const { unmount } = render(<AdminNavigation roles={[role]} enabledFeatures={["work_queue", "big_sisters", "hedgieversaries", "program_cohorts", "member_overrides"]} />);
+    const hrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    unmount();
+    return hrefs;
+  };
+
+  it("shows a conversion specialist the landing pages and outreach, and nothing of the members area, the changelog or the data tools", () => {
+    const hrefs = hrefsFor("conversion_specialist");
+    expect(hrefs).toEqual(expect.arrayContaining(["/dashboard", "/admin/pages", "/admin/outreach"]));
+    for (const hidden of ["/admin", "/admin/members", "/admin/members/network", "/admin/changelog", "/admin/users", "/admin/at-risk", "/admin/care", "/admin/stats", "/admin/media", "/admin/data/import", "/admin/hygiene", "/admin/activity", "/admin/member-overrides", "/admin/insights/resubscriptions"]) {
+      expect(hrefs, hidden).not.toContain(hidden);
+    }
+  });
+
+  it("shows a community manager what the role always had, and not the specialist's pages", () => {
+    const hrefs = hrefsFor("community_manager");
+    expect(hrefs).toEqual(expect.arrayContaining(["/admin/at-risk", "/admin/members", "/admin/stats", "/admin/calendar", "/admin/care"]));
+    expect(hrefs).not.toContain("/admin");
+    expect(hrefs).not.toContain("/admin/pages");
+    expect(hrefs).not.toContain("/admin/outreach");
+  });
+
+  it("shows the assistant exactly what the admin sees", () => {
+    const adminHrefs = hrefsFor("admin");
+    expect(adminHrefs).toEqual(expect.arrayContaining(["/admin", "/admin/pages", "/admin/outreach", "/admin/members", "/admin/changelog", "/admin/users"]));
+    expect(hrefsFor("assistant")).toEqual(adminHrefs);
+  });
+
+  it("shows nothing but the way back to an unknown role", () => {
+    expect(hrefsFor("member")).toEqual(["/dashboard"]);
+  });
+});
+

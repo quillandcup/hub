@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import EventDetailClient from "./EventDetailClient";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { isId } from "@/lib/ids";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -22,7 +22,7 @@ export default async function EventDetailPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ photo_import_error?: string }>;
 }) {
-  await requireAdminPage();
+  await requirePermission("events.manage");
   const { slug } = await params;
   const { photo_import_error } = await searchParams;
   const supabase = await createClient();

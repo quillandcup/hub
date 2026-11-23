@@ -13,7 +13,7 @@ vi.mock("@/lib/data/repos", async () => ({
 let signedIn = true;
 let admin = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () =>
+  requireApiPermission: async () =>
     !signedIn ? { user: null } : !admin ? { user: { id: "u" }, forbidden: true } : { user: { id: "admin" }, supabase: {} },
 }));
 

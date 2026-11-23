@@ -1,5 +1,6 @@
 import type { FeatureKey } from "@/lib/features";
-import { COMMUNITY_MANAGER_ROLE } from "@/lib/staff-access";
+import { mayOpenAdminPath } from "@/lib/admin-paths";
+import { can, staffRolesIn, type Permission, type RoleInput } from "@/lib/permissions";
 import { SETTINGS_TAB_IDS, SETTINGS_TAB_LABELS, SETTINGS_TITLE } from "@/app/(member)/settings/tabs";
 import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TAB_LABELS, MY_PRICKLES_TITLE } from "@/app/(member)/my-prickles/tabs";
 import { SETTINGS_SECTIONS } from "@/app/(member)/settings/sections";
@@ -32,8 +33,8 @@ export interface SitePage {
   staffOnly?: boolean;
   /** Only shown (sidebar and search) when this feature is on for the viewer. */
   feature?: FeatureKey;
-  /** An admin page a community manager may also open, read-only (kept equal to src/lib/staff-access.ts by a test). */
-  communityManager?: true;
+  /** The permission to see an admin page's link when that differs from what opening it needs (the Dashboard link, which every staff role may open but only some should be offered). */
+  navPermission?: Permission;
 }
 
 export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community", "Explore"] as const;
@@ -115,6 +116,9 @@ export const SITE_PAGES: SitePage[] = [
   ...tabPages("/projects", MY_WRITING_TITLE, MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, {
     keywords: { books: ["publish", "published"], awards: ["wins", "prizes"] },
   }),
+  // Milestones are with each project (docs/product/FINISHERS.md): the summary line and the "Other works" section on the Projects tab.
+  member({ title: "Your milestones", href: "/projects#your-milestones", section: `${MY_WRITING_TITLE} · ${MY_WRITING_TAB_LABELS.projects}`, keywords: ["finisher", "author", "the end", "writing milestones", "publish ready", "consent", "share my story", "confirm"] }),
+  member({ title: "Other works", href: "/projects#other-works", section: `${MY_WRITING_TITLE} · ${MY_WRITING_TAB_LABELS.projects}`, keywords: ["milestones", "a work that is not listed here", "add a work", "the end", "books without a project"] }),
   ...tabPages("/my-prickles", MY_PRICKLES_TITLE, MY_PRICKLES_TAB_IDS, MY_PRICKLES_TAB_LABELS, {
     keywords: { all: ["calendar", "schedule"], find: ["picker", "join", "sign up"], commitments: ["recurring", "weekly", "slot"], hosting: ["host"], history: ["attended", "past"] },
   }),
@@ -132,19 +136,19 @@ export const SITE_PAGES: SitePage[] = [
   ...settingsSections(),
 
   // Admin sidebar
-  admin({ title: "Dashboard", href: "/admin", section: "Overview", nav: { icon: "📊" } }),
-  admin({ title: "Calendar View", href: "/admin/calendar", section: "Overview", nav: { icon: "📅" }, communityManager: true }),
+  admin({ title: "Dashboard", href: "/admin", section: "Overview", nav: { icon: "📊" }, navPermission: "dashboard.read" }),
+  admin({ title: "Calendar View", href: "/admin/calendar", section: "Overview", nav: { icon: "📅" } }),
   admin({ title: "Work Queue", href: "/admin/work-queue", section: "Overview", nav: { icon: "✅" }, feature: "work_queue" }),
-  admin({ title: "All Members", href: "/admin/members", section: "Community", nav: { icon: "👥" }, keywords: ["people"], communityManager: true }),
+  admin({ title: "All Members", href: "/admin/members", section: "Community", nav: { icon: "👥" }, keywords: ["people"] }),
   admin({ title: "Outreach", href: "/admin/outreach", section: "Sales & Marketing", nav: { icon: "🎯" }, keywords: ["queue", "touches"] }),
   admin({ title: "Prospects", href: "/admin/outreach/prospects", section: "Sales & Marketing", keywords: ["instagram", "find", "leads", "discover", "bot"] }),
   admin({ title: "Big Sisters", href: "/admin/mentorship", section: "Member Programs", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "trial", "onboarding", "conversion"], feature: "big_sisters" }),
   admin({ title: "Big Sister Volunteers", href: "/admin/mentorship/volunteers", section: "Member Programs", keywords: ["mentor", "available", "pool", "opt in"], feature: "big_sisters" }),
   admin({ title: "Big Sister Effectiveness", href: "/admin/mentorship/big-sisters", section: "Member Programs", keywords: ["mentor", "conversion", "trial", "trend", "quarter"], feature: "big_sisters" }),
   admin({ title: "Hedgieversaries", href: "/admin/hedgieversaries", section: "Member Programs", nav: { icon: "🎂" }, keywords: ["anniversary", "birthday"], feature: "hedgieversaries" }),
-  admin({ title: "Hedgie Care", href: "/admin/care", section: "Member Programs", nav: { icon: "💌" }, keywords: ["reach out", "check in", "introduction", "welcome", "follow up", "dm", "engagement", "care plan"], communityManager: true }),
-  admin({ title: "Hedgie Care: earlier", href: "/admin/care/earlier", section: "Member Programs", keywords: ["closed", "lapsed", "past engagements", "past care plans", "reach out"], communityManager: true }),
-  admin({ title: "At-Risk Members", href: "/admin/at-risk", section: "Member Programs", nav: { icon: "⚠️" }, keywords: ["churn", "lapsing"], communityManager: true }),
+  admin({ title: "Hedgie Care", href: "/admin/care", section: "Member Programs", nav: { icon: "💌" }, keywords: ["reach out", "check in", "introduction", "welcome", "follow up", "dm", "engagement", "care plan"] }),
+  admin({ title: "Hedgie Care: earlier", href: "/admin/care/earlier", section: "Member Programs", keywords: ["closed", "lapsed", "past engagements", "past care plans", "reach out"] }),
+  admin({ title: "At-Risk Members", href: "/admin/at-risk", section: "Member Programs", nav: { icon: "⚠️" }, keywords: ["churn", "lapsing"] }),
   admin({ title: "Courses", href: "/admin/courses", section: "Education", nav: { icon: "📚", activeFor: ["/admin/courses/"] }, keywords: ["lessons", "kajabi", "ready writer", "publish", "launch"] }),
   admin({ title: "Kajabi Offers", href: "/admin/offers", section: "Sales & Marketing", nav: { icon: "🏷️" }, keywords: ["offers", "mapping", "migrate", "kajabi", "products", "tickets"] }),
   admin({ title: "Programs", href: "/admin/programs", section: "Education", nav: { icon: "🎓" }, keywords: ["cohorts"], feature: "program_cohorts" }),
@@ -154,16 +158,17 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Events", href: "/admin/events", section: "Community", nav: { icon: "📸" } }),
   admin({ title: "Pages", href: "/admin/pages", section: "Sales & Marketing", nav: { icon: "📄", activeFor: ["/admin/pages/"] }, keywords: ["landing", "page builder", "website", "opt-in", "funnel"] }),
   admin({ title: "Media", href: "/admin/media", section: "Community", nav: { icon: "🖼️" }, keywords: ["images", "photos", "covers", "library", "upload"] }),
-  admin({ title: "Community Stats", href: "/admin/stats", section: "Analytics", nav: { icon: "✨" }, communityManager: true }),
+  admin({ title: "Community Stats", href: "/admin/stats", section: "Analytics", nav: { icon: "✨" } }),
   admin({ title: "Prickle Insights", href: "/admin/insights/prickles", section: "Accountability", nav: { icon: "✍️" } }),
-  admin({ title: "Slack Engagement", href: "/admin/insights/slack-engagement", section: "Analytics", nav: { icon: "💬" }, communityManager: true }),
-  admin({ title: "Resubscriptions", href: "/admin/insights/resubscriptions", section: "Analytics", nav: { icon: "🔄" }, communityManager: true }),
+  admin({ title: "Slack Engagement", href: "/admin/insights/slack-engagement", section: "Analytics", nav: { icon: "💬" } }),
+  admin({ title: "Resubscriptions", href: "/admin/insights/resubscriptions", section: "Analytics", nav: { icon: "🔄" } }),
   admin({ title: "Wheel of Wonder", href: "/admin/wheel-of-wonder", section: "Analytics", nav: { icon: "🎡" } }),
   admin({ title: "Feature Usage", href: "/admin/analytics", section: "Analytics", nav: { icon: "📈" }, keywords: ["events", "funnel", "clicks"] }),
   admin({ title: "Explore Usage", href: "/admin/analytics/explore", section: "Analytics", keywords: ["funnel builder", "breakdown", "events"] }),
   admin({ title: "Import Data", href: "/admin/data/import", section: "Developer", nav: { icon: "📥" }, keywords: ["sync", "kajabi", "zoom"] }),
   admin({ title: "Health Check", href: "/admin/hygiene", section: "System", nav: { icon: "🏥" }, keywords: ["hygiene", "data quality"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
+  admin({ title: "Roles", href: "/admin/roles", section: "System", nav: { icon: "🗝️" }, keywords: ["permissions", "who can", "access", "assistant", "community manager", "conversion specialist"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
   admin({ title: "Finishers", href: "/admin/finishers", section: "Community", nav: { icon: "🏁" }, keywords: ["milestones", "the end", "writer titles", "backfill", "published books"] }),
   admin({ title: "Security", href: "/admin/security", section: "System", nav: { icon: "🛡️" }, keywords: ["rls", "secrets", "webhooks", "open items", "compliance", "privacy"] }),
@@ -198,10 +203,17 @@ export const SITE_PAGES: SitePage[] = [
 /** True when the page's feature (if any) is on. */
 export const pageEnabled = (page: SitePage, features: readonly FeatureKey[]) => !page.feature || features.includes(page.feature);
 
+/**
+ * Whether this role sees an admin page: the same answer the proxy gives for opening it (`mayOpenAdminPath`,
+ * from the page's permission in src/lib/admin-paths.ts), so the sidebar never lists a page the role is refused.
+ * No role given means no filtering (the search palette filters for itself).
+ */
+export const pageAllowed = (page: SitePage, roles: RoleInput) => page.audience !== "admin" || roles === undefined || (page.navPermission ? can({ roles: staffRolesIn(roles) }, page.navPermission) : mayOpenAdminPath(roles, page.href));
+
 /** The sidebar's groups for one audience, each with its visible links in registry order. */
-export function navGroups(audience: "member" | "admin", features: readonly FeatureKey[], role?: string) {
+export function navGroups(audience: "member" | "admin", features: readonly FeatureKey[], roles?: RoleInput) {
   const groups = audience === "member" ? MEMBER_NAV_GROUPS.map((name) => ({ name, collapsible: false })) : ADMIN_NAV_GROUPS.map((g) => ({ name: g.name, collapsible: !!g.collapsible }));
   return groups
-    .map((g) => ({ ...g, items: SITE_PAGES.filter((p) => p.audience === audience && p.nav && p.section === g.name && pageEnabled(p, features) && (role !== COMMUNITY_MANAGER_ROLE || p.communityManager)) }))
+    .map((g) => ({ ...g, items: SITE_PAGES.filter((p) => p.audience === audience && p.nav && p.section === g.name && pageEnabled(p, features) && pageAllowed(p, roles)) }))
     .filter((g) => g.items.length > 0);
 }

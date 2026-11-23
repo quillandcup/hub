@@ -16,7 +16,7 @@ const auth = vi.hoisted(() => ({ admin: true }))
 vi.mock('@/lib/admin-auth', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
   return {
-    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
+    requireActionPermission: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
   }
 })
 // The outcome is recorded against the current visit, which a test doesn't have.

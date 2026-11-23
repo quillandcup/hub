@@ -15,7 +15,7 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
+  requireApiPermission: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
 }));
 
 import { GET as externalStatus } from "@/app/api/admin/members/external-status/route";

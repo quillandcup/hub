@@ -1,6 +1,6 @@
 # Prospecting: finding ideal Hedgies on Instagram
 
-> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic MVP. The goal: a steady supply of writers who would love Quill & Cup, so that Ania's daily outreach starts from a ranked list instead of from scrolling.
 
@@ -12,7 +12,7 @@ Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic 
                  candidates.ts, import   rules.ts, score.ts  src/lib/prospecting/assessment.ts
 ```
 
-- **Table** `outreach_prospects` (admin only; `ProspectRepository` in `src/lib/data/prospects.ts`). One row per Instagram handle. Re-adding a handle changes nothing, so a reviewed prospect is never overwritten and a source can be re-run.
+- **Table** `outreach_prospects` (admin and conversion specialist only; `ProspectRepository` in `src/lib/data/prospects.ts`). One row per Instagram handle. Re-adding a handle changes nothing, so a reviewed prospect is never overwritten and a source can be re-run.
 - **Discovery: sources and paste.** Sources (`src/lib/prospecting/sources/`) only *find* profiles; `runSource` scores them with the same rules, drops anything under `MIN_SCORE_TO_KEEP`, skips people already in the Hub and stores the rest, so every source hits the same filters. Today: **Bluesky** (`bluesky-search`: public API, no account or review; searches bios for what writers say, then fetches follower counts), run from the "Search Bluesky now" button. Add a source by implementing `ProspectSource` and listing it in `searchForProspectsImpl`. Paste still works for anything else (Instagram today).
 - **Paste.** On `/admin/outreach/prospects`, one prospect per line: the @handle or profile link, then anything copied from the profile (bio, "2.3k followers", #hashtags, a link). Handles that belong to a member or lead already in the Hub (`members.instagram_url`) are skipped.
 - **Scoring: rules, not AI.** `src/lib/prospecting/rules.ts` is a list of weighted patterns over the bio and hashtags plus a follower range. `scoreProspect` is deterministic and returns the reasons, which the review page shows. Changing who we look for is a change to that one file; `ProspectRepository.rescore` re-applies it to everyone.

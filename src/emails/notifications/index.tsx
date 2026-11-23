@@ -8,6 +8,7 @@ import { PrickleCheckoutEmail } from "./prickle-checkout";
 import { IntroNudgeEmail } from "./intro-nudge";
 import { PrickleNudgeEmail } from "./prickle-nudge";
 import { BigSisterMatchEmail } from "./big-sister-match";
+import { BookVisibilityNoticeEmail } from "./book-visibility-notice";
 import { ChangelogDigestEmail } from "./changelog-digest";
 import { ChatDmEmail } from "./chat-dm";
 import { ChatMentionEmail } from "./chat-mention";
@@ -33,6 +34,7 @@ const TEMPLATES = {
   prickle_nudge: PrickleNudgeEmail,
   big_sister_match: BigSisterMatchEmail,
   changelog_digest: ChangelogDigestEmail,
+  book_visibility_notice: BookVisibilityNoticeEmail,
   chat_dm: ChatDmEmail,
   chat_mention: ChatMentionEmail,
   chat_channel_message: ChatChannelMessageEmail,

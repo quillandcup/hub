@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
 }));
 
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: mocks.auth }));
+vi.mock("@/lib/admin-auth", () => ({ requireActionPermission: mocks.auth }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: mocks.identity }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: mocks.service }));
 vi.mock("@/lib/channels/web-push", async (importOriginal) => ({

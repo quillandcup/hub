@@ -103,7 +103,9 @@ describe("the real Puck editor with an items slot", () => {
 
   it.each([
     ["List", "ListItem", "ul", (id: string, text: string) => ({ id, text, icon: "✓" }), "text"],
-    ["Faq", "FaqItem", "div", (id: string, question: string) => ({ id, question, answer: "" }), "question"],
+    ["Pricing", "PricingPlan", "ul", (id: string, name: string) => ({ id, name, price: "$1", period: "", description: "", features: "", badge: "", featured: false, buttonLabel: "", href: "" }), "name"],
+    ["Accordion", "AccordionItem", "div", (id: string, title: string) => ({ id, title, text: "", open: false }), "title"],
+    ["Faq", "FaqQuestion", "div", (id: string, question: string) => ({ id, question, answer: "" }), "question"],
     ["ButtonRow", "RowButton", "ul", (id: string, label: string) => ({ id, label, href: "", look: "solid", color: "plum", shape: "pill" }), "label"],
     ["OutcomeNumbers", "OutcomeNumber", "dl", (id: string, label: string) => ({ id, source: "manual", stat: "hours_30d", value: "1", label, note: "" }), "label"],
   ] as const)("reorders the items of a %s as dragging one does, and the canvas follows", async (parent, itemType, _tag, props, key) => {

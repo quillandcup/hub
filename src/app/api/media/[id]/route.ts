@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdmin } from "@/lib/supabase/api-auth";
+import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { isId } from "@/lib/ids";
 import { parseLookEdit } from "@/lib/media/edit";
 import type { MediaAssetEdit } from "@/lib/data/media";
@@ -9,7 +9,7 @@ import { responseOutcome } from "@/lib/analytics/outcome";
 
 /** Staff read one asset (a deleted one too) and where it is used. */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "media.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 /** Staff change an asset's title, alt text, tags, focal point, public flag or how a preset fits it. */
 async function handlePatch(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "media.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const body = await request.json().catch(() => undefined);
@@ -66,7 +66,7 @@ async function handlePatch(request: NextRequest, { params }: { params: Promise<{
 
 /** Staff remove an asset from the library, unless something still shows it (409, with the list). The files stay until they are swept (docs/TODO.md). */
 async function handleDelete(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireApiPermission(request, "media.manage");
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { MILESTONE_STATUSES, type MilestoneStatus } from "@/lib/finishers";
 import { parsePageParam } from "@/lib/pagination";
 import FinishersClient from "./FinishersClient";
@@ -16,7 +16,7 @@ const PAGE_SIZE = 50;
  * ?status= narrows the list, ?page= pages it.
  */
 export default async function FinishersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireAdminPage();
+  await requirePermission("community.manage");
   const params = await searchParams;
   const statusParam = typeof params.status === "string" ? params.status : undefined;
   const status = (MILESTONE_STATUSES as readonly string[]).includes(statusParam ?? "") ? (statusParam as MilestoneStatus) : undefined;

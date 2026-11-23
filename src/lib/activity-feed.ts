@@ -9,6 +9,7 @@ import { milestoneLabel } from "@/lib/finishers";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import { withReferenceNames } from "@/lib/audit-references";
 import { careActivitySentence, careEventOfAudit, careSentence } from "@/lib/care-events";
+import { ROLE_LABELS, isStaffRole } from "@/lib/permissions";
 import { periodNumber } from "@/lib/care";
 import { allTimeStart, describeRange, parseDayRange, rangeInstants, type DayRange } from "@/lib/activity-range";
 
@@ -437,6 +438,7 @@ const ENTITY_LABELS: Record<string, string> = {
   restricted_slack_channel: "restricted Slack channel",
   care_dm_read: "read of a member's care plan messages",
   segment_member: "segment membership",
+  user_role: "role",
   feature_flag: "feature",
   feature_flag_segment: "feature flag segment",
   user_feature_preview: "feature preview",
@@ -523,14 +525,15 @@ function pageBuilderPhrase(row: ActivityFeedRow, fields: Record<string, FieldCha
   const isTemplate = row.entity_type === "landing_page_template";
   if (row.entity_type === "landing_page" || isTemplate) {
     const noun = isTemplate ? "template" : "page";
-    if (row.event_type === "insert") return `created the ${noun}${quoted}`;
+    if (row.event_type === "insert") return fields.replaced_at?.new ? `created the ${noun}${quoted} from a JSON file` : `created the ${noun}${quoted}`;
     if (row.event_type === "delete") return `deleted the ${noun}${quoted}`;
     if (row.event_type !== "update") return null;
     if (fields.deleted_at?.new && !fields.deleted_at.old) return `deleted the ${noun}${quoted}`;
     if (fields.status?.new === "published" || (fields.published_at?.new && fields.status?.new !== "draft")) return `published the ${noun}${quoted}`;
     if (fields.status?.new === "draft") return `took the ${noun}${quoted} down`;
     if (fields.restored_at?.new) return `brought back an earlier version of the ${noun}${quoted} into its draft`;
-    if (fields.starter_applied_at?.new) return `replaced the draft of the ${noun}${quoted} with a template or an imported file`;
+    // `starter_applied_at` is the old name of `replaced_at` (the column is gone): old Activity Log rows still carry it.
+    if (fields.replaced_at?.new || fields.starter_applied_at?.new) return `replaced the draft of the ${noun}${quoted} with a template or an imported file`;
     if (fields.imported_at?.new) return `imported a Kajabi page into the draft of${quoted || " a page"}`;
     if (fields.title) return `renamed the ${noun}${text(fields.title)} to “${formatValue(fields.title.new)}”`;
     if (fields.slug) return `changed the address of the ${noun}${quoted}`;
@@ -586,6 +589,9 @@ function milestonePhrase(row: ActivityFeedRow, fields: Record<string, FieldChang
   if (fields.consent_testimonial) {
     return fields.consent_testimonial.new === true ? "said we may feature the story of a writing milestone" : "took back permission to feature the story of a writing milestone";
   }
+  // The trigger redacts the path and the description, so the log can say only that a photo changed (added, replaced or removed), never where it is or what it shows.
+  if (fields.photo_path) return "changed the photo on a writing milestone";
+  if (fields.photo_alt) return "changed what the photo on a writing milestone shows";
   return null;
 }
 
@@ -607,6 +613,18 @@ function profileVisibilityPhrase(row: ActivityFeedRow, fields: Record<string, { 
   return `changed who can see their ${items.length === 1 ? items[0] : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`}`;
 }
 
+/**
+ * A person given or losing a staff role ("gave ada@example.com the role Community Manager"). The label is the account's sign-in
+ * email and the role one of the fixed names; nothing a person typed. A person can hold several roles, each its own entry.
+ */
+function userRolePhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown }>): string | null {
+  if (row.entity_type !== "user_role" || row.event_type === "update") return null;
+  const raw = row.event_type === "insert" ? fields.role?.new : fields.role?.old;
+  const role = typeof raw === "string" && isStaffRole(raw) ? ROLE_LABELS[raw] : "a role";
+  const who = row.description ? formatValue(row.description) : "a user";
+  return row.event_type === "insert" ? `gave ${who} the role ${role}` : `took the role ${role} away from ${who}`;
+}
+
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
   const profileVisibility = profileVisibilityPhrase(row, fields);
@@ -619,6 +637,8 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   if (writerProfile) return writerProfile;
   const milestone = milestonePhrase(row, fields);
   if (milestone) return milestone;
+  const userRole = userRolePhrase(row, fields);
+  if (userRole) return userRole;
   if (row.entity_type === "event_attendee" && row.event_type !== "update") {
     const who = row.member_name ?? "a member";
     const event = row.description ? ` “${formatValue(row.description)}”` : "";
@@ -668,6 +688,13 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const count = Number.isFinite(lessons) ? ` (${lessons} ${lessons === 1 ? "lesson" : "lessons"})` : "";
     return `duplicated a course as “${formatValue(row.description ?? "")}”${count}`;
   }
+  // A deleted course is one entry with what went with it (`delete_course` writes the counts; the modules' and lessons' own entries are quiet).
+  if (row.entity_type === "course" && row.event_type === "delete") {
+    const lessons = Number(fields.lessons_deleted?.old);
+    const modules = Number(fields.modules_deleted?.old);
+    const holds = [Number.isFinite(modules) && `${modules} ${modules === 1 ? "module" : "modules"}`, Number.isFinite(lessons) && `${lessons} ${lessons === 1 ? "lesson" : "lessons"}`].filter(Boolean).join(", ");
+    return `deleted a course${row.description ? ` “${formatValue(row.description)}”` : ""}${holds ? ` (${holds})` : ""}`;
+  }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;
@@ -699,6 +726,12 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
       return fields.project_id?.new ? `published${quoted} from a writing project` : `added${quoted} to their bookshelf`;
     }
     if (row.event_type === "delete") return `removed${quoted} from their bookshelf`;
+    // Who may see the book (the lock, house or globe on My Books): the level in words, never the book's description.
+    if (row.event_type === "update" && typeof fields.visibility?.new === "string") {
+      if (fields.visibility.new === "private") return `made${quoted} private: only they can see it`;
+      if (fields.visibility.new === "public") return `showed${quoted} on the public Hedgie Bookshelf`;
+      return `showed${quoted} to other members only`;
+    }
   }
   return null;
 }

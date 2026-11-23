@@ -13,7 +13,7 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, forbidden: false, supabase: {} } : { user: null }),
+  requireApiPermission: async () => (signedIn ? { user: { id: "admin" }, forbidden: false, supabase: {} } : { user: null }),
 }));
 
 import { fetchTrialWindows } from "@/lib/trial-window";

@@ -198,6 +198,18 @@ export interface CourseRepository {
    * `too_deep` for modules nested deeper than the editor does, `not_editable` for a caller who may not).
    */
   duplicateCourse(courseId: string): Promise<string>;
+  /**
+   * What members have on a course, counted for the delete check: `members` is the people with access or a grant (due access too),
+   * `activity` is what they left on it (lesson progress, lesson comments, chat messages linked to a lesson). Zero for an unknown course.
+   */
+  memberDataOf(courseId: string): Promise<{ members: number; activity: number }>;
+  /**
+   * Deletes a Hub-owned draft course that no member uses, with its modules, lessons and download rows (the stored files and the shared
+   * videos and images stay), completely or not at all. Throws a {@link CourseWriteError} (`not_found`, `not_deletable` for a course
+   * imported from Kajabi, `published`, `has_members` when anyone has or is due access, `has_activity` when members left progress or
+   * comments, `not_editable` for a caller who may not).
+   */
+  deleteCourse(courseId: string): Promise<void>;
   /** Copies the length of the video of this Mux asset onto the Hub-owned lessons that use it (whole seconds). */
   syncLessonDurations(assetId: string): Promise<void>;
 }
@@ -561,6 +573,28 @@ export class SupabaseCourseRepository implements CourseRepository {
     const { data, error } = await this.db.rpc("duplicate_course", { p_course_id: courseId });
     if (error) throw writeError(error);
     return data;
+  }
+
+  async memberDataOf(courseId: string) {
+    const count = async (query: PromiseLike<{ count: number | null; error: { message: string; code?: string } | null }>) => {
+      const { count: n, error } = await query;
+      if (error) throw writeError(error);
+      return n ?? 0;
+    };
+    const head = { count: "exact", head: true } as const;
+    const [access, grants, progress, comments, chatLinks] = await Promise.all([
+      count(this.db.from("course_access").select("member_id", head).eq("course_id", courseId)),
+      count(this.db.from("course_access_grants").select("member_id", head).eq("course_id", courseId)),
+      count(this.db.from("lesson_progress").select("lesson_id, course_lessons!inner(course_id)", head).eq("course_lessons.course_id", courseId)),
+      count(this.db.from("lesson_comments").select("id, course_lessons!inner(course_id)", head).eq("course_lessons.course_id", courseId)),
+      count(this.db.from("chat_message_videos").select("lesson_id, course_lessons!inner(course_id)", head).eq("course_lessons.course_id", courseId)),
+    ]);
+    return { members: access + grants, activity: progress + comments + chatLinks };
+  }
+
+  async deleteCourse(courseId: string) {
+    const { error } = await this.db.rpc("delete_course", { p_course_id: courseId });
+    if (error) throw writeError(error);
   }
 
   async syncLessonDurations(assetId: string) {
@@ -1236,6 +1270,31 @@ export class InMemoryCourseRepository implements CourseRepository {
       this.copyFiles(l.id, lesson.id);
     }
     return course.id;
+  }
+
+  async memberDataOf(courseId: string) {
+    const lessons = new Set(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
+    return {
+      members: this.data.courseAccess.filter((a) => a.course_id === courseId).length + this.data.courseAccessGrants.filter((g) => g.course_id === courseId).length,
+      activity:
+        this.data.lessonProgress.filter((p) => lessons.has(p.lesson_id)).length +
+        this.data.lessonComments.filter((c) => lessons.has(c.lesson_id)).length +
+        this.data.chatMessageVideos.filter((v) => lessons.has(v.lesson_id)).length,
+    };
+  }
+
+  async deleteCourse(courseId: string) {
+    const course = this.data.courses.find((c) => c.id === courseId);
+    if (!course) throw new CourseWriteError("not_found");
+    if (course.source !== "hub") throw new CourseWriteError("not_deletable");
+    if (!course.is_draft) throw new CourseWriteError("published");
+    const { members, activity } = await this.memberDataOf(courseId);
+    if (members > 0) throw new CourseWriteError("has_members");
+    if (activity > 0) throw new CourseWriteError("has_activity");
+    this.dropLessons(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
+    this.data.courseModules = this.data.courseModules.filter((m) => m.course_id !== courseId);
+    this.data.courseAddressRedirects = this.data.courseAddressRedirects.filter((r) => r.course_id !== courseId);
+    this.data.courses = this.data.courses.filter((c) => c.id !== courseId);
   }
 
   async syncLessonDurations(assetId: string) {

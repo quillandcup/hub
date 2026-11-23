@@ -82,20 +82,26 @@ describe("the current address handed to Server Components", () => {
 });
 
 describe("the script and style policy", () => {
-  it("hands Next the nonce policy and sends it report-only, with no enforcing policy header to hide it", async () => {
+  it("hands Next the enforcing nonce policy, as the only policy header on the request, and sends it on the response", async () => {
     const a = await proxy(new NextRequest("http://localhost:3000/dashboard"));
     const b = await proxy(new NextRequest("http://localhost:3000/dashboard"));
     const nonce = forwarded(a, "x-nonce");
 
     expect(nonce).toBeTruthy();
     expect(nonce).not.toBe(forwarded(b, "x-nonce"));
-    expect(forwarded(a, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
-    expect(a.headers.get("content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
-    // The whole policy is there: pictures and the sources nothing enforces yet.
-    expect(a.headers.get("content-security-policy-report-only")).toContain("img-src ");
-    expect(a.headers.get("content-security-policy-report-only")).toContain("connect-src ");
-    // Next reads `content-security-policy` first: neither the request nor the response may carry one from here.
-    expect(forwarded(a, "content-security-policy")).toBeNull();
-    expect(a.headers.get("content-security-policy")).toBeNull();
+    expect(forwarded(a, "content-security-policy")).toContain(`'nonce-${nonce}'`);
+    expect(a.headers.get("content-security-policy")).toBe(forwarded(a, "content-security-policy"));
+    // Scripts, styles and the picture, plugin, base, form and framing directives are enforced.
+    for (const part of ["script-src ", "style-src ", "img-src ", "object-src 'none'", "frame-ancestors 'self'"]) {
+      expect(a.headers.get("content-security-policy")).toContain(part);
+    }
+    expect(forwarded(a, "content-security-policy-report-only")).toBeNull();
+  });
+
+  it("enforces connection, frame, media and font sources in the same header, and sends no Report-Only one", async () => {
+    const res = await proxy(new NextRequest("http://localhost:3000/dashboard"));
+
+    for (const part of ["connect-src ", "frame-src ", "media-src ", "font-src "]) expect(res.headers.get("content-security-policy")).toContain(part);
+    expect(res.headers.get("content-security-policy-report-only")).toBeNull();
   });
 });

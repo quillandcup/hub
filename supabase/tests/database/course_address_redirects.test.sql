@@ -12,10 +12,13 @@ SELECT plan(25);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'addr-alice@example.test'),
   ('00000000-0000-4000-a000-00000000f1a4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'addr-dana@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000f1a1', 'addr-alice@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000f1a4', 'addr-dana@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000f1a1', 'addr-alice@example.test'),
+  ('00000000-0000-4000-a000-00000000f1a4', 'addr-dana@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000f1a4', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- A draft that never was published, a published one, a second published one, and one imported from Kajabi.
 INSERT INTO public.courses (id, slug, title, source, source_key, is_draft) VALUES

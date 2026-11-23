@@ -2,10 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
-import { getAalFromAccessToken, getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
-import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
-import { COMMUNITY_MANAGER_HOME, mayOpenAdminPath } from '@/lib/staff-access'
-import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
+import { getAalFromAccessToken, getAppRolesFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { ADMIN_NO_ACCESS_PATH, isAdminPath, mayOpenAdminPath } from '@/lib/admin-paths'
+import { staffHome } from '@/lib/permissions'
+import { effectiveStaffRoles, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
@@ -106,8 +106,9 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   let user = null
   let sessionId: string | null = null
   // The role the custom access token hook put in the token (see
-  // getAppRoleFromAccessToken); only admin and community_manager open any admin path (src/lib/staff-access.ts).
-  let roleClaim: string | null | undefined = undefined
+  // getAppRolesFromAccessToken); a person may hold several, and what they open is the union of what each role's
+  // permissions allow (src/lib/admin-paths.ts).
+  let rolesClaim: readonly string[] | undefined = undefined
   // The session's assurance level claim: aal2 once it has passed a TOTP challenge (src/lib/staff-mfa.ts).
   let aalClaim: string | null = null
   let authCheckTimedOut = false
@@ -123,7 +124,7 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
       const accessToken = sessionData.session?.access_token
       if (accessToken) {
         sessionId = getSessionIdFromAccessToken(accessToken)
-        roleClaim = getAppRoleFromAccessToken(accessToken)
+        rolesClaim = getAppRolesFromAccessToken(accessToken)
         aalClaim = getAalFromAccessToken(accessToken)
       }
     }
@@ -192,7 +193,7 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   // /p/<slug> is a published landing page (docs/product/LANDING_PAGES.md): the route itself 404s anything that isn't published.
   // /w/<handle> is a writer profile (docs/product/WRITER_PROFILES.md), and /w/sitemap/<n>.xml lists them: the route itself 404s a page
   // that is off or missing, and shows only the fields the member chose.
-  // API routes handle their own auth via requireAdmin/createApiAuth
+  // API routes handle their own auth via requireApiPermission/createApiAuth
   const isPublic =
     pathname === '/login' ||
     pathname === '/unsubscribe' ||
@@ -241,23 +242,23 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   // /no-access (see src/lib/admin-paths.ts for why not /dashboard)
   // before any admin page/layout renders (including RSC fetches on client
   // navigation, which skip the layout). This is the pre-filter only -- the
-  // secure check is requireAdminPage() (src/lib/admin-auth.ts) in the admin layout
+  // secure check is requirePermission(...) (src/lib/admin-auth.ts) in the admin layout
   // and every admin page. See "Admin route protection" in .claude/rules/admin-route-protection.md.
   if (user && isAdminPath(pathname)) {
-    // The role comes from the `app_role` claim that the custom access token
-    // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)
-    // puts in every token -- no user_profiles read. A missing claim counts as
+    // The roles come from the `app_roles` claim that the custom access token
+    // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql,
+    // 20271008000000_user_roles.sql) puts in every token -- no database read. A missing claim counts as
     // not-admin. The claim can be up to one access-token lifetime stale
-    // (auth.jwt_expiry), which is fine for a pre-filter: requireAdminPage()
-    // re-reads user_profiles. Sudo doesn't matter: the sudo cookie only
+    // (auth.jwt_expiry), which is fine for a pre-filter: requirePermission(...)
+    // re-reads user_roles. Sudo doesn't matter: the sudo cookie only
     // changes the *effective member*, not the signed-in user.
     // An admin previewing a lower role is checked as that role (src/lib/staff-preview.ts), but sent to its home
     // instead of /no-access, which has no way out of the preview.
-    const checkedAs = effectiveStaffRole(roleClaim, request.cookies.get(STAFF_PREVIEW_COOKIE)?.value)
-    const previewing = roleClaim === 'admin' && checkedAs !== 'admin'
+    const checkedAs = effectiveStaffRoles(rolesClaim, request.cookies.get(STAFF_PREVIEW_COOKIE)?.value)
+    const previewing = !!rolesClaim?.includes('admin') && checkedAs !== rolesClaim
     if (!mayOpenAdminPath(checkedAs, pathname)) {
       const url = request.nextUrl.clone()
-      url.pathname = previewing ? COMMUNITY_MANAGER_HOME : ADMIN_NO_ACCESS_PATH
+      url.pathname = previewing ? staffHome(checkedAs) : ADMIN_NO_ACCESS_PATH
       url.search = ''
       const redirectResponse = NextResponse.redirect(url)
       // Keep any session cookies getUser() just refreshed.

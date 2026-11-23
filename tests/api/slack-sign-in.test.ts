@@ -67,6 +67,7 @@ import { GET as buttonGET } from '@/app/auth/slack/route'
 import { POST as commandsPOST } from '@/app/api/webhooks/slack/commands/route'
 import { POST as eventsPOST } from '@/app/api/webhooks/slack/route'
 import { POST as interactionsPOST } from '@/app/api/webhooks/slack/interactions/route'
+import { giveRoles } from '../helpers/user-roles'
 
 const SECRET = 'test-slack-secret'
 const ORIGIN = 'http://localhost:3000'
@@ -135,7 +136,8 @@ describe('Slack sign-in', () => {
   async function createUser(email: string, role: 'member' | 'admin') {
     const { data, error } = await supabase.auth.admin.createUser({ email, email_confirm: true })
     if (error || !data.user) throw new Error(`createUser failed: ${error?.message}`)
-    await supabase.from('user_profiles').upsert({ id: data.user.id, email, role })
+    await supabase.from('user_profiles').upsert({ id: data.user.id, email })
+    await giveRoles(supabase, data.user.id, role)
     return data.user.id
   }
 
@@ -455,7 +457,7 @@ describe('Slack sign-in', () => {
 
     it('signs in an invited member who has never signed in before', async () => {
       await supabase.from('slack_identities').insert({ slack_user_id: slack.invited, user_id: invitedUserId, linked_via: 'email_match' })
-      await supabase.from('user_profiles').upsert({ id: invitedUserId, email: invitedEmail, role: 'member' })
+      await supabase.from('user_profiles').upsert({ id: invitedUserId, email: invitedEmail })
       const issued = await issueSlackSignIn(supabase, { slackUserId: slack.invited, origin: ORIGIN })
 
       await buttonGET(buttonRequest(tokenOf(issued.url), true))

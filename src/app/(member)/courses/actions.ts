@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { recordLessonCompleted } from "@/lib/courses/activity";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
@@ -52,7 +52,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
  * Members can't do this to themselves: their watch history is append-only.
  */
 async function clearMyLessonProgressImpl(lessonId: string): Promise<{ error?: string; segments?: number }> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("courses.manage");
   if (!auth.ok) return { error: auth.error };
   if (!isId(lessonId, "les")) return { error: "Lesson not found" };
   const caller = await getCoursesCaller();

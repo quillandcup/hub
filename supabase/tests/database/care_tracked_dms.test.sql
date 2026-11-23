@@ -13,11 +13,15 @@ INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000dd01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dm-manager@example.test'),
   ('00000000-0000-4000-a000-00000000dd02', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dm-plain@example.test'),
   ('00000000-0000-4000-a000-00000000dd03', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dm-admin@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000dd01', 'dm-manager@example.test', 'community_manager'),
-  ('00000000-0000-4000-a000-00000000dd02', 'dm-plain@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000dd03', 'dm-admin@example.test', 'admin')
-ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000dd01', 'dm-manager@example.test'),
+  ('00000000-0000-4000-a000-00000000dd02', 'dm-plain@example.test'),
+  ('00000000-0000-4000-a000-00000000dd03', 'dm-admin@example.test')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('00000000-0000-4000-a000-00000000dd01', 'community_manager'),
+  ('00000000-0000-4000-a000-00000000dd03', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_DmTrackAAAA1', 'Ada Example', 'dm-ada@example.test', now(), 'active', NULL),

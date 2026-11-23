@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminAction } from "@/lib/admin-auth";
+import { requireActionPermission } from "@/lib/admin-auth";
 import { MENTORSHIP_DAYS, parseMatchInput, type MentorshipStatus } from "@/lib/mentorship";
 import { getArrivals } from "@/lib/arrivals";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -32,7 +32,7 @@ export async function createMentorship(input: {
   mentorMemberId: string | null;
   newMemberId: string | null;
 }): Promise<ActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("mentorship.manage");
   if (!auth.ok) return { error: auth.error };
 
   const parsed = parseMatchInput(input);
@@ -75,7 +75,7 @@ export async function updateMentorship(
     status?: MentorshipStatus;
   }
 ): Promise<ActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("mentorship.manage");
   if (!auth.ok) return { error: auth.error };
 
   const update: MentorshipPatch = {};
@@ -98,7 +98,7 @@ export async function updateMentorship(
 }
 
 export async function deleteMentorship(id: string): Promise<ActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("mentorship.manage");
   if (!auth.ok) return { error: auth.error };
 
   try {
@@ -113,7 +113,7 @@ export async function deleteMentorship(id: string): Promise<ActionResult> {
 
 /** Adds a member to the volunteer pool for staff (a member can also do it themselves on /big-sisters). */
 export async function addVolunteer(memberId: string | null, note?: string | null): Promise<ActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("mentorship.manage");
   if (!auth.ok) return { error: auth.error };
   if (!memberId || !isId(memberId, "mbr")) return { error: "Choose a member." };
   const trimmed = note?.trim() || null;
@@ -131,7 +131,7 @@ export async function addVolunteer(memberId: string | null, note?: string | null
 
 /** Takes a member off the volunteer pool (kept as history; they can volunteer again). */
 export async function removeVolunteer(memberId: string): Promise<ActionResult> {
-  const auth = await requireAdminAction();
+  const auth = await requireActionPermission("mentorship.manage");
   if (!auth.ok) return { error: auth.error };
 
   try {

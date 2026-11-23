@@ -1,6 +1,6 @@
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { Tabs } from "@/components/Tabs";
-import { SITE_URL } from "@/lib/config";
+import { PUBLIC_PAGES_URL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
 import { siteVersionSummaries } from "@/lib/landing/site-versions";
 import { createClient } from "@/lib/supabase/server";
@@ -19,12 +19,13 @@ export const PAGES_TAB_LABELS: Record<PagesTab, string> = { website: "Website", 
 export const PAGES_SECTION = "Pages";
 
 export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
-  await requireAdminPage();
+  await requirePermission("pages.read");
   const repos = createRepos(await createClient());
-  const [website, landing, templates, site, siteVersions] = await Promise.all([
+  const [website, landing, templates, usable, site, siteVersions] = await Promise.all([
     repos.landingPages.list("page", "website"),
     repos.landingPages.list("page", "landing"),
     repos.landingPages.list("template"),
+    repos.landingPages.usableTemplates(),
     repos.landingSiteTemplate.state(),
     siteVersionSummaries(repos),
   ]);
@@ -33,7 +34,7 @@ export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
     <div className="container mx-auto max-w-6xl px-6 py-8">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">Pages</h1>
-        <NewPageButton defaultType={tab === "landing" ? "landing" : "website"} />
+        <NewPageButton defaultType={tab === "landing" ? "landing" : "website"} templates={usable.map((t) => ({ id: t.id, name: t.title, pageType: t.pageType }))} />
       </div>
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
         Website pages are the connected pages of the site (home, ...). Landing pages stand alone, for one purpose such as a sign-up or a campaign. Edits save to a draft as you go; nothing is public until you publish. Templates are pages you keep to start other pages from: they are never public.
@@ -44,9 +45,9 @@ export default async function PagesAdminPage({ tab }: { tab: PagesTab }) {
         basePath="/admin/pages"
         pageTitle={{ section: PAGES_SECTION }}
         tabs={[
-          { id: "website", label: `${PAGES_TAB_LABELS.website} (${website.length})`, title: PAGES_TAB_LABELS.website, content: <PagesTable pages={website} publicBase={SITE_URL} pageType="website" /> },
-          { id: "landing", label: `${PAGES_TAB_LABELS.landing} (${landing.length})`, title: PAGES_TAB_LABELS.landing, content: <PagesTable pages={landing} publicBase={SITE_URL} pageType="landing" /> },
-          { id: "templates", label: `${PAGES_TAB_LABELS.templates} (${templates.length})`, title: PAGES_TAB_LABELS.templates, content: <PagesTable pages={templates} publicBase={SITE_URL} kind="template" /> },
+          { id: "website", label: `${PAGES_TAB_LABELS.website} (${website.length})`, title: PAGES_TAB_LABELS.website, content: <PagesTable pages={website} publicBase={PUBLIC_PAGES_URL} pageType="website" /> },
+          { id: "landing", label: `${PAGES_TAB_LABELS.landing} (${landing.length})`, title: PAGES_TAB_LABELS.landing, content: <PagesTable pages={landing} publicBase={PUBLIC_PAGES_URL} pageType="landing" /> },
+          { id: "templates", label: `${PAGES_TAB_LABELS.templates} (${templates.length})`, title: PAGES_TAB_LABELS.templates, content: <PagesTable pages={templates} publicBase={PUBLIC_PAGES_URL} kind="template" /> },
           {
             id: "design",
             label: PAGES_TAB_LABELS.design,

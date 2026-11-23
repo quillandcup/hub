@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { loadAdminCourse, loadAdminCourseTitle, loadHubCourse, loadHubOutline } from "@/lib/courses/admin";
 import { ACCESS_OPTIONS, accessLabel } from "@/lib/courses/access-options";
 import { formatCourseDate, formatCourseDateTime } from "@/lib/courses/format";
+import { loadDeletePreview } from "@/lib/courses/delete";
 import { loadDuplicatePreview } from "@/lib/courses/duplicate";
 import { loadTakeOverPreview } from "@/lib/courses/take-over";
 import { resolveCourseParam } from "@/lib/courses/course-param";
@@ -44,7 +45,7 @@ export async function courseTabMetadata(idParam: string, tab: CourseTab): Promis
  * Hub owns (edited here) alike. The tabs are paths: Outline at the base, the rest beside it.
  */
 export default async function CourseAdminPage({ idParam, tab }: { idParam: string; tab: CourseTab }) {
-  await requireAdminPage();
+  await requirePermission("courses.manage");
   const supabase = await createClient();
   const repos = createRepos(supabase);
   // The id or the course's slug (a member's /courses/<slug> address with /admin in front).
@@ -60,6 +61,8 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
   const hub = course.hub;
   // Only a course that is in the Hub has anything to take over or copy.
   const [takeOver, duplicate] = hub ? await Promise.all([loadTakeOverPreview(repos, id), loadDuplicatePreview(repos, id)]) : [null, null];
+  // Delete is listed for every course and says why it is off (an imported one comes back with the next import).
+  const deletion = await loadDeletePreview(repos, id);
   const launchOn = hub?.launchAt ? localDateOf(hub.launchAt, ORG_TIMEZONE) : "";
 
   const panels: TabPanel<CourseTab>[] = [
@@ -155,6 +158,7 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
           }
           duplicate={duplicate}
           takeOver={takeOver}
+          deletion={deletion}
         />
         <Tabs key={tab} tabs={panels.filter((p) => courseTabIds("kajabi").includes(p.id))} initialTab={tab} basePath={basePath} pageTitle={{ record: course.title, section: "Courses" }} className="mt-6" />
       </div>
@@ -165,7 +169,7 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
 /** The admin page of a course the Hub owns: the same header and tabs, with the outline and details editable. */
 async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; tab: CourseTab }) {
   const repos = createRepos(await createClient());
-  const [course, programs, outline, duplicate] = await Promise.all([loadHubCourse(repos, id), repos.programs.names(), loadHubOutline(repos, id), loadDuplicatePreview(repos, id)]);
+  const [course, programs, outline, duplicate, deletion] = await Promise.all([loadHubCourse(repos, id), repos.programs.names(), loadHubOutline(repos, id), loadDuplicatePreview(repos, id), loadDeletePreview(repos, id)]);
   if (!course || !courseTabIds("hub").includes(tab)) notFound();
 
   const accessIndex = ACCESS_OPTIONS.findIndex((o) => accessLabel(o.value) === accessLabel(course.accessDuration));
@@ -224,6 +228,7 @@ async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; 
         }
         duplicate={duplicate}
         takeOver={null}
+        deletion={deletion}
       />
       <Tabs key={tab} tabs={panels} initialTab={tab} basePath={basePath} pageTitle={{ record: course.title, section: "Courses" }} className="mt-6" />
     </div>
@@ -240,6 +245,7 @@ function CourseHeader({
   summary,
   duplicate,
   takeOver,
+  deletion,
 }: {
   title: string;
   courseId: string;
@@ -250,6 +256,7 @@ function CourseHeader({
   summary: React.ReactNode;
   duplicate: React.ComponentProps<typeof CourseActions>["duplicate"];
   takeOver: React.ComponentProps<typeof CourseActions>["takeOver"];
+  deletion: React.ComponentProps<typeof CourseActions>["deletion"];
 }) {
   return (
     <header>
@@ -273,7 +280,7 @@ function CourseHeader({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <CourseActions courseId={courseId} title={title} duplicate={duplicate} takeOver={takeOver} />
+          <CourseActions courseId={courseId} title={title} duplicate={duplicate} takeOver={takeOver} deletion={deletion} />
           {inHub && <CoursePublishControl courseId={courseId} isDraft={isDraft} compact />}
         </div>
       </div>

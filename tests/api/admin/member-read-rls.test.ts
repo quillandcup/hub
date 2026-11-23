@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
+import { giveRoles } from '../../helpers/user-roles'
 
 /**
  * Read-side RLS from 20260926000700_restrict_member_readable_data.sql, exercised over
@@ -45,7 +46,7 @@ describe('member-readable data (RLS)', () => {
     const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true })
     if (error || !data.user) throw new Error(`Failed to create test user: ${error?.message}`)
     authUserIds.push(data.user.id)
-    await service.from('user_profiles').update({ role }).eq('id', data.user.id)
+    await giveRoles(service, data.user.id, role)
     const client = getTestSupabaseClient()
     const { error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError) throw new Error(`Failed to sign in: ${signInError.message}`)

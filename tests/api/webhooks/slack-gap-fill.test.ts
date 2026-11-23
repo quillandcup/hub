@@ -8,7 +8,7 @@ import { POST } from '@/app/api/webhooks/slack/route'
  * The webhook fills gaps in the chat from Slack: an event that refers to a message the chat doesn't
  * have (a reaction or edit on it) fetches that message, a reply whose thread root is missing fetches
  * the thread, and nothing is fetched for a message the chat has, or for a delete (there is nothing to
- * fetch). The fetching itself is in src/lib/chat/gap-fill (unit tests); this is the webhook's wiring.
+ * fetch). The fetching itself is in src/modules/chat/slack/gap-fill (unit tests); this is the webhook's wiring.
  */
 // The webhook does its work after the response; collect it so a test can wait for it.
 const { afterWork } = vi.hoisted(() => ({ afterWork: [] as Promise<unknown>[] }))
@@ -28,7 +28,7 @@ const { fillMessageGap, fillThreadIfRootMissing } = vi.hoisted(() => ({
   fillMessageGap: vi.fn(),
   fillThreadIfRootMissing: vi.fn(),
 }))
-vi.mock('@/lib/chat/gap-fill', () => ({ fillMessageGap, fillThreadIfRootMissing }))
+vi.mock('@/modules/chat/slack/gap-fill', () => ({ fillMessageGap, fillThreadIfRootMissing }))
 
 // Chat notifications are tested in tests/lib/chat-notifications.test.ts; here only that the webhook asks for them.
 const { notifyChatMessageBySlackTs } = vi.hoisted(() => ({ notifyChatMessageBySlackTs: vi.fn() }))

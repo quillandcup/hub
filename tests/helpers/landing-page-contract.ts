@@ -213,24 +213,35 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().replaceImportedDraft(`lpg_${"A".repeat(12)}`, doc("x"), null)).toBeNull();
     });
 
-    it("replaces only the draft for a starter, keeping the old draft as a before-starter version, and stamps starter_applied_at", async () => {
+    it("moves a page to a new import key when a replace gives one, and keeps its key when it doesn't", async () => {
+      const oldKey = ctx.unique("kajabi:old");
+      const newKey = ctx.unique("kajabi2:new");
+      const page = await ctx.repo().create({ title: "Title", slug: ctx.unique("rekey"), data: doc("first"), createdBy: null, importKey: oldKey });
+
+      expect((await ctx.repo().replaceImportedDraft(page.id, doc("second"), null))?.import_key).toBe(oldKey);
+      expect((await ctx.repo().replaceImportedDraft(page.id, doc("third"), null, newKey))?.import_key).toBe(newKey);
+      expect(await ctx.repo().byImportKey(oldKey)).toBeNull();
+      expect((await ctx.repo().byImportKey(newKey))?.id).toBe(page.id);
+    });
+
+    it("replaces only the draft for a template or import, keeping the old draft as a before-replace version, and stamps replaced_at", async () => {
       const slug = ctx.unique("st");
       const page = await ctx.repo().create({ title: "Title", slug, data: doc("first"), createdBy: null });
       await ctx.repo().publish(page.id);
       await ctx.repo().saveDraft(page.id, doc("edited"), null);
 
-      const kept = await ctx.repo().keepDraftBeforeStarter(page.id, null);
-      const replaced = await ctx.repo().replaceDraftWithStarter(page.id, doc("starter"), null);
+      const kept = await ctx.repo().keepDraftBeforeReplace(page.id, null);
+      const replaced = await ctx.repo().replaceDraft(page.id, doc("replacement"), null);
 
-      expect(kept).toMatchObject({ page_id: page.id, kind: "before_starter", title: "Title" });
+      expect(kept).toMatchObject({ page_id: page.id, kind: "before_replace", title: "Title" });
       expect(replaced).toMatchObject({ id: page.id, title: "Title", slug, status: "published" });
-      expect(replaced?.starter_applied_at).toEqual(expect.any(String));
-      expect(replaced?.draft_data).toEqual(doc("starter"));
+      expect(replaced?.replaced_at).toEqual(expect.any(String));
+      expect(replaced?.draft_data).toEqual(doc("replacement"));
       expect(replaced?.published_data).toEqual(doc("first"));
-      expect((await ctx.repo().versions(page.id)).map((v) => v.kind).sort()).toEqual(["before_starter", "published"]);
+      expect((await ctx.repo().versions(page.id)).map((v) => v.kind).sort()).toEqual(["before_replace", "published"]);
       const missing = `lpg_${"A".repeat(12)}`;
-      expect(await ctx.repo().keepDraftBeforeStarter(missing, null)).toBeNull();
-      expect(await ctx.repo().replaceDraftWithStarter(missing, doc("x"), null)).toBeNull();
+      expect(await ctx.repo().keepDraftBeforeReplace(missing, null)).toBeNull();
+      expect(await ctx.repo().replaceDraft(missing, doc("x"), null)).toBeNull();
     });
 
     it("has no import key for a page built in the Hub", async () => {
@@ -280,20 +291,20 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().byId(kit.id)).toBeNull();
     });
 
-    it("keeps a note on a version: at publish, and on the draft kept before an import or a starter, trimmed and cut to 200 characters", async () => {
+    it("keeps a note on a version: at publish, and on the draft kept before an import or a replacement, trimmed and cut to 200 characters", async () => {
       const page = await ctx.repo().create({ title: "Notes", slug: ctx.unique("notes"), data: doc("one"), createdBy: null });
       await ctx.repo().publish(page.id, "  First publish  ");
       await ctx.repo().publish(page.id, "x".repeat(300));
       await ctx.repo().publish(page.id, "   ");
       await ctx.repo().publish(page.id);
-      const kept = await ctx.repo().keepDraftBeforeStarter(page.id, null, "Replaced by the starter “Homepage”");
+      const kept = await ctx.repo().keepDraftBeforeReplace(page.id, null, "Replaced by the template “Homepage”");
       const keptImport = await ctx.repo().keepDraftBeforeImport(page.id, null, "Replaced by a Kajabi import");
-      expect(kept?.note).toBe("Replaced by the starter “Homepage”");
+      expect(kept?.note).toBe("Replaced by the template “Homepage”");
       expect(keptImport?.note).toBe("Replaced by a Kajabi import");
-      expect((await ctx.repo().keepDraftBeforeStarter(page.id, null))?.note).toBeNull();
+      expect((await ctx.repo().keepDraftBeforeReplace(page.id, null))?.note).toBeNull();
 
       const notes = (await ctx.repo().versions(page.id)).map((v) => v.note);
-      expect(notes).toEqual([null, "Replaced by a Kajabi import", "Replaced by the starter “Homepage”", null, null, "x".repeat(200), "First publish"]);
+      expect(notes).toEqual([null, "Replaced by a Kajabi import", "Replaced by the template “Homepage”", null, null, "x".repeat(200), "First publish"]);
     });
 
     it("answers null for a page that is gone", async () => {

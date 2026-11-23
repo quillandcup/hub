@@ -17,9 +17,9 @@ SELECT plan(24);
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e101', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'remove-ada@example.test'),
   ('00000000-0000-4000-a000-00000000e102', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'remove-bea@example.test');
-INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-4000-a000-00000000e101', 'remove-ada@example.test', 'member'),
-  ('00000000-0000-4000-a000-00000000e102', 'remove-bea@example.test', 'member')
+INSERT INTO public.user_profiles (id, email) VALUES
+  ('00000000-0000-4000-a000-00000000e101', 'remove-ada@example.test'),
+  ('00000000-0000-4000-a000-00000000e102', 'remove-bea@example.test')
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.members (id, name, display_name, email, bio, joined_at, status, user_id) VALUES
   ('mbr_RMVAAAAAAAA1', 'Ada Example', 'Ada E', 'remove-ada@example.test', 'I write poems', now(), 'active', '00000000-0000-4000-a000-00000000e101'),

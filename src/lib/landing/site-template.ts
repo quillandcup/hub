@@ -35,6 +35,9 @@ export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number]["value"];
 
 export type SiteLink = { label: string; href: string };
 export type SiteSocialLink = { network: SocialNetwork; href: string };
+/** How the social marks are drawn (the Social icons block's `look`): each network's own colour on a light badge (the default, and what a template stored before the choice means), or its black or white version with no badge. */
+export const SITE_SOCIAL_LOOKS = ["colour", "dark", "light"] as const;
+export type SiteSocialLook = (typeof SITE_SOCIAL_LOOKS)[number];
 
 /** What each header-only block may be shown on: both sizes, only a wide header (`desktop`), or only a narrow one (`mobile`). */
 export const ITEM_SHOWS = ["both", "desktop", "mobile"] as const;
@@ -47,7 +50,7 @@ export type HeaderItem =
   | { id: string; type: "logo"; show: ItemShow; logoAssetId: string; alt: string; href: string }
   | { id: string; type: "menu"; show: ItemShow; links: SiteLink[] }
   | { id: string; type: "cta"; show: ItemShow; label: string; href: string; look: "inherit" | "solid" | "outline" }
-  | { id: string; type: "social"; show: ItemShow; links: SiteSocialLink[] }
+  | { id: string; type: "social"; show: ItemShow; links: SiteSocialLink[]; look: SiteSocialLook }
   | { id: string; type: "signin"; show: ItemShow; label: string; look: "link" | "inherit" | "solid" | "outline" };
 export type HeaderItemType = HeaderItem["type"];
 export const HEADER_ITEM_TYPES: { value: HeaderItemType; label: string; hint: string }[] = [
@@ -59,14 +62,14 @@ export const HEADER_ITEM_TYPES: { value: HeaderItemType; label: string; hint: st
 ];
 
 export type SiteHeader = { show: boolean; align: HeaderAlignment; mobileMenu: MobileMenu; items: HeaderItem[] };
-export type SiteFooter = { show: boolean; text: string; links: SiteLink[]; social: SiteSocialLink[] };
+export type SiteFooter = { show: boolean; text: string; links: SiteLink[]; social: SiteSocialLink[]; socialLook: SiteSocialLook };
 /** The favicon every website page shows (a landing page may have its own). `assetId` is a media library picture; empty means the app's own icon. */
 export type SiteFavicon = { assetId: string };
 export type SiteTemplate = { header: SiteHeader; footer: SiteFooter; style: StyleTokens; favicon: SiteFavicon };
 
 export const EMPTY_SITE_TEMPLATE: SiteTemplate = {
   header: { show: false, align: "spread", mobileMenu: "fold", items: [] },
-  footer: { show: false, text: "", links: [], social: [] },
+  footer: { show: false, text: "", links: [], social: [], socialLook: "colour" },
   style: STYLE_DEFAULTS,
   favicon: { assetId: "" },
 };
@@ -101,7 +104,7 @@ function item(raw: unknown, index: number): HeaderItem | null {
     case "cta":
       return { id, type: "cta", show, label: text(o.label, 60), href: safeHref(o.href), look: oneOf(["inherit", "solid", "outline"] as const, o.look, "inherit") };
     case "social":
-      return { id, type: "social", show, links: social(o.links) };
+      return { id, type: "social", show, links: social(o.links), look: oneOf(SITE_SOCIAL_LOOKS, o.look, "colour") };
     case "signin":
       return { id, type: "signin", show, label: text(o.label, 60), look: oneOf(["link", "inherit", "solid", "outline"] as const, o.look, "link") };
     default:
@@ -120,7 +123,7 @@ export function normalizeSiteTemplate(value: unknown): SiteTemplate {
     .slice(0, SITE_ITEMS_MAX);
   return {
     header: { show: h.show === true, align: oneOf(HEADER_ALIGNMENTS, h.align, "spread"), mobileMenu: oneOf(MOBILE_MENUS, h.mobileMenu, "fold"), items },
-    footer: { show: f.show === true, text: text(f.text, 300), links: links(f.links), social: social(f.social) },
+    footer: { show: f.show === true, text: text(f.text, 300), links: links(f.links), social: social(f.social), socialLook: oneOf(SITE_SOCIAL_LOOKS, f.socialLook, "colour") },
     style: normalizeStyle(v.style),
     favicon: { assetId: text(obj(v.favicon).assetId, 80) },
   };
@@ -143,7 +146,7 @@ export function newHeaderItem(type: HeaderItemType): HeaderItem {
     case "cta":
       return { id, type, show: "both", label: "Join us", href: "", look: "inherit" };
     case "social":
-      return { id, type, show: "both", links: [{ network: "instagram", href: "" }] };
+      return { id, type, show: "both", links: [{ network: "instagram", href: "" }], look: "colour" };
     case "signin":
       return { id, type, show: "both", label: "Sign in", look: "link" };
   }

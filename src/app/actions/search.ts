@@ -7,7 +7,7 @@ import { parseUniversal, wantsChat } from "@/lib/search/syntax";
 import { universalSearch, type KindResults } from "@/lib/search/universal";
 import { MAX_QUERY_LENGTH } from "@/lib/chat/search";
 import { loadUnreadCounts } from "@/lib/chat/load";
-import { pullReadFromSlack } from "@/lib/chat/slack-read";
+import { chatTransport } from "@/lib/chat/transports";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { notificationKindLabel } from "@/lib/notifications/inbox";
 import { getCheckinPrickles } from "@/lib/upcoming-prickles";
@@ -102,7 +102,7 @@ const SLACK_READ_PULL_WAIT_MS = 2500;
  * pull only means the counts come from the Hub's own markers this time.
  */
 async function syncedUnreadCounts(supabase: Searcher["ctx"]["supabase"], memberId: string): Promise<Record<string, number>> {
-  const pull = pullReadFromSlack(createServiceRoleClient(), memberId).catch(() => false);
+  const pull = chatTransport().pullRead(createServiceRoleClient(), memberId).catch(() => false);
   await Promise.race([pull, clock.sleep(SLACK_READ_PULL_WAIT_MS)]);
   return loadUnreadCounts(supabase).catch(() => ({} as Record<string, number>));
 }

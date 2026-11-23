@@ -64,6 +64,40 @@ describe("renderPreset", () => {
   });
 });
 
+describe("renderPreset with a largest-box preset", () => {
+  const logo = (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 4, background: { r: 20, g: 40, b: 200, alpha: 0 } } }).png().toBuffer();
+
+  it("scales a wide logo down to its own shape: no crop, no padding", async () => {
+    const { body, contentType } = await renderPreset(await logo(1000, 221), "logo", { fit: "crop", focal: null });
+    expect(await size(body)).toEqual([480, 106, "webp"]);
+    expect(contentType).toBe("image/webp");
+    const page = await renderPreset(await logo(3200, 800), "page_image", { fit: "crop", focal: null });
+    expect(await size(page.body)).toEqual([1600, 400, "webp"]);
+    const tall = await renderPreset(await logo(500, 2000), "page_image", { fit: "crop", focal: null });
+    expect(await size(tall.body)).toEqual([400, 1600, "webp"]);
+  });
+
+  it("never enlarges a small source", async () => {
+    const { body } = await renderPreset(await logo(200, 50), "page_image", { fit: "crop", focal: null });
+    expect(await size(body)).toEqual([200, 50, "webp"]);
+  });
+
+  it("keeps transparency", async () => {
+    const { body } = await renderPreset(await logo(1000, 221), "logo", { fit: "crop", focal: null });
+    expect((await sharp(body).metadata()).hasAlpha).toBe(true);
+    const { data, info } = await sharp(body).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(info.channels).toBe(4);
+    expect(data[3]).toBe(0);
+  });
+
+  it("is not changed by the asset's focal point or fit", async () => {
+    expect(settingsFor(asset({ focal_x: 0.1, focal_y: 0.9, fits: { logo: "white" } }), "logo")).toEqual({ fit: "crop", focal: null });
+    expect(renditionPath(asset({ focal_x: 0.1, focal_y: 0.9 }), "logo")).toBe(renditionPath(asset(), "logo"));
+    expect(renditionPath(asset(), "logo")).toMatch(/\/logo-[0-9a-f]{12}\.webp$/);
+  });
+});
+
 describe("renderImage", () => {
   it("makes any size in any of the three formats", async () => {
     const wide = await solidImage(400, 200);
