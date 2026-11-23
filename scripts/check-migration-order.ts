@@ -13,8 +13,8 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
-const MIGRATIONS_DIR = "supabase/migrations";
-const NAME_PATTERN = /^(\d{14})_[a-z0-9_]+\.sql$/;
+export const MIGRATIONS_DIR = "supabase/migrations";
+export const NAME_PATTERN = /^(\d{14})_[a-z0-9_]+\.sql$/;
 
 export function findMigrationProblems(baseFiles: string[], localFiles: string[]): string[] {
   const problems: string[] = [];
@@ -88,7 +88,7 @@ export function findOpenPrProblems(added: string[], myPr: number, openPrs: OpenP
 }
 
 /** Migration files added by other open PRs, via `gh`; empty when gh is unavailable. */
-function listOpenPrs(): OpenPr[] {
+export function listOpenPrs(): OpenPr[] {
   try {
     const out = execFileSync("gh", ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,files"], {
       encoding: "utf8",

@@ -25,6 +25,13 @@ the newer run contains its commit, so a cancelled run is not a failure but is no
 either. Pull requests get `Coverage report` as well, and Vercel's git integration still
 builds a **Preview** for each branch.
 
+### Migration numbers that collide while a PR waits
+
+A PR's `Check migrations` passes against the `main` it had when it ran, and the PR then waits in CI while another migration merges. Keeping that optimistic (no merge queue, no "require branches up to date") has two cheap parts:
+
+- **Re-check at merge time.** `.github/workflows/migration-recheck.yml` runs on a push to `main` that touches `supabase/migrations/**` only. It lists open PRs whose added migration is now at or below `main`'s latest (`scripts/recheck-migration-prs.ts`) and re-runs just their `Check migrations` job, which fetches the current `main` by name, so it fails and auto-merge waits. A PR still running CI is cancelled first (it has to be renumbered and pushed anyway). It is not on the deploy path and not a required check; its token has `actions: write`, `pull-requests: read`, `contents: read` and it only checks out `main`.
+- **Cheap recovery.** `pnpm migrations:renumber` (`scripts/renumber-migrations.ts`) renames the branch's stale migrations after `main`'s latest and updates every reference; then `pnpm check:migrations`.
+
 ### Seeing what is in production
 
 Three records, all written by the `deploy` job:
