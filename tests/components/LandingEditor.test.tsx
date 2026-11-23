@@ -308,15 +308,16 @@ describe("the header", () => {
 
   it("offers to publish at once when the page opens with a draft that already differs", () => {
     editor({ status: "published", publishedJson: JSON.stringify({ ...data, content: [] }) });
-    expect(screen.getByText("Changes not published yet")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish changes" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reset to published" })).toBeInTheDocument();
   });
 
-  it("notes changes that aren't published yet", () => {
+  it("shows unpublished changes through the Publish and Reset buttons, with no note of its own", () => {
     editor({ status: "published", publishedJson: JSON.stringify(data) });
-    expect(screen.queryByText("Changes not published yet")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
     edit("Different");
-    expect(screen.getByText("Changes not published yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset to published" })).toBeInTheDocument();
+    expect(screen.queryByText("Changes not published yet")).toBeNull();
   });
 });
 

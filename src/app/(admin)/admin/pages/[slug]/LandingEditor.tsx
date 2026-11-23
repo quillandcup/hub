@@ -184,7 +184,6 @@ function EditorHeader({
         </Tooltip>
       </div>
       <LifecycleStatusChip published={published} />
-      {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}
       {resetError && (
         <span role="alert" className="text-xs text-red-700 dark:text-red-400">
           {resetError}
