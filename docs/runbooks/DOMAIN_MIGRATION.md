@@ -1,6 +1,6 @@
 # Moving quillandcup.com from Kajabi to the Hub
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
+> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
 
 A checklist to follow by hand. Target: **Dec 3 to 5, 2026** (the retreat is Dec 12, so there is a week of buffer). Where this says "verify in your dashboard", nobody has checked that screen while writing this page, so trust what the screen says over this page.
 
@@ -19,7 +19,9 @@ The code is two pull requests (see "Code" below). They are drafts on purpose, so
 
 ## Why DNS has to move first
 
-The name servers for `quillandcup.com` are **Kajabi's** (`jermaine.ns.cloudflare.com` and `joyce.ns.cloudflare.com`, seen in the Squarespace "custom nameservers" notice). The records you see in Squarespace's DNS page are not active; the live ones are on Kajabi's "DNS Settings" page, which only offers "Custom Record". Kajabi will most likely not let you point the root at Vercel from there, so DNS moves to **Squarespace's own name servers** first, as a change nobody can see, days before the cutover. Only then do the cutover steps become a few record edits in a place you control.
+The name servers for `quillandcup.com` are **Kajabi's** (`jermaine.ns.cloudflare.com` and `joyce.ns.cloudflare.com`, seen in the Squarespace "custom nameservers" notice). The records you see in Squarespace's DNS page are not active; the live ones are on Kajabi's "DNS Settings" page, which only offers "Custom Record". Kajabi's help article ("Connect a custom domain") confirms it: a root domain can only be connected to Kajabi through Kajabi's name servers, Kajabi redirects the bare root to `www`, and a **subdomain** (like `courses`) can be connected with a plain CNAME record at any DNS host. So DNS moves to **Squarespace's own name servers** first, days before the cutover, with the same records, so that nothing changes for visitors. Only then do the cutover steps become a few record edits in a place you control.
+
+What the Kajabi article does **not** say, and you should verify early (Part 3 does): whether Kajabi keeps serving `www.quillandcup.com` once its name servers are no longer in use. Moving the name servers early gives you time to find out. The same article warns: "Each Kajabi site can have only one custom domain connected at a time", so switching Kajabi to `courses` means removing `www` first (Part 5).
 
 ---
 
@@ -27,7 +29,7 @@ The name servers for `quillandcup.com` are **Kajabi's** (`jermaine.ns.cloudflare
 
 ### 1.1 Save the "before" picture
 Do all of these; they are your rollback.
-1. Kajabi → Settings → Domain Settings → DNS Settings (`app.kajabi.com/admin/sites/<id>/custom_domain/dns_settings`). Take full-page screenshots, scrolling to the **bottom**: A Record, CNAME Record, **TXT Record, MX Record** and anything else. The earlier screenshot stopped partway.
+1. Kajabi → Settings → Domain Settings → DNS Settings (`app.kajabi.com/admin/sites/<id>/custom_domain/dns_settings`). Print or save the whole page as a PDF (done once on 2026-11-22; the records are in the table below). Do it again right before Part 3 in case something changed.
 2. Kajabi → Domain Settings (the page above DNS Settings): screenshot what it says about the custom domain and what records Kajabi asks for.
 3. Squarespace → Domains → quillandcup.com → DNS Settings: screenshot, including Email Forwarding → Manage rules (the list of forwarding addresses, and where each goes).
 4. In a terminal, save today's public answers (copy the output into a note outside the repo):
@@ -40,31 +42,35 @@ Do all of these; they are your rollback.
    dig _dmarc.quillandcup.com TXT
    dig quillandcup.com NS
    ```
-5. Known records as of 2026-11-21 (these must all exist, with the same values, in the new place):
+5. The records in **Kajabi's DNS Settings as of 2026-11-22** (the whole page; every one must exist, with the same value, in Squarespace before the name servers move). Copy long values (keys, DKIM targets) from Kajabi's page or the saved PDF, never retype them. Names below are relative to `quillandcup.com`.
 
 | Name | Type | Value | What it is for |
 |---|---|---|---|
-| `@` | A | `104.21.7.87`, `172.67.135.234` | Kajabi's site (root). **Changes at cutover.** |
-| `@` | AAAA | `2606:4700:3032::ac43:87ea`, `2606:4700:3032::6815:757` | Kajabi's site (root). **Changes at cutover.** |
-| `www` | A / AAAA | the same Kajabi addresses | Kajabi's site. **Changes at cutover.** |
+| `@` (the bare root) | CNAME | `endpoint.mykajabi.com` | Kajabi's site. Kajabi's DNS flattens it, which is why `dig` shows Cloudflare addresses. Squarespace cannot hold a CNAME on the bare root; see Part 3. **Changes at cutover.** |
+| `www` | CNAME | `endpoint.mykajabi.com` | Kajabi's site today. **Changes at cutover.** |
 | `@` | MX | `10 mxa.mailgun.org`, `10 mxb.mailgun.org` | Squarespace email forwarding (mail to `@quillandcup.com`). **Never change.** |
 | `@` | TXT | `v=spf1 include:mailgun.org ~all` | SPF for the above. **Never change.** |
 | `@` | TXT (2 records) | `stripe-verification=…` | Stripe domain verification. Copy exactly. |
 | `_dmarc` | TXT | `v=DMARC1; p=none; rua=mailto:dmarc_kjb@kajabi.com,mailto:dmarc_agg@vali.email; fo=1; pct=100; rf=afrf;` | Reports only (`p=none`), nothing is blocked. |
-| `k1._domainkey` | TXT | (long key; copy from the Kajabi page) | DKIM, Kajabi's mail. |
+| `k1._domainkey` | TXT | `k=rsa; p=…` (long key; copy from Kajabi) | DKIM, Kajabi's mail. |
 | `k2._domainkey`, `k3._domainkey` | CNAME | `dkim2.mcsv.net`, `dkim3.mcsv.net` | DKIM, Mailchimp (Ania's newsletter). |
-| `email.kjbm` | CNAME | `mailgun.org` | Kajabi's sending subdomain. |
+| `kjbm` | MX | `10 mxa.mailgun.org`, `20 mxb.mailgun.org` | Kajabi's sending subdomain. |
+| `kjbm` | TXT | `v=spf1 include:mailgun.org ~all` | SPF for it. |
+| `_dmarc.kjbm` | TXT | `v=DMARC1; p=none; …` (the Mailgun/ondmarc one; copy from Kajabi) | DMARC reports for it. |
+| `smtp._domainkey.kjbm` | TXT | `k=rsa; p=…` (copy from Kajabi) | DKIM for Kajabi's mail. |
+| `email.kjbm` | CNAME | `mailgun.org` | Kajabi's sending. |
 | `bounce` | CNAME | `custom-email-domain.stripe.com` | Stripe sends email as quillandcup.com. |
-| `cv5ejcs6du7ah6wj25qo3q5iufv3mlyk._domainkey` | CNAME | `cv5ejcs6du7ah6wj25qo3q5iufv3mlyk.dkim.custom-email-domain.stripe.com` | Stripe's DKIM. |
-| `hub` | CNAME | the `….vercel-dns-017.com` value shown today | The Hub. |
-| `bounce.hub` | CNAME | `send.forge.rmta.net` | Looks like the Hub's Resend sending (verify in Resend). |
-| `resend._domainkey.hub` | TXT | (long key; copy from the Kajabi page) | DKIM for the Hub's email through Resend. |
+| Six Stripe DKIM names: `cv5ejcs6du7ah6wj25qo3q5iufv3mlyk._domainkey`, `fp5ycxdzqdq56iqa7sibp3rb3jyriboy._domainkey`, `hv646m4ogwuosoyoszuhfbesuxy6oi26._domainkey`, `ji63dnlxilnqouh67h3kiq4aidgwvwyy._domainkey`, `jiqqxxufiv7s6sbgm5uhaumoifl63hvy._domainkey`, `tsgai3nwxez4ete37d573sqaq5s6zgtg._domainkey` | CNAME | each to `<same first part>.dkim.custom-email-domain.stripe.com` | Stripe's DKIM (the names above came from reading the PDF; check each against Kajabi's page). |
+| `hub` | CNAME | `7abcdafdd394d748.vercel-dns-017.com` | The Hub. |
+| `bounce.hub` | CNAME | `send.forge.rmta.net` | The Hub's Resend sending (verify in Resend). |
+| `rbounce.hub` | CNAME | `rsend.forge.rmta.net` | The same. |
+| `resend._domainkey.hub` | TXT | `p=…` (long key; copy from Kajabi) | DKIM for the Hub's email through Resend. |
 
-6. **The list above is only what I could see.** Anything else on Kajabi's page (especially in the part not yet screenshotted) must be added to this table before you go on. Also check Resend (Domains) and Mailchimp (Domains) for any record they list that is not in the table.
+6. Check this table against Kajabi's page line by line (the page's A Record and SRV Record sections are empty). Also check Resend (Domains) and Mailchimp (Domains) for any record they list that is not in the table.
 
 ### 1.2 Decide and prepare
 - Pick a **quiet time** for the cutover: early morning Eastern, mid-week (Dec 3 or 4), not a billing day. Check Kajabi → Sales for when subscriptions renew in bulk.
-- Pull the **top 20 to 30 URLs** people actually use: Kajabi → Analytics (top pages), Google Search Console → Performance → Pages, and your Instagram bio, welcome emails and automation emails. Put them in `scripts/data/redirect-check-urls.txt` (see "Verifying", below) with the outcome `kajabi`.
+- The **top pages** come from Google Analytics (Kajabi's own numbers are inflated), 30 days to 2026-11-22: `/login`, `/library`, `/` , `/products/quill-cup-membership`, `/products/the-ready-writer`, `/waitlist`, `/hedgie-books`, `/blog`, `/products/the-ready-writer/categories/<id>`, `/about`, plus `/free-trial` (the Join link). They are in `scripts/data/redirect-check-urls.txt` with the expected outcome (`kajabi`, except `/` and `/login`). Add anything from Google Search Console → Performance → Pages, your Instagram bio, and the links in your welcome and automation emails. Only about 1,300 page views a month are tracked, so a handful of real visitors is a big share: check each of these by hand too (Part 7).
 - Draft the **member heads-up** (below). Send it 2 days before.
 - Check whether your Vercel account can add the root domain (you must be an owner or member of the project's team).
 
@@ -93,13 +99,17 @@ After the name-server switch (Part 3) and after the cutover (Part 5), send a tes
 
 ---
 
-## Part 3. Move DNS to Squarespace (Nov 28 to Dec 1; invisible to members)
+## Part 3. Move DNS to Squarespace (as early as you like, ideally the week of Nov 24; invisible to members)
 
-The goal: the same records, answered from Squarespace instead of Kajabi. Do this **at least 2 days before the cutover**, because a name-server change can take up to 48 hours to reach everyone.
+The goal: the same records, answered from Squarespace instead of Kajabi. Do this **well before the cutover** (at least 2 days; earlier is better), because a name-server change can take up to 48 hours to reach everyone, and because this is the step that might surprise us (see "Why DNS has to move first"). Pick a quiet early morning; traffic is small, so a problem is cheap if you catch it early.
 
 1. Squarespace → Domains → quillandcup.com → **DNS Settings**. You see "You're using custom nameservers" and the forwarding records. Do **not** switch name servers yet.
-2. Add every record from the table in 1.1 that is not an `@` MX/SPF (those come with email forwarding). Add the **Kajabi-side `@` and `www` records unchanged** (Kajabi's current values), so the site keeps working. If Squarespace's screen lets you set a TTL, use the lowest (5 minutes); verify in the screen, the default shown is 4 hours.
-   - **Ask Kajabi first**: Kajabi → Domain Settings may tell you what records an outside DNS host needs for the root and `www` (the page was not seen while writing this). If Kajabi says its custom domain only works on its own name servers, stop here and use Part 8 (alternative) instead.
+2. Add every record from the table in 1.1 except the `@` MX and `@` SPF (those come with email forwarding). If Squarespace's screen lets you set a TTL, use the lowest (5 minutes); verify in the screen, the default shown is 4 hours.
+   - **`www`**: add a CNAME to `endpoint.mykajabi.com`, exactly as Kajabi has it. Kajabi's article documents a CNAME as the way to connect a `www` or other subdomain from an outside DNS host, so the site should keep working.
+   - **The bare root `@`**: Kajabi has a CNAME there, which Squarespace (like most DNS hosts) cannot hold on the bare root, and Kajabi's article says the bare root only ever redirected to `www`. Two choices; **I recommend the first**:
+     1. Add the **Vercel records for the root now** (get them from Vercel → the Hub project → Settings → Domains → add `quillandcup.com`; see Part 5, step 1). Until the cutover, someone typing the bare `quillandcup.com` sees the Hub's sign-in page instead of being sent to the Kajabi site. Few people do (almost all Kajabi traffic is on `www`), and Part 5 fixes it.
+     2. Leave the bare root without a record until the cutover. The bare root then does not load at all in the meantime.
+   - **If, after the switch (step 5), Kajabi shows the domain as disconnected or `www` stops loading**, read Kajabi's message and fix it there; the documented fallback is to remove the domain in Kajabi and reconnect `www` with the CNAME method (Kajabi → Settings → Site settings → Domain → Set up custom domain → Create subdomain for Kajabi site). If `www` is down and you can't fix it in minutes, use the undo below.
 3. **Check Squarespace's answers before switching.** For each record in the table, ask Squarespace's name servers directly and compare to the "before" answers (find their names under Domain Nameservers → verify in your dashboard):
    ```
    dig @<squarespace-nameserver> quillandcup.com A
@@ -123,9 +133,9 @@ Two draft pull requests; read each description before merging.
 - **PR #1648**: the redirect fallback, the root homepage, the config map for explicit redirects, the "Still on Kajabi?" link, and `pnpm check:redirects`. Base: `main`.
 - **PR #1651**: public pages (writer profiles, landing pages) get the root as their address, and the same pages on `hub.quillandcup.com` redirect to it. Base: PR #1648 (change the base to `main` after #1648 merges).
 
-Both are inactive on the root domain until DNS points at Vercel. Merging **PR #1648 shortly before the cutover** (the morning of) is the plan. Between that merge and the DNS change, the "Join the waitlist" link in the Hub's Courses page points at `courses.quillandcup.com`, which does not work until step 5.4; that window should be under an hour.
+Both are inactive on the root domain until DNS points at Vercel. Merging **PR #1648 shortly before the cutover** (the morning of) is the plan. Between that merge and the DNS change, the "Join the waitlist" link in the Hub's Courses page points at `courses.quillandcup.com`, which does not work until Part 5, step 6; that window should be under an hour.
 
-Before the cutover, edit `config/app.ts` if needed (a small PR, same rules): `joinUrl` (the real Join page on Kajabi; it defaults to the Kajabi home), and the homepage wording. Then merge #1648 when the checks are green and watch the `main` run until it deploys.
+`joinUrl` is `https://quillandcup.com/free-trial` for now (it lands on Kajabi's free-trial page through the redirect); change it in `config/app.ts` when the Join page moves. The root homepage is the published landing page with the slug `home`, built in the Hub at `/admin/pages/home`; if no published `home` page exists the root shows a plain fallback, so publish `home` before the cutover. Merge #1648 when the checks are green and watch the `main` run until it deploys.
 
 ---
 
@@ -134,16 +144,20 @@ Before the cutover, edit `config/app.ts` if needed (a small PR, same rules): `jo
 Keep the gap, between Kajabi leaving the root and the Hub taking over, to a few minutes. Open these in tabs first: Squarespace DNS, Kajabi Domain Settings, Vercel → the Hub project → Settings → Domains.
 
 1. **Vercel: add the domains** (no effect on the live site yet). Add `quillandcup.com` and `www.quillandcup.com`. Make the root the primary. For `www`, add it as a normal domain; the app itself redirects it to the root (don't also tick Vercel's own "redirect" option, so there is one redirect, not two). Vercel shows the exact records it wants and will say "Invalid Configuration" until DNS changes. **Use the values Vercel shows** (verify in your dashboard); they are usually an A record for the root and a CNAME for `www`.
-2. **Squarespace DNS: lower any leftover TTL** on `@` and `www` to the lowest value, and wait for the old TTL to pass if it was higher (this is why Part 3 set it early).
-3. **Squarespace DNS: add the `courses` record** that Kajabi asks for (CNAME to Kajabi's target; get the exact value in Kajabi → Domain Settings when you choose the new domain; verify there).
-4. **Kajabi: change the custom domain** from `www.quillandcup.com` to `courses.quillandcup.com` (Kajabi → Settings → Domain Settings; verify in your dashboard). Wait until Kajabi says the domain is connected and the certificate is issued (it may take from minutes to a few hours). Load `https://courses.quillandcup.com`.
-   From here until step 5 the root address does not work. Do the next step straight away.
-5. **Squarespace DNS: point the root at Vercel.** Edit the `@` A/AAAA records and the `www` records to the values Vercel showed in step 1 (delete the old Kajabi addresses on those two names only; leave every other record alone, especially MX, SPF, DKIM, Stripe and Resend).
-6. In Vercel → Domains, wait for both domains to turn to "Valid Configuration" and the certificate to be issued (usually a couple of minutes).
-7. **Merge PR #1651** (after changing its base to `main`), and watch the `main` run until it deploys (`gh run list --branch main --limit 3`).
-8. Run the checks in Part 7.
+2. **Squarespace DNS: check the TTLs** on `@` and `www` are the lowest value (Part 3 set them).
+3. **Kajabi: remove the old domain.** Kajabi allows only one custom domain, so `www` has to go before `courses` can be added. Kajabi → Settings → Site settings → Domain → the "…" menu next to the domain → Remove. Kajabi says this "isn't instant" and can take a few minutes. **From here until step 6 the Kajabi site is down on its old address.** Have steps 4 to 6 ready.
+4. **Kajabi: add the subdomain.** Same page → Set up custom domain → "Create subdomain for Kajabi site". Enter `quillandcup.com` and the subdomain `courses`, click Next. Kajabi shows the exact CNAME **Host** and **Target**; Kajabi says its screen "is the source of truth" because the target can differ per account. Don't click Done yet.
+5. **Squarespace DNS: all three edits in one sitting.**
+   1. Add the `courses` CNAME exactly as Kajabi showed it.
+   2. Change `www` from the Kajabi CNAME to Vercel's value for `www` (shown in Vercel in step 1; usually a CNAME).
+   3. Change the root `@` to Vercel's value for the root (usually an A record; if Part 3 already did it, nothing to do).
+   Leave every other record alone, especially MX, SPF, DKIM, Stripe and Resend.
+6. **Kajabi: back in Kajabi click Done, then "verify domain"** (the wording may differ; verify in your dashboard). Kajabi says most connections finish within 24 hours, but with the record in place it is usually minutes; its setup-error grace period for a CNAME is about 60 minutes. Load `https://courses.quillandcup.com` when it is ready. Kajabi gives the certificate (through Cloudflare); no timing is promised.
+7. In Vercel → Domains, wait for both domains to turn to "Valid Configuration" and the certificate to be issued (usually a couple of minutes).
+8. **Merge PR #1651** (after changing its base to `main`), and watch the `main` run until it deploys (`gh run list --branch main --limit 3`).
+9. Run the checks in Part 7.
 
-**Undo (Part 5):** in Squarespace DNS put the `@` and `www` records back to the Kajabi values from the "before" snapshot, and in Kajabi change the custom domain back to `www.quillandcup.com`. With a 5-minute TTL the root is back within about 5 to 10 minutes plus Kajabi's own certificate time. If the Hub code is the problem and DNS is fine, revert the PR instead.
+**Undo (Part 5):** in Kajabi remove `courses` and reconnect `www` by the CNAME method (Kajabi → Settings → Site settings → Domain → Set up custom domain → Create subdomain for Kajabi site, with the subdomain `www`), and in Squarespace DNS set `www` back to the CNAME `endpoint.mykajabi.com` (or the target Kajabi shows). With a 5-minute TTL it is back in about 5 to 10 minutes plus Kajabi's own verification time. If the Hub code is the problem and DNS is fine, revert the PR instead.
 
 ---
 
@@ -188,7 +202,7 @@ Keep the gap, between Kajabi leaving the root and the Hub taking over, to a few 
 
 **If the problem is the Hub code:** revert the PR (one at a time, newest first); DNS stays.
 
-**If Kajabi's custom domain will not work on Squarespace's name servers (Part 3, step 2):** the options are (a) ask Kajabi support whether they can host the root pointing at an external site, which they probably cannot, or (b) put the whole zone in a Cloudflare account you control, with the same records. That needs a rewrite of Part 3; ask before starting it.
+**If `www` stops working on Kajabi after the name servers move (Part 3, step 2) and the CNAME reconnect does not fix it:** ask Kajabi support, or put the whole zone in a Cloudflare account you control with the same records; Kajabi only needs `www` and `courses` as CNAMEs, so either DNS host works. That needs a rewrite of Part 3; ask before starting it.
 
 **If DNS is wrong after the cutover:** records come back within the TTL (5 minutes if set in Part 3; 4 hours if you left the default). The name-server change itself (Part 3) can take up to 48 hours, which is why it is done early and never on cutover day.
 
