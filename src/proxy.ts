@@ -19,8 +19,9 @@ export async function proxy(request: NextRequest) {
     mediaHosts: appConfig.csp.mediaHosts,
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     dev: process.env.NODE_ENV === 'development',
-    // Preview deployments are only opened by CI runs (each on a new host, with Vercel's sign-in redirect on /monitoring): their reports are noise.
-    reportViolations: process.env.VERCEL_ENV !== 'preview',
+    // Members use the app's own address. A deployment's own URL (hub-<id>-<team>.vercel.app) is opened by a headless browser after each
+    // deploy, with a new host each time and Vercel's sign-in redirect on /monitoring: its reports are a new Sentry issue per deploy.
+    reportViolations: request.nextUrl.host === new URL(appConfig.appUrl).host,
   })
   const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_HEADER]: policy })
   response.headers.set(CSP_HEADER, policy)

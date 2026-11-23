@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import appConfig from "../../config/app";
 
 vi.mock("next/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/server")>()),
@@ -98,16 +99,16 @@ describe("the script and style policy", () => {
     expect(forwarded(a, "content-security-policy-report-only")).toBeNull();
   });
 
-  it("reports violations to Sentry in production but not on a preview deployment (CI runs, a new host each time)", async () => {
+  it("reports violations to Sentry from the app's own address, but not from a deployment's own URL (a new host per deploy)", async () => {
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "https://publickey123@o123456.ingest.de.sentry.io/4510000000");
     try {
-      vi.stubEnv("VERCEL_ENV", "production");
-      expect((await proxy(new NextRequest("http://localhost:3000/dashboard"))).headers.get("content-security-policy")).toContain("report-uri ");
+      const policy = async (url: string) => (await proxy(new NextRequest(url))).headers.get("content-security-policy");
 
-      vi.stubEnv("VERCEL_ENV", "preview");
-      const preview = (await proxy(new NextRequest("http://localhost:3000/dashboard"))).headers.get("content-security-policy");
-      expect(preview).not.toContain("report-uri");
-      expect(preview).toContain("https://o123456.ingest.de.sentry.io");
+      expect(await policy(`${appConfig.appUrl}/dashboard`)).toContain("report-uri ");
+
+      const deployment = await policy("https://hub-abc123xyz-example-team.vercel.app/login");
+      expect(deployment).not.toContain("report-uri");
+      expect(deployment).toContain("https://o123456.ingest.de.sentry.io");
     } finally {
       vi.unstubAllEnvs();
     }
