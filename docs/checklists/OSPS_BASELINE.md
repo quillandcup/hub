@@ -12,9 +12,9 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 
 | Result | Count |
 |---|---|
-| Met | 39 |
+| Met | 40 |
 | Partly | 5 |
-| Not met | 6 |
+| Not met | 5 |
 | N/A | 15 |
 | Total | 65 |
 
@@ -121,13 +121,12 @@ The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS 
 | `OSPS-VM-05.02` Policy to address SCA violations before release | 3 | Not met | Nothing stops a pull request that adds a vulnerable dependency (`OSPS-VM-05.03`); only CodeQL alerts block a merge. The scheduled scans report weekly (`docs/trust/THREAT_MODEL.md`), which is not a gate. |
 | `OSPS-VM-05.03` Dependency changes checked against a policy and blocked | 3 | Not met | OSV-Scanner and `pnpm audit` only report on pull requests (`osv-scan.yml`, `audit.yml`); neither is a required check, because an unfixable advisory would stop every PR. |
 | `OSPS-VM-05.04` Remediation threshold for vulnerable dependencies | 3 | Met | `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed": Critical 10 days, High 30, Medium 60, Low 90. |
-| `OSPS-VM-05.05` Remediation threshold for license findings | 3 | Not met | No license scanning and no threshold. |
+| `OSPS-VM-05.05` Remediation threshold for license findings | 3 | Met | `license-scan.yml` checks dependency licenses against `config/license-policy.json` weekly (informational, like the other scans); the threshold (30 days production, 60 days development only) is in `docs/trust/THREAT_MODEL.md`, "How fast findings are fixed". |
 | `OSPS-VM-06.01` Remediation threshold for static analysis findings | 3 | Met | The same table covers CodeQL alerts; CodeQL also blocks new alerts in a pull request (required check). |
 | `OSPS-VM-06.02` Automated enforcement against new weaknesses | 3 | Met | CodeQL is a required check on every pull request (`config/github.yml`), plus ESLint and TypeScript in CI. |
 
 ## What is worth doing
 
 1. Decide on blocking dependency checks (`OSPS-VM-05.03`, which also completes `OSPS-VM-05.02`).
-2. Scan dependency licenses and set a threshold for them (`OSPS-VM-05.05`).
 
 Not within reach without a decision or another person: an open source license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`). Details and owners of the open items are in `docs/TODO.md`.
