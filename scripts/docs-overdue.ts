@@ -33,7 +33,7 @@ export interface OverdueDoc extends LivingDoc {
   daysOverdue: number | null;
 }
 
-export const LIVING_FOLDERS = ["runbooks", "checklists", "architecture", "infrastructure", "trust", "product"];
+export const LIVING_FOLDERS = ["runbooks", "checklists", "architecture", "infrastructure", "trust", "product", "quality"];
 
 const DAY_MS = 86_400_000;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;

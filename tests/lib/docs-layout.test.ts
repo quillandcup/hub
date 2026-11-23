@@ -8,7 +8,7 @@ import { parseReview } from "../../scripts/docs-overdue";
 // decision or analysis as of a date). See docs/README.md.
 const ROOT = path.resolve(__dirname, "../..");
 const DOCS = path.join(ROOT, "docs");
-const LIVING_FOLDERS = ["runbooks", "checklists", "architecture", "infrastructure", "trust", "product"];
+const LIVING_FOLDERS = ["runbooks", "checklists", "architecture", "infrastructure", "trust", "product", "quality"];
 const SNAPSHOT_FOLDERS = ["decisions"];
 const ALL_FOLDERS = [...LIVING_FOLDERS, ...SNAPSHOT_FOLDERS];
 

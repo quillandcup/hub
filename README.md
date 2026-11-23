@@ -79,7 +79,7 @@ To sign in locally, enter any email on the sign-in page and open the magic link 
 | Supabase Studio | http://127.0.0.1:54323 |
 | Local email | http://127.0.0.1:54324 |
 
-The `pre-commit` hook runs a production build to catch type errors before they are committed (and skips it for docs-only commits). Day-to-day commands are in [`CLAUDE.md`](CLAUDE.md); how the tests fit together is in [`docs/architecture/TESTING.md`](docs/architecture/TESTING.md).
+The `pre-commit` hook runs a production build to catch type errors before they are committed (and skips it for docs-only commits). Day-to-day commands are in [`CLAUDE.md`](CLAUDE.md); how the tests fit together is in [`docs/quality/TESTING.md`](docs/quality/TESTING.md).
 
 ## Documentation
 
@@ -87,9 +87,10 @@ Everything lives under [`docs/`](docs/README.md), sorted by whether a doc is mai
 
 - [Product Requirements Document](docs/decisions/PRD.md) and the per-feature docs in [`docs/product/`](docs/product/)
 - [Setup Guide](docs/runbooks/SETUP.md) and the other [runbooks](docs/runbooks/)
-- [Architecture](docs/architecture/), including the [Testing guide](docs/architecture/TESTING.md) (suites, guard tests and the exception lists still to clean up), and [Database architecture](supabase/ARCHITECTURE.md)
+- [Architecture](docs/architecture/) and [Database architecture](supabase/ARCHITECTURE.md)
 - [Infrastructure](docs/infrastructure/) (Vercel, Sentry, Slack, Mux, Kajabi, webhooks) and [Deployment](docs/infrastructure/DEPLOYMENT.md)
 - [Security and privacy posture](docs/trust/)
+- [Quality](docs/quality/): the [Testing guide](docs/quality/TESTING.md) (suites, guard tests and the exception lists still to clean up)
 - [Backlog](docs/TODO.md)
 
 ## Contributing and security
