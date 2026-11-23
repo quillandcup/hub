@@ -55,32 +55,55 @@ describe("POST /api/admin/landing-pages/import", () => {
     expect(state.dataset.landingPages).toEqual([]);
   });
 
-  it("imports an export as a draft, then updates it, and records both", async () => {
+  it("imports an export as a draft; the same layout again is not imported until the admin chooses", async () => {
     const created = await POST(request({ file: zipFile(), title: "Example Sprint" }));
     expect(created.status).toBe(200);
     expect(await created.json()).toMatchObject({ status: "imported", action: "created", slug: "example-sprint" });
     expect(state.dataset.landingPages).toHaveLength(1);
     expect(revalidated).toContain("/admin/pages");
 
-    const again = await POST(request({ file: zipFile(), title: "Example Sprint" }));
-    expect(await again.json()).toMatchObject({ status: "imported", action: "updated" });
+    const asked = await POST(request({ file: zipFile(), title: "Example Sprint" }));
+    expect(await asked.json()).toMatchObject({ status: "choose", matches: [{ slug: "example-sprint", title: "Example Sprint" }], pages: [{ slug: "example-sprint" }] });
+    expect(recorded.at(-1)?.outcome).toEqual({ ok: true, detail: "needs_choice" });
     expect(state.dataset.landingPages).toHaveLength(1);
-    expect(recorded.map((r) => r.action)).toEqual(["landing_page_imported", "landing_page_imported"]);
+
+    const pageId = state.dataset.landingPages[0].id;
+    const replaced = await POST(request({ file: zipFile(), replacePageId: pageId }));
+    expect(await replaced.json()).toMatchObject({ status: "imported", action: "updated", slug: "example-sprint" });
+    expect(state.dataset.landingPages).toHaveLength(1);
+
+    const asNew = await POST(request({ file: zipFile(), title: "Cloned Sprint", asNew: "true" }));
+    expect(await asNew.json()).toMatchObject({ status: "imported", action: "created", slug: "cloned-sprint" });
+    expect(state.dataset.landingPages).toHaveLength(2);
+    expect(recorded.map((r) => r.action)).toEqual(Array(4).fill("landing_page_imported"));
     expect(recorded[0].outcome).toEqual({ ok: true, detail: undefined });
   });
 
-  it("asks for confirmation (and records that) instead of replacing an edited draft", async () => {
-    await POST(request({ file: zipFile(), title: "Example Sprint" }));
-    const page = state.dataset.landingPages[0];
-    await new Promise((r) => setTimeout(r, 5));
-    await state.repos.landingPages.saveDraft(page.id, { content: [], root: {} }, null);
+  it("reads a file without writing anything when asked to inspect it", async () => {
+    const inspected = await POST(request({ file: zipFile(), mode: "inspect" }));
+    expect(inspected.status).toBe(200);
+    expect(await inspected.json()).toMatchObject({ status: "inspected", suggestedTitle: "Write a little, every day", start: { heading: "Write a little, every day" }, matches: [], pages: [] });
+    expect(state.dataset.landingPages).toEqual([]);
+    expect(revalidated).toEqual([]);
+    expect(recorded.at(-1)?.outcome).toEqual({ ok: true, detail: "inspect" });
 
-    const asked = await POST(request({ file: zipFile(), title: "Example Sprint" }));
-    expect(await asked.json()).toMatchObject({ status: "confirm", existing: { slug: "example-sprint" } });
-    expect(recorded.at(-1)?.outcome).toEqual({ ok: true, detail: "needs_confirm" });
+    const bad = await POST(request({ file: new File(["hello"], "x.zip"), mode: "inspect" }));
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ status: "error", error: "That isn't a zip file." });
+  });
 
-    const done = await POST(request({ file: zipFile(), title: "Example Sprint", confirm: "true" }));
-    expect(await done.json()).toMatchObject({ status: "imported", action: "updated", keptBefore: false }); // the replaced draft was empty
+  it("refuses to replace a page that isn't one an import made", async () => {
+    const built = await state.repos.landingPages.create({ title: "Built here", slug: "built-here", createdBy: null });
+    const refused = await POST(request({ file: zipFile(), replacePageId: built.id }));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ status: "error", error: expect.stringContaining("made by an import") });
+  });
+
+  it("answers a calm error when the import itself fails", async () => {
+    vi.spyOn(state.repos.landingPages, "list").mockRejectedValueOnce(new Error("db down"));
+    const failed = await POST(request({ file: zipFile(), title: "A" }));
+    expect(failed.status).toBe(400);
+    expect(await failed.json()).toEqual({ status: "error", error: "Couldn't import that page. Nothing was lost; try again." });
   });
 
   it("answers 400 for no file, a file that isn't an export, and a missing title", async () => {

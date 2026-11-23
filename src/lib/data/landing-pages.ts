@@ -86,8 +86,8 @@ export interface LandingPageRepository {
   create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string; kind?: LandingPageKind; pageType?: LandingPageType; fromFile?: boolean }): Promise<LandingPage>;
   /** Keeps the page's draft as it is now in its history, as a "before import" version (restorable like any version). Null when the page is gone. */
   keepDraftBeforeImport(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
-  /** An import again: replaces the draft document and stamps `imported_at` (one audit entry). Never touches the published copy, title, address or versions. Null when the page is gone. */
-  replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null>;
+  /** An import again: replaces the draft document and stamps `imported_at` (one audit entry); an `importKey` also sets the page's key (the one a page made before the key changed gets the new one). Never touches the published copy, title, address or versions. Null when the page is gone. */
+  replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null, importKey?: string): Promise<LandingPage | null>;
   /** Keeps the page's draft as it is now in its history, as a "before replace" version (restorable like any version). Null when the page is gone. */
   keepDraftBeforeReplace(id: string, updatedBy: string | null, note?: string | null): Promise<LandingPageVersion | null>;
   /** Replaces the draft document and stamps `replaced_at` (one audit entry). Never touches the published copy, title, address, SEO or versions. Null when the page is gone. */
@@ -202,10 +202,10 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     return must(await this.db.from("landing_page_versions").insert({ page_id: id, title: page.title, data: page.draft_data, kind: "before_import", published_by: updatedBy, note: cleanNote(note) }).select(VERSION_COLUMNS).single());
   }
 
-  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null, importKey?: string): Promise<LandingPage | null> {
     const now = new Date().toISOString();
     return must(
-      await this.db.from("landing_pages").update({ draft_data: asJson(data), imported_at: now, updated_by: updatedBy, updated_at: now }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
+      await this.db.from("landing_pages").update({ draft_data: asJson(data), imported_at: now, updated_by: updatedBy, updated_at: now, ...(importKey ? { import_key: importKey } : {}) }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
     );
   }
 
@@ -371,11 +371,11 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return version;
   }
 
-  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null, importKey?: string): Promise<LandingPage | null> {
     const page = this.find(id);
     if (!page) return null;
     const now = new Date().toISOString();
-    Object.assign(page, { draft_data: asJson(structuredClone(data)), imported_at: now, updated_by: updatedBy, updated_at: now });
+    Object.assign(page, { draft_data: asJson(structuredClone(data)), imported_at: now, updated_by: updatedBy, updated_at: now, ...(importKey ? { import_key: importKey } : {}) });
     return structuredClone(page);
   }
 

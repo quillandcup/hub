@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { parseFragment, serializeOuter } from "parse5";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { safeHref, type LandingData } from "@/lib/landing/data";
@@ -13,9 +14,41 @@ import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
  *
  * What the export does not carry, and so cannot be imported: a page title, the Kajabi form's name and fields (only
  * its id), the footer's "Powered by", fonts beyond the brand's, and anything a block does only at runtime.
+ *
+ * A page's identity: the export has no page id, and the ids it does carry for a section or block belong to the template
+ * or to the page it was cloned from, so two different pages can share their first section and earliest block. The
+ * layout is what tells them apart: the ordered section ids and, in each, the ordered block ids with their types
+ * (`layoutFingerprint`). Text is not in it, so a re-export after edits to the wording is the same page; adding or
+ * removing a block makes a different layout. Two pages cloned from each other and differing only in their text still
+ * share a fingerprint, so a match is only ever a suggestion the admin confirms (kajabi-import-service.ts).
  */
 
 export const PICTURE_PREFIX = "kajabi-import-picture:";
+
+/**
+ * The start of a stored key made by `mapKajabiPage`. The first version of the key (`kajabi:<section>:<block>`) collided
+ * between different pages; keys in that form are never matched again.
+ */
+export const IMPORT_KEY_PREFIX = "kajabi2:";
+
+/** The key a page made from this layout gets; a second page with the same layout gets `#2`, `#3`, ... after it (a key is unique per page). */
+export const layoutKeyOf = (fingerprint: string) => `${IMPORT_KEY_PREFIX}${fingerprint}`;
+
+/** True when a stored key belongs to this layout: the key itself or one of its numbered twins. Old-format keys never do. */
+export function keyHasLayout(storedKey: string | null | undefined, fingerprint: string): boolean {
+  if (!storedKey) return false;
+  const base = layoutKeyOf(fingerprint);
+  return storedKey === base || (storedKey.startsWith(`${base}#`) && /^\d+$/.test(storedKey.slice(base.length + 1)));
+}
+
+/** The first of `base`, `base#2`, `base#3`, ... that is not in `used`. */
+export function freeImportKey(base: string, used: Set<string>): string {
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n++) if (!used.has(`${base}#${n}`)) return `${base}#${n}`;
+}
+
+/** What a page starts with: its first heading and its first few lines of text, to tell one export from another. */
+export type PageStart = { heading: string; lines: string[] };
 
 export type ImportNote = {
   /** "approximated": mapped to the nearest thing we have; "left_out": nothing to map it to; "hidden": hidden in Kajabi, not imported; "todo": to do in the editor. */
@@ -36,7 +69,7 @@ export type KajabiMapOptions = {
 
 export type KajabiMapResult =
   | { ok: false; error: string }
-  | { ok: true; data: LandingData; importKey: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number } };
+  | { ok: true; data: LandingData; layout: string; importKey: string; start: PageStart; suggestedTitle: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number } };
 
 type Settings = Record<string, unknown>;
 type Block = { type?: unknown; name?: unknown; hidden?: unknown; settings?: Settings };
@@ -184,8 +217,6 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
 
 // ---- the page ------------------------------------------------------------------------------------------------
 
-const idNumber = (id: string) => Number.parseInt(id, 10);
-
 export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions): KajabiMapResult {
   const current = isObject(settingsData) && isObject(settingsData.current) ? settingsData.current : null;
   const sections = current && isObject(current.sections) ? (current.sections as Record<string, Section>) : null;
@@ -200,7 +231,6 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const root: Record<string, unknown> = { showHeader: false, showFooter: false };
   let blockCount = 0;
   let hiddenCount = 0;
-  const allBlockIds: string[] = [];
   const themeRadius = num(current.btn_border_radius);
 
   // The header's logo is the page's first picture (a banner in the page's own colour, as the export has it).
@@ -234,7 +264,6 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const s = section.settings ?? {};
     const blocks = section.blocks;
     const blockOrder = (Array.isArray(section.block_order) ? section.block_order : Object.keys(blocks)).filter((k): k is string => typeof k === "string" && k in blocks);
-    allBlockIds.push(...blockOrder);
     if (str(section.type) !== "section") {
       notes.push({ kind: "left_out", text: `Section ${sectionId} is a "${str(section.type)}" section, which is not imported (${blockOrder.length} blocks).` });
       continue;
@@ -360,9 +389,57 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   }
   notes.push({ kind: "approximated", text: "Fonts and exact spacing follow the Hub's theme, not Kajabi's." });
 
-  const firstBlock = allBlockIds.map((b) => ({ b, n: idNumber(b) })).filter((x) => Number.isFinite(x.n)).sort((a, b) => a.n - b.n)[0]?.b ?? allBlockIds[0] ?? "";
   const data = sanitizeLandingData({ content, root: { props: root } });
-  return { ok: true, data, importKey: `kajabi:${order[0]}:${firstBlock}`, pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount } };
+  const layout = layoutFingerprint(order, sections);
+  const start = pageStart(data);
+  return { ok: true, data, layout, importKey: layoutKeyOf(layout), start, suggestedTitle: suggestTitle(start), pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount } };
+}
+
+/**
+ * A fingerprint of the page's layout: the ordered sections of the page (id and kind) and each one's ordered blocks
+ * (id and kind). Not the text, the settings, the header or the footer (those belong to the whole site).
+ */
+function layoutFingerprint(order: string[], sections: Record<string, Section>): string {
+  const layout = order.map((sectionId) => {
+    const section = sections[sectionId];
+    if (!section || !isObject(section) || !isObject(section.blocks)) return [sectionId, "missing", []];
+    const blocks = section.blocks;
+    const keys = (Array.isArray(section.block_order) ? section.block_order : Object.keys(blocks)).filter((k): k is string => typeof k === "string" && k in blocks);
+    return [sectionId, str(section.type), keys.map((k) => [k, str(blocks[k]?.type)])];
+  });
+  return createHash("sha256").update(JSON.stringify(layout)).digest("hex").slice(0, 32);
+}
+
+const LINE_MAX = 140;
+const shorten = (text: string) => (text.length > LINE_MAX ? `${text.slice(0, LINE_MAX - 1).trimEnd()}…` : text);
+
+/** The first heading and the first three lines of text of a page's document, in reading order (the blocks inside sections included). */
+export function pageStart(data: LandingData): PageStart {
+  let heading = "";
+  const lines: string[] = [];
+  const walk = (blocks: unknown) => {
+    if (!Array.isArray(blocks)) return;
+    for (const block of blocks) {
+      if (!isObject(block) || !isObject(block.props)) continue;
+      if (block.type === "Heading" && !heading) heading = clean(str(block.props.text));
+      else if (block.type === "RichText" && lines.length < 3) {
+        for (const node of parseFragment(str(block.props.html)).childNodes as unknown as Node5[]) {
+          const line = clean(textOf(node));
+          if (line && lines.length < 3) lines.push(shorten(line));
+        }
+      }
+      for (const value of Object.values(block.props)) walk(value);
+    }
+  };
+  walk(data.content);
+  return { heading: shorten(heading), lines };
+}
+
+/** A starting point for the title the export lacks: its first heading (or first line), in capitals-for-words case if it was shouted. */
+export function suggestTitle(start: PageStart): string {
+  const base = clean(start.heading || start.lines[0] || "");
+  const calm = base === base.toUpperCase() && /[A-Z]/.test(base) ? base.toLowerCase().replace(/(^|\s)(\S)/g, (_, space: string, c: string) => space + c.toUpperCase()) : base;
+  return calm.slice(0, 120).trim();
 }
 
 /** The text of a snippet of HTML (a button label with a `<br>`), whitespace as single spaces. */

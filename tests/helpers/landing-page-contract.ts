@@ -189,6 +189,17 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().replaceImportedDraft(`lpg_${"A".repeat(12)}`, doc("x"), null)).toBeNull();
     });
 
+    it("moves a page to a new import key when a replace gives one, and keeps its key when it doesn't", async () => {
+      const oldKey = ctx.unique("kajabi:old");
+      const newKey = ctx.unique("kajabi2:new");
+      const page = await ctx.repo().create({ title: "Title", slug: ctx.unique("rekey"), data: doc("first"), createdBy: null, importKey: oldKey });
+
+      expect((await ctx.repo().replaceImportedDraft(page.id, doc("second"), null))?.import_key).toBe(oldKey);
+      expect((await ctx.repo().replaceImportedDraft(page.id, doc("third"), null, newKey))?.import_key).toBe(newKey);
+      expect(await ctx.repo().byImportKey(oldKey)).toBeNull();
+      expect((await ctx.repo().byImportKey(newKey))?.id).toBe(page.id);
+    });
+
     it("replaces only the draft for a template or import, keeping the old draft as a before-replace version, and stamps replaced_at", async () => {
       const slug = ctx.unique("st");
       const page = await ctx.repo().create({ title: "Title", slug, data: doc("first"), createdBy: null });
