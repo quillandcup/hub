@@ -67,11 +67,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "engineering",
     category: "improved",
     title: "Every page a browser test opens is checked, with a shrink-only baseline",
-    summary: "Each page the Playwright scenes open now gets the same console, accessibility and overflow checks, and CI fails on a finding that the committed baseline does not list or that has since been fixed.",
+    summary: "Each page the Playwright scenes open now gets the same console, accessibility and overflow checks, and a nightly workflow fails on a finding that the committed baseline does not list or that has since been fixed.",
     body: `The checks that used to run only on a screenshot (\`tests/demo/checks.ts\`: axe, sideways overflow, console errors and warnings) now run on every page a scene opens with \`page.goto\`, from one fixture (\`tests/demo/fixtures.ts\`). A finding belongs to a page and a rule, and \`tests/demo/baseline.json\` counts what is known per size, page and rule.
 
 - **Rule.** A finding beyond the baseline fails. So does a baseline entry that a run no longer finds on a page it opened, so the file only shrinks; \`pnpm demo:baseline --check\` does the second half.
-- **Where.** A phone and a desktop combination run in the required \`Test (db) & build\` job; the scheduled Help screenshots run covers all eight.
+- **Where.** Nightly, not on pull requests (jobs of \`help-screenshots.yml\`): a phone and a desktop combination, all eight on Sundays, one job each. A failure or a timeout posts to the alerts channel.
 - **Hooks.** A new page needs a scene that opens it. \`checkPage()\` checks a state a click reached.
 - **Detail.** \`docs/product/DEMO_AND_HELP.md\`, "Page checks".`,
   },
