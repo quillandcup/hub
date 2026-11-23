@@ -1,102 +1,98 @@
 # Hedgie Hub
 
-[![CI](https://github.com/quillandcup/hub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/quillandcup/hub/badge)](https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub)
-[![Dependency audit](https://github.com/quillandcup/hub/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/audit.yml)
-[![OSV scan](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml)
-[![gitleaks](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml)
-[![ZAP baseline](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml)
-[![Code quality](https://github.com/quillandcup/hub/actions/workflows/code-quality.yml/badge.svg?branch=main)](https://github.com/quillandcup/hub/actions/workflows/code-quality.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage.json)](https://github.com/quillandcup/hub/actions/workflows/ci.yml)
-[![Hub uptime](https://api.checklyhq.com/v1/badges/checks/d4e1e531-5370-4982-a996-317709722dc6)](https://hub.quillandcup.com)
-[![License: Proprietary](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+The member platform for [Quill & Cup](https://quillandcup.com), a community of writers who show up to write together. Members see their own writing journey and take part in the community; staff get the tools to run it and see how it is doing.
 
-| Area | Coverage |
-|---|---|
-| `src/lib` (domain logic) | ![lib](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json) |
-| `src/components` | ![components](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json) |
-| `src/app/api` (routes) | ![app/api](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json) |
+<p>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/quillandcup/hub/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/code-quality.yml"><img alt="Code quality" src="https://github.com/quillandcup/hub/actions/workflows/code-quality.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/ci.yml"><img alt="Coverage" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage.json"></a>
+  <a href="https://hub.quillandcup.com"><img alt="Hub uptime" src="https://api.checklyhq.com/v1/badges/checks/d4e1e531-5370-4982-a996-317709722dc6"></a>
+  <a href="LICENSE"><img alt="License: Proprietary" src="https://img.shields.io/badge/license-proprietary-lightgrey"></a>
+</p>
 
-Coverage is the unit and db suites merged: the mean of statements, functions and branches covered, the same score the new-code gate uses.
+<p>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/quillandcup/hub/badge"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/audit.yml"><img alt="Dependency audit" src="https://github.com/quillandcup/hub/actions/workflows/audit.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml"><img alt="OSV scan" src="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml"><img alt="gitleaks" src="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml"><img alt="ZAP baseline" src="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main"></a>
+</p>
 
-Member engagement platform for Quill & Cup — giving members visibility into their writing journey and giving staff the tools to understand community health.
+<p>
+  Coverage by area:
+  <img alt="src/lib" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json">
+  <img alt="src/components" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json">
+  <img alt="src/app/api" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json">
+</p>
 
-## Quick Start
+Coverage is the unit and db suites merged: the mean of statements, functions and branches covered, the same score the new-code gate uses. The three area badges are `src/lib` (domain logic), `src/components` and `src/app/api` (routes).
 
-### Prerequisites
-1. **Docker Desktop** - [Download here](https://docs.docker.com/desktop/)
-2. Node.js (already installed)
-3. Supabase CLI (already installed)
+## What it does
 
-### Start Local Development
+**Members** get a place of their own:
 
-```bash
-# 1. Install dependencies (also points git at the hooks in config/husky)
-pnpm install
+- Their writing journey: dashboard, streaks, awards, writer profile and titles, projects, bookshelf and goals.
+- The community: the prickle (writing session) schedule and picker, events, chat that mirrors Slack, big sisters, member directory and search.
+- Learning: courses, a help center and a "What's new" changelog.
+- Control over how they are reached: notification settings, per-member channels and timezone.
 
-# 2. Start Docker Desktop (open the app)
+**Staff** get the tools to run the community (under `/admin`, gated by permissions rather than a single admin flag):
 
-# 3. Start Supabase
-supabase start
+- Attendance, check-ins, commitments and analytics, so they can see who is showing up, who is at risk of drifting away and which sessions are thriving.
+- Members: matching and merging duplicates across systems, onboarding and invites, billing and reminders.
+- Content: landing pages with a page builder, courses, the media library and the changelog.
+- Operations: audit and activity logs, imports and reconciliation, feature flags.
 
-# 4. Start Next.js
-pnpm dev
-```
+Hedgie Hub brings together data from Kajabi, Zoom, Google Calendar, Slack, Stripe and others. Each feature has a write-up in [`docs/product/`](docs/product/).
 
-**Git Hooks Installed:**
-- `pre-commit` - Runs `pnpm build` to catch TypeScript errors before committing (the hooks are plain scripts in `config/husky/`; `pnpm install` points git at them with `core.hooksPath`, which is shared by every worktree of the clone)
-- Skip temporarily with: `git commit --no-verify`
+## Tech stack
 
-### Test Auth Flow
-
-1. Visit http://localhost:3000
-2. Click "Sign In"
-3. Enter any email (e.g., `you@example.com`)
-4. Open **Inbucket** at http://127.0.0.1:54324
-5. Click the magic link in the email
-6. You're in! Dashboard shows "Welcome, [name]!"
-
-**Key URLs:**
-- App: http://localhost:3000
-- Supabase Studio: http://127.0.0.1:54323
-- Inbucket (Emails): http://127.0.0.1:54324
-
-## Documentation
-
-- [Product Requirements Document (PRD)](docs/decisions/PRD.md)
-- [Setup Guide](docs/runbooks/SETUP.md)
-- [Database Architecture (Medallion Pattern)](supabase/ARCHITECTURE.md)
-
-## Overview
-
-Hedgie Hub centralizes data from Kajabi, Zoom, Google Calendar, and Slack to serve two audiences:
-
-**Members** can log in to see their own writing journey — attendance calendars, writing streaks, badges for accomplishments, and more.
-
-**Staff** get a clear picture of community health — who's showing up, who's at risk of churning, and which sessions are thriving.
-
-## Tech Stack
-
-- **Frontend**: Next.js, Tailwind, Server Components
-- **Backend**: Supabase, Postgres, pgmq
-- **Hosting**: Vercel
+- **App**: Next.js (App Router, Server Components), React, TypeScript, Tailwind, TipTap for rich text.
+- **Data**: Supabase (Postgres with row level security, invite-only Auth, Storage, pgmq queues), accessed through repositories in `src/lib/data/`.
+- **Hosting and ops**: Vercel, Sentry, Checkly (monitoring as code in `config/checkly/`), GitHub Actions.
+- **Tests**: vitest (unit and db suites), pgTAP for SQL and RLS, Playwright for smoke tests and the demo scenes.
 
 ## Architecture
 
-The system uses a **medallion architecture** (bronze/silver/gold) for data transformation:
-- **Bronze**: Raw data from Kajabi, Zoom, Calendar, and Slack (no inference)
-- **Silver**: Inferred attendance and enriched metrics (business logic applied)
-- **Gold**: Business analytics and insights
+Data moves through four layers, so anything derived can always be rebuilt:
 
-See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documentation and data flow.
+- **Bronze**: raw data as it came from Kajabi, Zoom, Calendar, Slack and the rest, with no inference.
+- **Local**: data the app owns itself.
+- **Silver**: inferred and enriched data (attendance, metrics), reprocessable from Bronze and Local.
+- **Gold**: analytics computed on demand.
 
-## Current Features
+Details: [`docs/architecture/MEDALLION_ARCHITECTURE.md`](docs/architecture/MEDALLION_ARCHITECTURE.md) and [`supabase/ARCHITECTURE.md`](supabase/ARCHITECTURE.md). The rest of [`docs/architecture/`](docs/architecture/) covers the data access layer, permissions, member matching, the event log and the chat module.
 
-✅ Landing page with roadmap
-✅ Magic link authentication
-✅ Protected dashboard
-🚧 Member profile — writing streak, attendance calendar, badges
-🚧 Staff analytics — session insights, at-risk member identification
+## Quick start
+
+You need Docker Desktop (running), Node.js (the version in `engines.node` of `package.json`), pnpm and the Supabase CLI. The full walkthrough, including a deployed environment, is in the [Setup Guide](docs/runbooks/SETUP.md).
+
+```bash
+pnpm install        # also points git at the hooks in config/husky
+supabase start      # local Postgres, Auth, Studio and the email catcher
+pnpm dev            # http://localhost:3000
+```
+
+To sign in locally, enter any email on the sign-in page and open the magic link from the local email catcher (Mailpit) at http://127.0.0.1:54324.
+
+| Service | URL |
+|---|---|
+| App | http://localhost:3000 |
+| Supabase Studio | http://127.0.0.1:54323 |
+| Local email | http://127.0.0.1:54324 |
+
+The `pre-commit` hook runs a production build to catch type errors before they are committed (and skips it for docs-only commits). Day-to-day commands are in [`CLAUDE.md`](CLAUDE.md): `pnpm test:unit`, `pnpm test:db`, `pnpm test:pgtap`, `pnpm typecheck` and `pnpm lint`.
+
+## Documentation
+
+Everything lives under [`docs/`](docs/README.md), sorted by whether a doc is maintained with the code or kept as a snapshot.
+
+- [Product Requirements Document](docs/decisions/PRD.md) and the per-feature docs in [`docs/product/`](docs/product/)
+- [Setup Guide](docs/runbooks/SETUP.md) and the other [runbooks](docs/runbooks/)
+- [Architecture](docs/architecture/) and [Database architecture](supabase/ARCHITECTURE.md)
+- [Infrastructure](docs/infrastructure/) (Vercel, Sentry, Slack, Mux, Kajabi, webhooks) and [Deployment](docs/infrastructure/DEPLOYMENT.md)
+- [Security and privacy posture](docs/trust/)
+- [Backlog](docs/TODO.md)
 
 ## Contributing and security
 
