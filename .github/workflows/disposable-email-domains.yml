@@ -57,7 +57,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           git add src/lib/disposable-email-domains.generated.ts
-          git commit -m "Refresh the temp-mail domain list"
+          # `pnpm install` points core.hooksPath at config/husky, so a plain commit runs the pre-commit hook:
+          # a production build, which fails here (no env vars) and stopped the first scheduled run. The pull
+          # request runs every required check, which is where this change is verified.
+          git commit --no-verify -m "Refresh the temp-mail domain list"
           git push origin "$branch"
           gh pr create --base main --head "$branch" \
             --title "Refresh the temp-mail domain list" \
