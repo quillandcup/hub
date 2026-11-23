@@ -73,7 +73,7 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     gap: select("Space between the buttons", opts("small", "medium")),
   },
   RowButton: { label: text("Label"), href: text("Link (https://, or a path on this site)"), look: LOOK, color: COLOR, shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]) },
-  Image: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), size: select("Size", opts("small", "medium", "full")), rounded: toggle("Rounded corners"), align: select("Alignment", opts("left", "center", "right")) },
+  Image: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), size: select("Size", opts("small", "medium", "full")), rounded: toggle("Rounded corners"), align: select("Alignment", opts("left", "center", "right")) , fit: select("Fit", [{ label: "Whole picture", value: "whole" }, { label: "Fill a wide frame (cuts the edges)", value: "crop" }]) },
   Split: { imageAssetId: image("Picture"), alt: text("Describe the picture (for screen readers)"), decorative: toggle("Decoration only, no description needed"), imageSide: select("Picture on", opts("left", "right")), html: richText("Text") },
   List: {
     items: itemsSlot("List", "Items"),

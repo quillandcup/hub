@@ -235,16 +235,18 @@ export function RowButton({ label, href, look, color, shape, dragRef, editing }:
 
 // ---- Image ---------------------------------------------------------------------------------------------------
 
-export type ImageProps = { imageAssetId?: string; alt: string; decorative: boolean; size: "small" | "medium" | "full"; rounded: boolean; align: "left" | "center" | "right" };
+export type ImageProps = { imageAssetId?: string; alt: string; decorative: boolean; size: "small" | "medium" | "full"; rounded: boolean; align: "left" | "center" | "right"; fit?: "whole" | "crop" };
 const IMAGE_SIZE = { small: "max-w-xs", medium: "max-w-xl", full: "max-w-full" } as const;
 const IMAGE_ALIGN = { left: "mr-auto", center: "mx-auto", right: "ml-auto" } as const;
 
-export function Image({ imageAssetId, alt, decorative, size, rounded, align }: ImageProps) {
-  const src = pageImage(imageAssetId, "event_hero");
+/** The whole picture at its own shape by default (a logo or a wide banner must not lose its ends); `fit: "crop"` fills a 16:9 frame instead. */
+export function Image({ imageAssetId, alt, decorative, size, rounded, align, fit }: ImageProps) {
+  const crop = fit === "crop";
+  const src = pageImage(imageAssetId, crop ? "event_hero" : "page_image");
   if (!src) return noImage;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-    <img src={src} alt={decorative ? "" : alt} loading="lazy" className={`my-3 h-auto w-full ${pick(IMAGE_SIZE, size, "medium")} ${pick(IMAGE_ALIGN, align, "center")} ${rounded ? "rounded-2xl" : ""}`} />
+    <img src={src} alt={decorative ? "" : alt} loading="lazy" className={`my-3 h-auto w-full ${crop ? "aspect-video object-cover" : ""} ${pick(IMAGE_SIZE, size, "medium")} ${pick(IMAGE_ALIGN, align, "center")} ${rounded ? "rounded-2xl" : ""}`} />
   );
 }
 
@@ -253,7 +255,7 @@ export function Image({ imageAssetId, alt, decorative, size, rounded, align }: I
 export type SplitProps = { imageAssetId?: string; alt: string; decorative: boolean; imageSide: "left" | "right"; html: string };
 /** Picture and words side by side once there is room (`@split`), stacked (picture first) below it; `imageSide` only matters side by side. */
 export function Split({ imageAssetId, alt, decorative, imageSide, html }: SplitProps) {
-  const src = pageImage(imageAssetId, "event_hero");
+  const src = pageImage(imageAssetId, "page_image");
   return (
     <div className="grid items-center gap-6 py-4 @split:grid-cols-2 @split:gap-10">
       {src && (

@@ -74,7 +74,7 @@ export const CORE_DEFAULTS = {
   Heading: { text: "A heading", level: "h2", align: "center" },
   Button: { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill", align: "center", full: false },
   ButtonRow: { items: [kid("RowButton", { label: "Join us", href: "", look: "inherit", color: "plum", shape: "pill" }), kid("RowButton", { label: "Learn more", href: "", look: "outline", color: "plum", shape: "pill" })], align: "left", gap: "medium" },
-  Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center" },
+  Image: { alt: "", decorative: false, size: "medium", rounded: true, align: "center", fit: "whole" },
   Split: { alt: "", decorative: false, imageSide: "left", html: "<h2>A heading</h2><p>Tell the story next to the picture.</p>" },
   List: { items: [kid("ListItem", { text: "First thing", icon: "✓" }), kid("ListItem", { text: "Second thing", icon: "✓" })], align: "left" },
   Pricing: { items: [kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "First plan" }), kid("PricingPlan", { ...PRICING_PLAN_DEFAULT, name: "Second plan", badge: "Most popular", featured: true })] },
