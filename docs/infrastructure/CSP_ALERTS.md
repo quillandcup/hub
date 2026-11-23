@@ -22,6 +22,8 @@ The first three match CSP reports only (the tag `logger=csp`, which every report
 
 **Why 100 an hour.** Measured in Sentry on 2026-11-20 (14 days): the noisiest issue, a font host blocked on every page builder load, had 847 events in two days (about 18 an hour on average), the next 660 in eight hours (about 80 an hour), and every deploy to a preview URL produces a burst of 30 events within seconds. 100 stays quiet on those and still catches a policy that starts blocking something on every page view of the 90 or so active members.
 
+**Preview deployments send no reports.** Only CI runs (demo and screenshot runs) open them, each on a new host, and Vercel's deployment protection redirects the Sentry tunnel to its sign-in page (a cross-origin redirect, which `connect-src` blocks and reports under the original address). Together that made a new issue, and a "new issue" email, per run (HUB-15 to HUB-1Q, HUB-24, HUB-25). `src/proxy.ts` leaves `report-uri` out when `VERCEL_ENV` is `preview`; the policy is still enforced there, and the nightly demo page checks fail on the browser's CSP console errors (`tests/demo/checks.ts`).
+
 **Email only, one channel.** Our Sentry plan cannot send to Slack, and the owner wants no second channel: the health check does not post to Slack either. The emails go to the issue's owners (ownership rules), or, when an issue has no owner, to the active members of the project's teams.
 
 ## The daily health check

@@ -16,6 +16,8 @@ export interface CspInputs {
   imageHosts: readonly string[];
   /** The Sentry DSN, whose ingest host also takes CSP reports. Without one, violations are not reported anywhere. */
   sentryDsn?: string;
+  /** Send violation reports to Sentry (default). Off on preview deployments: only CI runs open them, each with a new host, so every run would be a new issue. The DSN's host stays in `connect-src`. */
+  reportViolations?: boolean;
   /** Where requests may go (config/app.ts `csp.connectHosts`), what may be framed, where media loads from. */
   connectHosts?: readonly string[];
   frameHosts?: readonly string[];
@@ -131,7 +133,7 @@ export function enforcedCsp(inputs: CspInputs & { nonce: string; dev?: boolean }
     `media-src ${list("'self'", "blob:", supabase, ...(inputs.mediaHosts ?? []))}`,
     "font-src 'self' data:",
   ];
-  const report = sentryReportUri(inputs.sentryDsn);
+  const report = inputs.reportViolations === false ? null : sentryReportUri(inputs.sentryDsn);
   if (report) directives.push(`report-uri ${report}`);
   return directives.join("; ");
 }

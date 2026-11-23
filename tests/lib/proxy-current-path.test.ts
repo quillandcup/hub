@@ -98,6 +98,21 @@ describe("the script and style policy", () => {
     expect(forwarded(a, "content-security-policy-report-only")).toBeNull();
   });
 
+  it("reports violations to Sentry in production but not on a preview deployment (CI runs, a new host each time)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "https://publickey123@o123456.ingest.de.sentry.io/4510000000");
+    try {
+      vi.stubEnv("VERCEL_ENV", "production");
+      expect((await proxy(new NextRequest("http://localhost:3000/dashboard"))).headers.get("content-security-policy")).toContain("report-uri ");
+
+      vi.stubEnv("VERCEL_ENV", "preview");
+      const preview = (await proxy(new NextRequest("http://localhost:3000/dashboard"))).headers.get("content-security-policy");
+      expect(preview).not.toContain("report-uri");
+      expect(preview).toContain("https://o123456.ingest.de.sentry.io");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("enforces connection, frame, media and font sources in the same header, and sends no Report-Only one", async () => {
     const res = await proxy(new NextRequest("http://localhost:3000/dashboard"));
 

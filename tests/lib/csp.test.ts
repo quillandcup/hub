@@ -131,6 +131,13 @@ describe("enforcedCsp", () => {
     for (const name of ["connect-src", "frame-src", "media-src", "font-src"]) expect(directive(name)).toBeDefined();
   });
 
+  it("leaves out the report address when asked (preview deployments) but still allows Sentry's host to be reached", () => {
+    const quiet = enforcedCsp({ ...inputs, nonce, reportViolations: false });
+
+    expect(quiet).not.toContain("report-uri");
+    expect(directive("connect-src", quiet)).toContain("https://o123456.ingest.de.sentry.io");
+  });
+
   it("reports to Sentry once when there is a DSN, and not otherwise", () => {
     expect(policy.match(/report-uri/g)).toHaveLength(1);
     expect(enforcedCsp({ imageHosts: [], nonce })).not.toContain("report-uri");

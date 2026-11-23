@@ -19,6 +19,8 @@ export async function proxy(request: NextRequest) {
     mediaHosts: appConfig.csp.mediaHosts,
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     dev: process.env.NODE_ENV === 'development',
+    // Preview deployments are only opened by CI runs (each on a new host, with Vercel's sign-in redirect on /monitoring): their reports are noise.
+    reportViolations: process.env.VERCEL_ENV !== 'preview',
   })
   const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_HEADER]: policy })
   response.headers.set(CSP_HEADER, policy)
