@@ -1,11 +1,13 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
-import type { SlackEmojiImage } from "@/lib/data/slack-workspace";
 import { emojiPublicUrl } from "@/lib/chat/emoji-url";
 import { safeUrl } from "@/lib/url";
-import { slackPhotoUrl } from "@/lib/slack-avatar-url";
+import { personPhotoUrl } from "@/lib/chat/avatar-url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { cachedLookup } from "@/lib/chat/lookup-cache";
+
+/** One custom emoji row as the workspace repository returns it. */
+type CustomEmojiRow = Awaited<ReturnType<ReturnType<typeof createRepos>["slackWorkspace"]["emojiByNames"]>>[number];
 import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/lib/chat/render";
 
 /**
@@ -130,7 +132,7 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
     }
     for (const u of slackUsers ?? []) {
       // Our copy once the sync has made one, Slack's address until then.
-      const url = safeUrl(slackPhotoUrl(service, u));
+      const url = safeUrl(personPhotoUrl(service, u));
       if (url && !photos[u.user_id]) photos[u.user_id] = url;
     }
   }
@@ -170,7 +172,7 @@ export async function liveCustomEmojiNames(): Promise<string[]> {
  */
 async function customEmojiUncached(names: string[]): Promise<Record<string, CustomEmoji>> {
   let wanted = [...new Set(names)];
-  const rows = new Map<string, SlackEmojiImage>();
+  const rows = new Map<string, CustomEmojiRow>();
   if (wanted.length === 0) return {};
   const service = createServiceRoleClient();
   const workspace = createRepos(service).slackWorkspace;

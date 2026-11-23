@@ -1,14 +1,9 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { CHAT_AVATAR_BUCKET, avatarPublicUrl, personPhotoUrl } from "@/lib/chat/avatar-url";
 
-/** The public bucket holding our copies of Slack profile photos (see src/lib/chat/avatar-copy.ts). Kept apart from it because that file needs sharp. */
-export const SLACK_AVATAR_BUCKET = "slack-avatars";
+/** The public bucket holding our copies of Slack profile photos (see src/modules/chat/slack/avatar-copy.ts); core's name for it is `CHAT_AVATAR_BUCKET`. */
+export const SLACK_AVATAR_BUCKET = CHAT_AVATAR_BUCKET;
 
-/** Public URL of a file in the avatar bucket. */
-export function avatarPublicUrl(supabase: SupabaseClient, path: string): string {
-  return supabase.storage.from(SLACK_AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
-}
+export { avatarPublicUrl };
 
 /** What to draw for a Slack user's photo: our copy once there is one, Slack's address until then. */
-export function slackPhotoUrl(supabase: SupabaseClient, user: { image_url: string | null; image_path?: string | null }): string | null {
-  return user.image_path ? avatarPublicUrl(supabase, user.image_path) : user.image_url;
-}
+export const slackPhotoUrl = personPhotoUrl;

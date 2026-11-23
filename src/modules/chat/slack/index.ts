@@ -1,5 +1,9 @@
 import type { ChatTransport, OpenConversationResult } from "@/lib/chat/transport";
-import { getSlackConnectionStatus } from "@/lib/slack-connect";
+import { getSlackConnectionStatus, isSlackConnectConfigured } from "@/lib/slack-connect";
+import { formatSlackPermalink } from "@/lib/slack-emoji";
+import { SLACK_WORKSPACE_URL } from "@/lib/config";
+import { blocksToBody } from "./blocks-to-body";
+import { copyChatFile } from "./file-copy";
 import { createSlackClient } from "@/lib/slack-client";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 import { chatSlackWritesEnabled, postChatMessageToSlack } from "./post";
@@ -29,6 +33,8 @@ export const slackTransport: ChatTransport = {
   // Each method looks its Slack function up when called, not when this module loads, so a partial mock of one Slack module in a test
   // does not break importing the transport.
   writesEnabled: () => chatSlackWritesEnabled(),
+  requiresLink: () => isSlackConnectConfigured(),
+  hasFullLink: async (db, memberId) => (await getSlackConnectionStatus(db, memberId)).sharesReadState,
   isConnected: async (db, memberId) => (await getSlackConnectionStatus(db, memberId)).connected,
   send: (db, messageId) => postChatMessageToSlack(db, messageId),
   syncReaction: (db, opts) => syncReactionToSlack(db, opts),
@@ -36,6 +42,9 @@ export const slackTransport: ChatTransport = {
   deleteMessage: (db, opts) => deleteChatMessageInSlack(db, opts),
   deleteFile: (db, opts) => deleteChatFileInSlack(db, opts),
   removePreview: (db, opts) => removeSlackUnfurl(db, opts),
+  messageLink: ({ channelRef, ref }) => formatSlackPermalink(SLACK_WORKSPACE_URL, channelRef, ref),
+  bodyFromBlocks: (blocks, opts) => blocksToBody(blocks, opts),
+  fetchFile: (db, viewer, { fileId, channelRef, ref }) => copyChatFile(db, viewer, { fileId, channelId: channelRef, messageTs: ref }),
   keepFileCopies: (db, opts) => keepSlackFileCopies(db, opts),
   pushRead: (db, opts) => pushReadToSlack(db, opts),
   pushUnread: (db, opts) => pushUnreadToSlack(db, opts),

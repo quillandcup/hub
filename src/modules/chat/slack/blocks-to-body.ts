@@ -1,7 +1,7 @@
 /**
  * Reading Slack's rich-text blocks back into a Hub body: a message whose blocks have an underline is shown from them (its own text has
- * none). The other direction, a body to blocks for posting, is the Slack adapter's (src/modules/chat/slack/rich-blocks.ts). Still here
- * because core's loader reads it; it moves behind the inbound side with the rest of the Slack decoding (docs/architecture/CHAT_MODULE.md).
+ * none). The other direction, a body to blocks for posting, is `rich-blocks.ts` in this folder. Core asks for this through the port
+ * (`bodyFromBlocks`) and never sees the block format.
  */
 
 // ---- blocks to body --------------------------------------------------------------------------------------------

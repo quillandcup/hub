@@ -190,7 +190,7 @@ const ListDepth = Extension.create({
 /**
  * What the message box edits: paragraphs, bold, italic, strikethrough, code, code blocks, quotes, lists and links.
  * Only what a Slack message can say; no headings or rules. Underline is here too, but Slack's mrkdwn has none, so a message
- * with one is sent as rich-text blocks (src/lib/chat/rich-blocks.ts).
+ * with one is sent as rich-text blocks (src/modules/chat/slack/rich-blocks.ts).
  */
 export function messageBoxExtensions(maxLength?: number): Extensions {
   return [

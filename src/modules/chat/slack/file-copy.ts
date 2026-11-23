@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuthUser } from "@/lib/auth";
+import type { FetchedFile } from "@/lib/chat/transport";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 import { getSlackUserToken } from "@/lib/slack-connect";
-import { isMemberTokenConversation } from "@/modules/chat/slack/dm-events";
-import { ensureSlackFileCopied, type EnsuredSlackFile } from "@/lib/slack-capture";
+import { isMemberTokenConversation } from "./dm-events";
+import { ensureSlackFileCopied } from "@/lib/slack-capture";
 
 /**
  * Makes sure a chat file is in our bucket, asking Slack for it if it isn't yet, and says where it is. The bot's token,
@@ -18,7 +19,7 @@ export async function copyChatFile(
   service: SupabaseClient,
   user: AuthUser,
   ref: { fileId: string; channelId: string; messageTs: string }
-): Promise<EnsuredSlackFile> {
+): Promise<FetchedFile> {
   if (!(await isMemberTokenConversation(service, ref.channelId))) return ensureSlackFileCopied(service, (await getSlackBotToken()) ?? "", ref);
 
   const identity = await getEffectiveIdentity(user);

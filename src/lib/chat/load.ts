@@ -1,6 +1,6 @@
 import type { StageTimer } from "@/lib/chat/timing";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
-import { blocksToBody } from "@/lib/chat/rich-blocks";
+import { chatTransport } from "@/lib/chat/transports";
 import { parseUnfurls, unfurlTexts, withoutLessonPreview, type Unfurl } from "@/lib/chat/unfurls";
 import { proxyUnfurlImages } from "@/lib/chat/unfurl-images";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
@@ -9,7 +9,6 @@ import { hubLinkUnfurls, withHubLinks } from "@/lib/chat/hub-link-cards";
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
 import { parseSharedMessage, sharedMessageSource, type SharedSourceLookup } from "@/lib/chat/shared-message";
 import { sharedSourceKey, type SharedSourceRow } from "@/lib/data/chat";
-import { formatSlackPermalink } from "@/lib/slack-emoji";
 import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -17,7 +16,7 @@ import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { stripSharedVideoLink } from "@/lib/chat/video-link";
 import { withoutSharedLessonLink } from "@/lib/chat/lesson-links";
-import { APP_URL, SLACK_WORKSPACE_URL } from "@/lib/config";
+import { APP_URL } from "@/lib/config";
 import { getAttendedPrickleCount, getMemberBadges, type BadgeRepos, type EarnedBadge } from "@/lib/badges";
 import { byRecency, type ChannelSummary } from "@/lib/chat/channels";
 import type { Repos } from "@/lib/data/repos";
@@ -424,13 +423,13 @@ export const contentOf = (row: MessageRow) =>
 
 /**
  * What the message says. Slack's own text, unless its rich-text blocks have an underline (which mrkdwn can't say): then
- * the body is rebuilt from the blocks (src/lib/chat/rich-blocks.ts), kept the way the message was written (a Hub message
+ * the body is rebuilt from the blocks (src/modules/chat/slack/rich-blocks.ts), kept the way the message was written (a Hub message
  * unescaped, a Slack one in Slack's escapes).
  */
 export const bodyOf = (row: MessageRow): string | null => {
   const content = contentOf(row);
   if (!content) return null;
-  return blocksToBody(content.blocks, { plain: row.origin === "app" }) ?? content.body;
+  return chatTransport().bodyFromBlocks(content.blocks, { plain: row.origin === "app" }) ?? content.body;
 };
 
 interface ReplyAuthor {
@@ -699,7 +698,7 @@ export async function buildMessageViews(
       files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
       unfurls: proxied?.unfurls ?? [],
       hideBody: parsed?.hideBody ?? false,
-      slackPermalink: channel.slackChannelId && row.slack_ts ? formatSlackPermalink(SLACK_WORKSPACE_URL, channel.slackChannelId, row.slack_ts) : null,
+      slackPermalink: channel.slackChannelId && row.slack_ts ? chatTransport().messageLink({ channelRef: channel.slackChannelId, ref: row.slack_ts }) : null,
       sharesVideo: contentState === "ok" && sharedVideos.has(row.id),
       replyCount: row.reply_count,
       lastReplyAt: row.last_reply_at,

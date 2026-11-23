@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Guard for the SSRF row of docs/trust/THREAT_MODEL.md (A10): any server-side request to an address a member, a message or an
  * import chose must go through `src/lib/net/safe-fetch.ts` (docs/infrastructure/OUTBOUND_REQUESTS.md). This lists every server file in
- * `src/app/` and `src/lib/` that makes an HTTP request of its own and makes each one say why it is safe: either the address is
+ * `src/app/`, `src/lib/` and `src/modules/` that makes an HTTP request of its own and makes each one say why it is safe: either the address is
  * fixed (a provider's host, our own project, an operator's environment variable), or the file goes through safe-fetch.
  * A new caller fails here until it is classified; a caller that goes away leaves a stale entry that also fails.
  */
@@ -20,7 +20,7 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-const files = ["src/app", "src/lib"]
+const files = ["src/app", "src/lib", "src/modules"]
   .flatMap((dir) => sourceFiles(path.join(root, dir)))
   .map((file) => ({ file: path.relative(root, file), source: fs.readFileSync(file, "utf8") }))
   .filter(({ file }) => file !== "src/lib/net/safe-fetch.ts") // the guard itself
@@ -59,7 +59,7 @@ const FIXED_HOST: Record<string, string> = {
   "src/lib/trackbear-cover.ts": "a fixed TrackBear origin; the file name is matched against a strict pattern before it is used in the path",
   "src/lib/courses/media.ts": "a signed download URL Kajabi's API returned for a course video (staff import), not typed by a member",
   "src/lib/prospecting/sources/bluesky.ts": "the public Bluesky API host, queries go in the parameters",
-  "src/lib/chat/avatar-copy.ts": "Slack profile photo URLs from Slack's own API payload (default fetch; a test passes a stub), never typed by a member",
+  "src/modules/chat/slack/avatar-copy.ts": "Slack profile photo URLs from Slack's own API payload (default fetch; a test passes a stub), never typed by a member",
   "src/lib/chat/emoji-copy.ts": "Slack custom emoji URLs from Slack's own API payload (default fetch; a test passes a stub)",
   "src/lib/courses/files.ts": "Kajabi file links from the staff-run course import (default fetch; a test passes a stub)",
   "src/lib/courses/images.ts": "Kajabi image links from the staff-run course import (default fetch; a test passes a stub)",

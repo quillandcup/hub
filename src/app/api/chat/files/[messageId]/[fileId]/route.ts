@@ -6,7 +6,7 @@ import { CHAT_FILES_BUCKET } from "@/lib/chat/file-limits";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
-import { copyChatFile } from "@/lib/chat/file-token";
+import { chatTransport } from "@/lib/chat/transports";
 
 export const maxDuration = 60;
 
@@ -40,10 +40,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   let storedType: string | null = null;
   /** Ask Slack for the file (and keep a copy of it): the last resort, for a file that came from Slack and has not been copied yet. */
   const fromSlack = async (): Promise<string | null> => {
-    const copy = await copyChatFile(service, user, {
+    const copy = await chatTransport().fetchFile(service, user, {
       fileId,
-      channelId: content.slackChannelId ?? "",
-      messageTs: content.slackTs ?? "",
+      channelRef: content.slackChannelId ?? "",
+      ref: content.slackTs ?? "",
     });
     if (!copy.ok) {
       console.error(`[chat] file ${fileId} unavailable: ${copy.reason}`);

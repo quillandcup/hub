@@ -1,4 +1,4 @@
-import { copySlackAvatars } from "@/lib/chat/avatar-copy";
+import { copySlackAvatars } from "@/modules/chat/slack/avatar-copy";
 import { copyEmojiImages } from "@/lib/chat/emoji-copy";
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createRepos } from "@/lib/data/repos";

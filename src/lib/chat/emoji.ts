@@ -1,6 +1,6 @@
 import shortcodes from "emojibase-data/en/shortcodes/iamcal.json";
 import compact from "emojibase-data/en/compact.json";
-import { SLACK_EMOJI_MAP } from "@/lib/slack-emoji";
+import { EMOJI_SHORTCODE_MAP } from "@/lib/chat/emoji-shortcodes";
 
 /**
  * Slack emoji for the chat. Standard emoji use Slack's own shortcode names (emojibase's iamcal
@@ -29,5 +29,5 @@ function standardEmoji(): Map<string, string> {
 /** The Unicode emoji for a shortcode (no colons, skin tone ignored), or null if there isn't one. */
 export function unicodeEmoji(name: string): string | null {
   const key = name.toLowerCase().replace(/::skin-tone-\d$/, "");
-  return standardEmoji().get(key) ?? SLACK_EMOJI_MAP[key] ?? null;
+  return standardEmoji().get(key) ?? EMOJI_SHORTCODE_MAP[key] ?? null;
 }

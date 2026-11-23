@@ -9,7 +9,7 @@ vi.mock("@/lib/data/repos", async (importOriginal) => ({
   createRepos: () => createInMemoryRepos(dataset),
 }));
 
-import { copySlackAvatars } from "@/lib/chat/avatar-copy";
+import { copySlackAvatars } from "@/modules/chat/slack/avatar-copy";
 import { avatarPublicUrl, slackPhotoUrl, SLACK_AVATAR_BUCKET } from "@/lib/slack-avatar-url";
 
 const objects = new Map<string, Buffer>();

@@ -5,7 +5,7 @@ import { listLine, MAX_LIST_INDENT, type ListLine } from "@/lib/chat/render";
  * The message box shows styled text (bold, lists, quotes, links, emoji images) but its owners hand text around as
  * Slack mrkdwn, the format a Hub message is stored and sent in: `*bold*`, `_italic_`, `~strike~`, backticks, fences,
  * `> quote`, `• ` and `1. ` lines, `<https://x|label>` links, `:name:` emoji and `<u>underline</u>` (our own marker: Slack's
- * mrkdwn has no underline, so a message that has one is sent as rich-text blocks, src/lib/chat/rich-blocks.ts). These two functions are the bridge
+ * mrkdwn has no underline, so a message that has one is sent as rich-text blocks, src/modules/chat/slack/rich-blocks.ts). These two functions are the bridge
  * between the editor's document (ProseMirror JSON) and that text. Pure and free of the editor library, so the round
  * trip can be tested on its own.
  */
