@@ -35,6 +35,24 @@ describe("the site header", () => {
     expect(screen.queryByRole("link", { name: "X" })).toBeNull();
   });
 
+  it("shows the logo whole: the logo preset, its height fixed, never a crop frame", () => {
+    render(<>{SiteHeaderView({ header: full.header })}</>);
+    const img = screen.getByRole("img", { name: "Quill & Cup" });
+    expect(img.getAttribute("src")).toBe("/api/media/mda_AAAAAAAAAAA1/logo");
+    expect(img).toHaveAttribute("height", "48");
+    expect(img.className).toContain("h-12");
+    expect(img.className).toContain("w-auto");
+    expect(img.className).not.toMatch(/aspect-|object-cover/);
+  });
+
+  it("gives every link the same box, so the sign-in link lines up with the menu links", () => {
+    render(<>{SiteHeaderView({ header: full.header })}</>);
+    const signIn = screen.getByRole("link", { name: "Sign in" });
+    const menuLink = within(screen.getAllByRole("navigation", { name: "Site" })[0]).getAllByRole("link", { name: "Schedule" })[0];
+    expect(signIn.className).toContain("block");
+    expect(signIn.className).toBe(menuLink.className);
+  });
+
   it("folds the menu into a Menu disclosure on a narrow page, and wraps the links when asked to", () => {
     const { container, rerender } = render(<>{SiteHeaderView({ header: full.header })}</>);
     expect(screen.getByText("Menu")).toBeInTheDocument();
@@ -93,6 +111,23 @@ describe("PageFrame", () => {
     expect(screen.queryByText("Own link")).toBeNull();
     expect(screen.queryByText("Own footer")).toBeNull();
     expect(screen.getByText("Body")).toBeInTheDocument();
+  });
+
+  it("is a column as tall as the screen with the page taking the slack, so a footer on a short page rests at the bottom with nothing under it", () => {
+    const { container } = render(
+      <PageFrame {...own} frame={{ pageType: "website", site: full }}>
+        <p>Body</p>
+      </PageFrame>,
+    );
+    const frame = container.querySelector("[data-lp-frame]")!;
+    for (const cls of ["flex", "flex-col", "min-h-screen"]) expect(frame.className.split(" ")).toContain(cls);
+    expect(container.querySelector("main")!.className).toContain("flex-1");
+    expect(frame.lastElementChild!.tagName).toBe("FOOTER");
+  });
+
+  it("uses the logo preset for a landing page's own header logo too", () => {
+    render(<PageFrame {...own} logoAssetId="mda_AAAAAAAAAAA1" logoAlt="Mark" frame={{ pageType: "landing", site: full }} />);
+    expect(screen.getByRole("img", { name: "Mark" }).getAttribute("src")).toBe("/api/media/mda_AAAAAAAAAAA1/logo");
   });
 
   it("frames a website page with nothing before the site has been published", () => {

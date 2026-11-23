@@ -125,6 +125,22 @@ describe("images", () => {
     expect(container).toBeDefined();
   });
 
+  it("shows the whole picture by default (a block saved before there was a choice too), and a 16:9 crop only when asked", () => {
+    const whole = render(<Image imageAssetId="media_AAAAAAAAAAA1" alt="A logo" decorative={false} size="medium" rounded align="center" />);
+    const img = whole.container.querySelector("img")!;
+    expect(img.getAttribute("src")).toBe("/api/media/media_AAAAAAAAAAA1/page_image");
+    expect(img.className).not.toContain("object-cover");
+    expect(img.className).not.toContain("aspect-video");
+    cleanup();
+    const wholeToo = render(<Image imageAssetId="media_AAAAAAAAAAA1" alt="A logo" decorative={false} size="medium" rounded align="center" fit="whole" />);
+    expect(wholeToo.container.querySelector("img")!.getAttribute("src")).toBe("/api/media/media_AAAAAAAAAAA1/page_image");
+    cleanup();
+    const crop = render(<Image imageAssetId="media_AAAAAAAAAAA1" alt="A logo" decorative={false} size="medium" rounded align="center" fit="crop" />);
+    const cropped = crop.container.querySelector("img")!;
+    expect(cropped.getAttribute("src")).toBe("/api/media/media_AAAAAAAAAAA1/event_hero");
+    expect(cropped.className).toContain("object-cover");
+  });
+
   it("renders nothing without a picture", () => {
     const { container } = render(<Image alt="" decorative={false} size="full" rounded={false} align="center" />);
     expect(container).toBeEmptyDOMElement();

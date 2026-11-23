@@ -11,7 +11,8 @@ import { pageImage } from "./theme";
  * viewport, so the editor's phone preview shows what a phone shows.
  */
 
-const LINK = "px-2 py-1 text-sm underline-offset-4 hover:underline";
+// `block` so a link is the same box wherever it sits (a flex item of the header, or inside a list item): otherwise the sign-in link, a flex item, rides higher than the menu links, which are inline in their list items.
+const LINK = "block px-2 py-1 text-sm underline-offset-4 hover:underline";
 const LIST = "flex flex-wrap items-center gap-1";
 
 /** Which sizes an item is on: a wide header only (`desktop`), a narrow one only (`mobile`), or both. Hidden items take no room. */
@@ -58,7 +59,7 @@ function Menu({ links, fold }: { links: { label: string; href: string }[]; fold:
         <ul className="mt-2 flex flex-col gap-1">
           {shown.map((l, i) => (
             <li key={i}>
-              <a href={safeHref(l.href)} className={`${LINK} block`}>
+              <a href={safeHref(l.href)} className={LINK}>
                 {l.label}
               </a>
             </li>
@@ -72,12 +73,12 @@ function Menu({ links, fold }: { links: { label: string; href: string }[]; fold:
 function Item({ item, fold }: { item: HeaderItem; fold: boolean }): ReactNode {
   switch (item.type) {
     case "logo": {
-      const src = pageImage(item.logoAssetId, "event_card");
+      const src = pageImage(item.logoAssetId, "logo");
       if (!src) return null;
       return (
         <a href={safeHref(item.href) || "/"} className="shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route */}
-          <img src={src} alt={item.alt} className="h-12 w-auto" />
+          <img src={src} alt={item.alt} height={48} decoding="async" className="h-12 w-auto max-w-full object-contain" />
         </a>
       );
     }
