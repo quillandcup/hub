@@ -14,12 +14,16 @@ export interface MigrateArgs {
   /** A day (YYYY-MM-DD, Eastern) the course opens; undefined when not given. */
   launchOn: string | undefined;
   skipDrafts: boolean;
+  /** Leave out the per-lesson progress capture and its import into the Hub. */
+  skipProgress: boolean;
+  /** Leave out the lesson comments capture. */
+  skipComments: boolean;
 }
 
 export type ParsedMigrateArgs = ({ ok: true } & MigrateArgs) | { ok: false; error: string };
 
 export const MIGRATE_USAGE = [
-  'Usage: pnpm courses:migrate --course <kajabi-course-id> [--env .env.prod] [--base-url <url>] [--yes] [--access-duration "1 year"|lifetime] [--launch-on YYYY-MM-DD] [--skip-drafts]',
+  'Usage: pnpm courses:migrate --course <kajabi-course-id> [--env .env.prod] [--base-url <url>] [--yes] [--access-duration "1 year"|lifetime] [--launch-on YYYY-MM-DD] [--skip-drafts] [--skip-progress] [--skip-comments]',
   "  --course           the Kajabi course to migrate (required)",
   "  --env              env file with the Supabase keys and the secret (default .env.local); .env.prod targets production",
   "  --base-url         where the Hub's course routes are (default: production for .env.prod, the local dev server otherwise)",
@@ -27,10 +31,12 @@ export const MIGRATE_USAGE = [
   '  --access-duration  how long members keep access, like "1 year" or "6 months", or "lifetime" (asked for a course not published yet)',
   "  --launch-on        the day the course opens, YYYY-MM-DD in Eastern time (asked for a course not published yet)",
   "  --skip-drafts      leave draft lessons out of the content capture",
+  "  --skip-progress    leave out the per-lesson progress capture and its import (opens Chrome)",
+  "  --skip-comments    leave out the lesson comments capture (opens Chrome; captured to Bronze only)",
 ].join("\n");
 
 const VALUE_FLAGS = ["course", "env", "base-url", "access-duration", "launch-on"] as const;
-const BOOLEAN_FLAGS = ["yes", "skip-drafts"] as const;
+const BOOLEAN_FLAGS = ["yes", "skip-drafts", "skip-progress", "skip-comments"] as const;
 
 const INTERVAL = /^(\d{1,3})\s*(day|week|month|year)s?$/i;
 
@@ -107,5 +113,7 @@ export function parseMigrateArgs(argv: readonly string[]): ParsedMigrateArgs {
     accessDuration,
     launchOn: values["launch-on"],
     skipDrafts: flags.has("skip-drafts"),
+    skipProgress: flags.has("skip-progress"),
+    skipComments: flags.has("skip-comments"),
   };
 }

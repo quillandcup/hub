@@ -2,10 +2,12 @@
  * One command for the whole Kajabi course migration (docs/product/COURSES.md, "Migration pipeline"):
  *
  *   pnpm courses:migrate --course <kajabi-course-id> [--env .env.prod] [--base-url <url>] [--yes]
- *     [--access-duration "1 year"|lifetime] [--launch-on YYYY-MM-DD] [--skip-drafts]
+ *     [--access-duration "1 year"|lifetime] [--launch-on YYYY-MM-DD] [--skip-drafts] [--skip-progress] [--skip-comments]
  *
- * Runs steps A (structure), B (lesson content, opens Chrome), C (process, and publish a new course), then
- * D (downloads, images, videos), stopping at the first step that fails. Every step is safe to repeat, so a
+ * Runs steps A (structure), B (lesson content, opens Chrome), C (process, and publish a new course), the optional
+ * progress capture and its insert-only import into the Hub, the optional comments capture (Bronze only), then
+ * D (downloads, images, videos), stopping at the first required step that fails (a failed optional one is
+ * reported, the run carries on and exits 1). Every step is safe to repeat, so a
  * run with nothing new is a no-op. The logic is in src/lib/courses/migrate.ts; this file only wires the real
  * terminal, fetch and the capture script into it.
  */
