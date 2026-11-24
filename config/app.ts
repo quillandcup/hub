@@ -218,6 +218,18 @@ export const appConfig = {
   },
 
   /**
+   * What members answer in a course quiz with words or a file (src/lib/courses/quiz-files.ts, docs/product/COURSES.md, "Quizzes").
+   * `maxFileBytes`: the largest file one answer takes (the bucket enforces it too; the file goes straight from the browser to storage).
+   * `maxTextChars`: the longest short answer a member can write.
+   * `fileExtensions`: the kinds of file an answer accepts, by extension (documents and pictures; never a program or a script).
+   */
+  quizAnswers: {
+    maxFileBytes: 10 * 1024 * 1024,
+    maxTextChars: 10_000,
+    fileExtensions: ["pdf", "doc", "docx", "odt", "rtf", "txt", "md", "pages", "png", "jpg", "jpeg", "gif", "webp", "heic"],
+  },
+
+  /**
    * Photos on milestones (src/lib/milestone-photos.ts, docs/product/FINISHERS.md, "Photos"): the picture of the day a member wrote
    * THE END, of the day it was ready to publish, and of them holding their book. They live in a private bucket and are served only
    * to a viewer the milestone's level allows.

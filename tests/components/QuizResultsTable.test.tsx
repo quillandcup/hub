@@ -21,12 +21,12 @@ const row = (i: number, over: Partial<QuizResultRow> = {}): QuizResultRow => ({
 
 describe("QuizResultsTable", () => {
   it("says so when nobody has taken the quiz", () => {
-    render(<QuizResultsTable rows={[]} graded />);
+    render(<QuizResultsTable base="/admin/x" canOpenAnswers={false} rows={[]} graded />);
     expect(screen.getByText("Nobody has taken this quiz yet.")).toBeInTheDocument();
   });
 
   it("lists attempts with the member linked, the score, and Passed or Not passed for a graded quiz", () => {
-    render(<QuizResultsTable rows={[row(1), row(2, { scorePercent: 50, correctCount: 1, passed: false })]} graded />);
+    render(<QuizResultsTable base="/admin/x" canOpenAnswers={false} rows={[row(1), row(2, { scorePercent: 50, correctCount: 1, passed: false })]} graded />);
     expect(screen.getByRole("link", { name: "Member 1" })).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAA01");
     const rows = screen.getAllByRole("row");
     expect(within(rows[1]).getByText("Passed")).toBeInTheDocument();
@@ -37,14 +37,14 @@ describe("QuizResultsTable", () => {
   });
 
   it("says the lesson was completed, not passed, when the quiz has no passing grade", () => {
-    render(<QuizResultsTable rows={[row(1, { scorePercent: 0, correctCount: 0, passed: true })]} graded={false} />);
+    render(<QuizResultsTable base="/admin/x" canOpenAnswers={false} rows={[row(1, { scorePercent: 0, correctCount: 0, passed: true })]} graded={false} />);
     expect(screen.getByRole("columnheader", { name: "Counted" })).toBeInTheDocument();
     expect(screen.getByText("Completed the lesson")).toBeInTheDocument();
   });
 
   it("pages through a long list", async () => {
     const user = userEvent.setup();
-    render(<QuizResultsTable rows={Array.from({ length: 30 }, (_, i) => row(i + 1))} graded />);
+    render(<QuizResultsTable base="/admin/x" canOpenAnswers={false} rows={Array.from({ length: 30 }, (_, i) => row(i + 1))} graded />);
     expect(screen.getAllByRole("row")).toHaveLength(26);
     expect(screen.queryByText("Member 26")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /next/i }));

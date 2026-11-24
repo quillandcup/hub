@@ -350,6 +350,93 @@ export function defineQuizContract(name: string, setup: () => QuizContractContex
       expect((await ctx.repo().answersOf(attempt.id)).map((a) => a.questionId)).toEqual([q1.id]);
     });
 
+    it("saves short answer, file upload and ungraded choice questions, and refuses the shapes they can't have", async () => {
+      const quiz = await ctx.repo().createQuiz(ctx.lessons[0]);
+      const text = await ctx.repo().saveQuestion(quiz.id, null, { prompt: "What stood out?", kind: "short_answer", graded: false, allowsMultiple: false, options: [] });
+      const file = await ctx.repo().saveQuestion(quiz.id, null, { prompt: "Upload your letter", kind: "file_upload", graded: false, allowsMultiple: false, options: [] });
+      const choice = await ctx.repo().saveQuestion(quiz.id, null, {
+        prompt: "How was it?",
+        kind: "choice",
+        graded: false,
+        allowsMultiple: false,
+        options: [{ label: "Easy", isCorrect: true }, { label: "Hard", isCorrect: false }],
+      });
+
+      const stored = await ctx.repo().questionsOf(quiz.id);
+      expect(stored.map((q) => [q.id, q.kind, q.graded, q.options.length])).toEqual([[text, "short_answer", false, 0], [file, "file_upload", false, 0], [choice, "choice", false, 2]]);
+      // An ungraded question has no right answer, whatever was marked.
+      expect(stored[2].options.every((o) => !o.isCorrect)).toBe(true);
+
+      const open = (over: Partial<QuizQuestionInput>): QuizQuestionInput => ({ prompt: "x", kind: "short_answer", graded: false, allowsMultiple: false, options: [], ...over });
+      await expect(ctx.repo().saveQuestion(quiz.id, null, open({ graded: true }))).rejects.toMatchObject({ code: "invalid_question" });
+      await expect(ctx.repo().saveQuestion(quiz.id, null, open({ allowsMultiple: true }))).rejects.toMatchObject({ code: "invalid_question" });
+      await expect(ctx.repo().saveQuestion(quiz.id, null, open({ kind: "file_upload", options: [{ label: "a", isCorrect: false }, { label: "b", isCorrect: false }] }))).rejects.toMatchObject({ code: "invalid_question" });
+      // A graded choice question still needs its right answer; the kind of a question that exists can't change.
+      await expect(ctx.repo().saveQuestion(quiz.id, null, { ...pick(), options: [{ label: "a", isCorrect: false }, { label: "b", isCorrect: false }] })).rejects.toMatchObject({ code: "invalid_question" });
+      await expect(ctx.repo().saveQuestion(quiz.id, text, open({ kind: "file_upload" }))).rejects.toMatchObject({ code: "invalid_question" });
+      expect(await ctx.repo().questionsOf(quiz.id)).toHaveLength(3);
+
+      // Grading a choice question on again needs its right answer, and keeps the ids of the options that stay.
+      await ctx.repo().saveQuestion(quiz.id, choice, { prompt: "How was it?", kind: "choice", graded: true, allowsMultiple: false, options: [{ id: stored[2].options[0].id, label: "Easy", isCorrect: true }, { id: stored[2].options[1].id, label: "Hard", isCorrect: false }] });
+      const regraded = (await ctx.repo().questionsOf(quiz.id))[2];
+      expect([regraded.graded, regraded.options.map((o) => o.isCorrect)]).toEqual([true, [true, false]]);
+    });
+
+    it("records what a member typed and uploaded with the attempt, and reads it back in a batch", async () => {
+      const [member, other] = ctx.members;
+      const quiz = await ctx.repo().createQuiz(ctx.lessons[0]);
+      const text = await ctx.repo().saveQuestion(quiz.id, null, { prompt: "What stood out?", kind: "short_answer", graded: false, allowsMultiple: false, options: [] });
+      const file = await ctx.repo().saveQuestion(quiz.id, null, { prompt: "Upload", kind: "file_upload", graded: false, allowsMultiple: false, options: [] });
+      const record = (memberId: string, words: string, name: string) =>
+        ctx.repo().recordAttempt({
+          quizId: quiz.id,
+          memberId,
+          questionCount: 0,
+          correctCount: 0,
+          scorePercent: 0,
+          passed: true,
+          answers: [
+            { questionId: text, selectedOptionIds: [], isCorrect: null, answerText: words },
+            { questionId: file, selectedOptionIds: [], isCorrect: null, file: { path: `${memberId}/11111111-1111-4111-8111-111111111111/${name}`, name, bytes: 2048 } },
+          ],
+        });
+      const mine = await record(member, "My words.", "mine.pdf");
+      const theirs = await record(other, "Their words.", "theirs.pdf");
+
+      const answers = await ctx.repo().answersOfAttempts([mine.id, theirs.id]);
+      expect(answers).toHaveLength(4);
+      expect(answers.filter((a) => a.attemptId === mine.id).map((a) => [a.questionId === text ? a.answerText : a.file?.name])).toEqual(expect.arrayContaining([["My words."], ["mine.pdf"]]));
+      expect((await ctx.repo().answersOf(mine.id)).find((a) => a.questionId === file)?.file).toEqual({ path: `${member}/11111111-1111-4111-8111-111111111111/mine.pdf`, name: "mine.pdf", bytes: 2048 });
+      expect((await ctx.repo().answersOf(mine.id)).find((a) => a.questionId === text)).toMatchObject({ answerText: "My words.", file: null });
+      expect(await ctx.repo().answersOfAttempts([])).toEqual([]);
+      expect((await ctx.repo().attemptById(mine.id))?.memberId).toBe(member);
+      expect(await ctx.repo().attemptById("qatt_NoSuchOne001")).toBeNull();
+      expect((await ctx.repo().answerFilePathsOfQuestions([file])).sort()).toEqual([`${member}/11111111-1111-4111-8111-111111111111/mine.pdf`, `${other}/11111111-1111-4111-8111-111111111111/theirs.pdf`].sort());
+      expect(await ctx.repo().answerFilePathsOfQuestions([text])).toEqual([]);
+      expect(await ctx.repo().answerFilePathsOfQuestions([])).toEqual([]);
+    });
+
+    it("imports short answer and file upload questions from Kajabi, never graded and without options, and keeps them on a second import", async () => {
+      const [a] = ctx.kajabiLessons;
+      const quiz: ImportedQuiz = {
+        sourceKey: "489121",
+        passingPercent: null,
+        hideAnswers: false,
+        questions: [
+          { sourceKey: "s1", prompt: "Tell us more", kind: "short_answer", graded: true, allowsMultiple: false, options: [{ sourceKey: "x", label: "ignored", isCorrect: true }] },
+          { sourceKey: "f1", prompt: "Upload your letter", kind: "file_upload", allowsMultiple: false, options: [] },
+          { sourceKey: "c1", prompt: "How was it?", kind: "choice", graded: false, allowsMultiple: false, options: [{ sourceKey: "c1a", label: "Easy", isCorrect: true }, { sourceKey: "c1b", label: "Hard", isCorrect: false }] },
+        ],
+      };
+      expect(await ctx.repo().syncImportedQuiz(a, quiz)).toMatchObject({ status: "synced", questions: 3, options: 2 });
+      const first = await ctx.repo().questionsOf((await ctx.repo().quizOfLesson(a))!.id);
+      expect(first.map((q) => [q.kind, q.graded, q.options.length])).toEqual([["short_answer", false, 0], ["file_upload", false, 0], ["choice", false, 2]]);
+      expect(first[2].options.every((o) => !o.isCorrect)).toBe(true);
+
+      await ctx.repo().syncImportedQuiz(a, quiz);
+      expect((await ctx.repo().questionsOf(first[0].quizId)).map((q) => q.id)).toEqual(first.map((q) => q.id));
+    });
+
     it("skips a lesson that isn't Kajabi's or isn't there, and leaves the Hub's own quiz alone", async () => {
       const [hub] = ctx.lessons;
       expect(await ctx.repo().syncImportedQuiz(hub, imported())).toEqual({ status: "skipped", questions: 0, options: 0, removedQuestions: 0 });
