@@ -167,3 +167,6 @@ export function richParts(text: string): RichPart[] {
   }
   return out;
 }
+
+/** What an author who can no longer be read is called; such a comment has no avatar link or hover card. */
+export const FORMER_MEMBER_NAME = "Former member";

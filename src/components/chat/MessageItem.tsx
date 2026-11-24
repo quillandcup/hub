@@ -1,6 +1,5 @@
 import Link from "next/link";
-import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
-import MemberHoverCard from "@/components/member/MemberHoverCard";
+import { MemberAvatarLink, MemberNameLink } from "@/components/member/MemberAvatarLink";
 import AvatarStack from "@/components/AvatarStack";
 import { type ChatTextContext } from "@/components/chat/ChatText";
 import MessageActions from "@/components/chat/MessageActions";
@@ -119,30 +118,14 @@ export default function MessageItem({
               {clock.replace(/\s?[AP]M$/i, "")}
             </time>
           </Tooltip>
-        ) : message.authorMemberId ? (
-          <MemberHoverCard memberId={message.authorMemberId} surface="chat">
-            <Link data-track="chat-message-avatar" href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>
-              <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
-            </Link>
-          </MemberHoverCard>
         ) : (
-          <span aria-hidden="true">
-            <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
-          </span>
+          <MemberAvatarLink memberId={message.authorMemberId} name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} surface="chat" href={profileHref} scroll={false} trackName="chat-message-avatar" />
         )}
       </div>
       <div className="min-w-0 flex-1">
         {!compact && (
           <header className="flex items-baseline gap-2 text-sm">
-            {message.authorMemberId ? (
-              <MemberHoverCard memberId={message.authorMemberId} surface="chat">
-                <Link href={profileHref} scroll={false} data-track="chat-message-author" className="font-semibold hover:underline">
-                  {message.authorName}
-                </Link>
-              </MemberHoverCard>
-            ) : (
-              <span className="font-semibold">{message.authorName}</span>
-            )}
+            <MemberNameLink memberId={message.authorMemberId} name={message.authorName} surface="chat" href={profileHref} scroll={false} trackName="chat-message-author" />
             <time dateTime={message.createdAt} className="text-xs text-slate-600 dark:text-slate-400">
               {clock}
             </time>
