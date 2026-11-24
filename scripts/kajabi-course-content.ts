@@ -48,6 +48,7 @@ import {
   type SaveOutcome,
 } from "../src/lib/kajabi/lesson-content";
 import { findCourseHero, imageFieldNames, saveCourseHero } from "../src/lib/kajabi/course-hero";
+import { embeddedDocuments, parseKajabiQuiz, quizIdOfRedirect, quizContentHash, retireQuizzesOfLesson, saveQuizCapture, type QuizSaveOutcome } from "../src/lib/kajabi/quiz-capture";
 import { describeDomShape, describeJson, describeMarkup, formatProbe, loginHint, normalizeRequestPath, queryNames, type ProbedRequest } from "../src/lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../src/lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../src/lib/kajabi/progress-run";
@@ -72,8 +73,14 @@ const ROSTER_REASK_MS = 4_000;
 const SKIPPED_RESOURCES = new Set(["image", "media", "font"]);
 
 class SessionExpiredError extends Error {}
-/** The lesson is a Kajabi quiz: its editor is a quiz editor, with no lesson text, video or downloads to capture. */
-class QuizLessonError extends Error {}
+/** The lesson is a Kajabi quiz: its editor is a quiz editor, with no lesson text, video or downloads to capture; `quizId` is the quiz editor's id. */
+class QuizLessonError extends Error {
+  constructor(readonly quizId: string | null) {
+    super("a Kajabi quiz");
+  }
+}
+// The quiz editor's own API calls that follow its page: how long to let them arrive before reading what was recorded.
+const QUIZ_SETTLE_MS = 3_000;
 
 const parsed = parseContentArgs(process.argv.slice(2));
 if (!parsed.ok) {
@@ -237,7 +244,7 @@ async function capture(page: Page, lessonId: string): Promise<{ post: EditorPost
   // (which never come); a page that isn't a quiz leaves this pending, and the content below settles the race.
   const never = () => new Promise<never>(() => undefined);
   const quizRedirect = pageResponse.then(
-    (r) => (isQuizRedirect(r.status(), r.headers()["location"]) ? Promise.reject(new QuizLessonError("a Kajabi quiz")) : never()),
+    (r) => (isQuizRedirect(r.status(), r.headers()["location"]) ? Promise.reject(new QuizLessonError(quizIdOfRedirect(r.headers()["location"]))) : never()),
     // The page response not arriving is an ordinary failure, reported by the content below, not a quiz.
     never
   );
@@ -263,6 +270,51 @@ interface LessonResult {
   /** For a failure, why; for a quiz, a note. */
   error?: string;
   warnings: string[];
+  /** For a quiz: what was written to Bronze, and how many questions the reading found (null when it found none). */
+  quiz?: { save: QuizSaveOutcome; questions: number | null };
+}
+
+/**
+ * Captures a quiz lesson: opens the quiz editor (`/admin/quizzes/{id}/edit`) through the app's router, like a lesson's editor,
+ * and keeps the JSON it brings: the editor page's embedded store and every quiz-looking `/api/admin/` response it makes while
+ * it settles. The documents go to Bronze as they came (the reading is `parseKajabiQuiz`, a reprocess away), and when the
+ * reading finds no question the field names and types are printed (never values) so it can be fixed from facts.
+ * Unverified against the live admin: docs/product/COURSES.md, "Importing quizzes from Kajabi".
+ */
+async function captureQuiz(page: Page, lesson: LessonTarget, quizId: string): Promise<{ save: QuizSaveOutcome; questions: number | null; shape: string[] }> {
+  const documents: unknown[] = [];
+  const onResponse = async (r: Response) => {
+    if (r.request().method() !== "GET" || r.status() !== 200) return;
+    const path = pathOf(r);
+    if (!path.startsWith("/api/admin/") || !/quiz|assessment|question|answer/i.test(path)) return;
+    if (!(r.headers()["content-type"] ?? "").includes("json")) return;
+    try {
+      documents.push(await r.json());
+    } catch {
+      /* not JSON after all */
+    }
+  };
+  page.on("response", onResponse);
+  try {
+    const pageResponse = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === `/admin/quizzes/${quizId}/edit`, { timeout: RESPONSE_TIMEOUT_MS });
+    pageResponse.catch(() => undefined);
+    await page.evaluate((id) => {
+      history.pushState({}, "", `/admin/quizzes/${id}/edit`);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+    }, quizId);
+    const response = await pageResponse;
+    if (response.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+    if (!response.ok()) throw new Error(`Kajabi answered ${response.status()} for the quiz editor`);
+    documents.push(...embeddedDocuments(await response.text()));
+    await page.waitForTimeout(QUIZ_SETTLE_MS);
+  } finally {
+    page.off("response", onResponse);
+  }
+  if (documents.length === 0) throw new Error("the quiz editor loaded no JSON (is the login still valid, or did the page change?)");
+
+  const parsed = parseKajabiQuiz(documents);
+  const save = await saveQuizCapture(supabase, { quizKajabiId: quizId, courseKajabiId: lesson.course_kajabi_id, lessonKajabiId: lesson.kajabi_id, documents }, new Date(), { dryRun: !args.apply });
+  return { save, questions: parsed ? parsed.questions.length : null, shape: parsed ? [] : documents.flatMap((d, i) => describeJson(d).map((line) => `doc ${i + 1}: ${line}`)) };
 }
 
 /** A worker's page, reopened when a capture fails so a retry starts from a clean app. */
@@ -284,6 +336,8 @@ async function processLesson(context: BrowserContext, worker: Worker, lesson: Le
       if (content.videoSource && !content.videoSource.download_url) warnings.push("video has no download link");
 
       const outcome = await saveLessonContent(supabase, content, new Date(), { dryRun: !args.apply });
+      // A lesson that was a quiz and isn't any more: its Bronze quiz is retired, so the next processing removes it from Silver.
+      await retireQuizzesOfLesson(supabase, lesson.kajabi_id, new Date(), { dryRun: !args.apply });
       return { lesson, outcome, warnings };
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
@@ -291,9 +345,23 @@ async function processLesson(context: BrowserContext, worker: Worker, lesson: Le
       // The page is now on another editor (or in an odd state): the next lesson, or the retry, starts from a clean one.
       await worker.page?.close().catch(() => undefined);
       worker.page = null;
-      // Not a failure and not worth a retry: a quiz has nothing to capture, and what Bronze already holds is left as it is.
+      // A quiz has no lesson text, video or downloads: its questions come from the quiz editor instead.
       if (error instanceof QuizLessonError) {
-        return { lesson, outcome: "quiz", error: "a Kajabi quiz: no lesson text to capture, so it is left as it is", warnings: [] };
+        if (!error.quizId) return { lesson, outcome: "quiz", error: "a Kajabi quiz, but the redirect named no quiz id, so it is left as it is", warnings: [] };
+        try {
+          worker.page ??= await openCoursePage(context, lesson.course_kajabi_id);
+          const quiz = await captureQuiz(worker.page, lesson, error.quizId);
+          // The page is on the quiz editor now: the next lesson starts from a clean one.
+          await worker.page.close().catch(() => undefined);
+          worker.page = null;
+          const warnings = quiz.questions === null ? ["captured, but no question could be read from it: the field names and types follow"] : [];
+          return { lesson, outcome: "quiz", warnings: [...warnings, ...quiz.shape], quiz: { save: quiz.save, questions: quiz.questions } };
+        } catch (quizError) {
+          if (quizError instanceof SessionExpiredError) throw quizError;
+          await worker.page?.close().catch(() => undefined);
+          worker.page = null;
+          return { lesson, outcome: "failed", error: `a Kajabi quiz that could not be captured: ${quizError instanceof Error ? quizError.message : String(quizError)}`, warnings: [] };
+        }
       }
     }
   }
@@ -664,7 +732,8 @@ async function main() {
         const result = await processLesson(context, worker, lesson);
         results.push(result);
         const detail = [result.error, ...result.warnings.map((w) => `warning: ${w}`)].filter(Boolean).join("; ");
-        console.log(`${result.outcome.padEnd(14)} ${lesson.kajabi_id} ${lesson.title}${detail ? ` (${detail})` : ""}`);
+        const quizNote = result.quiz ? ` [quiz: ${result.quiz.save}, ${result.quiz.questions === null ? "no questions read" : `${result.quiz.questions} questions read`}]` : "";
+        console.log(`${result.outcome.padEnd(14)} ${lesson.kajabi_id} ${lesson.title}${quizNote}${detail ? ` (${detail})` : ""}`);
       }
     };
     await Promise.all(Array.from({ length: Math.min(args.concurrency, lessons.length) }, run));
@@ -673,10 +742,14 @@ async function main() {
   }
 
   const count = (o: LessonResult["outcome"]) => results.filter((r) => r.outcome === o).length;
+  const quizzes = results.filter((r) => r.quiz);
+  const quizCount = (o: QuizSaveOutcome) => quizzes.filter((r) => r.quiz!.save === o).length;
   console.log(
     `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${count("updated")} updated, ${count("urls_refreshed")} links refreshed, ` +
-      `${count("unchanged")} unchanged, ${count("missing")} not in Bronze, ${count("quiz")} quizzes skipped, ${count("failed")} failed`
+      `${count("unchanged")} unchanged, ${count("missing")} not in Bronze, ${count("failed")} failed; ` +
+      `${count("quiz")} quizzes (${quizCount("created")} new, ${quizCount("updated")} changed, ${quizCount("unchanged")} unchanged, ${quizzes.filter((r) => r.quiz!.questions === null).length} with no question read)`
   );
+  if (quizzes.length > 0) console.log("Quizzes reach the Hub with the next /api/process/courses run (or the admin Sync from Kajabi).");
   if (count("failed") > 0) process.exitCode = 1;
 }
 

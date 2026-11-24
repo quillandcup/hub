@@ -4,8 +4,9 @@ import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
+import { syncCourseQuizzes, type QuizSyncSummary } from "@/lib/courses/quiz-sync";
 
-export type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "programs">;
+export type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "programs" | "quizzes">;
 
 /**
  * Bronze (Kajabi) + Local -> Silver courses (docs/product/COURSES.md, step C).
@@ -72,6 +73,8 @@ export interface ProcessCoursesResult {
     comingSoon: number;
     hiddenLessons: number;
     deleted: { modules: number; lessons: number };
+    /** What was done with the course's Kajabi quizzes (counts only). */
+    quizzes: QuizSyncSummary;
     access: { members: number; removed: number };
   }[];
 }
@@ -280,8 +283,9 @@ export async function processCourses(
     });
     const withVideo = lessons.filter((l) => l.video_media_id && videoIdByMedia.has(l.video_media_id));
     const withoutVideo = lessons.filter((l) => !(l.video_media_id && videoIdByMedia.has(l.video_media_id)));
-    await repos.courses.upsertLessons(withVideo.map((l) => ({ ...lessonRow(l), video_id: videoIdByMedia.get(l.video_media_id!) })));
-    await repos.courses.upsertLessons(withoutVideo.map(lessonRow));
+    const lessonIds = new Map<string, string>();
+    for (const [sourceKey, id] of await repos.courses.upsertLessons(withVideo.map((l) => ({ ...lessonRow(l), video_id: videoIdByMedia.get(l.video_media_id!) })))) lessonIds.set(sourceKey, id);
+    for (const [sourceKey, id] of await repos.courses.upsertLessons(withoutVideo.map(lessonRow))) lessonIds.set(sourceKey, id);
 
     // Orphans: Silver rows (kajabi-sourced, this course) whose source is gone from Kajabi. A lesson that
     // became a draft stays, as `hidden` (and keeps its members' progress).
@@ -291,6 +295,9 @@ export async function processCourses(
     const silverModules = await repos.courses.modulesOf([courseId], { source: "kajabi", includeHidden: true });
     const staleModules = silverModules.filter((r) => !tree.modules.has(r.source_key as string)).map((r) => r.id);
     await repos.courses.deleteModules(staleModules);
+
+    // Quizzes captured from Kajabi's quiz editor attach to their lessons (a quiz lesson is a lesson like any other here).
+    const quizzes = await syncCourseQuizzes(repos, kajabiId, lessonIds);
 
     // Members get access only to a course that is available to them.
     if (!silver!.is_draft) accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration, launch_at: silver!.launch_at, index: result.courses.length });
@@ -305,6 +312,7 @@ export async function processCourses(
       comingSoon: countOf(tree.lessons, "coming_soon"),
       hiddenLessons: countOf(tree.lessons, "hidden"),
       deleted: { modules: staleModules.length, lessons: staleLessons.length },
+      quizzes,
       access: { members: 0, removed: 0 },
     });
   }

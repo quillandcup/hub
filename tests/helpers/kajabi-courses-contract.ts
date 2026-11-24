@@ -302,5 +302,36 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
       expect((await repo.lessonProgress(c, "ada@example.com")).find((s) => s.kajabi_lesson_id === "l-3")?.deleted_at).not.toBeNull();
       expect((await repo.lessonProgress(c, "bo@example.com"))[0].deleted_at).toBeNull();
     });
+
+    it("keeps a course's quizzes, rewrites one that changed, restores one that came back, and retires the quizzes of a lesson that is plain again", async () => {
+      const repo = ctx.repo();
+      const c = ctx.unique("quiz-course");
+      const other = ctx.unique("quiz-other-course");
+      const quiz = (id: string, courseId: string, lessonId: string, hash: string) => ({ kajabi_id: id, course_kajabi_id: courseId, lesson_kajabi_id: lessonId, raw_payload: { documents: [{ hash }] }, content_hash: hash });
+      const q1 = ctx.unique("q1");
+      const q2 = ctx.unique("q2");
+      const l1 = ctx.unique("l1");
+      const l2 = ctx.unique("l2");
+
+      await repo.saveQuiz(quiz(q1, c, l1, "hash-a"));
+      await repo.saveQuiz(quiz(q2, c, l2, "hash-b"));
+      await repo.saveQuiz(quiz(ctx.unique("elsewhere"), other, ctx.unique("l9"), "hash-z"));
+      expect((await repo.liveQuizzes(c)).map((q) => [q.kajabi_id, q.lesson_kajabi_id, q.content_hash])).toEqual([[q1, l1, "hash-a"], [q2, l2, "hash-b"]].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
+      expect(await repo.quizContentHash(q1)).toBe("hash-a");
+      expect(await repo.quizContentHash(ctx.unique("never"))).toBeNull();
+
+      await repo.saveQuiz(quiz(q1, c, l1, "hash-a2"));
+      expect(await repo.quizContentHash(q1)).toBe("hash-a2");
+      expect((await repo.liveQuizzes(c)).find((q) => q.kajabi_id === q1)?.raw_payload).toEqual({ documents: [{ hash: "hash-a2" }] });
+      expect(await repo.liveQuizzes(c)).toHaveLength(2);
+
+      expect(await repo.softDeleteQuizzesOfLesson(l1, T2)).toBe(1);
+      expect(await repo.softDeleteQuizzesOfLesson(l1, T2)).toBe(0);
+      expect((await repo.liveQuizzes(c)).map((q) => q.kajabi_id)).toEqual([q2]);
+      expect(await repo.quizContentHash(q1)).toBeNull();
+
+      await repo.saveQuiz(quiz(q1, c, l1, "hash-a2"));
+      expect((await repo.liveQuizzes(c)).map((q) => q.kajabi_id).sort()).toEqual([q1, q2].sort());
+    });
   });
 }

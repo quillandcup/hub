@@ -20,6 +20,7 @@ const clear = async () => {
     bronze.from("kajabi_course_offers").delete().like("course_kajabi_id", like),
     bronze.from("kajabi_product_progress").delete().like("course_kajabi_id", like),
     bronze.from("kajabi_lesson_progress").delete().like("course_kajabi_id", like),
+    bronze.from("kajabi_quizzes").delete().like("course_kajabi_id", like),
   ]);
   for (const { error } of results) if (error) throw new Error(error.message);
 };
