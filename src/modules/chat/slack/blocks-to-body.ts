@@ -1,6 +1,6 @@
 /**
  * Reading Slack's rich-text blocks back into a Hub body: a message whose blocks have an underline is shown from them (its own text has
- * none). The other direction, a body to blocks for posting, is `rich-blocks.ts` in this folder. Core asks for this through the port
+ * none), and so is a Hub-written message with a list (Slack hands back its text with the line breaks gone). The other direction, a body to blocks for posting, is `rich-blocks.ts` in this folder. Core asks for this through the port
  * (`bodyFromBlocks`) and never sees the block format.
  */
 
@@ -68,13 +68,18 @@ function inline(leaves: Record<string, unknown>[], escape: (s: string) => string
 const anyUnderline = (v: unknown): boolean =>
   Array.isArray(v) ? v.some(anyUnderline) : isRecord(v) ? (isRecord(v.style) && v.style.underline === true) || Object.values(v).some(anyUnderline) : false;
 
+const anyList = (v: unknown): boolean =>
+  Array.isArray(v) ? v.some(anyList) : isRecord(v) ? v.type === "rich_text_list" || Object.values(v).some(anyList) : false;
+
 /**
- * The body for a message whose blocks have an underline, or null when they don't (its own text is then right). `plain`
+ * The body for a message whose blocks have an underline, or (for a message written in the Hub) a list, or null when they
+ * don't (its own text is then right). A Hub message with a list is posted as blocks, and the text Slack sends back for those
+ * has no line breaks, which would replace the body the Hub kept. `plain`
  * is a message written in the Hub: its body keeps nothing escaped and a raw `>` for a quote; a Slack-written one is
  * Slack's escaped mrkdwn.
  */
 export function blocksToBody(blocks: unknown, opts: { plain: boolean }): string | null {
-  if (!anyUnderline(blocks)) return null;
+  if (!anyUnderline(blocks) && !(opts.plain && anyList(blocks))) return null;
   const escape = opts.plain ? (s: string) => s : ENTITIES;
   const quote = opts.plain ? ">" : "&gt;";
   const parts: string[] = [];
