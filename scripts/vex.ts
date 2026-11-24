@@ -24,7 +24,7 @@ export const OSV_SCANNER_PATH = "config/osv-scanner.toml";
 
 export interface AcceptedFinding {
   id: string;
-  ignoreUntil: string;
+  effectiveUntil: string;
   reason: string;
 }
 
@@ -66,10 +66,10 @@ export function parseAcceptedFindings(toml: string): AcceptedFinding[] {
     found[found.length - 1][kv[1]] = kv[2] ?? kv[3];
   }
   return found.map((f, n) => {
-    for (const key of ["id", "ignoreUntil", "reason"]) {
+    for (const key of ["id", "effectiveUntil", "reason"]) {
       if (!f[key]) throw new Error(`${OSV_SCANNER_PATH}: IgnoredVulns entry ${n + 1} has no ${key}`);
     }
-    return { id: f.id, ignoreUntil: f.ignoreUntil, reason: f.reason.replace(/\\"/g, '"') };
+    return { id: f.id, effectiveUntil: f.effectiveUntil, reason: f.reason.replace(/\\"/g, '"') };
   });
 }
 
@@ -82,7 +82,7 @@ export function statementFor(f: AcceptedFinding): Omit<VexStatement, "timestamp"
   const base = {
     vulnerability: { "@id": `https://osv.dev/vulnerability/${f.id}`, name: f.id },
     products: [{ "@id": productPurl(), identifiers: { purl: productPurl() } }],
-    status_notes: `Accepted until ${f.ignoreUntil} (${OSV_SCANNER_PATH}); it fails the weekly scan again then. Reason recorded: ${f.reason}`,
+    status_notes: `Accepted until ${f.effectiveUntil} (${OSV_SCANNER_PATH}); it fails the weekly scan again then. Reason recorded: ${f.reason}`,
   };
   const reason = f.reason.toLowerCase();
   if (reason.includes("not in the production build")) {

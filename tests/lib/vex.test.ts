@@ -57,7 +57,7 @@ describe("OpenVEX document", () => {
 });
 
 describe("statementFor", () => {
-  const base = { id: "GHSA-test", ignoreUntil: "2030-06-01" };
+  const base = { id: "GHSA-test", effectiveUntil: "2030-06-01" };
 
   it("maps a dev-only reason to not_affected with a justification", () => {
     const s = statementFor({ ...base, reason: "Dev-only dependency, not in the production build." });
@@ -78,15 +78,15 @@ describe("statementFor", () => {
 
 describe("parseAcceptedFindings", () => {
   it("reads entries and rejects ones that miss a field or a line it cannot read", () => {
-    const ok = '[[IgnoredVulns]]\nid = "A"\nignoreUntil = 2027-01-01\nreason = "r \\"q\\""\n';
-    expect(parseAcceptedFindings(`# c\n${ok}`)).toEqual([{ id: "A", ignoreUntil: "2027-01-01", reason: 'r "q"' }]);
-    expect(() => parseAcceptedFindings('[[IgnoredVulns]]\nid = "A"\n')).toThrow(/no ignoreUntil/);
+    const ok = '[[IgnoredVulns]]\nid = "A"\neffectiveUntil = 2027-01-01\nreason = "r \\"q\\""\n';
+    expect(parseAcceptedFindings(`# c\n${ok}`)).toEqual([{ id: "A", effectiveUntil: "2027-01-01", reason: 'r "q"' }]);
+    expect(() => parseAcceptedFindings('[[IgnoredVulns]]\nid = "A"\n')).toThrow(/no effectiveUntil/);
     expect(() => parseAcceptedFindings("[[PackageOverrides]]\nname = [1]\n")).toThrow(/cannot read/);
   });
 });
 
 describe("buildVex", () => {
-  const findings = [{ id: "A", ignoreUntil: "2027-01-01", reason: "Not in the production build." }];
+  const findings = [{ id: "A", effectiveUntil: "2027-01-01", reason: "Not in the production build." }];
 
   it("keeps the previous document when nothing changed", () => {
     const first = buildVex(findings, null, new Date("2029-01-01T00:00:00Z"));
@@ -95,8 +95,8 @@ describe("buildVex", () => {
   });
 
   it("bumps the version and the changed statement's timestamp only", () => {
-    const first = buildVex([...findings, { id: "B", ignoreUntil: "2027-01-01", reason: "No fix published." }], null, new Date("2029-01-01T00:00:00Z"));
-    const next = buildVex([findings[0], { id: "B", ignoreUntil: "2027-02-02", reason: "No fix published." }], first, NOW);
+    const first = buildVex([...findings, { id: "B", effectiveUntil: "2027-01-01", reason: "No fix published." }], null, new Date("2029-01-01T00:00:00Z"));
+    const next = buildVex([findings[0], { id: "B", effectiveUntil: "2027-02-02", reason: "No fix published." }], first, NOW);
     expect(next.version).toBe(2);
     expect(next.timestamp).toBe(first.timestamp);
     expect(next.statements[0].timestamp).toBe(first.statements[0].timestamp);
