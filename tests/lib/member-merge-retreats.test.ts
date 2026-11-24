@@ -89,6 +89,15 @@ describe("POST /api/admin/members/merge keeps retreats, badges and Big Sister re
     expect(dataset.eventAttendees.find((a) => a.id === "a4")?.ticket_giver_id).toBe(KEEP);
   });
 
+  it("carries a transferred ticket's origin event along, since the link is to an event and not a member", async () => {
+    Object.assign(dataset.eventAttendees.find((a) => a.id === "a1")!, { ticket_source: "transferred", ticket_from_event_id: NEXT });
+
+    await merge();
+
+    const moved = dataset.eventAttendees.find((a) => a.id === "a1")!;
+    expect(moved).toMatchObject({ member_id: KEEP, ticket_source: "transferred", ticket_from_event_id: NEXT });
+  });
+
   it("moves the duplicate's Big Sister matches and volunteer record", async () => {
     await merge();
 

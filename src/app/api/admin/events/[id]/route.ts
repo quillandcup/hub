@@ -46,9 +46,9 @@ export async function GET(
   }
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-  let photos, badgeType, attendees;
+  let photos, badgeType, attendees, choices;
   try {
-    [photos, badgeType, attendees] = await Promise.all([repos.events.allPhotosOf(id), repos.badges.typeForEvent(id), repos.events.attendeesOf(id)]);
+    [photos, badgeType, attendees, choices] = await Promise.all([repos.events.allPhotosOf(id), repos.badges.typeForEvent(id), repos.events.attendeesOf(id), repos.events.choices()]);
   } catch (error) {
     console.error("Error fetching event details:", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load event" }, { status: 500 });
@@ -69,6 +69,7 @@ export async function GET(
     purchasedInKajabi: purchasers.has(a.member_id),
     ticketSource: a.ticket_source,
     ticketNote: a.ticket_note,
+    ticketFromEvent: a.ticket_from_event,
     ticketGiver: a.ticket_giver ? { id: a.ticket_giver.id, name: getMemberDisplayName(a.ticket_giver) } : null,
     memberName: a.member ? getMemberDisplayName(a.member) : "Unknown",
     memberRealName: a.member && getMemberDisplayName(a.member) !== a.member.name ? a.member.name : undefined,
@@ -80,7 +81,7 @@ export async function GET(
   const prickle = await repos.prickles.byId(event.prickle_id);
   const overridden = await overridesOf(supabase, prickle?.calendarEventId);
 
-  return NextResponse.json({ event, prickleId: event.prickle_id, hubSession: !!prickle?.hubSessionId, overridden, photos, badgeType: badgeType ?? null, attendees: attendeeRows });
+  return NextResponse.json({ event, prickleId: event.prickle_id, hubSession: !!prickle?.hubSessionId, overridden, photos, badgeType: badgeType ?? null, attendees: attendeeRows, otherEvents: choices.filter((c) => c.id !== id).map((c) => ({ id: c.id, title: c.title })) });
 }
 
 export async function PATCH(

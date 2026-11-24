@@ -411,9 +411,9 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
             </div>
           )}
 
-          {matches.passedOn.length + matches.notAttending.length > 0 && (
+          {matches.passedOn.length + matches.movedAway.length + matches.notAttending.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold mb-1">Not attending ({matches.passedOn.length + matches.notAttending.length})</h3>
+              <h3 className="text-sm font-semibold mb-1">Not attending ({matches.passedOn.length + matches.movedAway.length + matches.notAttending.length})</h3>
               <ul className="text-sm space-y-0.5">
                 {matches.passedOn.map((passed) => (
                   <li key={passed.giver_id}>
@@ -422,6 +422,16 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                     </Link>
                     <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{`Gave their ticket to ${passed.receivers.join(", ")}`}</span>
                     <span className="block text-xs text-slate-500 dark:text-slate-400">To remove it, change the recipient&apos;s Gifted by.</span>
+                  </li>
+                ))}
+                {matches.movedAway.map((moved) => (
+                  <li key={moved.member_id}>
+                    <Link href={`/admin/members/${moved.member_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
+                      {moved.member_name}
+                    </Link>
+                    {moved.member_real_name && <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{moved.member_real_name}</span>}
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{`Ticket moved to ${moved.destinations.join(", ")}`}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">To remove it, change the Transferred source on that event.</span>
                   </li>
                 ))}
                 {matches.notAttending.map((buyer) => (
@@ -511,7 +521,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                 ))}
               </ul>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                No purchase of these offers. Set how they got in (comped or gifted) in the list below.
+                No purchase of these offers. Set how they got in (comped, gifted or transferred) in the list below.
               </p>
             </div>
           )}

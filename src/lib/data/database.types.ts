@@ -3505,6 +3505,7 @@ export type Database = {
           event_id: string
           id: string
           member_id: string
+          ticket_from_event_id: string | null
           ticket_giver_id: string | null
           ticket_note: string | null
           ticket_source: string | null
@@ -3515,6 +3516,7 @@ export type Database = {
           event_id: string
           id?: string
           member_id: string
+          ticket_from_event_id?: string | null
           ticket_giver_id?: string | null
           ticket_note?: string | null
           ticket_source?: string | null
@@ -3525,6 +3527,7 @@ export type Database = {
           event_id?: string
           id?: string
           member_id?: string
+          ticket_from_event_id?: string | null
           ticket_giver_id?: string | null
           ticket_note?: string | null
           ticket_source?: string | null
@@ -3549,6 +3552,20 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendees_ticket_from_event_id_fkey"
+            columns: ["ticket_from_event_id"]
+            isOneToOne: false
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendees_ticket_from_event_id_fkey"
+            columns: ["ticket_from_event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
           {

@@ -82,6 +82,16 @@ export interface PassedOnTicket {
   receivers: string[];
 }
 
+/** A buyer who is not an attendee because their ticket was moved to another event (derived from that event's transferred attendee). */
+export interface MovedTicketBuyer {
+  member_id: string;
+  member_name: string;
+  /** Their legal name when it differs from the name shown. */
+  member_real_name: string | null;
+  /** The events the ticket went to, by title. */
+  destinations: string[];
+}
+
 /** A buyer staff marked as not attending: left out of `buyers`, so the bulk add can't pick them. */
 export interface NotAttendingBuyer {
   member_id: string;
@@ -99,8 +109,10 @@ export interface EventKajabiMatches {
   multiTicketBuyers: MultiTicketBuyer[];
   /** Buyers who are not attendees because their tickets went to gifted attendees; they are left out of `buyers`. */
   passedOn: PassedOnTicket[];
-  /** Buyers marked as not attending (a forfeited deposit, a ticket moved elsewhere), with the reason. */
+  /** Buyers marked as not attending (a forfeited deposit, a rare other case), with the reason. */
   notAttending: NotAttendingBuyer[];
+  /** Buyers whose ticket was moved to another event (a transferred attendee there names this event); left out of `buyers`. */
+  movedAway: MovedTicketBuyer[];
   buyers: EventTicketBuyer[];
   unmatched: UnmatchedBuyer[];
   attendeesWithoutTicket: AttendeeWithoutTicket[];
@@ -109,7 +121,7 @@ export interface EventKajabiMatches {
 /** A name as people compare it: case, accents and extra spaces ignored. */
 const nameKey = (name: string) => name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-const EXPLAINED_WITHOUT_PURCHASE: ReadonlySet<TicketSource | null> = new Set(["comped", "gifted"]);
+const EXPLAINED_WITHOUT_PURCHASE: ReadonlySet<TicketSource | null> = new Set(["comped", "gifted", "transferred"]);
 
 /**
  * Compares who bought the event's linked Kajabi offers with who is on its attendee list.
@@ -125,14 +137,15 @@ export async function findKajabiMatchesForEvent(
 ): Promise<EventKajabiMatches> {
   const links = await repos.events.offersOf(eventId);
   const offerIds = Array.from(new Set(links.map((l) => l.kajabi_offer_id)));
-  if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], passedOn: [], notAttending: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+  if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], passedOn: [], notAttending: [], movedAway: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
 
-  const [offers, allPurchases, attendees, allLinks, marks] = await Promise.all([
+  const [offers, allPurchases, attendees, allLinks, marks, moved] = await Promise.all([
     repos.billing.kajabiOffersByIds(offerIds),
     repos.billing.kajabiPurchases({ offerIds }),
     repos.events.attendeesOf(eventId),
     repos.events.linkedOffers(),
     repos.events.notAttendingOf(eventId),
+    repos.events.ticketsMovedAwayFrom(eventId),
   ]);
   const purchases = allPurchases.filter((p) => purchaseCountsForEvent(p, links));
   const offerNameById = new Map(offers.map((o) => [o.kajabi_offer_id, o.name ?? "Unknown offer"]));
@@ -185,6 +198,10 @@ export async function findKajabiMatchesForEvent(
   // A mark for someone who is an attendee now means nothing: the roster wins.
   const markOf = new Map(marks.filter((m) => !attendeeIds.has(m.member_id)).map((m) => [m.member_id, m]));
   const markedBuyers = new Set<string>();
+  // Where each buyer's ticket went, when it was moved to another event (the same member holds it there).
+  const movedTo = new Map<string, string[]>();
+  for (const m of moved) movedTo.set(m.member_id, [...(movedTo.get(m.member_id) ?? []), m.event_title]);
+  const movedBuyers = new Set<string>();
 
   const buyers: EventTicketBuyer[] = [];
   const passedOn: PassedOnTicket[] = [];
@@ -198,6 +215,10 @@ export async function findKajabiMatchesForEvent(
     const receivers = receiversOf.get(memberId) ?? [];
     if (tickets > 0 && receivers.length >= tickets) {
       passedOn.push({ giver_id: memberId, giver_name: display, tickets, receivers });
+      continue;
+    }
+    if (movedTo.has(memberId)) {
+      movedBuyers.add(memberId);
       continue;
     }
     if (markOf.has(memberId)) {
@@ -225,6 +246,11 @@ export async function findKajabiMatchesForEvent(
     const mark = markOf.get(memberId)!;
     const display = getMemberDisplayName({ name: member.name, display_name: member.displayName });
     return { member_id: memberId, member_name: display, member_real_name: display !== member.name ? member.name : null, reason: mark.reason, note: mark.note };
+  }).sort((a, b) => a.member_name.localeCompare(b.member_name));
+  const movedAway: MovedTicketBuyer[] = Array.from(movedBuyers, (memberId) => {
+    const member = memberById.get(memberId)!;
+    const display = getMemberDisplayName({ name: member.name, display_name: member.displayName });
+    return { member_id: memberId, member_name: display, member_real_name: display !== member.name ? member.name : null, destinations: movedTo.get(memberId)! };
   }).sort((a, b) => a.member_name.localeCompare(b.member_name));
   buyers.sort((a, b) => (a.purchase_date ?? "").localeCompare(b.purchase_date ?? "") || a.member_name.localeCompare(b.member_name));
 
@@ -284,7 +310,7 @@ export async function findKajabiMatchesForEvent(
   for (const [key, acc] of byUnmatchedEmail) addMulti(acc, null, key.startsWith("customer:") ? "(no email on the Kajabi customer)" : key);
   multiTicketBuyers.sort((a, b) => b.tickets - a.tickets || (a.first_bought ?? "").localeCompare(b.first_bought ?? "") || a.name.localeCompare(b.name));
 
-  return { offersLinked: true, multiTicketBuyers, passedOn, notAttending, buyers, unmatched, attendeesWithoutTicket };
+  return { offersLinked: true, multiTicketBuyers, passedOn, notAttending, movedAway, buyers, unmatched, attendeesWithoutTicket };
 }
 
 /**
