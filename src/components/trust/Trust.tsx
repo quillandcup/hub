@@ -12,6 +12,7 @@ const STATUS_STYLES: Record<ComplianceStatus, string> = {
   inPlace: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
   provider: "bg-plum-100 text-plum-800 dark:bg-plum-900 dark:text-plum-300",
   working: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+  guide: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300",
   review: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200",
   notApplicable: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
@@ -21,6 +22,7 @@ export const STATUS_MEANING: Record<ComplianceStatus, string> = {
   inPlace: "We do this ourselves, and you can check it in the Hub.",
   provider: "A provider we use holds the certification or does the work.",
   working: "Partly there. The row says what is still open.",
+  guide: "We follow it as a checklist for how we work, not as a certificate we are aiming for. The row says what we took from it.",
   review: "We haven't reviewed it yet.",
   notApplicable: "Doesn't apply to the Hub, or we don't hold it.",
 };

@@ -30,6 +30,21 @@ describe("/compliance", () => {
     expect(screen.getByText(COMPLIANCE_EFFECTIVE)).toBeInTheDocument();
   });
 
+  it("shows the OpenSSF baseline as a guide we use, not a certificate we are working toward", async () => {
+    signInAs(null);
+    await renderServerPage(CompliancePage, {});
+    const item = COMPLIANCE_GROUPS.flatMap((g) => g.items).find((i) => i.name === "OpenSSF security baseline");
+    if (!item) throw new Error("no OpenSSF row");
+    expect(item.status).toBe("guide");
+    const card = screen.getByRole("heading", { name: "OpenSSF security baseline" }).closest("li");
+    if (!card) throw new Error("no card");
+    expect(within(card).getByText(COMPLIANCE_STATUSES.guide)).toBeInTheDocument();
+    expect(within(card).queryByText(COMPLIANCE_STATUSES.working)).not.toBeInTheDocument();
+    expect(card.textContent).toMatch(/not aiming for a certificate/);
+    // The legend explains the new word.
+    expect(screen.getAllByText(COMPLIANCE_STATUSES.guide).length).toBeGreaterThan(1);
+  });
+
   it("gives a signed-in member a way back to the Hub", async () => {
     signInAs(MEMBER_USER);
     await renderServerPage(CompliancePage, {});
