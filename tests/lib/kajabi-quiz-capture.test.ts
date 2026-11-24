@@ -109,6 +109,7 @@ describe("parseKajabiQuiz", () => {
     expect(q.prompt).toBe("What is 2 < 3? Think.");
     expect(q.options[0].label).toBe("True & sure");
     expect(plainText(42)).toBe("");
+    expect(plainText("<<b>script>alert(1)<</b>/script>ok")).toBe("alert(1)ok");
   });
 
   it("counts the questions Kajabi grades by hand (short answer, file upload) and not the choice kinds", () => {

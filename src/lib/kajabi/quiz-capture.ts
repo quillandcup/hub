@@ -111,10 +111,13 @@ const firstText = (o: Obj, keys: string[]): string => {
 /** Plain text of a prompt or answer: tags dropped, the common entities decoded, whitespace collapsed. */
 export function plainText(value: unknown): string {
   if (typeof value !== "string") return "";
-  return value
-    .replace(/<\s*br\s*\/?>/gi, " ")
-    .replace(/<\/(p|div|li)>/gi, " ")
-    .replace(/<[^>]*>/g, "")
+  let text = value.replace(/<\s*br\s*\/?>/gi, " ").replace(/<\/(p|div|li)>/gi, " ");
+  // Repeat until nothing changes, so a tag nested in another can't leave one behind after a single pass.
+  for (let previous = ""; previous !== text; ) {
+    previous = text;
+    text = text.replace(/<[^<>]*>/g, "");
+  }
+  return text
     .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
