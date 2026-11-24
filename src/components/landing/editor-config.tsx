@@ -282,7 +282,7 @@ const ROOT_FIELDS: Fields = {
   logoHref: text("Where the logo links to"),
   navLinks: { type: "array", label: "Header links", arrayFields: { label: text("Label"), href: text("Link") }, defaultItemProps: { label: "Link", href: "" }, getItemSummary: (i) => i.label || "Link" },
   showFooter: toggle("Show a footer"),
-  footerText: text("Footer text (for example, a copyright line)"),
+  footerText: text("Footer text (for example, a copyright line; {year} is the current year)"),
   footerLinks: { type: "array", label: "Footer links", arrayFields: { label: text("Label"), href: text("Link") }, defaultItemProps: { label: "Link", href: "" }, getItemSummary: (i) => i.label || "Link" },
 };
 

@@ -72,6 +72,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: "Progress entries now use the same tag box as \"Ask me about\" on your profile. Paste a comma-separated list and it splits into pills too.",
   },
   {
+    slug: "footer-year-token",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "new",
+    title: "A copyright year in the website footer that keeps itself current",
+    summary: "In the footer text, type {year} for the current year or {year:2019} for a range like 2019–2026, and it moves on every January without editing.",
+    body: [
+      "In Admin, Pages, Design, the footer's **Text** field now understands two small codes. `{year}` shows the current year, and `{year:2019}` shows 2019 through the current year (just the year itself once 2019 is this year). For example, `© {year:2019} Quill & Cup LLC`.",
+      "Under the field, **Shows as** displays the result, and the preview below shows it in place. The year turns over at midnight Eastern. The same codes work in a landing page's own footer text. Anything else in braces is shown as written.",
+    ].join("\n\n"),
+  },
+  {
     slug: "dark-mode-site-logo",
     date: "2026-11-23",
     audience: "staff",

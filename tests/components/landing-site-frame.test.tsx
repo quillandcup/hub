@@ -220,3 +220,11 @@ describe("PageFrame", () => {
     expect(screen.getByText("The site footer is off or empty.")).toBeInTheDocument();
   });
 });
+
+describe("footer year tokens", () => {
+  it("draws {year} and {year:2019} as the current year and a range, and leaves unknown tokens", () => {
+    const footer = normalizeSiteTemplate({ footer: { show: true, text: "© {year:2019} Fern Quills, {year}, {unknown}" } }).footer;
+    render(<>{SiteFooterView({ footer })}</>);
+    expect(screen.getByRole("contentinfo").textContent).toMatch(/^© 2019–\d{4} Fern Quills, \d{4}, \{unknown\}$/);
+  });
+});
