@@ -353,9 +353,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, the code quality gate, code scanning, and a dependency check that fails a pull request which introduces a known vulnerability and passes one that only touches an advisory already on the default branch), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot, for the app and for the CI actions, which are pinned to a commit. Settings live in the repo and are pushed by script, so a change to them is reviewed too. Each successful deploy is followed by a signed build-provenance record and a software bill of materials, kept for 90 days, so what is running can be traced to a commit and a workflow run. A failed run on the default branch opens an issue that closes itself when a later run passes.",
           evidence: ["config/github.yml", ".github/workflows/ci.yml", ".github/workflows/osv-diff.yml", ".github/workflows/deploy.yml", ".github/workflows/main-red-alert.yml", ".github/dependabot.yml", "docs/infrastructure/DEPLOYMENT.md (Verifying what was deployed)"],
           checked: "2026-11-23",
-          open: [
-            "An admin can still merge a failing pull request with \"Merge without waiting for requirements\". That is intended as a break-glass option and is not recorded anywhere else.",
-          ],
+          open: [],
         },
       },
       {

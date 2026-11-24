@@ -28,8 +28,10 @@ workflow_permissions:
 # through (ci.yml skips the test jobs, scripts/docs-only.ts decides). Don't use `[skip ci]` for
 # that: it skips the whole workflow and leaves these checks pending forever. Nothing can be pushed to main directly,
 # admins included: changes go through a pull request, where the checks and the coverage gate run
-# (the Coverage report job is PR-only). An admin can still override a failing PR with "Merge
-# without waiting for requirements".
+# (the Coverage report job is PR-only). The rules apply to administrators too (no bypass actors):
+# there is no "Merge without waiting for requirements". If a check itself is broken, fix or
+# temporarily edit this file's ruleset through a reviewed change, or edit the ruleset in Settings
+# as a last resort and put it back with `pnpm github:config:push`.
 rulesets:
   - name: main
     target: branch
@@ -38,11 +40,7 @@ rulesets:
       ref_name:
         include: ["~DEFAULT_BRANCH"]
         exclude: []
-    bypass_actors:
-      # actor_id 5 is the built-in Repository admin role.
-      - actor_id: 5
-        actor_type: RepositoryRole
-        bypass_mode: pull_request
+    bypass_actors: []
     rules:
       - type: deletion
       - type: non_fast_forward
