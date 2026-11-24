@@ -58,13 +58,21 @@ describe('duplicateCourse', () => {
   })
 
   it('says so when the database refuses for a reason it cannot name, and when it says permission is denied', async () => {
-    auth.client = { rpc: async () => ({ data: null, error: { message: 'connection lost', code: '08006' } }) }
+    auth.client = { from: (table: string) => supabase.from(table), rpc: async () => ({ data: null, error: { message: 'connection lost', code: '08006' } }) }
     expect(await duplicateCourse(ids.kajabi)).toEqual({ error: "Couldn't copy the course." })
-    auth.client = { rpc: async () => ({ data: null, error: { message: 'permission denied', code: '42501' } }) }
+    auth.client = { from: (table: string) => supabase.from(table), rpc: async () => ({ data: null, error: { message: 'permission denied', code: '42501' } }) }
     expect(await duplicateCourse(ids.kajabi)).toEqual({ error: "You can't copy this course." })
-    auth.client = { rpc: async () => ({ data: null, error: { message: 'not_editable' } }) }
+    auth.client = { from: (table: string) => supabase.from(table), rpc: async () => ({ data: null, error: { message: 'not_editable' } }) }
     expect(await duplicateCourse(ids.kajabi)).toEqual({ error: "You can't copy this course." })
     expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('refuses a course that holds a quiz, saying why, because the copy would leave it empty', async () => {
+    const quizCourse = await supabase.from('courses').insert({ slug: `${PREFIX}-quiz`, title: 'quiz', source: 'hub' }).select('id').single()
+    const quizLesson = await supabase.from('course_lessons').insert({ course_id: quizCourse.data!.id, title: 'Check in', position: 1, source: 'hub' }).select('id').single()
+    await supabase.from('quizzes').insert({ lesson_id: quizLesson.data!.id })
+    expect(await duplicateCourse(quizCourse.data!.id)).toEqual({ error: 'This course holds a quiz, and a copy would leave it empty, so it can\'t be duplicated yet.' })
+    expect((await supabase.from('courses').select('id').like('slug', `${PREFIX}-quiz-copy%`)).data).toEqual([])
   })
 
   it('does nothing for someone who is not an admin', async () => {
