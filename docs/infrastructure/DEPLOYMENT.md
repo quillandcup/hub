@@ -25,6 +25,10 @@ the newer run contains its commit, so a cancelled run is not a failure but is no
 either. Pull requests get `Coverage report` as well, and Vercel's git integration still
 builds a **Preview** for each branch.
 
+### A red `main` is announced
+
+When a `main` run of CI fails (a cancelled run does not count), `.github/workflows/main-red-alert.yml` opens one GitHub issue labelled `main-red` (`scripts/main-red-alert.ts`), naming the commit, the failed jobs and the run, and updates it, rather than opening another, if `main` fails again before it is fixed. It closes the issue with a comment when a later `main` run passes with its unit tests actually run (a docs-only run skips them and proves nothing). GitHub notifies the repo's watchers; no secret is involved (the workflow's token has `issues: write`, `actions: read`, `contents: read`), the issue holds no logs, and the label is created on first use. Only `push` and manual runs of this repository count, so a fork's pull request from a branch named `main` cannot open one. It does not replace watching your own merge (`.claude/rules/ship-via-pr.md`, step 7); it makes sure someone is told if nobody is.
+
 ### Migration numbers that collide while a PR waits
 
 A PR's `Check migrations` passes against the `main` it had when it ran, and the PR then waits in CI while another migration merges. Keeping that optimistic (no merge queue, no "require branches up to date") has two cheap parts:
