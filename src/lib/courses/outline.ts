@@ -36,6 +36,8 @@ export interface OutlineLesson {
   thumbnail_url?: string | null;
   /** Plain-text teaser of the lesson body. */
   excerpt?: string | null;
+  /** The lesson is a quiz (a `quizzes` row points at it): the lists show a quiz icon instead of a video one. */
+  quiz?: boolean;
 }
 
 export interface OutlineNode {
