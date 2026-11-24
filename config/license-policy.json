@@ -1,5 +1,5 @@
 {
-  "_comment": "Dependency license policy, read by scripts/check-licenses.ts (run by .github/workflows/license-scan.yml and `pnpm check:licenses`). A package whose license is not on the list for where it runs, and has no exception below, is a finding. An exception needs a reason and an expiry date (YYYY-MM-DD, at most 12 months out); when it passes, the package is a finding again. `package` matches a name, or a prefix when it ends in `*`. Policy and reasoning: docs/trust/THREAT_MODEL.md, 'How fast findings are fixed'.",
+  "_comment": "Dependency license policy, read by scripts/check-licenses.ts (run by .github/workflows/license-scan.yml and `pnpm check:licenses`). A package whose license is not on the list for where it runs, and has no exception below, is a finding. An exception needs a reason and an expiry date (YYYY-MM-DD, at most 12 months out); when it passes, the package is a finding again. `package` matches a name, or a prefix when it ends in `*`. Policy and reasoning: .github/SECURITY.md, 'How fast findings are fixed'.",
   "allowedProduction": [
     "MIT",
     "MIT-0",

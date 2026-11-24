@@ -244,7 +244,7 @@
     },
     "OSPS-VM-05.01": {
       "result": "Needs Review",
-      "reason": "The scanner could not inspect the documentation completely to confirm an SCA remediation threshold; it is in docs/trust/THREAT_MODEL.md, How fast findings are fixed.",
+      "reason": "The scanner could not inspect the documentation completely to confirm an SCA remediation threshold; it is in .github/SECURITY.md, How fast findings are fixed.",
       "expires": "2027-05-24"
     },
     "OSPS-VM-05.02": {
@@ -257,7 +257,7 @@
     },
     "OSPS-VM-06.01": {
       "result": "Needs Review",
-      "reason": "The scanner could not inspect the documentation completely to confirm a SAST remediation threshold; it is in docs/trust/THREAT_MODEL.md, How fast findings are fixed.",
+      "reason": "The scanner could not inspect the documentation completely to confirm a SAST remediation threshold; it is in .github/SECURITY.md, How fast findings are fixed.",
       "expires": "2027-05-24"
     },
     "OSPS-VM-06.02": {
