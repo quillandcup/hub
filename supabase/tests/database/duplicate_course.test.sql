@@ -46,6 +46,8 @@ INSERT INTO public.quizzes (id, lesson_id, passing_percent, hide_answers, revisi
 INSERT INTO public.quiz_questions (id, quiz_id, position, prompt, allows_multiple, source_key) VALUES
   ('qques_DupCourseQ01', 'quiz_DupCourseQ01', 1, 'Pick one', false, 'pgtap-dup-q1'),
   ('qques_DupCourseQ02', 'quiz_DupCourseQ01', 2, 'Pick all that apply', true, 'pgtap-dup-q2');
+INSERT INTO public.quiz_questions (id, quiz_id, position, prompt, kind, graded, source_key) VALUES
+  ('qques_DupCourseQ03', 'quiz_DupCourseQ01', 3, 'In your words', 'short_answer', false, 'pgtap-dup-q3');
 INSERT INTO public.quiz_options (id, question_id, position, label, is_correct, source_key) VALUES
   ('qopt_DupCourseO01', 'qques_DupCourseQ01', 1, 'Wrong', false, 'pgtap-dup-o1'),
   ('qopt_DupCourseO02', 'qques_DupCourseQ01', 2, 'Right', true, 'pgtap-dup-o2'),
@@ -193,7 +195,7 @@ CREATE TEMP TABLE qshape(label text, value jsonb) ON COMMIT DROP;
 CREATE FUNCTION pg_temp.quiz_shape(p_lesson text) RETURNS jsonb LANGUAGE sql AS $$
   SELECT jsonb_build_object(
     'passing', q.passing_percent, 'hide', q.hide_answers,
-    'questions', (SELECT jsonb_agg(jsonb_build_array(qq.position, qq.prompt, qq.allows_multiple,
+    'questions', (SELECT jsonb_agg(jsonb_build_array(qq.position, qq.prompt, qq.allows_multiple, qq.kind, qq.graded,
                    (SELECT jsonb_agg(jsonb_build_array(o.position, o.label, o.is_correct) ORDER BY o.position) FROM public.quiz_options o WHERE o.question_id = qq.id)) ORDER BY qq.position)
                   FROM public.quiz_questions qq WHERE qq.quiz_id = q.id))
     FROM public.quizzes q WHERE q.lesson_id = p_lesson
@@ -204,8 +206,8 @@ CREATE TEMP TABLE qlessons AS
 GRANT SELECT ON qlessons TO authenticated;
 
 SELECT is(pg_temp.quiz_shape('les_DupCourseA11'),
-  '{"passing": 80, "hide": true, "questions": [[1, "Pick one", false, [[1, "Wrong", false], [2, "Right", true]]], [2, "Pick all that apply", true, [[1, "Yes A", true], [2, "Yes B", true]]]]}'::jsonb,
-  'the original quiz is untouched');
+  '{"passing": 80, "hide": true, "questions": [[1, "Pick one", false, "choice", true, [[1, "Wrong", false], [2, "Right", true]]], [2, "Pick all that apply", true, "choice", true, [[1, "Yes A", true], [2, "Yes B", true]]], [3, "In your words", false, "short_answer", false, null]]}'::jsonb,
+  'the original quiz is untouched (a short answer question has no options)');
 SELECT is(pg_temp.quiz_shape((SELECT copied FROM qlessons)), pg_temp.quiz_shape('les_DupCourseA11'),
   'a duplicated course copies its quiz: passing grade, hide answers, questions, options in order and which are right');
 SELECT is((SELECT count(*)::int FROM public.quizzes WHERE lesson_id IN (SELECT id FROM public.course_lessons WHERE course_id = (SELECT id FROM copy2))), 1, 'exactly the one quiz is copied');
@@ -219,7 +221,7 @@ SELECT is(
           'answers', (SELECT count(*) FROM public.quiz_attempt_answers x JOIN public.quiz_questions qq ON qq.id = x.question_id JOIN public.quizzes q ON q.id = qq.quiz_id WHERE q.lesson_id = (SELECT copied FROM qlessons)))),
   '{"attempts": 0, "answers": 0}'::jsonb, 'no attempts or answers are copied');
 SELECT is((SELECT count(*)::int FROM public.quiz_attempts WHERE quiz_id = 'quiz_DupCourseQ01') + (SELECT count(*)::int FROM public.quiz_attempt_answers WHERE attempt_id = 'qatt_DupCourseA01'), 2, 'the original keeps its attempt and its answer');
-SELECT is((SELECT count(*)::int FROM public.quiz_questions WHERE quiz_id = 'quiz_DupCourseQ01') + (SELECT count(*)::int FROM public.quiz_options WHERE question_id IN ('qques_DupCourseQ01', 'qques_DupCourseQ02')), 6, 'and its questions and options');
+SELECT is((SELECT count(*)::int FROM public.quiz_questions WHERE quiz_id = 'quiz_DupCourseQ01') + (SELECT count(*)::int FROM public.quiz_options WHERE question_id IN ('qques_DupCourseQ01', 'qques_DupCourseQ02')), 7, 'and its questions and options');
 SELECT is((SELECT changes -> 'quizzes_copied' ->> 'new' FROM public.audit_log WHERE entity_type = 'course' AND entity_id = (SELECT id FROM copy)), '1', 'the course''s audit entry counts the quizzes copied');
 SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'quiz' AND entity_id IN (SELECT id FROM public.quizzes WHERE lesson_id IN (SELECT id FROM public.course_lessons WHERE course_id = (SELECT id FROM copy2) UNION SELECT copied FROM qlessons))), 0, 'and there is no entry per copied quiz');
 
