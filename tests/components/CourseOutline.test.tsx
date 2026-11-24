@@ -58,4 +58,14 @@ describe("CourseOutline", () => {
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.getByText("Welcome")).toBeInTheDocument();
   });
+
+  it("shows a quiz lesson with a quiz icon and a video lesson with a video icon", () => {
+    const o = buildOutline([], [lesson("Watch", 1, null), { ...lesson("Check In", 2, null), quiz: true }]);
+    render(<CourseOutline slug="c" outline={o} completed={new Set()} canOpen />);
+
+    const watch = screen.getByRole("link", { name: /Video:\s*Watch/ });
+    const check = screen.getByRole("link", { name: /Quiz:\s*Check In/ });
+    expect(watch.querySelector("svg.lucide-video")).not.toBeNull();
+    expect(check.querySelector("svg.lucide-list-checks")).not.toBeNull();
+  });
 });

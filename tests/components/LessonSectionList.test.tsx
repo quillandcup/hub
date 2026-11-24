@@ -119,4 +119,14 @@ describe("LessonSectionList", () => {
 
     expect(screen.getByRole("navigation", { name: "Lessons in this section" })).toHaveClass("bg-neutral-800/60");
   });
+
+  it("tells a quiz from a video by its icon and a spoken prefix", () => {
+    render(<LessonSectionList slug="c" section={section([lesson("a", "Watch this", 1), lesson("b", "Let's Check In", 2, { quiz: true })])} completed={new Set()} currentLessonId="a" />);
+    const [video, quiz] = screen.getAllByRole("listitem");
+
+    expect(within(video).getByText("Video:")).toBeInTheDocument();
+    expect(within(quiz).getByText("Quiz:")).toBeInTheDocument();
+    expect(video.querySelector("svg.lucide-video")).not.toBeNull();
+    expect(quiz.querySelector("svg.lucide-list-checks")).not.toBeNull();
+  });
 });

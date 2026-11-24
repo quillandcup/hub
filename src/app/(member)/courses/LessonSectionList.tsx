@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Icon from "@/components/Icon";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import type { Outline, OutlineLesson } from "@/lib/courses/outline";
 
@@ -28,8 +29,10 @@ function Row({ slug, lesson, number, completed, current, openable }: { slug: str
       ) : (
         <span aria-hidden="true" className="aspect-video w-full rounded bg-white/10" />
       )}
-      <span className="min-w-0 text-sm leading-snug">
-        {lesson.title}
+      <span className="flex min-w-0 items-center gap-2 text-sm leading-snug">
+        <Icon name={lesson.quiz ? "quiz" : "video"} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <span className="sr-only">{lesson.quiz ? "Quiz: " : "Video: "}</span>
+        <span className="min-w-0">{lesson.title}</span>
         {completed && (
           <>
             {" "}

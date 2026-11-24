@@ -13,7 +13,7 @@ import {
   type OutlineModule,
 } from "@/lib/courses/outline";
 
-type MemberCourseRepos = Pick<Repos, "courseProgress" | "courses">;
+type MemberCourseRepos = Pick<Repos, "courseProgress" | "courses" | "quizzes">;
 
 /**
  * What the member course pages read (docs/product/COURSES.md, "Member experience").
@@ -95,6 +95,7 @@ async function loadAccessRows(repos: MemberCourseRepos, memberId: string, course
 async function loadStructure(repos: MemberCourseRepos, courseIds: string[], includeHidden = false) {
   const courses = repos.courses;
   const [modules, lessons] = await Promise.all([courses.modulesOf(courseIds, { includeHidden }), courses.lessonsOf(courseIds, { includeHidden })]);
+  const quizzes = await repos.quizzes.quizzesOfLessons(lessons.map((l) => l.id));
   return {
     modules: modules.map((m) => ({ id: m.id, course_id: m.course_id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state })),
     // Our copy of a thumbnail when there is one, the Kajabi URL until the images step has run.
@@ -107,6 +108,7 @@ async function loadStructure(repos: MemberCourseRepos, courseIds: string[], incl
       state: l.state,
       duration_seconds: l.duration_seconds,
       excerpt: l.excerpt,
+      quiz: quizzes.has(l.id),
       thumbnail_url: courseImageSrc("lesson", l.id, l.thumbnail_asset_id, l.thumbnail_url),
     })),
   };
