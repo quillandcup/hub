@@ -14,6 +14,8 @@ const deleteLessonComment = vi.fn();
 const reportLessonComment = vi.fn();
 const setLessonCommentFollow = vi.fn();
 const suggestCommentMentions = vi.fn();
+const getMemberHoverCard = vi.fn();
+vi.mock("@/app/actions/member-hover-card", () => ({ getMemberHoverCard: (...a: unknown[]) => getMemberHoverCard(...a) }));
 vi.mock("@/app/(member)/courses/comment-actions", () => ({
   postLessonComment: (...a: unknown[]) => postLessonComment(...a),
   editLessonComment: (...a: unknown[]) => editLessonComment(...a),
@@ -74,6 +76,7 @@ beforeEach(() => {
   reportLessonComment.mockReset().mockResolvedValue({ id: "x" });
   setLessonCommentFollow.mockReset().mockResolvedValue({ id: "les_AAAAAAAAAAA1" });
   suggestCommentMentions.mockReset().mockResolvedValue([]);
+  getMemberHoverCard.mockReset();
   window.history.replaceState(null, "", "/");
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
@@ -126,7 +129,8 @@ describe("CommentThread", () => {
 
   it("replies with the keyboard, under the question, and announces it", async () => {
     renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [] }]);
-    // Reach the Reply button with the keyboard alone: Follow, the composer's textarea (Post is disabled while empty), then Reply.
+    // Reach the Reply button with the keyboard alone: Follow, the composer's textarea (Post is disabled while empty), the author's name (a link to their profile), then Reply.
+    await userEvent.tab();
     await userEvent.tab();
     await userEvent.tab();
     await userEvent.tab();
@@ -168,7 +172,8 @@ describe("CommentThread", () => {
     expect(link).toHaveAttribute("rel", expect.stringContaining("nofollow"));
     expect(document.querySelector("script")).toBeNull();
     expect(screen.getByText(/<script>alert\(1\)<\/script> javascript:alert\(1\)/)).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(1);
+    // The address, and the author's name (a link to their profile).
+    expect(screen.getAllByRole("link")).toHaveLength(2);
   });
 
   it("offers edit only on your own recent comment, and saves it", async () => {
@@ -491,6 +496,52 @@ describe("CommentThread", () => {
       expect(screen.queryByText(/mbr_/)).toBeNull();
     });
 
+    it("opens the member card from a mention and from the author's name, and gives 'someone' none", async () => {
+      const user = userEvent.setup();
+      const card = (id: string, name: string) => ({ id, name, photoUrl: null, firstJoinedAt: null, askMeAbout: [], instagramUrl: null, facebookUrl: null, twitterUrl: null, messageUrl: null });
+      getMemberHoverCard.mockImplementation(async (id: string) => ({ card: card(id, id === CAL ? "Cal Example" : "Bea Example") }));
+      const body = `Hello @[${CAL}] and @[mbr_AAAAAAAAAAA9]`;
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1", body }), replies: [] }], { mentionNames: { [CAL]: "Cal Example" } });
+
+      const mention = screen.getByRole("link", { name: "@Cal Example" });
+      expect(mention).toHaveAttribute("href", `/members/${CAL}`);
+      expect(screen.getByText("@someone").closest("a")).toBeNull();
+
+      await user.hover(mention);
+      expect(await screen.findByRole("dialog", { name: "Member profile" }, { timeout: 2000 })).toHaveTextContent("Cal Example");
+      expect(getMemberHoverCard).toHaveBeenCalledWith(CAL);
+      expect(track).toHaveBeenCalledWith("member_hover_card_opened", { surface: "lesson_comments", has_message: false });
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      const author = screen.getByRole("link", { name: "Bea Example" });
+      expect(author).toHaveAttribute("href", "/members/m2");
+      await user.hover(author);
+      await waitFor(() => expect(getMemberHoverCard).toHaveBeenCalledWith("m2"), { timeout: 2000 });
+    });
+
+    it("shows each author's avatar (photo or initials), opening the card too, and none for a former member", () => {
+      const { container } = renderThread([
+        {
+          comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorPhotoUrl: "https://img.example.test/bea.png" }),
+          replies: [comment({ id: "cmnt_AAAAAAAAAAA2", parentId: "cmnt_AAAAAAAAAAA1", memberId: "m3", authorName: "Dee Example" }), comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA1", memberId: "m4", authorName: "Former member" })],
+        },
+      ]);
+      const photo = container.querySelector('img[src="https://img.example.test/bea.png"]')!;
+      expect(photo).toHaveAttribute("width", "32");
+      const avatarLink = photo.closest("a")!;
+      expect(avatarLink).toHaveAttribute("href", "/members/m2");
+      expect(avatarLink).toHaveAttribute("tabindex", "-1");
+      expect(avatarLink).toHaveAttribute("aria-hidden", "true");
+      const dee = container.querySelector('a[href="/members/m3"][aria-hidden]')!;
+      expect(dee).toHaveTextContent("DE");
+      expect(dee.querySelector("img, div, span")).toHaveStyle({ width: "24px" });
+      // A former member: initials only, no link to open.
+      expect(container.querySelector('a[href="/members/m4"]')).toBeNull();
+      expect(screen.getByText("Former member").closest("a")).toBeNull();
+    });
+
     it("edits a comment with its mentions as names and saves them as tokens again", async () => {
       const user = userEvent.setup();
       const mine = comment({ id: "cmnt_AAAAAAAAAAA1", memberId: "m1", createdAt: new Date(NOW - 60_000).toISOString(), body: `Hi @[${CAL}], hello` });
@@ -521,7 +572,7 @@ describe("CommentThread", () => {
   });
 
   describe("staff tint and replied cue", () => {
-    const commentBlock = (name: string) => screen.getByText(name, { selector: "span.font-semibold" }).closest("div")!;
+    const commentBlock = (name: string) => screen.getByText(name, { selector: "a.font-semibold" }).closest("div")!;
 
     it("tints an instructor's comment and leaves a member's alone", () => {
       renderThread([

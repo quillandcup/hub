@@ -16,7 +16,7 @@ const CARD_WIDTH = 288;
 const GAP = 6;
 const MARGIN = 8;
 
-type Surface = "chat" | "streaks" | "big_sisters";
+type Surface = "chat" | "streaks" | "big_sisters" | "lesson_comments";
 type Loaded = { card: MemberHoverCardData } | { error: string };
 
 /** Cards already fetched this page load, so hovering the same name again is instant. Errors aren't kept. */
@@ -81,7 +81,7 @@ function CardBody({ card }: { card: MemberHoverCardData }) {
 /**
  * Wraps a member's name (or avatar) so hovering or focusing it shows their profile at a glance: photo,
  * how long they have been a Hedgie, what to ask them about, links, and Message / View profile.
- * Shared by chat, the streaks page and the Big Sister cards, and for any other page that names
+ * Shared by chat, the streaks page, the Big Sister cards and lesson comments, and for any other page that names
  * another member. The card is fetched when first opened (never with the page), and shown in a portal
  * so a scrolling or clipped parent can't cut it off. Hover-only by design: a tap on a touch screen
  * follows the wrapped link as before.

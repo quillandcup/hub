@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow, suggestCommentMentions } from "@/app/(member)/courses/comment-actions";
 import { track } from "@/lib/analytics/client";
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket, hasInstructorReply, involvesInstructor } from "@/lib/courses/comments";
-import { fullDate, mentionIds, namesToTokens, richParts, relativeAgo, spokenTimestamp, tokensToNames, type PickedMention } from "@/lib/courses/comment-text";
+import { FORMER_MEMBER_NAME, fullDate, mentionIds, namesToTokens, richParts, relativeAgo, spokenTimestamp, tokensToNames, type PickedMention } from "@/lib/courses/comment-text";
 import type { MentionChoice } from "@/lib/courses/comment-mentions";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 import { usePlayerSeek } from "@/components/courses/PlayerTime";
 import type { ThreadComment, ThreadEntry } from "@/lib/data/course-comments";
+import { MemberAvatarLink, MemberNameLink } from "@/components/member/MemberAvatarLink";
 import Tooltip from "@/components/Tooltip";
+import MemberHoverCard from "@/components/member/MemberHoverCard";
 
 /**
  * The comments under a lesson (docs/product/COURSES.md, "Lesson comments"): a composer, the questions newest first and each one's
@@ -229,9 +232,17 @@ function Body({ text, onSeek, mentionNames }: { text: string; onSeek?: (seconds:
           );
         }
         if (part.type === "mention") {
-          return (
+          const mentionName = mentionNames?.[part.memberId];
+          // Only a person who can be named gets the card; "@someone" stays plain text.
+          return mentionName ? (
+            <MemberHoverCard key={index} memberId={part.memberId} surface="lesson_comments">
+              <Link href={`/members/${part.memberId}`} data-track="lesson-comment-mention" className="font-medium text-plum-700 dark:text-plum-300">
+                @{mentionName}
+              </Link>
+            </MemberHoverCard>
+          ) : (
             <span key={index} className="font-medium text-plum-700 dark:text-plum-300">
-              @{mentionNames?.[part.memberId] ?? "someone"}
+              @someone
             </span>
           );
         }
@@ -370,10 +381,16 @@ function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek, inst
   }
 
   const staffComment = comment.isStaffReply && !comment.hidden && !comment.held;
+  // An author who can't be named has no profile to open: no link and no card.
+  const authorId = comment.authorName === FORMER_MEMBER_NAME ? null : comment.memberId;
+  const profileHref = `/members/${comment.memberId}`;
   return (
     <div data-staff={staffComment || undefined} data-instructor-replied={instructorReplied || undefined} className={[staffComment ? staffTint : "", instructorReplied ? repliedEdge : ""].filter(Boolean).join(" ") || undefined}>
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-        <span className="font-semibold">{comment.authorName}</span>
+        <span className="self-center">
+          <MemberAvatarLink memberId={authorId} name={comment.authorName} photoUrl={comment.authorPhotoUrl ?? null} size={isReply ? 24 : 32} surface="lesson_comments" href={profileHref} trackName="lesson-comment-avatar" />
+        </span>
+        <MemberNameLink memberId={authorId} name={comment.authorName} surface="lesson_comments" href={profileHref} trackName="lesson-comment-author" />
         {comment.isStaffReply && (
           <span className="rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900 dark:text-plum-100">Instructor</span>
         )}
