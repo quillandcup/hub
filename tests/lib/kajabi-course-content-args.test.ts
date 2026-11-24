@@ -11,6 +11,7 @@ describe("parseContentArgs", () => {
       skipDrafts: false,
       progress: false,
       comments: false,
+      responses: false,
       hero: false,
       probe: null,
       concurrency: 2,
@@ -30,6 +31,16 @@ describe("parseContentArgs", () => {
       concurrency: 4,
       headless: true,
     });
+  });
+
+  it("--responses needs a course and excludes the other modes", () => {
+    expect(parseContentArgs(["--course", "123", "--responses", "--apply"])).toMatchObject({ ok: true, responses: true, comments: false, progress: false, apply: true, scope: { courseId: "123" } });
+    expect(parseContentArgs(["--responses"])).toMatchObject({ ok: false, error: expect.stringContaining("--responses needs --course") });
+    expect(parseContentArgs(["--lesson", "5", "--responses"])).toMatchObject({ ok: false });
+    expect(parseContentArgs(["--course", "1", "--responses", "--progress"])).toMatchObject({ ok: false, error: expect.stringContaining("not several") });
+    expect(parseContentArgs(["--course", "1", "--responses", "--comments"])).toMatchObject({ ok: false });
+    expect(parseContentArgs(["--course", "1", "--responses", "--hero"])).toMatchObject({ ok: false, error: expect.stringContaining("--responses captures quiz responses only") });
+    expect(parseContentArgs(["--course", "1", "--responses", "--skip-drafts"])).toMatchObject({ ok: false });
   });
 
   it("--comments needs a course and excludes the other modes", () => {

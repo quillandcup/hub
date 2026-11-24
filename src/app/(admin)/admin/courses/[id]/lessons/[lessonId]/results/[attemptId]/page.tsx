@@ -47,6 +47,7 @@ export default async function QuizAttemptPage({ params }: Params) {
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
         Submitted {formatCourseDateTime(view.result.submittedAt)}.{" "}
         {view.result.questionCount === 0 ? "Nothing in this attempt was scored." : `Score ${view.result.scorePercent}% (${view.result.correctCount} of ${view.result.questionCount}).`}
+        {view.result.importedFrom === "kajabi" && " Imported from Kajabi, with the questions worded as they were when it was answered."}
       </p>
       <ol className="space-y-4 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
         {view.answers.map((a, i) => (

@@ -65,7 +65,7 @@ describe("loadMemberQuiz", () => {
     expect(mine.attempts.map((a) => a.submittedAt.slice(0, 10))).toEqual(["2027-01-07", "2027-01-06", "2027-01-05", "2027-01-04", "2027-01-03"]);
     // The pass was on the 2nd, which is no longer in the list but still counts.
     expect(mine.passed).toBe(true);
-    expect(Object.keys(mine.attempts[0]).sort()).toEqual(["correctCount", "id", "openAnswers", "passed", "questionCount", "scorePercent", "submittedAt"]);
+    expect(Object.keys(mine.attempts[0]).sort()).toEqual(["correctCount", "id", "importedFrom", "openAnswers", "passed", "questionCount", "scorePercent", "submittedAt"]);
     expect((await loadMemberQuiz(repos, LESSON, "mbr_AAAAAAAAAAA9"))!.attempts).toEqual([]);
   });
 });

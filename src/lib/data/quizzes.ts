@@ -50,6 +50,8 @@ export type QuizAttemptRecord = {
   scorePercent: number;
   passed: boolean;
   submittedAt: string;
+  /** `kajabi` for an attempt imported from Kajabi, null for one made in the Hub. */
+  importedFrom: string | null;
 };
 /** A file a member uploaded as an answer: where it is in the private bucket, the name it had, and its size. */
 export type AnswerFile = { path: string; name: string; bytes: number };
@@ -62,8 +64,20 @@ export type QuizAttemptAnswerRecord = {
   answerText: string | null;
   /** The file they uploaded for a file upload question; null for any other, or when they skipped it. */
   file: AnswerFile | null;
+  /** The question as it was worded when it was answered, when that was recorded (imports always do). */
+  promptSnapshot: string | null;
 };
-export type NewQuizAnswer = { questionId: string; selectedOptionIds: string[]; isCorrect: boolean | null; answerText?: string | null; file?: AnswerFile | null };
+export type NewQuizAnswer = {
+  questionId: string;
+  selectedOptionIds: string[];
+  isCorrect: boolean | null;
+  answerText?: string | null;
+  file?: AnswerFile | null;
+  /** The question as it was worded when answered (always set for an imported answer). */
+  promptSnapshot?: string | null;
+};
+/** One submission imported from Kajabi's Results tab: the attempt (never scored) and its answers, keyed by Kajabi's submission key. */
+export type ImportedAttempt = { quizId: string; memberId: string; sourceKey: string; submittedAt: string | null; answers: NewQuizAnswer[] };
 export type NewQuizAttempt = {
   quizId: string;
   memberId: string;
@@ -71,7 +85,7 @@ export type NewQuizAttempt = {
   correctCount: number;
   scorePercent: number;
   passed: boolean;
-  /** When it was submitted; now when omitted (for seeding and imports). */
+  /** When it was submitted; now when omitted (for seeding). */
   submittedAt?: string;
   answers: NewQuizAnswer[];
 };
@@ -142,6 +156,12 @@ export interface QuizRepository {
   answerFilePathsOfQuestions(questionIds: string[]): Promise<string[]>;
   /** One attempt, or null when there is none (the caller checks who may read it: the member it belongs to, or staff). */
   attemptById(attemptId: string): Promise<QuizAttemptRecord | null>;
+  /** The quizzes imported from Kajabi, by Kajabi's quiz id (`quizzes.source_key`). */
+  quizzesBySourceKeys(sourceKeys: string[]): Promise<Map<string, QuizRecord>>;
+  /** The Kajabi submission keys already imported into these quizzes, as `<quiz id>|<key>`. */
+  importedSourceKeys(quizIds: string[]): Promise<Set<string>>;
+  /** Inserts one submission imported from Kajabi, whole or not at all; `exists` (nothing changed) when that submission is already there. */
+  importAttempt(attempt: ImportedAttempt): Promise<"inserted" | "exists">;
   /** Every attempt at a quiz, newest first (paginated past 1000). */
   attemptsOfQuiz(quizId: string): Promise<QuizAttemptRecord[]>;
   /** Whether the member has a passing attempt at the quiz. */
@@ -167,6 +187,7 @@ const answerRow = (attemptId: string, a: NewQuizAnswer): Row<"quiz_attempt_answe
   selected_option_ids: a.selectedOptionIds,
   is_correct: a.isCorrect,
   answer_text: a.answerText ?? null,
+  prompt_snapshot: a.promptSnapshot ?? null,
   file_path: a.file?.path ?? null,
   file_name: a.file?.name ?? null,
   file_bytes: a.file?.bytes ?? null,
@@ -178,6 +199,7 @@ const toAnswer = (r: Row<"quiz_attempt_answers">): QuizAttemptAnswerRecord => ({
   isCorrect: r.is_correct,
   answerText: r.answer_text,
   file: r.file_path !== null && r.file_name !== null && r.file_bytes !== null ? { path: r.file_path, name: r.file_name, bytes: r.file_bytes } : null,
+  promptSnapshot: r.prompt_snapshot,
 });
 const toQuiz = (row: QuizRow): QuizRecord => ({
   id: row.id,
@@ -196,6 +218,7 @@ const toAttempt = (row: Row<"quiz_attempts">): QuizAttemptRecord => ({
   scorePercent: row.score_percent,
   passed: row.passed,
   submittedAt: row.submitted_at,
+  importedFrom: row.imported_from,
 });
 const newestFirst = (a: QuizAttemptRecord, b: QuizAttemptRecord) =>
   a.submittedAt === b.submittedAt ? compareText(b.id, a.id) : compareText(b.submittedAt, a.submittedAt);
@@ -339,6 +362,40 @@ export class SupabaseQuizRepository implements QuizRepository {
   async attemptById(attemptId: string) {
     const row = must(await this.db.from("quiz_attempts").select("*").eq("id", attemptId).maybeSingle());
     return row ? toAttempt(row) : null;
+  }
+
+  async quizzesBySourceKeys(sourceKeys: string[]) {
+    const rows = await inChunks(sourceKeys, ID_CHUNK, async (part) => must(await this.db.from("quizzes").select("*").in("source_key", part)) ?? []);
+    return new Map(rows.flatMap((r) => (r.source_key === null ? [] : [[r.source_key, toQuiz(r)] as [string, QuizRecord]])));
+  }
+
+  async importedSourceKeys(quizIds: string[]) {
+    const rows = await inChunks(quizIds, ID_CHUNK, async (part) =>
+      fetchAllRows<{ quiz_id: string; source_key: string | null }>((from, to) => this.db.from("quiz_attempts").select("quiz_id, source_key").in("quiz_id", part).not("source_key", "is", null).order("id").range(from, to)),
+    );
+    return new Set(rows.map((r) => `${r.quiz_id}|${r.source_key}`));
+  }
+
+  async importAttempt(attempt: ImportedAttempt) {
+    const { data, error } = await this.db.rpc("import_quiz_attempt", {
+      p_attempt: {
+        quiz_id: attempt.quizId,
+        member_id: attempt.memberId,
+        source_key: attempt.sourceKey,
+        submitted_at: attempt.submittedAt,
+        answers: attempt.answers.map((a) => ({
+          question_id: a.questionId,
+          selected_option_ids: a.selectedOptionIds,
+          answer_text: a.answerText ?? null,
+          prompt_snapshot: a.promptSnapshot ?? null,
+          file_path: a.file?.path ?? null,
+          file_name: a.file?.name ?? null,
+          file_bytes: a.file?.bytes ?? null,
+        })),
+      },
+    });
+    if (error) throw new Error(error.message);
+    return data === "exists" ? "exists" : "inserted";
   }
 
   async attemptsOfQuiz(quizId: string) {
@@ -597,6 +654,8 @@ export class InMemoryQuizRepository implements QuizRepository {
       score_percent: attempt.scorePercent,
       passed: attempt.passed,
       submitted_at: attempt.submittedAt ?? new Date().toISOString(),
+      imported_from: null,
+      source_key: null,
     };
     this.data.quizAttempts.push(row);
     for (const a of attempt.answers) {
@@ -632,6 +691,39 @@ export class InMemoryQuizRepository implements QuizRepository {
   async attemptById(attemptId: string) {
     const row = this.data.quizAttempts.find((a) => a.id === attemptId);
     return row ? toAttempt(row) : null;
+  }
+
+  async quizzesBySourceKeys(sourceKeys: string[]) {
+    const wanted = new Set(sourceKeys);
+    return new Map(this.data.quizzes.flatMap((q) => (q.source_key !== null && wanted.has(q.source_key) ? [[q.source_key, toQuiz(q)] as [string, QuizRecord]] : [])));
+  }
+
+  async importedSourceKeys(quizIds: string[]) {
+    const wanted = new Set(quizIds);
+    return new Set(this.data.quizAttempts.filter((a) => wanted.has(a.quiz_id) && a.source_key !== null).map((a) => `${a.quiz_id}|${a.source_key}`));
+  }
+
+  async importAttempt(attempt: ImportedAttempt) {
+    if (!this.quiz(attempt.quizId)) throw new Error('insert or update on table "quiz_attempts" violates foreign key constraint');
+    if (this.data.quizAttempts.some((a) => a.quiz_id === attempt.quizId && a.source_key === attempt.sourceKey)) return "exists" as const;
+    const row: Row<"quiz_attempts"> = {
+      id: this.nextId("qatt"),
+      quiz_id: attempt.quizId,
+      member_id: attempt.memberId,
+      question_count: 0,
+      correct_count: 0,
+      score_percent: 0,
+      passed: true,
+      submitted_at: attempt.submittedAt ?? new Date().toISOString(),
+      imported_from: "kajabi",
+      source_key: attempt.sourceKey,
+    };
+    this.data.quizAttempts.push(row);
+    for (const a of attempt.answers) {
+      if (this.data.quizAttemptAnswers.some((x) => x.attempt_id === row.id && x.question_id === a.questionId)) continue;
+      this.data.quizAttemptAnswers.push(answerRow(row.id, { ...a, isCorrect: null }));
+    }
+    return "inserted" as const;
   }
 
   async attemptsOfQuiz(quizId: string) {

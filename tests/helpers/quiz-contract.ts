@@ -437,6 +437,55 @@ export function defineQuizContract(name: string, setup: () => QuizContractContex
       expect((await ctx.repo().questionsOf(first[0].quizId)).map((q) => q.id)).toEqual(first.map((q) => q.id));
     });
 
+    it("imports a submission from Kajabi once, insert only: the attempt is unscored and marked, a repeat changes nothing, a Hub attempt is never touched", async () => {
+      const [member, other] = ctx.members;
+      const [lesson] = ctx.kajabiLessons;
+      await ctx.repo().syncImportedQuiz(lesson, {
+        sourceKey: "489121",
+        passingPercent: null,
+        hideAnswers: false,
+        questions: [
+          { sourceKey: "s1", prompt: "Tell us more", kind: "short_answer", allowsMultiple: false, options: [] },
+          { sourceKey: "f1", prompt: "Upload", kind: "file_upload", allowsMultiple: false, options: [] },
+        ],
+      });
+      const quiz = (await ctx.repo().quizOfLesson(lesson))!;
+      const [text, file] = await ctx.repo().questionsOf(quiz.id);
+      const mine = await ctx.repo().recordAttempt({ quizId: quiz.id, memberId: member, questionCount: 0, correctCount: 0, scorePercent: 0, passed: true, answers: [{ questionId: text.id, selectedOptionIds: [], isCorrect: null, answerText: "Made in the Hub" }] });
+
+      const submission = {
+        quizId: quiz.id,
+        memberId: member,
+        sourceKey: "s-100",
+        submittedAt: "2026-03-04T15:30:00.000Z",
+        answers: [
+          { questionId: text.id, selectedOptionIds: [], isCorrect: null, answerText: "Imported words", promptSnapshot: "Tell us more (then)" },
+          { questionId: file.id, selectedOptionIds: [], isCorrect: null, file: { path: `${member}/11111111-1111-4111-8111-111111111111/letter.pdf`, name: "letter.pdf", bytes: 2048 }, promptSnapshot: "Upload" },
+        ],
+      };
+      expect(await ctx.repo().importAttempt(submission)).toBe("inserted");
+      expect(await ctx.repo().importAttempt({ ...submission, answers: [] })).toBe("exists");
+      // The same key for another member is the same submission: still one.
+      expect(await ctx.repo().importAttempt({ ...submission, memberId: other })).toBe("exists");
+
+      const attempts = await ctx.repo().attemptsOf(member, quiz.id);
+      expect(attempts).toHaveLength(2);
+      const imported = attempts.find((a) => a.id !== mine.id)!;
+      expect(imported).toMatchObject({ importedFrom: "kajabi", questionCount: 0, correctCount: 0, scorePercent: 0, passed: true });
+      // The database writes the instant its own way ("+00:00"); it is the same instant.
+      expect(new Date(imported.submittedAt).toISOString()).toBe("2026-03-04T15:30:00.000Z");
+      expect(attempts.find((a) => a.id === mine.id)).toMatchObject({ importedFrom: null });
+      const answers = await ctx.repo().answersOf(imported.id);
+      expect(answers.find((a) => a.questionId === text.id)).toMatchObject({ answerText: "Imported words", promptSnapshot: "Tell us more (then)", file: null, isCorrect: null });
+      expect(answers.find((a) => a.questionId === file.id)).toMatchObject({ answerText: null, promptSnapshot: "Upload", file: { name: "letter.pdf", bytes: 2048 } });
+      expect((await ctx.repo().answersOf(mine.id)).map((a) => a.answerText)).toEqual(["Made in the Hub"]);
+
+      expect(await ctx.repo().importedSourceKeys([quiz.id])).toEqual(new Set([`${quiz.id}|s-100`]));
+      expect(await ctx.repo().importedSourceKeys([])).toEqual(new Set());
+      expect([...(await ctx.repo().quizzesBySourceKeys(["489121", "no-such"])).keys()]).toEqual(["489121"]);
+      expect(await ctx.repo().quizzesBySourceKeys([])).toEqual(new Map());
+    });
+
     it("skips a lesson that isn't Kajabi's or isn't there, and leaves the Hub's own quiz alone", async () => {
       const [hub] = ctx.lessons;
       expect(await ctx.repo().syncImportedQuiz(hub, imported())).toEqual({ status: "skipped", questions: 0, options: 0, removedQuestions: 0 });

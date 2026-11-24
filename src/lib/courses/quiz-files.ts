@@ -1,4 +1,5 @@
-import { QUIZ_ANSWERS } from "@/lib/config";
+// Relative, not "@/": the Kajabi capture script runs outside Next and imports this.
+import { QUIZ_ANSWERS } from "../config";
 
 /**
  * Files members upload as quiz answers (docs/product/COURSES.md, "Quizzes"). Client safe: no server imports.

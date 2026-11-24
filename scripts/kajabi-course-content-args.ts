@@ -16,6 +16,8 @@ export interface ContentArgs {
   progress: boolean;
   /** Comments mode: capture every lesson's comments from its member page into Bronze instead of lesson content. */
   comments: boolean;
+  /** Responses mode: capture every member's past submission of the course's quizzes (and their uploaded files) into Bronze instead of lesson content. */
+  responses: boolean;
   /** Also look for the course's hero banner on its admin product page. Off by default: it isn't there (docs/TODO.md, "Course Hero Image"). */
   hero: boolean;
   concurrency: number;
@@ -34,6 +36,7 @@ export const CONTENT_USAGE = [
   "  --env           env file with the Supabase URL and service role key (default .env.local); the .env.shared beside it is read too, and the file wins",
   "  --progress      with --course: capture every student's per-lesson progress (roster and one report per student) into Bronze instead of lesson content",
   "  --comments      with --course: capture every lesson's comments and replies (read from its member page, pressing Show More) into Bronze instead of lesson content",
+  "  --responses     with --course: capture every past quiz submission (the Results tab and each submission's answers, files copied into storage) into Bronze instead of lesson content",
   "  --skip-drafts   leave draft lessons out (they are captured by default; staff preview them)",
   "  --hero          also look for the course's hero banner (experimental; the admin product page doesn't carry it)",
   "  --probe         instead of capturing, open this Kajabi admin page and print the paths and field names of the JSON it loads while you click around (no values; --seconds sets how long, default 90)",
@@ -44,7 +47,7 @@ export const CONTENT_USAGE = [
 
 const VALUE_FLAGS = ["course", "lesson", "env", "concurrency", "profile", "probe", "seconds"] as const;
 // include-drafts is the old opt-in, now the default; still accepted so existing commands keep working.
-const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless", "hero", "progress", "comments"] as const;
+const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless", "hero", "progress", "comments", "responses"] as const;
 
 export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
   const values: Partial<Record<(typeof VALUE_FLAGS)[number], string>> = {};
@@ -84,6 +87,13 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
       return { ok: false, error: "--comments captures comments only; --hero and the draft options are for lesson content" };
     }
   }
+  if (flags.has("responses")) {
+    if (!values.course) return { ok: false, error: "--responses needs --course <kajabi-course-id>" };
+    if (flags.has("progress") || flags.has("comments")) return { ok: false, error: "Give one of --progress, --comments or --responses, not several" };
+    if (flags.has("hero") || flags.has("skip-drafts") || flags.has("include-drafts")) {
+      return { ok: false, error: "--responses captures quiz responses only; --hero and the draft options are for lesson content" };
+    }
+  }
   if (values.probe && (values.course || values.lesson)) return { ok: false, error: "--probe takes a page, not --course or --lesson" };
   if (!values.probe && !values.course && !values.lesson) return { ok: false, error: "Give --course, --lesson or --probe" };
   if (values.seconds !== undefined && !values.probe) return { ok: false, error: "--seconds is for --probe" };
@@ -119,6 +129,7 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
     skipDrafts: flags.has("skip-drafts"),
     progress: flags.has("progress"),
     comments: flags.has("comments"),
+    responses: flags.has("responses"),
     hero: flags.has("hero"),
     concurrency,
     headless: flags.has("headless"),

@@ -83,9 +83,9 @@ export function quizContentHash(documents: unknown[]): string {
 // ---------------------------------------------------------------------------------------------------------------------
 
 type Obj = Record<string, unknown>;
-const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 /** A key without case, underscores and dashes, so `is_correct`, `isCorrect` and `IsCorrect` are one name. */
-const norm = (key: string) => key.toLowerCase().replace(/[_-]/g, "");
+export const norm = (key: string) => key.toLowerCase().replace(/[_-]/g, "");
 const PROMPT_KEYS = ["question", "prompt", "body", "text", "title", "name", "content", "label"].map(norm);
 const OPTION_LIST_KEYS = ["answers", "options", "choices", "responses", "answeroptions", "quizanswers", "possibleanswers", "quizoptions", "quizresponses"].map(norm);
 const OPTION_TEXT_KEYS = ["answer", "text", "body", "title", "label", "name", "content", "value", "description"].map(norm);
@@ -106,7 +106,7 @@ const FILE_UPLOAD_TYPE = /file.?upload|upload.?file|file.?answer/i;
 const HIDE_KEYS = ["hideanswers", "hidecorrectanswers", "hideanswersonresults", "hideanswersonresultspage", "hideresultsanswers", "hideanswersonresult"].map(norm);
 
 /** The value of the first of these keys (in the order given) that the object has. */
-const valueOf = (o: Obj, wanted: string[]): unknown => {
+export const valueOf = (o: Obj, wanted: string[]): unknown => {
   for (const name of wanted) {
     const entry = Object.entries(o).find(([k]) => norm(k) === name);
     if (entry) return entry[1];
@@ -145,7 +145,7 @@ export function plainText(value: unknown): string {
 }
 
 /** A JSON:API document with its relationships resolved into plain nested objects (depth limited, so a cycle can't loop). */
-function resolveJsonApi(doc: unknown): unknown {
+export function resolveJsonApi(doc: unknown): unknown {
   if (!isObj(doc) || !("data" in doc)) return doc;
   const included = new Map<string, Obj>();
   for (const item of Array.isArray(doc.included) ? doc.included : []) if (isObj(item) && keyText(item.id) !== null) included.set(`${keyText(item.type)}:${keyText(item.id)}`, item);
@@ -166,7 +166,7 @@ function resolveJsonApi(doc: unknown): unknown {
 }
 
 /** Every array of objects in the document, and every object whose values are all objects (a store keyed by id), as lists to look through. */
-function listsIn(node: unknown, out: Obj[][] = [], depth = 0): Obj[][] {
+export function listsIn(node: unknown, out: Obj[][] = [], depth = 0): Obj[][] {
   if (depth > 12 || node === null || typeof node !== "object") return out;
   if (Array.isArray(node)) {
     const objects = node.filter(isObj);
@@ -182,8 +182,8 @@ function listsIn(node: unknown, out: Obj[][] = [], depth = 0): Obj[][] {
 
 const optionTextOf = (o: Obj): string => firstText(o, OPTION_TEXT_KEYS);
 /** An id or key as text; anything that isn't a string or a number is no id (an object can't even be turned into text safely). */
-const keyText = (v: unknown): string | null => (typeof v === "string" || typeof v === "number" ? String(v) : null);
-const truthy = (v: unknown) => v === true || v === 1 || v === "1" || v === "true";
+export const keyText = (v: unknown): string | null => (typeof v === "string" || typeof v === "number" ? String(v) : null);
+export const truthy = (v: unknown) => v === true || v === 1 || v === "1" || v === "true";
 const asKey = (v: unknown, fallback: string): string => keyText(v) ?? fallback;
 
 interface RawOption {

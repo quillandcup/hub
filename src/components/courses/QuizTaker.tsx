@@ -347,13 +347,14 @@ export default function QuizTaker({
               <li key={a.id}>
                 {attemptDate(a.submittedAt, timeZone)}
                 {a.questionCount > 0 ? `: ${a.scorePercent}% (${a.correctCount} of ${a.questionCount})${passingPercent !== null ? (a.passed ? ", passed" : ", not passed") : ""}` : ": submitted"}
+                {a.importedFrom === "kajabi" && " (from Kajabi)"}
                 {a.openAnswers.length > 0 && (
                   <details className="mt-1">
                     <summary className="cursor-pointer text-plum-700 dark:text-plum-300">What you wrote and uploaded</summary>
                     <ul className="mt-2 space-y-2 border-l-2 border-slate-200 pl-3 dark:border-slate-700">
                       {a.openAnswers.map((o) => (
                         <li key={o.questionId}>
-                          <p className="font-medium">{questions.find((q) => q.id === o.questionId)?.prompt ?? "A question that is no longer in this quiz"}</p>
+                          <p className="font-medium">{o.prompt ?? questions.find((q) => q.id === o.questionId)?.prompt ?? "A question that is no longer in this quiz"}</p>
                           {o.text !== null && <p className="whitespace-pre-wrap">{o.text}</p>}
                           {o.fileName !== null && (
                             <a href={fileHref(a.id, o.questionId)} className="text-plum-700 underline dark:text-plum-300">

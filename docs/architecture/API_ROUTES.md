@@ -56,7 +56,7 @@ What the app calls on other servers, and the `User-Agent` it sends, is in `docs/
 
 <!-- START api-routes generated: run `pnpm docs:api-routes` to update, don't edit by hand -->
 
-178 routes.
+179 routes.
 
 | Path | Methods | Who may call it |
 |---|---|---|
@@ -205,6 +205,7 @@ What the app calls on other servers, and the `User-Agent` it sends, is in `docs/
 | `/api/process/courses` | POST | `admin` |
 | `/api/process/member-interactions` | POST | `admin` |
 | `/api/process/members` | POST | `admin` |
+| `/api/process/quiz-responses` | POST | `admin` |
 | `/api/process/slack` | POST | `admin` |
 | `/api/profile/photo` | POST, DELETE | `session` |
 | `/api/projects/export` | GET | `session` |
