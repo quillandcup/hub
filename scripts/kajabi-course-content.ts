@@ -55,6 +55,7 @@ import { ProgressSessionExpiredError, runProgressCapture } from "../src/lib/kaja
 import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../src/lib/kajabi/progress-capture";
 import { extractCommentsInPage, parsePostsList, type PostLink } from "../src/lib/kajabi/comments-capture";
 import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from "../src/lib/kajabi/comments-run";
+import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from "../src/lib/kajabi/capture-totals";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
@@ -548,14 +549,7 @@ async function captureProgress(courseId: string): Promise<void> {
       throw error;
     });
 
-    const { roster: r, lessons: l } = summary;
-    console.log(
-      `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${summary.members} students in the roster ` +
-        `(${r.written} written, ${r.unchanged} unchanged, ${r.removed} removed; ${summary.rosterSkipped} unusable, ${summary.duplicateEmails} duplicate emails)\n` +
-        `lessons: ${summary.membersCaptured} students captured, ${summary.lessonsListed} lessons listed, ${summary.lessonsCompleted} completed; ` +
-        `${l.written} rows written, ${l.unchanged} unchanged, ${l.removed} removed; ` +
-        `${summary.membersWithoutLessons} students with no lessons, ${summary.membersFailed} failed, ${summary.lessonsNotInBronze} lessons not in Bronze`
-    );
+    console.log(formatProgressTotals(args.apply, summary));
     if (summary.membersFailed > 0) process.exitCode = 1;
   } finally {
     await context.close();
@@ -676,15 +670,7 @@ async function captureComments(courseId: string): Promise<void> {
       throw error;
     });
 
-    const k = summary.keySources;
-    console.log(
-      `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${summary.lessonsCaptured} lessons captured, ${summary.lessonsWithComments} with comments; ` +
-        `${summary.comments} comments and replies (${summary.replies} replies); ` +
-        `${summary.rows.written} rows written, ${summary.rows.unchanged} unchanged, ${summary.rows.removed} removed\n` +
-        `comment ids: ${k["reply-link"] + k["reply-container"] + k["data-comment"]} from the page (${k["reply-link"]} reply link, ${k["reply-container"]} reply container, ${k["data-comment"]} data-comment), ${k.hash} hashed, ${summary.duplicateKeys} repeated within a lesson\n` +
-        `lessons: ${summary.lessonsCapped} cut off at the Show More limit, ${summary.lessonsMismatched} with a different total on the page, ` +
-        `${summary.lessonsNoComments} with no comments (the page has a comment box), ${summary.lessonsQuizzes} quizzes (no comments by design), ${summary.lessonsLocked} locked until an earlier lesson is completed (their comments cannot be read from this preview), ${summary.lessonsWithoutList} with none of those (look at these), ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
-    );
+    console.log(formatCommentsTotals(args.apply, summary));
     if (summary.lessonsFailed > 0 || summary.lessonsCapped > 0) process.exitCode = 1;
   } finally {
     await context.close();
@@ -745,9 +731,20 @@ async function main() {
   const quizzes = results.filter((r) => r.quiz);
   const quizCount = (o: QuizSaveOutcome) => quizzes.filter((r) => r.quiz!.save === o).length;
   console.log(
-    `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${count("updated")} updated, ${count("urls_refreshed")} links refreshed, ` +
-      `${count("unchanged")} unchanged, ${count("missing")} not in Bronze, ${count("failed")} failed; ` +
-      `${count("quiz")} quizzes (${quizCount("created")} new, ${quizCount("updated")} changed, ${quizCount("unchanged")} unchanged, ${quizzes.filter((r) => r.quiz!.questions === null).length} with no question read)`
+    formatContentTotals(args.apply, {
+      updated: count("updated"),
+      urlsRefreshed: count("urls_refreshed"),
+      unchanged: count("unchanged"),
+      missing: count("missing"),
+      failed: count("failed"),
+      quizzes: {
+        total: count("quiz"),
+        created: quizCount("created"),
+        updated: quizCount("updated"),
+        unchanged: quizCount("unchanged"),
+        noQuestionRead: quizzes.filter((r) => r.quiz!.questions === null).length,
+      },
+    })
   );
   if (quizzes.length > 0) console.log("Quizzes reach the Hub with the next /api/process/courses run (or the admin Sync from Kajabi).");
   if (count("failed") > 0) process.exitCode = 1;
