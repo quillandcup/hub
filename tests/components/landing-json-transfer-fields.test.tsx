@@ -13,7 +13,8 @@ describe("what JSON import keeps matches what the editor edits", () => {
   const known = (name: keyof typeof BLOCK_DEFAULTS) => new Set([...Object.keys(BLOCK_DEFAULTS[name]), ...(SLOTS[name] ?? []), ...(EXTRA_PROPS[name] ?? []), "id", "span", "spanMobile"]);
 
   it.each(Object.keys(BLOCK_DEFAULTS) as (keyof typeof BLOCK_DEFAULTS)[])("%s: every field of the editor is kept", (name) => {
-    const fields = Object.keys(editorConfig.components[name].fields ?? {});
+    // A key ending in "Heading" is a group heading in the panel (editor-config.tsx): it edits and stores nothing.
+    const fields = Object.keys(editorConfig.components[name].fields ?? {}).filter((f) => !f.endsWith("Heading"));
     expect(fields.filter((f) => !known(name).has(f))).toEqual([]);
   });
 

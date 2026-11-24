@@ -73,6 +73,8 @@ const LIGHT_OVERLAYS: readonly string[] = ["light", "cream"];
 
 /** Where the content sits in the band when it is narrower than the page: on the left, in the middle (the default) or on the right. */
 const PLACE = { left: "mr-auto", center: "mx-auto", right: "ml-auto" } as const;
+/** With Fill the page, where the content sits in the grown section: at the top, in the middle (the default) or at the bottom. */
+const VERTICAL = { top: "justify-start", center: "justify-center", bottom: "justify-end" } as const;
 /** A card in one of the theme's colours, solid or softened (80%) so the picture shows faintly through. Full class strings, so Tailwind finds them. */
 const CARD_SOFT = { white: "bg-white/80", cream: "bg-cream/80", blush: "bg-blush/80", mist: "bg-mist-200/80", plum: "bg-plum-700/80", brownMid: "bg-brown/80", brown: "bg-brown-deep/80", charcoal: "bg-cup/80" } as const;
 
@@ -99,6 +101,8 @@ export type SectionProps = {
   fadeIn: boolean;
   /** Grow to take the free height between the site header and footer on a short page; the content stays in the middle. Off unless it is exactly `true`. */
   fill?: boolean;
+  /** With Fill the page: where the content sits in the grown section. Unset means the middle (what it always did). */
+  verticalAlign?: "top" | "center" | "bottom";
   content: Slot;
   /** Set by the editor's canvas only: a hidden section is dimmed there instead of hidden. */
   editing?: boolean;
@@ -108,7 +112,7 @@ export type SectionProps = {
 const SECTION_GRID = "grid grid-cols-12 gap-x-4 @split:gap-x-6";
 
 /** A full-width band with a background colour or picture, and a 12-column grid of other blocks inside it. */
-export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, fill, content: Content, editing }: SectionProps) {
+export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, fill, verticalAlign, content: Content, editing }: SectionProps) {
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
@@ -134,7 +138,7 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
   const hide = hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing));
   return (
     <section
-      className={`relative ${fills ? "lp-fill flex flex-col justify-center" : ""} ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${fills ? hide.replace("@split:block", "@split:flex") : hide} ${fadeIn ? "landing-fade-in" : ""}`}
+      className={`relative ${fills ? `lp-fill flex flex-col ${pick(VERTICAL, verticalAlign, "center")}` : ""} ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${fills ? hide.replace("@split:block", "@split:flex") : hide} ${fadeIn ? "landing-fade-in" : ""}`}
       style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}
     >
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}

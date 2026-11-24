@@ -49,7 +49,7 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
 };
 
 /** What the model is shown and may set for a block: the builder's defaults, except where those are sample content (a card's price and "Buy now"). */
-const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, cardColor: _cardColor, cardSoft: _cardSoft, place: _place, textTone: _textTone, fill: _fill, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
+const { hideOnDesktop: _hideOnDesktop, hideOnMobile: _hideOnMobile, cardColor: _cardColor, cardSoft: _cardSoft, place: _place, textTone: _textTone, fill: _fill, verticalAlign: _verticalAlign, ...SECTION_SHAPE } = BLOCK_DEFAULTS.Section;
 const SHAPES: Partial<Record<AiBlock | (typeof AI_ITEMS)[number], Props>> = {
   // The items of these are child blocks (`SLOT_ALLOW`), described beside the props.
   Steps: { heading: BLOCK_DEFAULTS.Steps.heading },

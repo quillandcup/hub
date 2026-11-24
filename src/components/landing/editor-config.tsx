@@ -8,7 +8,7 @@ import { withStandIns } from "./block-placeholder";
 import { buildRenderConfig, pageBlocks, renderConfig, rootConfigFor, type FrameContext } from "./config";
 import { SOCIAL_LOOK_OPTIONS, SOCIAL_NETWORK_OPTIONS } from "./social-networks";
 import { createEditorKit, type EditorKit, type PageBlockEditorContribution } from "./editor-kit";
-import { PaddingField, SpanField } from "./layout-fields";
+import { GroupHeading, PaddingField, SpanField } from "./layout-fields";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
 /**
@@ -24,6 +24,8 @@ const padding = (label: string, size: "desktop" | "mobile"): Field => ({
   label,
   render: ({ value, onChange }) => <PaddingField label={label} size={size} value={value} onChange={onChange} />,
 });
+/** A heading between groups of fields; it edits nothing and stores nothing. */
+const heading = (label: string): Field => ({ type: "custom", label, render: () => <GroupHeading label={label} /> });
 const span = (label: string): Field => ({
   type: "custom",
   label,
@@ -53,14 +55,17 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     card: toggle("Put the content on a card"),
     cardColor: select("Card colour", [{ label: "White", value: "default" }, ...BACKGROUND_OPTIONS.filter((o) => o.value !== "none" && o.value !== "white")]),
     cardSoft: toggle("Let the picture show faintly through the card"),
-    place: select("Where the content sits when it is narrower than the page", opts("left", "center", "right")),
     textTone: select("Text colour", [{ label: "Follows the background", value: "auto" }, { label: "Plum", value: "plum" }]),
     fadeIn: toggle("Fade in as it appears"),
-    fill: toggle("Fill the page (on a short page, grow down to the footer)"),
-    paddingDesktop: padding("Space inside on desktop", "desktop"),
-    paddingMobile: padding("Space inside on mobile", "mobile"),
+    desktopHeading: heading("Desktop layout"),
     hideOnDesktop: toggle("Hide on desktop"),
+    paddingDesktop: padding("Space inside on desktop", "desktop"),
+    place: select("Where the content sits when it is narrower than the page", opts("left", "center", "right")),
+    fill: toggle("Fill the page (on a short page, grow down to the footer)"),
+    verticalAlign: select("Where the content sits when the section is taller than it (needs Fill the page)", [{ label: "In the middle", value: "center" }, { label: "At the top", value: "top" }, { label: "At the bottom", value: "bottom" }]),
+    mobileHeading: heading("Mobile layout"),
     hideOnMobile: toggle("Hide on mobile"),
+    paddingMobile: padding("Space inside on mobile", "mobile"),
     content: contentSlot(),
   },
   Columns: {

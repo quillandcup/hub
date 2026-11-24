@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => null }));
 
-import { PaddingField, SpanField } from "@/components/landing/layout-fields";
+import { FourSidesField, GroupHeading, PaddingField, SpanField } from "@/components/landing/layout-fields";
 import { editorConfig } from "@/components/landing/editor-config";
 import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
 
@@ -99,6 +99,40 @@ describe("PaddingField", () => {
   });
 });
 
+describe("FourSidesField", () => {
+  const v = { top: 10, bottom: 20, left: 30, right: 40 };
+
+  it("lays the sides out around a box, with a letter after each number, in the order the eye reads", () => {
+    render(<FourSidesField label="Space" value={v} onChange={() => {}} />);
+    const inputs = screen.getAllByRole("spinbutton").map((i) => i.getAttribute("aria-label"));
+    expect(inputs).toEqual(["Space, top (px)", "Space, left (px)", "Space, right (px)", "Space, bottom (px)"]);
+    expect(screen.getByTestId("four-sides").textContent).toBe("TLRB");
+    expect(screen.getByLabelText("Space, left (px)")).toHaveValue(30);
+  });
+
+  it("changes one side and keeps the rest, clamped to 0 and the maximum", () => {
+    const onChange = vi.fn();
+    render(<FourSidesField label="Space" value={v} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Space, right (px)"), { target: { value: "5" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...v, right: 5 });
+    fireEvent.change(screen.getByLabelText("Space, bottom (px)"), { target: { value: "-4" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...v, bottom: 0 });
+    fireEvent.change(screen.getByLabelText("Space, top (px)"), { target: { value: "999" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...v, top: 320 });
+  });
+
+  it("is used for both sizes of a Section's space, next to the quick picks", () => {
+    render(<PaddingField label="Space inside on mobile" size="mobile" value={undefined} onChange={() => {}} />);
+    expect(screen.getByTestId("four-sides")).toBeInTheDocument();
+    expect(screen.getByText("In px, 0 to 320.")).toBeInTheDocument();
+  });
+
+  it("GroupHeading shows its label", () => {
+    render(<GroupHeading label="Desktop layout" />);
+    expect(screen.getByRole("heading", { name: "Desktop layout" })).toBeInTheDocument();
+  });
+});
+
 describe("the editor's fields", () => {
   const section = editorConfig.components.Section;
   const labels = (fields: Record<string, { label?: string }> | undefined) => Object.fromEntries(Object.entries(fields ?? {}).map(([k, f]) => [k, f.label]));
@@ -110,6 +144,19 @@ describe("the editor's fields", () => {
     expect(fields.hideOnDesktop).toBe("Hide on desktop");
     expect(fields.hideOnMobile).toBe("Hide on mobile");
     expect(fields).not.toHaveProperty("padding");
+  });
+
+  it("puts the size-specific fields under Desktop layout and Mobile layout headings, in that order", () => {
+    const keys = Object.keys(section.fields as never);
+    const at = (k: string) => keys.indexOf(k);
+    expect(at("desktopHeading")).toBeLessThan(at("hideOnDesktop"));
+    expect(at("hideOnDesktop")).toBeLessThan(at("paddingDesktop"));
+    expect(at("verticalAlign")).toBeLessThan(at("mobileHeading"));
+    expect(at("mobileHeading")).toBeLessThan(at("hideOnMobile"));
+    expect(at("hideOnMobile")).toBeLessThan(at("paddingMobile"));
+    const headings = section.fields as never as Record<string, { render: () => React.ReactElement }>;
+    render(headings.mobileHeading.render());
+    expect(screen.getByRole("heading", { name: "Mobile layout" })).toBeInTheDocument();
   });
 
   it("offers the width fields only to a block inside a Section", async () => {

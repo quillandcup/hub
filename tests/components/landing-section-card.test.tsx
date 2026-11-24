@@ -117,6 +117,16 @@ describe("a Section that fills the page", () => {
     expect(render(<Section {...base} fill={"yes" as never} />).container.querySelector("section")!.className).not.toContain("lp-fill");
   });
 
+  it("puts the content at the top, the middle (also when unset or unknown) or the bottom of a grown section", () => {
+    const cls = (v?: string) => band(render(<Section {...base} fill verticalAlign={v as never} />).container).className.split(" ");
+    expect(cls("top")).toContain("justify-start");
+    expect(cls("bottom")).toContain("justify-end");
+    expect(cls("center")).toContain("justify-center");
+    expect(cls(undefined)).toContain("justify-center");
+    expect(cls("sideways")).toContain("justify-center");
+    expect(band(render(<Section {...base} verticalAlign="bottom" />).container).className).not.toContain("justify-end");
+  });
+
   it("is a column that centres its content, marked for the frame to grow, and keeps its padding, width and placing", () => {
     const { container } = render(<Section {...base} fill background="plum" place="right" width="narrow" paddingDesktop={{ top: 70, bottom: 70, left: 10, right: 10 }} />);
     const section = band(container);
