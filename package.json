@@ -50,6 +50,7 @@
     "check:migrations": "tsx scripts/check-migration-order.ts",
     "migrations:renumber": "tsx scripts/renumber-migrations.ts",
     "check:licenses": "tsx scripts/check-licenses.ts",
+    "check:pvtr": "tsx scripts/pvtr-scan.ts",
     "disposable-domains:update": "tsx scripts/update-disposable-email-domains.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",
     "test:run": "vitest --config config/vitest.mts run",

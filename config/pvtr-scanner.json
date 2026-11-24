@@ -1,0 +1,9 @@
+{
+  "_comment": "The OpenSSF scanner binary that .github/workflows/pvtr-scan.yml downloads and runs: ossf/pvtr-github-repo-scanner. The release has a checksum but no attestation, so the download is only used when its sha256 equals the value pinned here. Dependabot cannot bump this. To bump it by hand: read the new release's notes and source for write calls, set `version`, download the Linux x86_64 tarball yourself, compare `shasum -a 256` with the release's checksums.txt, paste that value into `sha256`, check `catalog` still exists in the new release (a new version may rename it), run the workflow from a pull request, and update config/pvtr-baseline.json for any control whose result changed.",
+  "repository": "ossf/pvtr-github-repo-scanner",
+  "version": "v0.33.2",
+  "asset": "pvtr-github-repo-scanner_Linux_x86_64.tar.gz",
+  "sha256": "938aeaea6380633958c037e138caf4192411e9fc6f2fec0a9f3390fe9294a2c4",
+  "catalog": "osps-baseline-2026-08",
+  "applicability": ["maturity-1", "maturity-2", "maturity-3"]
+}
