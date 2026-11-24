@@ -251,6 +251,30 @@ function ReportTime({ onTime }: { onTime: (seconds: number) => void }) {
   return null;
 }
 
+/** A request to move the video (a comment's timestamp): the `nonce` makes asking for the same second twice two requests. */
+export interface SeekRequest {
+  seconds: number;
+  nonce: number;
+}
+
+/** Moves the video to each new request and plays it, then brings the player into view so the member sees it happen. */
+function SeekOnRequest({ request }: { request: SeekRequest | null }) {
+  const media = useMedia();
+  const handled = useRef(0);
+
+  useEffect(() => {
+    if (!media || !request || request.nonce === handled.current) return;
+    handled.current = request.nonce;
+    const el = media as unknown as HTMLMediaElement;
+    seekMedia(el, request.seconds);
+    void el.play?.()?.catch(() => {});
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.closest?.('[role="group"]')?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  }, [media, request]);
+
+  return null;
+}
+
 /** Starts the video where the member left off, once, unless that was (nearly) the end. */
 function ResumePosition({ seconds }: { seconds: number }) {
   const media = useMedia();
@@ -492,6 +516,7 @@ export default function LessonPlayer({
   trackProgress = false,
   autoPlay = false,
   onTime,
+  seekRequest = null,
   overlay,
 }: {
   title: string;
@@ -516,6 +541,8 @@ export default function LessonPlayer({
   autoPlay?: boolean;
   /** Called with the playhead's whole second whenever it changes. */
   onTime?: (seconds: number) => void;
+  /** Move to this second and play, whenever a new request arrives (a timestamp in a comment). */
+  seekRequest?: SeekRequest | null;
   /** Drawn inside the skin, over the frame, so it can use the skin's own tokens and its container (`media-root`): a control that should look native beside its buttons. */
   overlay?: React.ReactNode;
 }) {
@@ -564,6 +591,7 @@ export default function LessonPlayer({
           />
           <ResumePosition seconds={resumeSeconds} />
           {autoPlay && <AutoPlay />}
+          <SeekOnRequest request={seekRequest} />
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} chatMessageId={chatMessageId} />}
           <BigPlayButton />

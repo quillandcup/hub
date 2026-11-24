@@ -693,6 +693,68 @@ describe("LessonPlayer watch tracking", () => {
   });
 });
 
+describe("LessonPlayer seek requests (a comment's timestamp)", () => {
+  const withRequest = (request: { seconds: number; nonce: number } | null) => <LessonPlayer title="T" playbackId="pb-1" tokens={tokens} seekRequest={request} />;
+  const playable = () => {
+    const play = vi.fn(async () => {});
+    const scrollIntoView = vi.fn();
+    const media = Object.assign(fakeMedia(), { play, closest: () => ({ scrollIntoView }) });
+    player.media = media as never;
+    return { media, play, scrollIntoView };
+  };
+
+  afterEach(() => {
+    player.media = undefined;
+  });
+
+  it("moves the video to the second, plays it and brings the player into view", () => {
+    const { media, play, scrollIntoView } = playable();
+    render(withRequest({ seconds: 155, nonce: 1 }));
+
+    expect(media.currentTime).toBe(155);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: expect.stringMatching(/^(auto|smooth)$/), block: "center" });
+  });
+
+  it.each([
+    [true, "auto"],
+    [false, "smooth"],
+  ])("when the viewer asked for less motion (%s) it scrolls %s", (reduce, behavior) => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn(() => ({ matches: reduce }) as unknown as MediaQueryList);
+    const { scrollIntoView } = playable();
+    try {
+      render(withRequest({ seconds: 10, nonce: 1 }));
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior, block: "center" });
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it("moves again for each new request, even to the same second, and not for the same request twice", () => {
+    const { media, play } = playable();
+    const { rerender } = render(withRequest({ seconds: 30, nonce: 1 }));
+    media.currentTime = 90;
+    rerender(withRequest({ seconds: 30, nonce: 1 }));
+    expect(media.currentTime).toBe(90);
+
+    rerender(withRequest({ seconds: 30, nonce: 2 }));
+    expect(media.currentTime).toBe(30);
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it("does nothing without a request, or before the video exists", () => {
+    const { media, play } = playable();
+    render(withRequest(null));
+    expect(media.currentTime).toBe(0);
+    expect(play).not.toHaveBeenCalled();
+
+    cleanup();
+    player.media = undefined;
+    expect(() => render(withRequest({ seconds: 5, nonce: 1 }))).not.toThrow();
+  });
+});
+
 describe("LessonPlayer resume", () => {
   const resumed = (seconds: number) => <LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" resumeSeconds={seconds} />;
 

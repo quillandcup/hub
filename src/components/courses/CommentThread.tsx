@@ -4,8 +4,9 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow } from "@/app/(member)/courses/comment-actions";
 import { track } from "@/lib/analytics/client";
-import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket } from "@/lib/courses/comments";
-import { fullDate, linkifyText, relativeAgo } from "@/lib/courses/comment-text";
+import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket, involvesInstructor } from "@/lib/courses/comments";
+import { fullDate, richParts, relativeAgo, spokenTimestamp } from "@/lib/courses/comment-text";
+import { usePlayerSeek } from "@/components/courses/PlayerTime";
 import type { ThreadComment, ThreadEntry } from "@/lib/data/course-comments";
 import Tooltip from "@/components/Tooltip";
 
@@ -31,6 +32,8 @@ interface Props {
   isStaff: boolean;
   /** Sudo: the thread shows, but nothing can be posted. */
   readOnly: boolean;
+  /** The lesson has a video that is ready, so a typed timestamp (2:35) is a button that moves it. */
+  canSeek?: boolean;
   /** The viewer's IANA time zone. */
   timeZone: string;
   /** When the page was made, in milliseconds: relative dates and the edit window are measured from it so server and browser agree. */
@@ -116,18 +119,33 @@ function Composer({ label, submitLabel, initial = "", disabled, disabledReason, 
   );
 }
 
-function Body({ text }: { text: string }) {
+function Body({ text, onSeek }: { text: string; onSeek?: (seconds: number) => void }) {
   return (
     <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-      {linkifyText(text).map((part, index) =>
-        part.type === "link" ? (
-          <a key={index} href={part.value} rel="nofollow noopener noreferrer" target="_blank" className="text-plum-700 underline dark:text-plum-300">
-            {part.value}
-          </a>
-        ) : (
-          <span key={index}>{part.value}</span>
-        ),
-      )}
+      {richParts(text).map((part, index) => {
+        if (part.type === "link") {
+          return (
+            <a key={index} href={part.value} rel="nofollow noopener noreferrer" target="_blank" className="text-plum-700 underline dark:text-plum-300">
+              {part.value}
+            </a>
+          );
+        }
+        if (part.type === "time" && onSeek) {
+          return (
+            <button
+              key={index}
+              type="button"
+              onClick={() => onSeek(part.seconds)}
+              aria-label={`Play the video from ${spokenTimestamp(part.seconds)}`}
+              data-track="lesson-comment-timestamp"
+              className="rounded px-0.5 font-medium text-plum-700 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 dark:text-plum-300"
+            >
+              {part.value}
+            </button>
+          );
+        }
+        return <span key={index}>{part.value}</span>;
+      })}
     </p>
   );
 }
@@ -187,9 +205,11 @@ interface ItemProps {
   /** Opens a reply box under the question. */
   onReply: () => void;
   onChanged: (message: string) => void;
+  /** Moves the lesson's video; absent when there is none to move. */
+  onSeek?: (seconds: number) => void;
 }
 
-function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps) {
+function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek }: ItemProps) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -273,7 +293,7 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
           <Composer label="Edit your comment" submitLabel="Save" initial={comment.body ?? ""} busy={pending} error={error} autoFocus onSubmit={save} onCancel={() => setEditing(false)} />
         </div>
       ) : (
-        <Body text={comment.body ?? ""} />
+        <Body text={comment.body ?? ""} onSeek={onSeek} />
       )}
 
       {!editing && (
@@ -335,6 +355,16 @@ export default function CommentThread(props: Props) {
   const [pending, startTransition] = useTransition();
   const [following, setFollowing] = useState(props.following);
   const [followError, setFollowError] = useState<string | null>(null);
+  // "Instructor answers" keeps the questions an instructor is in; everyone's list is the default.
+  const [onlyInstructor, setOnlyInstructor] = useState(false);
+  const seekVideo = usePlayerSeek();
+  const hasInstructor = props.entries.some(involvesInstructor);
+  const shown = onlyInstructor ? props.entries.filter(involvesInstructor) : props.entries;
+
+  function seek(seconds: number) {
+    seekVideo(seconds);
+    setAnnouncement(`Playing the video from ${spokenTimestamp(seconds)}`);
+  }
   // A link from a notification names the comment (?comment=cmnt_...): scroll to it and mark it.
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
@@ -450,19 +480,30 @@ export default function CommentThread(props: Props) {
         {announcement}
       </div>
 
+      {hasInstructor && (
+        <div role="group" aria-label="Show" className="mt-6 flex flex-wrap gap-2">
+          <button type="button" aria-pressed={!onlyInstructor} onClick={() => setOnlyInstructor(false)} className={`${quietButton} ${!onlyInstructor ? "bg-slate-100 dark:bg-slate-800" : ""}`} data-track="lesson-comments-filter-all">
+            All comments
+          </button>
+          <button type="button" aria-pressed={onlyInstructor} onClick={() => setOnlyInstructor(true)} className={`${quietButton} ${onlyInstructor ? "bg-slate-100 dark:bg-slate-800" : ""}`} data-track="lesson-comments-filter-instructor">
+            Instructor answers
+          </button>
+        </div>
+      )}
+
       {props.entries.length === 0 ? (
         <p className="mt-6 text-sm text-slate-600 dark:text-slate-400">No questions yet. Stuck on something in this lesson? Ask here.</p>
       ) : (
         <ul className="mt-6 space-y-6">
-          {props.entries.map((entry) => (
+          {shown.map((entry) => (
             <li key={entry.comment.id} id={entry.comment.id} className={highlightId === entry.comment.id ? highlightClass : undefined}>
-              <CommentItem comment={entry.comment} isReply={false} props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} />
+              <CommentItem comment={entry.comment} isReply={false} props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} onSeek={props.canSeek ? seek : undefined} />
               {(entry.replies.length > 0 || replyingTo === entry.comment.id) && (
                 <div className="mt-3 border-l-2 border-slate-200 pl-4 dark:border-slate-700">
                   <ul className="space-y-4">
                     {entry.replies.map((reply) => (
                       <li key={reply.id} id={reply.id} className={highlightId === reply.id ? highlightClass : undefined}>
-                        <CommentItem comment={reply} isReply props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} />
+                        <CommentItem comment={reply} isReply props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} onSeek={props.canSeek ? seek : undefined} />
                       </li>
                     ))}
                   </ul>

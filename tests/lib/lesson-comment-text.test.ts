@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fullDate, linkifyText, relativeAgo } from "@/lib/courses/comment-text";
-import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LINKS, cleanCommentBody, cleanReportReason, commentCountBucket, countCommentLinks, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
+import { fullDate, linkifyText, relativeAgo, richParts, spokenTimestamp, timestampSeconds } from "@/lib/courses/comment-text";
+import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LINKS, cleanCommentBody, cleanReportReason, commentCountBucket, countCommentLinks, involvesInstructor, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
+import type { ThreadComment } from "@/lib/data/course-comments";
 
 describe("linkifyText", () => {
   it("links only http(s) addresses and leaves everything else as text", () => {
@@ -93,5 +94,70 @@ describe("cleanReportReason", () => {
     expect(cleanReportReason(undefined)).toEqual({ error: "Tell us briefly what's wrong" });
     expect(cleanReportReason("x".repeat(500))).toEqual({ reason: "x".repeat(500) });
     expect(cleanReportReason("x".repeat(501))).toEqual({ error: "Keep it under 500 characters" });
+  });
+});
+
+describe("involvesInstructor", () => {
+  const c = (over: Partial<ThreadComment> = {}): ThreadComment => ({
+    id: "cmnt_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1", memberId: "m1", parentId: null, authorName: "Ada Example", isStaffReply: false,
+    createdAt: "2027-03-01T00:00:00Z", editedAt: null, removed: false, body: "x", hidden: false, held: false, ...over,
+  });
+  it("is true when staff asked or a live instructor reply is under the question", () => {
+    expect(involvesInstructor({ comment: c({ isStaffReply: true }), replies: [] })).toBe(true);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true })] })).toBe(true);
+  });
+  it("is false for members only, and for an instructor reply members can't read", () => {
+    expect(involvesInstructor({ comment: c(), replies: [c()] })).toBe(false);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true, removed: true })] })).toBe(false);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true, held: true })] })).toBe(false);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true, hidden: true })] })).toBe(false);
+  });
+});
+
+describe("timestamps", () => {
+  it("reads m:ss and h:mm:ss, and refuses minutes or seconds past 59", () => {
+    expect(timestampSeconds("2:35")).toBe(155);
+    expect(timestampSeconds("0:05")).toBe(5);
+    expect(timestampSeconds("1:02:03")).toBe(3723);
+    expect(timestampSeconds("2:75")).toBeNull();
+    expect(timestampSeconds("1:75:00")).toBeNull();
+    expect(timestampSeconds("1:02:75")).toBeNull();
+    expect(timestampSeconds("2:3")).toBeNull();
+    expect(timestampSeconds("nope")).toBeNull();
+  });
+
+  it("says a timestamp the way it is read aloud", () => {
+    expect(spokenTimestamp(155)).toBe("2 minutes 35 seconds");
+    expect(spokenTimestamp(61)).toBe("1 minute 1 second");
+    expect(spokenTimestamp(5)).toBe("5 seconds");
+    expect(spokenTimestamp(3600)).toBe("1 hour 0 minutes 0 seconds");
+  });
+});
+
+describe("richParts", () => {
+  it("turns a typed timestamp into a time part and leaves the text around it", () => {
+    expect(richParts("At 2:35 she explains it, and again at 1:02:03.")).toEqual([
+      { type: "text", value: "At " },
+      { type: "time", value: "2:35", seconds: 155 },
+      { type: "text", value: " she explains it, and again at " },
+      { type: "time", value: "1:02:03", seconds: 3723 },
+      { type: "text", value: "." },
+    ]);
+  });
+
+  it("keeps a time inside an address, a clock time with am or pm, a longer number and an impossible time as plain text", () => {
+    expect(richParts("See https://example.com/watch?t=2:35 now")).toEqual([
+      { type: "text", value: "See " },
+      { type: "link", value: "https://example.com/watch?t=2:35" },
+      { type: "text", value: " now" },
+    ]);
+    for (const text of ["Meet at 10:30pm", "Meet at 10:30 PM", "v2:35:10:22", "ratio 12:345", "at 2:75 sharp"]) {
+      expect(richParts(text)).toEqual([{ type: "text", value: text }]);
+    }
+  });
+
+  it("returns what linkifyText returns when there is no time, and nothing for nothing", () => {
+    expect(richParts("no times, https://example.com here")).toEqual(linkifyText("no times, https://example.com here"));
+    expect(richParts("")).toEqual([]);
   });
 });

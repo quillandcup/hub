@@ -419,9 +419,9 @@ describe("course comments tables", () => {
     await user.keyboard("j");
     expect(activeRows()).toEqual([]);
     await openFirstRow("Reported comments");
-    expect(recorder.hrefs()).toEqual(["/courses/craft/lessons/l1#c1"]);
+    expect(recorder.hrefs()).toEqual(["/courses/craft/lessons/l1?comment=c1"]);
     await openFirstRow("Held comments");
-    expect(recorder.hrefs().at(-1)).toBe("/courses/craft/lessons/l2#c2");
+    expect(recorder.hrefs().at(-1)).toBe("/courses/craft/lessons/l2?comment=c2");
   });
 
   it("UnansweredTable opens the lesson thread", async () => {
@@ -434,7 +434,7 @@ describe("course comments tables", () => {
       />,
     );
     await openFirstRow("Unanswered questions");
-    expect(recorder.hrefs()).toEqual(["/courses/craft/lessons/l3#q1"]);
+    expect(recorder.hrefs()).toEqual(["/courses/craft/lessons/l3?comment=q1"]);
   });
 });
 

@@ -57,7 +57,7 @@ export function ReportedTable({ rows, courseId, courseSlug, nowMs }: { rows: Rep
             {table.rows.map((row) => (
               <tr key={row.commentId} className="border-t border-slate-100 align-top dark:border-slate-800">
                 <td className="px-3 py-2">
-                  <Link href={`/courses/${courseSlug}/lessons/${row.lessonId}#${row.commentId}`} className="font-medium text-plum-700 underline dark:text-plum-300">
+                  <Link href={`/courses/${courseSlug}/lessons/${row.lessonId}?comment=${row.commentId}`} className="font-medium text-plum-700 underline dark:text-plum-300">
                     {row.lessonTitle}
                   </Link>
                 </td>
@@ -130,7 +130,7 @@ export function HeldTable({ rows, courseId, courseSlug, nowMs }: { rows: HeldCom
             {table.rows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 align-top dark:border-slate-800">
                 <td className="px-3 py-2">
-                  <Link href={`/courses/${courseSlug}/lessons/${row.lessonId}#${row.id}`} className="font-medium text-plum-700 underline dark:text-plum-300">
+                  <Link href={`/courses/${courseSlug}/lessons/${row.lessonId}?comment=${row.id}`} className="font-medium text-plum-700 underline dark:text-plum-300">
                     {row.lessonTitle}
                   </Link>
                 </td>
