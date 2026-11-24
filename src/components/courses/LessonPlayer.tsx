@@ -258,7 +258,7 @@ export interface SeekRequest {
 }
 
 /** Moves the video to each new request and plays it, then brings the player into view so the member sees it happen. */
-function SeekOnRequest({ request }: { request: SeekRequest | null }) {
+function SeekOnRequest({ request, frame }: { request: SeekRequest | null; frame: React.RefObject<HTMLElement | null> }) {
   const media = useMedia();
   const handled = useRef(0);
 
@@ -269,8 +269,9 @@ function SeekOnRequest({ request }: { request: SeekRequest | null }) {
     seekMedia(el, request.seconds);
     void el.play?.()?.catch(() => {});
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    el.closest?.('[role="group"]')?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "center" });
-  }, [media, request]);
+    // The player's own wrapper, not a lookup from the media element: that one can sit where `closest` doesn't reach.
+    frame.current?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  }, [media, request, frame]);
 
   return null;
 }
@@ -547,6 +548,7 @@ export default function LessonPlayer({
   overlay?: React.ReactNode;
 }) {
   const poster = courseImageUrl(posterUrl);
+  const frame = useRef<HTMLDivElement>(null);
   // Mux Data collects the viewer's IP address and browser, so it follows the usage-statistics consent (the banner's
   // Accept where one is needed, never after "Leave me out of statistics"), the same rule as usage events.
   const statsAllowed = useEventsAllowed(muxData?.needsConsent ?? true, muxData?.optedOut ?? true);
@@ -574,7 +576,7 @@ export default function LessonPlayer({
     };
   }, [lessonId]);
   return (
-    <div role="group" aria-label={title} className="[&_.media-title]:hidden">
+    <div ref={frame} role="group" aria-label={title} className="scroll-mt-4 [&_.media-title]:hidden">
       <VideoPlayer title={title} poster={poster ?? undefined}>
         <VideoSkin style={SKIN_THEME}>
           <RememberSpeed />
@@ -591,7 +593,7 @@ export default function LessonPlayer({
           />
           <ResumePosition seconds={resumeSeconds} />
           {autoPlay && <AutoPlay />}
-          <SeekOnRequest request={seekRequest} />
+          <SeekOnRequest request={seekRequest} frame={frame} />
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} chatMessageId={chatMessageId} />}
           <BigPlayButton />
