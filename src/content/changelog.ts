@@ -3676,4 +3676,17 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     ].join("\n\n"),
     image: { src: "/changelog/chat-apps-section/01-apps-heading.webp", alt: "The Hub Chat sidebar with an Apps heading under Direct messages, holding Billie Bot" },
   },
+  {
+    slug: "landing-page-spatial-spacing",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "improved",
+    title: "Page builder: space inside a section is set around a box, and the section settings are grouped",
+    summary: "In the page builder, the four space-inside numbers now sit where the sides are, with the top above, left and right either side and the bottom below. A section's settings are grouped under Desktop layout and Mobile layout, and a section that fills the page can keep its content at the top or bottom.",
+    body: `Select a section in the Pages editor.
+
+- **Space inside.** Top, left, right and bottom each have their own box, in the place you would expect, and a letter after the number (T, L, R, B). The quick picks for none, small, medium and large are still above them.
+- **Desktop layout and Mobile layout.** Hide, space inside and the other settings that depend on screen size are now together under those two headings.
+- **Where the content sits in a tall section.** With Fill the page on, choose the top, the middle or the bottom. Sections you already have stay in the middle.`,
+  },
 ];
