@@ -1388,6 +1388,8 @@ What an App gives that the tokens can't:
 
 What it would not change: a merge or pull request made with an App token starts the same workflows as one made with a personal token (that is the property we need), and it does not remove the need to guard the App's private key (which sits in a GitHub secret like the tokens do today).
 
+A second use: the weekly OpenSSF scan (`pvtr-scan.yml`) runs with the built-in token, which cannot read branch rules, so `OSPS-AC-03.01`, `-QA-03.01` and `-QA-07.01` read Needs Review in CI and Failed when an administrator runs it (`config/pvtr-baseline.json` accepts either). A built-in token cannot be given the administration read it would need, and a new personal token with it would be one more long-lived credential. An App installation token with only Administration: read, minted for that one job, would let the scan see the rules, and the three baseline entries could then record one exact result each, so a weakened ruleset shows up as a change.
+
 ### Repo Security Settings and Scans _(Needs Scheduling)_
 Found 2026-10-22 by comparing the live repo's `security_and_analysis` (read with
 `gh api repos/quillandcup/hub`) against what GitHub offers for public repos. Secret scanning and push

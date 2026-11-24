@@ -24,8 +24,10 @@ name: Auto-merge
 # to carry breaking changes and always need a human. That is a deliberate safety choice, not
 # something to make configurable. Dependabot runs read Dependabot secrets, not Actions
 # secrets, so `pnpm env:sync:github` also writes GH_TOKEN_AUTO_MERGE as a Dependabot secret
-# (config/env-vars.ts); without it those PRs fall back to GITHUB_TOKEN, whose merges don't
-# trigger the push CI run on main. Needs the repo-level "Allow auto-merge" setting
+# (config/env-vars.ts). There is no fallback to GITHUB_TOKEN: a merge it enables doesn't trigger the push
+# CI run on main, so a missing or expired GH_TOKEN_AUTO_MERGE makes the merge step fail where it can be
+# seen. The job's own token only reads (the author's permission, Dependabot's metadata), so it holds no
+# write permission. Needs the repo-level "Allow auto-merge" setting
 # (Settings -> General -> Pull Requests); without it `gh pr merge --auto` fails.
 on:
   pull_request:
@@ -37,8 +39,8 @@ permissions:
 jobs:
   auto-merge:
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
     if: |
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -90,4 +92,4 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           EVENT_ACTION: ${{ github.event.action }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE }}
