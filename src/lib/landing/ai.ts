@@ -251,12 +251,14 @@ const TOOL = {
 
 export type GenerateResult = { ok: true; data: LandingData; issues: A11yIssue[]; summary?: string } | { ok: false; error: string };
 
-export type Complete = (system: string, prompt: string) => Promise<unknown>;
+/** A model call that must end in one tool call; `tool` is the tool to call (the page builder's own when none is given). */
+export type Complete = (system: string, prompt: string, tool?: ClaudeTool) => Promise<unknown>;
+export type ClaudeTool = { name: string; description: string; input_schema: Record<string, unknown> };
 
 const TIMEOUT_MS = 100_000;
 
 /** One call to the Claude API with the build_page tool forced; resolves to the tool's input. Throws on any failure. */
-export const completeWithClaude: Complete = async (system, prompt) => {
+export const completeWithClaude: Complete = async (system, prompt, tool = TOOL) => {
   const response = await outboundFetch(
     `${ANTHROPIC.apiUrl}/v1/messages`,
     {
@@ -270,7 +272,7 @@ export const completeWithClaude: Complete = async (system, prompt) => {
         output_config: { effort: "medium" },
         thinking: { type: "adaptive" },
         system,
-        tools: [TOOL],
+        tools: [tool],
         // This model rejects a forced tool choice (400), so the instructions say to answer only by calling the tool.
         tool_choice: { type: "auto" },
         messages: [{ role: "user", content: prompt }],
