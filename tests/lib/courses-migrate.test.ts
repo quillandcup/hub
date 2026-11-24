@@ -23,6 +23,10 @@ const totals = (u: number, l: number, quizzes = 1, f = 0) => ({
 // Built by the same functions the capture script prints with, so the parser is tested against the real text.
 const CONTENT_LINE = (u: number, l: number, q = 1, f = 0) => formatContentTotals(true, totals(u, l, q, f));
 const DRY_LINE = (u: number, l: number) => formatContentTotals(false, totals(u, l));
+// A dry run with nothing to write: the quiz is there, and unchanged.
+const NOTHING_NEW = formatContentTotals(false, { updated: 0, urlsRefreshed: 0, unchanged: 5, missing: 0, failed: 0, quizzes: { total: 1, created: 0, updated: 0, unchanged: 1, noQuestionRead: 0 } });
+const quizLine = (created: number, changed: number, u = 0, l = 0) =>
+  formatContentTotals(false, { updated: u, urlsRefreshed: l, unchanged: 53, missing: 0, failed: 0, quizzes: { total: created + changed, created, updated: changed, unchanged: 0, noQuestionRead: 0 } });
 
 interface Call { path: string; body: any; auth: string | null }
 
@@ -232,8 +236,34 @@ describe("runMigration", () => {
       expect(h.contentRuns).toHaveLength(2);
     });
 
+    it("asks and writes when only a quiz changed (no lesson text or link)", async () => {
+      const h = harness({ routes: baseRoutes(), content: [{ code: 0, output: quizLine(0, 1) }, { code: 0, output: CONTENT_LINE(0, 0) }], confirms: [true] });
+      const result = await runMigration(args(), ENV, h.io);
+      expect(h.confirmed[0]).toMatch(/Write what the dry run found/);
+      expect(h.contentRuns).toHaveLength(2);
+      expect(h.contentRuns[1]).toContain("--apply");
+      expect(result.summary.content?.applied).toBe(true);
+    });
+
+    it("asks and writes when only new quizzes are found, and --yes skips the question", async () => {
+      const h = harness({ routes: baseRoutes(), content: [{ code: 0, output: quizLine(2, 0) }, { code: 0, output: CONTENT_LINE(0, 0) }] });
+      const result = await runMigration(args(["--yes"]), ENV, h.io);
+      expect(h.confirmed).toEqual([]);
+      expect(h.contentRuns).toHaveLength(2);
+      expect(result.summary.content?.applied).toBe(true);
+    });
+
+    it("does not write on a dry run that only has unchanged quizzes", async () => {
+      const dry = formatContentTotals(false, { updated: 0, urlsRefreshed: 0, unchanged: 53, missing: 0, failed: 0, quizzes: { total: 1, created: 0, updated: 0, unchanged: 1, noQuestionRead: 0 } });
+      const h = harness({ routes: baseRoutes(), content: [{ code: 0, output: dry }] });
+      await runMigration(args(), ENV, h.io);
+      expect(h.contentRuns).toHaveLength(1);
+      expect(h.confirmed).toEqual([]);
+    });
+
     it("skips the write when the dry run finds nothing new", async () => {
-      const h = harness({ routes: baseRoutes(), content: [{ code: 0, output: DRY_LINE(0, 0) }] });
+      const dry = formatContentTotals(false, { updated: 0, urlsRefreshed: 0, unchanged: 5, missing: 0, failed: 0, quizzes: { total: 0, created: 0, updated: 0, unchanged: 0, noQuestionRead: 0 } });
+      const h = harness({ routes: baseRoutes(), content: [{ code: 0, output: dry }] });
       const result = await runMigration(args(), ENV, h.io);
       expect(h.contentRuns).toHaveLength(1);
       expect(h.confirmed).toEqual([]);
@@ -399,7 +429,7 @@ describe("runMigration", () => {
     });
 
     it("does nothing, asks nothing and is ok when every video is already in Mux (a launch-day no-op)", async () => {
-      const h = harness({ routes: baseRoutes({ "/api/process/course-media:plan": { videos: [video("m1", "uploaded")] } }), content: [{ code: 0, output: DRY_LINE(0, 0) }] });
+      const h = harness({ routes: baseRoutes({ "/api/process/course-media:plan": { videos: [video("m1", "uploaded")] } }), content: [{ code: 0, output: NOTHING_NEW }] });
       const result = await runMigration(args(), ENV, h.io);
       expect(h.confirmed).toEqual([]);
       expect(h.paths().some((p) => p.endsWith(":upload"))).toBe(false);
@@ -447,7 +477,7 @@ const PROGRESS_ROUTE = (inserted: number) => ({
 });
 
 describe("optional progress and comments steps", () => {
-  const bDone = [ok(DRY_LINE(0, 0))]; // step B finds nothing new, so it runs once
+  const bDone = [ok(NOTHING_NEW)]; // step B finds nothing new, so it runs once
 
   it("go after step C and before the downloads, in this order", () => {
     const ids = buildSteps().map((s) => s.id);

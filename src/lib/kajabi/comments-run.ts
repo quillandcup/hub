@@ -133,6 +133,8 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
   const delayMs = options.delayMs ?? 500;
 
   const known = await loadKnownLessonIds(db, courseKajabiId);
+  // A lesson Bronze already holds a quiz for is a quiz whatever its page looks like: a quiz has no comment thread in Kajabi.
+  const quizLessons = new Set((await new SupabaseKajabiCourseRepository(db).liveQuizzes(courseKajabiId)).map((q) => q.lesson_kajabi_id));
   const lessons = options.lessons.filter((l) => known.has(l.lessonKajabiId));
   const summary: CommentsSummary = {
     lessonsListed: options.lessons.length,
@@ -184,8 +186,8 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
         summary.lessonsFailed++;
         failureKinds.set(result.reason, (failureKinds.get(result.reason) ?? 0) + 1);
       } else if (result.read.kind === "noList") {
-        if (result.read.locked) summary.lessonsLocked++;
-        else if (result.read.quiz) summary.lessonsQuizzes++;
+        if (quizLessons.has(lesson.lessonKajabiId) || result.read.quiz) summary.lessonsQuizzes++;
+        else if (result.read.locked) summary.lessonsLocked++;
         else if (result.read.hasCommentBox) summary.lessonsNoComments++;
         else {
           summary.lessonsWithoutList++;
