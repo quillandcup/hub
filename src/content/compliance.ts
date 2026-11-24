@@ -7,7 +7,7 @@
  * provider's, and the row says so. Evidence for each row is in the `evidence` note (not shown to members).
  */
 
-export const COMPLIANCE_EFFECTIVE = "2026-11-18";
+export const COMPLIANCE_EFFECTIVE = "2026-11-23";
 
 export const COMPLIANCE_STATUSES = {
   inPlace: "In place",
@@ -193,6 +193,16 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         evidence: ["config/sentry.yml", "docs/infrastructure/SENTRY_CONFIG.md", "src/instrumentation-client.ts"],
         checked: "2026-11-17",
         open: [],
+      },
+      {
+        name: "OpenSSF security baseline",
+        about: "Open-source security checklists, and an automatic grade for a project's habits.",
+        status: "working",
+        detail:
+          "We measure the Hub against the Open Source Project Security Baseline and the Best Practices checklist from the OpenSSF, and its public Scorecard grades the repository's habits automatically (a score out of 10, shown in the project's README). These are self-assessments and an automatic grade, not certificates, and the gaps are written down.",
+        evidence: ["docs/checklists/OSPS_BASELINE.md", "docs/checklists/OPENSSF_BEST_PRACTICES.md", ".github/workflows/openssf-scorecard.yml", "config/app.ts (scorecard.minScore)"],
+        checked: "2026-11-23",
+        open: ["The gaps are tracked in docs/TODO.md, OSPS Baseline: what is left. The Best Practices badge itself is not sought: it is for open-source projects, and this source is public for transparency only."],
       },
       {
         name: "SOC 2 and ISO 27001",

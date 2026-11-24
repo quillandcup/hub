@@ -51,4 +51,17 @@ describe("security page wording", () => {
     expect(member("vault")).toMatch(/Through the database, only the Hub's server can read it back/);
     expect(member("vault")).not.toMatch(/, and only the Hub's server can read it back/);
   });
+
+  it("does not say an injected script is unblocked: the browser runs only nonced scripts since 2026-11-23", () => {
+    const richText = SECURITY_ITEMS.find((i) => i.id === "rich-text")!;
+    expect(richText.staff.open.join(" ")).not.toMatch(/blocks an injected script/);
+    expect(richText.staff.how).toMatch(/nonce/);
+    expect(member("browser")).toMatch(/only the Hub's own scripts/);
+  });
+
+  it("describes the weekly scans without claiming they block a merge", () => {
+    const scanning = SECURITY_ITEMS.find((i) => i.id === "scanning")!;
+    expect(scanning.member).toMatch(/Every week/);
+    expect(scanning.staff.how).toMatch(/none of them a required check/);
+  });
 });
