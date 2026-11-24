@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { findKajabiMatchesForEvent, purchasersOfEvent } from "@/lib/kajabi-event-matching";
@@ -528,6 +528,15 @@ describe("findKajabiMatchesForEvent", () => {
 
       expect(await byName(r, lookup)).toEqual({ "Ada Example": "unknown", "Bo Example": "unknown", "Cy Example": "held" });
       expect(await byName(r)).toEqual({ "Ada Example": "unknown", "Bo Example": "unknown", "Cy Example": "unknown" });
+    });
+
+    it("never calls the lookup with skipGrants, and says not_checked (no_contact stays)", async () => {
+      const r = withoutPurchase({ a: "k1", b: null, c: "k3" });
+      const lookup = vi.fn(async () => ["other"]);
+      const found = await findKajabiMatchesForEvent(r, EVENT, lookup, { skipGrants: true });
+
+      expect(lookup).not.toHaveBeenCalled();
+      expect(Object.fromEntries(found.attendeesWithoutTicket.map((a) => [a.member_name, a.kajabi_offer]))).toEqual({ "Ada Example": "not_checked", "Bo Example": "no_contact", "Cy Example": "not_checked" });
     });
 
     it("looks up a limited number of contacts, a few at a time", async () => {

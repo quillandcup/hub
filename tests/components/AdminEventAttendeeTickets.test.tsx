@@ -445,6 +445,11 @@ describe("a transferred ticket", () => {
     expect(await screen.findByText("Transferred from")).toBeInTheDocument();
     expect(screen.queryByText("Transferred from Spring Retreat")).toBeNull();
     expect(screen.getByLabelText("Transferred from, Ada Example")).toHaveValue(OTHER_EVENTS[0].id);
+    // Label and picker share one row on wide containers, and stack on narrow ones.
+    const row = screen.getByText("Transferred from").parentElement!;
+    expect(row).toContainElement(screen.getByLabelText("Transferred from, Ada Example"));
+    expect(row.className).toContain("@pair:flex-row");
+    expect(row.className).toContain("flex-col");
   });
 
   it("saves nothing on choosing Transferred until an event is picked, then saves the source and the origin together", async () => {

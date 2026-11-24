@@ -53,9 +53,9 @@ export interface AttendeeWithoutTicket {
    * (an offer granted from Kajabi's admin): "held", "not_held" (none of the event's offers),
    * "shared" (holds one, but every one they hold has purchase dates or also serves another event, so Kajabi
    * can't say which event it was for), "unknown" (Kajabi didn't answer) or "no_contact" (the member has no
-   * Kajabi contact).
+   * Kajabi contact), or "not_checked" (the search was asked to skip Kajabi, as on page load).
    */
-  kajabi_offer: "held" | "not_held" | "shared" | "unknown" | "no_contact";
+  kajabi_offer: "held" | "not_held" | "shared" | "unknown" | "no_contact" | "not_checked";
   /** A buyer who is not an attendee and may be the same person under another member record. */
   possible_duplicate: PossibleDuplicate | null;
 }
@@ -133,7 +133,9 @@ export async function findKajabiMatchesForEvent(
   repos: EventRepos,
   eventId: string,
   /** Reads the offer ids a Kajabi contact holds (null when Kajabi didn't say). Left out: nobody is looked up. */
-  contactOfferIds?: (kajabiContactId: string) => Promise<string[] | null>
+  contactOfferIds?: (kajabiContactId: string) => Promise<string[] | null>,
+  /** `skipGrants`: never ask Kajabi (page load); attendees with a contact read "not_checked". */
+  options: { skipGrants?: boolean } = {}
 ): Promise<EventKajabiMatches> {
   const links = await repos.events.offersOf(eventId);
   const offerIds = Array.from(new Set(links.map((l) => l.kajabi_offer_id)));
@@ -290,7 +292,7 @@ export async function findKajabiMatchesForEvent(
       .filter((l) => !hasWindow(l) && allLinks.every((o) => o.kajabi_offer_id !== l.kajabi_offer_id || o.event_id === eventId))
       .map((l) => l.kajabi_offer_id)
   );
-  await checkGrants(repos, attendeesWithoutTicket, new Set(offerIds), attributable, contactOfferIds);
+  await checkGrants(repos, attendeesWithoutTicket, new Set(offerIds), attributable, options.skipGrants ? undefined : contactOfferIds, options.skipGrants === true);
 
   // Two active purchases of the same offer are two tickets: Kajabi records no failed or pending
   // payments here, so the extra one is for someone else, whoever the buyer is.
@@ -325,7 +327,8 @@ async function checkGrants(
   eventOfferIds: Set<string>,
   /** The event's offers a held offer can be pinned to this event for: no purchase window here, linked to no other event. */
   attributableOfferIds: Set<string>,
-  contactOfferIds: ((kajabiContactId: string) => Promise<string[] | null>) | undefined
+  contactOfferIds: ((kajabiContactId: string) => Promise<string[] | null>) | undefined,
+  skipped = false
 ): Promise<void> {
   if (attendees.length === 0) return;
   const members = await repos.members.byIds(attendees.map((a) => a.member_id));
@@ -334,6 +337,7 @@ async function checkGrants(
   for (const attendee of attendees) {
     const kajabiId = kajabiIdOf.get(attendee.member_id) ?? null;
     if (!kajabiId) attendee.kajabi_offer = "no_contact";
+    else if (skipped) attendee.kajabi_offer = "not_checked";
     else if (contactOfferIds && queue.length < GRANT_LOOKUP_LIMIT) queue.push({ attendee, kajabiId });
   }
   const lookup = contactOfferIds;

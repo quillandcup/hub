@@ -14,6 +14,8 @@ function kajabiOfferLookup() {
   }
 }
 
+// `?grants=1` also asks Kajabi live whether attendees with no purchase hold the offer; without it
+// (page load) no Kajabi call is made at all.
 // Read-only: who bought this event's linked Kajabi offers and is not an attendee yet, purchases
 // whose buyer has no member, and attendees with no ticket on record (asked of Kajabi whether it holds the offer: a grant leaves no purchase). Nothing is added here;
 // the admin page adds the buyers they pick through the attendees route.
@@ -29,7 +31,8 @@ export async function GET(
   const repos = createRepos(auth.supabase);
   try {
     if (!(await repos.events.byId(id))) return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    return NextResponse.json(await findKajabiMatchesForEvent(repos, id, kajabiOfferLookup()));
+    const grants = request.nextUrl.searchParams.get("grants") === "1";
+    return NextResponse.json(await findKajabiMatchesForEvent(repos, id, grants ? kajabiOfferLookup() : undefined, { skipGrants: !grants }));
   } catch (error) {
     console.error("Error finding Kajabi matches for an event:", error);
     return NextResponse.json({ error: "Failed to find Kajabi matches" }, { status: 500 });
