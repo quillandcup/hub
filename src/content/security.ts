@@ -16,7 +16,7 @@ import type { ComplianceStatus } from "@/content/compliance";
  * documentation says "provider documentation".
  */
 
-export const SECURITY_EFFECTIVE = "2026-11-18";
+export const SECURITY_EFFECTIVE = "2026-11-23";
 
 export interface SecurityItem {
   id: string;
@@ -312,9 +312,9 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Formatted text is cleaned before it is shown",
         status: "inPlace",
         member:
-          "Formatted text on course lessons and landing pages is reduced to a short list of safe formatting (headings, lists, links, emphasis) before it is stored, so it cannot carry scripts.",
+          "Formatted text on course lessons and landing pages is reduced to a short list of safe formatting (headings, lists, links, emphasis) before it is stored, so it cannot carry scripts, and browsers are told to run only the Hub's own scripts as a second barrier.",
         staff: {
-          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s), mailto and pages on this site (never the app's internal routes; the buttons and link lists of landing blocks follow the same rule), opened without passing on the opener, and lesson images limited to http(s) or our own image addresses. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported, when staff save an edit, and again every time it is shown. A search of the app, components, lib and emails on 2026-11-21 found three places that write stored HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); each cleans the text first. The fourth place that writes raw text into a page is the search-engine data block on writer profiles, which is JSON with every less-than sign escaped. Help articles, the changelog and prickle descriptions are markdown that is never read as HTML. On 2026-11-21 both cleaners were run against 162 attack strings (script and event-handler tricks, javascript, data and vbscript links in every encoding, embedded frames, forms, svg and math, comment and style tricks that browsers re-read) in a test; none got through.",
+          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s), mailto and pages on this site (never the app's internal routes; the buttons and link lists of landing blocks follow the same rule), opened without passing on the opener, and lesson images limited to http(s) or our own image addresses. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported, when staff save an edit, and again every time it is shown. A search of the app, components, lib and emails on 2026-11-21 found three places that write stored HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); each cleans the text first. The fourth place that writes raw text into a page is the search-engine data block on writer profiles, which is JSON with every less-than sign escaped. Help articles, the changelog and prickle descriptions are markdown that is never read as HTML. On 2026-11-21 both cleaners were run against 162 attack strings (script and event-handler tricks, javascript, data and vbscript links in every encoding, embedded frames, forms, svg and math, comment and style tricks that browsers re-read) in a test; none got through. Since 2026-11-23 the browser is also told to run only scripts that carry the Hub's per-request nonce (see Browser protections), so a script that slipped past the cleaning would still be refused.",
           evidence: [
             "src/lib/landing/sanitize.ts",
             "src/lib/courses/sanitize.ts",
@@ -324,10 +324,8 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
             "src/lib/courses/admin.ts",
             "tests/lib/landing-data.test.ts",
           ],
-          checked: "2026-11-21",
-          open: [
-            "Nothing in the browser yet blocks an injected script: the cleaning is the only barrier. The enforcing policy does not limit scripts (see Browser protections).",
-          ],
+          checked: "2026-11-23",
+          open: [],
         },
       },
       {
@@ -335,9 +333,9 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Browser protections",
         status: "inPlace",
         member:
-          "Browsers are told to use only HTTPS, to load pictures only from sources the Hub lists, to submit forms only to the Hub, and not to show Hub pages inside other sites. They are also told not to guess file types, to share less about where you came from when you follow a link, and not to give pages your camera, microphone or location.",
+          "Browsers are told to use only HTTPS, to run only the Hub's own scripts, to load pictures only from sources the Hub lists, to submit forms only to the Hub, and not to show Hub pages inside other sites. They are also told not to guess file types, to share less about where you came from when you follow a link, and not to give pages your camera, microphone or location.",
         staff: {
-          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. Since 2026-11-23 one header from src/proxy.ts, with a per-request nonce, also enforces the script and style policy (only scripts carrying the nonce run, and what they load) and carries framing (frame-ancestors) and the report address; paths the proxy skips (static files, pictures) get the picture directives from next.config.ts. The same header limits where a page may connect to and which frames, media and fonts it loads, from the hosts listed in config/app.ts; violations go to Sentry (docs/TODO.md, CSP for scripts and styles). Inline style attributes stay allowed",
+          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. Since 2026-11-23 one header from src/proxy.ts, with a per-request nonce, also enforces the script and style policy (only scripts carrying the nonce run, and what they load) and carries framing (frame-ancestors) and the report address; paths the proxy skips (static files, pictures) get the picture directives from next.config.ts. The same header limits where a page may connect to and which frames, media and fonts it loads, from the hosts listed in config/app.ts; violations go to Sentry (docs/TODO.md, CSP for scripts and styles). Inline style attributes stay allowed until they move to classes or variables set from a nonced rule; they cannot run script.",
           evidence: ["next.config.ts", "src/proxy.ts", "src/lib/csp.ts", "tests/lib/csp.test.ts", "Sentry CSP reports, 2026-11-10 to 2026-11-17"],
           checked: "2026-11-23",
           open: [
@@ -349,13 +347,40 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         id: "changes",
         title: "How changes reach the Hub",
         status: "inPlace",
-        member: "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code.",
+        member:
+          "Every change goes through automated tests and code scanning before it goes live, and nobody can push straight to the live code. A change that brings in a dependency with a known security problem is stopped, and each release records which change it was built from.",
         staff: {
-          how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, code scanning), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot. Settings live in the repo and are pushed by script, so a change to them is reviewed too.",
-          evidence: ["config/github.yml", ".github/workflows/ci.yml", ".github/dependabot.yml"],
-          checked: "2026-11-18",
+          how: "The default branch only takes pull requests whose required checks pass (unit tests, database tests and build, migration check, coverage on new code, the code quality gate, code scanning, and a dependency check that fails a pull request which introduces a known vulnerability and passes one that only touches an advisory already on the default branch), and every review thread, bots' included, must be resolved. Dependencies are updated weekly by Dependabot, for the app and for the CI actions, which are pinned to a commit. Settings live in the repo and are pushed by script, so a change to them is reviewed too. Each successful deploy is followed by a signed build-provenance record and a software bill of materials, kept for 90 days, so what is running can be traced to a commit and a workflow run. A failed run on the default branch opens an issue that closes itself when a later run passes.",
+          evidence: ["config/github.yml", ".github/workflows/ci.yml", ".github/workflows/osv-diff.yml", ".github/workflows/deploy.yml", ".github/workflows/main-red-alert.yml", ".github/dependabot.yml", "docs/infrastructure/DEPLOYMENT.md (Verifying what was deployed)"],
+          checked: "2026-11-23",
           open: [
             "An admin can still merge a failing pull request with \"Merge without waiting for requirements\". That is intended as a break-glass option and is not recorded anywhere else.",
+          ],
+        },
+      },
+      {
+        id: "scanning",
+        title: "Looking for weaknesses",
+        status: "inPlace",
+        member:
+          "Every week, automated checks look for dependencies with known security problems, for passwords or keys committed to the code by mistake, and for weaknesses in what the live site sends to browsers. A finding alerts the team.",
+        staff: {
+          how: "Scheduled workflows, none of them a required check (the dependency check on pull requests is the one that blocks a merge). A full dependency vulnerability scan (OSV-Scanner) runs weekly over the lockfile, a gitleaks scan over the whole git history runs weekly (the repository is public, so a secret that was ever committed is out; it redacts what it finds), a license scan checks installed packages against an allow-list in config/license-policy.json, and the OWASP ZAP baseline scan crawls the public pages of production weekly and only reads the responses (headers, cookies, leaked information; it signs in as nobody and sends no attack payloads). The OpenSSF Scorecard grades the repository's own habits (pinned actions, token permissions, branch protection, review, a security policy): the score is published and the weekly run alerts when it falls under the floor set in config/app.ts. A finding accepted on purpose is listed with a reason and an expiry (config/osv-scanner.toml, config/license-policy.json, config/zap-baseline.tsv, config/.gitleaksignore). Failures post to the staff alerts channel.",
+          evidence: [
+            ".github/workflows/osv-scan.yml",
+            ".github/workflows/gitleaks.yml",
+            ".github/workflows/license-scan.yml",
+            ".github/workflows/zap-baseline.yml",
+            ".github/workflows/openssf-scorecard.yml",
+            "config/osv-scanner.toml",
+            "config/license-policy.json",
+            "config/zap-baseline.tsv",
+            "docs/checklists/OSPS_BASELINE.md",
+          ],
+          checked: "2026-11-23",
+          open: [
+            "The weekly scans alert but never block a merge, so a finding waits for someone to read the alert. The ZAP baseline is passive: no authenticated or attack scan has been run, and it covers only pages a signed-out visitor can reach.",
+            "Gaps against the OpenSSF checklists are tracked in docs/TODO.md, OSPS Baseline: what is left.",
           ],
         },
       },
@@ -370,12 +395,15 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         id: "monitoring",
         title: "Watching for problems",
         status: "inPlace",
-        member: "We watch for errors and for scheduled jobs that don't run, and the team is alerted. Error recordings mask what is typed on screen.",
+        member: "We watch for errors, for scheduled jobs that don't run and for whether the Hub is up, and the team is alerted. Error recordings mask what is typed on screen.",
         staff: {
-          how: "Error and performance monitoring with masked recordings and server-side scrubbing (configured in the repo), heartbeat monitors on scheduled jobs, uptime and end-to-end checks, and operations alerts posted to a staff channel.",
-          evidence: ["docs/infrastructure/SENTRY_CONFIG.md", "config/sentry.yml", "src/lib/cron-heartbeats.ts", "config/checkly/checkly.config.ts", "docs/infrastructure/SLACK_OPERATIONS_ALERTS.md"],
-          checked: "2026-11-17",
-          open: [],
+          how: "Error and performance monitoring with masked recordings and server-side scrubbing (configured in the repo), heartbeat monitors on most scheduled jobs (a job that stops pinging alerts), an uptime check from two regions on the health route, which also confirms the database answers, and operations alerts posted to a staff channel. The monitors are declared in the repo and deployed by CI, which hides the heartbeat addresses in its public logs, so nobody can fake a healthy job from them. A test fails when a scheduled job is neither monitored nor listed with a reason.",
+          evidence: ["docs/infrastructure/SENTRY_CONFIG.md", "config/sentry.yml", "src/lib/cron-heartbeats.ts", "tests/lib/cron-heartbeats.test.ts", "tests/lib/workflow-heartbeat-masking.test.ts", "config/checkly/checkly.config.ts", "config/checkly/__checks__/hub-uptime.check.ts", "docs/infrastructure/SLACK_OPERATIONS_ALERTS.md"],
+          checked: "2026-11-23",
+          open: [
+            "Six scheduled jobs have no heartbeat yet because the monitoring plan's limit of 10 uptime monitors is reached (docs/TODO.md, Checkly Monitor Limit).",
+            "The heartbeat addresses printed in older CI logs should be rotated (docs/TODO.md, Rotate the Checkly Heartbeat Ping URLs).",
+          ],
         },
       },
       {
