@@ -8,6 +8,36 @@ Kajabi has landing pages with a block editor. The Hub has the same, on [Puck](ht
 
 Puck 0.24 peers on React 18 or 19 and was checked against this app's Next 16 and React 19: the editor is a client component, and the public page renders through Puck's `rsc` entry (the package's `react-server` export), which has `Render` and no editor code. Nothing about it needed patching. The editor needs a real browser (it uses dnd-kit and `ResizeObserver`); its tests mock Puck, and the blocks are tested on their own.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Model](#model)
+- [Website and landing pages](#website-and-landing-pages)
+- [Site template](#site-template)
+- [Settings](#settings)
+  - [Buttons](#buttons)
+- [The editor](#the-editor)
+- [Accessibility checks (`src/lib/landing/a11y.ts`)](#accessibility-checks-srcliblandinga11yts)
+- [Pictures and public assets](#pictures-and-public-assets)
+- [Safety](#safety)
+- [Blocks](#blocks)
+  - [Homepage blocks](#homepage-blocks)
+  - [Live data](#live-data)
+  - [Blocks with items](#blocks-with-items)
+  - [Adding a block](#adding-a-block)
+  - [Section: card, shade, place and text colour](#section-card-shade-place-and-text-colour)
+  - [Accordion and FAQ](#accordion-and-faq)
+  - [Changing a block's props](#changing-a-blocks-props)
+- [Build with AI](#build-with-ai)
+- [Starting a page](#starting-a-page)
+- [Export and import](#export-and-import)
+- [Templates](#templates)
+- [Opt-in forms](#opt-in-forms)
+- [Importing from Kajabi](#importing-from-kajabi)
+- [Tests](#tests)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Model
 
 - `landing_pages` (`lpg_`, Tier 2): `slug` (unique among live pages), `title`, `status` (`draft` or `published`), `draft_data`, `published_data`, SEO title and description, a social image (a media asset), `first_published_at`, `published_at`, soft delete (`deleted_at`) `page_type` (`website` or `landing`, see "Website and landing pages") and `kind` (`page` or `template`, fixed for the life of the row; a template is a page kept to start others from and is **never public**: `published(slug)`, the public route and the opt-in relay only ever see `kind = 'page'`). `landing_page_versions` (`lpgv_`): one row per publish, **immutable**: no role may update or delete one (not an admin, not the service role), and a restore copies a version into the draft without touching it.

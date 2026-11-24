@@ -8,6 +8,40 @@ Status: **built** (2026-11-11; its events are in the Activity Log and each plan 
 
 **A care plan belongs to the member, not to a channel** (2026-11-12, the owner's decision). The first build gave each plan a channel (Slack DM, prickle, email, other) and allowed one open plan per member *and* channel. The point of Hedgie Care is one place to read a member's care: staff will have all the channels (Slack DMs now, emails and Instagram DMs later) and the member's other activity during a plan, and more channels will come, so nothing bakes in "a plan has a channel". One open plan per member; the channel selector and the "They wrote to me first" tick are gone from the start form (who spoke first comes from a tracked DM or the log buttons); the DM derivation reads the owner's tracked DM with the member whatever the plan is about. The `care_engagements.channel` column is gone (dropped 2026-11-14 in `20270726000100_care_engagements_drop_channel.sql`, once nothing read or wrote it any more).
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Why not the spreadsheet, and why not Outreach](#why-not-the-spreadsheet-and-why-not-outreach)
+  - [Next to the Big Sister program, and the work queue](#next-to-the-big-sister-program-and-the-work-queue)
+- [What the system fills in, and what only she knows](#what-the-system-fills-in-and-what-only-she-knows)
+- [A care plan](#a-care-plan)
+  - [Status is derived: no job, no stored lifecycle](#status-is-derived-no-job-no-stored-lifecycle)
+  - [How an engagement ends](#how-an-engagement-ends)
+  - [Renewal is a decision, not a habit](#renewal-is-a-decision-not-a-habit)
+  - [Starting in the past, and changing a start (built 2026-11-12)](#starting-in-the-past-and-changing-a-start-built-2026-11-12)
+  - [Owners](#owners)
+  - [Lapse is an accountability signal](#lapse-is-an-accountability-signal)
+- [Data model](#data-model)
+- [Care plans in the Activity Log (built 2026-11-14)](#care-plans-in-the-activity-log-built-2026-11-14)
+  - [Activity during this plan (built 2026-11-14)](#activity-during-this-plan-built-2026-11-14)
+- [What success is](#what-success-is)
+- [Measuring her influence](#measuring-her-influence)
+  - [On every care plan: the engagement score and last in the community (built 2026-11-12)](#on-every-care-plan-the-engagement-score-and-last-in-the-community-built-2026-11-12)
+- [Two kinds of follow-up (the second is not built)](#two-kinds-of-follow-up-the-second-is-not-built)
+- [Who owns it, still open](#who-owns-it-still-open)
+- [Slack DMs fill it in (built)](#slack-dms-fill-it-in-built)
+  - [The decisions (the owner's)](#the-decisions-the-owners)
+  - [What the page says when her DM is not there](#what-the-page-says-when-her-dm-is-not-there)
+  - [What the page says about privacy](#what-the-page-says-about-privacy)
+  - [Open the DM](#open-the-dm)
+  - [Plan messages: the text of tracked DMs, inside the plan (decided 2026-11-12)](#plan-messages-the-text-of-tracked-dms-inside-the-plan-decided-2026-11-12)
+  - [The rule for "who spoke last" (derived, `src/lib/care-dm.ts`, `src/lib/care-dm-rules.ts`)](#the-rule-for-who-spoke-last-derived-srclibcare-dmts-srclibcare-dm-rulests)
+- [Email (not built)](#email-not-built)
+- [Build order](#build-order)
+- [Decisions to confirm with her](#decisions-to-confirm-with-her)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Why not the spreadsheet, and why not Outreach
 
 - **One row per message** hides the thing she asked for: how a reach-out is going. "Add a new row to contact them again" gives a history but no way to say "this is still the same engagement".

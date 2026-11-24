@@ -2,6 +2,29 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Current Method: Supabase Studio](#current-method-supabase-studio)
+  - [Step 1: Access Supabase Studio](#step-1-access-supabase-studio)
+  - [Step 2: Invite User](#step-2-invite-user)
+  - [Step 3: Set User Role](#step-3-set-user-role)
+- [User Roles](#user-roles)
+  - [Admin](#admin)
+  - [Assistant (Future)](#assistant-future)
+  - [Member (Future)](#member-future)
+- [Automated Role Assignment](#automated-role-assignment)
+- [Future Enhancement: In-App Invite Management](#future-enhancement-in-app-invite-management)
+- [Security Notes](#security-notes)
+- [Troubleshooting](#troubleshooting)
+  - [User didn't receive invite email](#user-didnt-receive-invite-email)
+  - [User can't sign up](#user-cant-sign-up)
+  - [User has wrong role](#user-has-wrong-role)
+- [Related Documentation](#related-documentation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 How an admin invites a new member to the Hedgie Hub, since public signups are turned off. Public signups are **disabled** for security. Only admins can invite new users.

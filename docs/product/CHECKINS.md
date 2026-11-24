@@ -14,6 +14,27 @@ DMs sent before Submit existed are collapsed by `pnpm checkin-dms:close` (dry ru
 `--apply` to write; `src/lib/prickle-checkin-dm-cleanup.ts`) for every check-in already answered on the
 site. The DM log keeps no message timestamps, so it reads each member's DM history.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Start from the decisions](#start-from-the-decisions)
+- [The questions](#the-questions)
+- [Why these, and not the alternatives](#why-these-and-not-the-alternatives)
+- [The Feeling Wheel (Willcox, 1982)](#the-feeling-wheel-willcox-1982)
+  - [Reproducing it: attribute, don't ask](#reproducing-it-attribute-dont-ask)
+  - [Suggestions for words not on the wheel](#suggestions-for-words-not-on-the-wheel)
+  - [Carrying over the first design's check-ins](#carrying-over-the-first-designs-check-ins)
+- [Choosing the wheel](#choosing-the-wheel)
+  - [Comparing the options](#comparing-the-options)
+  - [Feelings Wheel 2.0 (Smith, 2023)](#feelings-wheel-20-smith-2023)
+  - [Considered: emotion categories (Shaver et al., 1987)](#considered-emotion-categories-shaver-et-al-1987)
+- [Analysis plan](#analysis-plan)
+- [Relationship NPS (not built yet)](#relationship-nps-not-built-yet)
+- [Open items](#open-items)
+- [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Start from the decisions
 
 Every question has to feed a decision someone actually makes. A question that doesn't just adds

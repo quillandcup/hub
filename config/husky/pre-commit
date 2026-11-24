@@ -6,10 +6,13 @@ export PATH="node_modules/.bin:$PATH"
 
 # Staged .md files that carry doctoc's START/END markers get their table of contents regenerated
 # (pnpm docs:toc); files without the markers are left alone. To add one to a doc, put the two
-# marker comments where the TOC should go (see docs/infrastructure/INTEGRATION_LINKS.md).
+# marker comments where the TOC should go (see docs/infrastructure/INTEGRATION_LINKS.md). Adding it to a long doc is welcome.
 STAGED_DOCS=$(git diff --cached --name-only --diff-filter=ACM -- '*.md')
 if [ -n "$STAGED_DOCS" ]; then
-  echo "$STAGED_DOCS" | xargs pnpm --silent docs:toc > /dev/null
+  # docs/TODO.md is long: its table of contents lists the sections only (maxlevel 2); every other doc gets two levels.
+  OTHER_DOCS=$(echo "$STAGED_DOCS" | grep -v '^docs/TODO.md$')
+  if [ -n "$OTHER_DOCS" ]; then echo "$OTHER_DOCS" | xargs pnpm --silent docs:toc > /dev/null; fi
+  if echo "$STAGED_DOCS" | grep -q '^docs/TODO.md$'; then pnpm --silent docs:toc:top docs/TODO.md > /dev/null; fi
   echo "$STAGED_DOCS" | xargs git add
   # The index in each living docs folder's README.md lists its docs (title and first sentence): refresh it when a doc under docs/ is staged.
   if echo "$STAGED_DOCS" | grep -q '^docs/'; then

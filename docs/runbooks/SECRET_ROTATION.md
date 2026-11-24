@@ -12,6 +12,28 @@ where each one is synced. See `docs/infrastructure/INTEGRATION_LINKS.md` for das
 integrated service (this doc only covers rotation-specific steps, not general account
 management).
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [General process (every var)](#general-process-every-var)
+- [Per-service rotation steps](#per-service-rotation-steps)
+  - [Stripe](#stripe)
+  - [Supabase](#supabase)
+  - [Vercel](#vercel)
+  - [Zoom](#zoom)
+  - [Kajabi](#kajabi)
+  - [Google Cloud (service account + OAuth)](#google-cloud-service-account--oauth)
+  - [Slack](#slack)
+  - [GitHub](#github)
+  - [Sentry](#sentry)
+  - [Checkly](#checkly)
+  - [Resend](#resend)
+  - [Self-generated secrets (no external dashboard)](#self-generated-secrets-no-external-dashboard)
+- [Backfilling vars missing from the value files](#backfilling-vars-missing-from-the-value-files)
+- [Gotchas learned the hard way (2026-09-25 incident)](#gotchas-learned-the-hard-way-2026-09-25-incident)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## General process (every var)
 
 1. **Rotate on the provider's side first.** Don't invent a new value yourself unless the var

@@ -6,6 +6,63 @@ Hub chat mirrors our Slack channels, so a message typed in either place shows in
 
 Status: **design agreed; groundwork, the chat_* mirror, the read-only chat UI, search, Realtime and unread state are built; the two-way bridge (phase 3) is next.** Written 2026-09-29 from a design walkthrough. Member-facing summary of the privacy model: `src/app/(member)/privacy/page.tsx` (on for every member since 2026-10-30; it was behind the `message_privacy` flag until everything it says was true).
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Goals](#goals)
+- [Decisions](#decisions)
+- [Data model](#data-model)
+  - [`chat_channels`](#chat_channels)
+  - [`chat_channel_members`](#chat_channel_members)
+  - [`chat_messages` (metadata only)](#chat_messages-metadata-only)
+  - [`chat_message_contents` (content)](#chat_message_contents-content)
+  - [`chat_reactions`](#chat_reactions)
+  - [`chat_thread_follows` (later)](#chat_thread_follows-later)
+  - [`member_slack_connections`](#member_slack_connections)
+  - [`admin_access_grants` (break-glass)](#admin_access_grants-break-glass)
+  - [Bronze additions](#bronze-additions)
+  - [Silver: `member_interactions`](#silver-member_interactions)
+- [Access control](#access-control)
+- [Slack → Hub](#slack-%E2%86%92-hub)
+  - [One projection function](#one-projection-function)
+  - [Webhook (`src/app/api/webhooks/slack/route.ts`)](#webhook-srcappapiwebhooksslackroutets)
+  - [Gap-fill (on-demand incremental fetch)](#gap-fill-on-demand-incremental-fetch)
+  - [Nightly reconciliation + manual import](#nightly-reconciliation--manual-import)
+  - [Slack free plan](#slack-free-plan)
+  - [Bronze audit (2026-09-30)](#bronze-audit-2026-09-30)
+- [Hub → Slack](#hub-%E2%86%92-slack)
+  - [Posting identity](#posting-identity)
+  - [Outbox](#outbox)
+  - [Loop prevention](#loop-prevention)
+  - [Membership](#membership)
+- [Content handling](#content-handling)
+- [Pictures under messages (link previews, app cards, logos, quoted authors)](#pictures-under-messages-link-previews-app-cards-logos-quoted-authors)
+  - [Content-Security-Policy](#content-security-policy)
+- [Link previews for messages written in the Hub (behind the `chat_link_previews` feature)](#link-previews-for-messages-written-in-the-hub-behind-the-chat_link_previews-feature)
+- [Adding a block type (or a new kind of unfurl)](#adding-a-block-type-or-a-new-kind-of-unfurl)
+- [Search](#search)
+- [Engagement and the network graph](#engagement-and-the-network-graph)
+- [Realtime and read state](#realtime-and-read-state)
+  - [Read state, unread badges and the "new messages" line (2026-10-10)](#read-state-unread-badges-and-the-new-messages-line-2026-10-10)
+  - [Read state shared with Slack (2026-10-20)](#read-state-shared-with-slack-2026-10-20)
+- [Drafts (2026-11-02)](#drafts-2026-11-02)
+- [Slack 1:1 DMs through members' own tokens (decided 2026-11-03; read-only pull built behind `slack_dm_bridge`)](#slack-11-dms-through-members-own-tokens-decided-2026-11-03-read-only-pull-built-behind-slack_dm_bridge)
+  - [Messages in a Hedgie Care plan (decided 2026-11-12)](#messages-in-a-hedgie-care-plan-decided-2026-11-12)
+- [Hub direct messages (2026-11-02, behind the `chat_dms` feature)](#hub-direct-messages-2026-11-02-behind-the-chat_dms-feature)
+- [Lesson videos in messages (behind the `chat_videos` feature)](#lesson-videos-in-messages-behind-the-chat_videos-feature)
+- [Notifications (2026-11-10, dry run behind the `chat_notifications` feature)](#notifications-2026-11-10-dry-run-behind-the-chat_notifications-feature)
+- [Shared Slack messages (quoted-message cards)](#shared-slack-messages-quoted-message-cards)
+- [Message permalinks (`?m=`)](#message-permalinks-m)
+- [Hub links (cards for links to the Hub itself, behind the `chat_link_cards` feature)](#hub-links-cards-for-links-to-the-hub-itself-behind-the-chat_link_cards-feature)
+  - [Adding a kind of Hub link card](#adding-a-kind-of-hub-link-card)
+- [Migration path](#migration-path)
+- [Slack app configuration](#slack-app-configuration)
+- [Phases](#phases)
+- [Testing](#testing)
+  - [The message box: styled text, stored as mrkdwn](#the-message-box-styled-text-stored-as-mrkdwn)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Goals
 
 - Chat in the Hub that mirrors our Slack channels: a message typed in either place shows up in both.

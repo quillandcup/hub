@@ -4,6 +4,17 @@
 
 Every HTTP route handler under `src/app` (the API routes, the sign-in endpoints under `src/app/auth` and the two member download routes), with its path, the methods it answers and the credential its caller must present. The table is generated from the code and a test fails when it is out of date, so it cannot drift from the routes.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [How it stays true](#how-it-stays-true)
+- [Who may call a route](#who-may-call-a-route)
+- [Inbound webhooks](#inbound-webhooks)
+- [Outbound integrations](#outbound-integrations)
+- [Routes](#routes)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## How it stays true
 
 - `scripts/api-route-inventory.ts` is the one place a route is classified. It reads each `src/app/**/route.ts`, takes the exported methods, and looks for the recognised credential step in the file (comments ignored; for a thin route that only calls a module, in the module too).

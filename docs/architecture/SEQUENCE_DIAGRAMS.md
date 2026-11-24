@@ -23,6 +23,24 @@ truth for the reprocessing steps shown below.
 
 ---
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Zoom](#zoom)
+  - [Real-time flow](#real-time-flow)
+  - [Cron flow](#cron-flow)
+- [Slack](#slack)
+  - [Real-time flow](#real-time-flow-1)
+  - [Cron flow](#cron-flow-1)
+  - [Manual backfill (admin-triggered, not scheduled)](#manual-backfill-admin-triggered-not-scheduled)
+- [Google Calendar](#google-calendar)
+  - [Real-time flow](#real-time-flow-2)
+  - [Cron flow](#cron-flow-2)
+- [Kajabi (Members)](#kajabi-members)
+- [Stripe (comparison only — no cron, no webhook)](#stripe-comparison-only--no-cron-no-webhook)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Zoom
 
 **Webhook:** `POST /api/webhooks/zoom` (HMAC-SHA256 via `x-zm-signature`)<br/>

@@ -4,6 +4,48 @@
 
 How to configure and test the real-time webhooks from Google Calendar, Zoom, Slack and Resend that feed Bronze layer updates.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Security - Environment Variables](#security---environment-variables)
+  - [Required Vercel Environment Variables](#required-vercel-environment-variables)
+- [Webhook Endpoints](#webhook-endpoints)
+- [Google Calendar Webhooks](#google-calendar-webhooks)
+  - [Setup](#setup)
+  - [Testing](#testing)
+  - [Webhook Events](#webhook-events)
+- [Zoom Webhooks](#zoom-webhooks)
+  - [Setup](#setup-1)
+  - [Testing](#testing-1)
+  - [Webhook Events](#webhook-events-1)
+- [Slack Webhooks](#slack-webhooks)
+  - [Setup](#setup-2)
+  - [Testing](#testing-2)
+  - [Webhook Events](#webhook-events-2)
+- [Resend Webhooks](#resend-webhooks)
+  - [Setup](#setup-3)
+  - [Testing](#testing-3)
+  - [Webhook Events](#webhook-events-3)
+  - [Troubleshooting](#troubleshooting)
+- [Local Testing with a tunnel](#local-testing-with-a-tunnel)
+- [Security](#security)
+  - [Signature Verification](#signature-verification)
+  - [Environment Variables](#environment-variables)
+- [Monitoring](#monitoring)
+  - [Logs](#logs)
+  - [Debugging](#debugging)
+- [Troubleshooting](#troubleshooting-1)
+  - [Webhook not receiving events](#webhook-not-receiving-events)
+  - [Signature verification fails](#signature-verification-fails)
+  - [Processing not triggered](#processing-not-triggered)
+  - [Webhook timeouts](#webhook-timeouts)
+- [Data Flow](#data-flow)
+  - [Example: Calendar Event Update](#example-calendar-event-update)
+- [Next Steps](#next-steps)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 Hedgie Hub supports real-time webhooks from external systems:

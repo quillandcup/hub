@@ -2,6 +2,26 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-13. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Data Flow Diagram](#data-flow-diagram)
+- [Layer Responsibilities](#layer-responsibilities)
+  - [Bronze Layer (Raw Imports)](#bronze-layer-raw-imports)
+  - [Local Layer (Operational Data)](#local-layer-operational-data)
+  - [Silver Layer (Canonical State)](#silver-layer-canonical-state)
+  - ["Gold Layer" — planned, not actually implemented](#gold-layer--planned-not-actually-implemented)
+- [Processing Dependencies](#processing-dependencies)
+- [Reprocessability Guarantees](#reprocessability-guarantees)
+  - [Full Reprocessability](#full-reprocessability)
+  - [Why It Works](#why-it-works)
+  - [What Changes on Reprocessing](#what-changes-on-reprocessing)
+  - [What's Preserved](#whats-preserved)
+- [Testing Reprocessability](#testing-reprocessability)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 Explains the **Medallion Architecture** layers (Bronze raw imports, Local operational data, Silver canonical state) and how data flows between them. A "Gold" layer was originally planned as pre-aggregated tables but never got wired up — see the note at the end of this doc.

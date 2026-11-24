@@ -2,6 +2,24 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-24. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Current State](#current-state)
+- [Who is asking: database roles and staff roles](#who-is-asking-database-roles-and-staff-roles)
+- [Helper functions](#helper-functions)
+- [Typical policy patterns](#typical-policy-patterns)
+- [Storage buckets](#storage-buckets)
+- [Table privileges (grants)](#table-privileges-grants)
+- [Security definer functions and the guard](#security-definer-functions-and-the-guard)
+- [Service role and API routes](#service-role-and-api-routes)
+- [Adding a policy for a new table](#adding-a-policy-for-a-new-table)
+- [Security Considerations](#security-considerations)
+- [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 How Row Level Security is set up for the Hedgie Hub: roles, table policies, helper functions and the guards that keep them in place.

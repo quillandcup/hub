@@ -2,6 +2,33 @@
 
 Reviewed 2026-10-21: completed items removed, duplicates merged. Sections below are grouped by area; entries within a section are roughly in priority order. The sales and marketing roadmap (CRM Features and the roadmap under UI Enhancements) is a separate product line from operations.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Top Picks](#top-picks)
+- [Member Status Refinements](#member-status-refinements)
+- [Landing pages (page builder)](#landing-pages-page-builder)
+- [Data Import](#data-import)
+- [Infrastructure & Deployment](#infrastructure--deployment)
+- [Security & Access Control](#security--access-control)
+- [Login & Access History](#login--access-history)
+- [Notifications](#notifications)
+- [Hub Chat: Beyond the First Unfurl Pass](#hub-chat-beyond-the-first-unfurl-pass)
+- [Slack Bot Channel Access](#slack-bot-channel-access)
+- [Gamification / Badges](#gamification--badges)
+- [Member Profiles](#member-profiles)
+- [Analytics & Matching](#analytics--matching)
+- [Live Page (Who's in the Prickle Right Now)](#live-page-whos-in-the-prickle-right-now)
+- [UI Enhancements](#ui-enhancements)
+- [Internationalization](#internationalization)
+- [Data Audits](#data-audits)
+- [Secrets at Rest](#secrets-at-rest)
+- [Bug Fixes](#bug-fixes)
+- [CRM Features](#crm-features)
+- [Writing Projects Tracking](#writing-projects-tracking)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Top Picks
 
 **Member-facing**
