@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { QUIZ_ANSWERS } from "@/lib/config";
-import { checkQuizFile, fileExtensionOf, isAttemptId, isOwnQuizFilePath, newQuizFilePath, safeQuizFileName } from "@/lib/courses/quiz-files";
+import { checkQuizFile, uploadTargetFrom, fileExtensionOf, isAttemptId, isOwnQuizFilePath, newQuizFilePath, safeQuizFileName } from "@/lib/courses/quiz-files";
 import { quizFileSize, removeQuizFiles, signQuizFileUpload, signedQuizFileDownload } from "@/lib/courses/quiz-files-storage";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -60,6 +60,16 @@ describe("paths", () => {
   it("knows an attempt id", () => {
     expect(isAttemptId("qatt_AAAAAAAAAAAa")).toBe(true);
     for (const bad of ["qatt_short", "qques_AAAAAAAAAAAa", "qatt_AAAAAAAAAAAl", 3, null]) expect(isAttemptId(bad)).toBe(false);
+  });
+});
+
+describe("uploadTargetFrom", () => {
+  const path = `${ADA}/${RANDOM}/a.pdf`;
+  it("accepts the shapes the server makes and nothing else", () => {
+    expect(uploadTargetFrom(path, "tokentokentoken")).toEqual({ path, token: "tokentokentoken" });
+    for (const bad of [["../x/y", "tokentokentoken"], [`${ADA}/${RANDOM}/../a.pdf`, "tokentokentoken"], [path, "short"], [path, "to ken to ken"], [path, "t".repeat(4001)], [5, "tokentokentoken"], [path, null], ["https://evil.test/x", "tokentokentoken"]]) {
+      expect(uploadTargetFrom(bad[0], bad[1])).toBeNull();
+    }
   });
 });
 

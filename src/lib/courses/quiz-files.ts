@@ -57,5 +57,17 @@ export interface UploadedFileRef {
   bytes: number;
 }
 
+/**
+ * The path and token the server handed out for an upload, accepted only when they are the shapes the server makes: three plain
+ * path segments (a member id, a random folder, a file name) and a signed token's characters. The address the browser sends the file to
+ * is built from nothing else, so a response that was tampered with can't point it anywhere.
+ */
+export function uploadTargetFrom(path: unknown, token: unknown): { path: string; token: string } | null {
+  if (typeof path !== "string" || typeof token !== "string") return null;
+  if (!/^[A-Za-z0-9_]{1,40}\/[0-9a-f-]{36}\/[A-Za-z0-9._-]{1,120}$/.test(path)) return null;
+  if (!/^[A-Za-z0-9._-]{10,4000}$/.test(token)) return null;
+  return { path, token };
+}
+
 /** A quiz attempt id (`qatt_` and 12 base58 characters). Tier 2: used between the app's own pages and routes, so not one of `ids.ts`'s prefixes. */
 export const isAttemptId = (value: unknown): value is string => typeof value === "string" && /^qatt_[1-9A-HJ-NP-Za-km-z]{12}$/.test(value);

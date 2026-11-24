@@ -32,7 +32,7 @@ const pdf = (name = "letter.pdf", size = 2000) => new File([new Uint8Array(size)
 beforeEach(() => {
   vi.clearAllMocks();
   actions.submitQuiz.mockResolvedValue({ submission: submission() });
-  actions.prepareQuizFileUpload.mockResolvedValue({ path: "mbr_AAAAAAAAAAA1/11111111-1111-4111-8111-111111111111/letter.pdf", token: "tok" });
+  actions.prepareQuizFileUpload.mockResolvedValue({ path: "mbr_AAAAAAAAAAA1/11111111-1111-4111-8111-111111111111/letter.pdf", token: "tokentokentoken" });
   upload.uploadWithProgress.mockResolvedValue({ ok: true });
 });
 
@@ -114,6 +114,15 @@ describe("QuizTaker: short answer and file questions", () => {
     await user.upload(screen.getByLabelText("File for question 2"), pdf());
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The upload didn't finish. Try again."));
     expect(screen.queryByRole("button", { name: "Remove file" })).not.toBeInTheDocument();
+  });
+
+  it("won't upload to a path or token that isn't the shape the server makes", async () => {
+    const user = userEvent.setup();
+    show();
+    actions.prepareQuizFileUpload.mockResolvedValueOnce({ path: "../../elsewhere", token: "tokentokentoken" });
+    await user.upload(screen.getByLabelText("File for question 2"), pdf());
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't start the upload. Try again.");
+    expect(upload.uploadWithProgress).not.toHaveBeenCalled();
   });
 
   it("holds the submit button while a file is still uploading", async () => {

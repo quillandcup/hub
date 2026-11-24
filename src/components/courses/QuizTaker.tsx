@@ -8,7 +8,7 @@ import Tooltip from "@/components/Tooltip";
 import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
 import { QUIZ_ANSWERS } from "@/lib/config";
 import { formatBytes } from "@/lib/courses/file-format";
-import { checkQuizFile, QUIZ_ANSWER_FILES_BUCKET, type UploadedFileRef } from "@/lib/courses/quiz-files";
+import { checkQuizFile, QUIZ_ANSWER_FILES_BUCKET, uploadTargetFrom, type UploadedFileRef } from "@/lib/courses/quiz-files";
 import type { MemberAttempt, PublicQuizQuestion, QuizSubmission } from "@/lib/courses/quiz-member";
 
 const BUTTON = "rounded-lg border-2 border-plum-600 px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60";
@@ -116,16 +116,17 @@ export default function QuizTaker({
     setUploadingFor(q.id, 0);
     try {
       const prepared = await prepareQuizFileUpload(lessonId, q.id, { name: file.name, size: file.size });
-      if (prepared.error || !prepared.path || !prepared.token) return fail(q.id, prepared.error ?? "Couldn't start the upload. Try again.");
+      const target = prepared.error ? null : uploadTargetFrom(prepared.path, prepared.token);
+      if (!target) return fail(q.id, prepared.error ?? "Couldn't start the upload. Try again.");
       const result = await uploadWithProgress({
-        url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, QUIZ_ANSWER_FILES_BUCKET, prepared.path, prepared.token),
+        url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, QUIZ_ANSWER_FILES_BUCKET, target.path, target.token),
         file,
         contentType: file.type || "application/octet-stream",
         apiKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         onProgress: (loaded) => setUploadingFor(q.id, loaded),
       });
       if (!result.ok) return fail(q.id, "The upload didn't finish. Try again.");
-      setFiles((current) => ({ ...current, [q.id]: { path: prepared.path!, name: file.name, bytes: file.size } }));
+      setFiles((current) => ({ ...current, [q.id]: { path: target.path, name: file.name, bytes: file.size } }));
     } catch {
       fail(q.id, "The upload didn't finish. Try again.");
     } finally {
