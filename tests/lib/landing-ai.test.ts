@@ -140,6 +140,14 @@ describe("completeWithClaude", () => {
     expect(body).toMatchObject({ model: ANTHROPIC.landingPageModel, tool_choice: { type: "auto" }, output_config: { effort: "medium" }, thinking: { type: "adaptive" }, messages: [{ role: "user", content: "prompt" }] });
   });
 
+  it("calls the tool it is given instead of the page builder's, when asked", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: "tool_use", input: { descriptions: [] } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const tool = { name: "other_tool", description: "d", input_schema: { type: "object" } };
+    expect(await completeWithClaude("sys", "prompt", tool)).toEqual({ descriptions: [] });
+    expect(JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)).tools).toEqual([tool]);
+  });
+
   it("puts Anthropic's error type and message in the thrown error, and copes with a body that isn't JSON", async () => {
     const body = { error: { type: "invalid_request_error", message: "tool_choice: not supported for this model" } };
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 400 })));

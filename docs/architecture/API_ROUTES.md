@@ -56,7 +56,7 @@ What the app calls on other servers, and the `User-Agent` it sends, is in `docs/
 
 <!-- START api-routes generated: run `pnpm docs:api-routes` to update, don't edit by hand -->
 
-177 routes.
+178 routes.
 
 | Path | Methods | Who may call it |
 |---|---|---|
@@ -84,6 +84,7 @@ What the app calls on other servers, and the `User-Agent` it sends, is in `docs/
 | `/api/admin/feedback/[id]` | PATCH | `admin` |
 | `/api/admin/kajabi-offers` | GET | `admin` |
 | `/api/admin/landing-pages/import` | POST | `admin` |
+| `/api/admin/landing-pages/import/alt-text` | POST | `admin` |
 | `/api/admin/members/[id]` | PATCH | `admin` |
 | `/api/admin/members/[id]/delete-empty-kajabi-contact` | POST | `admin` |
 | `/api/admin/members/[id]/owned-data` | GET | `admin` |

@@ -235,7 +235,7 @@ export const EVENTS = {
    * A member's profile-at-a-glance opened from their name (src/components/member/MemberHoverCard.tsx):
    * `surface` is the page it was on, `has_message` whether the card offered a Message button.
    */
-  member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
+  member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters", "lesson_comments"), has_message: bool() },
 
   // Hedgie Care (src/app/(admin)/admin/care): staff's reach-outs to members, one engagement per care plan. Never the member, the notes or the next step.
   /** A staff member started a care plan: its `reason`, and whether the start day was an earlier one. */

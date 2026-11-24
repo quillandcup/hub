@@ -1,5 +1,7 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { safeUrl } from "@/lib/url";
+import { FORMER_MEMBER_NAME } from "@/lib/courses/comment-text";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { compareText, inChunks, must } from "./query";
@@ -38,6 +40,8 @@ export interface ThreadComment {
   memberId: string;
   parentId: string | null;
   authorName: string;
+  /** The author's profile photo (a safe URL), or null: the avatar then shows their initials. */
+  authorPhotoUrl?: string | null;
   isInstructorReply: boolean;
   createdAt: string;
   editedAt: string | null;
@@ -263,7 +267,7 @@ export interface ImportedCommentWrite {
 /** The columns a count needs: never the text. */
 type CountRow = Pick<StoredRow, "id" | "lesson_id" | "member_id" | "parent_id" | "is_staff_reply" | "created_at" | "held_at" | "hidden_at" | "deleted_at" | "handled_at" | "source">;
 
-type Embedded = { name: string; display_name: string | null };
+type Embedded ={ name: string; display_name: string | null };
 type StoredRow = {
   id: string;
   lesson_id: string;
@@ -305,7 +309,7 @@ const isHeld = (row: { held_at: string | null; hidden_at: string | null; deleted
 const isLive = (row: { held_at: string | null; hidden_at: string | null; deleted_at: string | null }) => !isRemoved(row) && !row.held_at;
 
 /** Builds the thread from every row of a lesson as `viewer` sees it; `nameOf` gives an author's display name. Shared by both implementations. */
-export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => string, viewer: ThreadViewer): LessonThread {
+export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => string, viewer: ThreadViewer, photoOf: (memberId: string) => string | null = () => null): LessonThread {
   // What the viewer may see at all: deleted comments are tombstones for everyone, hidden ones for members; a held one is its author's and staff's.
   const canSeeHeld = (row: StoredRow) => viewer.isStaff || row.member_id === viewer.memberId;
   const goneFor = (row: StoredRow) => Boolean(row.deleted_at || (row.hidden_at && !viewer.isStaff));
@@ -325,6 +329,7 @@ export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => str
       memberId: removed ? "" : row.member_id,
       parentId: row.parent_id,
       authorName: removed ? "" : nameOf(row.member_id),
+      authorPhotoUrl: removed ? null : photoOf(row.member_id),
       isInstructorReply: removed ? false : row.is_staff_reply,
       createdAt: row.created_at,
       editedAt: removed ? null : row.edited_at,
@@ -518,17 +523,21 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
     return true;
   }
 
+  private async authorProfiles(memberIds: string[]): Promise<Map<string, { name: string; photoUrl: string | null }>> {
+    const rows = await inChunks(memberIds, 200, async (part) => must(await this.db.from("members").select("id, name, display_name, photo_url").in("id", part)) ?? []);
+    return new Map(rows.map((m) => [m.id, { name: getMemberDisplayName(m as Embedded), photoUrl: safeUrl(m.photo_url) }]));
+  }
+
   private async authorNames(memberIds: string[]): Promise<Map<string, string>> {
-    const rows = await inChunks(memberIds, 200, async (part) => must(await this.db.from("members").select("id, name, display_name").in("id", part)) ?? []);
-    return new Map(rows.map((m) => [m.id, getMemberDisplayName(m as Embedded)]));
+    return new Map([...(await this.authorProfiles(memberIds))].map(([id, p]) => [id, p.name]));
   }
 
   async threadFor(lessonId: string, viewer: ThreadViewer) {
     const rows = await fetchAllRows<StoredRow>((from, to) =>
       this.db.from("lesson_comments").select(COLUMNS).eq("lesson_id", lessonId).order("id").range(from, to),
     );
-    const names = await this.authorNames(rows.filter((r) => !r.deleted_at && (viewer.isStaff || !isRemoved(r))).map((r) => r.member_id));
-    return buildThread(rows, (id) => names.get(id) ?? "Former member", viewer);
+    const profiles = await this.authorProfiles(rows.filter((r) => !r.deleted_at && (viewer.isStaff || !isRemoved(r))).map((r) => r.member_id));
+    return buildThread(rows, (id) => profiles.get(id)?.name ?? FORMER_MEMBER_NAME, viewer, (id) => profiles.get(id)?.photoUrl ?? null);
   }
 
   async report(input: { commentId: string; reporterId: string; reason: string }): Promise<ReportOutcome> {
@@ -788,7 +797,7 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
 
   private name(memberId: string): string {
     const member = this.data.members.find((m) => m.id === memberId);
-    return member ? getMemberDisplayName({ name: member.name, display_name: member.displayName ?? null }) : "Former member";
+    return member ? getMemberDisplayName({ name: member.name, display_name: member.displayName ?? null }) : FORMER_MEMBER_NAME;
   }
 
   async create(comment: NewLessonComment) {
@@ -847,6 +856,7 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
       this.data.lessonComments.filter((c) => c.lesson_id === lessonId),
       (id) => this.name(id),
       viewer,
+      (id) => safeUrl(this.data.members.find((m) => m.id === id)?.photoUrl),
     );
   }
 

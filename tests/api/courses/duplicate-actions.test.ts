@@ -67,12 +67,25 @@ describe('duplicateCourse', () => {
     expect(revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('refuses a course that holds a quiz, saying why, because the copy would leave it empty', async () => {
+  it('copies a course that holds a quiz, with its settings, questions and right answers', async () => {
     const quizCourse = await supabase.from('courses').insert({ slug: `${PREFIX}-quiz`, title: 'quiz', source: 'hub' }).select('id').single()
     const quizLesson = await supabase.from('course_lessons').insert({ course_id: quizCourse.data!.id, title: 'Check in', position: 1, source: 'hub' }).select('id').single()
-    await supabase.from('quizzes').insert({ lesson_id: quizLesson.data!.id })
-    expect(await duplicateCourse(quizCourse.data!.id)).toEqual({ error: 'This course holds a quiz, and a copy would leave it empty, so it can\'t be duplicated yet.' })
-    expect((await supabase.from('courses').select('id').like('slug', `${PREFIX}-quiz-copy%`)).data).toEqual([])
+    const quiz = await supabase.from('quizzes').insert({ lesson_id: quizLesson.data!.id, passing_percent: 70, hide_answers: true }).select('id').single()
+    const question = await supabase.from('quiz_questions').insert({ quiz_id: quiz.data!.id, position: 1, prompt: 'Pick one', allows_multiple: false }).select('id').single()
+    await supabase.from('quiz_options').insert([
+      { question_id: question.data!.id, position: 1, label: 'No', is_correct: false },
+      { question_id: question.data!.id, position: 2, label: 'Yes', is_correct: true },
+    ])
+    const result = await duplicateCourse(quizCourse.data!.id)
+    expect(result.error).toBeUndefined()
+    const copied = await supabase.from('course_lessons').select('id').eq('course_id', result.id!).single()
+    const copiedQuiz = await supabase.from('quizzes').select('id, passing_percent, hide_answers, source_key').eq('lesson_id', copied.data!.id).single()
+    expect(copiedQuiz.data).toEqual({ id: expect.stringMatching(/^quiz_/), passing_percent: 70, hide_answers: true, source_key: null })
+    expect(copiedQuiz.data!.id).not.toBe(quiz.data!.id)
+    const questions = await supabase.from('quiz_questions').select('prompt, quiz_options(label, is_correct, position)').eq('quiz_id', copiedQuiz.data!.id)
+    expect(questions.data).toHaveLength(1)
+    expect(questions.data![0].prompt).toBe('Pick one')
+    expect([...questions.data![0].quiz_options].sort((a, b) => a.position - b.position).map((o) => [o.label, o.is_correct])).toEqual([['No', false], ['Yes', true]])
   })
 
   it('does nothing for someone who is not an admin', async () => {

@@ -1,4 +1,4 @@
--- pgTAP tests for 20271126000000_course_instructors.sql (the Instructor badge means the course's instructors):
+-- pgTAP tests for 20271126100001_course_instructors.sql (the Instructor badge means the course's instructors):
 --   * course_instructors: admins add and remove, members read the instructors of a course they have access to, nobody else
 --   * one entry per instructor added or removed in the audit log, as the admin, labelled with the course; none for the server's own writes
 --   * one row per course and member; the id prefix; grants; removing a member or a course removes the rows

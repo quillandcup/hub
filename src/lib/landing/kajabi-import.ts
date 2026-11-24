@@ -77,7 +77,7 @@ export type KajabiMapOptions = {
 
 export type KajabiMapResult =
   | { ok: false; error: string }
-  | { ok: true; data: LandingData; layout: string; importKey: string; start: PageStart; suggestedTitle: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number }; references: KajabiReferences };
+  | { ok: true; data: LandingData; layout: string; importKey: string; start: PageStart; suggestedTitle: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number }; references: KajabiReferences; /** The id of the header logo's Image block, if the page has one (its description is the brand name). */ logoBlockId: string | null };
 
 type Settings = Record<string, unknown>;
 type Block = { type?: unknown; name?: unknown; hidden?: unknown; settings?: Settings };
@@ -1064,7 +1064,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const data = sanitizeLandingData({ content, root: { props: root } });
   const layout = layoutFingerprint(order, sections);
   const start = pageStart(data);
-  return { ok: true, data, layout, importKey: layoutKeyOf(layout), start, suggestedTitle: suggestTitle(start), pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount }, references: { landingPageIds: [...ctx.refs.landingPageIds], offerCodes: [...ctx.refs.offerCodes], countdowns: ctx.refs.countdowns } };
+  return { ok: true, data, layout, importKey: layoutKeyOf(layout), start, suggestedTitle: suggestTitle(start), pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount }, references: { landingPageIds: [...ctx.refs.landingPageIds], offerCodes: [...ctx.refs.offerCodes], countdowns: ctx.refs.countdowns }, logoBlockId: headerLogo ? String(headerLogo.props.id) : null };
 }
 
 /**

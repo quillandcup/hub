@@ -34,6 +34,7 @@ const inspected = (over: Record<string, unknown> = {}) => ({
   suggestedTitle: "Write a little, every day",
   blocks: 5,
   countdowns: 0,
+  pictures: [],
   matches: [],
   pages: [],
   ...over,
@@ -254,5 +255,79 @@ describe("the page address for a countdown's date", () => {
     await user.click(screen.getByRole("button", { name: /^Import/ }));
     await screen.findByRole("status");
     expect(sent(1).get("originalPath")).toBe("/example-program");
+  });
+});
+
+describe("picture descriptions", () => {
+  const slot = (id: string, over: Record<string, unknown> = {}) => ({ id, role: "picture", headings: ["Join the list"], canBeDecorative: true, fallback: { alt: 'Picture for "Join the list"', decorative: false }, ...over });
+  const slots = [slot("Image-import-1", { role: "logo", headings: ["Example Press"], fallback: { alt: "Example Press logo", decorative: false } }), slot("Image-import-2"), slot("GridCard-import-3", { role: "card picture", canBeDecorative: false })];
+
+  /** The server answers the read, the suggestions (`alt`) and then the import. */
+  function serverWithPictures(alt: unknown, ...answers: unknown[]) {
+    fetchMock.mockImplementation(async (url: string, init: { body: FormData }) => ({ json: async () => (url.endsWith("/alt-text") ? alt : init.body.get("mode") === "inspect" ? inspected({ pictures: slots }) : answers.shift()) }));
+  }
+  const imports = () => fetchMock.mock.calls.filter(([url, init]) => !String(url).endsWith("/alt-text") && init.body.get("mode") !== "inspect");
+
+  it("shows a field for each picture with the suggestion, and sends what is in the fields", async () => {
+    serverWithPictures({ status: "suggested", ai: "used", suggestions: [{ id: "Image-import-2", alt: "A notebook on a desk", decorative: false, by: "ai" }, { id: "GridCard-import-3", alt: "Card art", decorative: false, by: "ai" }] }, imported());
+    const user = await openDialog();
+    expect(await screen.findByText(/Suggested by the AI from the headings near each picture/)).toHaveTextContent("never sent anywhere");
+    expect(screen.getByLabelText("Description of logo 1")).toHaveValue("Example Press logo");
+    expect(screen.getByLabelText("Description of picture 2")).toHaveValue("A notebook on a desk");
+    // A card's picture can't be marked decorative.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+
+    const field = screen.getByLabelText("Description of picture 2");
+    await user.clear(field);
+    await user.type(field, "My own words");
+    await user.click(screen.getAllByRole("checkbox")[0]);
+    await user.click(screen.getByRole("button", { name: /^Import/ }));
+    await waitFor(() => expect(imports()).toHaveLength(1));
+    expect(JSON.parse(String(imports()[0][1].body.get("altTexts")))).toEqual({
+      "Image-import-1": { alt: "Example Press logo", decorative: true },
+      "Image-import-2": { alt: "My own words", decorative: false },
+      "GridCard-import-3": { alt: "Card art", decorative: false },
+    });
+    expect(fetchMock.mock.calls.find(([url]) => String(url).endsWith("/alt-text"))![1].body.get("file")).toBeInstanceOf(File);
+  });
+
+  it("keeps what the admin typed when the suggestions arrive later", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    fetchMock.mockImplementation(async (url: string, init: { body: FormData }) => {
+      if (String(url).endsWith("/alt-text")) {
+        await gate;
+        return { json: async () => ({ status: "suggested", ai: "used", suggestions: slots.map((s) => ({ id: s.id, alt: "From the AI", decorative: false, by: "ai" })) }) };
+      }
+      return { json: async () => (init.body.get("mode") === "inspect" ? inspected({ pictures: slots }) : imported()) };
+    });
+    const user = await openDialog();
+    const field = await screen.findByLabelText("Description of picture 2");
+    expect(screen.getByText("Asking for suggestions…")).toBeInTheDocument();
+    await user.clear(field);
+    await user.type(field, "Typed first");
+    release();
+    await screen.findByText(/Suggested by the AI/);
+    expect(field).toHaveValue("Typed first");
+    expect(screen.getByLabelText("Description of logo 1")).toHaveValue("From the AI");
+  });
+
+  it.each([
+    [{ status: "suggested", ai: "not_set_up", suggestions: [] }, /The AI isn't set up/],
+    [{ status: "suggested", ai: "failed", suggestions: [] }, /The AI didn't answer/],
+    [{ status: "error", error: "Too many" }, /Couldn't ask for suggestions/],
+  ])("says when the AI cannot help (%j) and keeps the suggestions taken from the headings", async (answer, text) => {
+    serverWithPictures(answer);
+    await openDialog();
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.getByLabelText("Description of picture 2")).toHaveValue('Picture for "Join the list"');
+  });
+
+  it("is not shown when every picture already has a description", async () => {
+    server(inspected(), imported());
+    await openDialog();
+    await screen.findByText(/This export starts with/);
+    expect(screen.queryByText("Picture descriptions")).toBeNull();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/alt-text"))).toBe(false);
   });
 });

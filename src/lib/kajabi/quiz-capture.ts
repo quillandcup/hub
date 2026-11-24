@@ -56,14 +56,26 @@ export interface QuizCapture {
   documents: unknown[];
 }
 
-/** The same documents hash the same: object keys are sorted, so a reordered response is not a change. */
+/**
+ * What decides whether a quiz changed: the quiz as the Hub reads it (`parseKajabiQuiz`), not the raw documents. The editor
+ * page's embedded store also holds signed image URLs, other pages' links and other lessons' data that differ on every load, so
+ * hashing it reported "changed" on every run. Anything that is not in the parsed quiz (a thumbnail, a URL signature) can
+ * change without it counting. Questions, answers, which are right, the passing grade and hidden answers do count.
+ * The prefix names this scheme: hashes stored before it (a bare hex digest of the whole documents) never match, so each
+ * existing quiz is rewritten once on the first run after the change and is unchanged from then on. Bronze keeps the raw documents.
+ */
+export const QUIZ_HASH_PREFIX = "q2:";
+
+/** The same quiz hashes the same however the response's keys or records are ordered. */
 export function quizContentHash(documents: unknown[]): string {
-  const canonical = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(canonical);
-    if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical((value as Record<string, unknown>)[k])]));
-    return value;
+  const parsed = parseKajabiQuiz(documents);
+  const core = parsed && {
+    passingPercent: parsed.passingPercent,
+    hideAnswers: parsed.hideAnswers,
+    ungradedManual: parsed.ungradedManual,
+    questions: parsed.questions.map((q) => ({ id: q.id, prompt: q.prompt, kind: q.kind, graded: q.graded, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })) })),
   };
-  return createHash("sha256").update(JSON.stringify(canonical(documents))).digest("hex");
+  return QUIZ_HASH_PREFIX + createHash("sha256").update(JSON.stringify(core)).digest("hex");
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

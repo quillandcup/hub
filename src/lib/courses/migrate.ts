@@ -226,8 +226,10 @@ const stepB: MigrateStep = {
     const dry = await ctx.io.runContent(base);
     if (dry.code !== 0) throw new MigrateStop(failedMessage(dry.code));
     const dryCounts = parseContentSummary(dry.output);
-    if (dryCounts && dryCounts.updated + dryCounts.linksRefreshed === 0) {
-      ctx.io.log("Nothing new in Kajabi: no lesson text or video link to write.");
+    // A quiz that is new or changed is something to write too, even when no lesson text or video link is.
+    const quizWork = dryCounts?.quizzes ? dryCounts.quizzes.created + dryCounts.quizzes.changed : 0;
+    if (dryCounts && dryCounts.updated + dryCounts.linksRefreshed + quizWork === 0) {
+      ctx.io.log("Nothing new in Kajabi: no lesson text, video link or quiz to write.");
       ctx.summary.content = { applied: false, counts: dryCounts };
       return;
     }

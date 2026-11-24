@@ -68,6 +68,7 @@ describe('Kajabi lesson comments capture idempotency', () => {
 
   async function cleanup() {
     await bronze.from('kajabi_lesson_comments').delete().in('course_kajabi_id', [COURSE, OTHER])
+    await bronze.from('kajabi_quizzes').delete().in('course_kajabi_id', [COURSE, OTHER])
     await bronze.from('kajabi_course_lessons').delete().in('course_kajabi_id', [COURSE, OTHER])
     await bronze.from('kajabi_courses').delete().in('kajabi_id', [COURSE, OTHER])
   }
@@ -158,6 +159,16 @@ describe('Kajabi lesson comments capture idempotency', () => {
     const summary = await run([L1, L2, L3])
     expect(summary).toMatchObject({ lessonsNoComments: 2, lessonsWithoutList: 1, lessonsFailed: 0, lessonsCaptured: 0, rows: { written: 0, unchanged: 0, removed: 0 } })
     expect([await rows(L1), await rows(L2)]).toEqual(before)
+  })
+
+  it('counts a lesson Bronze already holds a quiz for as a quiz, even when its page shows no sign of one', async () => {
+    const quizId = `${ts}77`
+    const { error } = await bronze.from('kajabi_quizzes').insert({ kajabi_id: quizId, course_kajabi_id: COURSE, lesson_kajabi_id: L3, raw_payload: { documents: [] }, content_hash: 'x', captured_at: new Date().toISOString() })
+    expect(error).toBeNull()
+    pages.set(L3, { kind: 'noList', hasCommentBox: false })
+    const summary = await run([L3])
+    expect(summary).toMatchObject({ lessonsQuizzes: 1, lessonsWithoutList: 0, lessonsNoComments: 0, lessonsFailed: 0 })
+    await bronze.from('kajabi_quizzes').delete().eq('kajabi_id', quizId)
   })
 
   it('counts a quiz page on its own, not as a lesson to look at, and writes nothing for it', async () => {
