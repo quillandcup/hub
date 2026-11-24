@@ -86,7 +86,7 @@ const video = (id: string, state: string, over: Record<string, unknown> = {}) =>
 
 const COMMENTS_ROUTE = (inserted: number, over: Record<string, unknown> = {}) => ({
   success: true,
-  courses: [{ slug: "demo-course", inserted, updated: 0, unchanged: 2, replies: 1, orphanReplies: 0, authors: { matched: 3, staff: 1, unmatched: 1, ambiguous: 1 }, unmatchedAuthorComments: 2, ambiguousAuthorComments: 1, unmatchedAuthors: [{ name: "Nobody Known", comments: 2 }], ambiguousAuthors: [{ name: "Cy Twin", comments: 1, members: 2 }], unmatchedLessonComments: 1, skipped: 0, ...over }],
+  courses: [{ slug: "demo-course", inserted, updated: 0, unchanged: 2, replies: 1, orphanReplies: 0, authors: { matched: 3, instructors: 1, unmatched: 1, ambiguous: 1 }, instructors: 1, commentsInBronze: 9, unmatchedAuthorComments: 2, ambiguousAuthorComments: 1, unmatchedAuthors: [{ name: "Nobody Known", comments: 2 }], ambiguousAuthors: [{ name: "Cy Twin", comments: 1, members: 2 }], unmatchedLessonComments: 1, skipped: 0, ...over }],
 });
 
 const baseRoutes = (over: Record<string, any> = {}) => ({
@@ -646,6 +646,23 @@ describe("optional progress and comments steps", () => {
     expect(text).toContain("3 left out because their author's name matched no member or several");
     expect(text).toContain("nobody is notified");
     expect(result.ok).toBe(true);
+  });
+
+  it("the comments dry run says plainly when the course has no instructors, and where to add one; with instructors it says how many authors are", async () => {
+    const none = harness({ routes: baseRoutes({ "/api/process/course-comments": COMMENTS_ROUTE(5, { instructors: 0 }) }), content: [...bDone, ok(COMMENT_LINES(0))], confirms: [false] });
+    await runMigration(withOptional(["--skip-progress"]), ENV, none.io);
+    const text = none.logs.join("\n");
+    expect(text).toContain("This course has no instructors set, so none of its comments will show the Instructor badge until one is added (Courses, this course, Details, Instructors).");
+
+    const some = harness({ routes: baseRoutes({ "/api/process/course-comments": COMMENTS_ROUTE(5) }), content: [...bDone, ok(COMMENT_LINES(0))], confirms: [false] });
+    await runMigration(withOptional(["--skip-progress"]), ENV, some.io);
+    expect(some.logs.join("\n")).not.toContain("no instructors set");
+    expect(some.logs.join("\n")).toContain("1 of them instructors of this course");
+
+    // A course with no comments to import has nothing to badge, so there is nothing to warn about.
+    const empty = harness({ routes: baseRoutes({ "/api/process/course-comments": COMMENTS_ROUTE(0, { instructors: 0, commentsInBronze: 0 }) }), content: [...bDone, ok(COMMENT_LINES(0))] });
+    await runMigration(withOptional(["--skip-progress"]), ENV, empty.io);
+    expect(empty.logs.join("\n")).not.toContain("no instructors set");
   });
 
   it("the comments import with --yes asks nothing, and declining it writes nothing", async () => {

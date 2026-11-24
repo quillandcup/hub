@@ -49,8 +49,8 @@ function setup(enabled: boolean) {
 
 async function addNews() {
   await repos.courseComments.setFollowing(FOLLOWER, LESSON, true);
-  await repos.courseComments.create({ lessonId: LESSON, memberId: ASKER, parentId: null, body: "A question", isStaffReply: false });
-  await repos.courseComments.create({ lessonId: LESSON, memberId: ASKER, parentId: null, body: "Held", isStaffReply: false, held: true });
+  await repos.courseComments.create({ lessonId: LESSON, memberId: ASKER, parentId: null, body: "A question", isInstructorReply: false });
+  await repos.courseComments.create({ lessonId: LESSON, memberId: ASKER, parentId: null, body: "Held", isInstructorReply: false, held: true });
   vi.setSystemTime(NOW + 60_000);
 }
 

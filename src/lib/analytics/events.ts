@@ -112,7 +112,7 @@ export const EVENTS = {
 
   /**
    * Lesson comments (src/components/courses/CommentThread.tsx, src/app/(member)/courses/comment-actions.ts). Never the text, a name or an
-   * id of a person: `course_id` is the course's own id, `is_staff` whether an instructor wrote it, `count_bucket` how many
+   * id of a person: `course_id` is the course's own id, `is_staff` whether staff wrote it, `count_bucket` how many
    * comments the member saw under the lesson.
    */
   lesson_comment_posted: { course_id: text(24), is_reply: bool(), is_staff: bool(), has_mention: bool() },

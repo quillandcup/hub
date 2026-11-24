@@ -30,7 +30,7 @@ interface Props {
   unread: number;
   /** The member the page is for: their own comments get edit and delete. */
   currentMemberId: string;
-  /** The viewer is staff acting as themselves, so what they post carries the Instructor badge. */
+  /** The viewer is staff acting as themselves: they may hide and delete. Their own posts carry the Instructor badge only when they teach the course. */
   isStaff: boolean;
   /** Sudo: the thread shows, but nothing can be posted. */
   readOnly: boolean;
@@ -48,7 +48,7 @@ const buttonClass =
   "rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton = `${buttonClass} bg-plum-600 text-white hover:bg-plum-700`;
 const highlightClass = "-m-2 rounded-lg bg-plum-50 p-2 ring-2 ring-plum-300 dark:bg-plum-950 dark:ring-plum-700";
-/** A comment by an instructor or staff reads on a soft plum ground (slate text on plum-50 and on plum-950 both clear 4.5:1). */
+/** A comment by one of the course's instructors reads on a soft plum ground (slate text on plum-50 and on plum-950 both clear 4.5:1). */
 const staffTint = "rounded-lg bg-plum-50 px-3 py-2 dark:bg-plum-950/50";
 /** A question an instructor replied to carries a thin plum edge, so it stands out when skimming. */
 const repliedEdge = "border-l-2 border-plum-400 pl-3 dark:border-plum-500";
@@ -369,12 +369,12 @@ function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek, inst
     });
   }
 
-  const staffComment = comment.isStaffReply && !comment.hidden && !comment.held;
+  const staffComment = comment.isInstructorReply && !comment.hidden && !comment.held;
   return (
     <div data-staff={staffComment || undefined} data-instructor-replied={instructorReplied || undefined} className={[staffComment ? staffTint : "", instructorReplied ? repliedEdge : ""].filter(Boolean).join(" ") || undefined}>
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
         <span className="font-semibold">{comment.authorName}</span>
-        {comment.isStaffReply && (
+        {comment.isInstructorReply && (
           <span className="rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900 dark:text-plum-100">Instructor</span>
         )}
         <Tooltip content={fullDate(comment.createdAt, props.timeZone)}>

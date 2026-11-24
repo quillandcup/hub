@@ -33,6 +33,10 @@ vi.mock("@/app/(admin)/admin/courses/[id]/CourseSettingsForm", () => ({
   ),
 }));
 
+vi.mock("@/app/(admin)/admin/courses/[id]/CourseInstructorsPanel", () => ({
+  default: (props: { courseId: string; instructorIds: string[] }) => <div data-testid="instructors" data-course={props.courseId} data-count={props.instructorIds.length} />,
+}));
+
 const loadTakeOverPreview = vi.fn();
 vi.mock("@/lib/courses/take-over", () => ({ loadTakeOverPreview: (...a: unknown[]) => loadTakeOverPreview(...a) }));
 vi.mock("@/app/(admin)/admin/courses/take-over-actions", () => ({ takeOverCourse: vi.fn() }));
@@ -217,6 +221,13 @@ describe("/admin/courses/[id]", () => {
     loadAdminCourse.mockResolvedValue(detail(undefined, { lastImportedAt: null }));
     await renderServerRoute(AdminCoursePage, params);
     expect(screen.getByText(/Not imported from Kajabi yet/)).toBeInTheDocument();
+  });
+
+  it("shows who teaches the course under its settings, for a course that is in the Hub", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    await renderServerRoute(AdminCourseDetailsPage, params);
+
+    expect(screen.getByTestId("instructors")).toHaveAttribute("data-course", "crs_AAAAAAAAAAA1");
   });
 
   it("shows the details as imported, disabled, and the settings form with the launch day in the organisation's timezone", async () => {

@@ -3,10 +3,9 @@ import type { ImportableLessonComment } from "@/lib/data/kajabi-courses";
 import type { ImportedCommentRecord, ImportedCommentWrite } from "@/lib/data/course-comments";
 import type { Repos } from "@/lib/data/repos";
 import { COMMENT_MAX_LENGTH } from "@/lib/courses/comments";
-import { staffAmong } from "@/lib/courses/comment-readers";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
-type CommentsImportRepos = Pick<Repos, "courses" | "kajabiCourses" | "courseComments" | "billing" | "members" | "aliases" | "profiles">;
+type CommentsImportRepos = Pick<Repos, "courses" | "kajabiCourses" | "courseComments" | "courseInstructors" | "billing" | "members" | "aliases">;
 
 /** The `lesson_comments.source` of a comment that came from Kajabi. */
 export const KAJABI_COMMENT_SOURCE = "kajabi";
@@ -24,7 +23,9 @@ const AUTHOR_LIST_LIMIT = 100;
  *  - writes each comment as the Hub member its author is (see `matchAuthors`): the capture has only the name Kajabi shows, so
  *    the name must be exactly one Kajabi contact's name (or several contacts of one member), never fuzzy. A name that matches no
  *    member, or more than one, is not guessed: its comments are skipped and listed in the summary, so nothing is silently
- *    dropped. A member who is staff is shown with the Instructor badge;
+ *    dropped. A member who is one of the course's instructors (`course_instructors`, set by staff in the course settings) is shown
+ *    with the Instructor badge; staff who are not are ordinary authors. A course with no instructors gets no badge at all, and its
+ *    summary says so (`instructors: 0`);
  *  - keeps Kajabi's own time as `created_at`, and threads a reply under its comment (a reply to a reply goes under the
  *    comment above it; a reply whose comment is not imported becomes a top-level comment and is counted);
  *  - creates no follow, no notification and no report, is never held, and (being old, source-marked) never counts as new or as an
@@ -48,7 +49,9 @@ export interface CourseCommentsImport {
   /** Comments whose Kajabi lesson has no Hub lesson (removed in Kajabi, or not synced yet): not imported. */
   unmatchedLessonComments: number;
   /** Different author names among the comments that could be imported, by how they matched. */
-  authors: { matched: number; staff: number; unmatched: number; ambiguous: number };
+  authors: { matched: number; instructors: number; unmatched: number; ambiguous: number };
+  /** How many instructors the course has. With none, no comment shows the Instructor badge until staff add one (the badges follow when they do). */
+  instructors: number;
   /** Comments skipped because their author's name matches no member, or more than one. Listed below, never guessed. */
   unmatchedAuthorComments: number;
   ambiguousAuthorComments: number;
@@ -213,7 +216,7 @@ interface Candidate {
 /** What Kajabi says about one comment, ready to compare with the Hub's row. */
 interface Wanted extends Candidate {
   memberId: string;
-  isStaffReply: boolean;
+  isInstructorReply: boolean;
   /** The source key of the comment above it, or null for a top-level comment. */
   parentKey: string | null;
 }
@@ -234,7 +237,8 @@ export async function importKajabiLessonComments(
       slug: course.slug,
       commentsInBronze: 0,
       unmatchedLessonComments: 0,
-      authors: { matched: 0, staff: 0, unmatched: 0, ambiguous: 0 },
+      authors: { matched: 0, instructors: 0, unmatched: 0, ambiguous: 0 },
+      instructors: 0,
       unmatchedAuthorComments: 0,
       ambiguousAuthorComments: 0,
       unmatchedAuthors: [],
@@ -252,10 +256,13 @@ export async function importKajabiLessonComments(
     result.courses.push(summary);
     if (!course.source_key) continue;
 
-    const [bronze, lessons] = await Promise.all([
+    const [bronze, lessons, instructorIds] = await Promise.all([
       repos.kajabiCourses.commentsOfCourse(course.source_key),
       repos.courses.lessonsOf([course.id], { source: "kajabi", includeHidden: true }),
+      repos.courseInstructors.forCourse(course.id),
     ]);
+    const instructors = new Set(instructorIds);
+    summary.instructors = instructors.size;
     const lessonIdByKey = new Map<string, string>(lessons.flatMap((l) => (l.source_key ? [[l.source_key, l.id] as [string, string]] : [])));
     summary.commentsInBronze = bronze.length;
     if (bronze.length === 0) continue;
@@ -267,9 +274,7 @@ export async function importKajabiLessonComments(
 
     directory ??= loadDirectory(repos);
     const matches = matchAuthors(new Set(candidates.map((c) => c.authorKey).filter(Boolean)), await directory);
-    const matched = [...matches.values()].flatMap((m) => (m.status === "matched" ? [m.memberId] : []));
-    const staff = new Set(await staffAmong(repos, [...new Set(matched)]));
-    const wanted = settleAuthors(candidates, matches, staff, summary);
+    const wanted = settleAuthors(candidates, matches, instructors, summary);
     linkReplies(bronze, wanted, summary);
 
     const idOf = new Map<string, string>([...existing.values()].map((e) => [e.sourceKey, e.id]));
@@ -286,7 +291,7 @@ export async function importKajabiLessonComments(
           sourceKey: w.sourceKey,
           parentId,
           memberId: w.memberId,
-          isStaffReply: w.isStaffReply,
+          isInstructorReply: w.isInstructorReply,
           body: w.body,
           createdAt: w.createdAt,
           deletedAt,
@@ -298,7 +303,7 @@ export async function importKajabiLessonComments(
         }
         const same =
           row.memberId === desired.memberId &&
-          row.isStaffReply === desired.isStaffReply &&
+          row.isInstructorReply === desired.isInstructorReply &&
           row.body === desired.body &&
           Date.parse(row.createdAt) === Date.parse(desired.createdAt) &&
           row.deletedAt === desired.deletedAt &&
@@ -373,19 +378,19 @@ function candidateComments(
  * Keeps the comments whose author is one member and gives each its member and badge; the others are counted and their names
  * listed in the summary (most comments first), so none is dropped without being reported. Fills the summary's author counts.
  */
-function settleAuthors(candidates: Candidate[], matches: Map<string, AuthorMatch>, staff: Set<string>, summary: CourseCommentsImport): Wanted[] {
+function settleAuthors(candidates: Candidate[], matches: Map<string, AuthorMatch>, instructors: Set<string>, summary: CourseCommentsImport): Wanted[] {
   const settled: Wanted[] = [];
   const unmatched = new Map<string, UnsettledAuthor>();
   const ambiguous = new Map<string, UnsettledAuthor>();
   const matchedKeys = new Set<string>();
-  const staffKeys = new Set<string>();
+  const instructorKeys = new Set<string>();
   for (const c of candidates) {
     const match: AuthorMatch = c.authorKey ? (matches.get(c.authorKey) ?? { status: "unmatched" }) : { status: "unmatched" };
     if (match.status === "matched") {
       matchedKeys.add(c.authorKey);
-      const isStaffReply = staff.has(match.memberId);
-      if (isStaffReply) staffKeys.add(c.authorKey);
-      settled.push({ ...c, memberId: match.memberId, isStaffReply, parentKey: null });
+      const isInstructorReply = instructors.has(match.memberId);
+      if (isInstructorReply) instructorKeys.add(c.authorKey);
+      settled.push({ ...c, memberId: match.memberId, isInstructorReply, parentKey: null });
       continue;
     }
     const bucket = match.status === "ambiguous" ? ambiguous : unmatched;
@@ -397,7 +402,7 @@ function settleAuthors(candidates: Candidate[], matches: Map<string, AuthorMatch
     else summary.unmatchedAuthorComments++;
   }
   const ranked = (m: Map<string, UnsettledAuthor>) => [...m.values()].sort((a, b) => b.comments - a.comments || a.name.localeCompare(b.name)).slice(0, AUTHOR_LIST_LIMIT);
-  summary.authors = { matched: matchedKeys.size, staff: staffKeys.size, unmatched: unmatched.size, ambiguous: ambiguous.size };
+  summary.authors = { matched: matchedKeys.size, instructors: instructorKeys.size, unmatched: unmatched.size, ambiguous: ambiguous.size };
   summary.unmatchedAuthors = ranked(unmatched);
   summary.ambiguousAuthors = ranked(ambiguous);
   return settled;

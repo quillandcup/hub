@@ -1,6 +1,6 @@
 import { clock } from "@/lib/clock";
 import { mentionIds } from "@/lib/courses/comment-text";
-import { readersOf, staffAmong } from "@/lib/courses/comment-readers";
+import { readersOf } from "@/lib/courses/comment-readers";
 import type { ThreadEntry } from "@/lib/data/course-comments";
 import type { Repos } from "@/lib/data/repos";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -19,7 +19,7 @@ export interface MentionChoice {
   memberId: string;
   /** The display name, the text the writer sees after picking. */
   name: string;
-  /** Staff, shown with an Instructor badge. */
+  /** One of the course's instructors, shown with an Instructor badge. */
   isInstructor: boolean;
 }
 
@@ -68,11 +68,11 @@ export async function suggestMentionable(repos: Repos, courseId: string, selfId:
   if (query.length === 0) return [];
   const matches = (await repos.directory.matching(query, 40)).filter((m) => m.id !== selfId);
   const ids = matches.map((m) => m.id);
-  const [allowed, staff] = await Promise.all([mentionable(repos, courseId, ids, now), staffAmong(repos, ids)]);
-  const staffIds = new Set(staff);
+  const [allowed, instructors] = await Promise.all([mentionable(repos, courseId, ids, now), repos.courseInstructors.forCourse(courseId)]);
+  const instructorIds = new Set(instructors);
   return matches
     .filter((m) => allowed.has(m.id))
-    .map((m) => ({ memberId: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.display_name }), isInstructor: staffIds.has(m.id) }))
+    .map((m) => ({ memberId: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.display_name }), isInstructor: instructorIds.has(m.id) }))
     .sort((a, b) => rank(a.name, query) - rank(b.name, query) || Number(b.isInstructor) - Number(a.isInstructor) || a.name.localeCompare(b.name))
     .slice(0, MAX_SUGGESTIONS);
 }

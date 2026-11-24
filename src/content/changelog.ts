@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "course-instructors-engineering",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "improved",
+    title: "The Instructor badge on lesson comments now means the course's instructor",
+    summary: "A course has its own list of instructors, kept in its settings. Only they get the badge, answer a question and send the instructor-reply notification; staff who take a course comment like any member.",
+    body: `Until now an admin's comment, or an imported comment by a staff member, counted as an instructor's. Staff who also take a course therefore showed the badge and answered questions they only meant to join in on.
+
+- **Rule.** Whether a comment is an instructor's is decided from the course's instructor list when it is written, never from the author's role. Everything that reads it (the badge and tint, the answered and unanswered counts, the notification kind) follows that one stored flag. Staff keep every moderation power and can still reply as themselves.
+- **Hooks.** \`CourseInstructorRepository\` holds the list; \`saveCourseInstructors\` saves it and recomputes the flag on the course's existing comments (imported ones too), so changing the list is how past comments are corrected. The Kajabi import reads the same list, and its dry run says when a course has none.
+- **Detail.** \`docs/product/COURSES.md\`, "Course instructors, as built".`,
+  },
+  {
     slug: "imported-lesson-comments-engineering",
     date: "2026-11-24",
     audience: "engineering",

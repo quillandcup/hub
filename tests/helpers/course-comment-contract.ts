@@ -35,8 +35,8 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
     const staffView = () => ({ memberId: ctx.members.staff, isStaff: true });
     const AT = "2027-01-02T03:04:05.000Z";
 
-    const post = (lessonId: string, memberId: string, body: string, parentId: string | null = null, isStaffReply = false) =>
-      ctx.repo().create({ lessonId, memberId, parentId, body, isStaffReply });
+    const post = (lessonId: string, memberId: string, body: string, parentId: string | null = null, isInstructorReply = false) =>
+      ctx.repo().create({ lessonId, memberId, parentId, body, isInstructorReply });
 
     it("shows questions newest first and replies oldest first, and counts every live comment", async () => {
       const first = await post(ctx.lessons[0], ctx.members.ada, "First question");
@@ -49,7 +49,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
 
       expect(thread.entries.map((e) => e.comment.id)).toEqual([second.id, first.id]);
       expect(thread.entries[1].replies.map((r) => r.id)).toEqual([replyA.id, replyB.id]);
-      expect(thread.entries[1].replies[0].isStaffReply).toBe(true);
+      expect(thread.entries[1].replies[0].isInstructorReply).toBe(true);
       expect(thread.count).toBe(4);
     });
 
@@ -100,7 +100,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       const thread = await ctx.repo().threadFor(ctx.lessons[0], as(ctx.members.bea));
       expect(thread.entries).toHaveLength(1);
       const tomb = thread.entries[0].comment;
-      expect(tomb).toMatchObject({ id: answered.id, removed: true, body: null, authorName: "", isStaffReply: false });
+      expect(tomb).toMatchObject({ id: answered.id, removed: true, body: null, authorName: "", isInstructorReply: false });
       expect(JSON.stringify(thread)).not.toContain("Secret text");
       expect(thread.entries[0].replies).toHaveLength(1);
       // The tombstone is not a live comment.
@@ -179,6 +179,23 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       expect((await ctx.repo().unansweredQuestions(ctx.courseId)).map((q) => q.id)).toEqual([top.id]);
     });
 
+    it("does not count a reply by staff who are not instructors as an answer, in the unanswered list or the outline, until they are", async () => {
+      const top = await post(ctx.lessons[0], ctx.members.ada, "Question");
+      // Staff replied as an ordinary member (flag off): the question is still waiting, and the thread shows no badge.
+      await post(ctx.lessons[0], ctx.members.staff, "A staff member chipping in", top.id, false);
+
+      expect((await ctx.repo().unansweredQuestions(ctx.courseId)).map((q) => q.id)).toEqual([top.id]);
+      expect((await ctx.repo().outlineCounts(ctx.courseId, ctx.members.bea)).get(ctx.lessons[0])).toMatchObject({ total: 2, unanswered: 1 });
+      expect((await ctx.repo().threadFor(ctx.lessons[0], as(ctx.members.bea))).entries[0].replies[0].isInstructorReply).toBe(false);
+
+      // Once they are made an instructor of the course, the same reply answers it.
+      await ctx.repo().reflagInstructors(ctx.courseId, [ctx.members.staff]);
+
+      expect(await ctx.repo().unansweredQuestions(ctx.courseId)).toEqual([]);
+      expect((await ctx.repo().outlineCounts(ctx.courseId, ctx.members.bea)).get(ctx.lessons[0])).toMatchObject({ total: 2, unanswered: 0 });
+      expect((await ctx.repo().threadFor(ctx.lessons[0], as(ctx.members.bea))).entries[0].replies[0].isInstructorReply).toBe(true);
+    });
+
     describe("moderation", () => {
       it("shows members a hidden comment as a tombstone and staff its text, and brings it back on unhide", async () => {
         const hidden = await post(ctx.lessons[0], ctx.members.ada, "Words staff hid");
@@ -213,7 +230,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       });
 
       it("holds a comment for its author and staff only, then releases it on approval", async () => {
-        const held = await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.ada, parentId: null, body: "a b c d", isStaffReply: false, held: true });
+        const held = await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.ada, parentId: null, body: "a b c d", isInstructorReply: false, held: true });
         await post(ctx.lessons[0], ctx.members.bea, "A normal one");
         expect(held.heldAt).not.toBeNull();
 
@@ -236,7 +253,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       });
 
       it("keeps a held comment out of the unanswered list, and a held staff-free question comes back once approved", async () => {
-        const held = await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.ada, parentId: null, body: "x y z", isStaffReply: false, held: true });
+        const held = await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.ada, parentId: null, body: "x y z", isInstructorReply: false, held: true });
         expect(await ctx.repo().unansweredQuestions(ctx.courseId)).toEqual([]);
 
         await ctx.repo().moderate(held.id, "approve", ctx.members.staff);
@@ -383,7 +400,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         sourceKey: `k-${key}`,
         parentId: null as string | null,
         memberId: ctx.members.ada,
-        isStaffReply: false,
+        isInstructorReply: false,
         body: `Imported ${key}`,
         createdAt: IMPORTED_AT,
         deletedAt: null as string | null,
@@ -396,32 +413,32 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       it("writes comments as their member, in their own time, and shows them in the thread as imported", async () => {
         await ctx.setDisplayName(ctx.members.ada, "Ada Display");
         const top = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a")]), "a");
-        await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "b", { parentId: top.id, createdAt: "2025-03-05T05:06:07.000Z", memberId: ctx.members.staff, isStaffReply: true })]);
+        await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "b", { parentId: top.id, createdAt: "2025-03-05T05:06:07.000Z", memberId: ctx.members.staff, isInstructorReply: true })]);
         await post(ctx.lessons[0], ctx.members.ada, "Written in the Hub");
 
         const thread = await ctx.repo().threadFor(ctx.lessons[0], as(ctx.members.bea));
 
         expect(thread.count).toBe(3);
         const entry = thread.entries.find((e) => e.comment.id === top.id)!;
-        expect(entry.comment).toMatchObject({ authorName: "Ada Display", body: "Imported a", memberId: ctx.members.ada, isStaffReply: false, imported: true, held: false });
+        expect(entry.comment).toMatchObject({ authorName: "Ada Display", body: "Imported a", memberId: ctx.members.ada, isInstructorReply: false, imported: true, held: false });
         expect(new Date(entry.comment.createdAt).toISOString()).toBe(IMPORTED_AT);
         expect(entry.replies.map((r) => ({ name: r.authorName, imported: r.imported }))).toEqual([{ name: expect.any(String), imported: true }]);
-        expect(entry.replies[0]).toMatchObject({ memberId: ctx.members.staff, isStaffReply: true });
+        expect(entry.replies[0]).toMatchObject({ memberId: ctx.members.staff, isInstructorReply: true });
         expect(thread.entries.find((e) => e.comment.body === "Written in the Hub")!.comment.imported).toBeUndefined();
         expect(new Date((await ctx.repo().byId(top.id))!.createdAt).toISOString()).toBe(IMPORTED_AT);
-        expect(await ctx.repo().byId(top.id)).toMatchObject({ memberId: ctx.members.ada, source: "kajabi", heldAt: null, isStaffReply: false });
+        expect(await ctx.repo().byId(top.id)).toMatchObject({ memberId: ctx.members.ada, source: "kajabi", heldAt: null, isInstructorReply: false });
       });
 
       it("writes the same comments again without duplicating, and brings the text up to date while leaving what staff did", async () => {
         const first = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a"), imported(ctx.lessons[0], "gone")]), "a");
         await ctx.repo().moderate(first.id, "hide", ctx.members.staff);
 
-        const again = await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a", { body: "Imported a, edited", memberId: ctx.members.bea, isStaffReply: true }), imported(ctx.lessons[0], "gone", { deletedAt: AT })]);
+        const again = await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a", { body: "Imported a, edited", memberId: ctx.members.bea, isInstructorReply: true }), imported(ctx.lessons[0], "gone", { deletedAt: AT })]);
 
         expect(again.find((w) => w.sourceKey === "k-a")!.id).toBe(first.id);
         const stored = await ctx.repo().importedOf("kajabi", [ctx.lessons[0]]);
         expect(stored).toHaveLength(2);
-        expect(stored.find((c) => c.sourceKey === "k-a")).toMatchObject({ id: first.id, body: "Imported a, edited", memberId: ctx.members.bea, isStaffReply: true, deletedAt: null, deletedBy: null });
+        expect(stored.find((c) => c.sourceKey === "k-a")).toMatchObject({ id: first.id, body: "Imported a, edited", memberId: ctx.members.bea, isInstructorReply: true, deletedAt: null, deletedBy: null });
         expect(new Date(stored.find((c) => c.sourceKey === "k-gone")!.deletedAt!).toISOString()).toBe(AT);
         // Hidden by staff before the second write: still hidden, and the deleted one shows nowhere.
         expect((await ctx.repo().byId(first.id))?.hiddenAt).not.toBeNull();
@@ -464,6 +481,29 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         await expect(ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "e", { body: "" })])).rejects.toThrow();
       });
 
+      it("recomputes the instructor flag for a course's comments when its instructors change, imported and deleted ones included, and only writes what differs", async () => {
+        const question = await post(ctx.lessons[0], ctx.members.ada, "A question");
+        // Written when staff counted as instructors: the staff member's flag is stale once only Bea teaches the course.
+        const staffReply = await post(ctx.lessons[0], ctx.members.staff, "Staff answer", question.id, true);
+        const beaReply = await post(ctx.lessons[1], ctx.members.bea, "Bea's answer");
+        const importedByBea = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[1], "x", { memberId: ctx.members.bea })]), "x");
+        const deletedByBea = await post(ctx.lessons[1], ctx.members.bea, "Deleted later");
+        await ctx.repo().softDelete(deletedByBea.id, ctx.members.bea, AT);
+
+        expect(await ctx.repo().reflagInstructors(ctx.courseId, [ctx.members.bea])).toBe(4);
+
+        const flag = async (id: string) => (await ctx.repo().byId(id))!.isInstructorReply;
+        expect(await flag(question.id)).toBe(false);
+        expect(await flag(staffReply.id)).toBe(false);
+        expect(await flag(beaReply.id)).toBe(true);
+        expect(await flag(importedByBea.id)).toBe(true);
+        expect(await flag(deletedByBea.id)).toBe(true);
+        // Running it again changes nothing, and an empty list takes every badge away.
+        expect(await ctx.repo().reflagInstructors(ctx.courseId, [ctx.members.bea])).toBe(0);
+        expect(await ctx.repo().reflagInstructors(ctx.courseId, [])).toBe(3);
+        expect(await flag(beaReply.id)).toBe(false);
+      });
+
       it("counts in a lesson's total for the outline, but is never an open question or new", async () => {
         await ctx.repo().markRead(ctx.members.ada, ctx.lessons[0], "2020-01-01T00:00:00.000Z");
         await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a", { createdAt: new Date().toISOString() })]);
@@ -497,7 +537,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         await ctx.repo().moderate(hidden.id, "hide", ctx.members.staff);
         const deleted = await post(ctx.lessons[0], ctx.members.bea, "Deleted");
         await ctx.repo().softDelete(deleted.id, ctx.members.bea, AT);
-        await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.bea, parentId: null, body: "Held", isStaffReply: false, held: true });
+        await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.bea, parentId: null, body: "Held", isInstructorReply: false, held: true });
         await post(ctx.lessons[1], ctx.members.bea, "Asked on the other lesson");
         await ctx.repo().markRead(ctx.members.ada, ctx.lessons[0], "2020-01-01T00:00:00.000Z");
 
@@ -528,13 +568,13 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         const hidden = await post(ctx.lessons[1], ctx.members.bea, "Hidden");
         await ctx.repo().softDelete(gone.id, ctx.members.bea, AT);
         await ctx.repo().moderate(hidden.id, "hide", ctx.members.staff);
-        await ctx.repo().create({ lessonId: ctx.lessons[1], memberId: ctx.members.ada, parentId: null, body: "Held", isStaffReply: false, held: true });
+        await ctx.repo().create({ lessonId: ctx.lessons[1], memberId: ctx.members.ada, parentId: null, body: "Held", isInstructorReply: false, held: true });
         const after = new Date(Date.now() + 1000).toISOString();
 
         const activity = (await ctx.repo().activityBetween(before, after)).filter((a) => ctx.lessons.includes(a.lessonId));
 
         expect(activity.map((a) => a.id)).toEqual([question.id, answer.id]);
-        expect(activity[1]).toEqual({ id: answer.id, lessonId: ctx.lessons[0], memberId: ctx.members.staff, parentId: question.id, isStaffReply: true, createdAt: expect.any(String) });
+        expect(activity[1]).toEqual({ id: answer.id, lessonId: ctx.lessons[0], memberId: ctx.members.staff, parentId: question.id, isInstructorReply: true, createdAt: expect.any(String) });
         expect(JSON.stringify(activity)).not.toContain("A question");
         // Outside the window nothing shows.
         expect((await ctx.repo().activityBetween(after, new Date(Date.now() + 60_000).toISOString())).filter((a) => ctx.lessons.includes(a.lessonId))).toEqual([]);
@@ -555,7 +595,7 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         const settled = await post(ctx.lessons[0], ctx.members.ada, "Reported then hidden");
         await ctx.repo().report({ commentId: settled.id, reporterId: ctx.members.bea, reason: "c" });
         await ctx.repo().moderate(settled.id, "hide", ctx.members.staff);
-        await ctx.repo().create({ lessonId: ctx.lessons[1], memberId: ctx.members.ada, parentId: null, body: "Held", isStaffReply: false, held: true });
+        await ctx.repo().create({ lessonId: ctx.lessons[1], memberId: ctx.members.ada, parentId: null, body: "Held", isInstructorReply: false, held: true });
 
         const here = (await ctx.repo().moderationBacklog()).find((c) => c.courseId === ctx.courseId);
 

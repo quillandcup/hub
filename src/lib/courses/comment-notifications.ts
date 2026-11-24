@@ -229,12 +229,12 @@ async function notifyLessonCommentUnsafe(repos: Repos, commentId: string, now: D
   if (parent && only !== "mentions") {
     if (parent.memberId !== comment.memberId && !parent.deletedAt && !parent.hiddenAt) {
       targets.set(parent.memberId, {
-        kind: comment.isStaffReply ? "lesson_comment_instructor_reply" : "lesson_comment_reply",
-        why: comment.isStaffReply ? "an instructor replied to their comment" : "someone replied to their comment",
+        kind: comment.isInstructorReply ? "lesson_comment_instructor_reply" : "lesson_comment_reply",
+        why: comment.isInstructorReply ? "an instructor replied to their comment" : "someone replied to their comment",
         audience: "author",
       });
     }
-    if (comment.isStaffReply) {
+    if (comment.isInstructorReply) {
       const followers = (await repos.courseComments.followers([comment.lessonId])).get(comment.lessonId) ?? [];
       for (const follower of followers) {
         if (follower !== comment.memberId && !targets.has(follower)) {

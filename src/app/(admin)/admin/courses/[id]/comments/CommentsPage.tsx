@@ -11,8 +11,8 @@ import UnansweredTable from "./UnansweredTable";
 import { COMMENT_TAB_LABELS, COMMENTS_TITLE, type CommentTabId } from "./tabs";
 
 /**
- * A course's lesson comments for staff (docs/product/COURSES.md, "Lesson comments", admin view), as tabs by path: the questions nobody on
- * staff has answered at /admin/courses/<id>/comments, and the moderation queue (open reports and comments held for review) at
+ * A course's lesson comments for staff (docs/product/COURSES.md, "Lesson comments", admin view), as tabs by path: the questions none of the course's
+ * instructors has answered at /admin/courses/<id>/comments, and the moderation queue (open reports and comments held for review) at
  * .../comments/moderation. The page that renders this has already checked the caller is an admin.
  */
 export default async function CommentsPage({ idParam, tab }: { idParam: string; tab: CommentTabId }) {
@@ -22,7 +22,12 @@ export default async function CommentsPage({ idParam, tab }: { idParam: string; 
   const course = await repos.courses.courseById(id);
   if (!course) notFound();
 
-  const [questions, reported, held] = await Promise.all([repos.courseComments.unansweredQuestions(id), repos.courseComments.openReports(id), repos.courseComments.heldComments(id)]);
+  const [questions, reported, held, instructors] = await Promise.all([
+    repos.courseComments.unansweredQuestions(id),
+    repos.courseComments.openReports(id),
+    repos.courseComments.heldComments(id),
+    repos.courseInstructors.forCourse(id),
+  ]);
   const nowMs = clock.now();
   const basePath = `/admin/courses/${idParam}/comments`;
 
@@ -46,8 +51,17 @@ export default async function CommentsPage({ idParam, tab }: { idParam: string; 
             content: (
               <div>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Comments on {course.title} lessons with no reply from staff yet, oldest first. Answer on the lesson page itself; open one to see its thread. Mark a question handled when it needs no answer.
+                  Comments on {course.title} lessons with no reply from one of the course&apos;s instructors yet, oldest first. Answer on the lesson page itself; open one to see its thread. Mark a question handled when it needs no answer.
                 </p>
+                {instructors.length === 0 && (
+                  <p role="note" className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                    This course has no instructors, so no reply counts as an answer yet.{" "}
+                    <Link href={`/admin/courses/${idParam}/details`} className="underline">
+                      Add instructors in the course settings
+                    </Link>
+                    .
+                  </p>
+                )}
                 <div className="mt-6 rounded-lg bg-white p-3 shadow dark:bg-slate-900">
                   {questions.length === 0 ? (
                     <p className={empty}>Nothing waiting. Every question on this course has an answer.</p>

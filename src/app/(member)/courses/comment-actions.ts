@@ -72,12 +72,14 @@ async function postLessonCommentImpl(lessonId: string, rawBody: string, parentId
   // More than two links goes to staff first (never staff's own); no word filter, which mangles writing talk.
   const held = !caller.scope.isAdminActing && shouldHoldComment(cleaned.body);
   try {
+    // The Instructor badge is for this course's instructors only: staff who are not on its list post as ordinary members.
+    const isInstructorReply = await repos.courseInstructors.isInstructor(open.courseId, memberId);
     const comment = await repos.courseComments.create({
       lessonId,
       memberId,
       parentId: attachTo,
       body: cleaned.body,
-      isStaffReply: caller.scope.isAdminActing,
+      isInstructorReply,
       held,
     });
     // Posting follows the lesson (unless the member already chose), and a reply tells the people it is for: after the response, so

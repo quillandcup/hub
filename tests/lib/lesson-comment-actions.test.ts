@@ -51,6 +51,7 @@ beforeEach(() => {
   data.courseAccess.push(access(ADA, null), access(BEA, "2021-02-01T00:00:00Z"), access(CAL, null));
   data.lessonCommentReports.length = 0;
   data.lessonCommentFollows.length = 0;
+  data.courseInstructors.length = 0;
   notify.mockClear();
 });
 
@@ -62,7 +63,7 @@ describe("postLessonComment", () => {
 
     expect(result.error).toBeUndefined();
     const stored = await comments().byId(result.id!);
-    expect(stored).toMatchObject({ memberId: ADA, body: "Why is the <b>hook</b> & the &amp; here?\nSecond line", isStaffReply: false, parentId: null });
+    expect(stored).toMatchObject({ memberId: ADA, body: "Why is the <b>hook</b> & the &amp; here?\nSecond line", isInstructorReply: false, parentId: null });
   });
 
   it("shows the author by display name with & and < as typed", async () => {
@@ -71,10 +72,32 @@ describe("postLessonComment", () => {
     expect(thread.entries[0].comment.authorName).toBe("Ada <Quill> & Co");
   });
 
-  it("marks an admin acting as themselves as staff", async () => {
+  const teach = (memberId: string, courseId = COURSE) => data.courseInstructors.push({ id: `cinst_${memberId.slice(-6)}`.padEnd(18, "A"), course_id: courseId, member_id: memberId, created_at: "2027-01-01T00:00:00Z" });
+
+  it("gives the Instructor badge to one of the course's instructors, whether or not they are staff", async () => {
+    teach(ADA);
     state.caller = callerFor(ADA, { isAdminActing: true });
-    const result = await postLessonComment(LESSON, "An answer", null);
-    expect((await comments().byId(result.id!))?.isStaffReply).toBe(true);
+    const staff = await postLessonComment(LESSON, "An answer", null);
+    expect((await comments().byId(staff.id!))?.isInstructorReply).toBe(true);
+
+    teach(CAL);
+    state.caller = callerFor(CAL);
+    const member = await postLessonComment(LESSON, "I teach this one", null);
+    expect((await comments().byId(member.id!))?.isInstructorReply).toBe(true);
+  });
+
+  it("posts staff who are not an instructor of the course as an ordinary member: no badge, still never held", async () => {
+    state.caller = callerFor(ADA, { isAdminActing: true });
+    const none = await postLessonComment(LESSON, "A comment with no instructors on the course", null);
+    expect((await comments().byId(none.id!))?.isInstructorReply).toBe(false);
+
+    // Teaching another course does not count here.
+    data.courses.push({ id: "crs_AAAAAAAAAAA2", is_draft: false, title: "Other", slug: "other" } as never);
+    teach(ADA, "crs_AAAAAAAAAAA2");
+    teach(CAL);
+    const other = await postLessonComment(LESSON, "https://a.example https://b.example https://c.example", null);
+    expect(other.held).toBeUndefined();
+    expect((await comments().byId(other.id!))?.isInstructorReply).toBe(false);
   });
 
   it("refuses a signed-out caller, the flag being off, and sudo", async () => {
@@ -302,7 +325,7 @@ describe("reportLessonComment", () => {
   it("limits a reporter to 10 an hour", async () => {
     const ids: string[] = [];
     for (let i = 0; i < 11; i++) {
-      ids.push((await comments().create({ lessonId: LESSON, memberId: ADA, parentId: null, body: `Comment ${i}`, isStaffReply: false })).id);
+      ids.push((await comments().create({ lessonId: LESSON, memberId: ADA, parentId: null, body: `Comment ${i}`, isInstructorReply: false })).id);
     }
     state.caller = callerFor(CAL);
     const outcomes = [];
@@ -367,7 +390,7 @@ describe("deleteLessonComment", () => {
 
 describe("imported comments", () => {
   const importedBy = async (memberId: string) =>
-    (await comments().upsertImported("kajabi", [{ lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId, isStaffReply: false, body: "From Kajabi", createdAt: new Date(NOW - 60 * 60_000).toISOString(), deletedAt: null }]))[0].id;
+    (await comments().upsertImported("kajabi", [{ lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId, isInstructorReply: false, body: "From Kajabi", createdAt: new Date(NOW - 60 * 60_000).toISOString(), deletedAt: null }]))[0].id;
 
   it("can't be edited or deleted by another member, but can be replied to and reported", async () => {
     const id = await importedBy(CAL);

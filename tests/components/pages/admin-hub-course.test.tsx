@@ -22,8 +22,11 @@ vi.mock("@/lib/courses/admin", () => ({
   loadAdminCourse: (...a: unknown[]) => loadAdminCourse(...a),
   loadAdminCourseTitle: (...a: unknown[]) => loadAdminCourseTitle(...a),
 }));
+const instructorIds = vi.fn();
+vi.mock("@/app/(admin)/admin/courses/instructor-actions", () => ({ saveCourseInstructorList: vi.fn(), addInstructorsToAllCourses: vi.fn() }));
 vi.mock("@/lib/data/repos", () => ({
   createRepos: () => ({
+    courseInstructors: { forCourse: async (...a: unknown[]) => instructorIds(...a) },
     programs: {
       names: async () => [
         { id: "prg_AAAAAAAAAAA1", name: "180 Program" },
@@ -81,6 +84,8 @@ beforeEach(() => {
   loadHubOutline.mockResolvedValue(buildHubOutline([], []));
   loadAdminCourse.mockReset();
   loadAdminCourseTitle.mockReset();
+  instructorIds.mockReset();
+  instructorIds.mockResolvedValue([]);
 });
 
 describe("/admin/courses/[id] for a Hub-owned course", () => {
@@ -125,6 +130,19 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
     expect(screen.queryByRole("menuitem", { name: /Take over/ })).not.toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Watch stats" })).toBeInTheDocument();
+  });
+
+  it("lists the course's instructors on the Details tab, and warns when it has none", async () => {
+    loadHubCourse.mockResolvedValue(course());
+    const { unmount } = await renderServerRoute(AdminCourseDetailsPage, params());
+    expect(screen.getByRole("heading", { name: "Instructors" })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(/no comment on this course shows the Instructor badge/i);
+    expect(instructorIds).toHaveBeenCalledWith(COURSE);
+    unmount();
+
+    instructorIds.mockResolvedValue(["mbr_AAAAAAAAAAA1"]);
+    await renderServerRoute(AdminCourseDetailsPage, params());
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
   it("opens the Details tab at its own path, and has no Media tab", async () => {
