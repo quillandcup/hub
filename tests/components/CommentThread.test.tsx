@@ -519,4 +519,42 @@ describe("CommentThread", () => {
       expect(screen.getByText(/3,8\d\d of 4,000 characters/)).toBeInTheDocument();
     });
   });
+
+  describe("staff tint and replied cue", () => {
+    const commentBlock = (name: string) => screen.getByText(name, { selector: "span.font-semibold" }).closest("div")!;
+
+    it("tints an instructor's comment and leaves a member's alone", () => {
+      renderThread([
+        { comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorName: "Ivy Instructor", isStaffReply: true }), replies: [] },
+        { comment: comment({ id: "cmnt_AAAAAAAAAAA2", authorName: "Bea Example" }), replies: [] },
+      ]);
+      expect(commentBlock("Ivy Instructor")).toHaveClass("bg-plum-50", "dark:bg-plum-950/50");
+      expect(commentBlock("Bea Example")).not.toHaveClass("bg-plum-50");
+    });
+
+    it("tints an instructor's reply and marks the question it sits under", () => {
+      renderThread([
+        {
+          comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorName: "Bea Example" }),
+          replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA1", authorName: "Ivy Instructor", isStaffReply: true })],
+        },
+        { comment: comment({ id: "cmnt_AAAAAAAAAAA2", authorName: "Cal Example" }), replies: [] },
+      ]);
+      expect(commentBlock("Ivy Instructor")).toHaveClass("bg-plum-50");
+      expect(commentBlock("Bea Example")).toHaveClass("border-l-2", "border-plum-400");
+      expect(screen.getAllByText("Instructor replied")).toHaveLength(1);
+      expect(commentBlock("Cal Example")).not.toHaveClass("border-l-2");
+    });
+
+    it("shows no cue when only members replied, or the instructor's reply is held", () => {
+      renderThread([
+        { comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [comment({ id: "cmnt_AAAAAAAAAAA3", authorName: "Dee Example" })] },
+        {
+          comment: comment({ id: "cmnt_AAAAAAAAAAA2", authorName: "Cal Example" }),
+          replies: [comment({ id: "cmnt_AAAAAAAAAAA4", authorName: "Ivy Instructor", isStaffReply: true, held: true })],
+        },
+      ]);
+      expect(screen.queryByText("Instructor replied")).not.toBeInTheDocument();
+    });
+  });
 });

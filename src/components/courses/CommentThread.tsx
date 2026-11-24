@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, useTransition } from "reac
 import { useRouter } from "next/navigation";
 import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow, suggestCommentMentions } from "@/app/(member)/courses/comment-actions";
 import { track } from "@/lib/analytics/client";
-import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket, involvesInstructor } from "@/lib/courses/comments";
+import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket, hasInstructorReply, involvesInstructor } from "@/lib/courses/comments";
 import { fullDate, mentionIds, namesToTokens, richParts, relativeAgo, spokenTimestamp, tokensToNames, type PickedMention } from "@/lib/courses/comment-text";
 import type { MentionChoice } from "@/lib/courses/comment-mentions";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
@@ -48,6 +48,10 @@ const buttonClass =
   "rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton = `${buttonClass} bg-plum-600 text-white hover:bg-plum-700`;
 const highlightClass = "-m-2 rounded-lg bg-plum-50 p-2 ring-2 ring-plum-300 dark:bg-plum-950 dark:ring-plum-700";
+/** A comment by an instructor or staff reads on a soft plum ground (slate text on plum-50 and on plum-950 both clear 4.5:1). */
+const staffTint = "rounded-lg bg-plum-50 px-3 py-2 dark:bg-plum-950/50";
+/** A question an instructor replied to carries a thin plum edge, so it stands out when skimming. */
+const repliedEdge = "border-l-2 border-plum-400 pl-3 dark:border-plum-500";
 const quietButton = `${buttonClass} text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800`;
 
 interface ComposerProps {
@@ -308,9 +312,11 @@ interface ItemProps {
   onChanged: (message: string) => void;
   /** Moves the lesson's video; absent when there is none to move. */
   onSeek?: (seconds: number) => void;
+  /** An instructor replied under this question: it gets the edge and the label. */
+  instructorReplied?: boolean;
 }
 
-function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek }: ItemProps) {
+function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek, instructorReplied }: ItemProps) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -363,8 +369,9 @@ function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek }: It
     });
   }
 
+  const staffComment = comment.isStaffReply && !comment.hidden && !comment.held;
   return (
-    <div>
+    <div data-staff={staffComment || undefined} data-instructor-replied={instructorReplied || undefined} className={[staffComment ? staffTint : "", instructorReplied ? repliedEdge : ""].filter(Boolean).join(" ") || undefined}>
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
         <span className="font-semibold">{comment.authorName}</span>
         {comment.isStaffReply && (
@@ -376,6 +383,7 @@ function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek }: It
           </time>
         </Tooltip>
         {comment.editedAt && <span className="text-xs text-slate-600 dark:text-slate-400">edited</span>}
+        {instructorReplied && <span className="text-xs font-medium text-plum-700 dark:text-plum-300">Instructor replied</span>}
         {comment.held && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Held for review</span>
         )}
@@ -602,7 +610,7 @@ export default function CommentThread(props: Props) {
         <ul className="mt-6 space-y-6">
           {shown.map((entry) => (
             <li key={entry.comment.id} id={entry.comment.id} className={highlightId === entry.comment.id ? highlightClass : undefined}>
-              <CommentItem comment={entry.comment} isReply={false} props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} onSeek={props.canSeek ? seek : undefined} />
+              <CommentItem comment={entry.comment} isReply={false} props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} onSeek={props.canSeek ? seek : undefined} instructorReplied={hasInstructorReply(entry)} />
               {(entry.replies.length > 0 || replyingTo === entry.comment.id) && (
                 <div className="mt-3 border-l-2 border-slate-200 pl-4 dark:border-slate-700">
                   <ul className="space-y-4">
