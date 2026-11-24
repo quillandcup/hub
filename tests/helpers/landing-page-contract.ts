@@ -127,6 +127,21 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       ).rejects.toBeInstanceOf(LandingPageSlugTakenError);
     });
 
+    it("lists the live pages, not templates or deleted pages, with both documents, for the popup names", async () => {
+      const slug = ctx.unique("popups");
+      const page = await ctx.repo().create({ title: "With popup", slug, createdBy: null, data: { content: [{ type: "ExitPopup", props: { id: "p", popupName: "Newsletter" } }], root: { props: {} } } });
+      const template = await ctx.repo().create({ title: "Kit", slug: ctx.unique("popups-t"), createdBy: null, kind: "template" });
+      const gone = await ctx.repo().create({ title: "Gone", slug: ctx.unique("popups-g"), createdBy: null });
+      await ctx.repo().remove(gone.id, null);
+      const sources = await ctx.repo().popupSources();
+      const mine = sources.find((s) => s.slug === slug);
+      expect(mine).toMatchObject({ title: "With popup", published_data: null });
+      expect(JSON.stringify(mine?.draft_data)).toContain("Newsletter");
+      expect(sources.find((s) => s.slug === template.slug)).toBeUndefined();
+      expect(sources.find((s) => s.slug === gone.slug)).toBeUndefined();
+      expect(page.id).toBeTruthy();
+    });
+
     it("is a landing page unless made a website page, and lists and offers templates by that type", async () => {
       const landing = await ctx.repo().create({ title: "Funnel", slug: ctx.unique("type-l"), createdBy: null });
       const website = await ctx.repo().create({ title: "Home", slug: ctx.unique("type-w"), createdBy: null, pageType: "website" });

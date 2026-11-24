@@ -1,5 +1,6 @@
 import { Render, type Data } from "@puckeditor/core";
 import { faqStructuredData } from "@/lib/landing/faq-schema";
+import { withPopupFormIds } from "@/lib/landing/exit-popup";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { jsonLdScript } from "@/lib/writer-profile-seo";
 import type { PageBlockRegistry } from "./block-registry";
@@ -20,7 +21,7 @@ import { buildRenderConfig, pageBlocks, renderConfig, renderConfigFor, type Fram
  * the per-request nonce of src/lib/csp.ts does not apply to it (as for the writer profile's); `jsonLdScript` escapes `<`.
  */
 export default function LandingRender({ data, frame, registry = pageBlocks, structuredData = false }: { data: unknown; frame?: FrameContext; registry?: PageBlockRegistry; structuredData?: boolean }) {
-  const clean = sanitizeLandingData(data);
+  const clean = withPopupFormIds(sanitizeLandingData(data));
   const base = registry === pageBlocks ? renderConfig : buildRenderConfig(registry);
   const config = withStandIns(frame ? renderConfigFor(frame, base) : base, clean, registry, false);
   const faq = structuredData ? faqStructuredData(clean) : null;

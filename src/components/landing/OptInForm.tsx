@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { safeHref } from "@/lib/landing/data";
 import { OPT_IN_DONE_EVENT, publicSlugOf } from "@/lib/landing/exit-popup";
+import { rememberSignUp } from "@/lib/landing/popup-memory";
 
 export type OptInFormProps = {
   /** The form the sign-up goes to in Kajabi. */
@@ -62,6 +63,8 @@ export default function OptInForm({ kajabiFormId, instagramField, buttonLabel, r
         setState("idle");
         return;
       }
+      // A popup that holds this form leaves this visitor alone from now on (kept only where consent allows).
+      rememberSignUp(kajabiFormId.trim());
       const next = safeHref(href);
       if (next) {
         window.location.assign(next);

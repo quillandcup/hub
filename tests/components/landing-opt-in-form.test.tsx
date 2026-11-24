@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OptInFormBlock } from "@/components/landing/blocks";
 import { checkLandingPage } from "@/lib/landing/a11y";
+import { SIGNED_UP_KEY } from "@/lib/landing/exit-popup";
 
 const base = { kajabiFormId: "form-123", instagramField: "custom_1" as const, buttonLabel: "Join the list", reassurance: "No spam.", successMessage: "You're in!", href: "", look: "solid" as const, color: "plum" as const, shape: "pill" as const };
 
@@ -13,6 +14,8 @@ function visit(path: string) {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
+  document.documentElement.removeAttribute("data-consent-required");
   vi.unstubAllGlobals();
   visit("/");
 });
@@ -66,6 +69,36 @@ describe("OptInFormBlock", () => {
       const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
       expect(url).toBe("/api/landing/opt-in");
       expect(JSON.parse(init.body as string)).toEqual({ page: "spring", formId: "form-123", name: "Ada Example", email: "ada@example.test", instagram: "@ada.example", website: "" });
+    });
+
+    it("remembers the sign-up by form, so no popup that holds this form asks again (also when it goes on to a thank-you page)", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })));
+      const first = render(<OptInFormBlock {...base} />);
+      await fill();
+      await screen.findByRole("status");
+      expect(JSON.parse(localStorage.getItem(SIGNED_UP_KEY)!)).toEqual({ "form-123": expect.any(Number) });
+      first.unmount();
+      localStorage.clear();
+      vi.stubGlobal("location", { ...window.location, pathname: "/p/spring", assign: vi.fn() });
+      render(<OptInFormBlock {...base} href="/p/thanks" />);
+      await fill();
+      await waitFor(() => expect(localStorage.getItem(SIGNED_UP_KEY)).not.toBeNull());
+    });
+
+    it("keeps nothing where the consent banner asks and was not accepted, and nothing when the sign-up fails", async () => {
+      document.documentElement.setAttribute("data-consent-required", "");
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })));
+      const first = render(<OptInFormBlock {...base} />);
+      await fill();
+      await screen.findByRole("status");
+      expect(localStorage.length).toBe(0);
+      first.unmount();
+      document.documentElement.removeAttribute("data-consent-required");
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "no" }), { status: 400 })));
+      render(<OptInFormBlock {...base} />);
+      await fill();
+      await screen.findByRole("alert");
+      expect(localStorage.length).toBe(0);
     });
 
     it("shows the relay's calm message and lets the visitor try again when it fails", async () => {

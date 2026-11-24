@@ -4,6 +4,7 @@ import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { asJson } from "./json";
 import { must } from "./query";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export type LandingPage = Row<"landing_pages">;
 /** A page is public once published; a template is a page kept to start others from and is never public (docs/product/LANDING_PAGES.md, "Templates"). */
@@ -70,6 +71,8 @@ const VERSION_COLUMNS = "id, page_id, title, kind, note, published_by, created_a
 export interface LandingPageRepository {
   /** Live pages of a kind (pages unless asked otherwise; "all" for both), most recently changed first. */
   list(kind?: LandingPageKind | "all", pageType?: LandingPageType): Promise<LandingPageSummary[]>;
+  /** Every live page (not templates) with its draft and published documents, by address: the editor reads the names given to Exit popups from them (`collectPopupNames`). Paged, so more than 1000 pages is fine. */
+  popupSources(): Promise<{ slug: string; title: string; draft_data: unknown; published_data: unknown }[]>;
   /** The live page or template with this id, with its draft and published documents, or null. */
   byId(id: string): Promise<LandingPage | null>;
   /** Templates that can be used now: published and not deleted, by title. A template never published, or taken down, is not offered. */
@@ -145,6 +148,10 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     const query = this.db.from("landing_pages").select(SUMMARY_COLUMNS).is("deleted_at", null);
     const ofKind = kind === "all" ? query : query.eq("kind", kind);
     return must(await (pageType ? ofKind.eq("page_type", pageType) : ofKind).order("updated_at", { ascending: false }).order("id")) ?? [];
+  }
+
+  async popupSources(): Promise<{ slug: string; title: string; draft_data: unknown; published_data: unknown }[]> {
+    return fetchAllRows((from, to) => this.db.from("landing_pages").select("slug, title, draft_data, published_data").eq("kind", "page").is("deleted_at", null).order("slug").range(from, to));
   }
 
   async byId(id: string): Promise<LandingPage | null> {
@@ -327,6 +334,13 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
       .filter((p) => (kind === "all" || p.kind === kind) && (!pageType || p.page_type === pageType))
       .sort((a, b) => (a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : a.id < b.id ? -1 : 1))
       .map((p) => this.summary(p));
+  }
+
+  async popupSources(): Promise<{ slug: string; title: string; draft_data: unknown; published_data: unknown }[]> {
+    return this.live()
+      .filter((p) => p.kind === "page")
+      .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0))
+      .map((p) => structuredClone({ slug: p.slug, title: p.title, draft_data: p.draft_data, published_data: p.published_data }));
   }
 
   async bySlug(slug: string): Promise<LandingPage | null> {
