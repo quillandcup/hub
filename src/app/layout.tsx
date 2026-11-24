@@ -82,7 +82,8 @@ export default async function RootLayout({
   const eventsNeedConsent = eventsNeedConsentFor(headersList.get("x-vercel-ip-country"));
 
   return (
-    <html lang="en" className={displayFont.variable} suppressHydrationWarning>
+    // `data-consent-required` tells client code whether this visitor's region asks for consent before anything is kept on the device (the landing pages' Exit popup reads it).
+    <html lang="en" className={displayFont.variable} data-consent-required={needsConsent ? "" : undefined} suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider
           attribute="class"

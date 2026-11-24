@@ -149,6 +149,12 @@ describe("findOptInTarget", () => {
     expect(findOptInTarget(page().data, "bad id!")).toBeNull();
     expect(findOptInTarget(null, FORM)).toBeNull();
   });
+
+  it("finds a form inside an exit popup, so the relay takes the sign-ups of the popup's form", () => {
+    const popup = { content: [{ type: "ExitPopup", props: { id: "p", enabled: true, content: [{ type: "OptInForm", props: { id: "o", kajabiFormId: FORM, instagramField: "none" } }] } }], root: {} };
+    expect(findOptInTarget(popup, FORM)).toEqual({ formId: FORM, instagramField: "none" });
+    expect(findOptInTarget(popup, "another")).toBeNull();
+  });
 });
 
 describe("KajabiOptInDestination (mocked Kajabi)", () => {

@@ -1,4 +1,5 @@
 import { safeHref } from "@/lib/landing/data";
+import { DELAY_DEFAULT, REMEMBER_DEFAULT } from "@/lib/landing/exit-popup";
 import { PADDING_DEFAULT_DESKTOP, PADDING_DEFAULT_MOBILE } from "@/lib/landing/layout";
 import { definePageBlock, type PageBlockCategory, type PageBlockContribution, type PageBlockDefinition } from "./block-registry";
 import {
@@ -11,6 +12,7 @@ import {
   CountdownBlock,
   CtaBanner,
   Divider,
+  ExitPopupBlock,
   Faq,
   FaqQuestion,
   GridCard,
@@ -69,6 +71,7 @@ const kid = (type: string, props: Record<string, unknown>) => ({ type, props: { 
 const FINISHER_DEFAULT = { alt: "", name: "Name", kind: "Kind of book", dayOne: "Where she started", theEnd: "What she finished", linkLabel: "Read her story", href: "" };
 const GRID_CARD_DEFAULT = { alt: "", icon: "", title: "A title", description: "A line about it.", price: "", buttonLabel: "", href: "" };
 const PRICING_PLAN_DEFAULT = { name: "A plan", price: "$0", period: "one time", description: "", features: "A thing that is included\nAnother thing", badge: "", featured: false, buttonLabel: "Join now", href: "" };
+const OPT_IN_DEFAULT = { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "inherit", color: "plum", shape: "pill" } as const;
 const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
 
 export const CORE_DEFAULTS = {
@@ -96,7 +99,21 @@ export const CORE_DEFAULTS = {
   Steps: { heading: "How it works", items: [kid("Step", { title: "Sign up", text: "Tell us a little about you." }), kid("Step", { title: "Join in", text: "Come to your first session." }), kid("Step", { title: "Keep going", text: "Write a little each day." })] },
   Stats: { items: [kid("Stat", { value: "1,000", label: "words written a day" }), kid("Stat", { value: "24/7", label: "company" }), kid("Stat", { value: "3", label: "sessions a week" })] },
   CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
-  OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "inherit", color: "plum", shape: "pill" },
+  OptInForm: OPT_IN_DEFAULT,
+  // A popup over the page (src/lib/landing/exit-popup.ts): off until switched on, and starting with a heading, a line and a sign-up form to change.
+  ExitPopup: {
+    enabled: false,
+    trigger: "either",
+    delaySeconds: DELAY_DEFAULT,
+    rememberDays: REMEMBER_DEFAULT,
+    closeOnOverlay: true,
+    hideOnDesktop: false,
+    hideOnMobile: false,
+    label: "Before you go",
+    width: "medium",
+    background: "white",
+    content: [kid("Heading", { text: "Before you go", level: "h2", align: "center" }), kid("RichText", { html: "<p>Join the list and we will send you one good thing a week.</p>", align: "center" }), kid("OptInForm", OPT_IN_DEFAULT)],
+  },
   // Homepage blocks (src/components/landing/homepage-blocks.tsx): typed by hand, or live ("source"; docs/product/LANDING_PAGES.md, "Live data"). The ones about events are the events integration's (src/modules/events/page-blocks).
   OutcomeNumbers: {
     padding: "medium",
@@ -181,6 +198,14 @@ const socialLinkCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props
   if (url && !safeHref(url)) error("Social icons", `The ${SOCIAL_NETWORKS[socialNetworkOf(props.network)]} link has an address that can't be used. Use https://, or mailto: for an email address.`);
 };
 
+/** A popup that is on needs something to show, a name for screen readers and, beyond that, one is enough (a second would never be told apart from the first). */
+const exitPopupCheck: NonNullable<PageBlockDefinition["publishCheck"]> = (props, { str: text, warn, error }) => {
+  if (props.enabled !== true) return;
+  const inside = Array.isArray(props.content) ? props.content.length : 0;
+  if (inside === 0) error("Exit popup", "The exit popup is on but has nothing in it. Add blocks to it (turn on Edit popup), or switch it off.");
+  if (!text(props.label)) warn("Exit popup", 'Give the exit popup a name for screen readers; until then it is announced as "Pop-up".');
+};
+
 type CoreType = keyof typeof CORE_DEFAULTS;
 const core = (type: CoreType, label: string, category: PageBlockCategory, order: number, render: PageBlockDefinition["render"], more: Partial<PageBlockDefinition> = {}) =>
   definePageBlock({ type, label, category, order, defaults: CORE_DEFAULTS[type], render, ...more });
@@ -198,6 +223,7 @@ export const coreBlocks: PageBlockContribution = {
     core("CardGrid", "Card grid", "layout", 40, CardGrid, { slots: holds("GridCard"), itemRule: { block: "Card grid", noun: "card", plural: "cards", item: "GridCard", key: "title" } }),
     core("Divider", "Divider", "layout", 50, Divider),
     core("Spacer", "Spacer", "layout", 60, Spacer),
+    core("ExitPopup", "Exit popup", "layout", 70, ExitPopupBlock, { slots: { content: {} }, publishCheck: exitPopupCheck }),
     // Ready-made
     core("Hero", "Hero", "ready_made", 10, Hero),
     core("Steps", "Steps", "ready_made", 20, Steps, { slots: holds("Step"), itemLimit: ITEM_LIMITS.Steps, itemRule: { block: "Steps", noun: "step", plural: "steps", item: "Step", key: "title" } }),

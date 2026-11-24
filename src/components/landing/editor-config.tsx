@@ -2,6 +2,7 @@
 
 import type { Config, Field, Fields } from "@puckeditor/core";
 import { installedPageBlockEditors } from "@/modules/editor";
+import { DELAY_MAX, DELAY_MIN, REMEMBER_MAX } from "@/lib/landing/exit-popup";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
 import type { PageBlockRegistry } from "./block-registry";
 import { withStandIns } from "./block-placeholder";
@@ -9,6 +10,7 @@ import { buildRenderConfig, pageBlocks, renderConfig, rootConfigFor, type FrameC
 import { SOCIAL_LOOK_OPTIONS, SOCIAL_NETWORK_OPTIONS } from "./social-networks";
 import { createEditorKit, type EditorKit, type PageBlockEditorContribution } from "./editor-kit";
 import { GroupHeading, PaddingField, SpanField } from "./layout-fields";
+import { EditPopupField } from "./ExitPopupEditing";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
 /**
@@ -278,7 +280,29 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
     color: COLOR,
     shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]),
   },
+  // Kajabi's Exit Popup, as a block that holds blocks: the popup's own blocks are its `content` slot (docs/product/LANDING_PAGES.md, "Exit popup").
+  ExitPopup: {
+    enabled: toggle("Enable exit popup (it shows to visitors only while this is on)"),
+    editPopup: { type: "custom", label: "Edit popup", render: () => <EditPopupField /> },
+    content: { type: "slot", label: "Blocks in the popup", allow: POPUP_BLOCKS },
+    trigger: select("When to show it", [
+      { label: "After a time, or when they go to leave (computers)", value: "either" },
+      { label: "When they go to leave (computers only; never on a phone)", value: "exit" },
+      { label: "After a time", value: "time" },
+    ]),
+    delaySeconds: { type: "number", label: "Seconds before it shows (for the time trigger)", min: DELAY_MIN, max: DELAY_MAX },
+    rememberDays: { type: "number", label: "Days to leave a visitor alone after they close it (0: it may show on every visit)", min: 0, max: REMEMBER_MAX },
+    closeOnOverlay: toggle("Close it when the visitor clicks outside the box (Escape and the close button always work)"),
+    hideOnDesktop: toggle("Hide on desktop"),
+    hideOnMobile: toggle("Hide on mobile"),
+    label: text("Name for screen readers (for example, Join the newsletter)"),
+    width: select("Width of the box", [{ label: "Small", value: "small" }, { label: "Medium", value: "medium" }, { label: "Large", value: "large" }]),
+    background: select("Background of the box", BACKGROUND_OPTIONS),
+  },
 });
+
+/** What a popup takes: a picture, words, a button and the sign-up form, and the small blocks between them. Not another popup, a Section or a list of items. */
+const POPUP_BLOCKS = ["Image", "Heading", "RichText", "Button", "OptInForm", "Divider", "Spacer"];
 
 const ROOT_FIELDS: Fields = {
   showHeader: toggle("Show a header"),

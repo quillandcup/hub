@@ -1,6 +1,6 @@
 # Page blocks: the registry, and modules that contribute to it
 
-> **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Explains the page builder's block registry and how a module, such as events, contributes blocks to it. The page builder ([Landing pages](../product/LANDING_PAGES.md)) offers blocks. A block about events (the next retreats, today's schedule) needs events code, but the page builder must not: it is meant to be reused without the events part, and the next product (a real estate app, a community product) will bring blocks of its own. So the builder has one **block registry**, and a **module** (`src/modules/<name>/`) adds blocks to it. The pages code never imports a module; the one place that names which modules are installed is the **composition root**, `src/modules/`.
 
@@ -60,6 +60,22 @@ The dependency runs one way: a module may import the pages code (`@/components/l
   1. In `src/modules/<name>/page-blocks/`: the components, an `index.ts` exporting a `PageBlockContribution` (`{ id, blocks: [definePageBlock(...)] }`), an `editor.tsx` exporting a `PageBlockEditorContribution` (`fields: (kit) => ({ BlockType: { ... } })`, using the kit's `text`, `select`, `image`, `itemsSlot`, ...), and, for live values, a `server.ts` exporting `PageDataLoader`s.
   2. Add the three to `src/modules/index.ts`, `editor.ts` and `server.ts`. That is the whole installation; removing the lines is the whole uninstall.
   3. Tests: the block (render and fields), the loader, and that the page still renders without the module (`tests/components/page-block-composition.test.tsx` builds the registry with and without the events module).
+
+## A block with a page-level job: the Exit popup
+
+The Exit popup (a popup over the page, shown when a visitor goes to leave or after a while; Kajabi's "Exit Popup") is the first block that is about the page and not in its flow. How it is built, and why, because the next such thing (a banner, a cookie notice, a sticky bar) will want the same answer. Staff-facing behaviour is in [Landing pages](../product/LANDING_PAGES.md), "Exit popup".
+
+**Design.** The popup is an ordinary registered block, `ExitPopup`, with one slot, `content`, that holds an ordinary small tree of blocks (a picture, a heading, text, the Sign-up form). We chose this over a new root field, a new table or a second document because everything that already walks a page by the shape of its blocks then covers the popup with no new code: the editor's Outline and drag and drop, autosave, drafts and versions, publish and reset, the JSON export and import, templates, the opt-in relay (which forwards only for a form the *published page* shows, and finds one inside the popup like any slot), the pictures made public on publish, the rich text and link cleaning before a public render. **No schema change and no migration.** The cost is that the popup shows in the page's block list (and the Outline) as a block called "Exit popup", one per page (the publish check refuses a second one that is on), instead of a setting of the page.
+
+**Per page, not site-wide, for now.** Kajabi's is per page, and an opt-in popup usually belongs to one offer. A site-wide default with a per-page override would live in the site template, which has its own draft and publish cycle (a page's publish never changes the site and the reverse); that is a second slice with its own decisions (`docs/TODO.md`, "Exit popup: next slices").
+
+**Three sides, as for any block.** `ExitPopupBlock` (server-safe, `blocks.tsx`) draws nothing for a visitor while the popup is off, and a hidden anchor while it is on. `ExitPopup.tsx` (client, small) holds the trigger, the frequency cap and the "who never sees it" rules from `src/lib/landing/exit-popup.ts` (pure, tested), and fetches the window's code, `ExitPopupDialog.tsx`, when the page is idle. The popup's blocks are rendered by the server but not in the page's HTML until it opens, so there is no layout shift and no hidden duplicate content for search engines. In the editor, `ExitPopupEditing.tsx` draws a bar and, while the "Edit popup" switch is on, the box with its slot; the switch is a view setting of the editor and is never saved.
+
+**Where the state lives.** Nothing about a visitor reaches our servers. The one thing kept is a small record in the visitor's own browser (`lp-popup:<page>`: when it was closed, and whether they signed up), and only where it is allowed (see "Exit popup", "Consent"). The public page is cached and anonymous, so "never to a signed-in member" is decided in the browser from the sign-in cookie's name, not on the server.
+
+**Slices.**
+1. **This one**: the block and its slot, public rendering, the triggers (a time, the mouse leaving the window on a computer), the frequency cap, the never-to rules, the editor (Edit popup switch, settings), the publish check, tests and docs.
+2. **Next**: a site-wide popup in the site template with a per-page override; more blocks in the popup; a Kajabi import mapping; popup analytics. Each is an entry in `docs/TODO.md` ("Exit popup: next slices").
 
 ## Not done yet
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { safeHref } from "@/lib/landing/data";
+import { OPT_IN_DONE_EVENT, publicSlugOf } from "@/lib/landing/exit-popup";
 
 export type OptInFormProps = {
   /** The form the sign-up goes to in Kajabi. */
@@ -21,10 +22,7 @@ const INPUT =
   "mt-1 block w-full rounded-md border border-ink-muted bg-card px-3 py-2 text-base text-ink placeholder:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-600";
 
 /** The page's address, read in the browser: the relay finds the form in the published page by it. Null in the editor and the preview. */
-function publicSlug(): string | null {
-  const match = /^\/p\/([A-Za-z0-9-]+)\/?$/.exec(window.location.pathname);
-  return match ? match[1] : null;
-}
+const publicSlug = (): string | null => publicSlugOf(window.location.pathname);
 
 /**
  * A sign-up form: name, email and, when the block asks, an Instagram handle. It posts to our relay
@@ -70,6 +68,8 @@ export default function OptInForm({ kajabiFormId, instagramField, buttonLabel, r
         return;
       }
       setState("done");
+      // Tells an exit popup on this page that the visitor has signed up, so it stops asking. Carries nothing about them.
+      window.dispatchEvent(new Event(OPT_IN_DONE_EVENT));
     } catch {
       setError("We couldn't sign you up just now. Please check your connection and try again.");
       setState("idle");

@@ -2,11 +2,14 @@ import type { ReactNode } from "react";
 import { parseEmbed, safeHref } from "@/lib/landing/data";
 import { ITEM_LIMITS } from "./item-limits";
 import Countdown, { type CountdownProps } from "./Countdown";
+import ExitPopup from "./ExitPopup";
+import ExitPopupEditing from "./ExitPopupEditing";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
+import { describeExitPopup, normalizeExitPopup } from "@/lib/landing/exit-popup";
 import { sectionPadding } from "@/lib/landing/layout";
 import { SocialMark } from "./social-marks";
 import { SOCIAL_NETWORKS, socialLookOf, socialNetworkOf, type SocialLook } from "./social-networks";
-import { background, BACKGROUNDS, BAND_SPACE, hideClass, pageImage, pick, PADDING, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
+import { background, BACKGROUNDS, BAND_SPACE, hideClass, pageImage, pick, PADDING, popupBoxClasses, SECTION_SPACE, sectionVars, WIDTHS } from "./theme";
 
 /**
  * The page builder's blocks as plain components: the same ones render in the editor's canvas and on the public page
@@ -662,6 +665,43 @@ export type OptInBlockProps = Omit<OptInFormProps, "buttonClass"> & { look: Butt
 export function OptInFormBlock({ look, color, shape, ...props }: OptInBlockProps) {
   if (!props.kajabiFormId?.trim()) return null;
   return <OptInForm {...props} buttonClass={buttonClasses(look, color, shape, true)} />;
+}
+
+// ---- Exit popup ----------------------------------------------------------------------------------------------
+
+export type ExitPopupBlockProps = Record<string, unknown> & { content: Slot; editing?: boolean };
+
+/**
+ * A popup over the page, with blocks inside it (a picture, words, a sign-up form), shown when a visitor is about to leave or after a
+ * while (src/components/landing/ExitPopup.tsx; the rules are in src/lib/landing/exit-popup.ts). It draws nothing in the page's flow:
+ * a visitor gets a hidden anchor, and only a popup that is switched on gets that. In the editor it is a bar, and its box while
+ * "Edit popup" is on (ExitPopupEditing.tsx).
+ */
+export function ExitPopupBlock({ content: Content, editing, ...props }: ExitPopupBlockProps) {
+  const settings = normalizeExitPopup(props);
+  const boxClass = popupBoxClasses(props.width, props.background);
+  if (editing) {
+    return (
+      <ExitPopupEditing enabled={settings.enabled} summary={describeExitPopup(settings)} boxClass={boxClass}>
+        <Content className={SLOT_CLASS} />
+      </ExitPopupEditing>
+    );
+  }
+  if (!settings.enabled) return null;
+  return (
+    <ExitPopup
+      trigger={settings.trigger}
+      delaySeconds={settings.delaySeconds}
+      rememberDays={settings.rememberDays}
+      closeOnOverlay={settings.closeOnOverlay}
+      hideOnDesktop={settings.hideOnDesktop}
+      hideOnMobile={settings.hideOnMobile}
+      label={settings.label}
+      boxClass={boxClass}
+    >
+      <Content className={SLOT_CLASS} />
+    </ExitPopup>
+  );
 }
 
 // ---- Hero, steps, stats and call-to-action banner ------------------------------------------------------------
