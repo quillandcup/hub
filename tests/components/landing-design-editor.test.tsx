@@ -6,7 +6,15 @@ import { EMPTY_SITE_TEMPLATE, normalizeSiteTemplate } from "@/lib/landing/site-t
 
 const mocks = vi.hoisted(() => ({ save: vi.fn(), publish: vi.fn(), reset: vi.fn(), restore: vi.fn() }));
 vi.mock("@/app/(admin)/admin/pages/design/actions", () => ({ saveSiteDraft: mocks.save, publishSiteTemplate: mocks.publish, resetSiteDraft: mocks.reset, restoreSiteVersion: mocks.restore }));
-vi.mock("@/components/media/MediaPicker", () => ({ default: ({ noun }: { noun?: string }) => <div>picker for the {noun}</div> }));
+vi.mock("@/components/media/MediaPicker", () => ({ default: ({ noun, onChange }: { noun?: string; onChange?: (id: string | null) => void }) => (
+    <div>
+      picker for the {noun}
+      <button type="button" onClick={() => onChange?.("mda_AAAAAAAAAAA2")}>
+        choose the {noun}
+      </button>
+    </div>
+  ),
+}));
 
 import DesignEditor from "@/app/(admin)/admin/pages/design/DesignEditor";
 
@@ -83,6 +91,16 @@ describe("the Design view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove menu link 1" }));
     expect(screen.getAllByLabelText("Label")).toHaveLength(1);
     expect(screen.getByText("picker for the logo")).toBeInTheDocument();
+  });
+
+  it("takes an optional dark-mode logo and saves it with the draft", async () => {
+    view({ initial: normalizeSiteTemplate({ header: { show: true, items: [{ id: "l", type: "logo", logoAssetId: "mda_AAAAAAAAAAA1", alt: "Quill & Cup" }] } }) });
+    expect(screen.getByText("Logo for dark mode (optional)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "choose the dark-mode logo" }));
+    await act(async () => {
+      vi.advanceTimersByTime(900);
+    });
+    expect(mocks.save.mock.calls[0][0].header.items[0]).toMatchObject({ logoAssetId: "mda_AAAAAAAAAAA1", darkLogoAssetId: "mda_AAAAAAAAAAA2" });
   });
 
   it("publishes what is shown and says so, and says what is wrong when the publish is refused", async () => {
