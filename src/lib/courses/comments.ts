@@ -105,8 +105,16 @@ export function countUnread(entries: ThreadEntry[], viewerId: string, since: str
  * thread's "Instructor answers" filter keeps. A removed or held reply doesn't count: members can't read it.
  */
 export function involvesInstructor(entry: ThreadEntry): boolean {
-  const live = (c: ThreadEntry["comment"]) => !c.removed && !c.held && !c.hidden && c.isStaffReply;
-  return live(entry.comment) || entry.replies.some(live);
+  return liveStaffComment(entry.comment) || hasInstructorReply(entry);
+}
+
+function liveStaffComment(c: ThreadEntry["comment"]): boolean {
+  return !c.removed && !c.held && !c.hidden && c.isStaffReply;
+}
+
+/** A reply to the question, not the question itself, is a live comment by an instructor: the cue that marks the thread when skimming. */
+export function hasInstructorReply(entry: ThreadEntry): boolean {
+  return entry.replies.some(liveStaffComment);
 }
 
 /** How many comments a member saw, in the buckets the analytics event allows. */
