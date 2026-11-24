@@ -75,7 +75,7 @@ const OPT_IN_DEFAULT = { kajabiFormId: "", instagramField: "none", buttonLabel: 
 const FINISH_LINE_DEFAULT = { title: "A finish line", program: "Program name", text: "One line about it.", durationLabel: "12 months", durationPercent: 100, buttonLabel: "See the program", href: "" };
 
 export const CORE_DEFAULTS = {
-  Section: { background: "none", overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, cardColor: "default", cardSoft: false, place: "center", textTone: "auto", fadeIn: false, fill: false, verticalAlign: "center" },
+  Section: { background: "none", backgroundPosition: "center", backgroundFixed: false, overlay: "none", width: "wide", paddingDesktop: PADDING_DEFAULT_DESKTOP, paddingMobile: PADDING_DEFAULT_MOBILE, hideOnDesktop: false, hideOnMobile: false, align: "left", card: false, cardColor: "default", cardSoft: false, place: "center", textTone: "auto", fadeIn: false, fill: false, verticalAlign: "center" },
   Columns: { count: "2", gap: "medium", verticalAlign: "top" },
   RichText: { html: "<p>Write something here.</p>", align: "left" },
   Heading: { text: "A heading", level: "h2", align: "center" },

@@ -618,6 +618,8 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const header = sections.header;
   const headerHidden = header && isObject(header.settings) && flag(header.settings.hide_on_desktop) && flag(header.settings.hide_on_mobile);
   let headerLogo: Puck | null = null;
+  /** The logo's file says it is the white version (Kajabi keeps a dark one for pale pages; the export has only the one in use). */
+  let headerLogoWhite = false;
   const headerOverlays = Boolean(header && isObject(header.settings) && str(header.settings.position) === "overlay");
   if (header && !headerHidden) {
     for (const key of Array.isArray(header.block_order) ? (header.block_order as string[]) : []) {
@@ -626,6 +628,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
       if (!b || flag(b.hidden)) continue;
       if (b.type === "logo" && str(s.logo_type) !== "text" && str(s.logo)) {
         const width = num(s.logo_width) ?? 300;
+        headerLogoWhite = /white/i.test(str(s.logo).split("/").pop() ?? "");
         if (!clean(str(s.image_alt)) || clean(str(s.image_alt)) === "Header Logo") notes.push({ kind: "todo", text: "The picture at the top has no description: add one in the editor (or mark it decorative) before publishing." });
         headerLogo = {
           type: "Image",
@@ -666,7 +669,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const wholeCard = shown.length > 0 && shown.every(hasFill);
     const words: string[] = [];
     // The header's logo is over the page's top picture in Kajabi ("overlay"): where the picture is this section's, it stays out of the card.
-    const logoOutside = first && headerLogo !== null && headerOverlays && str(s.bg_type).includes("image") && Boolean(str(s.bg_image));
+    const logoOutside = first && headerLogo !== null && headerOverlays && (str(s.bg_type).includes("image") || str(s.bg_type).includes("video")) && Boolean(str(s.bg_image));
     if (first && headerLogo && !logoOutside) inner.push(headerLogo);
     first = false;
 
@@ -704,6 +707,26 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         const alt = clean(str(b.image_alt));
         if (!alt) notes.push({ kind: "todo", text: `A picture has no description: add one in the editor (or mark it decorative) before publishing.` });
         if (str(b.img_action)) notes.push({ kind: "left_out", text: `A picture that links somewhere in Kajabi is a plain picture here.` });
+        // A narrow picture with a text block of the rest of the row right after it (a testimonial: the face, then the words) is one Split: the picture beside its words.
+        const nextKey = blockOrder[index + 1];
+        const next = nextKey && !consumed.has(nextKey) ? blocks[nextKey] : undefined;
+        const nb = next ? settingsOf(next) : null;
+        const nextWidth = nb ? num(nb.width) : null;
+        if (next && nb && str(next.type) === "text" && !isHiddenBlock(next) && rgb(nb.background_color) === null && width !== null && width <= 5 && nextWidth !== null && nextWidth <= 8 && width + nextWidth <= 12) {
+          consumed.add(nextKey);
+          const nextName = clean(str(next.name)) || "text";
+          liveNotes(ctx, nb, nextName);
+          const parts = splitTextButtons(str(nb.text));
+          if (parts.media > 0) notes.push({ kind: "left_out", text: `The text block "${nextName}" has ${parts.media === 1 ? "a picture or embed" : `${parts.media} pictures or embeds`} inside it, which rich text here can't hold; add ${parts.media === 1 ? "it" : "them"} as ${parts.media === 1 ? "a Picture or Video block" : "Picture or Video blocks"} if you want ${parts.media === 1 ? "it" : "them"}.` });
+          inner.push({ type: "Split", props: { id: id("Split"), imageAssetId: ref, alt, decorative: false, imageSide: "left", html: sanitizeRichText(parts.html).replace(/<p>\s*<\/p>/g, "") } });
+          const made = mapTextButtons(ctx, nb, nextName, parts.anchors);
+          inner.push(...made);
+          textButtons += made.length;
+          words.push(str(nb.text));
+          blockCount += inner.length - before;
+          widths.push(width + nextWidth);
+          continue;
+        }
         inner.push({ type: "Image", props: { id: id("Image"), imageAssetId: ref, alt, decorative: false, size: width !== null && width <= 3 ? "small" : width !== null && width <= 8 ? "medium" : "full", rounded: false, align: "center" } });
       } else if (type === "cta") {
         inner.push(makeButton(ctx, b, label));
@@ -806,19 +829,28 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const counts = new Map<number, number>();
     for (const w of widths) counts.set(w, (counts.get(w) ?? 0) + 1);
     const common = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 12;
-    const bgPicture = str(s.bg_type).includes("image") ? pictures.add(s.bg_image) : null;
-    if (str(s.bg_video)) notes.push({ kind: "left_out", text: "A section background video is not imported." });
+    // A background video has a still (its poster) in `bg_image`: that is the picture here, and the video is not imported.
+    const bgIsVideo = str(s.bg_type).includes("video");
+    const bgPicture = str(s.bg_type).includes("image") || (bgIsVideo && str(s.bg_image)) ? pictures.add(s.bg_image) : null;
+    if (str(s.bg_video) || bgIsVideo) {
+      notes.push({ kind: "left_out", text: bgPicture ? "A section background video is not imported; its still picture is the section's background picture here." : "A section background video is not imported, and it has no still picture: the section has a plain background." });
+    }
+    const bgPosition = str(s.bg_position) === "top" ? "top" : str(s.bg_position) === "bottom" ? "bottom" : "center";
+    const bgFixed = bgPicture !== null && flag(s.background_fixed);
+    if (bgFixed) notes.push({ kind: "approximated", text: "The section's picture stays still while the page scrolls (as in Kajabi) on a computer; on a phone it scrolls with the section." });
     const bgColor = rgb(s.background_color);
     const tint = bgColor ? { color: bgColor, alpha: alphaOf(s.background_color) } : null;
     // Over a picture, the section's colour is a tint on it (a light one with a low opacity washes the picture out); without one it is the background.
     let overlay: "none" | "dark" | "light" | "cream" = "none";
     if (bgPicture) {
-      if (tint && lightness(tint.color) >= 0.6) overlay = tint.alpha >= 0.6 ? "light" : "cream";
+      // A very faint tint (a quarter strength or less) leaves the picture as it is.
+      if (tint && lightness(tint.color) >= 0.6 && tint.alpha < 0.25) overlay = "none";
+      else if (tint && lightness(tint.color) >= 0.6) overlay = tint.alpha >= 0.6 ? "light" : "cream";
       else overlay = "dark";
       notes.push({
         kind: "approximated",
         text: tint
-          ? `The section's picture has a ${lightness(tint.color) >= 0.6 ? "light" : "dark"} tint in Kajabi (${str(s.background_color)}); it is a ${overlay === "dark" ? "dark" : overlay === "light" ? "light" : "soft cream"} shade here, which is the nearest we offer (the exact colour and strength are not carried over).`
+          ? `The section's picture has a ${lightness(tint.color) >= 0.6 ? "light" : "dark"} tint in Kajabi (${str(s.background_color)}); it is ${overlay === "none" ? "left without a shade" : `a ${overlay === "dark" ? "dark" : overlay === "light" ? "light" : "soft cream"} shade`} here, which is the nearest we offer (the exact colour and strength are not carried over).`
           : "A dark shade was added over the section's background picture so the text stays readable.",
       });
     }
@@ -841,21 +873,71 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     // Kajabi's "full width" lets the blocks spread; a block of half the row is still half the page, so only a section of wide blocks is full width.
     const sectionWidth = flag(s.full_width) && common >= 11 ? "full" : common <= 6 || (boxed && common === 7) ? "narrow" : common <= 9 ? "medium" : "wide";
     const spacing = presetPadding(padding >= 60 ? "large" : "medium");
+    // The section's own space above and below, as Kajabi has it (the preset is only for a side that is blank).
+    const own = (name: "padding_desktop" | "padding_mobile", side: "top" | "bottom") => (isObject(s[name]) ? num((s[name] as Record<string, unknown>)[side]) : null);
+    const space = {
+      paddingDesktop: { ...spacing.paddingDesktop, top: own("padding_desktop", "top") ?? spacing.paddingDesktop.top, bottom: own("padding_desktop", "bottom") ?? spacing.paddingDesktop.bottom },
+      paddingMobile: { ...spacing.paddingMobile, top: own("padding_mobile", "top") ?? spacing.paddingMobile.top, bottom: own("padding_mobile", "bottom") ?? spacing.paddingMobile.bottom },
+    };
+    const picture = { backgroundPosition: bgPosition, backgroundFixed: bgFixed };
 
-    if (logoOutside && headerLogo) {
+    // A white logo over a pale band is invisible: it gets a band of its own in plum (Kajabi's other logo is not in the export).
+    const lightBehind = bgPicture ? overlay !== "dark" : !["plum", "brownMid", "brown", "charcoal"].includes(bgPick.key);
+    const logoHere = headerLogo !== null && (logoOutside || inner[0] === headerLogo);
+    let logoBand: Puck | null = null;
+    if (headerLogo && logoHere && headerLogoWhite && lightBehind) {
+      if (inner[0] === headerLogo) inner.shift();
+      logoBand = { type: "Section", props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "plum", width: "wide", ...presetPadding("small"), align: "center", content: [headerLogo] } };
+      notes.push({ kind: "approximated", text: "The logo is the white version, which can't be seen on this pale picture: it sits on a plum band above the section. Swap in the dark logo in the editor if you would rather have it on the picture." });
+    }
+    const logoInBand = logoOutside && !logoBand;
+
+    // A card in the left of the page is a Section of its own, as many of the columns as Kajabi's block takes (with a little extra for the wider page there), so its width and place follow Kajabi's.
+    const leftCard = boxed && place === "left" && common >= 4 && common <= 11;
+    if ((logoInBand && headerLogo) || leftCard) {
       // The picture and its shade are the band; the logo sits on it, and the card is a Section of its own inside, so the logo is not in the card.
-      const logoAlign = place === "center" ? "center" : (headerLogo.props.align as string);
-      headerLogo.props.align = logoAlign;
+      if (logoInBand && headerLogo) headerLogo.props.align = place === "center" ? "center" : (headerLogo.props.align as string);
+      const sideless = { left: 0, right: 0 };
       const inside: Puck = {
         type: "Section",
-        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "none", overlay: "none", width: sectionWidth, ...zeroVertical(), align: textAlign, place, card: boxed, cardColor, cardSoft, textTone: tone, content: inner },
+        props: {
+          ...BLOCK_DEFAULTS.Section,
+          id: id("Section"),
+          background: "none",
+          overlay: "none",
+          width: leftCard ? "wide" : sectionWidth,
+          paddingDesktop: { ...space.paddingDesktop, ...sideless, top: logoInBand ? space.paddingDesktop.top : 0, bottom: 0 },
+          paddingMobile: { ...space.paddingMobile, ...sideless, top: logoInBand ? space.paddingMobile.top : 0, bottom: 0 },
+          align: textAlign,
+          place: leftCard ? "center" : place,
+          card: boxed,
+          cardColor,
+          cardSoft,
+          textTone: tone,
+          ...(leftCard ? { span: Math.min(12, Math.round(common * 1.15)), spanMobile: 12 } : {}),
+          content: inner,
+        },
       };
+      if (logoBand) content.push(logoBand);
       content.push({
         type: "Section",
-        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: bgPick.key, backgroundImageAssetId: bgPicture ?? undefined, overlay, width: "wide", ...spacing, align: "center", content: [headerLogo, inside] },
+        props: {
+          ...BLOCK_DEFAULTS.Section,
+          id: id("Section"),
+          background: bgPick.key,
+          backgroundImageAssetId: bgPicture ?? undefined,
+          ...picture,
+          overlay,
+          width: "wide",
+          paddingDesktop: { ...space.paddingDesktop, top: logoInBand ? 24 : space.paddingDesktop.top },
+          paddingMobile: { ...space.paddingMobile, top: logoInBand ? 16 : space.paddingMobile.top },
+          align: "center",
+          content: logoInBand && headerLogo ? [headerLogo, inside] : [inside],
+        },
       });
       continue;
     }
+    if (logoBand) content.push(logoBand);
     content.push({
       type: "Section",
       props: {
@@ -863,9 +945,10 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         id: id("Section"),
         background: bgPick.key,
         backgroundImageAssetId: bgPicture ?? undefined,
+        ...picture,
         overlay,
         width: sectionWidth,
-        ...spacing,
+        ...space,
         align: textAlign,
         place,
         card: boxed,

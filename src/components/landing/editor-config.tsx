@@ -48,6 +48,8 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
   Section: {
     background: select("Background colour", BACKGROUND_OPTIONS),
     backgroundImageAssetId: image("Background picture"),
+    backgroundPosition: select("Which part of the picture stays in view", [{ label: "The middle", value: "center" }, { label: "The top (keeps heads in)", value: "top" }, { label: "The bottom", value: "bottom" }]),
+    backgroundFixed: toggle("Keep the picture still while the page scrolls (desktop only)"),
     overlay: select("Shade over the picture", [
       { label: "None", value: "none" },
       { label: "Dark (light text)", value: "dark" },
