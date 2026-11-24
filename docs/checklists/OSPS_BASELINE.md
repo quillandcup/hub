@@ -67,9 +67,9 @@ Where the project stands against each control of the OpenSSF Open Source Project
 
 | Control | Level | Status | Evidence or gap |
 |---|---|---|---|
-| `OSPS-GV-01.01` List of members with access to sensitive resources | 2 | Partly | `.github/GOVERNANCE.md` names the roles and says two owners hold admin on GitHub, Vercel and Supabase; the names are not in the repository because it is public. The list is the collaborators page and each provider's members. |
+| `OSPS-GV-01.01` List of members with access to sensitive resources | 2 | Met | `.github/GOVERNANCE.md`, \"People with access to sensitive resources\", names the two owners by GitHub handle. The GitHub organization's admins and the Vercel team's owners were read on 2026-11-24 and match; Supabase's members are not readable from the command line, so that part rests on the owners' statement. |
 | `OSPS-GV-01.02` Roles and responsibilities | 2 | Met | `.github/GOVERNANCE.md`, "Roles". |
-| `OSPS-GV-02.01` Public discussion of changes and obstacles | 1 | Met | The issue tracker is enabled (live) and is the documented public place for bug reports and questions (`.github/CONTRIBUTING.md`, `.github/SUPPORT.md`); the control's own recommendation lists an issue tracker as a mechanism. Outside changes are not accepted, so nothing is proposed from outside. (Earlier read as N/A; the OpenSSF scanner passes it on the enabled tracker.) |
+| `OSPS-GV-02.01` Public discussion of changes and obstacles | 1 | N/A | Proprietary project that takes no outside contributions, so changes are not discussed publicly the way an open source project's are. Issues and pull requests are readable on GitHub, but that is transparency, not a discussion mechanism (the owner's decision; the OpenSSF scanner counts an enabled issue tracker as Met). |
 | `OSPS-GV-03.01` Contribution process, or a statement that none is accepted | 1 | Met | `.github/CONTRIBUTING.md` says outside code is not accepted for now. |
 | `OSPS-GV-03.02` Guide for code contributors | 2 | Met | `.github/CONTRIBUTING.md`, "For people on the team", and `.claude/rules/`. |
 | `OSPS-GV-04.01` Collaborators are reviewed before getting elevated access | 3 | Met | `.github/GOVERNANCE.md`, "Access". |
@@ -129,6 +129,6 @@ Where the project stands against each control of the OpenSSF Open Source Project
 
 ## What is worth doing
 
-Nothing is left that only needs a decision or a setting; what remains is design work on the Partly rows (`OSPS-SA-01.01`, `-SA-03.02` and `OSPS-GV-01.01`; the last cannot be Met in a public repository, because the names stay out of it).
+Nothing is left that only needs a decision or a setting; what remains is design work on two Partly rows (`OSPS-SA-01.01` and `-SA-03.02`), and `OSPS-QA-03.01`, which needs a decision on which of the checks that run on every pull request should be required (`docs/TODO.md`, "OSPS Baseline: what is left").
 
 Not within reach without a decision or another person: an open source license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`). Details and owners of the open items are in `docs/TODO.md`.

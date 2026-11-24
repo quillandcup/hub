@@ -20,6 +20,9 @@ project:
     - name: codyaray
       social: https://github.com/codyaray
       primary: true
+    - name: theaniassey
+      social: https://github.com/theaniassey
+      primary: false
   documentation:
     quickstart-guide: https://github.com/quillandcup/hub/blob/main/docs/runbooks/SETUP.md
     detailed-guide: https://github.com/quillandcup/hub/blob/main/docs/README.md
