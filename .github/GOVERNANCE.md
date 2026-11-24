@@ -8,6 +8,15 @@ Hedgie Hub is owned and run by Quill & Cup LLC. This page says who decides what,
 - **Maintainer**: has write access, reviews and ships changes, answers issues and security reports. Today one owner does the day-to-day maintaining.
 - **Contributor**: anyone who opens an issue. Outside code contributions are not accepted for now (`CONTRIBUTING.md`).
 
+## People with access to sensitive resources
+
+The two owners, by GitHub handle:
+
+- [`codyaray`](https://github.com/codyaray): owner of the GitHub organization, the Vercel team and the Supabase organization; the day-to-day maintainer.
+- [`theaniassey`](https://github.com/theaniassey): owner of the GitHub organization, the Vercel team and the Supabase organization.
+
+Nobody else holds administrator access on GitHub or Vercel (read from each provider's members list on 2026-11-24). The engineering team on GitHub (`@quillandcup/eng`) has write access to the repository. Each provider's own members page is the live record: the organization's people page on GitHub, **Team settings, Members** on Vercel and **Organization, Team** on Supabase. Access is granted and reviewed as described under "Access" below, and this list is updated in the same change.
+
 ## How changes are made
 
 All changes land through a pull request. Required checks (unit and database tests, build, coverage on new lines, migration ordering, CodeQL) must pass and every review thread must be resolved; the `main` ruleset in `config/github.yml` enforces it, administrators included. Approvals are not required, because the maintainer team is one person; automated review, tests and the scanners listed in `docs/trust/THREAT_MODEL.md` stand in. Auto-merge is only enabled for pull requests by Dependabot and by the repository's owner, members and collaborators.
