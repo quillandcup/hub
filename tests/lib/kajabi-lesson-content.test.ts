@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isQuizRedirect,
   linksNeedRefresh,
   parseEmbeddedPost,
   parseLessonContent,
@@ -62,6 +63,28 @@ describe("presignedExpiry", () => {
 // What Kajabi's admin serves now: the lesson page, with the same document inside a JSON script tag.
 const page = (...scripts: string[]) => `<!doctype html><html><head><title>x</title></head><body><div id="app"></div>${scripts.join("")}</body></html>`;
 const store = (doc: unknown) => `<script type="application/json" id="kjb-redux-store-data">${JSON.stringify(doc)}</script>`;
+
+describe("isQuizRedirect", () => {
+  it("is true when a lesson's editor sends us to a quiz's editor, relative or absolute, whatever the redirect status", () => {
+    for (const status of [301, 302, 303, 307, 308]) {
+      expect(isQuizRedirect(status, "/admin/quizzes/1573355/edit")).toBe(true);
+    }
+    expect(isQuizRedirect(302, "https://app.kajabi.com/admin/quizzes/1573355/edit?x=1")).toBe(true);
+  });
+
+  it("is false for anything else: no redirect, no location, or a redirect to somewhere other than a quiz", () => {
+    expect(isQuizRedirect(200, "/admin/quizzes/1/edit")).toBe(false);
+    expect(isQuizRedirect(404, "/admin/quizzes/1/edit")).toBe(false);
+    expect(isQuizRedirect(302, undefined)).toBe(false);
+    expect(isQuizRedirect(302, null)).toBe(false);
+    expect(isQuizRedirect(302, "")).toBe(false);
+    expect(isQuizRedirect(302, "/login")).toBe(false);
+    expect(isQuizRedirect(302, "/admin/posts/5/edit")).toBe(false);
+    // A look-alike path isn't a quiz.
+    expect(isQuizRedirect(302, "/admin/quizzes")).toBe(false);
+    expect(isQuizRedirect(302, "/other/admin/quizzes/1/edit")).toBe(false);
+  });
+});
 
 describe("parseEmbeddedPost", () => {
   it("reads the lesson document out of the page, exactly as the API used to return it", () => {

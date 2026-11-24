@@ -101,6 +101,23 @@ export function parseEmbeddedPost(html: string): EditorPost | null {
   return null;
 }
 
+/**
+ * Whether Kajabi answered a lesson's editor page by sending us to a quiz's editor instead
+ * (`/admin/posts/{id}/edit` -> `/admin/quizzes/{id}/edit`). A quiz or assessment is a lesson in the
+ * course outline, but its editor holds questions, not lesson text, video or downloads, so there is
+ * nothing for the content step to capture (quizzes aren't migrated: docs/product/COURSES.md).
+ */
+export function isQuizRedirect(status: number, location: string | null | undefined): boolean {
+  if (status < 300 || status >= 400 || !location) return false;
+  let path: string;
+  try {
+    path = new URL(location, "https://example.invalid").pathname;
+  } catch {
+    return false;
+  }
+  return /^\/admin\/quizzes\/[^/]+(\/|$)/.test(path);
+}
+
 /** When a presigned URL stops working, from its X-Amz-Date and X-Amz-Expires; null if not presigned. */
 export function presignedExpiry(url: string | null | undefined): string | null {
   if (!url) return null;
