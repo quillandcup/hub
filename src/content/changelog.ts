@@ -75,6 +75,21 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Detail.** \`docs/product/COURSES.md\`, "Lesson comments", Kajabi migration.`,
   },
   {
+    slug: "lesson-comments-polish",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: video timestamps, outline counts and an instructor filter",
+    summary: "A time typed in a comment (2:35) moves the lesson's video, the course outline shows comment counts per lesson, and a thread can be narrowed to the questions an instructor is in. Still behind the lesson comments flag.",
+    body: `The first half of the polish phase for lesson comments, behind the same flag.
+
+- **Timestamps are a render-time rule.** \`richParts\` (\`src/lib/courses/comment-text.ts\`) finds \`m:ss\` and \`h:mm:ss\` in the text between links, ignores clock times with am or pm and anything inside an address, and the thread turns each into a button. Nothing is stored. The button asks the page's shared player context (\`usePlayerSeek\` in \`PlayerTime\`), and the player moves and plays on each new request. Reuse that context for anything else that should move the video.
+- **Outline counts have one read.** \`CourseCommentRepository.outlineCounts\` returns total, unanswered and new-since-last-visit per lesson from the existing read markers, without the text; both implementations share \`tallyLessons\`. Staff also see the unanswered count. No migration.
+- **The instructor filter** is client-side (\`involvesInstructor\`), because a thread is already loaded whole.
+
+Detail: "Phase 4, as built" in \`docs/product/COURSES.md\`.`,
+  },
+  {
     slug: "quizzes-in-courses",
     date: "2026-11-24",
     audience: "product",

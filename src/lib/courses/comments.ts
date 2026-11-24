@@ -101,6 +101,15 @@ export function countUnread(entries: ThreadEntry[], viewerId: string, since: str
   return count;
 }
 
+/**
+ * Whether an instructor is in this question: it was asked by staff, or a live instructor reply hangs under it. What the
+ * thread's "Instructor answers" filter keeps. A removed or held reply doesn't count: members can't read it.
+ */
+export function involvesInstructor(entry: ThreadEntry): boolean {
+  const live = (c: ThreadEntry["comment"]) => !c.removed && !c.held && !c.hidden && c.isStaffReply;
+  return live(entry.comment) || entry.replies.some(live);
+}
+
 /** How many comments a member saw, in the buckets the analytics event allows. */
 export function commentCountBucket(count: number): "0" | "1-5" | "6-20" | "21+" {
   if (count <= 0) return "0";

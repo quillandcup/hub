@@ -117,7 +117,7 @@ describe("admin course comments page", () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText("Ada <Quill> & Co")).toBeInTheDocument();
     expect(within(rows[0]).getByText("How do I start <b>this</b>?")).toBeInTheDocument();
-    expect(within(rows[0]).getByRole("link", { name: "Voice" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1#cmnt_AAAAAAAAAAA1");
+    expect(within(rows[0]).getByRole("link", { name: "Voice" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1?comment=cmnt_AAAAAAAAAAA1");
     expect(within(rows[1]).getByText(/^x{140}…$/)).toBeInTheDocument();
   });
 
@@ -180,7 +180,7 @@ describe("admin course comments moderation page", () => {
     const rows = screen.getAllByRole("row").slice(1);
     expect(within(rows[0]).getByText("Ada <Quill> & Co")).toBeInTheDocument();
     expect(within(rows[0]).getByText("Spam & ads")).toBeInTheDocument();
-    expect(within(rows[0]).getByRole("link", { name: "Voice" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1#cmnt_AAAAAAAAAAA1");
+    expect(within(rows[0]).getByRole("link", { name: "Voice" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1?comment=cmnt_AAAAAAAAAAA1");
     expect(within(rows[0]).queryByRole("button", { name: "Approve" })).toBeNull();
     // A held comment that was also reported can be approved from here.
     expect(within(rows[1]).getByRole("button", { name: "Approve" })).toBeInTheDocument();

@@ -22,6 +22,10 @@ vi.mock("@/app/(member)/courses/comment-actions", () => ({
 }));
 
 import CommentThread from "@/components/courses/CommentThread";
+import { PlayerTimeProvider, useSeekRequest } from "@/components/courses/PlayerTime";
+
+// The real player pulls in the video library; the thread only needs the page's shared clock.
+vi.mock("@/components/courses/LessonPlayer", () => ({ default: () => null }));
 
 const NOW = Date.parse("2027-03-01T15:00:00Z");
 const comment = (over: Partial<ThreadComment> & { id: string }): ThreadComment => ({
@@ -334,4 +338,76 @@ describe("CommentThread", () => {
     expect(document.getElementById("cmnt_AAAAAAAAAAA1")?.className ?? "").not.toContain("ring-2");
   });
 
+  describe("video timestamps", () => {
+    function Probe() {
+      const request = useSeekRequest();
+      return <span data-testid="seek">{request ? `${request.seconds}#${request.nonce}` : "none"}</span>;
+    }
+    const withTimes = comment({ id: "cmnt_AAAAAAAAAAA1", body: "Lost at 2:35 and 1:02:03, not at 2:75 or 10:30pm" });
+
+    it("makes a typed timestamp a button that moves the video, and says so", async () => {
+      const user = userEvent.setup();
+      render(
+        <PlayerTimeProvider>
+          <CommentThread lessonId="les_AAAAAAAAAAA1" courseId="crs_AAAAAAAAAAA1" entries={[{ comment: withTimes, replies: [] }]} count={1} following={false} unread={0} currentMemberId="m1" isStaff={false} readOnly={false} canSeek timeZone="America/New_York" nowMs={NOW} />
+          <Probe />
+        </PlayerTimeProvider>,
+      );
+      await user.click(screen.getByRole("button", { name: "Play the video from 2 minutes 35 seconds" }));
+      expect(screen.getByTestId("seek")).toHaveTextContent("155#1");
+      expect(screen.getByRole("status")).toHaveTextContent("Playing the video from 2 minutes 35 seconds");
+      // The same second again is a new request, so the video moves back to it.
+      await user.click(screen.getByRole("button", { name: "Play the video from 2 minutes 35 seconds" }));
+      expect(screen.getByTestId("seek")).toHaveTextContent("155#2");
+      await user.click(screen.getByRole("button", { name: "Play the video from 1 hour 2 minutes 3 seconds" }));
+      expect(screen.getByTestId("seek")).toHaveTextContent("3723#3");
+      // Not a time: left as text.
+      expect(screen.getAllByRole("button", { name: /^Play the video/ })).toHaveLength(2);
+    });
+
+    it("leaves a timestamp as text when the lesson has no video to move", () => {
+      renderThread([{ comment: withTimes, replies: [] }]);
+      expect(screen.queryByRole("button", { name: /^Play the video/ })).toBeNull();
+      expect(screen.getByText((_, el) => el?.tagName === "P" && Boolean(el.textContent?.startsWith("Lost at 2:35 and 1:02:03, not at 2:75 or 10:30pm")))).toBeInTheDocument();
+    });
+
+    it("works in a reply too", async () => {
+      const user = userEvent.setup();
+      const reply = comment({ id: "cmnt_AAAAAAAAAAA2", parentId: "cmnt_AAAAAAAAAAA1", body: "See 0:45" });
+      render(
+        <PlayerTimeProvider>
+          <CommentThread lessonId="les_AAAAAAAAAAA1" courseId="crs_AAAAAAAAAAA1" entries={[{ comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [reply] }]} count={2} following={false} unread={0} currentMemberId="m1" isStaff={false} readOnly={false} canSeek timeZone="America/New_York" nowMs={NOW} />
+          <Probe />
+        </PlayerTimeProvider>,
+      );
+      await user.click(screen.getByRole("button", { name: "Play the video from 45 seconds" }));
+      expect(screen.getByTestId("seek")).toHaveTextContent("45#1");
+    });
+  });
+
+  describe("instructor answers filter", () => {
+    const asked = { comment: comment({ id: "cmnt_AAAAAAAAAAA1", body: "Unanswered question" }), replies: [] };
+    const answered = {
+      comment: comment({ id: "cmnt_AAAAAAAAAAA2", body: "Answered question" }),
+      replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA2", body: "Here is the answer", isStaffReply: true, authorName: "Sam Staff" })],
+    };
+
+    it("offers it only when an instructor has taken part, and keeps just those questions", async () => {
+      const user = userEvent.setup();
+      renderThread([asked, answered]);
+      expect(screen.getByRole("button", { name: "All comments", pressed: true })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Instructor answers" }));
+      expect(screen.getByRole("button", { name: "Instructor answers", pressed: true })).toBeInTheDocument();
+      expect(screen.queryByText("Unanswered question")).toBeNull();
+      expect(screen.getByText("Answered question")).toBeInTheDocument();
+      expect(screen.getByText("Here is the answer")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "All comments" }));
+      expect(screen.getByText("Unanswered question")).toBeInTheDocument();
+    });
+
+    it("has no filter when no instructor is in the thread", () => {
+      renderThread([asked]);
+      expect(screen.queryByRole("button", { name: "Instructor answers" })).toBeNull();
+    });
+  });
 });

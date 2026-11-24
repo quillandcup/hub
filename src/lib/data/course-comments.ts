@@ -133,6 +133,16 @@ export interface LessonInfo {
   courseSlug: string;
 }
 
+/** What a lesson's thread looks like from the course outline: how many comments, how many questions wait, how many are new to the viewer. */
+export interface LessonCommentCounts {
+  /** Live comments and replies (removed and held ones are not counted). */
+  total: number;
+  /** Live questions nobody on staff has answered or marked handled. */
+  unanswered: number;
+  /** Live comments by others since the viewer last opened the thread; 0 when they never have. */
+  newCount: number;
+}
+
 /** What waits for staff in one course: comments with open reports and comments held for review. */
 export interface ModerationBacklogItem {
   courseId: string;
@@ -201,6 +211,11 @@ export interface CourseCommentRepository {
   lessonInfo(lessonIds: string[]): Promise<Map<string, LessonInfo>>;
   /** Courses with comments waiting for staff (open reports or held), most waiting first. Reads past 1000. */
   moderationBacklog(): Promise<ModerationBacklogItem[]>;
+  /**
+   * Comment counts per lesson of a course, for the outline: only lessons with at least one live comment are present. `newCount`
+   * counts what others wrote since `viewerId` last opened the thread (`lesson_comment_reads`). Reads past 1000; never the text.
+   */
+  outlineCounts(courseId: string, viewerId: string): Promise<Map<string, LessonCommentCounts>>;
   /** The comments imported from `source` on these lessons, deleted ones included. Reads past 1000. */
   importedOf(source: string, lessonIds: string[]): Promise<ImportedCommentRecord[]>;
   /**
@@ -237,6 +252,9 @@ export interface ImportedCommentWrite {
   createdAt: string;
   deletedAt: string | null;
 }
+
+/** The columns a count needs: never the text. */
+type CountRow = Pick<StoredRow, "id" | "lesson_id" | "member_id" | "parent_id" | "is_staff_reply" | "created_at" | "held_at" | "hidden_at" | "deleted_at" | "handled_at" | "source">;
 
 type Embedded = { name: string; display_name: string | null };
 type StoredRow = {
@@ -284,7 +302,7 @@ const isRemoved = (row: { hidden_at: string | null; deleted_at: string | null })
 /** Held and not otherwise removed. */
 const isHeld = (row: { held_at: string | null; hidden_at: string | null; deleted_at: string | null }) => Boolean(row.held_at && !row.hidden_at && !row.deleted_at);
 /** What everyone can read: not deleted, hidden or held. */
-const isLive = (row: StoredRow) => !isRemoved(row) && !row.held_at;
+const isLive = (row: { held_at: string | null; hidden_at: string | null; deleted_at: string | null }) => !isRemoved(row) && !row.held_at;
 
 /** Builds the thread from every row of a lesson as `viewer` sees it; `nameOf` gives an author's display name. Shared by both implementations. */
 export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => string, viewer: ThreadViewer): LessonThread {
@@ -441,6 +459,23 @@ export function groupBacklog(
     if (entry) entry.reported += 1;
   }
   return [...byCourse.values()].sort((a, b) => b.reported + b.held - (a.reported + a.held) || compareText(a.courseId, b.courseId));
+}
+
+/** Counts live comments per lesson: the total, the unanswered questions, and what is new to the viewer since `seenAt(lessonId)`. Shared by both implementations. */
+export function tallyLessons(rows: CountRow[], seenAt: (lessonId: string) => string | null, viewerId: string): Map<string, LessonCommentCounts> {
+  const live = rows.filter((r) => isLive(r));
+  const answered = new Set(live.filter((r) => r.parent_id && r.is_staff_reply).map((r) => r.parent_id as string));
+  const out = new Map<string, LessonCommentCounts>();
+  for (const row of live) {
+    const counts = out.get(row.lesson_id) ?? { total: 0, unanswered: 0, newCount: 0 };
+    counts.total += 1;
+    // An imported comment is history: it counts in the total, but is never an open question and never new.
+    if (!row.parent_id && !row.is_staff_reply && !row.handled_at && !row.source && !answered.has(row.id)) counts.unanswered += 1;
+    const seen = seenAt(row.lesson_id);
+    if (seen && !row.source && row.member_id !== viewerId && Date.parse(row.created_at) > Date.parse(seen)) counts.newCount += 1;
+    out.set(row.lesson_id, counts);
+  }
+  return out;
 }
 
 export class SupabaseCourseCommentRepository implements CourseCommentRepository {
@@ -619,6 +654,27 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
     const reported = reports.filter((r) => !r.lesson_comments.hidden_at && !r.lesson_comments.deleted_at).map((r) => ({ commentId: r.comment_id, lessonId: r.lesson_comments.lesson_id }));
     const info = await this.lessonInfo([...held.map((h) => h.lesson_id), ...reported.map((r) => r.lessonId)]);
     return groupBacklog(held.map((h) => h.lesson_id), reported, info);
+  }
+
+  async outlineCounts(courseId: string, viewerId: string) {
+    const lessonIds = [...(await this.lessonTitles(courseId)).keys()];
+    const [rows, reads] = await Promise.all([
+      inChunks(lessonIds, 100, (part) =>
+        fetchAllRows<CountRow>((from, to) =>
+          this.db
+            .from("lesson_comments")
+            .select("id, lesson_id, member_id, parent_id, is_staff_reply, created_at, held_at, hidden_at, deleted_at, handled_at, source")
+            .in("lesson_id", part)
+            .is("deleted_at", null)
+            .is("hidden_at", null)
+            .order("id")
+            .range(from, to),
+        ),
+      ),
+      inChunks(lessonIds, 100, async (part) => must(await this.db.from("lesson_comment_reads").select("lesson_id, last_seen_at").eq("member_id", viewerId).in("lesson_id", part)) ?? []),
+    ]);
+    const seen = new Map(reads.map((r) => [r.lesson_id, r.last_seen_at]));
+    return tallyLessons(rows, (id) => seen.get(id) ?? null, viewerId);
   }
 
   async unansweredQuestions(courseId: string) {
@@ -908,6 +964,16 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
       });
     const info = await this.lessonInfo([...held.map((h) => h.lesson_id), ...reported.map((r) => r.lessonId)]);
     return groupBacklog(held.map((h) => h.lesson_id), reported, info);
+  }
+
+  async outlineCounts(courseId: string, viewerId: string) {
+    const lessonIds = new Set(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
+    const seen = new Map(this.data.lessonCommentReads.filter((r) => r.member_id === viewerId).map((r) => [r.lesson_id, r.last_seen_at]));
+    return tallyLessons(
+      this.data.lessonComments.filter((c) => lessonIds.has(c.lesson_id)),
+      (id) => seen.get(id) ?? null,
+      viewerId,
+    );
   }
 
   async unansweredQuestions(courseId: string) {
