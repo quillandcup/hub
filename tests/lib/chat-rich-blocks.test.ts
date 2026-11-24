@@ -92,10 +92,20 @@ describe("bodyToBlocks", () => {
 });
 
 describe("blocksToBody", () => {
-  it("is null unless something is underlined, so every other message keeps its own text", () => {
+  it("is null unless something is underlined (or a Hub message has a list), so every other message keeps its own text", () => {
     expect(blocksToBody(rich(section(text("hi", { bold: true }))), { plain: true })).toBeNull();
     expect(blocksToBody(null, { plain: true })).toBeNull();
     expect(blocksToBody("nonsense", { plain: false })).toBeNull();
+  });
+
+  it("rebuilds a Hub message's list from its blocks, since Slack's text for them has no line breaks, but leaves a Slack message's own text", () => {
+    const blocks = rich(
+      section(text("STEP 1", { bold: true }), text("\nBefore you decide:")),
+      { type: "rich_text_list", style: "bullet", indent: 0, elements: [section(text("one")), section(text("two"))] }
+    );
+    expect(blocksToBody(blocks, { plain: true })).toBe("*STEP 1*\nBefore you decide:\n• one\n• two");
+    expect(blocksToBody(blocks, { plain: false })).toBeNull();
+    expect(blocksToBody(bodyToBlocks("*A*\nB\n• x\n• y", { plain: true }), { plain: true })).toBe("*A*\nB\n• x\n• y");
   });
 
   it("writes every style, innermost first, with the markers against the words, and joins neighbouring underlines", () => {
