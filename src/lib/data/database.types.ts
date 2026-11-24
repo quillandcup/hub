@@ -8936,6 +8936,10 @@ export type Database = {
         Args: { p_from_lesson: string; p_to_lesson: string }
         Returns: number
       }
+      copy_lesson_quiz: {
+        Args: { p_from_lesson: string; p_to_lesson: string }
+        Returns: string
+      }
       count_activity_feed: {
         Args: {
           p_actor_user_id?: string
