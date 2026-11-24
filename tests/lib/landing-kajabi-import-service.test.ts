@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import sharp from "sharp";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { collectAssetIds } from "@/lib/landing/data";
@@ -175,6 +176,38 @@ describe("importKajabiExport: the same page again", () => {
     const before = dataset.mediaAssets.length;
     await run({ target: { kind: "replace", pageId: (await pageOf("example-sprint")).id } });
     expect(dataset.mediaAssets).toHaveLength(before);
+  });
+
+  it("re-imports when the source now serves other bytes under a picture's key, keeping both pictures", async () => {
+    const other = await sharp({ create: { width: 2, height: 2, channels: 3, background: "#336699" } }).png().toBuffer();
+    await run();
+    const before = dataset.mediaAssets.length;
+    const outcome = await run({ target: { kind: "replace", pageId: (await pageOf("example-sprint")).id }, fetchPicture: async () => ({ bytes: other }) });
+
+    expect(outcome).toMatchObject({ status: "imported", action: "updated", counts: { picturesFailed: 0 } });
+    expect(dataset.mediaAssets.length).toBe(before + 1);
+    const keyed = dataset.mediaAssets.filter((a) => a.source_key !== null).map((a) => a.source_key);
+    expect(new Set(keyed).size).toBe(keyed.length);
+    // and once more with the same bytes: nothing new, still no error
+    const again = await run({ target: { kind: "replace", pageId: (await pageOf("example-sprint")).id }, fetchPicture: async () => ({ bytes: other }) });
+    expect(again).toMatchObject({ status: "imported", counts: { picturesFailed: 0 } });
+    expect(dataset.mediaAssets.length).toBe(before + 1);
+  });
+
+  it("uses the asset another import stored a moment ago when the insert hits the unique key", async () => {
+    const add = repos.media.add.bind(repos.media);
+    let raced = false;
+    vi.spyOn(repos.media, "add").mockImplementation(async (asset) => {
+      if (!raced) {
+        raced = true;
+        await add(asset); // the other request wins
+        throw new Error('duplicate key value violates unique constraint "media_assets_source_key"');
+      }
+      return add(asset);
+    });
+    const outcome = await run();
+    expect(outcome).toMatchObject({ status: "imported", counts: { picturesFailed: 0 } });
+    expect(dataset.mediaAssets).toHaveLength(1);
   });
 
   it("imports as a new page on request even when a page has the layout, and gives it a numbered key so each keeps its own", async () => {
