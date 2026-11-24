@@ -1911,6 +1911,18 @@ The prickle check-ins and member reminders load each active member's calendar wi
 
 The admin member page's Notifications tab (`src/app/(admin)/admin/members/[id]/MemberNotificationsPanel.tsx`) shows the browser devices, the email on record and each kind's channels against the defaults, but not whether the member can be reached on Slack. Deferred because the answer is not a simple lookup: the notifier only sends a Slack DM when the member matches exactly one Slack account by the safe match (alias, then email, then normalized name, deactivated accounts ignored), and an ambiguous match is rejected, logged and reported rather than guessed (see "Slack notification delivery" in `.claude/rules/member-notifications.md`). Showing a different rule on the tab would tell staff a member is reachable when the notifier would refuse to send. Start with the member-to-Slack resolution in `src/lib/slack-member-ids.ts` (the one `createNotifier` and `src/lib/member-reminders.ts` use): expose a read that returns the same result for one member (matched, none, or ambiguous, without sending or alerting), load it in `MemberDetailPage.tsx` only when the Notifications tab is open, and show it beside the Browser and Email lines. Read-only, behind the same `member.push_devices` staff feature, and no Slack ids on screen.
 
+### Rich-text box for lesson comments _(Needs Scoping)_
+
+Lesson comments are written in a plain `<textarea>` (`Composer` in `src/components/courses/CommentThread.tsx`, with its own hand-rolled `@mention` picker), while Hub Chat has the TipTap message box (`src/components/chat/MessageBox.tsx`: format toolbar, mentions, emoji, smart typography). Members who write a longer reply or question to an instructor would benefit from the same bold, lists, quotes and links, and the two boxes should feel alike. Deferred because it is more than a swap, and nobody has asked yet.
+
+Where to start and what to decide:
+- **Storage: keep plain text, reuse chat's mrkdwn dialect** (`docToMrkdwn` and `mrkdwnToDoc` in `src/lib/chat/rich-text.ts`). Existing comments, the Kajabi import (`src/lib/courses/comments-import.ts`) and mention tokens (`@[mbr_...]`) stay valid with no migration, since plain text is valid mrkdwn. Storing HTML or JSON would need a migration and sanitizing.
+- **Rendering:** `Body` in `CommentThread.tsx` would use chat's renderer (`src/lib/chat/render.ts`) but must keep the clickable video timestamps and the `@[mbr_...]` to display-name lookup (`mentionNames`, `richParts` in `src/lib/courses/comment-text.ts`).
+- **Mentions:** the chat box takes its suggestions from `suggestMentions` (`src/app/(member)/chat/mention-actions.ts`); comments must offer only people who can see the lesson (`src/lib/courses/comment-mentions.ts`). The shared box needs a pluggable mention source and trigger set (no `#channel` or custom emoji in comments, which are not bridged to Slack).
+- **Emails and notifications:** the five `lesson-comment-*` emails (`src/emails/notifications/`) and any Slack or push text need formatting rendered or stripped, as chat already does for its excerpts.
+- **Weight:** many edit boxes can be open in one thread, so load the editor lazily.
+- Likely shape: extract a shared box core from `MessageBox` (mention source, triggers, toolbar preset) and use it in comments first; tests for the round trip of old plain-text comments, mentions and timestamps; a member-facing changelog entry when it ships. Related: the lesson text editor is a separate TipTap setup (see "Lesson editor" in the UI section); unify only if a shared rich-text core is wanted.
+
 ## Hub Chat: Beyond the First Unfurl Pass
 
 ### "Jump to latest" pill in chat _(Needs Scheduling)_
