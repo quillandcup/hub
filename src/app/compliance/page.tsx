@@ -16,6 +16,9 @@ export const metadata: Metadata = {
  */
 export default async function CompliancePage() {
   const user = await getCurrentUser();
+  // Only the status words some row on this page uses, in the legend's usual order.
+  const used = new Set(COMPLIANCE_GROUPS.flatMap((group) => group.items.map((item) => item.status)));
+  const usedStatuses = (Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]).filter((status) => used.has(status));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -38,7 +41,7 @@ export default async function CompliancePage() {
             We say what we do, not that we hold a certificate we don&apos;t. Where a provider holds the certification (for
             example, our payment provider for card payments), the row says so. Where we haven&apos;t finished or haven&apos;t looked yet, it says that too.
           </p>
-          <StatusLegend statuses={Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]} />
+          <StatusLegend statuses={usedStatuses} collapsed />
         </TrustAside>
 
         <TrustNav links={[...COMPLIANCE_GROUPS.map((g) => ({ id: g.id, title: g.title })), { id: "providers", title: "Services we rely on" }]} />
