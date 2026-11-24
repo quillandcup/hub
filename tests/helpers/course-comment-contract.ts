@@ -382,7 +382,8 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         lessonId,
         sourceKey: `k-${key}`,
         parentId: null as string | null,
-        authorName: `Pen Name ${key}`,
+        memberId: ctx.members.ada,
+        isStaffReply: false,
         body: `Imported ${key}`,
         createdAt: IMPORTED_AT,
         deletedAt: null as string | null,
@@ -392,33 +393,35 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       /** The row written for a key (the database may return rows in any order). */
       const row = (written: { sourceKey: string; id: string }[], key: string) => written.find((w) => w.sourceKey === `k-${key}`)!;
 
-      it("writes comments with no member, in their own time and name, and shows them in the thread as imported", async () => {
+      it("writes comments as their member, in their own time, and shows them in the thread as imported", async () => {
+        await ctx.setDisplayName(ctx.members.ada, "Ada Display");
         const top = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a")]), "a");
-        await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "b", { parentId: top.id, createdAt: "2025-03-05T05:06:07.000Z" })]);
+        await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "b", { parentId: top.id, createdAt: "2025-03-05T05:06:07.000Z", memberId: ctx.members.staff, isStaffReply: true })]);
         await post(ctx.lessons[0], ctx.members.ada, "Written in the Hub");
 
         const thread = await ctx.repo().threadFor(ctx.lessons[0], as(ctx.members.bea));
 
         expect(thread.count).toBe(3);
         const entry = thread.entries.find((e) => e.comment.id === top.id)!;
-        expect(entry.comment).toMatchObject({ authorName: "Pen Name a", body: "Imported a", memberId: "", isStaffReply: false, imported: true, held: false });
+        expect(entry.comment).toMatchObject({ authorName: "Ada Display", body: "Imported a", memberId: ctx.members.ada, isStaffReply: false, imported: true, held: false });
         expect(new Date(entry.comment.createdAt).toISOString()).toBe(IMPORTED_AT);
-        expect(entry.replies.map((r) => ({ name: r.authorName, imported: r.imported }))).toEqual([{ name: "Pen Name b", imported: true }]);
+        expect(entry.replies.map((r) => ({ name: r.authorName, imported: r.imported }))).toEqual([{ name: expect.any(String), imported: true }]);
+        expect(entry.replies[0]).toMatchObject({ memberId: ctx.members.staff, isStaffReply: true });
         expect(thread.entries.find((e) => e.comment.body === "Written in the Hub")!.comment.imported).toBeUndefined();
         expect(new Date((await ctx.repo().byId(top.id))!.createdAt).toISOString()).toBe(IMPORTED_AT);
-        expect(await ctx.repo().byId(top.id)).toMatchObject({ memberId: null, source: "kajabi", authorName: "Pen Name a", heldAt: null, isStaffReply: false });
+        expect(await ctx.repo().byId(top.id)).toMatchObject({ memberId: ctx.members.ada, source: "kajabi", heldAt: null, isStaffReply: false });
       });
 
       it("writes the same comments again without duplicating, and brings the text up to date while leaving what staff did", async () => {
         const first = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a"), imported(ctx.lessons[0], "gone")]), "a");
         await ctx.repo().moderate(first.id, "hide", ctx.members.staff);
 
-        const again = await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a", { body: "Imported a, edited", authorName: "Renamed" }), imported(ctx.lessons[0], "gone", { deletedAt: AT })]);
+        const again = await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a", { body: "Imported a, edited", memberId: ctx.members.bea, isStaffReply: true }), imported(ctx.lessons[0], "gone", { deletedAt: AT })]);
 
         expect(again.find((w) => w.sourceKey === "k-a")!.id).toBe(first.id);
         const stored = await ctx.repo().importedOf("kajabi", [ctx.lessons[0]]);
         expect(stored).toHaveLength(2);
-        expect(stored.find((c) => c.sourceKey === "k-a")).toMatchObject({ id: first.id, body: "Imported a, edited", authorName: "Renamed", deletedAt: null, deletedBy: null });
+        expect(stored.find((c) => c.sourceKey === "k-a")).toMatchObject({ id: first.id, body: "Imported a, edited", memberId: ctx.members.bea, isStaffReply: true, deletedAt: null, deletedBy: null });
         expect(new Date(stored.find((c) => c.sourceKey === "k-gone")!.deletedAt!).toISOString()).toBe(AT);
         // Hidden by staff before the second write: still hidden, and the deleted one shows nowhere.
         expect((await ctx.repo().byId(first.id))?.hiddenAt).not.toBeNull();
@@ -447,17 +450,17 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
         expect(await ctx.repo().moderate(question.id, "hide", ctx.members.staff)).toBe("done");
         expect(await ctx.repo().moderate(other.id, "delete", ctx.members.staff)).toBe("done");
         expect((await ctx.repo().threadFor(ctx.lessons[0], as(ctx.members.bea))).count).toBe(0);
-        expect((await ctx.repo().threadFor(ctx.lessons[0], staffView())).entries[0].comment).toMatchObject({ imported: true, hidden: true, authorName: "Pen Name q" });
+        expect((await ctx.repo().threadFor(ctx.lessons[0], staffView())).entries[0].comment).toMatchObject({ imported: true, hidden: true, memberId: ctx.members.ada });
       });
 
-      it("names an imported author in the staff lists too, and refuses a reply under a reply or an empty name", async () => {
+      it("names an imported author in the staff lists too, and refuses a reply under a reply or an empty text", async () => {
+        await ctx.setDisplayName(ctx.members.ada, "Ada Display");
         const top = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "a")]), "a");
         const reply = row(await ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "b", { parentId: top.id })]), "b");
         await ctx.repo().report({ commentId: top.id, reporterId: ctx.members.bea, reason: "Off topic" });
 
-        expect((await ctx.repo().openReports(ctx.courseId)).find((r) => r.commentId === top.id)).toMatchObject({ authorName: "Pen Name a", reportCount: 1 });
+        expect((await ctx.repo().openReports(ctx.courseId)).find((r) => r.commentId === top.id)).toMatchObject({ authorName: "Ada Display", reportCount: 1 });
         await expect(ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "c", { parentId: reply.id })])).rejects.toThrow();
-        await expect(ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "d", { authorName: "" })])).rejects.toThrow();
         await expect(ctx.repo().upsertImported("kajabi", [imported(ctx.lessons[0], "e", { body: "" })])).rejects.toThrow();
       });
 

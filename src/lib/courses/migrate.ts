@@ -55,6 +55,9 @@ export interface CommentsImportCounts {
   updated: number;
   unchanged: number;
   unmatchedLessonComments: number;
+  /** Comments left out because their author's name matches no member, or more than one (the names are listed in the dry run). */
+  unmatchedAuthorComments: number;
+  ambiguousAuthorComments: number;
 }
 
 /** What an optional capture did: wrote, found nothing new, was declined, or failed (the run carries on, exit code 1). */
@@ -403,12 +406,24 @@ const stepCommentsImport: MigrateStep = {
         updated: dry.updated ?? 0,
         unchanged: dry.unchanged ?? 0,
         unmatchedLessonComments: dry.unmatchedLessonComments ?? 0,
+        unmatchedAuthorComments: dry.unmatchedAuthorComments ?? 0,
+        ambiguousAuthorComments: dry.ambiguousAuthorComments ?? 0,
       };
       ctx.io.log(
         `Dry run: ${counts.inserted} comments would be added and ${counts.updated} updated, ${counts.unchanged} already the same; ` +
-          `${dry.replies ?? 0} replies (${dry.orphanReplies ?? 0} without their comment), ${dry.authorsWithoutMember ?? 0} authors shown by name only (Kajabi's page has no email to match a member), ` +
+          `${dry.replies ?? 0} replies (${dry.orphanReplies ?? 0} without their comment), ${dry.authors?.matched ?? 0} authors matched to members by their exact Kajabi contact name (${dry.authors?.staff ?? 0} staff, shown as instructors), ` +
           `${counts.unmatchedLessonComments} comments on lessons the Hub doesn't have, ${dry.skipped ?? 0} skipped. Nobody is notified and nobody follows a lesson because of this.`
       );
+      // Names the match could not settle are listed, never guessed (the owner reads them here; they are not logged anywhere else).
+      for (const [label, list, total] of [
+        ["No member has this name", dry.unmatchedAuthors, counts.unmatchedAuthorComments],
+        ["More than one member could be this name", dry.ambiguousAuthors, counts.ambiguousAuthorComments],
+      ] as const) {
+        if (!total) continue;
+        ctx.io.log(`${label}, so ${total} comments are left out:`);
+        for (const a of (list ?? []).slice(0, 25)) ctx.io.log(`  ${a.name} (${a.comments} comments${a.members ? `, ${a.members} members` : ""})`);
+        if ((list ?? []).length > 25) ctx.io.log(`  ... and ${(list ?? []).length - 25} more names`);
+      }
       if (counts.inserted + counts.updated === 0) {
         ctx.summary.commentsImport = { dryRun: counts, written: 0, applied: false };
         ctx.io.log("Nothing to add.");
@@ -669,7 +684,7 @@ export function formatSummary(result: MigrateResult): string[] {
   if (s.commentsImport) {
     const c = s.commentsImport;
     lines.push(
-      `Comments in the Hub: ${c.written} written${c.applied ? "" : " (nothing written)"}, ${c.dryRun.unchanged} already the same, ${c.dryRun.unmatchedLessonComments} on lessons the Hub doesn't have. ` +
+      `Comments in the Hub: ${c.written} written${c.applied ? "" : " (nothing written)"}, ${c.dryRun.unchanged} already the same, ${c.dryRun.unmatchedLessonComments} on lessons the Hub doesn't have, ${c.dryRun.unmatchedAuthorComments + c.dryRun.ambiguousAuthorComments} left out because their author's name matched no member or several. ` +
         "Keyed on Kajabi's ids, so a re-run adds nothing twice; nobody is notified."
     );
   }

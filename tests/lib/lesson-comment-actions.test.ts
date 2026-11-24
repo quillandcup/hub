@@ -365,24 +365,31 @@ describe("deleteLessonComment", () => {
   });
 });
 
-describe("imported comments (no member behind them)", () => {
-  const importedComment = async () =>
-    (await comments().upsertImported("kajabi", [{ lessonId: LESSON, sourceKey: "k/1", parentId: null, authorName: "Pen Name", body: "From Kajabi", createdAt: new Date(NOW - 60_000).toISOString(), deletedAt: null }]))[0].id;
+describe("imported comments", () => {
+  const importedBy = async (memberId: string) =>
+    (await comments().upsertImported("kajabi", [{ lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId, isStaffReply: false, body: "From Kajabi", createdAt: new Date(NOW - 60 * 60_000).toISOString(), deletedAt: null }]))[0].id;
 
-  it("can't be edited or deleted by a member, but can be replied to and reported", async () => {
-    const id = await importedComment();
+  it("can't be edited or deleted by another member, but can be replied to and reported", async () => {
+    const id = await importedBy(CAL);
 
     expect((await editLessonComment(id, "Mine now")).error).toBeTruthy();
     expect((await deleteLessonComment(id)).error).toBeTruthy();
-    expect((await comments().byId(id))).toMatchObject({ body: "From Kajabi", deletedAt: null });
+    expect(await comments().byId(id)).toMatchObject({ body: "From Kajabi", deletedAt: null });
 
     const reply = await postLessonComment(LESSON, "A reply from a member", id);
     expect(reply.error).toBeUndefined();
     expect((await comments().byId(reply.id!))?.parentId).toBe(id);
 
-    state.caller = callerFor(CAL);
     expect((await reportLessonComment(id, "Not for this course")).error).toBeUndefined();
     expect(data.lessonCommentReports).toHaveLength(1);
+  });
+
+  it("belongs to its author: they can delete it, but the 15 minutes to edit it long ago ended", async () => {
+    const id = await importedBy(ADA);
+
+    expect((await editLessonComment(id, "Changed")).error).toMatch(/15 minutes/);
+    expect((await deleteLessonComment(id)).error).toBeUndefined();
+    expect((await comments().byId(id))?.deletedAt).not.toBeNull();
   });
 });
 

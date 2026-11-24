@@ -219,7 +219,7 @@ async function notifyLessonCommentUnsafe(repos: Repos, commentId: string, now: D
   const [parent, lessons, authors] = await Promise.all([
     comment.parentId ? repos.courseComments.byId(comment.parentId) : Promise.resolve(null),
     repos.courseComments.lessonInfo([comment.lessonId]),
-    repos.members.byIds(comment.memberId ? [comment.memberId] : []),
+    repos.members.byIds([comment.memberId]),
   ]);
   const lesson = lessons.get(comment.lessonId);
   if (!lesson || (comment.parentId && !parent)) return emptyResult();
@@ -227,8 +227,7 @@ async function notifyLessonCommentUnsafe(repos: Repos, commentId: string, now: D
 
   const targets = new Map<string, { kind: ReplyKind; why: string; audience: ReplyAudience }>();
   if (parent && only !== "mentions") {
-    // An imported comment has no member to tell.
-    if (parent.memberId && parent.memberId !== comment.memberId && !parent.deletedAt && !parent.hiddenAt) {
+    if (parent.memberId !== comment.memberId && !parent.deletedAt && !parent.hiddenAt) {
       targets.set(parent.memberId, {
         kind: comment.isStaffReply ? "lesson_comment_instructor_reply" : "lesson_comment_reply",
         why: comment.isStaffReply ? "an instructor replied to their comment" : "someone replied to their comment",

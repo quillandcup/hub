@@ -163,19 +163,18 @@ describe("notifyLessonComment (replies)", () => {
     expect(notifications(ASKER)).toHaveLength(1);
   });
 
-  it("tells no member about a reply under an imported comment (it has none), and an instructor's reply still reaches followers", async () => {
+  it("tells the member who wrote an imported comment about a reply, like any comment, and an instructor's reply reaches followers", async () => {
     const [imported] = await repos.courseComments.upsertImported("kajabi", [
-      { lessonId: LESSON, sourceKey: "k/1", parentId: null, authorName: "Pen Name", body: "Old question", createdAt: "2025-01-01T00:00:00.000Z", deletedAt: null },
+      { lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId: ASKER, isStaffReply: false, body: "Old question", createdAt: "2025-01-01T00:00:00.000Z", deletedAt: null },
     ]);
     await repos.courseComments.setFollowing(FOLLOWER, LESSON, true);
     const plain = await post(REPLIER, "A member's reply", imported.id);
     const instructor = await post(STAFF, "An instructor's reply", imported.id, { isStaffReply: true });
 
-    expect((await notifyLessonComment(repos, plain.id)).sent).toEqual([]);
+    expect((await notifyLessonComment(repos, plain.id)).sent).toEqual([{ memberId: ASKER, kind: "lesson_comment_reply", channels: ["in_app"] }]);
     const result = await notifyLessonComment(repos, instructor.id);
 
-    expect(result.sent).toEqual([{ memberId: FOLLOWER, kind: "lesson_comment_instructor_reply", channels: ["in_app"] }]);
-    expect(notifications(REPLIER)).toEqual([]);
+    expect(result.sent).toEqual(expect.arrayContaining([{ memberId: FOLLOWER, kind: "lesson_comment_instructor_reply", channels: ["in_app"] }]));
   });
 
   it("tells no one about a top-level comment, a reply to yourself, a held or deleted comment, or one that is not there", async () => {

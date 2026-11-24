@@ -6,7 +6,8 @@ import { apiFetch } from '../../helpers/api-fetch'
  * /api/process/course-comments (Bronze Kajabi lesson comments -> Silver lesson_comments). Hub comments are Local, so the import
  * only ever writes rows marked `source = 'kajabi'`, keyed on `source_key`:
  * 1. A dry run counts and writes nothing
- * 2. The first run inserts every comment with no member, the author's name, Kajabi's time, replies under their comment
+ * 2. The first run inserts each comment as the member its author's exact Kajabi contact name resolves to, with Kajabi's time and replies under their comment
+ * 2b. A name that matches no member, or more than one, is not guessed: its comments are left out and listed
  * 3. Running again changes nothing (idempotent, no duplicates)
  * 4. An edited comment is updated; a staff hide is kept; a comment removed in Kajabi is soft deleted and restored when listed again
  * 5. Comments on lessons the Hub does not have are counted, not written
@@ -21,10 +22,13 @@ const COURSE = `test-cc-${ts}`
 const SLUG = `comments-course-${ts}`
 const KEY = (n: string | number) => `${COURSE}-l-${n}`
 const BIG = 1100
+const email = (n: string) => `cc-${n}-${ts}@example.com`
+const NAME = (n: string) => `${n} Pen ${ts}`
 
 describe('Kajabi lesson comments -> lesson_comments', () => {
   const supabase = getTestSupabaseAdminClient()
   const bronze = supabase.schema('bronze')
+  const memberIds: Record<string, string> = {}
   let courseId: string
   const lessonIds: Record<string, string> = {}
 
@@ -46,7 +50,7 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
     course_kajabi_id: COURSE,
     lesson_kajabi_id: KEY(lesson),
     comment_key: key,
-    author_name: `Pen Name ${key}`,
+    author_name: NAME('Ada'),
     posted_at: '2025-02-03T10:00:00Z',
     body: `Comment ${key}`,
     ...over,
@@ -55,10 +59,26 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
   async function cleanup() {
     await supabase.from('courses').delete().eq('source_key', COURSE) // cascades to lessons and their comments
     await bronze.from('kajabi_lesson_comments').delete().eq('course_kajabi_id', COURSE)
+    await bronze.from('kajabi_contacts').delete().like('kajabi_contact_id', `cc-${ts}-%`)
+    await supabase.from('members').delete().like('email', `cc-%-${ts}@example.com`)
   }
 
   beforeAll(async () => {
     await cleanup()
+    const people = ['ada', 'bea', 'cy1', 'cy2']
+    const made = await supabase
+      .from('members')
+      .insert(people.map((n) => ({ name: `Comments ${n}`, email: email(n), joined_at: new Date().toISOString(), status: 'active' })))
+      .select('id, email')
+    expect(made.error).toBeNull()
+    for (const n of people) memberIds[n] = made.data!.find((m) => m.email === email(n))!.id
+    const contacts = await bronze.from('kajabi_contacts').insert([
+      { kajabi_contact_id: `cc-${ts}-1`, name: NAME('Ada'), email: email('ada'), data: {} },
+      { kajabi_contact_id: `cc-${ts}-2`, name: NAME('Bea'), email: email('bea'), data: {} },
+      { kajabi_contact_id: `cc-${ts}-3`, name: NAME('Twin'), email: email('cy1'), data: {} },
+      { kajabi_contact_id: `cc-${ts}-4`, name: NAME('Twin'), email: email('cy2'), data: {} },
+    ])
+    expect(contacts.error).toBeNull()
     const course = await supabase.from('courses').insert({ slug: SLUG, title: `Comments ${ts}`, source: 'kajabi', source_key: COURSE }).select('id').single()
     expect(course.error).toBeNull()
     courseId = course.data!.id
@@ -71,12 +91,14 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
 
     const seed = await bronze.from('kajabi_lesson_comments').insert([
       row('1', 'c1', { posted_at: '2025-01-01T09:00:00Z' }),
-      row('1', 'c2', { parent_comment_key: 'c1', posted_at: '2025-01-02T09:00:00Z' }),
+      row('1', 'c2', { parent_comment_key: 'c1', posted_at: '2025-01-02T09:00:00Z', author_name: NAME('Bea').toUpperCase() }),
       row('1', 'c3', { parent_comment_key: 'c2' }), // a reply to a reply goes under c1
       row('1', 'c4', { parent_comment_key: 'nowhere' }), // its comment is not captured
-      row('2', 'c5', { body: '<p>Hello <b>there</b></p>' }),
+      row('2', 'c5', { body: '<p>Hello <b>there</b></p>', author_name: NAME('Bea') }),
       row('gone', 'c6'), // a lesson the Hub does not have
       row('1', 'c7', { deleted_at: '2026-01-01T00:00:00Z' }), // removed in Kajabi before the Hub ever had it
+      row('1', 'c8', { author_name: NAME('Twin') }), // two members share this contact name: not guessed
+      row('1', 'c9', { author_name: NAME('Nobody') }), // no member at all
     ])
     expect(seed.error).toBeNull()
   })
@@ -85,11 +107,14 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
 
   it('a dry run counts and writes nothing', async () => {
     const summary = await run({ course: SLUG, dryRun: true })
-    expect(summary).toMatchObject({ commentsInBronze: 7, inserted: 5, unmatchedLessonComments: 1, skipped: 1, orphanReplies: 1, replies: 3 })
+    expect(summary).toMatchObject({ commentsInBronze: 9, inserted: 5, unmatchedLessonComments: 1, skipped: 1, orphanReplies: 1, replies: 3, unmatchedAuthorComments: 1, ambiguousAuthorComments: 1 })
+    expect(summary.authors).toEqual({ matched: 2, staff: 0, unmatched: 1, ambiguous: 1 })
+    expect(summary.unmatchedAuthors).toEqual([{ name: NAME('Nobody'), comments: 1 }])
+    expect(summary.ambiguousAuthors).toEqual([{ name: NAME('Twin'), comments: 1, members: 2 }])
     expect(await imported()).toHaveLength(0)
   })
 
-  it('imports with no member, the original time, the name and the thread; creates nothing else', async () => {
+  it('imports as the matched members, with the original time and the thread; leaves out the names it cannot settle; creates nothing else', async () => {
     const summary = await run()
     expect(summary).toMatchObject({ inserted: 5, updated: 0, unchanged: 0 })
 
@@ -97,12 +122,12 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
     expect(rows).toHaveLength(5)
     const byKey = new Map(rows.map((r) => [r.source_key, r]))
     const c1 = byKey.get(`${KEY('1')}/c1`)
-    expect(c1).toMatchObject({ member_id: null, author_name: 'Pen Name c1', body: 'Comment c1', parent_id: null, is_staff_reply: false, held_at: null, hidden_at: null, deleted_at: null, edited_at: null })
+    expect(c1).toMatchObject({ member_id: memberIds.ada, body: 'Comment c1', parent_id: null, is_staff_reply: false, held_at: null, hidden_at: null, deleted_at: null, edited_at: null })
     expect(new Date(c1.created_at).toISOString()).toBe('2025-01-01T09:00:00.000Z')
-    expect(byKey.get(`${KEY('1')}/c2`).parent_id).toBe(c1.id)
+    expect(byKey.get(`${KEY('1')}/c2`)).toMatchObject({ parent_id: c1.id, member_id: memberIds.bea })
     expect(byKey.get(`${KEY('1')}/c3`).parent_id).toBe(c1.id)
     expect(byKey.get(`${KEY('1')}/c4`).parent_id).toBeNull()
-    expect(byKey.get(`${KEY('2')}/c5`).body).toBe('Hello there')
+    expect(byKey.get(`${KEY('2')}/c5`)).toMatchObject({ body: 'Hello there', member_id: memberIds.bea })
 
     const ids = rows.map((r) => r.id)
     expect((await supabase.from('lesson_comment_follows').select('id').in('lesson_id', Object.values(lessonIds))).data).toEqual([])
@@ -119,12 +144,12 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
   it('updates an edited comment, keeps a staff hide, removes what Kajabi removed and restores it when listed again', async () => {
     const c1 = (await imported()).find((r) => r.source_key === `${KEY('1')}/c1`)
     await supabase.from('lesson_comments').update({ hidden_at: '2026-11-01T00:00:00Z' }).eq('id', c1.id)
-    await bronze.from('kajabi_lesson_comments').update({ body: 'Comment c1, edited', author_name: 'Renamed' }).eq('lesson_kajabi_id', KEY('1')).eq('comment_key', 'c1')
+    await bronze.from('kajabi_lesson_comments').update({ body: 'Comment c1, edited', author_name: NAME('Bea') }).eq('lesson_kajabi_id', KEY('1')).eq('comment_key', 'c1')
     await bronze.from('kajabi_lesson_comments').update({ deleted_at: '2026-11-10T00:00:00Z' }).eq('lesson_kajabi_id', KEY('1')).eq('comment_key', 'c4')
 
     expect(await run()).toMatchObject({ inserted: 0, updated: 2, removed: 1, restored: 0 })
     let rows = await imported()
-    expect(rows.find((r) => r.id === c1.id)).toMatchObject({ body: 'Comment c1, edited', author_name: 'Renamed' })
+    expect(rows.find((r) => r.id === c1.id)).toMatchObject({ body: 'Comment c1, edited', member_id: memberIds.bea })
     expect(new Date(rows.find((r) => r.id === c1.id).hidden_at).toISOString()).toBe('2026-11-01T00:00:00.000Z')
     const c4 = rows.find((r) => r.source_key === `${KEY('1')}/c4`)
     expect(c4.deleted_at).not.toBeNull()

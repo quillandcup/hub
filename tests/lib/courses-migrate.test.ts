@@ -81,7 +81,7 @@ const video = (id: string, state: string, over: Record<string, unknown> = {}) =>
 
 const COMMENTS_ROUTE = (inserted: number, over: Record<string, unknown> = {}) => ({
   success: true,
-  courses: [{ slug: "demo-course", inserted, updated: 0, unchanged: 2, replies: 1, orphanReplies: 0, authorsWithoutMember: 3, unmatchedLessonComments: 1, skipped: 0, ...over }],
+  courses: [{ slug: "demo-course", inserted, updated: 0, unchanged: 2, replies: 1, orphanReplies: 0, authors: { matched: 3, staff: 1, unmatched: 1, ambiguous: 1 }, unmatchedAuthorComments: 2, ambiguousAuthorComments: 1, unmatchedAuthors: [{ name: "Nobody Known", comments: 2 }], ambiguousAuthors: [{ name: "Cy Twin", comments: 1, members: 2 }], unmatchedLessonComments: 1, skipped: 0, ...over }],
 });
 
 const baseRoutes = (over: Record<string, any> = {}) => ({
@@ -575,6 +575,10 @@ describe("optional progress and comments steps", () => {
     const result = await runMigration(withOptional(["--skip-progress"]), ENV, h.io);
     expect(h.confirmed).toHaveLength(1);
     expect(h.confirmed[0]).toMatch(/lesson threads/);
+    // The names the match could not settle are listed for the owner, with how many comments they hold.
+    expect(h.logs.join("\n")).toContain("No member has this name, so 2 comments are left out:");
+    expect(h.logs.join("\n")).toContain("  Nobody Known (2 comments)");
+    expect(h.logs.join("\n")).toContain("  Cy Twin (1 comments, 2 members)");
     expect(h.calls.filter((c) => c.path === "/api/process/course-comments").map((c) => c.body)).toEqual([
       { course: "demo-course", dryRun: true },
       { course: "demo-course", dryRun: false },
@@ -582,6 +586,7 @@ describe("optional progress and comments steps", () => {
     expect(result.summary.commentsImport).toMatchObject({ written: 6, applied: true, dryRun: { inserted: 5, updated: 1, unchanged: 2, unmatchedLessonComments: 1 } });
     const text = formatSummary(result).join("\n");
     expect(text).toContain("Comments in the Hub: 6 written");
+    expect(text).toContain("3 left out because their author's name matched no member or several");
     expect(text).toContain("nobody is notified");
     expect(result.ok).toBe(true);
   });
