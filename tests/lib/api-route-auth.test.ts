@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { classify, DELEGATES, PUBLIC_ROUTES, type RouteRow } from "@/scripts/api-route-inventory";
 
 /**
  * Guard: every route handler under src/app/api authenticates itself.
@@ -13,81 +14,11 @@ import { join, relative } from "node:path";
  *
  * Static text only: it proves a recognised credential step is in the file (comments ignored), not
  * that every code path reaches it. The route's own test covers the refusal (tests/api/).
- * See docs/trust/THREAT_MODEL.md, A01.
+ * The kinds, PUBLIC_ROUTES and DELEGATES live in scripts/api-route-inventory.ts, which also renders
+ * docs/architecture/API_ROUTES.md from the same data. See docs/trust/THREAT_MODEL.md, A01.
  */
 
-const API_DIR = join(process.cwd(), "src/app/api");
-
-/** The recognised credential kinds, each the helper names that are the check. */
-const CREDENTIAL_KINDS: Record<string, RegExp> = {
-  // A signed-in staff account: refused for anyone else (the cron and service keys also pass, see src/lib/supabase/api-auth.ts).
-  admin: /\b(requireApiPermission|requireActionPermission|requirePermission|requireActionPermission)\(/,
-  // A signed-in member session.
-  session: /\b(getCurrentUser|getCoursesCaller|getEffectiveIdentity|chatCaller|postingCaller|dmCaller|createApiAuth)\(/,
-  // The shared secret of our own scheduled jobs, refused when unset.
-  "internal-secret": /\bCRON_INTERNAL_SECRET\b/,
-  // A provider's signature or shared token over the request.
-  "webhook-signature": /\b(verifySlackSignature|verifyResendSignature|unwrapWebhook|zoomWebhookSecret|secretsMatch)\(/,
-  // A token we signed, naming the member and the action.
-  "signed-token": /\bparseUnsubscribeToken\(/,
-  // A secret in the URL, looked up server-side.
-  "url-secret": /\bparseFeedToken\(/,
-  // The state cookie of an OAuth round trip, consumed once.
-  "oauth-state": /\bverifyAndConsumeOAuthState\(/,
-};
-
-/** Routes with no recognised credential step. Shrink-only: each needs a reason it is safe. */
-const PUBLIC_ROUTES: Record<string, string> = {
-  "src/app/api/health/route.ts": "Uptime check; returns only up/down and timings, no data (src/lib/supabase/middleware.ts isPublic).",
-  "src/app/api/landing/opt-in/route.ts": "Public sign-up form on a published landing page: honeypot, two rate-limit buckets, and the target is looked up in the published page.",
-};
-
-/**
- * A route that only calls a handler elsewhere: the credential step is looked for in that file too (comments ignored, same recognised steps).
- * The route must import it, so the entry cannot point at an unrelated file. Each is a thin route whose handling lives in a module
- * (docs/architecture/CHAT_MODULE.md).
- */
-const DELEGATES: Record<string, string> = {
-  "src/app/api/webhooks/slack/route.ts": "src/modules/chat/slack/webhook.ts",
-};
-
-const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
-
-function routeFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return routeFiles(path);
-    return name === "route.ts" ? [path] : [];
-  });
-}
-
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "$1");
-}
-
-function handlersOf(code: string): string[] {
-  return HTTP_METHODS.filter((m) => new RegExp(`export\\s+(async\\s+)?(function|const)\\s+${m}\\b|export\\s*\\{[^}]*\\b${m}\\b`).test(code));
-}
-
-interface Row { file: string; methods: string[]; kinds: string[] }
-
-function classify(): Row[] {
-  return routeFiles(API_DIR)
-    .map((path) => {
-      const file = relative(process.cwd(), path);
-      const own = stripComments(readFileSync(path, "utf8"));
-      const delegate = DELEGATES[file];
-      const code = delegate ? `${own}\n${stripComments(readFileSync(join(process.cwd(), delegate), "utf8"))}` : own;
-      return {
-        file,
-        methods: handlersOf(code),
-        kinds: Object.entries(CREDENTIAL_KINDS).filter(([, re]) => re.test(code)).map(([kind]) => kind),
-      };
-    })
-    .sort((a, b) => a.file.localeCompare(b.file));
-}
-
-function table(rows: Row[]): string {
+function table(rows: RouteRow[]): string {
   return rows.map((r) => `${r.file}  [${r.methods.join(",") || "no handler"}]  ${r.kinds.join("+") || "NONE"}`).join("\n");
 }
 

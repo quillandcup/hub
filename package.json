@@ -88,6 +88,7 @@
     "vercel:config:push": "dotenv run -f .env.prod -f .env.shared -- tsx scripts/vercel-config.ts push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "docs:index": "tsx scripts/docs-index.ts",
+    "docs:api-routes": "tsx scripts/api-route-inventory.ts",
     "docs:toc": "doctoc --update-only --notitle --minlevel 2 --maxlevel 3",
     "prepare": "git config core.hooksPath config/husky || true"
   },
