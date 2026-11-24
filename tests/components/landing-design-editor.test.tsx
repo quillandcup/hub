@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /** The Design view: the shared header and footer, autosaved as a draft and published in one explicit step. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Editor } from "@tiptap/react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { EMPTY_SITE_TEMPLATE, normalizeSiteTemplate } from "@/lib/landing/site-template";
 
@@ -19,6 +20,13 @@ vi.mock("@/components/media/MediaPicker", () => ({ default: ({ noun, onChange }:
 import DesignEditor from "@/app/(admin)/admin/pages/design/DesignEditor";
 
 const flush = () => act(async () => {});
+
+/** The footer text box is a one-line editor, so text goes in through its editor (the typing itself is tested with the field). */
+const footerBox = () => screen.getByRole("textbox", { name: /Text \(for example/ }) as HTMLElement & { editor: Editor };
+const typeFooter = (text: string) =>
+  act(async () => {
+    footerBox().editor.commands.insertContent(text);
+  });
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -44,7 +52,7 @@ describe("the Design view", () => {
   it("autosaves the draft a moment after a change, once, and counts nothing as published", async () => {
     view();
     fireEvent.click(screen.getByLabelText("Show a footer on website pages"));
-    fireEvent.change(screen.getByLabelText(/Text \(for example/), { target: { value: "Fern Quills" } });
+    await typeFooter("Fern Quills");
     expect(screen.getByRole("status")).toHaveTextContent("Unsaved changes");
     expect(mocks.save).not.toHaveBeenCalled();
     await act(async () => {
@@ -129,7 +137,7 @@ describe("the Design view", () => {
     });
     await flush();
     expect(mocks.reset).toHaveBeenCalled();
-    expect(screen.getByLabelText(/Text \(for example/)).toHaveValue("Live words");
+    expect(footerBox()).toHaveTextContent("Live words");
   });
 
   describe("History", () => {
@@ -174,7 +182,7 @@ describe("the Design view", () => {
       await flush();
       expect(mocks.restore).toHaveBeenCalledWith("lpstv_AAAAAAAAAAA1");
       expect(mocks.publish).not.toHaveBeenCalled();
-      expect(screen.getByLabelText(/Text \(for example/)).toHaveValue("Older words");
+      expect(footerBox()).toHaveTextContent("Older words");
       expect(screen.getByRole("status")).toHaveTextContent("Draft saved, not published");
       expect(screen.getByRole("alert")).toHaveTextContent("Brought back into your draft");
       expect(screen.queryByText("Version history")).toBeNull();
@@ -192,7 +200,7 @@ describe("the Design view", () => {
       });
       await flush();
       expect(screen.getByRole("alert")).toHaveTextContent("That version no longer exists.");
-      expect(screen.getByLabelText(/Text \(for example/)).toHaveValue("Mine");
+      expect(footerBox()).toHaveTextContent("Mine");
     });
 
     it("adds the new version to History after a publish", async () => {
@@ -212,13 +220,20 @@ describe("the Design view", () => {
     expect(screen.getByRole("button", { name: "Reset to published" })).toBeDisabled();
   });
 
-  it("explains {year} and shows the footer text as it will read, in the field and in the preview", () => {
+  it("offers the placeholders next to the footer text, and shows the text as it will read, in the field and in the preview", async () => {
     view();
-    expect(screen.getByText(/Type \{year\} for the current year/)).toBeInTheDocument();
-    expect(screen.queryByTestId("footer-text-preview")).toBeNull();
+    expect(screen.getByText(/Use the placeholder button/)).toBeInTheDocument();
+    expect(screen.queryByTestId("placeholder-preview")).toBeNull();
     fireEvent.click(screen.getByLabelText("Show a footer on website pages"));
-    fireEvent.change(screen.getByLabelText(/Text \(for example/), { target: { value: "© {year:2019} Fern Quills" } });
-    expect(screen.getByTestId("footer-text-preview")).toHaveTextContent(/^© 2019–\d{4} Fern Quills$/);
+    await typeFooter("© {year:2019} Fern Quills");
+    expect(screen.getByRole("group", { name: "Year from 2019 placeholder" })).toBeInTheDocument();
+    expect(screen.getByTestId("placeholder-preview")).toHaveTextContent(/^© 2019–\d{4} Fern Quills$/);
     expect(screen.getByRole("contentinfo")).toHaveTextContent(/© 2019–\d{4} Fern Quills/);
+    await act(async () => {
+      vi.advanceTimersByTime(900);
+    });
+    expect(mocks.save.mock.calls.at(-1)?.[0].footer.text).toBe("© {year:2019} Fern Quills");
+    fireEvent.click(screen.getByRole("button", { name: "Add a placeholder" }));
+    expect(screen.getByRole("dialog", { name: "Placeholders" })).toBeInTheDocument();
   });
 });

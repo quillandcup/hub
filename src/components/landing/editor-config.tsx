@@ -4,6 +4,7 @@ import type { Config, Field, Fields } from "@puckeditor/core";
 import { installedPageBlockEditors } from "@/modules/editor";
 import { DELAY_MAX, DELAY_MIN, REMEMBER_MAX } from "@/lib/landing/exit-popup";
 import { LIVE_STAT_OPTIONS } from "@/lib/landing/live-stats";
+import { FOOTER_TEXT_PLACEHOLDERS } from "@/lib/landing/placeholders";
 import type { PageBlockRegistry } from "./block-registry";
 import { withStandIns } from "./block-placeholder";
 import { buildRenderConfig, pageBlocks, renderConfig, rootConfigFor, type FrameContext } from "./config";
@@ -19,7 +20,7 @@ import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
  */
 
 // The field helpers are the editor kit's (editor-kit.tsx), shared with the fields modules contribute; the ones below are the pages code's own.
-const { text, area, select, toggle, opts, image, richText, dateTime, link } = createEditorKit(pageBlocks);
+const { text, area, select, toggle, opts, image, richText, placeholderText, dateTime, link } = createEditorKit(pageBlocks);
 
 const padding = (label: string, size: "desktop" | "mobile"): Field => ({
   type: "custom",
@@ -311,7 +312,7 @@ const ROOT_FIELDS: Fields = {
   logoHref: text("Where the logo links to"),
   navLinks: { type: "array", label: "Header links", arrayFields: { label: text("Label"), href: text("Link") }, defaultItemProps: { label: "Link", href: "" }, getItemSummary: (i) => i.label || "Link" },
   showFooter: toggle("Show a footer"),
-  footerText: text("Footer text (for example, a copyright line; {year} is the current year)"),
+  footerText: placeholderText("Footer text (for example, a copyright line)", FOOTER_TEXT_PLACEHOLDERS),
   footerLinks: { type: "array", label: "Footer links", arrayFields: { label: text("Label"), href: text("Link") }, defaultItemProps: { label: "Link", href: "" }, getItemSummary: (i) => i.label || "Link" },
 };
 

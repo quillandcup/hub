@@ -1,6 +1,6 @@
 # Page blocks: the registry, and modules that contribute to it
 
-> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Explains the page builder's block registry and how a module, such as events, contributes blocks to it. The page builder ([Landing pages](../product/LANDING_PAGES.md)) offers blocks. A block about events (the next retreats, today's schedule) needs events code, but the page builder must not: it is meant to be reused without the events part, and the next product (a real estate app, a community product) will bring blocks of its own. So the builder has one **block registry**, and a **module** (`src/modules/<name>/`) adds blocks to it. The pages code never imports a module; the one place that names which modules are installed is the **composition root**, `src/modules/`.
 
@@ -43,6 +43,10 @@ Stored JSON is unchanged by any of this. If a page holds a block no installed mo
 ## Live data
 
 A block that shows live values (the schedule, the next events, the figures) gets them in a render-only `live` prop. A `PageDataLoader` is `{ id, types, load(page, now) }`: `types` are the block types it serves (a stored `live` prop on them is always dropped first), and `load` reads what the page needs once, in parallel with the other loaders, and returns a function that gives each block its `live` props (or null when there is nothing to do). A loader that throws is logged by code and its blocks keep their typed values. Loaders cache through `src/lib/landing/live-cache.ts` (one minute, one tag). The pages code's own loader (the Outcome numbers' figures, `live-stats-loader.ts`) uses the same contract.
+
+## Text placeholders
+
+Placeholders in a text (`{year}`) have a registry of their own, `PLACEHOLDERS` in `src/lib/landing/placeholders.ts`, in the pages code. It is a second list that pages code owns, not a contribution point: a module cannot add an entry yet, so a placeholder that needs module data (an event's date) has no way in. If that is wanted, give the registry the same shape as the block registry (a contribution each installed module hands to the composition root) rather than importing a module from it. How the registry, its field and the checklist for a new entry work: [Landing pages](../product/LANDING_PAGES.md), "Placeholders".
 
 ## The boundary
 

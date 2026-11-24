@@ -1,4 +1,4 @@
-import { ArrowUpDown, Ban, Check, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, House, LayoutTemplate, Link, ListTree, Lock, Minus, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, Ban, Braces, Check, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, House, LayoutTemplate, Link, ListTree, Lock, Minus, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -58,6 +58,8 @@ export const ICONS = {
   withheld: Ban,
   /** The line where a device's first screen ends in the page editor's preview. */
   fold: SeparatorHorizontal,
+  /** Add a placeholder to a text: something that fills itself in when the text is shown (the year, later a name). */
+  placeholder: Braces,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

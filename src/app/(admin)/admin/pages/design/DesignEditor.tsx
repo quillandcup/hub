@@ -8,7 +8,8 @@ import Tooltip from "@/components/Tooltip";
 import { FaviconField, StyleFields } from "@/components/landing/style-fields";
 import { SOCIAL_LOOK_OPTIONS } from "@/components/landing/social-networks";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
-import { FOOTER_YEAR_HELP, resolveYearTokens } from "@/lib/landing/footer-year";
+import PlaceholderTextField from "@/components/landing/PlaceholderTextField";
+import { FOOTER_TEXT_PLACEHOLDERS } from "@/lib/landing/placeholders";
 import {
   HEADER_ALIGNMENTS,
   HEADER_ITEM_TYPES,
@@ -465,14 +466,10 @@ export default function DesignEditor({
           Footer
         </h2>
         <Toggle label="Show a footer on website pages" checked={site.footer.show} onChange={(show) => setFooter({ show })} />
-        <Field label="Text (for example, a copyright line)" hint={FOOTER_YEAR_HELP}>
-          <input value={site.footer.text} onChange={(e) => setFooter({ text: e.target.value })} className={INPUT} />
-        </Field>
-        {site.footer.text.includes("{year") && (
-          <p className="text-sm text-ink-muted">
-            Shows as: <span data-testid="footer-text-preview">{resolveYearTokens(site.footer.text)}</span>
-          </p>
-        )}
+        <div className="block text-sm font-medium">
+          Text (for example, a copyright line)
+          <PlaceholderTextField label="Text (for example, a copyright line)" value={site.footer.text} onChange={(text) => setFooter({ text })} placeholders={FOOTER_TEXT_PLACEHOLDERS} />
+        </div>
         <div>
           <h3 className="mb-2 text-sm font-semibold">Links</h3>
           <LinkRows links={site.footer.links} onChange={(links) => setFooter({ links })} noun="footer link" />
