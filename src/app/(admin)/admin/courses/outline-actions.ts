@@ -11,6 +11,7 @@ import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { COURSE_FILES_BUCKET } from "@/lib/courses/file-format";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
+import { duplicateBlockedByQuizzes } from "@/lib/courses/quiz-duplicate";
 
 /**
  * The course editor's outline writes: add, rename, delete, duplicate and reorder the modules and
@@ -156,7 +157,11 @@ async function removeStoredFiles(paths: string[]) {
 async function duplicateItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
   if (!isId(courseId, "crs") || !(kind in PREFIX) || !isId(id, PREFIX[kind])) return { error: "Not found." };
   try {
-    const copyId = await createRepos(auth.supabase).courses.duplicateItem(kind, id);
+    const repos = createRepos(auth.supabase);
+    // The copy functions don't carry a quiz yet, so a lesson or module that holds one is refused (docs/TODO.md).
+    const blocked = await duplicateBlockedByQuizzes(repos, await repos.courses.lessonIdsUnder(kind, id), kind);
+    if (blocked) return { error: blocked };
+    const copyId = await repos.courses.duplicateItem(kind, id);
     revalidate(courseId);
     return { id: copyId };
   } catch (error) {

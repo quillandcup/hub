@@ -20,6 +20,8 @@ vi.mock("@/lib/admin-auth", () => ({ requirePermission: () => requirePermission(
 const loadAdminLesson = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({ loadAdminLesson: (...a: unknown[]) => loadAdminLesson(...a) }));
 vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: vi.fn() }));
+const isQuizLesson = vi.fn();
+vi.mock("@/lib/courses/admin-quiz", () => ({ isQuizLesson: (...a: unknown[]) => isQuizLesson(...a) }));
 
 const publicLessonPreview = vi.fn();
 vi.mock("@/lib/courses/public-preview", () => ({ publicLessonPreview: (...a: unknown[]) => publicLessonPreview(...a) }));
@@ -74,6 +76,7 @@ beforeEach(() => {
   features.on = [];
   requirePermission.mockClear();
   loadAdminLesson.mockReset();
+  isQuizLesson.mockReset().mockResolvedValue(false);
   publicLessonPreview.mockReset();
   publicLessonPreview.mockResolvedValue({ preview: { lessonId: "les_AAAAAAAAAAA1", title: "Reader Expectations vs. Reader Preferences", excerpt: null, courseSlug: "the-ready-writer", courseTitle: "The Ready Writer", thumbnailSrc: "/api/courses/image/lesson/les_AAAAAAAAAAA1" } });
   getEffectiveIdentity.mockReset().mockResolvedValue({ memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.test", isSudo: false });
@@ -87,6 +90,29 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(null);
     await expect(Promise.resolve().then(() => AdminLessonPage(params))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
     expect(requirePermission).toHaveBeenCalled();
+  });
+
+  it("gives a quiz lesson its tabs, a description instead of media and downloads, and a delete that names the attempts", async () => {
+    isQuizLesson.mockResolvedValue(true);
+    loadAdminLesson.mockResolvedValue(detail());
+    await renderServerPage(AdminLessonPage, params);
+
+    expect(isQuizLesson).toHaveBeenCalledWith(expect.anything(), "les_AAAAAAAAAAA1");
+    const tabs = screen.getByRole("navigation", { name: "Quiz sections" });
+    expect(within(tabs).getByRole("link", { name: "Details" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "Questions" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/lessons/les_AAAAAAAAAAA1/questions");
+    const form = screen.getByRole("form", { name: "Lesson builder" });
+    expect(within(form).getByRole("heading", { name: "Description" })).toBeInTheDocument();
+    expect(within(form).queryByRole("heading", { name: "Media" })).not.toBeInTheDocument();
+    expect(within(form).queryByRole("heading", { name: "Downloads" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("player")).not.toBeInTheDocument();
+  });
+
+  it("leaves a plain lesson without quiz tabs", async () => {
+    loadAdminLesson.mockResolvedValue(detail());
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByRole("navigation", { name: "Quiz sections" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Media" })).toBeInTheDocument();
   });
 
   it("shows the lesson as imported: title, module, text, download, thumbnail and status", async () => {

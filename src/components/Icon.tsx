@@ -1,4 +1,4 @@
-import { ArrowUpDown, Ban, Braces, Check, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, House, LayoutTemplate, Link, ListTree, Lock, Minus, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, Ban, Braces, Check, ChevronDown, Copy, Equal, EllipsisVertical, Eye, ExternalLink, Folder, Globe, GripVertical, History, House, LayoutTemplate, Link, ListChecks, ListTree, Lock, Minus, MessageSquare, Pencil, Plus, RotateCcw, Save, SeparatorHorizontal, Settings2, TextCursorInput, Trash2, Video, X, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -50,6 +50,8 @@ export const ICONS = {
   close: X,
   /** The page editor's outline: the page, its sections and the blocks inside them, one level at a time. */
   outline: ListTree,
+  /** A lesson that is a quiz. */
+  quiz: ListChecks,
   /** A role holds this permission (the Roles page). Always paired with text for screen readers. */
   granted: Check,
   /** A role does not hold this permission. */

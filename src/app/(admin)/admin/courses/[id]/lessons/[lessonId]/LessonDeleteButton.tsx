@@ -11,7 +11,7 @@ import { deleteCourseItem } from "../../../outline-actions";
  * question when the delete is refused (members have progress in it); once it is gone, the page it was on is too, so the
  * person is taken back to the course.
  */
-export default function LessonDeleteButton({ courseId, lessonId, title }: { courseId: string; lessonId: string; title: string }) {
+export default function LessonDeleteButton({ courseId, lessonId, title, quiz = false }: { courseId: string; lessonId: string; title: string; quiz?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -35,7 +35,7 @@ export default function LessonDeleteButton({ courseId, lessonId, title }: { cour
         open={open}
         onClose={() => setOpen(false)}
         onConfirm={confirm}
-        {...lifecycleConfirm("delete", { noun: "lesson", title, detail: "Its text, its video link and its downloads go with it.", permanent: true })!}
+        {...lifecycleConfirm("delete", { noun: "lesson", title, detail: quiz ? "Its text, its questions and the attempts members made go with it." : "Its text, its video link and its downloads go with it.", permanent: true })!}
       />
     </>
   );

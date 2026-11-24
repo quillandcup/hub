@@ -6,6 +6,7 @@ import { withAction } from "@/lib/analytics/server";
 import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
+import { duplicateBlockedByQuizzes } from "@/lib/courses/quiz-duplicate";
 
 /**
  * Duplicate a course: a new draft course the Hub owns, with a copy of its modules and lessons (so the editor can be
@@ -25,7 +26,12 @@ async function duplicateImpl(auth: Auth, courseId: string): Promise<DuplicateRes
 
   let id: string;
   try {
-    id = await createRepos(auth.supabase).courses.duplicateCourse(courseId);
+    const repos = createRepos(auth.supabase);
+    // The copy functions don't carry a quiz yet, so a course that holds one is refused (docs/TODO.md).
+    const lessons = await repos.courses.lessonsOf([courseId], { includeHidden: true });
+    const blocked = await duplicateBlockedByQuizzes(repos, lessons.map((l) => l.id), "course");
+    if (blocked) return { error: blocked };
+    id = await repos.courses.duplicateCourse(courseId);
   } catch (error) {
     const message = messageOf(error);
     if (message === "not_found") return { error: "Course not found." };
