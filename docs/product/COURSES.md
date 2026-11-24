@@ -40,6 +40,7 @@ Quill & Cup's courses live in the Hub, synced from Kajabi until the Hub's course
   - [One command](#one-command)
   - [Step B in practice](#step-b-in-practice)
   - [Telling whether a video changed](#telling-whether-a-video-changed)
+- [Quizzes](#quizzes)
 - [Lesson downloads](#lesson-downloads)
 - [Captions](#captions)
 - [Lesson thumbnails](#lesson-thumbnails)
@@ -425,6 +426,40 @@ Re-hashing every file on every run would mean downloading hundreds of GB each ti
 1. **Fingerprint, every run, no download:** Kajabi's media ID and duration (from the API), plus the download link's total size, `ETag` and `Last-Modified` (a one-byte ranged `GET`; the link is signed for `GET`, so a `HEAD` is rejected). Stored on `videos` as `source_key` and `source_fingerprint`. Replacing a lesson's video in Kajabi produces a new media ID, which this catches (confirmed in the day-1 spike).
 2. **SHA-256, only when we download:** computed while streaming the file to Mux and stored as `videos.source_sha256`. If a new media ID has the same hash as an existing row (a lesson duplicated between the 180 and The Ready Writer, say), **reuse that Mux asset** instead of uploading and paying to store it again.
 3. **When it did change:** upload a new Mux asset, repoint the lesson once it's `ready` (members never see a gap), and retire the old asset once nothing references it.
+
+## Quizzes
+
+A lesson of a Hub-owned course can be a quiz, so Ania can stop writing them in Kajabi. Kajabi's quiz (observed read-only in the admin) is a lesson with a title, a description and a thumbnail, a Draft or Published state, and the tabs Questions, Settings and Results: ordered questions, each with response options and a correct answer (auto-graded); an optional passing grade; "hide answers on the results page"; and a list of submissions. The Hub builds multiple choice with one answer, multiple choice with several answers, an optional passing grade that gates progress, hidden answers and a results list. Free-text answers are not built, and neither are the completion emails (`docs/TODO.md`, "Quizzes: results export and completion emails").
+
+**Status:** the data layer and the scoring rules are built (migration `20271124000000`); the builder, the member experience and the Kajabi import follow as separate changes, each of which updates this section.
+
+**How a lesson becomes a quiz.** There is no lesson "type" column: a lesson is a quiz lesson when a `quizzes` row points at it (`quizzes.lesson_id`, unique, so one quiz per lesson, removed with the lesson). The lesson keeps everything else (title, text, thumbnail, draft or open, place in the outline, progress, comments), so a quiz rides on every lesson feature, including the status menu and the locks (see below), without a second kind of outline item. The cost is that code asking "is this lesson a quiz?" reads a second table; `QuizRepository.quizzesOfLessons` answers it for a whole outline in one query.
+
+**Tables** (all new, Local; `src/lib/data/quizzes.ts`):
+
+- `quizzes` (`quiz_`): `lesson_id`, `passing_percent` (1 to 100, or null for a quiz that is not graded), `hide_answers`, `revision` (counts edits of the questions), `source_key` (Kajabi's quiz id when imported).
+- `quiz_questions` (`qques_`): `quiz_id`, `position`, `prompt` (plain text, 1 to 1000 characters), `allows_multiple`, `source_key`.
+- `quiz_options` (`qopt_`): `question_id`, `position`, `label`, `is_correct`, `source_key`. A single-answer question has exactly one correct option, a multiple-answer one at least one, two to twelve options each: enforced by the save function (`save_quiz_question`), not left to the screen.
+- `quiz_attempts` (`qatt_`): `quiz_id`, `member_id`, the score as it was when submitted (`question_count`, `correct_count`, `score_percent`, `passed`) and `submitted_at`. Editing the quiz later never changes an old attempt's score.
+- `quiz_attempt_answers` (keyed by attempt and question): the option ids picked and whether the question was right (null for a question that was not scored). Deleting a question removes the answers to it and keeps the attempt.
+
+These ids are Tier 2 and never appear in an address: staff open a quiz through its lesson (`/admin/courses/<crs_ id>/lessons/<les_ id>`) and a member through the lesson page.
+
+**Scoring** (`src/lib/courses/quiz-scoring.ts`, pure, with example and `fast-check` property tests):
+
+- A question is right only when the picked options are exactly the correct ones: **all or nothing, no partial credit**, for single and multiple answer alike. Picking nothing is wrong; a single-answer question with two picked is wrong.
+- Option ids that are not the question's are ignored; a repeated id counts once. A question with **no correct option marked is not scored** (it leaves the denominator, so it can never make a quiz impossible to pass).
+- The score is the share of scored questions answered right, **rounded down**, and passing is decided on exact integers (`correct * 100 >= passing * questions`), so a score shown as 80 never fails an 80 percent grade.
+- **No passing grade means not graded: every submitted attempt passes.** A graded quiz with nothing to score never passes.
+
+**Who may do what** (migration `20271124000000`; the policies read the lesson's `source`, as the rest of the editor does):
+
+- Staff (admins; the permission is `courses.manage`, the same bundle as the rest of the course editor, since no role holds it in part) read everything and write the quiz of a **Hub-owned** lesson with their own client, so the audit log names them. A quiz of an imported lesson is written only by the Kajabi processing run (service role) and becomes editable when the course is taken over, because the policy reads the lesson, which `take_over_kajabi_course` flips to `hub`.
+- **Members have no access to questions or options**: `is_correct` must never reach a browser before an attempt is submitted. The server reads them with the service role after its own access check, scores the answers, and records the attempt. A member's client reads only the quiz settings of a lesson they can read, and only their own attempts and answers.
+- **A member's own client cannot complete a quiz lesson**: a trigger on `lesson_progress` refuses a user-client write that sets `completed_at` on a lesson that has a quiz. Only the server, after scoring (a pass, or any submission when the quiz is not graded), writes the completion. Saving a position and everything else on `lesson_progress` is unchanged.
+- **Audit:** one entry on the quiz for the intent, named by its lesson (a quiz made, its settings or questions changed, a quiz removed). Question and option saves go through `save_quiz_question`, `delete_quiz_question` and `reorder_quiz_questions` (all-or-nothing, running as the admin), which bump `quizzes.revision`; questions and options write no entry of their own, and question text is never in the log. Writes by the service role (the Kajabi run) write none.
+
+**Locks.** A pass is what completes the lesson, and Kajabi lets a passed quiz unlock a locked module. The Hub does not have lock prerequisites yet (`docs/TODO.md`, "Course editor: prerequisite unlock for locked modules"); when it does, "complete" means `lesson_progress.completed_at`, which a quiz lesson sets on a pass, so a quiz can be the prerequisite with no quiz-specific code.
 
 ## Lesson downloads
 
