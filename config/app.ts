@@ -192,6 +192,12 @@ export const appConfig = {
    */
   kajabiSiteUrl: "https://www.quillandcup.com",
 
+  /**
+   * Where Kajabi lives once the root domain serves the Hub (docs/runbooks/DOMAIN_MIGRATION.md): courses and checkout. An imported
+   * page's link to a Kajabi offer the Hub doesn't know goes here (src/lib/landing/kajabi-import.ts); retire it with Kajabi.
+   */
+  kajabiCoursesUrl: "https://courses.quillandcup.com",
+
   /** The public site members arrive from, no trailing slash: where the footer of a writer profile links to. */
   siteUrl: "https://www.quillandcup.com",
 

@@ -11,7 +11,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * "Import from Kajabi" (docs/product/LANDING_PAGES.md): an admin uploads a Kajabi page export (zip) and gets a draft page.
  * Multipart form data: `file` (the zip, at most ZIP_LIMITS.archiveBytes), then either `mode=inspect` (read it and write
  * nothing: what it starts with, a suggested title, the pages that look like it) or an import with `title` (the export has
- * none) and what it is: `asNew=true`, or `replacePageId` (the page whose draft it replaces). With neither, an export that
+ * none) and what it is: `asNew=true`, or `replacePageId` (the page whose draft it replaces), and optionally `originalPath` (the
+ * path of the public Kajabi page the export came from, such as `/bff-program`, to copy a countdown's date from it). With neither, an export that
  * looks like a page already here is not imported: the answer is "choose". A route and not a server action because the
  * upload outgrows an action's default body limit; the admin check is the same one actions use. The archive is read in
  * memory (src/lib/landing/kajabi-zip.ts) and never written to disk.
@@ -41,8 +42,8 @@ async function handle(request: NextRequest): Promise<{ response: NextResponse; o
       const replacePageId = String(form?.get("replacePageId") ?? "");
       const target: ImportTarget | undefined = replacePageId ? { kind: "replace", pageId: replacePageId } : form?.get("asNew") === "true" ? { kind: "new" } : undefined;
       outcome = await importKajabiExport(
-        { pages: repos.landingPages, media: repos.media, storage: createServiceRoleClient().storage },
-        { archive, title: String(form?.get("title") ?? ""), target, userId: auth.user.id, year },
+        { pages: repos.landingPages, media: repos.media, storage: createServiceRoleClient().storage, billing: repos.billing },
+        { archive, title: String(form?.get("title") ?? ""), target, userId: auth.user.id, year, originalPath: String(form?.get("originalPath") ?? "") || undefined },
       );
     }
   } catch (error) {

@@ -10,7 +10,7 @@ import type { PageMatch, ReplaceablePage } from "@/lib/landing/kajabi-import-ser
 const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 const PRIMARY = "rounded bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50";
 
-type Inspected = { status: "inspected"; start: PageStart; suggestedTitle: string; blocks: number; matches: PageMatch[]; pages: ReplaceablePage[] };
+type Inspected = { status: "inspected"; start: PageStart; suggestedTitle: string; blocks: number; countdowns: number; matches: PageMatch[]; pages: ReplaceablePage[] };
 type Imported = {
   status: "imported";
   action: "created" | "updated";
@@ -60,6 +60,7 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
   /** "" (not chosen), "new", `match:<page id>` or "other". */
   const [choice, setChoice] = useState("");
   const [otherId, setOtherId] = useState("");
+  const [originalPath, setOriginalPath] = useState("");
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<Imported | null>(null);
 
@@ -87,7 +88,7 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
     if (!ready) return;
     setPending(true);
     setError(null);
-    const answer = await ask(file, choice === "new" ? { title, asNew: "true" } : { title, replacePageId: replaceId });
+    const answer = await ask(file, { ...(choice === "new" ? { title, asNew: "true" } : { title, replacePageId: replaceId }), ...(info?.countdowns && originalPath.trim() ? { originalPath: originalPath.trim() } : {}) });
     setPending(false);
     if (answer.status === "imported") setDone(answer);
     else if (answer.status === "choose") {
@@ -254,6 +255,16 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
           Page title
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className={`${INPUT} mt-1`} />
           <span className="mt-1 block text-xs font-normal text-slate-600 dark:text-slate-400">The export doesn&apos;t include the page&apos;s title; this is suggested from its first heading. A page you replace keeps its own title.</span>
+        </label>
+      )}
+
+      {info.countdowns > 0 && (
+        <label className="block font-medium">
+          Address of the page on the Kajabi site (optional)
+          <input value={originalPath} onChange={(e) => setOriginalPath(e.target.value)} maxLength={120} placeholder="/bff-program" autoComplete="off" spellCheck={false} className={`${INPUT} mt-1`} />
+          <span className="mt-1 block text-xs font-normal text-slate-600 dark:text-slate-400">
+            This page has {info.countdowns === 1 ? "a countdown" : `${info.countdowns} countdowns`}, and the export names its event but not its date. Give the page&apos;s path on the live Kajabi site and the date is copied from it, as it shows today. Leave it empty to set the date in the editor.
+          </span>
         </label>
       )}
 

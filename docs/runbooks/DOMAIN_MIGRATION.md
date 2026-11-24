@@ -1,6 +1,6 @@
 # Moving quillandcup.com from Kajabi to the Hub
 
-> **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
 
 Step-by-step checklist for moving quillandcup.com from Kajabi to the Hub while courses stay on a Kajabi subdomain. A checklist to follow by hand. Target: **Dec 3 to 5, 2026** (the retreat is Dec 12, so there is a week of buffer). Where this says "verify in your dashboard", nobody has checked that screen while writing this page, so trust what the screen says over this page.
 
@@ -236,6 +236,7 @@ Keep the gap, between Kajabi leaving the root and the Hub taking over, to a few 
 - Update the Instagram bio, email templates and Kajabi's own internal links (Kajabi → Website → navigation and email footers) so they point to their new addresses directly. Fewer redirects, fewer surprises.
 - **Kajabi's "system" pages stay up.** Kajabi marks some website pages as System (Home, Blog, Blog Post, and probably Login and Library) and says it "cannot change statuses of system pages", so they can't be unpublished. After the cutover `courses.quillandcup.com/` still shows Kajabi's old home page, and every "Home" link or logo in Kajabi's header, footer and automated emails still lands on it, not on the Hub's homepage. In Kajabi → Website → Navigation (and Settings → Site details / email footers; verify the menus in your dashboard) point the logo and "Home" links at `https://quillandcup.com`. Kajabi's other website pages (About, Contact, Verified Service Providers, and so on) are ordinary pages that stay reachable at the same path on `courses`; the root redirects to them until the Hub has its own.
 - Change `joinUrl` and the homepage content in `config/app.ts` and `src/app` as pages are rebuilt.
+- **Pages imported from Kajabi** (`docs/product/LANDING_PAGES.md`, "Importing from Kajabi") link to other Kajabi pages by their root-relative path (`/waitlist`, `/free-trial`) and to offers by their checkout address or by `kajabiCoursesUrl`. After the cutover, click each such button once: a path with a Hub page at that address opens it, any other opens the Kajabi page on the courses site. A Hub landing page lives at `/p/<address>` unless its address is also named in `src/lib/root-routing.ts`, so a Hub page meant to answer at `/waitlist` needs that.
 
 ## End state: retiring Kajabi pages one at a time
 

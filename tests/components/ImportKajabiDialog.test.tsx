@@ -33,6 +33,7 @@ const inspected = (over: Record<string, unknown> = {}) => ({
   start: { heading: "Write a little, every day", lines: ["Join the Example Sprint.", "Second line."] },
   suggestedTitle: "Write a little, every day",
   blocks: 5,
+  countdowns: 0,
   matches: [],
   pages: [],
   ...over,
@@ -224,5 +225,34 @@ describe("New page with Import from Kajabi", () => {
     await user.keyboard("{Control>}{Enter}{/Control}");
     expect(await screen.findByRole("status")).toHaveTextContent("Created a draft: Example Sprint");
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("the page address for a countdown's date", () => {
+  it("is not asked for when the export has no countdown", async () => {
+    server(inspected(), imported());
+    await openDialog();
+    await screen.findByText(/This export starts with/);
+    expect(screen.queryByLabelText(/Address of the page on the Kajabi site/)).toBeNull();
+  });
+
+  it("is asked for when it has one, and sent with the import only when typed", async () => {
+    server(inspected({ countdowns: 1 }), imported(), imported());
+    const user = await openDialog();
+    await screen.findByLabelText(/Address of the page on the Kajabi site/);
+    expect(screen.getByText(/has a countdown/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Import/ }));
+    await screen.findByRole("status");
+    expect(sent(1).get("originalPath")).toBeNull();
+  });
+
+  it("sends the typed path, trimmed", async () => {
+    server(inspected({ countdowns: 2 }), imported());
+    const user = await openDialog();
+    await user.type(await screen.findByLabelText(/Address of the page on the Kajabi site/), "  /example-program ");
+    expect(screen.getByText(/has 2 countdowns/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Import/ }));
+    await screen.findByRole("status");
+    expect(sent(1).get("originalPath")).toBe("/example-program");
   });
 });

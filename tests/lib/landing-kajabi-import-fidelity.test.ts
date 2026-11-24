@@ -4,7 +4,7 @@ import { block, exportSettings } from "@/tests/helpers/kajabi-export";
 
 /** How an imported page looks like its original: the overlay, the card, where it sits, the logo, the text colour. Every fixture is made up. */
 
-const OPTIONS = { siteUrl: "https://kajabi.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
+const OPTIONS = { siteUrl: "https://kajabi.example.test", coursesUrl: "https://courses.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
 type Puck = { type: string; props: Record<string, unknown> };
 const kids = (b: Puck) => b.props.content as Puck[];
 const PLUM = '<span style="color: #a64d79;">';
