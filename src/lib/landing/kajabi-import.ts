@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { parseFragment, serializeOuter } from "parse5";
+import { parseFragment, serialize, serializeOuter } from "parse5";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { ITEM_LIMITS } from "@/components/landing/item-limits";
 import type { SocialNetwork } from "@/components/landing/social-networks";
@@ -228,6 +228,43 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
   return out;
 }
 
+/** Elements the rich text cannot hold (the sanitizer drops them): a picture, a player, an embed. */
+const MEDIA_TAGS = new Set(["img", "picture", "svg", "video", "audio", "iframe", "embed", "object"]);
+
+type TextButton = { label: string; href: string };
+
+/** A link dressed as a button in Kajabi's text: its class says so ("btn", "button"). */
+const isButtonAnchor = (node: Node5) => node.tagName === "a" && /(^|[\s_-])(btn|button)([\s_-]|$)/i.test(attr(node, "class"));
+
+/**
+ * A text block's HTML without the links that are buttons (they come back as Button blocks, so the label is not shown
+ * twice), and a count of the pictures and embeds in it, which the rich text drops.
+ */
+function splitTextButtons(html: string): { html: string; anchors: TextButton[]; media: number } {
+  const root = { nodeName: "#document-fragment", childNodes: parseFragment(html.replace(/&nbsp;|\u00a0/g, " ")).childNodes as unknown as Node5[] } as Node5;
+  const anchors: TextButton[] = [];
+  const removedFrom = new Set<Node5>();
+  let media = 0;
+  const walk = (parent: Node5) => {
+    const kept: Node5[] = [];
+    for (const node of parent.childNodes ?? []) {
+      if (node.tagName && MEDIA_TAGS.has(node.tagName)) media++;
+      if (isButtonAnchor(node)) {
+        anchors.push({ label: clean(textOf(node)), href: attr(node, "href") });
+        continue;
+      }
+      walk(node);
+      // A paragraph or line that held only a button is gone with it.
+      const emptied = removedFrom.has(node) && (node.childNodes ?? []).length === 0 && ["p", "div", "span"].includes(node.tagName ?? "");
+      if (!emptied) kept.push(node);
+    }
+    if (kept.length !== (parent.childNodes ?? []).length) removedFrom.add(parent);
+    parent.childNodes = kept;
+  };
+  walk(root);
+  return { html: serialize(root as never), anchors, media };
+}
+
 // ---- blocks beyond text, pictures and forms ------------------------------------------------------------------
 
 type Ctx = { notes: ImportNote[]; pictures: Pictures; id: (type: string) => string; siteUrl: string; themeRadius: number | null };
@@ -274,6 +311,27 @@ function makeButton(ctx: Ctx, b: Settings, label: string): Puck {
     type: "Button",
     props: { id: ctx.id("Button"), label, href, look: outline ? "outline" : "solid", color: picked.key, shape: radius >= 30 ? "pill" : "rect", align: alignOf(b.text_align) === "left" ? "left" : alignOf(b.text_align) === "right" ? "right" : "center", full: str(b.btn_width) === "full" },
   };
+}
+
+/**
+ * The buttons of a text block, to follow its text. Kajabi keeps one in the block's settings (`use_btn` switches it on;
+ * the label, link, colours, style and width are the `btn_*` settings, the same ones a call-to-action block has, and
+ * they are there with placeholder values even when it is off), and a link in the words can be styled as a button.
+ * One that has no label cannot be made and is said.
+ */
+function mapTextButtons(ctx: Ctx, b: Settings, name: string, anchors: TextButton[]): Puck[] {
+  const out: Puck[] = [];
+  const label = clean(textOfHtml(str(b.btn_text)));
+  // An export that predates `use_btn` has the button when it has a label and a link.
+  const on = b.use_btn === undefined ? Boolean(label && str(b.btn_action)) : flag(b.use_btn);
+  const unreadable = `The text block "${name}" has a button inside it with no label; add a Button block if you want it.`;
+  if (on && !label) ctx.notes.push({ kind: "left_out", text: unreadable });
+  for (const a of anchors) {
+    if (!a.label) ctx.notes.push({ kind: "left_out", text: unreadable });
+    else if (!(on && a.label === label)) out.push(makeButton(ctx, { btn_text: a.label, btn_action: a.href, text_align: b.text_align }, a.label));
+  }
+  if (on && label) out.push(makeButton(ctx, b, label));
+  return out;
 }
 
 /** Elements whose content is code or hidden, never words: skipped when reading text. */
@@ -553,6 +611,8 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const ctx: Ctx = { notes, pictures, id, siteUrl: options.siteUrl, themeRadius };
   /** Embedded code that runs a script or loads another site: never imported, said once for the page. */
   const leftOutCode = { count: 0, hosts: new Set<string>() };
+  /** Buttons found inside text blocks and made into Button blocks after their text. */
+  let textButtons = 0;
 
   // The header's logo is the page's first picture (a banner in the page's own colour, as the export has it).
   const header = sections.header;
@@ -629,8 +689,12 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
       const before = inner.length;
 
       if (type === "text") {
-        inner.push(...textBlocks(str(b.text), alignOf(b.text_align), id));
-        if (str(b.btn_text) && str(b.btn_action)) notes.push({ kind: "left_out", text: `The text block "${name}" has a button inside it; add a Button block if you want it.` });
+        const split = splitTextButtons(str(b.text));
+        inner.push(...textBlocks(split.html, alignOf(b.text_align), id));
+        if (split.media > 0) notes.push({ kind: "left_out", text: `The text block "${name}" has ${split.media === 1 ? "a picture or embed" : `${split.media} pictures or embeds`} inside it, which rich text here can't hold; add ${split.media === 1 ? "it" : "them"} as ${split.media === 1 ? "a Picture or Video block" : "Picture or Video blocks"} if you want ${split.media === 1 ? "it" : "them"}.` });
+        const made = mapTextButtons(ctx, b, name, split.anchors);
+        inner.push(...made);
+        textButtons += made.length;
       } else if (type === "image") {
         const ref = pictures.add(b.image);
         if (!ref) {
@@ -813,6 +877,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     });
   }
 
+  if (textButtons > 0) notes.push({ kind: "approximated", text: `${textButtons} button${textButtons === 1 ? "" : "s"} inside text blocks ${textButtons === 1 ? "is" : "are"} now ${textButtons === 1 ? "a Button block" : "Button blocks"} right after ${textButtons === 1 ? "its" : "their"} text.` });
   if (leftOutCode.count > 0) {
     const hosts = [...leftOutCode.hosts].slice(0, 3).join(", ");
     notes.push({ kind: "left_out", text: `${leftOutCode.count} embedded code block${leftOutCode.count === 1 ? "" : "s"} ${leftOutCode.count === 1 ? "runs" : "run"} a script or load${leftOutCode.count === 1 ? "s" : ""} another site${hosts ? ` (${hosts})` : ""}, which the Hub never allows on a page. Add what they showed (products, buttons) with our blocks.` });
