@@ -8,10 +8,10 @@ const config = parseYaml(readFileSync("config/github.yml", "utf8")) as {
 };
 
 describe("config/github.yml workflow_permissions", () => {
-  it("declares a read-only default token and keeps workflows able to approve PRs", () => {
+  it("declares a read-only default token and stops workflows approving or opening PRs with it", () => {
     expect(config.workflow_permissions).toEqual({
       default_workflow_permissions: "read",
-      can_approve_pull_request_reviews: true,
+      can_approve_pull_request_reviews: false,
     });
   });
 });
@@ -30,7 +30,7 @@ describe("workflowPermissionsDiff", () => {
   });
 
   it("shows a changed approval flag and ignores keys the file does not declare", () => {
-    const live = { ...want, can_approve_pull_request_reviews: false, extra: 1 };
-    expect(workflowPermissionsDiff(live, want)).toEqual(["~ can_approve_pull_request_reviews: false -> true"]);
+    const live = { ...want, can_approve_pull_request_reviews: true, extra: 1 };
+    expect(workflowPermissionsDiff(live, want)).toEqual(["~ can_approve_pull_request_reviews: true -> false"]);
   });
 });
