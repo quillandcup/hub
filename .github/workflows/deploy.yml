@@ -19,10 +19,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # Pinned so `vercel build`/`vercel deploy` behavior doesn't shift out from under CI on an unannounced CLI release.
-  VERCEL_CLI_VERSION: 60.0.0
-
 jobs:
   deploy:
     name: Build and deploy to production
@@ -104,9 +100,8 @@ jobs:
           url=$(node --no-warnings --input-type=module -e "console.log((await import('./config/app.ts')).default.appUrl)")
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
-      - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
-        if: steps.guard.outputs.proceed == 'true'
-
+      # The CLI is the `vercel` devDependency the `pnpm install --frozen-lockfile` above installed, so its version and
+      # integrity hash come from pnpm-lock.yaml (Dependabot bumps it) and a new CLI release can't change the deploy unannounced.
       # `vercel build` populates/reads the same .next/cache that `next build`
       # does (see Next.js's CI build caching docs), so this is what makes a
       # --prebuilt deploy fast instead of a cold build every push -- it's the
@@ -143,7 +138,7 @@ jobs:
       # listing (`ps`, etc.) for the life of the command.
       - name: Pull Vercel production environment
         if: steps.guard.outputs.proceed == 'true'
-        run: vercel pull --yes --environment=production
+        run: pnpm exec vercel pull --yes --environment=production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -164,7 +159,7 @@ jobs:
       # build (UnrecognizedActionError). With one, Next sees the mismatch and hard-reloads the tab.
       - name: Build project artifacts
         if: steps.guard.outputs.proceed == 'true'
-        run: NEXT_DEPLOYMENT_ID="$(git rev-parse --short=12 HEAD)${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}" vercel build --prod
+        run: NEXT_DEPLOYMENT_ID="$(git rev-parse --short=12 HEAD)${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}" pnpm exec vercel build --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
@@ -178,7 +173,7 @@ jobs:
       # webhook.
       - name: Deploy prebuilt artifacts to production
         if: steps.guard.outputs.proceed == 'true'
-        run: vercel deploy --prebuilt --prod
+        run: pnpm exec vercel deploy --prebuilt --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
