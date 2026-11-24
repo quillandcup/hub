@@ -1,0 +1,269 @@
+{
+  "_comment": "The result we expect from each control of the OpenSSF scanner (pvtr-github-repo-scanner), as the weekly run in CI sees it (.github/workflows/pvtr-scan.yml; comparison in scripts/pvtr-scan.ts, `pnpm check:pvtr`). The run fails and posts to the alerts channel only when a control is WORSE than its entry (Passed, then Not Applicable, then Needs Review, then Failed), an entry that is not Passed has expired or lacks a reason or an expiry date, or the scan itself fails. A control with no entry is expected to Pass. An improvement only shows in the job summary: change the entry (to Passed once it passes; delete the reason and expiry). A result list means CI may see either, for a stated reason. The workflow token reads less than an administrator's, so these are CI's results, not the table in docs/checklists/OSPS_BASELINE.md. An expiry is YYYY-MM-DD, at most 12 months out; renew it by re-checking the reason. How to update: docs/trust/THREAT_MODEL.md, Scheduled scanners.",
+  "controls": {
+    "OSPS-AC-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-AC-02.01": {
+      "result": "Passed"
+    },
+    "OSPS-AC-03.01": {
+      "result": [
+        "Needs Review",
+        "Failed"
+      ],
+      "reason": "The ruleset requires a pull request and has no bypass actors (docs/checklists/OSPS_BASELINE.md says Met), but the scanner only counts an update rule, a push restriction or a required approval as protection. The workflow token cannot see the branch protection settings an administrator can (rulesets in full), so in CI the scanner cannot tell and reports Needs Review; with an administrator's token, Failed.",
+      "expires": "2027-02-24"
+    },
+    "OSPS-AC-03.02": {
+      "result": "Passed"
+    },
+    "OSPS-AC-04.01": {
+      "result": "Passed"
+    },
+    "OSPS-AC-04.02": {
+      "result": "Needs Review",
+      "reason": "The scanner lists every job that has write permissions (auto-merge, the coverage comment) and asks for a human to confirm they are needed; each is limited to the job that needs it (docs/checklists/OSPS_BASELINE.md).",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-BR-01.02": {
+      "result": "Not Run",
+      "reason": "A retired control id; the scanner logs it for visibility only.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-01.03": {
+      "result": "Needs Review",
+      "reason": "The scanner asks for a manual review of main-red-alert.yml, the one workflow_run workflow; it checks out main itself and skips runs from forks (docs/checklists/OSPS_BASELINE.md).",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-01.04": {
+      "result": "Passed"
+    },
+    "OSPS-BR-02.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-02.02": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-03.01": {
+      "result": "Passed"
+    },
+    "OSPS-BR-03.02": {
+      "result": "Not Applicable",
+      "reason": "No distribution points are declared in .github/security-insights.yml because there is no release section; the production site is the only channel.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-04.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-05.01": {
+      "result": "Passed"
+    },
+    "OSPS-BR-06.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-BR-07.01": {
+      "result": "Passed"
+    },
+    "OSPS-BR-07.02": {
+      "result": "Passed"
+    },
+    "OSPS-DO-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-DO-02.01": {
+      "result": "Passed"
+    },
+    "OSPS-DO-03.01": {
+      "result": "Failed",
+      "reason": "No signature-verification guide is declared in Security Insights. We publish no signed releases, so there is nothing true to link; the scanner does not apply the release condition, our table says N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-DO-03.02": {
+      "result": "Failed",
+      "reason": "Same as OSPS-DO-03.01: the scanner reads the signature-verification link for identity verification too.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-DO-04.01": {
+      "result": "Passed"
+    },
+    "OSPS-DO-05.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-DO-06.01": {
+      "result": "Passed"
+    },
+    "OSPS-DO-07.01": {
+      "result": "Passed"
+    },
+    "OSPS-GV-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-GV-01.02": {
+      "result": "Passed"
+    },
+    "OSPS-GV-02.01": {
+      "result": "Passed"
+    },
+    "OSPS-GV-03.01": {
+      "result": "Passed"
+    },
+    "OSPS-GV-03.02": {
+      "result": "Passed"
+    },
+    "OSPS-GV-04.01": {
+      "result": "Passed"
+    },
+    "OSPS-LE-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-LE-02.01": {
+      "result": "Failed",
+      "reason": "The source is proprietary (LICENSE), declared as LicenseRef-Proprietary in Security Insights. A relicensing decision, not a gap to patch (docs/checklists/OSPS_BASELINE.md: Not met).",
+      "expires": "2027-05-24"
+    },
+    "OSPS-LE-02.02": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-LE-03.01": {
+      "result": "Passed"
+    },
+    "OSPS-LE-03.02": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-QA-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-QA-01.02": {
+      "result": "Passed"
+    },
+    "OSPS-QA-02.01": {
+      "result": "Passed"
+    },
+    "OSPS-QA-02.02": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-QA-03.01": {
+      "result": [
+        "Needs Review",
+        "Failed"
+      ],
+      "reason": "Some executed checks are not required (the Analyze jobs, Detect docs-only change, Code quality report, auto-merge, screenshot cleanup); docs/checklists/OSPS_BASELINE.md says Partly and docs/TODO.md tracks it. The workflow token cannot see the branch protection settings an administrator can (rulesets in full), so in CI the scanner cannot tell and reports Needs Review; with an administrator's token, Failed.",
+      "expires": "2027-02-24"
+    },
+    "OSPS-QA-04.01": {
+      "result": "Passed"
+    },
+    "OSPS-QA-04.02": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-QA-05.01": {
+      "result": "Passed"
+    },
+    "OSPS-QA-05.02": {
+      "result": "Passed"
+    },
+    "OSPS-QA-06.01": {
+      "result": "Passed"
+    },
+    "OSPS-QA-06.02": {
+      "result": "Needs Review",
+      "reason": "The scanner cannot read prose to confirm that the documents explain when and how tests run; they do (CLAUDE.md, docs/runbooks/SETUP.md, docs/quality/TESTING.md).",
+      "expires": "2027-05-24"
+    },
+    "OSPS-QA-06.03": {
+      "result": "Needs Review",
+      "reason": "The scanner cannot read prose to confirm a test-maintenance policy; it is .claude/rules/tests-with-every-change.md, enforced by the patch-coverage check.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-QA-07.01": {
+      "result": [
+        "Needs Review",
+        "Failed"
+      ],
+      "reason": "The ruleset requires zero approvals on purpose (one maintainer, auto-merge); docs/checklists/OSPS_BASELINE.md says Not met, needs a second maintainer. The workflow token cannot see the branch protection settings an administrator can (rulesets in full), so in CI the scanner cannot tell and reports Needs Review; with an administrator's token, Failed.",
+      "expires": "2027-02-24"
+    },
+    "OSPS-SA-01.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-SA-02.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-SA-03.01": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-SA-03.02": {
+      "result": "Not Applicable",
+      "reason": "We publish no versioned releases (the app is deployed from main), so a control about releases has nothing to check; docs/checklists/OSPS_BASELINE.md marks it N/A.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-VM-01.01": {
+      "result": "Passed"
+    },
+    "OSPS-VM-02.01": {
+      "result": "Passed"
+    },
+    "OSPS-VM-03.01": {
+      "result": "Passed"
+    },
+    "OSPS-VM-04.01": {
+      "result": "Needs Review",
+      "reason": "No security advisory has been published because no vulnerability has been confirmed; the policy is to publish a GitHub advisory for one.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-VM-04.02": {
+      "result": "Passed"
+    },
+    "OSPS-VM-05.01": {
+      "result": "Needs Review",
+      "reason": "The scanner could not inspect the documentation completely to confirm an SCA remediation threshold; it is in docs/trust/THREAT_MODEL.md, How fast findings are fixed.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-VM-05.02": {
+      "result": "Passed"
+    },
+    "OSPS-VM-05.03": {
+      "result": "Needs Review",
+      "reason": "The scanner's workflow inspection was incomplete, so it cannot confirm that OSV diff blocks pull requests; it is a required check (docs/checklists/OSPS_BASELINE.md: Met).",
+      "expires": "2027-05-24"
+    },
+    "OSPS-VM-06.01": {
+      "result": "Needs Review",
+      "reason": "The scanner could not inspect the documentation completely to confirm a SAST remediation threshold; it is in docs/trust/THREAT_MODEL.md, How fast findings are fixed.",
+      "expires": "2027-05-24"
+    },
+    "OSPS-VM-06.02": {
+      "result": "Needs Review",
+      "reason": "The scanner's workflow inspection was incomplete, so it cannot confirm SAST runs on all changes; CodeQL is a required check.",
+      "expires": "2027-05-24"
+    }
+  }
+}

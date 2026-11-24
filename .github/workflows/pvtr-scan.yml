@@ -1,0 +1,123 @@
+name: OpenSSF baseline scan
+
+# OpenSSF's `pvtr-github-repo-scanner` (ossf/pvtr-github-repo-scanner) checks this repository's GitHub settings, workflows and
+# files against the OSPS Baseline controls, as a cross-check of docs/checklists/OSPS_BASELINE.md. It only reads. It is quiet by
+# design: the result of each control is compared with config/pvtr-baseline.json (the result we expect, and for every one that is
+# not Passed a reason and an expiry date). The run fails, and posts to the alerts channel, only when a control got WORSE than its
+# baseline, a baseline entry has expired, or the scan itself failed. A control that got better is listed in the job summary with a
+# reminder to update the baseline, and does not fail anything. Scheduled and manual runs post; a pull request only reports.
+# Not a required check. The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL).
+#
+# The scanner is a third-party binary and its release has a checksum but no attestation, so config/pvtr-scanner.json pins the
+# version and the sha256 of the tarball, and the download is refused when they differ. Dependabot cannot bump it: the steps to
+# bump it by hand are in that file. The scan runs with the workflow's own GITHUB_TOKEN (contents: read), handed to it through a
+# named pipe, so it is never in a file, a log or an artifact. That token cannot read everything the owner's token can (rulesets,
+# some settings), so a control may read differently here than in a run by hand; the baseline records what CI sees, with the reason.
+# Update the baseline: docs/trust/THREAT_MODEL.md, "Scheduled scanners".
+on:
+  schedule:
+    - cron: "19 7 * * 5"
+  pull_request:
+    paths:
+      - .github/workflows/pvtr-scan.yml
+      - config/pvtr-scanner.json
+      - config/pvtr-baseline.json
+      - scripts/pvtr-scan.ts
+  workflow_dispatch:
+    inputs:
+      notify:
+        description: Post to the alerts channel when the scan fails
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan against the baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: "package.json"
+
+      - run: pnpm install --frozen-lockfile
+
+      # Fetch the pinned release into an empty directory and refuse it unless the sha256 equals the pinned value.
+      - name: Download and verify the scanner
+        run: |
+          set -euo pipefail
+          repository=$(jq -r .repository config/pvtr-scanner.json)
+          version=$(jq -r .version config/pvtr-scanner.json)
+          asset=$(jq -r .asset config/pvtr-scanner.json)
+          expected=$(jq -r .sha256 config/pvtr-scanner.json)
+          mkdir "$RUNNER_TEMP/pvtr-dl" "$RUNNER_TEMP/pvtr-bin"
+          curl -sSL --fail --proto '=https' -o "$RUNNER_TEMP/pvtr-dl/$asset" \
+            "https://github.com/$repository/releases/download/$version/$asset"
+          actual=$(sha256sum "$RUNNER_TEMP/pvtr-dl/$asset" | cut -d' ' -f1)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::$asset ($version) has sha256 $actual, not the pinned $expected (config/pvtr-scanner.json). Not running it."
+            exit 1
+          fi
+          tar -xzf "$RUNNER_TEMP/pvtr-dl/$asset" -C "$RUNNER_TEMP/pvtr-bin"
+          test -x "$RUNNER_TEMP/pvtr-bin/github-repo"
+
+      # The scanner only takes its token from the config file. A named pipe hands it the config with the token on the end, so the
+      # token is never written to disk. The scanner runs in an empty directory, not in the checkout, and writes its results there.
+      - name: Scan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          catalog=$(jq -r .catalog config/pvtr-scanner.json)
+          out="$RUNNER_TEMP/pvtr-out"
+          fifo_dir="$RUNNER_TEMP/pvtr-fifo"
+          mkdir "$out" "$fifo_dir"
+          {
+            echo "loglevel: error"
+            echo "services:"
+            echo "  hub:"
+            echo "    plugin: github-repo"
+            echo "    policy:"
+            echo "      catalogs:"
+            echo "        - $catalog"
+            echo "      applicability:"
+            jq -r '.applicability[] | "        - " + .' config/pvtr-scanner.json
+            echo "    vars:"
+            echo "      owner: ${GITHUB_REPOSITORY%%/*}"
+            echo "      repo: ${GITHUB_REPOSITORY#*/}"
+          } > "$RUNNER_TEMP/pvtr-config-base.yml"
+          mkfifo "$fifo_dir/config.yml"
+          while true; do { cat "$RUNNER_TEMP/pvtr-config-base.yml"; printf '      token: %s\n' "$GITHUB_TOKEN"; } > "$fifo_dir/config.yml"; done &
+          writer=$!
+          trap 'kill "$writer" 2>/dev/null || true' EXIT
+          cd "$out"
+          status=0
+          "$RUNNER_TEMP/pvtr-bin/github-repo" debug --config "$fifo_dir/config.yml" --service hub \
+            --write-directory "$out" -o json > "$out/stdout.json" 2> "$out/stderr.txt" || status=$?
+          if [ "$status" -ne 0 ]; then echo "::error::The scanner exited with status $status."; tail -n 20 "$out/stderr.txt"; exit 1; fi
+          if [ ! -s "$out/hub/hub.json" ]; then echo "::error::The scanner wrote no results."; tail -n 20 "$out/stderr.txt"; exit 1; fi
+
+      - name: Compare with the baseline
+        id: compare
+        run: pnpm check:pvtr "$RUNNER_TEMP/pvtr-out/hub/hub.json"
+
+      - name: Post findings to Slack
+        if: >-
+          failure() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.notify))
+        env:
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_ALERTS_WEBHOOK_URL" ]; then echo "SLACK_ALERTS_WEBHOOK_URL is not set; not posting."; exit 0; fi
+          curl -sS --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\": \"The OpenSSF baseline scan found a control worse than config/pvtr-baseline.json, an expired exception, or failed to run. Details: $RUN_URL\"}" \
+            "$SLACK_ALERTS_WEBHOOK_URL"
