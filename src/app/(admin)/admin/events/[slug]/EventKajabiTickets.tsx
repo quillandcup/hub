@@ -26,13 +26,15 @@ function windowLabel(from: string | null | undefined, until: string | null | und
 }
 
 /** What Kajabi said about an attendee with no purchase; says "these offers" when the event has several linked. */
-function kajabiOfferNote(kind: "held" | "not_held" | "unknown" | "no_contact", linkedCount: number): string {
+function kajabiOfferNote(kind: "held" | "not_held" | "shared" | "unknown" | "no_contact", linkedCount: number): string {
   const offers = linkedCount > 1 ? "any of the linked offers" : "this offer";
   switch (kind) {
     case "held":
       return `Kajabi holds ${linkedCount > 1 ? "one of the linked offers" : "this offer"} for them without a purchase: likely granted (comped or gifted).`;
     case "not_held":
       return `Kajabi shows no sign of ${offers} for them.`;
+    case "shared":
+      return "Kajabi holds one of these offers for them, but it has purchase dates or also serves another event, so it can't say which event it was for.";
     case "unknown":
       return "Couldn't check Kajabi.";
     case "no_contact":

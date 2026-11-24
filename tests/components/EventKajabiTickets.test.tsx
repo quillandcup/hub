@@ -275,6 +275,7 @@ describe("Kajabi tickets on an event", () => {
       attendeesWithoutTicket: [
         { member_id: "m1", member_name: "Held Example", ticket_source: null, kajabi_offer: "held" },
         { member_id: "m2", member_name: "None Example", ticket_source: null, kajabi_offer: "not_held" },
+        { member_id: "m5", member_name: "Shared Example", ticket_source: null, kajabi_offer: "shared" },
         { member_id: "m3", member_name: "Unknown Example", ticket_source: null, kajabi_offer: "unknown" },
         { member_id: "m4", member_name: "NoContact Example", ticket_source: null, kajabi_offer: "no_contact" },
       ],
@@ -285,6 +286,7 @@ describe("Kajabi tickets on an event", () => {
 
     expect(await screen.findByText(/likely granted \(comped or gifted\)/)).toBeInTheDocument();
     expect(screen.getByText("Kajabi shows no sign of this offer for them.")).toBeInTheDocument(); // one offer linked
+    expect(screen.getByText(/has purchase dates or also serves another event, so it can't say which event it was for/)).toBeInTheDocument();
     expect(screen.getByText("Couldn't check Kajabi.")).toBeInTheDocument();
     expect(screen.getByText("No Kajabi contact for this member.")).toBeInTheDocument();
   });

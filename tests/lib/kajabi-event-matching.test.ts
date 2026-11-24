@@ -319,6 +319,60 @@ describe("findKajabiMatchesForEvent", () => {
       expect(await byName(r, lookup)).toEqual({ "Ada Example": "held", "Bo Example": "not_held", "Cy Example": "no_contact" });
     });
 
+    describe("an offer with purchase dates, or one that also serves another event", () => {
+      const OTHER_EVENT = "evt_AAAAAAAAAAA2";
+      const windowed = (extra: Record<string, unknown>[] = []) =>
+        withoutPurchaseWith({
+          eventOffers: [
+            { event_id: EVENT, kajabi_offer_id: FULL, purchased_from: "2097-02-01", purchased_until: null },
+            { event_id: EVENT, kajabi_offer_id: DEPOSIT },
+            ...extra,
+          ],
+        });
+      const withoutPurchaseWith = (over: Record<string, unknown>) =>
+        repos({
+          members: [
+            { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.com", kajabiId: "k1" },
+            { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", email: "bo@example.com", kajabiId: "k2" },
+            { id: "mbr_AAAAAAAAAAA3", name: "Cy Example", email: "cy@example.com", kajabiId: "k3" },
+          ],
+          eventAttendees: [0, 1, 2].map((i) => ({ id: `a${i}`, event_id: EVENT, member_id: `mbr_AAAAAAAAAAA${i + 1}`, ticket_source: null })),
+          ...over,
+        });
+      const holds = (offers: Record<string, string[]>) => async (id: string) => offers[id] ?? [];
+
+      it("still answers when the contact holds none of the event's offers: that is definite whatever the dates", async () => {
+        const r = windowed();
+
+        expect(await byName(r, holds({ k1: ["unrelated"], k2: [], k3: ["unrelated"] }))).toEqual({
+          "Ada Example": "not_held",
+          "Bo Example": "not_held",
+          "Cy Example": "not_held",
+        });
+      });
+
+      it("says shared when the only offer held has dates here, or also serves another event", async () => {
+        const r = windowed([{ event_id: OTHER_EVENT, kajabi_offer_id: DEPOSIT, purchased_from: null, purchased_until: "2097-01-31" }]);
+
+        // Ada holds the dated offer, Bo the one linked to another event too: neither can be pinned to this event.
+        expect(await byName(r, holds({ k1: [FULL], k2: [DEPOSIT], k3: [] }))).toEqual({
+          "Ada Example": "shared",
+          "Bo Example": "shared",
+          "Cy Example": "not_held",
+        });
+      });
+
+      it("says held when a contact also holds an offer that belongs to this event alone", async () => {
+        const withAlone = windowed([{ event_id: EVENT, kajabi_offer_id: "offer_alone" }]);
+
+        expect(await byName(withAlone, holds({ k1: [FULL, "offer_alone"], k2: [FULL], k3: [] }))).toEqual({
+          "Ada Example": "held",
+          "Bo Example": "shared",
+          "Cy Example": "not_held",
+        });
+      });
+    });
+
     it("says unknown when Kajabi does not answer, throws, or no lookup is given", async () => {
       const r = withoutPurchase({ a: "k1", b: "k2", c: "k3" });
       const lookup = async (id: string) => {

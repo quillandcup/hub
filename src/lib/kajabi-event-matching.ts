@@ -49,10 +49,12 @@ export interface AttendeeWithoutTicket {
   ticket_source: TicketSource | null;
   /**
    * Whether Kajabi says the member's contact holds one of the event's offers although they bought none
-   * (an offer granted from Kajabi's admin): "held", "not_held", "unknown" (Kajabi didn't answer) or
-   * "no_contact" (the member has no Kajabi contact).
+   * (an offer granted from Kajabi's admin): "held", "not_held" (none of the event's offers),
+   * "shared" (holds one, but every one they hold has purchase dates or also serves another event, so Kajabi
+   * can't say which event it was for), "unknown" (Kajabi didn't answer) or "no_contact" (the member has no
+   * Kajabi contact).
    */
-  kajabi_offer: "held" | "not_held" | "unknown" | "no_contact";
+  kajabi_offer: "held" | "not_held" | "shared" | "unknown" | "no_contact";
   /** A buyer who is not an attendee and may be the same person under another member record. */
   possible_duplicate: PossibleDuplicate | null;
 }
@@ -225,10 +227,15 @@ export async function findKajabiMatchesForEvent(
     buyer.possible_duplicate = { member_id: attendee.member_id, member_name: attendee.member_name };
   }
 
-  // Kajabi says which offers a contact holds, not when they got them, so a held offer can't be placed
-  // inside a window or told apart from the same offer sold for another event: report "unknown" then.
-  const grantsAttributable = links.every((l) => !hasWindow(l)) && allLinks.every((l) => !offerIds.includes(l.kajabi_offer_id) || l.event_id === eventId);
-  await checkGrants(repos, attendeesWithoutTicket, new Set(offerIds), grantsAttributable ? contactOfferIds : undefined);
+  // Kajabi says which offers a contact holds, not when they got them. Holding none of the event's offers
+  // is a definite answer whatever the windows are; holding one is only attributable to this event when the
+  // offer has no purchase window here and is linked to no other event. Otherwise it says "shared".
+  const attributable = new Set(
+    links
+      .filter((l) => !hasWindow(l) && allLinks.every((o) => o.kajabi_offer_id !== l.kajabi_offer_id || o.event_id === eventId))
+      .map((l) => l.kajabi_offer_id)
+  );
+  await checkGrants(repos, attendeesWithoutTicket, new Set(offerIds), attributable, contactOfferIds);
 
   // Two active purchases of the same offer are two tickets: Kajabi records no failed or pending
   // payments here, so the extra one is for someone else, whoever the buyer is.
@@ -261,6 +268,8 @@ async function checkGrants(
   repos: Pick<Repos, "members">,
   attendees: AttendeeWithoutTicket[],
   eventOfferIds: Set<string>,
+  /** The event's offers a held offer can be pinned to this event for: no purchase window here, linked to no other event. */
+  attributableOfferIds: Set<string>,
   contactOfferIds: ((kajabiContactId: string) => Promise<string[] | null>) | undefined
 ): Promise<void> {
   if (attendees.length === 0) return;
@@ -280,7 +289,11 @@ async function checkGrants(
       for (let next = work.shift(); next; next = work.shift()) {
         try {
           const held = await lookup(next.kajabiId);
-          next.attendee.kajabi_offer = held === null ? "unknown" : held.some((id) => eventOfferIds.has(id)) ? "held" : "not_held";
+          if (held === null) next.attendee.kajabi_offer = "unknown";
+          else {
+            const heldHere = held.filter((id) => eventOfferIds.has(id));
+            next.attendee.kajabi_offer = heldHere.length === 0 ? "not_held" : heldHere.some((id) => attributableOfferIds.has(id)) ? "held" : "shared";
+          }
         } catch {
           next.attendee.kajabi_offer = "unknown";
         }
