@@ -444,7 +444,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     {pendingTransferFor === attendee.memberId ? (
                       <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">Which event was this ticket bought for? Pick it to save it as transferred.</p>
                     ) : attendee.ticketFromEvent ? (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{`Transferred from ${attendee.ticketFromEvent.title}`}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Transferred from</p>
                     ) : (
                       <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">No origin on record: the event it came from may have been deleted. Pick it.</p>
                     )}
