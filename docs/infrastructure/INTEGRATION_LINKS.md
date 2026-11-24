@@ -78,7 +78,7 @@ Alert destinations are configured per system and environment:
 |---|---|---|
 | Checkly (uptime, SSL, cron heartbeats) | Code: `config/checkly/__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `config/app.ts` through the Checkly Slack app) | Production address and the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
 | Hub app (failed Slack DMs, ambiguous member matches) | `src/lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/infrastructure/SLACK_OPERATIONS_ALERTS.md`) | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
-| Weekly dependency audit (`.github/workflows/audit.yml`) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/infrastructure/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
+| Scheduled scans (`.github/workflows/osv-scan.yml` and the other scan workflows) | `SLACK_ALERTS_WEBHOOK_URL` GitHub secret: an incoming webhook on Billie Bot (`incoming-webhook` scope; `docs/infrastructure/SLACK_MANIFEST.md`, "The #hub-alerts webhook") | the alerts channel (`slack.alertsChannelName` in `config/app.ts`) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
 | GitHub Actions (failed runs) | Per-user notification settings | Not routable per environment today |

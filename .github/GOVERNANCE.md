@@ -20,7 +20,7 @@ Access to sensitive resources (the repository's administration, the production a
 
 ## Dependencies
 
-Dependencies are chosen by the maintainer when a change needs them and enter only through a pull request that changes `package.json` and `pnpm-lock.yaml`; installs in CI use the frozen lockfile. Dependabot proposes updates weekly (npm and GitHub Actions), and `pnpm audit`, OSV-Scanner and CodeQL watch for known problems (`docs/trust/THREAT_MODEL.md`, "Scheduled scanners"). How fast a finding is fixed depends on its severity, from 10 days for a critical one to 90 for a low one (same document, "How fast findings are fixed").
+Dependencies are chosen by the maintainer when a change needs them and enter only through a pull request that changes `package.json` and `pnpm-lock.yaml`; installs in CI use the frozen lockfile. Dependabot proposes updates weekly (npm and GitHub Actions), and OSV-Scanner and CodeQL watch for known problems (`docs/trust/THREAT_MODEL.md`, "Scheduled scanners"). How fast a finding is fixed depends on its severity, from 10 days for a critical one to 90 for a low one (same document, "How fast findings are fixed").
 
 ## Roadmap
 
@@ -32,4 +32,4 @@ Everything needed to run and recover the project is in the repository: setup (`d
 
 ## Security reports
 
-Reports come in privately (`SECURITY.md`). The maintainer acknowledges within 14 days, fixes confirmed problems on a branch with tests, ships them through the normal pull request path, and credits the reporter in the advisory unless they prefer not to be named. Fixed issues in dependencies are tracked by Dependabot and `pnpm audit`.
+Reports come in privately (`SECURITY.md`). The maintainer acknowledges within 14 days, fixes confirmed problems on a branch with tests, ships them through the normal pull request path, and credits the reporter in the advisory unless they prefer not to be named. Fixed issues in dependencies are tracked by Dependabot and OSV-Scanner.

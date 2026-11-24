@@ -12,7 +12,7 @@ The member platform for [Quill & Cup](https://quillandcup.com), a community of w
 
 <p>
   <a href="https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/quillandcup/hub/badge"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/audit.yml"><img alt="Dependency audit" src="https://github.com/quillandcup/hub/actions/workflows/audit.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml"><img alt="OSV scan" src="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml"><img alt="OSV scan" src="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml"><img alt="gitleaks" src="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml"><img alt="ZAP baseline" src="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main"></a>

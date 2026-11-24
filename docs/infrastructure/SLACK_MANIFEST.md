@@ -39,7 +39,7 @@ The job fails until all three exist.
 
 ## The #hub-alerts webhook
 
-Billie Bot also holds the incoming webhook the weekly dependency audit (`.github/workflows/audit.yml`) uses to post one line to #hub-alerts. It is the `incoming-webhook` bot scope in `config/slack-app-manifest.yml`; the workflow does a plain `curl` POST to the URL in the `SLACK_ALERTS_WEBHOOK_URL` GitHub secret, with no bot token involved. A webhook URL can only post to the one channel picked when it was added. (It used to be a second Slack app; the free plan allows only 10 installed apps, so it moved here.)
+Billie Bot also holds the incoming webhook the scheduled scan workflows (for example `.github/workflows/osv-scan.yml`) use to post one line to #hub-alerts. It is the `incoming-webhook` bot scope in `config/slack-app-manifest.yml`; the workflow does a plain `curl` POST to the URL in the `SLACK_ALERTS_WEBHOOK_URL` GitHub secret, with no bot token involved. A webhook URL can only post to the one channel picked when it was added. (It used to be a second Slack app; the free plan allows only 10 installed apps, so it moved here.)
 
 The webhook is created in the Slack dashboard, not by the manifest, so a manifest push never creates one. After the first push with the `incoming-webhook` scope (a scope change):
 
@@ -52,7 +52,7 @@ The webhook is created in the Slack dashboard, not by the manifest, so a manifes
    ```
 
    Paste the URL at the prompt. It is not in `config/env-vars.ts` and not in any env file.
-4. **Check it**: `gh workflow run audit.yml` posts only if the audit finds something, so test the webhook with a one-off `curl` of your own, or wait for the next finding.
+4. **Check it**: `gh workflow run osv-scan.yml` posts only if the scan finds something, so test the webhook with a one-off `curl` of your own, or wait for the next finding.
 
 Check after the first manifest push that the webhook still exists (Incoming Webhooks page lists it) and is not wiped by a later push; manifest pushes are meant to leave it alone, but verify once. To rotate it, revoke it on the Incoming Webhooks page, add a new one for #hub-alerts and repeat step 3.
 
