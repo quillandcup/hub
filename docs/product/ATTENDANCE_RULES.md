@@ -149,9 +149,10 @@ For each PUP attendance intersection:
 
 **Purpose**: Flag when scheduled hosts don't show up or are late to their own prickles.
 
-**Location**: 
-- `app/dashboard/calendar/page.tsx` (calendar view)
-- `app/dashboard/prickles/[id]/page.tsx` (prickle details)
+**Location**:
+- `src/lib/hosting-stats.ts` → `computeHostStatus()` (the 5-minute rule)
+- `src/app/(admin)/admin/calendar/page.tsx` and `src/components/CalendarWeekView.tsx` (the staff calendar shows the warnings)
+- `src/app/(admin)/admin/prickles/[id]/page.tsx`, `src/app/(member)/prickles/[id]/page.tsx` and `src/components/PrickleDetails.tsx` (prickle details)
 
 **Threshold**: **5 minutes**
 
@@ -175,15 +176,15 @@ For each PUP attendance intersection:
 
 **Purpose**: Filter out invalid prickles where someone joined and immediately left.
 
-**Location**: `app/dashboard/calendar/CalendarWeekView.tsx`
+**Location**: `src/app/api/process/attendance/route.ts` (the PUP creation loop; the calendar component `src/components/CalendarWeekView.tsx` no longer filters anything)
 
-**Rule**: Filter out prickles where `start_time === end_time`
+**Rule**: A PUP segment whose start is not before its end (`start_time >= end_time`) is skipped when attendance is processed, so it is never created and never reaches a calendar
 
 ### Example
 
 **Bad PUP**: 9:55 AM - 9:55 AM (0 minutes)
 - Someone joined Zoom and immediately disconnected
-- **Result**: Filtered from calendar display
+- **Result**: Skipped at processing time, so it never appears on a calendar
 
 ---
 
@@ -193,8 +194,8 @@ For each PUP attendance intersection:
 |-----------|---------|-------|----------|
 | Meeting segmentation | Determine when to create PUPs vs extend scheduled prickles | **20 minutes** | `src/app/api/process/attendance/route.ts` |
 | PUP attendance filtering | Prevent double-counting early/late arrivals | **15 minutes** | `src/app/api/process/attendance/route.ts` |
-| Host late warning | Flag late hosts | **5 minutes** | Calendar & prickle details pages |
-| Zero-duration | Filter invalid prickles | **0 minutes** | Calendar display |
+| Host late warning | Flag late hosts | **5 minutes** | `src/lib/hosting-stats.ts`, shown in `src/components/CalendarWeekView.tsx` and `src/components/PrickleDetails.tsx` |
+| Zero-duration | Skip invalid PUPs | **0 minutes** | `src/app/api/process/attendance/route.ts` |
 
 ---
 

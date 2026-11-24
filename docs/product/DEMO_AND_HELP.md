@@ -12,7 +12,7 @@ Status: the harness, two scenes, the `/help` route and the first article ("How t
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Layout (proposed)](#layout-proposed)
+- [Layout](#layout)
 - [Seed data](#seed-data)
 - [Scenes](#scenes)
 - [Help articles](#help-articles)
@@ -25,15 +25,20 @@ Status: the harness, two scenes, the `/help` route and the first article ("How t
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Layout (proposed)
+## Layout
 
 ```
 tests/demo/
-  seed/            fictional community, built from Bronze + Local inputs
+  seed.ts          the seed entry point (fictional community, built from Bronze + Local inputs;
+                   the pieces sit beside it: *-seed.ts, attendance.ts, live-seed.ts, personas.ts)
   scenes/          one Playwright spec per help article or feature
   playwright.config.ts
+  stack.ts         the separate demo Supabase stack
+  publish.ts       uploads the captured screenshots the articles use
+  baseline.ts      the findings baseline for the per-step checks
   out/             captured screenshots and videos (gitignored)
-help/         the articles (markdown), one per topic, images by scene name
+src/content/help/  the articles (markdown), one per topic; images are captured by scene
+                   and published to a private bucket, not committed
 ```
 
 Commands, run from the repo root:
