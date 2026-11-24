@@ -20,6 +20,7 @@ const events = {
   allPhotosOf: vi.fn(),
   photoPaths: vi.fn(),
   attendeesOf: vi.fn(),
+  choices: vi.fn(),
 };
 vi.mock("@/lib/data/repos", () => ({
   createRepos: () => ({
@@ -50,6 +51,7 @@ beforeEach(() => {
   calendarFails = false;
   events.allPhotosOf.mockResolvedValue([]);
   events.attendeesOf.mockResolvedValue([]);
+  events.choices.mockResolvedValue([]);
 });
 
 describe("GET /api/admin/events", () => {

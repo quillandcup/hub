@@ -417,3 +417,107 @@ describe("how an attendee got in", () => {
     });
   });
 });
+
+describe("a transferred ticket", () => {
+  const OTHER_EVENTS = [
+    { id: "evt_AAAAAAAAAAA2", title: "Spring Retreat" },
+    { id: "evt_AAAAAAAAAAA3", title: "Winter Retreat" },
+  ];
+  const serve = (attendee: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method) writes.push({ url, method: init.method, body: init.body ? JSON.parse(String(init.body)) : undefined });
+        if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+        return {
+          ok: true,
+          json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [attendee], otherEvents: OTHER_EVENTS }),
+        } as Response;
+      }),
+    );
+  const patchUrl = `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`;
+
+  it("shows where the ticket came from on a transferred row", async () => {
+    serve({ ...ADA, ticketSource: "transferred", ticketFromEvent: OTHER_EVENTS[0] });
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    expect(await screen.findByText("Transferred from Spring Retreat")).toBeInTheDocument();
+    expect(screen.getByLabelText("Transferred from, Ada Example")).toHaveValue(OTHER_EVENTS[0].id);
+  });
+
+  it("saves nothing on choosing Transferred until an event is picked, then saves the source and the origin together", async () => {
+    serve(ADA);
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "transferred");
+
+    expect(writes).toEqual([]);
+    expect(screen.getByText(/Which event was this ticket bought for\?/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Transferred from, Ada Example"), OTHER_EVENTS[1].id);
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({ url: patchUrl, method: "PATCH", body: { ticketSource: "transferred", ticketFromEventId: OTHER_EVENTS[1].id } });
+  });
+
+  it("cancels a pending Transferred choice by choosing another source or pressing Escape", async () => {
+    serve(ADA);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const select = await screen.findByLabelText("How Ada Example got in");
+
+    await userEvent.selectOptions(select, "transferred");
+    await userEvent.selectOptions(select, "comped");
+    expect(writes).toEqual([]);
+    expect(screen.queryByLabelText("Transferred from, Ada Example")).toBeNull();
+
+    await userEvent.selectOptions(select, "transferred");
+    await userEvent.keyboard("{Escape}");
+    expect(writes).toEqual([]);
+    expect(screen.queryByLabelText("Transferred from, Ada Example")).toBeNull();
+    expect(select).toHaveValue("comped");
+  });
+
+  it("saves just the origin when it is changed on a transferred row, ignores an empty choice, and prompts when none is on record", async () => {
+    serve({ ...ADA, ticketSource: "transferred", ticketFromEvent: null });
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const origin = await screen.findByLabelText("Transferred from, Ada Example");
+    expect(screen.getByText(/No origin on record/)).toBeInTheDocument();
+
+    await userEvent.selectOptions(origin, "");
+    expect(writes).toEqual([]);
+    await userEvent.selectOptions(origin, OTHER_EVENTS[0].id);
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toEqual({ ticketFromEventId: OTHER_EVENTS[0].id });
+  });
+
+  it("keeps Add attendee disabled for a transferred ticket until an origin is picked, then sends it", async () => {
+    serve(ADA);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
+    expect(screen.queryByLabelText("Transferred from event")).toBeNull();
+
+    await userEvent.selectOptions(screen.getByLabelText("How they got in"), "transferred");
+    expect(screen.getByRole("button", { name: "Add attendee" })).toBeDisabled();
+    expect(screen.getByText("Pick the event the ticket was bought for")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Transferred from event"), OTHER_EVENTS[0].id);
+    await userEvent.click(screen.getByRole("button", { name: "Add attendee" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toEqual({ memberId: "mbr_AAAAAAAAAAA2", ticketSource: "transferred", ticketFromEventId: OTHER_EVENTS[0].id });
+  });
+
+  it("drops the picked origin from the add form when the source is changed away", async () => {
+    serve(ADA);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
+    const how = screen.getByLabelText("How they got in");
+    await userEvent.selectOptions(how, "transferred");
+    await userEvent.selectOptions(screen.getByLabelText("Transferred from event"), OTHER_EVENTS[0].id);
+    await userEvent.selectOptions(how, "comped");
+    await userEvent.click(screen.getByRole("button", { name: "Add attendee" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toEqual({ memberId: "mbr_AAAAAAAAAAA2", ticketSource: "comped" });
+  });
+});

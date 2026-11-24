@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { parseTicketInput, SET_TICKET_REFUSALS } from "@/lib/event-tickets";
+import { originRefusal, parseTicketInput, SET_TICKET_REFUSALS } from "@/lib/event-tickets";
 import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -33,6 +33,15 @@ export async function POST(
     // Check the giver before the add, so a bad giver leaves nothing half-done.
     const giver = await createRepos(supabase).members.byId(ticket.giverId);
     if (!giver) return NextResponse.json({ error: SET_TICKET_REFUSALS.unknown_giver }, { status: 400 });
+  }
+
+  // A transferred ticket names the event it came from; checked before the add, like the giver.
+  if (ticket) {
+    const refusal = originRefusal(id, ticket, ticket.source ?? null, null);
+    if (refusal) return NextResponse.json({ error: SET_TICKET_REFUSALS[refusal] }, { status: 400 });
+    if (ticket.fromEventId && !(await createRepos(supabase).events.byId(ticket.fromEventId))) {
+      return NextResponse.json({ error: SET_TICKET_REFUSALS.unknown_origin }, { status: 400 });
+    }
   }
 
   const { error } = await supabase.rpc("add_event_attendee", {

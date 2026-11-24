@@ -19,6 +19,7 @@ const MATCHES = {
   multiTicketBuyers: [] as { member_id: string | null; name: string; tickets: number; first_bought: string | null; is_attendee: boolean; passed_to: string[]; unexplained: number }[],
   passedOn: [] as { giver_id: string; giver_name: string; tickets: number; receivers: string[] }[],
   notAttending: [] as { member_id: string; member_name: string; member_real_name: string | null; reason: string; note: string | null }[],
+  movedAway: [] as { member_id: string; member_name: string; member_real_name: string | null; destinations: string[] }[],
   buyers: [
     { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", member_status: "active", offer_names: ["Summer Retreat"], purchase_date: "2097-01-10T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: false },
     { member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example", member_real_name: null, member_status: "cancelled", offer_names: ["Summer Retreat"], purchase_date: "2097-01-11T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: true },
@@ -202,7 +203,7 @@ describe("Kajabi tickets on an event", () => {
   });
 
   it("says when everyone who bought is already an attendee", async () => {
-    matches = { offersLinked: true, multiTicketBuyers: [], passedOn: [], notAttending: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+    matches = { offersLinked: true, multiTicketBuyers: [], passedOn: [], notAttending: [], movedAway: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
@@ -287,6 +288,27 @@ describe("Kajabi tickets on an event", () => {
     const rows = screen.getByText("Not attending (2)").parentElement!.querySelectorAll("li");
     expect(rows[0]).toHaveTextContent("Gave their ticket to Cy Example");
     expect(rows[1]).toHaveTextContent("Deposit forfeited");
+    expect(screen.getAllByRole("button", { name: /Undo/ })).toHaveLength(1);
+  });
+
+  it("lists a buyer whose ticket moved to another event in Not attending, between passed-on and marked ones, read-only with the hint", async () => {
+    matches = {
+      ...MATCHES,
+      passedOn: [{ giver_id: "mbr_AAAAAAAAAAA2", giver_name: "Bo Example", tickets: 1, receivers: ["Cy Example"] }],
+      movedAway: [{ member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", destinations: ["Autumn Retreat"] }],
+      notAttending: [{ member_id: "mbr_AAAAAAAAAAA4", member_name: "Di Example", member_real_name: null, reason: "forfeited", note: null }],
+    };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByText("Not attending (3)")).toBeInTheDocument();
+    const rows = screen.getByText("Not attending (3)").parentElement!.querySelectorAll("li");
+    expect(rows[1]).toHaveTextContent("Ticket moved to Autumn Retreat");
+    expect(rows[1]).toHaveTextContent("Ada Example");
+    expect(rows[1]).toHaveTextContent("To remove it, change the Transferred source on that event.");
+    expect(rows[1].querySelector("a")).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA1");
+    expect(rows[1].querySelector("button")).toBeNull();
     expect(screen.getAllByRole("button", { name: /Undo/ })).toHaveLength(1);
   });
 

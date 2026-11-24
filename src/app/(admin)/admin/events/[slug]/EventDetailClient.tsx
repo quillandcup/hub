@@ -34,6 +34,8 @@ interface Attendee {
   ticketNote: string | null;
   /** Who gave the ticket (a gifted attendee); null when not recorded. */
   ticketGiver?: { id: string; name: string } | null;
+  /** The event the ticket was bought for (a transferred attendee); null when not recorded or that event is gone. */
+  ticketFromEvent?: { id: string; title: string } | null;
   /** Holds an active purchase of the event's linked Kajabi offers (derived by the server). */
   purchasedInKajabi: boolean;
 }
@@ -70,6 +72,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [addingTicketSource, setAddingTicketSource] = useState<TicketSource | "">("");
   const [addingTicketNote, setAddingTicketNote] = useState("");
   const [addingGiver, setAddingGiver] = useState<Member | null>(null);
+  // The other events a ticket can be transferred from, and the one picked in the add form.
+  const [otherEvents, setOtherEvents] = useState<{ id: string; title: string }[]>([]);
+  const [addingFromEvent, setAddingFromEvent] = useState("");
+  // The attendee whose dropdown was set to Transferred and who is waiting for the origin event: nothing is saved until one is picked.
+  const [pendingTransferFor, setPendingTransferFor] = useState<string | null>(null);
   // The attendee whose dropdown was set to Gifted and who is waiting for a giver: nothing is saved until one is picked.
   const [pendingGiftFor, setPendingGiftFor] = useState<string | null>(null);
   // The attendee whose giver somebody tried to clear in the picker (it can't be: the server refuses a gifted ticket without one).
@@ -96,6 +103,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setHubSession(!!body.hubSession);
       setOverridden(body.overridden ?? NOTHING_OVERRIDDEN);
       setAttendees(body.attendees);
+      setOtherEvents(body.otherEvents ?? []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -122,6 +130,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           ...(addingTicketSource && { ticketSource: addingTicketSource }),
           ...(addingTicketNote.trim() && { ticketNote: addingTicketNote }),
           ...(addingTicketSource === "gifted" && addingGiver && { ticketGiverId: addingGiver.id }),
+          ...(addingTicketSource === "transferred" && addingFromEvent && { ticketFromEventId: addingFromEvent }),
         }),
       });
       const body = await response.json();
@@ -130,6 +139,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setAddingTicketSource("");
       setAddingTicketNote("");
       setAddingGiver(null);
+      setAddingFromEvent("");
       await fetchData();
     } catch (err: any) {
       setError(err.message);
@@ -139,7 +149,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   };
 
   /** Saves the ticket fields it is given (the source, the note, or both); null clears one. */
-  const saveTicket = async (memberId: string, ticket: { ticketSource?: TicketSource | null; ticketNote?: string | null; ticketGiverId?: string | null }) => {
+  const saveTicket = async (memberId: string, ticket: { ticketSource?: TicketSource | null; ticketNote?: string | null; ticketGiverId?: string | null; ticketFromEventId?: string | null }) => {
     setError(null);
     try {
       const response = await fetch(`/api/admin/events/${eventId}/attendees/${memberId}`, {
@@ -163,9 +173,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     if (value === "gifted") {
       // A gifted ticket needs a giver, so the choice is saved together with it once the picker has one.
       setPendingGiftFor(memberId);
+      setPendingTransferFor(null);
+      return;
+    }
+    if (value === "transferred") {
+      // Likewise a transferred ticket needs the event it came from.
+      setPendingTransferFor(memberId);
+      setPendingGiftFor(null);
       return;
     }
     setPendingGiftFor(null);
+    setPendingTransferFor(null);
     // Back to what it already was: a cancel, nothing to save.
     if (value === (current ?? "") || (value === "purchased" && !current)) return;
     return saveTicket(memberId, isTicketSource(value) ? { ticketSource: value } : { ticketSource: null, ticketNote: null });
@@ -312,6 +330,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             onChange={(e) => {
               setAddingTicketSource(e.target.value as TicketSource | "");
               if (e.target.value !== "gifted") setAddingGiver(null);
+              if (e.target.value !== "transferred") setAddingFromEvent("");
             }}
             className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900"
           >
@@ -332,6 +351,21 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               />
             </div>
           )}
+          {addingTicketSource === "transferred" && (
+            <select
+              aria-label="Transferred from event"
+              value={addingFromEvent}
+              onChange={(e) => setAddingFromEvent(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900 w-56"
+            >
+              <option value="">Transferred from...</option>
+              {otherEvents.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.title}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             type="text"
             aria-label="Ticket note"
@@ -343,12 +377,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           />
           <button
             type="submit"
-            disabled={addingAttendee || !addingMember || (addingTicketSource === "gifted" && !addingGiver)}
+            disabled={addingAttendee || !addingMember || (addingTicketSource === "gifted" && !addingGiver) || (addingTicketSource === "transferred" && !addingFromEvent)}
             className="px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50"
           >
             {addingAttendee ? "Adding..." : "Add attendee"}
           </button>
           {addingTicketSource === "gifted" && !addingGiver && <p className="w-full text-xs text-slate-500 dark:text-slate-400">Pick who gave the ticket</p>}
+          {addingTicketSource === "transferred" && !addingFromEvent && <p className="w-full text-xs text-slate-500 dark:text-slate-400">Pick the event the ticket was bought for</p>}
         </form>
 
         {attendees.length === 0 ? (
@@ -404,6 +439,36 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     />
                   </div>
                 )}
+                {(attendee.ticketSource === "transferred" || pendingTransferFor === attendee.memberId) && (
+                  <div className="w-56">
+                    {pendingTransferFor === attendee.memberId ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">Which event was this ticket bought for? Pick it to save it as transferred.</p>
+                    ) : attendee.ticketFromEvent ? (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{`Transferred from ${attendee.ticketFromEvent.title}`}</p>
+                    ) : (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">No origin on record: the event it came from may have been deleted. Pick it.</p>
+                    )}
+                    <select
+                      aria-label={`Transferred from, ${attendee.memberName}`}
+                      value={pendingTransferFor === attendee.memberId ? "" : (attendee.ticketFromEvent?.id ?? "")}
+                      onChange={(e) => {
+                        // An empty choice is refused by the server (a transferred ticket always has an origin): nothing to save.
+                        if (!e.target.value) return;
+                        const becoming = pendingTransferFor === attendee.memberId;
+                        setPendingTransferFor(null);
+                        return saveTicket(attendee.memberId, becoming ? { ticketSource: "transferred", ticketFromEventId: e.target.value } : { ticketFromEventId: e.target.value });
+                      }}
+                      className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900 w-full"
+                    >
+                      <option value="">Transferred from...</option>
+                      {otherEvents.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {attendee.ticketSource && (
                   <input
                     key={`${attendee.id}:${attendee.ticketNote ?? ""}`}
@@ -424,10 +489,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <Tooltip content={attendee.purchasedInKajabi ? "Bought in Kajabi" : undefined}>
                   <select
                     aria-label={`How ${attendee.memberName} got in`}
-                    value={pendingGiftFor === attendee.memberId ? "gifted" : (attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : ""))}
+                    value={pendingGiftFor === attendee.memberId ? "gifted" : pendingTransferFor === attendee.memberId ? "transferred" : (attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : ""))}
                     onChange={(e) => handleTicketSource(attendee.memberId, attendee.ticketSource, e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Escape") setPendingGiftFor(null);
+                      if (e.key === "Escape") {
+                        setPendingGiftFor(null);
+                        setPendingTransferFor(null);
+                      }
                     }}
                     className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
                   >

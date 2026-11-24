@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TICKET_NOTE_MAX_LENGTH, isTicketSource, parseTicketInput, recordedTicketSource } from "@/lib/event-tickets";
+import { TICKET_NOTE_MAX_LENGTH, isTicketSource, originRefusal, parseTicketInput, recordedTicketSource } from "@/lib/event-tickets";
 
 describe("parseTicketInput", () => {
   it("is undefined when the body does not mention a ticket", () => {
@@ -34,7 +34,30 @@ describe("parseTicketInput", () => {
     expect(parseTicketInput({ ticketGiverId: 5 })).toEqual({ error: "ticketGiverId must be a member id" });
   });
 
+  it("reads an origin event, clears it with null or empty, and rejects anything that is not an event id", () => {
+    expect(parseTicketInput({ ticketFromEventId: "evt_AAAAAAAAAAA1" })).toEqual({ fromEventId: "evt_AAAAAAAAAAA1" });
+    expect(parseTicketInput({ ticketFromEventId: null })).toEqual({ fromEventId: null });
+    expect(parseTicketInput({ ticketFromEventId: "" })).toEqual({ fromEventId: null });
+    expect(parseTicketInput({ ticketFromEventId: "mbr_AAAAAAAAAAA1" })).toEqual({ error: "ticketFromEventId must be an event id" });
+    expect(parseTicketInput({ ticketFromEventId: 5 })).toEqual({ error: "ticketFromEventId must be an event id" });
+  });
+
+  it("holds an origin to the transferred source", () => {
+    const e = "evt_AAAAAAAAAAA1";
+    const from = "evt_AAAAAAAAAAA2";
+    expect(originRefusal(e, { fromEventId: from }, null, null)).toBe("not_transferred");
+    expect(originRefusal(e, { source: "transferred", fromEventId: e }, "transferred", null)).toBe("same_event");
+    expect(originRefusal(e, { source: "transferred" }, "transferred", null)).toBe("origin_required");
+    expect(originRefusal(e, { fromEventId: null }, "transferred", from)).toBe("origin_required");
+    // Fine: an origin given, an origin already there, a note edit on an orphaned row, or no transfer at all.
+    expect(originRefusal(e, { source: "transferred", fromEventId: from }, "transferred", null)).toBeNull();
+    expect(originRefusal(e, { source: "transferred" }, "transferred", from)).toBeNull();
+    expect(originRefusal(e, { note: "x" }, "transferred", null)).toBeNull();
+    expect(originRefusal(e, { source: "comped" }, "comped", null)).toBeNull();
+  });
+
   it("knows the sources", () => {
+    expect(isTicketSource("transferred")).toBe(true);
     expect(isTicketSource("gifted")).toBe(true);
     expect(isTicketSource("donated")).toBe(false);
     expect(isTicketSource("free")).toBe(false);

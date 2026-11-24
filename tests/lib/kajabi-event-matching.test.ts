@@ -52,7 +52,7 @@ function repos(over: Record<string, unknown> = {}) {
 describe("findKajabiMatchesForEvent", () => {
   it("says so when no offer is linked", async () => {
     const result = await findKajabiMatchesForEvent(repos({ eventOffers: [] }), EVENT);
-    expect(result).toEqual({ offersLinked: false, multiTicketBuyers: [], passedOn: [], notAttending: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] });
+    expect(result).toEqual({ offersLinked: false, multiTicketBuyers: [], passedOn: [], notAttending: [], movedAway: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] });
   });
 
   it("lists buyers of the linked offers who are not attendees, by display name, through email aliases", async () => {
@@ -163,6 +163,75 @@ describe("findKajabiMatchesForEvent", () => {
 
       expect(buyers[0].possible_duplicate).toBeNull();
       expect(attendeesWithoutTicket[0].possible_duplicate).toBeNull();
+    });
+  });
+  describe("tickets moved to another event", () => {
+    const ADA = "mbr_AAAAAAAAAAA1";
+    const BO = "mbr_AAAAAAAAAAA2";
+    const DEST = "evt_AAAAAAAAAAA2";
+    const events = eventSeed([
+      { id: EVENT, title: "Summer Retreat", slug: "summer-retreat" },
+      { id: DEST, title: "Autumn Retreat", slug: "autumn-retreat" },
+    ]);
+    const bought = [purchase("p1", "c1", FULL), purchase("p2", "c2", FULL)];
+    const transferred = (member: string, from: string | null, event = DEST) => ({ id: `a_${member}_${event}`, event_id: event, member_id: member, ticket_source: "transferred", ticket_from_event_id: from });
+
+    it("takes a buyer whose ticket is a transferred attendee elsewhere out of the buyers and says where it went", async () => {
+      const r = repos({ ...events, kajabiPurchases: bought, eventAttendees: [transferred(ADA, EVENT)] });
+
+      const { buyers, movedAway, notAttending, passedOn } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(buyers.map((b) => b.member_id)).toEqual([BO]);
+      expect(movedAway).toEqual([{ member_id: ADA, member_name: "Ada E", member_real_name: "Ada Example", destinations: ["Autumn Retreat"] }]);
+      expect(notAttending).toEqual([]);
+      expect(passedOn).toEqual([]);
+    });
+
+    it("is for the same member only: someone else's transferred ticket does not move the buyer", async () => {
+      const r = repos({ ...events, kajabiPurchases: bought, eventAttendees: [transferred(BO, EVENT)] });
+
+      const { buyers, movedAway } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(buyers.map((b) => b.member_id)).toEqual([ADA]);
+      expect(movedAway.map((m) => m.member_id)).toEqual([BO]);
+    });
+
+    it("ignores a transferred attendee whose origin is another event, or none, and a buyer who is an attendee here", async () => {
+      const r = repos({
+        ...events,
+        kajabiPurchases: bought,
+        eventAttendees: [transferred(ADA, null), transferred(BO, DEST), { id: "here", event_id: EVENT, member_id: BO }],
+      });
+
+      const { buyers, movedAway } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(buyers.map((b) => b.member_id)).toEqual([ADA]);
+      expect(movedAway).toEqual([]);
+    });
+
+    it("wins over a mark but loses to a ticket passed on as a gift", async () => {
+      const mark = { id: "evna_1", event_id: EVENT, member_id: ADA, reason: "forfeited", note: null, created_by: null, created_at: "2097-02-01T00:00:00Z" };
+      const moved = repos({ ...events, kajabiPurchases: bought, eventNotAttending: [mark], eventAttendees: [transferred(ADA, EVENT)] });
+      const first = await findKajabiMatchesForEvent(moved, EVENT);
+      expect(first.movedAway.map((m) => m.member_id)).toEqual([ADA]);
+      expect(first.notAttending).toEqual([]);
+
+      const gifted = repos({
+        ...events,
+        kajabiPurchases: bought,
+        eventAttendees: [transferred(ADA, EVENT), { id: "g1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA3", ticket_source: "gifted", ticket_giver_id: ADA }],
+      });
+      const second = await findKajabiMatchesForEvent(gifted, EVENT);
+      expect(second.passedOn.map((p) => p.giver_id)).toEqual([ADA]);
+      expect(second.movedAway).toEqual([]);
+    });
+
+    it("never says a transferred attendee has no ticket on record", async () => {
+      const r = repos({ ...events, kajabiPurchases: [], eventAttendees: [transferred(ADA, DEST, EVENT), { id: "n", event_id: EVENT, member_id: BO, ticket_source: null }] });
+
+      const { attendeesWithoutTicket } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(attendeesWithoutTicket.map((a) => a.member_id)).toEqual([BO]);
     });
   });
   describe("buyers marked as not attending", () => {

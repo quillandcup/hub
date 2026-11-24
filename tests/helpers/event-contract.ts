@@ -336,6 +336,55 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().moveTicketGiver(dup, keep)).toBe(0);
       });
 
+      it("records the event a transferred ticket came from, refuses every misuse, clears it with the source, and keeps the attendee when the origin is deleted", async () => {
+        const ids = await ctx.seed([
+          { key: "to", title: "Autumn retreat", startsAt: "2097-09-01T09:00:00Z" },
+          { key: "from", title: "Spring retreat", startsAt: "2097-03-01T09:00:00Z" },
+        ]);
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        await ctx.attend(ids.to, bo, "2097-01-01T00:00:00Z");
+        const row = async () => (await ctx.repo().attendeesOf(ids.to)).find((x) => x.member_id === bo)!;
+        const set = (ticket: Parameters<EventRepository["setAttendeeTicket"]>[2]) => ctx.repo().setAttendeeTicket(ids.to, bo, ticket);
+
+        // Misuse is refused and changes nothing.
+        expect(await set({ fromEventId: ids.from })).toBe("not_transferred");
+        expect(await set({ source: "comped", fromEventId: ids.from })).toBe("not_transferred");
+        expect(await set({ source: "transferred" })).toBe("origin_required");
+        expect(await set({ source: "transferred", fromEventId: ids.to })).toBe("same_event");
+        expect(await set({ source: "transferred", fromEventId: NONE })).toBe("unknown_origin");
+        expect(await set({ source: "transferred", fromEventId: ids.from, giverId: bo })).toBe("self_gift");
+        expect(await set({ source: "transferred", fromEventId: ids.from, giverId: NONE })).toBe("not_gifted");
+        expect((await row()).ticket_source).toBeNull();
+
+        expect(await set({ source: "transferred", fromEventId: ids.from })).toBe("set");
+        expect((await row()).ticket_source).toBe("transferred");
+        expect((await row()).ticket_from_event).toEqual({ id: ids.from, title: "Spring retreat" });
+
+        // A note edit leaves the origin alone; clearing it while transferred is refused.
+        expect(await set({ note: "moved over" })).toBe("set");
+        expect((await row()).ticket_from_event?.id).toBe(ids.from);
+        expect(await set({ fromEventId: null })).toBe("origin_required");
+        expect((await row()).ticket_from_event?.id).toBe(ids.from);
+
+        // The origin side reads it back, for that member only.
+        expect(await ctx.repo().ticketsMovedAwayFrom(ids.from)).toEqual([{ member_id: bo, event_id: ids.to, event_title: "Autumn retreat" }]);
+        expect(await ctx.repo().ticketsMovedAwayFrom(ids.to)).toEqual([]);
+
+        // Another source clears the origin; so does going back to nothing.
+        expect(await set({ source: "comped" })).toBe("set");
+        expect((await row()).ticket_from_event).toBeNull();
+        expect(await ctx.repo().ticketsMovedAwayFrom(ids.from)).toEqual([]);
+
+        // Deleting the origin event keeps the attendee and clears the link.
+        expect(await set({ source: "transferred", fromEventId: ids.from })).toBe("set");
+        await ctx.repo().remove(ids.from);
+        expect((await row()).ticket_source).toBe("transferred");
+        expect((await row()).ticket_from_event).toBeNull();
+        // A note edit on the orphaned row still saves, and a source change or an origin is held to the rule again.
+        expect(await set({ note: "origin deleted" })).toBe("set");
+        expect(await set({ source: "transferred" })).toBe("origin_required");
+      });
+
       it("marks a buyer as not attending, replaces the mark, refuses an attendee and an 'other' without a note, and undoes it", async () => {
         const ids = await ctx.seed([{ key: "e", title: "Deposit retreat", startsAt: "2097-03-01T09:00:00Z" }]);
         const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
