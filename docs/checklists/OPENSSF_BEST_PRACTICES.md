@@ -1,6 +1,6 @@
 # OpenSSF Best Practices: where we stand
 
-> **Status:** living. **Last reviewed:** 2026-11-23. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
 Where the project stands against the OpenSSF Best Practices criteria, used as a guide to good practice rather than for a badge. The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels. **We are not applying for the badge**: the Passing level requires a FLOSS license and ours is proprietary (`LICENSE`). This page uses the checklist as a list of good practice and records how we score, so we know what is already done and what is worth doing anyway.
 
@@ -26,6 +26,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
   - [Analysis](#analysis)
 - [Silver](#silver)
 - [Gold](#gold)
+- [Decided not to pursue](#decided-not-to-pursue)
 - [What is worth doing even without the badge](#what-is-worth-doing-even-without-the-badge)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -177,6 +178,19 @@ Gold also requires Silver.
 | `test_branch_coverage80` [MUST] | Partly | Floors are 85% for `lib`, 82% for `components` and 71% for `src/app/api`. |
 | `security_review` [MUST] | Partly | `docs/trust/THREAT_MODEL.md` (2026-11-17) is our own review, not an independent one. |
 | `hardened_site` [MUST] | Unverified | Headers are set; Observatory and securityheaders grades haven't been run (`docs/TODO.md`). |
+
+## Decided not to pursue
+
+Decided 2026-11-24, with the OpenSSF Scorecard at 8.0, and applying to the Baseline (`docs/checklists/OSPS_BASELINE.md`) and the Scorecard as well. The public Compliance page lists this as "Used as a guide", not "Working toward": these are checklists we use, not a certificate we are aiming for. We take the checks that make the Hub safer (required checks that nobody can skip, pinned tools, generated-input tests) and skip what would only raise a score. These are decisions, not backlog, so they are not in `docs/TODO.md`; reopen one only if its reason below stops being true.
+
+| What | Why not | Reopen when |
+|---|---|---|
+| The Best Practices badge | The Passing level requires a FLOSS license (`floss_license`), and ours is proprietary (`LICENSE`); the source is public for transparency only. | The project is relicensed as open source. |
+| A DCO or CLA (`OSPS-LE-01.01`) | It certifies outside contributions, and we accept none. | We accept outside code. |
+| Releases with signed provenance (the Scorecard's Signed-Releases and Packaging checks, the "release" controls of the Baseline) | The app deploys continuously from `main`; the `production` tag and the build provenance already say what is live (`docs/infrastructure/DEPLOYMENT.md`). A release made only to be signed would add a step nobody uses. | We publish something others install. |
+| A bot approver for Code-Review and Branch-Protection | The Scorecard check describes human review, and a bot that approves to satisfy a rule is not a review. | A second maintainer joins (this is also what `OSPS-QA-07.01` and Baseline Level 3 need). |
+
+What stays out of reach and is not a decision: Scorecard's Contributors (one organization) and License (the license is proprietary) checks.
 
 ## What is worth doing even without the badge
 Ordered by value for effort; each is, or should become, an entry in `docs/TODO.md`.

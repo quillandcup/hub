@@ -20,7 +20,7 @@ Where the project stands against each control of the OpenSSF Open Source Project
 | N/A | 15 |
 | Total | 65 |
 
-**Level 1** (24 controls): all met or N/A except `OSPS-LE-02.01`, which needs relicensing. **Level 2** adds `OSPS-LE-01.01` (a DCO or CLA, not met, because we accept no outside code) and a few documentation gaps. **Level 3** is out of reach as a one-developer project (`OSPS-QA-07.01` needs a second human approver), plus some policy documents we have not written (see `docs/TODO.md`, "OSPS Baseline: what is left").
+**Level 1** (24 controls): all met or N/A except `OSPS-LE-02.01`, which needs relicensing. **Level 2** adds `OSPS-LE-01.01` (a DCO or CLA, not met, because we accept no outside code) and a few documentation gaps. **Level 3** is out of reach as a one-developer project (`OSPS-QA-07.01` needs a second human approver), plus some policy documents we have not written (see `docs/TODO.md`, "OSPS Baseline: what is left"). The controls we have decided not to pursue (the DCO, signed releases, a bot approver, the badge) are in `docs/checklists/OPENSSF_BEST_PRACTICES.md`, "Decided not to pursue", not in the backlog.
 
 ## Access control (AC)
 
