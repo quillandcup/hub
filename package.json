@@ -65,6 +65,7 @@
     "env:sync:vault": "tsx scripts/sync-vault-secrets.ts",
     "templates:render": "tsx scripts/render-email-templates.ts",
     "courses:content": "tsx scripts/kajabi-course-content.ts",
+    "courses:migrate": "tsx scripts/courses-migrate.ts",
     "covers:adopt": "tsx scripts/adopt-book-covers.ts",
     "photos:adopt": "tsx scripts/adopt-member-photos.ts",
     "books:import": "tsx scripts/import-storefront-books.ts",

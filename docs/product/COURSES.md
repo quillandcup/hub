@@ -1,6 +1,6 @@
 # Courses in the Hub
 
-> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Quill & Cup's courses live in the Hub, synced from Kajabi until the Hub's course builder is good enough to replace it. Courses are open to every member (changelog entry "Courses in the Hub", `src/content/changelog.ts`, slug `courses-open-to-everyone`): members find the courses they have access to under `/courses`, watch lessons in the Hub's own player, mark them complete, pick up where they stopped (also from "Continue watching" on the dashboard), and download lesson files. Staff import courses from Kajabi, publish them, and can duplicate, take over or delete them and build Hub-owned courses in the course editor. This doc is the plan and the record for moving Quill & Cup's courses from Kajabi into the Hub, starting with **The Ready Writer**, the first course; update it as decisions land.
 
@@ -37,6 +37,7 @@ Quill & Cup's courses live in the Hub, synced from Kajabi until the Hub's course
 - [Deleting a course](#deleting-a-course)
 - [Course addresses: suggestions and redirects](#course-addresses-suggestions-and-redirects)
 - [Migration pipeline](#migration-pipeline)
+  - [One command](#one-command)
   - [Step B in practice](#step-b-in-practice)
   - [Telling whether a video changed](#telling-whether-a-video-changed)
 - [Lesson downloads](#lesson-downloads)
@@ -359,7 +360,7 @@ A Hub course's address (`courses.slug`, members open it at `/courses/<slug>`) ca
 
 ## Migration pipeline
 
-The four steps below are each safe to re-run and only do new work. (The planned single `pnpm courses:migrate` command does not exist: `package.json` has only `courses:content` for step B; A and C run with the standard Kajabi sync and from the admin Courses page, D from the admin course page's Videos and Downloads panels.)
+The four steps below are each safe to re-run and only do new work. **`pnpm courses:migrate` runs all of them for one course** (see "One command"); each step can still be run alone (A and C also run with the standard Kajabi sync and from the admin Courses page, B as `pnpm courses:content`, D from the admin course page's Videos and Downloads panels).
 
 | Step | Runs where | What it does | Idempotency |
 |---|---|---|---|
@@ -388,6 +389,19 @@ Tests, per `.claude/rules/testing-requirements.md`:
 - Bronze idempotency tests in `tests/api/idempotency/`: first import, re-import with no duplicates, a changed lesson, a removed lesson.
 - Silver reprocessability tests in `tests/api/reprocessability/`: create, a deleted source removes the lesson, a changed source updates it, and IDs stay stable.
 - Media tests with Mux mocked: a re-run uploads nothing new, and a changed source re-uploads.
+
+### One command
+
+`pnpm courses:migrate --course <kajabi-course-id> [--env .env.prod] [--base-url <url>] [--yes] [--access-duration "1 year"|lifetime] [--launch-on YYYY-MM-DD] [--skip-drafts]` (`scripts/courses-migrate.ts`; the logic is `src/lib/courses/migrate.ts`, argument parsing `migrate-args.ts`). It runs, in order, and stops at the first failure with what to do next:
+
+1. **A.** `POST /api/import/kajabi-courses` for the one course; prints counts. Any `unplacedLessons` stops the run here (the importer's assumption about the live response is wrong).
+2. **B.** Spawns `scripts/kajabi-course-content.ts` (Chrome and the saved Kajabi login, output on your terminal), **a dry run first**, then asks "Write ...? [y/N]" and runs it again with `--apply`. A dry run that finds nothing new skips the write. Quizzes are skipped by B and counted in the summary.
+3. **C.** `POST /api/process/courses` by Kajabi id. A course that is not published yet asks for its access length and launch day (the flags answer both), then asks to publish; with `--yes` and no flags it refuses instead of guessing, and nothing is published.
+4. **D.** Downloads and images (`/api/process/course-files`, free), then the videos: `course-media` with `action: "plan"` (read-only, no Mux needed) says "N videos, M minutes" and **pauses to ask before uploading, because Mux bills every upload** (`--yes` skips it). It then repeats `upload` until nothing is left or a round makes no progress (each call is capped at 300 seconds), and finishes with "Update status". Videos only draft lessons use are never uploaded here.
+
+It ends with one summary (lessons captured, quizzes skipped, files and images copied, videos uploaded or pending, anything failed). Every step is idempotent, so a re-run only does what is missing and a run with nothing new is a no-op (the launch-day check). Exit code 1 for a failed step or item; declining a question is not a failure.
+
+**Where it points.** `--env` names the env file for both the Supabase keys step B writes with and the secret the routes check (`CRON_SECRET`, else `SUPABASE_SERVICE_ROLE_KEY`; never printed). The routes are `--base-url`, else the deployed app for `.env.prod` (`appConfig.appUrl`) and the local dev server (`pnpm dev`) for anything else. A non-local target asks "This writes to <url>. Continue?" first. A new step (the quiz capture) is one more object in `buildSteps()`.
 
 ### Step B in practice
 
@@ -632,7 +646,7 @@ Under `/admin/courses/<id>/comments`, every page starting with `requirePermissio
 
 ## Ongoing sync after launch
 
-Ania publishes in Kajabi until the builder replaces it, so the sync is used for months, not once. **It's manual for now:** when she finishes a batch, run step B (`pnpm courses:content`, see "Step B in practice") and then the admin course page's copy and upload buttons (step D). Each step skips anything unchanged. (A single `pnpm courses:migrate` command was planned and does not exist.)
+Ania publishes in Kajabi until the builder replaces it, so the sync is used for months, not once. **It's one command:** when she finishes a batch, run `pnpm courses:migrate --course <id> --env .env.prod` (see "One command"): it captures the new lessons (step B, which needs the Kajabi session), reprocesses, copies files and asks before uploading new videos. Each step skips anything unchanged. The pieces still work alone (`pnpm courses:content`, the admin course page's copy and upload buttons).
 
 Steps A and C also run with the standard Kajabi sync (the admin button and the nightly reconciliation), so structure and access stay current without anyone running them. Lesson text and new videos still need step B, which needs the Kajabi session, so that stays manual.
 

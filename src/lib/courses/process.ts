@@ -47,6 +47,8 @@ export async function ensureDraftCourses(repos: Pick<Repos, "courses" | "kajabiC
 export interface ProcessCoursesOptions {
   /** Silver slug of the course to refresh (a new course gets the slug of its Kajabi title); omit to refresh every Kajabi course that has a row. */
   courseSlug?: string;
+  /** Alternative to `courseSlug` for a caller that knows the Kajabi course id but not the slug (the migrate command). */
+  courseKajabiId?: string;
   /** Make the course available to members (clears `is_draft`) as part of this run. Processing never publishes on its own. */
   publish?: boolean;
   /** Access length as an interval ("1 year", "P1Y"); set on the course when given, otherwise left as is (null = lifetime). */
@@ -58,6 +60,13 @@ export interface ProcessCoursesOptions {
 export interface ProcessCoursesResult {
   courses: {
     slug: string;
+    kajabiId: string;
+    /** Not yet available to members. */
+    isDraft: boolean;
+    /** Access length as an interval; null is lifetime. */
+    accessDuration: string | null;
+    /** When the course opens, as an instant; null when it has no launch date. */
+    launchAt: string | null;
     modules: number;
     lessons: number;
     comingSoon: number;
@@ -147,7 +156,10 @@ export async function processCourses(
   const silverByKey = new Map(existingSilver.map((c) => [c.source_key, c]));
 
   let targets: any[];
-  if (options.courseSlug) {
+  if (options.courseKajabiId) {
+    targets = bronzeCourses.filter((c) => c.kajabi_id === options.courseKajabiId);
+    if (targets.length === 0) throw new CourseProcessingError(`No Kajabi course with id "${options.courseKajabiId}" in Bronze; run step A first`, 404);
+  } else if (options.courseSlug) {
     const wanted = options.courseSlug;
     targets = bronzeCourses.filter((c) => {
       const silver = silverByKey.get(c.kajabi_id);
@@ -284,6 +296,10 @@ export async function processCourses(
     if (!silver!.is_draft) accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration, launch_at: silver!.launch_at, index: result.courses.length });
     result.courses.push({
       slug: silver!.slug,
+      kajabiId,
+      isDraft: !!silver!.is_draft,
+      accessDuration: silver!.access_duration ?? null,
+      launchAt: silver!.launch_at ?? null,
       modules: modules.length - countOf(tree.modules, "hidden"),
       lessons: lessons.length - countOf(tree.lessons, "hidden"),
       comingSoon: countOf(tree.lessons, "coming_soon"),

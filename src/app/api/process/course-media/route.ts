@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseMuxApi, createMuxClient } from "@/lib/mux";
-import { refreshVideoStatuses, uploadCourseVideos } from "@/lib/courses/media";
+import { planCourseVideos, refreshVideoStatuses, uploadCourseVideos } from "@/lib/courses/media";
 import { processCourses } from "@/lib/courses/process";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,7 +11,9 @@ export const maxDuration = 300;
 /**
  * Course videos -> Mux (docs/product/COURSES.md, step D): see src/lib/courses/media.ts.
  *
- * Body: `{ "course": "the-ready-writer", "action": "upload" | "upload_drafts" | "refresh", "mediaIds"?: [...] }`.
+ * Body: `{ "course": "the-ready-writer", "action": "plan" | "upload" | "upload_drafts" | "refresh", "mediaIds"?: [...] }`.
+ * - `plan` only reads: it lists the course's videos and what each needs (no download links, no Mux
+ *   call, so it works without Mux configured). The migrate command uses it to say what an upload costs.
  * - `upload` sends the course's visible lessons' videos that aren't in Mux yet (each is billed), then
  *   brings statuses up to date and links the lessons to their videos.
  * - `upload_drafts` does the same for the videos only draft lessons use, which `upload` never sends.
@@ -36,10 +38,10 @@ export async function POST(request: NextRequest) {
   if (mediaIds !== undefined && (!Array.isArray(mediaIds) || mediaIds.length === 0 || mediaIds.length > 500 || mediaIds.some((id) => typeof id !== "string" || id === ""))) {
     return NextResponse.json({ error: '"mediaIds" must be a non-empty list of media ids' }, { status: 400 });
   }
-  if (!slug || (action !== "upload" && action !== "upload_drafts" && action !== "refresh")) {
-    return NextResponse.json({ error: 'Body needs "course" (a slug) and "action" ("upload", "upload_drafts" or "refresh")' }, { status: 400 });
+  if (!slug || (action !== "plan" && action !== "upload" && action !== "upload_drafts" && action !== "refresh")) {
+    return NextResponse.json({ error: 'Body needs "course" (a slug) and "action" ("plan", "upload", "upload_drafts" or "refresh")' }, { status: 400 });
   }
-  if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
+  if (action !== "plan" && (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET)) {
     return NextResponse.json({ error: "Mux isn't configured here (MUX_TOKEN_ID / MUX_TOKEN_SECRET)" }, { status: 503 });
   }
 
@@ -47,6 +49,17 @@ export async function POST(request: NextRequest) {
   const course = await createRepos(supabase).courses.courseBySlug(slug, { source: "kajabi" });
   if (!course) return NextResponse.json({ error: `No published course "${slug}"` }, { status: 404 });
   if (!course.source_key) return NextResponse.json({ error: `Course "${slug}" has no source key` }, { status: 409 });
+
+  if (action === "plan") {
+    try {
+      const plan = await planCourseVideos(createRepos(supabase), course.source_key, new Date());
+      // The download links are left out: they are presigned and the caller only needs the shape.
+      return NextResponse.json({ success: true, videos: plan.map(({ downloadUrl: _link, ...video }) => video) });
+    } catch (error: any) {
+      console.error("Course media plan failed:", error);
+      return NextResponse.json({ error: error.message || "Planning failed" }, { status: 500 });
+    }
+  }
 
   try {
     const api = courseMuxApi(createMuxClient());

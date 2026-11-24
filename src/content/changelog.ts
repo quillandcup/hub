@@ -3767,4 +3767,16 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
 - **Desktop layout and Mobile layout.** Hide, space inside and the other settings that depend on screen size are now together under those two headings.
 - **Where the content sits in a tall section.** With Fill the page on, choose the top, the middle or the bottom. Sections you already have stay in the middle.`,
   },
+  {
+    slug: "courses-migrate-command",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "One command moves a Kajabi course into the Hub",
+    summary: "pnpm courses:migrate runs the structure import, the Kajabi content capture, processing and the media copy for one course, and stops at the first problem.",
+    body:
+      "Moving a course used to mean the capture script plus several admin-page buttons, in the right order. `pnpm courses:migrate --course <id>` now runs all of it and ends with one summary. Every step is safe to repeat, so a run with nothing new is a no-op you can use as the launch-day check.\n\n" +
+      "The logic is in `src/lib/courses/migrate.ts` with the terminal, `fetch` and the capture child process injected, so it is tested without a server or a browser. A step is an object in `buildSteps()`: a new one (the quiz capture) is one more entry. The capture runs as a dry run first and asks before writing; a new course asks for its access length and launch day before it is published; the video upload asks first because Mux bills it. `--yes` skips the questions but refuses to guess what only a person can decide.\n\n" +
+      "The routes it calls take the cron secret or service role key as a Bearer token, so it works against the local stack or a deployed app (`--env .env.prod`). Details are in `docs/product/COURSES.md`, section \"One command\".",
+  },
 ];
