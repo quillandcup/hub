@@ -109,6 +109,8 @@ export interface QuizRepository {
   attemptsOfQuiz(quizId: string): Promise<QuizAttemptRecord[]>;
   /** Whether the member has a passing attempt at the quiz. */
   hasPassed(memberId: string, quizId: string): Promise<boolean>;
+  /** Removes a member's attempts at a quiz, their answers with them (staff clearing their own test attempts); returns how many there were. */
+  clearAttempts(memberId: string, quizId: string): Promise<number>;
   /** How many attempts members have made at the quiz of each of these lessons, by lesson id; a lesson with none (or no quiz) is absent. */
   attemptCountsOfLessons(lessonIds: string[]): Promise<Map<string, number>>;
 }
@@ -266,6 +268,12 @@ export class SupabaseQuizRepository implements QuizRepository {
     const { count, error } = await this.db.from("quiz_attempts").select("id", { count: "exact", head: true }).eq("member_id", memberId).eq("quiz_id", quizId).eq("passed", true);
     if (error) throw new Error(error.message);
     return (count ?? 0) > 0;
+  }
+
+  async clearAttempts(memberId: string, quizId: string) {
+    const { data, error } = await this.db.from("quiz_attempts").delete().eq("member_id", memberId).eq("quiz_id", quizId).select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
   }
 
   async attemptCountsOfLessons(lessonIds: string[]) {
@@ -485,6 +493,13 @@ export class InMemoryQuizRepository implements QuizRepository {
 
   async hasPassed(memberId: string, quizId: string) {
     return this.data.quizAttempts.some((a) => a.member_id === memberId && a.quiz_id === quizId && a.passed);
+  }
+
+  async clearAttempts(memberId: string, quizId: string) {
+    const gone = new Set(this.data.quizAttempts.filter((a) => a.member_id === memberId && a.quiz_id === quizId).map((a) => a.id));
+    this.data.quizAttempts = this.data.quizAttempts.filter((a) => !gone.has(a.id));
+    this.data.quizAttemptAnswers = this.data.quizAttemptAnswers.filter((a) => !gone.has(a.attempt_id));
+    return gone.size;
   }
 
   async attemptCountsOfLessons(lessonIds: string[]) {

@@ -17,6 +17,8 @@ interface LessonCompletion {
   toggle: () => void;
   /** The player reached the watched mark: completes it, once, unless the member has chosen otherwise. */
   autoComplete: () => void;
+  /** The server has already completed the lesson (a quiz that was passed): shows it, with no request of its own. */
+  markCompleted: () => void;
 }
 
 const Context = createContext<LessonCompletion | null>(null);
@@ -74,7 +76,9 @@ export function LessonCompletionProvider({
     apply(true);
   }, [apply, completed, readOnlyReason]);
 
-  return <Context.Provider value={{ completed, readOnlyReason, error, pending, toggle, autoComplete }}>{children}</Context.Provider>;
+  const markCompleted = useCallback(() => setCompleted(true), []);
+
+  return <Context.Provider value={{ completed, readOnlyReason, error, pending, toggle, autoComplete, markCompleted }}>{children}</Context.Provider>;
 }
 
 /** The lesson's completion state, or null outside a provider (the player then just plays). */
