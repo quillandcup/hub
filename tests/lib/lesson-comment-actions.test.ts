@@ -20,7 +20,7 @@ vi.mock("@/lib/data/repos", async (importOriginal) => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(data) };
 });
 
-import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow } from "@/app/(member)/courses/comment-actions";
+import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow, suggestCommentMentions } from "@/app/(member)/courses/comment-actions";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -390,5 +390,62 @@ describe("clock", () => {
   it("is restored for other tests", () => {
     setClock(systemClock);
     expect(true).toBe(true);
+  });
+});
+
+describe("mentions", () => {
+  const token = (id: string) => `@[${id}]`;
+
+  it("posts a comment that mentions a member of the course, and hands it to the notifier", async () => {
+    const result = await postLessonComment(LESSON, `Hi ${token(CAL)}`, null);
+
+    expect(result.error).toBeUndefined();
+    expect((await comments().byId(result.id!))?.body).toBe(`Hi ${token(CAL)}`);
+    expect(notify).toHaveBeenCalledWith(expect.anything(), result.id);
+  });
+
+  it("refuses someone who can't open the course (access ended, or not a member), and more than five people", async () => {
+    expect((await postLessonComment(LESSON, `Hi ${token(BEA)}`, null)).error).toBe("You can only mention people who are in this course");
+    expect((await postLessonComment(LESSON, `Hi ${token("mbr_ZZZZZZZZZZZZ")}`, null)).error).toBe("You can only mention people who are in this course");
+    const many = ["mbr_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA4", "mbr_AAAAAAAAAAA5", "mbr_AAAAAAAAAAA6", "mbr_AAAAAAAAAAA7", "mbr_AAAAAAAAAAA8"].map(token).join(" ");
+    expect((await postLessonComment(LESSON, many, null)).error).toBe("Mention up to 5 people in one comment");
+    expect(data.lessonComments).toHaveLength(0);
+  });
+
+  it("checks the mentions of an edit too, and tells the people it adds", async () => {
+    const id = (await postLessonComment(LESSON, "Before", null)).id!;
+    data.lessonComments[0].created_at = new Date(NOW).toISOString();
+    notify.mockClear();
+
+    expect((await editLessonComment(id, `Now ${token(BEA)}`)).error).toBe("You can only mention people who are in this course");
+    expect(notify).not.toHaveBeenCalled();
+    expect((await editLessonComment(id, `Now ${token(CAL)}`)).error).toBeUndefined();
+    expect(notify).toHaveBeenCalledWith(expect.anything(), id, expect.any(Date), "mentions");
+  });
+});
+
+describe("suggestCommentMentions", () => {
+  it("offers members of the course who match, never the writer or someone whose access ended", async () => {
+    data.members.push({ id: "mbr_AAAAAAAAAAA4", name: "Cala Other" });
+    data.courseAccess.push({ member_id: "mbr_AAAAAAAAAAA4", course_id: COURSE, starts_at: "2020-01-01T00:00:00Z", ends_at: null } as never);
+
+    const found = await suggestCommentMentions(LESSON, "cal");
+    expect(found.map((c) => c.name).sort()).toEqual(["Cal Example", "Cala Other"]);
+    expect(found.every((c) => c.isInstructor === false)).toBe(true);
+    expect(await suggestCommentMentions(LESSON, "bea")).toEqual([]);
+    expect(await suggestCommentMentions(LESSON, "ada")).toEqual([]);
+  });
+
+  it("offers nothing for an empty query, a bad lesson, the flag off, sudo, no caller or a lesson that is not open", async () => {
+    expect(await suggestCommentMentions(LESSON, "  ")).toEqual([]);
+    expect(await suggestCommentMentions("nope", "cal")).toEqual([]);
+    expect(await suggestCommentMentions(SOON, "cal")).toEqual([]);
+    state.feature = false;
+    expect(await suggestCommentMentions(LESSON, "cal")).toEqual([]);
+    state.feature = true;
+    state.caller = callerFor(ADA, { isSudo: true });
+    expect(await suggestCommentMentions(LESSON, "cal")).toEqual([]);
+    state.caller = null;
+    expect(await suggestCommentMentions(LESSON, "cal")).toEqual([]);
   });
 });

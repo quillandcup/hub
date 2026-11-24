@@ -115,7 +115,7 @@ export const EVENTS = {
    * id of a person: `course_id` is the course's own id, `is_staff` whether an instructor wrote it, `count_bucket` how many
    * comments the member saw under the lesson.
    */
-  lesson_comment_posted: { course_id: text(24), is_reply: bool(), is_staff: bool() },
+  lesson_comment_posted: { course_id: text(24), is_reply: bool(), is_staff: bool(), has_mention: bool() },
   lesson_comment_edited: { course_id: text(24) },
   lesson_comment_deleted: { course_id: text(24), is_reply: bool() },
   /** A member sent a report (src/components/courses/CommentThread.tsx): the course and whether it was a reply, never the reason or whose comment. */
