@@ -608,6 +608,18 @@ Pages built before this are converted when they are opened; the starter homepage
     ].join("\n"),
   },
   {
+    slug: "chat-lists-keep-their-shape",
+    date: "2026-11-23",
+    audience: "product",
+    category: "fixed",
+    title: "Lists and line breaks in Hub Chat stay as you wrote them",
+    summary: "When you paste or write a message with a bulleted or numbered list in Hub Chat, it keeps its line breaks and list after it reaches Slack, instead of running together into one paragraph.",
+    body: [
+      "- **Before:** a message with a list looked right for a moment, then, once it had gone to Slack, the Hub showed it as one paragraph with the bullets in a row.",
+      "- **Now:** the heading, paragraphs and list stay on their own lines in the Hub, as they do in Slack.",
+    ].join("\n"),
+  },
+  {
     slug: "member-activity-date-range",
     date: "2026-11-17",
     audience: "staff",
