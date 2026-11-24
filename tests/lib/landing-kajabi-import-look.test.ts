@@ -4,7 +4,7 @@ import { block, exportSettings } from "@/tests/helpers/kajabi-export";
 
 /** The look of an imported hero: how the picture is framed, the space around the card, a video's still and a white logo. Every fixture is made up. */
 
-const OPTIONS = { siteUrl: "https://kajabi.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
+const OPTIONS = { siteUrl: "https://kajabi.example.test", coursesUrl: "https://courses.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
 type Puck = { type: string; props: Record<string, unknown> };
 const kids = (b: Puck) => b.props.content as Puck[];
 
