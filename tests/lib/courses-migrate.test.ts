@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildSteps, formatSummary, parseCommentsSummary, parseContentSummary, parseProgressSummary, resolveEnvironment, runMigration, LOCAL_APP_URL, type MigrateIO, type MigrateStep } from "@/lib/courses/migrate";
+import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from "@/lib/kajabi/capture-totals";
 import { parseMigrateArgs, type MigrateArgs } from "@/lib/courses/migrate-args";
 
 const SECRET = "s3cret-token";
@@ -16,8 +17,12 @@ function withOptional(extra: string[] = []): MigrateArgs {
   return parsed;
 }
 
-const CONTENT_LINE = (u: number, l: number, q = 1, f = 0) => `Done: ${u} updated, ${l} links refreshed, 5 unchanged, 0 not in Bronze, ${q} quizzes skipped, ${f} failed`;
-const DRY_LINE = (u: number, l: number) => `Dry run, nothing written: ${u} updated, ${l} links refreshed, 5 unchanged, 0 not in Bronze, 1 quizzes skipped, 0 failed`;
+const totals = (u: number, l: number, quizzes = 1, f = 0) => ({
+  updated: u, urlsRefreshed: l, unchanged: 5, missing: 0, failed: f, quizzes: { total: quizzes, created: 0, updated: quizzes, unchanged: 0, noQuestionRead: 0 },
+});
+// Built by the same functions the capture script prints with, so the parser is tested against the real text.
+const CONTENT_LINE = (u: number, l: number, q = 1, f = 0) => formatContentTotals(true, totals(u, l, q, f));
+const DRY_LINE = (u: number, l: number) => formatContentTotals(false, totals(u, l));
 
 interface Call { path: string; body: any; auth: string | null }
 
@@ -101,8 +106,32 @@ const content = (dry = DRY_LINE(3, 0), applied = CONTENT_LINE(3, 0)) => [
 
 describe("parseContentSummary", () => {
   it("reads the totals line", () => {
-    expect(parseContentSummary(`x\n${CONTENT_LINE(3, 2, 4, 1)}\n`)).toEqual({ updated: 3, linksRefreshed: 2, unchanged: 5, notInBronze: 0, quizzesSkipped: 4, failed: 1 });
+    expect(parseContentSummary(`x\n${CONTENT_LINE(3, 2, 4, 1)}\n`)).toEqual({
+      updated: 3, linksRefreshed: 2, unchanged: 5, notInBronze: 0, failed: 1,
+      quizzes: { total: 4, created: 0, changed: 4, unchanged: 0, noQuestionRead: 0 },
+    });
     expect(parseContentSummary("nothing here")).toBeNull();
+  });
+
+  it("reads the dry run line the capture prints, with its quiz suffix", () => {
+    const line = formatContentTotals(false, { updated: 0, urlsRefreshed: 0, unchanged: 53, missing: 0, failed: 0, quizzes: { total: 1, created: 0, updated: 1, unchanged: 0, noQuestionRead: 0 } });
+    expect(line).toBe("Dry run, nothing written: 0 updated, 0 links refreshed, 53 unchanged, 0 not in Bronze, 0 failed; 1 quizzes (0 new, 1 changed, 0 unchanged, 0 with no question read)");
+    expect(parseContentSummary(line)).toEqual({ updated: 0, linksRefreshed: 0, unchanged: 53, notInBronze: 0, failed: 0, quizzes: { total: 1, created: 0, changed: 1, unchanged: 0, noQuestionRead: 0 } });
+  });
+
+  it("still reads a line without the quiz suffix, and ignores unknown trailing text", () => {
+    const bare = "Done: 2 updated, 1 links refreshed, 5 unchanged, 0 not in Bronze, 3 failed";
+    expect(parseContentSummary(bare)).toEqual({ updated: 2, linksRefreshed: 1, unchanged: 5, notInBronze: 0, failed: 3, quizzes: null });
+    const extra = `${CONTENT_LINE(2, 1)}; 9 widgets (a new thing)\nQuizzes reach the Hub with the next run.`;
+    expect(parseContentSummary(extra)).toMatchObject({ updated: 2, linksRefreshed: 1, failed: 0, quizzes: { total: 1 } });
+  });
+
+  it("the summary line shows the quiz counts", () => {
+    const result = { ok: true, stopped: null, failures: [], summary: { content: { applied: true, counts: parseContentSummary(DRY_LINE(0, 0)) } } };
+    const text = formatSummary(result).join("\n");
+    expect(text).toContain("5 unchanged, 0 not in Bronze, 0 failed; quizzes: 0 new, 1 changed, 0 unchanged.");
+    const unread = parseContentSummary(formatContentTotals(true, { ...totals(1, 0), quizzes: { total: 2, created: 1, updated: 0, unchanged: 1, noQuestionRead: 1 } }));
+    expect(formatSummary({ ...result, summary: { content: { applied: true, counts: unread } } }).join("\n")).toContain("quizzes: 1 new, 0 changed, 1 unchanged, 1 with no question read.");
   });
 });
 
@@ -185,7 +214,7 @@ describe("runMigration", () => {
         ["--course", "42", "--env", ".env.prod", "--skip-drafts", "--apply"],
       ]);
       expect(h.confirmed[0]).toMatch(/Write what the dry run found/);
-      expect(result.summary.content).toEqual({ applied: true, counts: expect.objectContaining({ updated: 3, quizzesSkipped: 1 }) });
+      expect(result.summary.content).toEqual({ applied: true, counts: expect.objectContaining({ updated: 3, quizzes: expect.objectContaining({ total: 1, changed: 1 }) }) });
     });
 
     it("writes nothing and stops cleanly when the question is declined", async () => {
@@ -390,7 +419,7 @@ describe("runMigration", () => {
     const result = await runMigration(args(["--yes"]), ENV, h.io);
     const text = formatSummary(result).join("\n");
     expect(text).toContain("Lesson content: 3 captured");
-    expect(text).toContain("1 quizzes skipped");
+    expect(text).toContain("quizzes: 0 new, 1 changed, 0 unchanged");
     expect(text).toContain("Downloads: 1 copied, 2 already there");
     expect(text).toContain("Images: 3 stored");
     expect(text).toContain("Videos: 0 uploaded now, 1 already in Mux, 0 pending");
@@ -444,8 +473,9 @@ describe("optional progress and comments steps", () => {
       ["--course", "42", "--env", ".env.prod", "--progress"],
       ["--course", "42", "--env", ".env.prod", "--progress", "--apply"],
     ]);
-    expect(h.confirmed).toHaveLength(1);
+    expect(h.confirmed).toHaveLength(2);
     expect(h.confirmed[0]).toMatch(/progress/);
+    expect(h.confirmed[1]).toBe("Add 6 completed lessons to the Hub's progress? Insert-only: a member's own progress is never overwritten.");
     const progressCalls = h.calls.filter((c) => c.path === "/api/process/course-progress");
     expect(progressCalls.map((c) => c.body)).toEqual([
       { course: "demo-course", dryRun: true },
@@ -483,6 +513,33 @@ describe("optional progress and comments steps", () => {
     // Processing ran (a dry run), found nothing to add, and made no real call.
     expect(h.calls.filter((c) => c.path === "/api/process/course-progress").map((c) => c.body.dryRun)).toEqual([true]);
     expect(result.ok).toBe(true);
+  });
+
+  it("P2 asks before writing, --yes skips the question, and a no skips only P2 with exit 0", async () => {
+    const routes = baseRoutes({ "/api/process/course-progress": PROGRESS_ROUTE(6) });
+    const bronze = [...bDone, ok(PROGRESS_LINES(0, 0)), ok(COMMENT_LINES(0))];
+
+    const yes = harness({ routes, content: bronze });
+    await runMigration(withOptional(["--yes"]), ENV, yes.io);
+    expect(yes.confirmed).toEqual([]);
+    expect(yes.calls.filter((c) => c.path === "/api/process/course-progress").map((c) => c.body.dryRun)).toEqual([true, false]);
+
+    const no = harness({ routes, content: bronze, confirms: [false] });
+    const result = await runMigration(withOptional(), ENV, no.io);
+    expect(no.confirmed).toHaveLength(1);
+    expect(no.calls.filter((c) => c.path === "/api/process/course-progress").map((c) => c.body.dryRun)).toEqual([true]);
+    expect(result.summary.progressImport).toMatchObject({ inserted: 0, applied: false, declined: true });
+    expect(formatSummary(result).join("\n")).toContain("(declined; 6 would be added)");
+    expect(no.paths()).toContain("/api/process/course-files");
+    expect(result.stopped).toBeNull();
+    expect(result.ok).toBe(true);
+  });
+
+  it("P2 does not ask when the dry run would add nothing", async () => {
+    const h = harness({ routes: baseRoutes({ "/api/process/course-progress": PROGRESS_ROUTE(0) }), content: [...bDone, ok(PROGRESS_LINES(0, 0)), ok(COMMENT_LINES(0))] });
+    await runMigration(withOptional(), ENV, h.io);
+    expect(h.confirmed).toEqual([]);
+    expect(h.calls.filter((c) => c.path === "/api/process/course-progress").map((c) => c.body.dryRun)).toEqual([true]);
   });
 
   it("declining a capture skips only that capture and the run carries on without failing", async () => {
@@ -640,6 +697,19 @@ describe("optional progress and comments steps", () => {
     expect(text).toContain("Comments: captured to Bronze.");
     expect(text).toContain("(4 written, 1 unchanged, 0 removed.)");
     expect(text).toContain("Progress: nothing new in Bronze");
+  });
+});
+
+describe("parseProgressSummary and parseCommentsSummary against the real printers", () => {
+  const rows = { written: 3, unchanged: 2, removed: 1 };
+  it("read what formatProgressTotals and formatCommentsTotals build", () => {
+    const progress = formatProgressTotals(false, { members: 4, rosterSkipped: 0, duplicateEmails: 0, rosterCountMismatch: false, roster: rows, membersCaptured: 4, membersFailed: 2, membersWithoutLessons: 0, lessonsListed: 9, lessonsCompleted: 5, lessonsNotInBronze: 0, lessons: { written: 7, unchanged: 1, removed: 0 } });
+    expect(parseProgressSummary(progress)).toEqual({ roster: rows, lessons: { written: 7, unchanged: 1, removed: 0 }, failed: 2 });
+    const comments = formatCommentsTotals(true, {
+      lessonsListed: 5, lessonsNotInBronze: 0, lessonsCaptured: 5, lessonsWithComments: 3, comments: 7, replies: 2, rows, keySources: { "reply-link": 1, "reply-container": 1, "data-comment": 1, hash: 0 },
+      duplicateKeys: 0, lessonsNoComments: 0, lessonsQuizzes: 0, lessonsLocked: 0, lessonsWithoutList: 0, lessonsCapped: 1, lessonsMismatched: 0, lessonsFailed: 2,
+    });
+    expect(parseCommentsSummary(comments)).toEqual({ rows, lessonsFailed: 2, lessonsCapped: 1 });
   });
 });
 

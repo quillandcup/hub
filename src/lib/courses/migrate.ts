@@ -69,8 +69,9 @@ export interface ContentCounts {
   linksRefreshed: number;
   unchanged: number;
   notInBronze: number;
-  quizzesSkipped: number;
   failed: number;
+  /** The quiz part of the line (an older capture printed none, or "N quizzes skipped"): null when it isn't there. */
+  quizzes: { total: number; created: number; changed: number; unchanged: number; noQuestionRead: number } | null;
 }
 
 export interface MigrateSummary {
@@ -80,7 +81,7 @@ export interface MigrateSummary {
   course?: { slug: string; published: boolean; justPublished: boolean };
   progress?: { outcome: OptionalOutcome; counts: ProgressCaptureCounts | null };
   /** The insert-only import of Bronze progress into the Hub's own progress (counts of members' completed lessons). */
-  progressImport?: { dryRun: { inserted: number; alreadyCompleted: number; leftAlone: number }; inserted: number; applied: boolean };
+  progressImport?: { dryRun: { inserted: number; alreadyCompleted: number; leftAlone: number }; inserted: number; applied: boolean; declined?: boolean };
   comments?: { outcome: OptionalOutcome; counts: CommentsCaptureCounts | null };
   /** The import of Bronze comments into the Hub's lesson comments (counts of comments). */
   commentsImport?: { dryRun: CommentsImportCounts; written: number; applied: boolean };
@@ -175,18 +176,23 @@ async function callStep(ctx: Context, step: string, path: string, body: unknown,
   }
 }
 
-/** Reads the totals line the content script prints ("Done: 3 updated, 0 links refreshed, ..."). */
+/**
+ * Reads the totals line the content script prints (`formatContentTotals`, src/lib/kajabi/capture-totals.ts):
+ * "Done: 3 updated, 0 links refreshed, 5 unchanged, 0 not in Bronze, 0 failed; 1 quizzes (0 new, 1 changed, ...)".
+ * Tolerant on purpose: the lesson counts are what matters, the quiz part is optional, and text after either is ignored.
+ */
 export function parseContentSummary(output: string): ContentCounts | null {
-  const line = output.split("\n").find((l) => /quizzes skipped/.test(l) && /updated/.test(l));
+  const line = output.split("\n").find((l) => /\d+ updated, \d+ links refreshed/.test(l));
   if (!line) return null;
   const n = (label: string) => Number(new RegExp(`(\\d+) ${label}`).exec(line)?.[1] ?? 0);
+  const quiz = /(\d+) quizzes \((\d+) new, (\d+) changed, (\d+) unchanged, (\d+) with no question read\)/.exec(line);
   return {
     updated: n("updated"),
     linksRefreshed: n("links refreshed"),
     unchanged: n("unchanged"),
     notInBronze: n("not in Bronze"),
-    quizzesSkipped: n("quizzes skipped"),
     failed: n("failed"),
+    quizzes: quiz ? { total: Number(quiz[1]), created: Number(quiz[2]), changed: Number(quiz[3]), unchanged: Number(quiz[4]), noQuestionRead: Number(quiz[5]) } : null,
   };
 }
 
@@ -352,6 +358,11 @@ const stepProgressImport: MigrateStep = {
       if (counts.inserted === 0) {
         ctx.summary.progressImport = { dryRun: counts, inserted: 0, applied: false };
         ctx.io.log("Nothing to add.");
+        return;
+      }
+      if (!ctx.args.yes && !(await ctx.io.confirm(`Add ${counts.inserted} completed lessons to the Hub's progress? Insert-only: a member's own progress is never overwritten.`))) {
+        ctx.summary.progressImport = { dryRun: counts, inserted: 0, applied: false, declined: true };
+        ctx.io.log("Skipped adding the progress. Nothing changed; run the command again to add it.");
         return;
       }
       const real = await callStep(ctx, "Step P2 (progress)", "/api/process/course-progress", { course: ctx.slug, dryRun: false }, "Fix that and re-run.");
@@ -651,7 +662,8 @@ export function formatSummary(result: MigrateResult): string[] {
     else
       lines.push(
         `Lesson content: ${c.updated} captured${s.content.applied ? "" : " (dry run, not written)"}, ${c.linksRefreshed} links refreshed, ${c.unchanged} unchanged, ` +
-          `${c.quizzesSkipped} quizzes skipped, ${c.notInBronze} not in Bronze, ${c.failed} failed.`
+          `${c.notInBronze} not in Bronze, ${c.failed} failed` +
+          (c.quizzes ? `; quizzes: ${c.quizzes.created} new, ${c.quizzes.changed} changed, ${c.quizzes.unchanged} unchanged${c.quizzes.noQuestionRead > 0 ? `, ${c.quizzes.noQuestionRead} with no question read` : ""}.` : ".")
       );
   }
   if (s.course) lines.push(`Course "${s.course.slug}": ${s.course.justPublished ? "published now" : s.course.published ? "already published" : "still a draft"}.`);
@@ -667,7 +679,7 @@ export function formatSummary(result: MigrateResult): string[] {
   if (s.progressImport) {
     const p = s.progressImport;
     lines.push(
-      `Progress in the Hub: ${p.inserted} completed lessons added${p.applied ? "" : " (nothing to add)"}, ${p.dryRun.alreadyCompleted} already completed, ${p.dryRun.leftAlone} left alone. ` +
+      `Progress in the Hub: ${p.inserted} completed lessons added${p.applied ? "" : p.declined ? ` (declined; ${p.dryRun.inserted} would be added)` : " (nothing to add)"}, ${p.dryRun.alreadyCompleted} already completed, ${p.dryRun.leftAlone} left alone. ` +
         "Insert-only: a member's own progress is never overwritten, and a re-run adds nothing twice."
     );
   }
