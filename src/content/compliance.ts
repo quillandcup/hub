@@ -13,7 +13,7 @@ export const COMPLIANCE_STATUSES = {
   inPlace: "In place",
   provider: "Handled by our provider",
   working: "Working toward",
-  guide: "Used as a guide",
+  guide: "Used as a checklist",
   review: "Not yet reviewed",
   notApplicable: "Doesn't apply",
 } as const;
@@ -197,13 +197,13 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
       },
       {
         name: "OpenSSF security baseline",
-        about: "Open-source security checklists, and an automatic grade for a project's habits.",
+        about: "Public security checklists for open-source code, and a score out of 10 from a checking tool.",
         status: "guide",
         detail:
-          "We use the Open Source Project Security Baseline and the Best Practices checklist from the OpenSSF, and its public Scorecard grades the repository's habits automatically (a score out of 10, shown in the project's README), as a checklist for how we run the code. They are written for open-source projects with outside contributors, and the Hub is not one, so we are not aiming for a certificate or a badge. From them we took: every change goes through a pull request with required checks and no one can skip them, the tools our automated builds use are pinned to exact versions, and the code that checks links is tested with many generated inputs. We leave out what only makes sense for outside contributors or published releases, such as a contributor sign-off.",
+          "We use two public checklists from the OpenSSF as a guide for how we run the Hub's code. They are written for open-source projects with outside contributors, and the Hub is not one, so we are not aiming for a certificate or a badge. A checking tool from the same group also scores the code out of 10. From the checklists we took three things: every change must pass the required checks and no one can skip them, the tools that build the app are locked to exact versions, and the code that checks the links members add, such as profile links, is tested with many made-up addresses.",
         evidence: ["docs/checklists/OSPS_BASELINE.md", "docs/checklists/OPENSSF_BEST_PRACTICES.md", ".github/workflows/openssf-scorecard.yml", "config/app.ts (scorecard.minScore)", "config/github.yml", "tests/lib/url-sanitizers-fuzz.test.ts"],
         checked: "2026-11-24",
-        open: ["Deliberately not pursued, because they would raise the score without making the Hub safer: a DCO or CLA (we accept no outside code), releases with signed provenance (the app deploys continuously from main), a bot approver, and the Best Practices badge (it needs an open-source license). Level 3 of the Baseline and the Code-Review check need a second human approver. The list is in docs/TODO.md, OSPS Baseline: what is left."],
+        open: ["Deliberately not pursued, because they would raise the score without making the Hub safer: a DCO or CLA (we accept no outside code), releases with signed provenance (the app deploys continuously from main), a bot approver, and the Best Practices badge (it needs an open-source license). Level 3 of the Baseline and the Code-Review check need a second human approver. The decisions and what would reopen each are in docs/checklists/OPENSSF_BEST_PRACTICES.md, Decided not to pursue."],
       },
       {
         name: "SOC 2 and ISO 27001",

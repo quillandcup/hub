@@ -22,7 +22,7 @@ export const STATUS_MEANING: Record<ComplianceStatus, string> = {
   inPlace: "We do this ourselves, and you can check it in the Hub.",
   provider: "A provider we use holds the certification or does the work.",
   working: "Partly there. The row says what is still open.",
-  guide: "We follow it as a checklist for how we work, not as a certificate we are aiming for. The row says what we took from it.",
+  guide: "We use it as a checklist for how we run the code, not as a certificate we are aiming for. The row lists what we took from it.",
   review: "We haven't reviewed it yet.",
   notApplicable: "Doesn't apply to the Hub, or we don't hold it.",
 };
