@@ -10,7 +10,7 @@ Sources: `supabase/config.toml`, the docs and CI in this repo, and read-only che
 
 | Item | Status | Evidence and what to do |
 |---|---|---|
-| Indexes for common query patterns | Partial | Hot queries are checked ad hoc with `pg_stat_statements` (installed in prod). The performance advisor reports 99 warnings (prod, today): 30 `auth_rls_initplan` (policies calling `auth.<fn>()` per row instead of `(select auth.<fn>())`), 68 `multiple_permissive_policies`, 1 `duplicate_index`. None is an error, but the initplan ones are cheap to fix and the box is memory-bound (below). Tracked in `docs/TODO.md`, "Supabase Performance Advisor Warnings". |
+| Indexes for common query patterns | Partial | Hot queries are checked ad hoc with `pg_stat_statements` (installed in prod). The performance advisor reports 120 warnings and no errors (prod, read 2026-11-24): 30 `auth_rls_initplan` (policies calling `auth.<fn>()` per row instead of `(select auth.<fn>())`), 89 `multiple_permissive_policies`, 1 `duplicate_index`. None is an error, but the initplan ones are cheap to fix and the box is memory-bound (below). Tracked in `docs/TODO.md`, "Supabase Performance Advisor Warnings". |
 | Load test, ideally on staging | Gap | No load test in the repo (no k6 or similar), and there is no staging database. The launch (2026-11-02) went out without one. Tracked in `docs/TODO.md`, "Load test the Hub before the next big announcement". |
 | Upgrade compute if needed | Partial | Small compute, `max_connections` 90 (prod). Memory pressure is known and documented in `docs/TODO.md`, "Production database memory, and the jump from Small to Medium". Compute size is not config as code. |
 | Traffic surge notice to support (Team and Enterprise) | N/A | Only offered on those plans; the launch is past. |
@@ -45,7 +45,7 @@ Sources: `supabase/config.toml`, the docs and CI in this repo, and read-only che
 
 ## Security advisor (prod, today)
 
-`supabase db advisors --linked --type security` reports 54 warnings and no errors: 51 and 1 for `SECURITY DEFINER` functions executable by signed-in or anonymous users, 1 for a mutable function `search_path`, and 1 for a long OTP expiry. The OTP expiry is deliberate (24 hours, so a link requested in the evening still works; see the comment in `config.toml`). The definer-function ones are described in `docs/TODO.md`, "Supabase Security Advisories (Skipped)", which is out of date on the count (it names two functions). RLS is on for every public table (0 of them without it, prod).
+`supabase db advisors --linked --type security` reports 60 warnings and no errors (prod, read 2026-11-24): 59 for `SECURITY DEFINER` functions in `public` executable by signed-in users and 1 for one executable by `anon` (`is_admin()`, which is also in the 59). Nothing else is flagged: the mutable function `search_path` and the long OTP expiry warnings are gone (the expiry is now 3600, see "Email link validity" above). The definer-function ones are reviewed function by function in `docs/trust/SECURITY_DEFINER_REVIEW.md`, whose own count (54 signed-in-callable on 2026-11-21) predates the newest functions, and in `docs/TODO.md`, "Supabase Security Advisories (Skipped)", which is out of date on the count (it names two functions). RLS is on for every table in `public` and `bronze` (0 without it, prod, 2026-11-24).
 
 ## Not covered
 

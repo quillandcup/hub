@@ -17,6 +17,6 @@ Setup and configuration of the services we run on.
 - [Slack notification operations alerts](SLACK_OPERATIONS_ALERTS.md): The Hub posts its own production alerts to a Slack alerts channel, covering failed notifications, crashed pages and scheduled jobs with problems
 - [Vercel project config as code](VERCEL_CONFIG.md): Vercel project settings that `vercel.json` can't express are kept as code in `config/vercel.yml` and pushed by CI
 - [Webhook Setup Guide](WEBHOOK_SETUP.md): How to configure and test the real-time webhooks from Google Calendar, Zoom, Slack and Resend that feed Bronze layer updates
-- [Webhook Testing Guide](WEBHOOK_TESTING.md): Webhook handlers are tested without network access using MSW (Mock Service Worker), with signature verification enabled for all webhooks
+- [Webhook Testing Guide](WEBHOOK_TESTING.md): Webhook handlers are tested without calling the vendors: each test builds a signed request, calls the route handler directly and checks the response and what was written, with signature verification…
 
 <!-- END docs-index -->

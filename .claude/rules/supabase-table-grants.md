@@ -11,12 +11,11 @@ Supabase stopped automatically granting Data API access to new tables in the `pu
 **Every migration that creates a table in `public` must grant access in the same migration**, alongside `enable row level security` and the policies:
 
 ```sql
-grant select on public.your_table to anon;
 grant select, insert, update, delete on public.your_table to authenticated;
 grant select, insert, update, delete on public.your_table to service_role;
 ```
 
-- Grant only what the table needs. RLS still filters rows, but a grant is the outer gate: omit `anon` for tables no signed-out visitor reads, omit write privileges the app never uses (e.g. server-written tables: `service_role` only), and use column-level `grant select (col)` where columns are hidden (see the Slack content tables in `data-architecture.md`).
+- Grant only what the table needs. RLS still filters rows, but a grant is the outer gate: never grant `anon` anything on a table (the signed-out role holds no table privileges: `supabase/tests/database/anon_has_no_table_privileges.test.sql` fails on one, and a signed-out page reads through the server), omit write privileges the app never uses (e.g. server-written tables: `service_role` only), and use column-level `grant select (col)` where columns are hidden (see the Slack content tables in `data-architecture.md`).
 - Tables that are service role only get no `anon`/`authenticated` grants at all.
 - Adding a column to a table with column-level grants needs its own `grant select (col)`.
 - A new table's pgTAP/RLS test should fail without the grant, so cover it in `supabase/tests/database/`.

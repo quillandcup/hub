@@ -6,7 +6,7 @@ Check of which addresses production's stored HTML actually uses, done before the
 
 ## The concern
 
-`src/lib/courses/sanitize.ts` and `src/lib/landing/sanitize.ts` allowed relative addresses. Staff-authored HTML could therefore make a member's browser request any path on our own site: an `<img src="/api/...">` is fetched without a click. Authors are staff, so the risk is low, but it was cheap to close if no existing content needed it.
+Before this change, `src/lib/courses/sanitize.ts` and `src/lib/landing/sanitize.ts` allowed any relative address. Staff-authored HTML could therefore make a member's browser request any path on our own site: an `<img src="/api/...">` is fetched without a click. Authors are staff, so the risk is low, but it was cheap to close if no existing content needed it.
 
 ## What production uses (read-only check)
 
