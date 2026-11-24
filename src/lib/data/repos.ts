@@ -38,6 +38,7 @@ import { InMemoryCalendarFeedRepository, SupabaseCalendarFeedRepository, type Ca
 import { InMemoryCalendarSyncStateRepository, SupabaseCalendarSyncStateRepository, type CalendarSyncStateRepository } from "./calendar-sync-state";
 import { InMemoryCourseRepository, SupabaseCourseRepository, type CourseRepository } from "./courses";
 import { InMemoryCourseCommentRepository, SupabaseCourseCommentRepository, type CourseCommentRepository } from "./course-comments";
+import { InMemoryCourseInstructorRepository, SupabaseCourseInstructorRepository, type CourseInstructorRepository } from "./course-instructors";
 import { InMemoryQuizRepository, SupabaseQuizRepository, type QuizRepository } from "./quizzes";
 import { InMemoryCourseProgressRepository, SupabaseCourseProgressRepository, type CourseProgressRepository } from "./course-progress";
 import { InMemoryStaffRepository, SupabaseStaffRepository, type StaffRepository } from "./staff";
@@ -115,6 +116,7 @@ export interface Repos {
   courses: CourseRepository;
   courseProgress: CourseProgressRepository;
   courseComments: CourseCommentRepository;
+  courseInstructors: CourseInstructorRepository;
   staff: StaffRepository;
   mentorship: MentorshipRepository;
   memberProfile: MemberProfileRepository;
@@ -184,6 +186,7 @@ export function createRepos(db: Db): Repos {
     courses: new SupabaseCourseRepository(db),
     courseProgress: new SupabaseCourseProgressRepository(db),
     courseComments: new SupabaseCourseCommentRepository(db),
+    courseInstructors: new SupabaseCourseInstructorRepository(db),
     staff: new SupabaseStaffRepository(db),
     mentorship: new SupabaseMentorshipRepository(db),
     memberProfile: new SupabaseMemberProfileRepository(db),
@@ -256,6 +259,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     courses: new InMemoryCourseRepository(dataset),
     courseProgress: new InMemoryCourseProgressRepository(dataset),
     courseComments: new InMemoryCourseCommentRepository(dataset),
+    courseInstructors: new InMemoryCourseInstructorRepository(dataset),
     staff: new InMemoryStaffRepository(dataset),
     mentorship: new InMemoryMentorshipRepository(dataset),
     memberProfile: new InMemoryMemberProfileRepository(dataset),

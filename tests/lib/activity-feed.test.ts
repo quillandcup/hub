@@ -240,6 +240,13 @@ describe("describeRow", () => {
     expect(describeRow(row({ ...base, event_type: "delete" }))).toBe("removed Moss Bramble as an attendee of “Autumn Retreat”");
   });
 
+  it("says who was added to or removed from a course's instructors, with the course, and reads a name with & and < as typed", () => {
+    const base = { entity_type: "course_instructor", description: "Plot & <Plan>", member_name: "Moss <Bramble> & Co" };
+    expect(describeRow(row({ ...base, event_type: "insert" }))).toBe("added Moss <Bramble> & Co as an instructor of “Plot & <Plan>”");
+    expect(describeRow(row({ ...base, event_type: "delete" }))).toBe("removed Moss <Bramble> & Co as an instructor of “Plot & <Plan>”");
+    expect(describeRow(row({ entity_type: "course_instructor", event_type: "insert" }))).toBe("added a member as an instructor of a course");
+  });
+
   it("says a feature switch in plain words: on or off for everyone, and which segment or preview", () => {
     const flag = { entity_type: "feature_flag", description: "chat_dms" };
     expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: false, new: true } } }))).toBe("turned “Chat direct messages” on for everyone");

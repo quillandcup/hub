@@ -3196,6 +3196,42 @@ export type Database = {
           },
         ]
       }
+      course_instructors: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          member_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          member_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_instructors_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_instructors_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_lesson_files: {
         Row: {
           content_hash: string | null

@@ -99,18 +99,18 @@ describe("cleanReportReason", () => {
 
 describe("involvesInstructor", () => {
   const c = (over: Partial<ThreadComment> = {}): ThreadComment => ({
-    id: "cmnt_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1", memberId: "m1", parentId: null, authorName: "Ada Example", isStaffReply: false,
+    id: "cmnt_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1", memberId: "m1", parentId: null, authorName: "Ada Example", isInstructorReply: false,
     createdAt: "2027-03-01T00:00:00Z", editedAt: null, removed: false, body: "x", hidden: false, held: false, ...over,
   });
   it("is true when staff asked or a live instructor reply is under the question", () => {
-    expect(involvesInstructor({ comment: c({ isStaffReply: true }), replies: [] })).toBe(true);
-    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true })] })).toBe(true);
+    expect(involvesInstructor({ comment: c({ isInstructorReply: true }), replies: [] })).toBe(true);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isInstructorReply: true })] })).toBe(true);
   });
   it("is false for members only, and for an instructor reply members can't read", () => {
     expect(involvesInstructor({ comment: c(), replies: [c()] })).toBe(false);
-    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true, removed: true })] })).toBe(false);
-    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true, held: true })] })).toBe(false);
-    expect(involvesInstructor({ comment: c(), replies: [c({ isStaffReply: true, hidden: true })] })).toBe(false);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isInstructorReply: true, removed: true })] })).toBe(false);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isInstructorReply: true, held: true })] })).toBe(false);
+    expect(involvesInstructor({ comment: c(), replies: [c({ isInstructorReply: true, hidden: true })] })).toBe(false);
   });
 });
 

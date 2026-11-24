@@ -37,7 +37,7 @@ const comment = (over: Partial<ThreadComment> & { id: string }): ThreadComment =
   memberId: "m2",
   parentId: null,
   authorName: "Bea Example",
-  isStaffReply: false,
+  isInstructorReply: false,
   createdAt: new Date(NOW - 3600_000).toISOString(),
   editedAt: null,
   removed: false,
@@ -152,7 +152,7 @@ describe("CommentThread", () => {
       {
         comment: comment({ id: "cmnt_AAAAAAAAAAA1", removed: true, body: null, authorName: "" }),
         replies: [
-          comment({ id: "cmnt_AAAAAAAAAAA2", parentId: "cmnt_AAAAAAAAAAA1", authorName: "Sam Staff", isStaffReply: true, body: "Answer", editedAt: new Date(NOW).toISOString() }),
+          comment({ id: "cmnt_AAAAAAAAAAA2", parentId: "cmnt_AAAAAAAAAAA1", authorName: "Sam Staff", isInstructorReply: true, body: "Answer", editedAt: new Date(NOW).toISOString() }),
         ],
       },
     ]);
@@ -397,7 +397,7 @@ describe("CommentThread", () => {
     const asked = { comment: comment({ id: "cmnt_AAAAAAAAAAA1", body: "Unanswered question" }), replies: [] };
     const answered = {
       comment: comment({ id: "cmnt_AAAAAAAAAAA2", body: "Answered question" }),
-      replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA2", body: "Here is the answer", isStaffReply: true, authorName: "Sam Staff" })],
+      replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA2", body: "Here is the answer", isInstructorReply: true, authorName: "Sam Staff" })],
     };
 
     it("offers it only when an instructor has taken part, and keeps just those questions", async () => {
@@ -576,7 +576,7 @@ describe("CommentThread", () => {
 
     it("tints an instructor's comment and leaves a member's alone", () => {
       renderThread([
-        { comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorName: "Ivy Instructor", isStaffReply: true }), replies: [] },
+        { comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorName: "Ivy Instructor", isInstructorReply: true }), replies: [] },
         { comment: comment({ id: "cmnt_AAAAAAAAAAA2", authorName: "Bea Example" }), replies: [] },
       ]);
       expect(commentBlock("Ivy Instructor")).toHaveClass("bg-plum-50", "dark:bg-plum-950/50");
@@ -587,7 +587,7 @@ describe("CommentThread", () => {
       renderThread([
         {
           comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorName: "Bea Example" }),
-          replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA1", authorName: "Ivy Instructor", isStaffReply: true })],
+          replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA1", authorName: "Ivy Instructor", isInstructorReply: true })],
         },
         { comment: comment({ id: "cmnt_AAAAAAAAAAA2", authorName: "Cal Example" }), replies: [] },
       ]);
@@ -597,12 +597,28 @@ describe("CommentThread", () => {
       expect(commentBlock("Cal Example")).not.toHaveClass("border-l-2");
     });
 
+    it("gives staff who are not instructors of the course no badge, tint or cue, even when staff are reading", () => {
+      renderThread(
+        [
+          {
+            comment: comment({ id: "cmnt_AAAAAAAAAAA1", authorName: "Bea Example" }),
+            replies: [comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA1", authorName: "Sam Staff", isInstructorReply: false })],
+          },
+        ],
+        { isStaff: true },
+      );
+      expect(commentBlock("Sam Staff")).not.toHaveClass("bg-plum-50");
+      expect(commentBlock("Bea Example")).not.toHaveClass("border-l-2");
+      expect(screen.queryByText("Instructor")).not.toBeInTheDocument();
+      expect(screen.queryByText("Instructor replied")).not.toBeInTheDocument();
+    });
+
     it("shows no cue when only members replied, or the instructor's reply is held", () => {
       renderThread([
         { comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [comment({ id: "cmnt_AAAAAAAAAAA3", authorName: "Dee Example" })] },
         {
           comment: comment({ id: "cmnt_AAAAAAAAAAA2", authorName: "Cal Example" }),
-          replies: [comment({ id: "cmnt_AAAAAAAAAAA4", authorName: "Ivy Instructor", isStaffReply: true, held: true })],
+          replies: [comment({ id: "cmnt_AAAAAAAAAAA4", authorName: "Ivy Instructor", isInstructorReply: true, held: true })],
         },
       ]);
       expect(screen.queryByText("Instructor replied")).not.toBeInTheDocument();

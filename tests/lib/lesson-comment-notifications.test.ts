@@ -66,8 +66,8 @@ function world({ flagOn = true, prefs = [] as { memberId: string; kind: string; 
   repos = createInMemoryRepos(dataset);
 }
 
-const post = (memberId: string, body: string, parentId: string | null = null, extra: { isStaffReply?: boolean; held?: boolean; lessonId?: string } = {}) =>
-  repos.courseComments.create({ lessonId: extra.lessonId ?? LESSON, memberId, parentId, body, isStaffReply: extra.isStaffReply ?? false, held: extra.held });
+const post = (memberId: string, body: string, parentId: string | null = null, extra: { isInstructorReply?: boolean; held?: boolean; lessonId?: string } = {}) =>
+  repos.courseComments.create({ lessonId: extra.lessonId ?? LESSON, memberId, parentId, body, isInstructorReply: extra.isInstructorReply ?? false, held: extra.held });
 
 const notifications = (memberId: string) => dataset.inAppNotifications.filter((n) => n.memberId === memberId);
 
@@ -165,11 +165,11 @@ describe("notifyLessonComment (replies)", () => {
 
   it("tells the member who wrote an imported comment about a reply, like any comment, and an instructor's reply reaches followers", async () => {
     const [imported] = await repos.courseComments.upsertImported("kajabi", [
-      { lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId: ASKER, isStaffReply: false, body: "Old question", createdAt: "2025-01-01T00:00:00.000Z", deletedAt: null },
+      { lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId: ASKER, isInstructorReply: false, body: "Old question", createdAt: "2025-01-01T00:00:00.000Z", deletedAt: null },
     ]);
     await repos.courseComments.setFollowing(FOLLOWER, LESSON, true);
     const plain = await post(REPLIER, "A member's reply", imported.id);
-    const instructor = await post(STAFF, "An instructor's reply", imported.id, { isStaffReply: true });
+    const instructor = await post(STAFF, "An instructor's reply", imported.id, { isInstructorReply: true });
 
     expect((await notifyLessonComment(repos, plain.id)).sent).toEqual([{ memberId: ASKER, kind: "lesson_comment_reply", channels: ["in_app"] }]);
     const result = await notifyLessonComment(repos, instructor.id);
@@ -208,7 +208,7 @@ describe("notifyLessonComment (replies)", () => {
     const question = await post(ASKER, "A question");
     await repos.courseComments.setFollowing(FOLLOWER, LESSON, true);
     await repos.courseComments.setFollowing(REPLIER, LESSON, false);
-    const answer = await post(STAFF, "Instructor answer", question.id, { isStaffReply: true });
+    const answer = await post(STAFF, "Instructor answer", question.id, { isInstructorReply: true });
 
     const result = await notifyLessonComment(repos, answer.id);
 
@@ -220,6 +220,19 @@ describe("notifyLessonComment (replies)", () => {
     expect(notifications(FOLLOWER)[0].text).toContain("a lesson you follow");
     expect(notifications(REPLIER)).toEqual([]);
     expect(notifications(STAFF)).toEqual([]);
+  });
+
+  it("treats a reply by staff who do not teach the course as an ordinary reply: the plain kind, and the followers are not told", async () => {
+    const question = await post(ASKER, "A question");
+    await repos.courseComments.setFollowing(FOLLOWER, LESSON, true);
+    // The flag is what the server stored when the reply was posted: staff who are not instructors of the course never carry it.
+    const reply = await post(STAFF, "A staff member replying like any member", question.id, { isInstructorReply: false });
+
+    const result = await notifyLessonComment(repos, reply.id);
+
+    expect(result.sent.map((s) => [s.memberId, s.kind])).toEqual([[ASKER, "lesson_comment_reply"]]);
+    expect(notifications(ASKER)[0].text).not.toContain("instructor");
+    expect(notifications(FOLLOWER)).toEqual([]);
   });
 
   it("does not use the instructor kind's switch for another member's reply, and honors a member who turned it off", async () => {
@@ -507,7 +520,7 @@ describe("sendModerationDigest", () => {
 
 describe("countUnread", () => {
   const comment = (id: string, memberId: string, createdAt: string, over: Record<string, unknown> = {}) => ({
-    id, lessonId: LESSON, memberId, parentId: null, authorName: "x", isStaffReply: false, createdAt, editedAt: null, removed: false, body: "b", hidden: false, held: false, ...over,
+    id, lessonId: LESSON, memberId, parentId: null, authorName: "x", isInstructorReply: false, createdAt, editedAt: null, removed: false, body: "b", hidden: false, held: false, ...over,
   });
   const entries = [
     { comment: comment("c1", REPLIER, "2027-03-02T10:00:00Z"), replies: [comment("c2", ASKER, "2027-03-02T11:00:00Z"), comment("c3", STAFF, "2027-03-02T12:00:00Z")] },

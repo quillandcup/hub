@@ -197,6 +197,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   lesson_comment_reports: [],
   lesson_comment_follows: [],
   lesson_comment_reads: [],
+  // Who teaches a course (CourseInstructorRepository).
+  course_instructors: [],
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],

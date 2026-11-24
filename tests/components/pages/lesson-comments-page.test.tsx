@@ -93,7 +93,7 @@ describe("lesson page comments", () => {
     commenting.on = true;
     thread.entries = [
       {
-        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Ada <Quill> & Co", isStaffReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "How do I start?" },
+        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Ada <Quill> & Co", isInstructorReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "How do I start?" },
         replies: [],
       },
     ];
@@ -112,7 +112,7 @@ describe("lesson page comments", () => {
     read.following = true;
     thread.entries = [
       {
-        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Bea", isStaffReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "New one", hidden: false, held: false },
+        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Bea", isInstructorReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "New one", hidden: false, held: false },
         replies: [],
       },
     ];
@@ -130,7 +130,7 @@ describe("lesson page comments", () => {
     commenting.on = true;
     thread.entries = [
       {
-        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Bea", isStaffReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "Old news", hidden: false, held: false },
+        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Bea", isInstructorReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "Old news", hidden: false, held: false },
         replies: [],
       },
     ];

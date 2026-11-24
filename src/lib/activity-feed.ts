@@ -431,6 +431,7 @@ const ENTITY_LABELS: Record<string, string> = {
   member_badge: "badge",
   prickle_commitment: "prickle commitment",
   quiz: "quiz",
+  course_instructor: "course instructor",
   calendar_feed: "calendar link",
   calendar_feed_item: "calendar item",
   wheel_of_wonder_match: "Wheel of Wonder match",
@@ -644,6 +645,12 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const who = row.member_name ?? "a member";
     const event = row.description ? ` “${formatValue(row.description)}”` : "";
     return row.event_type === "insert" ? `added ${who} as an attendee of${event || " an event"}` : `removed ${who} as an attendee of${event || " an event"}`;
+  }
+  // One entry per instructor added to or removed from a course (the row names the member; the course is its label).
+  if (row.entity_type === "course_instructor" && row.event_type !== "update") {
+    const who = row.member_name ?? "a member";
+    const course = row.description ? ` “${formatValue(row.description)}”` : "";
+    return row.event_type === "insert" ? `added ${who} as an instructor of${course || " a course"}` : `removed ${who} as an instructor of${course || " a course"}`;
   }
   if (row.entity_type === "calendar_feed") {
     if (row.event_type === "insert") return "created their calendar link";

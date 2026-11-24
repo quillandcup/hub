@@ -41,7 +41,7 @@ const ADA = "mbr_AAAAAAAAAAA1";
 const BEA = "mbr_AAAAAAAAAAA2";
 
 const comments = () => createInMemoryRepos(data).courseComments;
-const post = (body = "Words", held = false) => comments().create({ lessonId: LESSON, memberId: ADA, parentId: null, body, isStaffReply: false, held });
+const post = (body = "Words", held = false) => comments().create({ lessonId: LESSON, memberId: ADA, parentId: null, body, isInstructorReply: false, held });
 
 beforeEach(() => {
   data = new InMemoryDataset();
@@ -130,7 +130,7 @@ describe("the staff moderation actions", () => {
 describe("approving a held reply", () => {
   it("tells the people the reply is for once it is released, and only then", async () => {
     const question = await post("Question");
-    const heldReply = await comments().create({ lessonId: LESSON, memberId: BEA, parentId: question.id, body: "Held reply", isStaffReply: false, held: true });
+    const heldReply = await comments().create({ lessonId: LESSON, memberId: BEA, parentId: question.id, body: "Held reply", isInstructorReply: false, held: true });
 
     expect(await approveHeldLessonComment(COURSE, heldReply.id)).toEqual({ changed: true });
     expect(notify).toHaveBeenCalledTimes(1);

@@ -108,7 +108,7 @@ describe('Kajabi lesson comments -> lesson_comments', () => {
   it('a dry run counts and writes nothing', async () => {
     const summary = await run({ course: SLUG, dryRun: true })
     expect(summary).toMatchObject({ commentsInBronze: 9, inserted: 5, unmatchedLessonComments: 1, skipped: 1, orphanReplies: 1, replies: 3, unmatchedAuthorComments: 1, ambiguousAuthorComments: 1 })
-    expect(summary.authors).toEqual({ matched: 2, staff: 0, unmatched: 1, ambiguous: 1 })
+    expect(summary.authors).toEqual({ matched: 2, instructors: 0, unmatched: 1, ambiguous: 1 })
     expect(summary.unmatchedAuthors).toEqual([{ name: NAME('Nobody'), comments: 1 }])
     expect(summary.ambiguousAuthors).toEqual([{ name: NAME('Twin'), comments: 1, members: 2 }])
     expect(await imported()).toHaveLength(0)

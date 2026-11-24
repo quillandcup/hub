@@ -32,10 +32,12 @@ const unanswered = vi.fn();
 const openReports = vi.fn();
 const heldComments = vi.fn();
 const courseById = vi.fn();
+const instructorsOf = vi.fn();
 vi.mock("@/lib/courses/course-param", () => ({ resolveCourseParam: async (_repos: unknown, id: string) => id }));
 vi.mock("@/lib/data/repos", () => ({
   createRepos: () => ({
     courses: { courseById: (...a: unknown[]) => courseById(...a) },
+    courseInstructors: { forCourse: (...a: unknown[]) => instructorsOf(...a) },
     courseComments: {
       unansweredQuestions: (...a: unknown[]) => unanswered(...a),
       openReports: (...a: unknown[]) => openReports(...a),
@@ -82,6 +84,7 @@ beforeEach(() => {
   unanswered.mockReset().mockResolvedValue([]);
   openReports.mockReset().mockResolvedValue([]);
   heldComments.mockReset().mockResolvedValue([]);
+  instructorsOf.mockReset().mockResolvedValue(['mbr_AAAAAAAAAAA1']);
   courseById.mockReset().mockResolvedValue({ id: COURSE, slug: "the-ready-writer", title: "The Ready Writer" });
 });
 
@@ -104,6 +107,19 @@ describe("admin course comments page", () => {
     expect(screen.getByRole("tab", { name: "Unanswered questions", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Moderation" })).toBeInTheDocument();
     expect(screen.getByText(/Nothing waiting/)).toBeInTheDocument();
+  });
+
+  it("says when the course has no instructors, so no reply counts as an answer yet, and links to where to add them", async () => {
+    instructorsOf.mockResolvedValue([]);
+    await renderServerPage(CourseCommentsPage, params());
+    expect(screen.getByRole("note")).toHaveTextContent("This course has no instructors, so no reply counts as an answer yet.");
+    expect(screen.getByRole("link", { name: "Add instructors in the course settings" })).toHaveAttribute("href", `/admin/courses/${COURSE}/details`);
+  });
+
+  it("shows no such note when the course has instructors", async () => {
+    await renderServerPage(CourseCommentsPage, params());
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    expect(screen.getByText(/no reply from one of the course's instructors yet/)).toBeInTheDocument();
   });
 
   it("lists the waiting questions with a link to each lesson's thread, oldest first by default, names as typed", async () => {

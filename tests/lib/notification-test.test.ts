@@ -129,8 +129,8 @@ describe("lesson comment samples", () => {
   it.each(["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_mention"] as const)("%s links to the latest comment on a real lesson", async (kind) => {
     withCourse();
     const r = repos();
-    const root = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: null, body: "q", isStaffReply: false });
-    const reply = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: root.id, body: "a", isStaffReply: false });
+    const root = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: null, body: "q", isInstructorReply: false });
+    const reply = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: root.id, body: "a", isInstructorReply: false });
     const [message] = await sampleMessages(r, kind, later());
     expect(message.url).toBe(`${APP_URL}/courses/story-basics/lessons/${LESSON}?comment=${reply.id}`);
   });

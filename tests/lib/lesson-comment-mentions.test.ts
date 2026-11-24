@@ -16,9 +16,10 @@ const OUTSIDER = "mbr_AAAAAAAAAAA5";
 const token = (id: string) => `@[${id}]`;
 
 let repos: Repos;
+let dataset: InMemoryDataset;
 beforeEach(() => {
   const names: Record<string, string> = { [ADA]: "Ada Example", [BEA]: "Beatrice <Bea> & Co", [STAFF]: "Sam Staff", [ENDED]: "Eli Example", [OUTSIDER]: "Olive Outsider" };
-  const dataset = new InMemoryDataset({
+  dataset = new InMemoryDataset({
     members: Object.entries(names).map(([id, name]) => ({ id, name, firstJoinedAt: "2024-01-01", userId: `u-${id}` })),
     userProfiles: [{ id: `u-${STAFF}`, email: "staff@example.test", role: "admin" }],
     courses: [{ id: COURSE, slug: "story-basics", title: "Story Basics" } as never],
@@ -47,7 +48,7 @@ describe("mentionError", () => {
 
 describe("mentionNames", () => {
   const comment = (id: string, body: string | null): ThreadComment => ({
-    id, lessonId: "les_AAAAAAAAAAA1", memberId: ADA, parentId: null, authorName: "Ada", isStaffReply: false, createdAt: NOW.toISOString(), editedAt: null, removed: body === null, body, hidden: false, held: false,
+    id, lessonId: "les_AAAAAAAAAAA1", memberId: ADA, parentId: null, authorName: "Ada", isInstructorReply: false, createdAt: NOW.toISOString(), editedAt: null, removed: body === null, body, hidden: false, held: false,
   });
 
   it("names those who can still open the course, from the comments and their replies, and nobody else", async () => {
@@ -65,9 +66,16 @@ describe("mentionNames", () => {
 });
 
 describe("suggestMentionable", () => {
-  it("offers course members and staff whose name matches, staff badged, never the writer, an ended member or an outsider", async () => {
+  it("offers course members and staff whose name matches, only the course's instructors badged, never the writer, an ended member or an outsider", async () => {
+    // Staff can be mentioned like anyone who can open the course, but without instructors on the course nobody is badged.
+    expect(await suggestMentionable(repos, COURSE, ADA, "sam", NOW)).toEqual([{ memberId: STAFF, name: "Sam Staff", isInstructor: false }]);
+    dataset.courseInstructors.push({ id: "cinst_AAAAAAAAAAA1", course_id: COURSE, member_id: STAFF, created_at: "2027-01-01T00:00:00Z" });
     expect((await suggestMentionable(repos, COURSE, ADA, "a", NOW)).map((c) => c.name)).toEqual(["Sam Staff", "Beatrice <Bea> & Co"]);
     expect(await suggestMentionable(repos, COURSE, ADA, "sam", NOW)).toEqual([{ memberId: STAFF, name: "Sam Staff", isInstructor: true }]);
+    // Teaching another course does not badge them here.
+    dataset.courseInstructors[0].course_id = "crs_AAAAAAAAAAA9";
+    expect(await suggestMentionable(repos, COURSE, ADA, "sam", NOW)).toEqual([{ memberId: STAFF, name: "Sam Staff", isInstructor: false }]);
+    dataset.courseInstructors[0].course_id = COURSE;
     expect(await suggestMentionable(repos, COURSE, ADA, "eli", NOW)).toEqual([]);
     expect(await suggestMentionable(repos, COURSE, ADA, "olive", NOW)).toEqual([]);
     expect(await suggestMentionable(repos, COURSE, ADA, "ada", NOW)).toEqual([]);

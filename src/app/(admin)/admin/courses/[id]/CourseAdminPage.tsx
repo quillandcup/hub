@@ -25,6 +25,7 @@ import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import { customersPanel } from "./customers-panel";
 import CourseActions from "./CourseActions";
 import CourseFilesPanel from "./CourseFilesPanel";
+import CourseInstructorsPanel from "./CourseInstructorsPanel";
 import CourseKajabiDetails from "./CourseKajabiDetails";
 import CourseSettingsForm from "./CourseSettingsForm";
 import CourseVideosPanel from "./CourseVideosPanel";
@@ -63,6 +64,7 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
   const [takeOver, duplicate] = hub ? await Promise.all([loadTakeOverPreview(repos, id), loadDuplicatePreview(repos, id)]) : [null, null];
   // Delete is listed for every course and says why it is off (an imported one comes back with the next import).
   const deletion = await loadDeletePreview(repos, id);
+  const instructorIds = hub ? await repos.courseInstructors.forCourse(id) : [];
   const launchOn = hub?.launchAt ? localDateOf(hub.launchAt, ORG_TIMEZONE) : "";
 
   const panels: TabPanel<CourseTab>[] = [
@@ -91,6 +93,9 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
                   {hub.launchAt && `, opens ${formatCourseDate(hub.launchAt)}`}.
                 </p>
                 <CourseSettingsForm slug={hub.slug} accessDuration={hub.accessDuration} launchOn={launchOn} />
+                <div className="mt-6 border-t border-slate-200 pt-6 dark:border-slate-700">
+                  <CourseInstructorsPanel courseId={id} instructorIds={instructorIds} />
+                </div>
               </>
             ) : (
               <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -169,7 +174,14 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
 /** The admin page of a course the Hub owns: the same header and tabs, with the outline and details editable. */
 async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; tab: CourseTab }) {
   const repos = createRepos(await createClient());
-  const [course, programs, outline, duplicate, deletion] = await Promise.all([loadHubCourse(repos, id), repos.programs.names(), loadHubOutline(repos, id), loadDuplicatePreview(repos, id), loadDeletePreview(repos, id)]);
+  const [course, programs, outline, duplicate, deletion, instructorIds] = await Promise.all([
+    loadHubCourse(repos, id),
+    repos.programs.names(),
+    loadHubOutline(repos, id),
+    loadDuplicatePreview(repos, id),
+    loadDeletePreview(repos, id),
+    repos.courseInstructors.forCourse(id),
+  ]);
   if (!course || !courseTabIds("hub").includes(tab)) notFound();
 
   const accessIndex = ACCESS_OPTIONS.findIndex((o) => accessLabel(o.value) === accessLabel(course.accessDuration));
@@ -204,6 +216,9 @@ async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; 
             }}
             programs={programs}
           />
+          <div className={`${PANEL} mt-6`}>
+            <CourseInstructorsPanel courseId={course.id} instructorIds={instructorIds} />
+          </div>
         </div>
       ),
     },

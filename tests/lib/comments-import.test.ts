@@ -31,7 +31,7 @@ const bronze = (lesson: string, key: string, over: Partial<Bronze> = {}): Bronze
 
 const contact = (id: string, name: string, email: string) => ({ kajabi_contact_id: id, name, email, data: {}, imported_at: "2026-01-01T00:00:00Z" }) as never;
 
-const world = (comments: Bronze[]) => {
+const world = (comments: Bronze[], instructors: string[] = []) => {
   const data = new InMemoryDataset({
     members: [
       { id: ADA, name: "Ada Example", email: "ada@example.test", userId: "u-ada" },
@@ -58,6 +58,7 @@ const world = (comments: Bronze[]) => {
       lessonRow({ id: L2, course_id: COURSE, title: "Two", source: "kajabi", source_key: "kl-2" }),
     ],
     kajabiLessonComments: comments,
+    courseInstructors: instructors.map((memberId, i) => ({ id: `cinst_AAAAAAAAAAA${i + 1}`, course_id: COURSE, member_id: memberId, created_at: "2026-01-01T00:00:00Z" })),
   });
   return { data, repos: createInMemoryRepos(data) };
 };
@@ -93,29 +94,48 @@ describe("authorNameKey", () => {
 });
 
 describe("importKajabiLessonComments", () => {
-  it("imports a thread as the members who wrote it, with Kajabi's times, and gives a staff member the instructor badge", async () => {
+  it("imports a thread as the members who wrote it, with Kajabi's times, and gives the badge to the course's instructors, not to staff who are not one", async () => {
     const w = world([
       bronze("kl-1", "c1", { posted_at: "2025-01-01T09:00:00Z" }),
       bronze("kl-1", "c2", { parent_comment_key: "c1", posted_at: "2025-01-02T09:00:00Z", author_name: "  bea  EXAMPLE " }),
       bronze("kl-1", "c3", { parent_comment_key: "c1", author_name: "Sam Staff" }),
       bronze("kl-2", "c4", { author_name: "Zoë Example" }),
-    ]);
+    ], [BEA]);
 
     const summary = await course(w);
 
-    expect(summary).toMatchObject({ commentsInBronze: 4, inserted: 4, updated: 0, unchanged: 0, replies: 2, orphanReplies: 0, unmatchedLessonComments: 0 });
-    expect(summary.authors).toEqual({ matched: 4, staff: 1, unmatched: 0, ambiguous: 0 });
+    expect(summary).toMatchObject({ commentsInBronze: 4, inserted: 4, updated: 0, unchanged: 0, replies: 2, orphanReplies: 0, unmatchedLessonComments: 0, instructors: 1 });
+    // Bea teaches the course (two names Kajabi shows are hers); Sam is staff but not an instructor of it.
+    expect(summary.authors).toEqual({ matched: 4, instructors: 2, unmatched: 0, ambiguous: 0 });
     const byKey = new Map(stored(w.data).map((r) => [r.source_key, r]));
     const top = byKey.get("kl-1/c1")!;
     expect(top).toMatchObject({ lesson_id: L1, member_id: ADA, parent_id: null, body: "Comment c1", is_staff_reply: false, held_at: null, hidden_at: null, deleted_at: null });
     expect(new Date(top.created_at).toISOString()).toBe("2025-01-01T09:00:00.000Z");
-    expect(byKey.get("kl-1/c2")).toMatchObject({ parent_id: top.id, member_id: BEA, is_staff_reply: false });
-    expect(byKey.get("kl-1/c3")).toMatchObject({ parent_id: top.id, member_id: SAM, is_staff_reply: true });
+    expect(byKey.get("kl-1/c2")).toMatchObject({ parent_id: top.id, member_id: BEA, is_staff_reply: true });
+    expect(byKey.get("kl-1/c3")).toMatchObject({ parent_id: top.id, member_id: SAM, is_staff_reply: false });
     // A contact with an accent in the name is matched by that exact name.
-    expect(byKey.get("kl-2/c4")).toMatchObject({ member_id: BEA });
+    expect(byKey.get("kl-2/c4")).toMatchObject({ member_id: BEA, is_staff_reply: true });
     const thread = await w.repos.courseComments.threadFor(L1, { memberId: ADA, isStaff: false });
     expect(thread.entries[0].comment).toMatchObject({ authorName: "Ada Example", imported: true, memberId: ADA });
-    expect(thread.entries[0].replies.map((r) => [r.authorName, r.isStaffReply])).toEqual([["Bea Example", false], ["Sam Staff", true]]);
+    expect(thread.entries[0].replies.map((r) => [r.authorName, r.isInstructorReply])).toEqual([["Bea Example", true], ["Sam Staff", false]]);
+  });
+
+  it("says plainly when the course has no instructors: no badge for anyone, staff included, until one is added and the import runs again", async () => {
+    const w = world([bronze("kl-1", "c1"), bronze("kl-1", "c2", { parent_comment_key: "c1", author_name: "Sam Staff" })]);
+
+    const dry = await course(w, true);
+    expect(dry.instructors).toBe(0);
+    expect(dry.authors.instructors).toBe(0);
+    expect(stored(w.data)).toEqual([]);
+
+    await course(w);
+    expect(stored(w.data).map((r) => r.is_staff_reply)).toEqual([false, false]);
+
+    // Staff add Sam to the course's instructors; the next import brings the badge onto the comments already there.
+    w.data.courseInstructors.push({ id: "cinst_AAAAAAAAAAA1", course_id: COURSE, member_id: SAM, created_at: "2026-01-01T00:00:00Z" });
+    const again = await course(w);
+    expect(again).toMatchObject({ instructors: 1, inserted: 0, updated: 1, unchanged: 1 });
+    expect(stored(w.data).find((r) => r.member_id === SAM)?.is_staff_reply).toBe(true);
   });
 
   it("treats two contacts of one member (an address and its alias) as one person", async () => {
@@ -123,7 +143,7 @@ describe("importKajabiLessonComments", () => {
 
     const summary = await course(w);
 
-    expect(summary.authors).toEqual({ matched: 1, staff: 0, unmatched: 0, ambiguous: 0 });
+    expect(summary.authors).toEqual({ matched: 1, instructors: 0, unmatched: 0, ambiguous: 0 });
     expect(stored(w.data)[0].member_id).toBe(ADA);
   });
 
@@ -145,7 +165,7 @@ describe("importKajabiLessonComments", () => {
 
     expect(stored(w.data).map((r) => r.source_key).sort()).toEqual(["kl-1/ok", "kl-1/reply"]);
     expect(summary).toMatchObject({ inserted: 2, unmatchedAuthorComments: 7, ambiguousAuthorComments: 1, orphanReplies: 1 });
-    expect(summary.authors).toEqual({ matched: 2, staff: 0, unmatched: 6, ambiguous: 1 });
+    expect(summary.authors).toEqual({ matched: 2, instructors: 0, unmatched: 6, ambiguous: 1 });
     expect(summary.ambiguousAuthors).toEqual([{ name: "Cy Twin", comments: 1, members: 2 }]);
     expect(summary.unmatchedAuthors[0]).toEqual({ name: "Adie", comments: 2 });
     expect(summary.unmatchedAuthors.map((a) => a.name).sort()).toEqual(["(an email address)", "(no name)", "Ada Exampl", "Ada Example.", "Adie", "Ghost Contact"]);
@@ -292,7 +312,7 @@ describe("importKajabiLessonComments", () => {
 
   it("leaves comments written in the Hub alone", async () => {
     const w = world([bronze("kl-1", "c1")]);
-    await w.repos.courseComments.create({ lessonId: L1, memberId: ADA, parentId: null, body: "Mine", isStaffReply: false });
+    await w.repos.courseComments.create({ lessonId: L1, memberId: ADA, parentId: null, body: "Mine", isInstructorReply: false });
     await course(w);
 
     expect(w.data.lessonComments.filter((c) => !c.source)).toHaveLength(1);

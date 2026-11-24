@@ -76,6 +76,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["proposeCareHandover", "care_handover_proposed"], ["acceptCareHandover", "care_handover_accepted"], ["declineCareHandover", "care_handover_declined"], ["cancelCareHandover", "care_handover_cancelled"], ["claimCarePlan", "care_plan_claimed"], ["takeOverCarePlan", "care_plan_taken_over"], ["dismissCareTakeoverNotice", "care_takeover_notice_dismissed"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "src/app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
+  [() => import("@/app/(admin)/admin/courses/instructor-actions"), "src/app/(admin)/admin/courses/instructor-actions.ts", [["saveCourseInstructorList", "course_instructors_saved"], ["addInstructorsToAllCourses", "course_instructors_added_to_all"]]],
   [
     () => import("@/app/(admin)/admin/courses/quiz-actions"),
     "src/app/(admin)/admin/courses/quiz-actions.ts",

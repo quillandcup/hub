@@ -102,7 +102,7 @@ export function countUnread(entries: ThreadEntry[], viewerId: string, since: str
 }
 
 /**
- * Whether an instructor is in this question: it was asked by staff, or a live instructor reply hangs under it. What the
+ * Whether an instructor is in this question: it was asked by one of the course's instructors, or a live instructor reply hangs under it. What the
  * thread's "Instructor answers" filter keeps. A removed or held reply doesn't count: members can't read it.
  */
 export function involvesInstructor(entry: ThreadEntry): boolean {
@@ -110,7 +110,7 @@ export function involvesInstructor(entry: ThreadEntry): boolean {
 }
 
 function liveStaffComment(c: ThreadEntry["comment"]): boolean {
-  return !c.removed && !c.held && !c.hidden && c.isStaffReply;
+  return !c.removed && !c.held && !c.hidden && c.isInstructorReply;
 }
 
 /** A reply to the question, not the question itself, is a live comment by an instructor: the cue that marks the thread when skimming. */

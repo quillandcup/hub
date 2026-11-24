@@ -424,9 +424,16 @@ const stepCommentsImport: MigrateStep = {
       };
       ctx.io.log(
         `Dry run: ${counts.inserted} comments would be added and ${counts.updated} updated, ${counts.unchanged} already the same; ` +
-          `${dry.replies ?? 0} replies (${dry.orphanReplies ?? 0} without their comment), ${dry.authors?.matched ?? 0} authors matched to members by their exact Kajabi contact name (${dry.authors?.staff ?? 0} staff, shown as instructors), ` +
+          `${dry.replies ?? 0} replies (${dry.orphanReplies ?? 0} without their comment), ${dry.authors?.matched ?? 0} authors matched to members by their exact Kajabi contact name (${dry.authors?.instructors ?? 0} of them instructors of this course, shown with the Instructor badge), ` +
           `${counts.unmatchedLessonComments} comments on lessons the Hub doesn't have, ${dry.skipped ?? 0} skipped. Nobody is notified and nobody follows a lesson because of this.`
       );
+      // Without instructors on the course, none of its comments shows the badge: say so plainly, and where to fix it.
+      if ((dry.commentsInBronze ?? 0) > 0 && (dry.instructors ?? 0) === 0) {
+        ctx.io.log(
+          "This course has no instructors set, so none of its comments will show the Instructor badge until one is added (Courses, this course, Details, Instructors). " +
+            "Adding one updates the badges on its comments, imported ones included."
+        );
+      }
       // Names the match could not settle are listed, never guessed (the owner reads them here; they are not logged anywhere else).
       for (const [label, list, total] of [
         ["No member has this name", dry.unmatchedAuthors, counts.unmatchedAuthorComments],

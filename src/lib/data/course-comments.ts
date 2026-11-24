@@ -20,7 +20,7 @@ export interface LessonCommentRecord {
   memberId: string;
   parentId: string | null;
   body: string;
-  isStaffReply: boolean;
+  isInstructorReply: boolean;
   createdAt: string;
   editedAt: string | null;
   hiddenAt: string | null;
@@ -42,7 +42,7 @@ export interface ThreadComment {
   authorName: string;
   /** The author's profile photo (a safe URL), or null: the avatar then shows their initials. */
   authorPhotoUrl?: string | null;
-  isStaffReply: boolean;
+  isInstructorReply: boolean;
   createdAt: string;
   editedAt: string | null;
   /** True for a deleted or hidden comment kept in the thread because it has replies: no text, no author, no badge. */
@@ -121,7 +121,7 @@ export interface CommentActivity {
   lessonId: string;
   memberId: string;
   parentId: string | null;
-  isStaffReply: boolean;
+  isInstructorReply: boolean;
   createdAt: string;
 }
 
@@ -163,7 +163,7 @@ export interface NewLessonComment {
   /** A top-level comment's id; null for a new question. */
   parentId: string | null;
   body: string;
-  isStaffReply: boolean;
+  isInstructorReply: boolean;
   /** Held for staff review from the start (more than two links): its author and staff see it until approved. */
   held?: boolean;
 }
@@ -182,7 +182,7 @@ export interface CourseCommentRepository {
    * tombstone to members and text to staff; a held one shows only to its author and staff. Reads every row past 1000.
    */
   threadFor(lessonId: string, viewer: ThreadViewer): Promise<LessonThread>;
-  /** The live, released, unhandled top-level comments of a course's lessons with no live staff reply, oldest first. */
+  /** The live, released, unhandled top-level comments of a course's lessons with no live instructor reply, oldest first. */
   unansweredQuestions(courseId: string): Promise<UnansweredQuestion[]>;
   /** Records a member's report. The same reporter reporting the same comment while it is open is `already_reported`. */
   report(input: { commentId: string; reporterId: string; reason: string }): Promise<ReportOutcome>;
@@ -225,6 +225,12 @@ export interface CourseCommentRepository {
    * so running it again changes nothing. No follow and no notification is ever created. Returns each row's id.
    */
   upsertImported(source: string, rows: ImportedCommentWrite[]): Promise<{ sourceKey: string; id: string }[]>;
+  /**
+   * Sets `isInstructorReply` on every comment of the course's lessons (hidden, deleted and imported ones too) to whether its author is
+   * one of `instructorIds`, writing only the rows that differ in chunks, so running it again changes nothing. Returns how many rows
+   * changed. For when a course's instructors change; it needs the service role (a signed-in client cannot update other members' comments).
+   */
+  reflagInstructors(courseId: string, instructorIds: string[]): Promise<number>;
 }
 
 /** An imported comment as stored, for the import to compare with what its source says now. */
@@ -234,7 +240,7 @@ export interface ImportedCommentRecord {
   sourceKey: string;
   parentId: string | null;
   memberId: string;
-  isStaffReply: boolean;
+  isInstructorReply: boolean;
   body: string;
   createdAt: string;
   deletedAt: string | null;
@@ -250,8 +256,8 @@ export interface ImportedCommentWrite {
   parentId: string | null;
   /** The Hub member who wrote it at the source. */
   memberId: string;
-  /** The member is staff: shown with the Instructor badge. */
-  isStaffReply: boolean;
+  /** The member is one of the course's instructors: shown with the Instructor badge. */
+  isInstructorReply: boolean;
   body: string;
   /** The time it was written at its source. */
   createdAt: string;
@@ -286,7 +292,7 @@ const record = (row: StoredRow): LessonCommentRecord => ({
   memberId: row.member_id,
   parentId: row.parent_id,
   body: row.body,
-  isStaffReply: row.is_staff_reply,
+  isInstructorReply: row.is_staff_reply,
   createdAt: row.created_at,
   editedAt: row.edited_at,
   hiddenAt: row.hidden_at,
@@ -324,7 +330,7 @@ export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => str
       parentId: row.parent_id,
       authorName: removed ? "" : nameOf(row.member_id),
       authorPhotoUrl: removed ? null : photoOf(row.member_id),
-      isStaffReply: removed ? false : row.is_staff_reply,
+      isInstructorReply: removed ? false : row.is_staff_reply,
       createdAt: row.created_at,
       editedAt: removed ? null : row.edited_at,
       removed,
@@ -349,7 +355,7 @@ export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => str
   return { entries, count };
 }
 
-/** The questions with no live staff reply that nobody has marked handled, oldest first; `lessonTitle` and `nameOf` come from the caller's join. */
+/** The questions with no live instructor reply that nobody has marked handled, oldest first; `lessonTitle` and `nameOf` come from the caller's join. */
 export function pickUnanswered(
   rows: StoredRow[],
   lessonTitle: (lessonId: string) => string,
@@ -415,7 +421,7 @@ function activityOf(rows: StoredRow[]): CommentActivity[] {
   return rows
     // An imported comment is history, not activity: it never reaches a digest.
     .filter((r) => !r.source)
-    .map((r) => ({ id: r.id, lessonId: r.lesson_id, memberId: r.member_id, parentId: r.parent_id, isStaffReply: r.is_staff_reply, createdAt: r.created_at }))
+    .map((r) => ({ id: r.id, lessonId: r.lesson_id, memberId: r.member_id, parentId: r.parent_id, isInstructorReply: r.is_staff_reply, createdAt: r.created_at }))
     .sort((a, b) => compareText(a.createdAt, b.createdAt) || compareText(a.id, b.id));
 }
 
@@ -489,7 +495,7 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
           member_id: comment.memberId,
           parent_id: comment.parentId,
           body: comment.body,
-          is_staff_reply: comment.isStaffReply,
+          is_staff_reply: comment.isInstructorReply,
           ...(comment.held ? { held_at: new Date().toISOString(), held_reason: "links" } : {}),
         })
         .select(COLUMNS)
@@ -719,7 +725,7 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
         lesson_id: r.lessonId,
         parent_id: r.parentId,
         member_id: r.memberId,
-        is_staff_reply: r.isStaffReply,
+        is_staff_reply: r.isInstructorReply,
         body: r.body,
         created_at: r.createdAt,
         deleted_at: r.deletedAt,
@@ -729,9 +735,29 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
     }
     return written;
   }
+
+  async reflagInstructors(courseId: string, instructorIds: string[]) {
+    const instructors = new Set(instructorIds);
+    const lessonIds = [...(await this.lessonTitles(courseId)).keys()];
+    const rows = await inChunks(lessonIds, 100, (part) =>
+      fetchAllRows<{ id: string; member_id: string; is_staff_reply: boolean }>((from, to) =>
+        this.db.from("lesson_comments").select("id, member_id, is_staff_reply").in("lesson_id", part).order("id").range(from, to),
+      ),
+    );
+    const flagged = rows.filter((r) => instructors.has(r.member_id) && !r.is_staff_reply).map((r) => r.id);
+    const cleared = rows.filter((r) => !instructors.has(r.member_id) && r.is_staff_reply).map((r) => r.id);
+    for (const [ids, value] of [[flagged, true], [cleared, false]] as const) {
+      await inChunks(ids, FLAG_CHUNK, async (part) => {
+        must(await this.db.from("lesson_comments").update({ is_staff_reply: value }).in("id", part));
+        return [];
+      });
+    }
+    return flagged.length + cleared.length;
+  }
 }
 
 const IMPORT_CHUNK = 500;
+const FLAG_CHUNK = 200;
 
 type ImportedRow = { id: string; lesson_id: string; source_key: string | null; parent_id: string | null; member_id: string; is_staff_reply: boolean; body: string; created_at: string; deleted_at: string | null; deleted_by: string | null };
 
@@ -741,7 +767,7 @@ const importedRecord = (row: ImportedRow): ImportedCommentRecord => ({
   sourceKey: row.source_key ?? "",
   parentId: row.parent_id,
   memberId: row.member_id,
-  isStaffReply: row.is_staff_reply,
+  isInstructorReply: row.is_staff_reply,
   body: row.body,
   createdAt: row.created_at,
   deletedAt: row.deleted_at,
@@ -788,7 +814,7 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
       member_id: comment.memberId,
       parent_id: comment.parentId,
       body: comment.body,
-      is_staff_reply: comment.isStaffReply,
+      is_staff_reply: comment.isInstructorReply,
       created_at: new Date().toISOString(),
       edited_at: null,
       hidden_at: null,
@@ -1007,7 +1033,7 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
       }
       const existing = this.data.lessonComments.find((c) => c.source === source && c.source_key === r.sourceKey);
       if (existing) {
-        Object.assign(existing, { lesson_id: r.lessonId, parent_id: r.parentId, member_id: r.memberId, is_staff_reply: r.isStaffReply, body: r.body, created_at: r.createdAt, deleted_at: r.deletedAt });
+        Object.assign(existing, { lesson_id: r.lessonId, parent_id: r.parentId, member_id: r.memberId, is_staff_reply: r.isInstructorReply, body: r.body, created_at: r.createdAt, deleted_at: r.deletedAt });
         written.push({ sourceKey: r.sourceKey, id: existing.id });
         continue;
       }
@@ -1018,7 +1044,7 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
         member_id: r.memberId,
         parent_id: r.parentId,
         body: r.body,
-        is_staff_reply: r.isStaffReply,
+        is_staff_reply: r.isInstructorReply,
         created_at: r.createdAt,
         edited_at: null,
         hidden_at: null,
@@ -1034,5 +1060,19 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
       written.push({ sourceKey: r.sourceKey, id });
     }
     return written;
+  }
+
+  async reflagInstructors(courseId: string, instructorIds: string[]) {
+    const instructors = new Set(instructorIds);
+    const lessonIds = new Set(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => l.id));
+    let changed = 0;
+    for (const row of this.data.lessonComments) {
+      if (!lessonIds.has(row.lesson_id)) continue;
+      const wanted = instructors.has(row.member_id);
+      if (row.is_staff_reply === wanted) continue;
+      row.is_staff_reply = wanted;
+      changed += 1;
+    }
+    return changed;
   }
 }
