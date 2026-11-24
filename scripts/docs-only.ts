@@ -4,6 +4,7 @@
 // one would sail past every check.
 //
 //   node scripts/docs-only.ts <baseRef>    files changed between baseRef and HEAD (CI)
+//   node scripts/docs-only.ts --comparison-ref   the ref CI fetches as the base (reads EVENT, PR_BASE)
 //   node scripts/docs-only.ts --staged     files staged for commit (pre-commit hook)
 //
 // Prints `true` or `false`, and in CI also writes `docs_only=<value>` to $GITHUB_OUTPUT. It runs
@@ -31,6 +32,20 @@ export function isDocsOnly(files: string[]): boolean {
   );
 }
 
+// What CI compares the commit with. A pull request: its base branch. A push to main: the commit the
+// `production` tag points to (the deploy job moves it), not the previous push's head. `main` runs queue
+// and a waiting run is cancelled by a newer merge, so the previous head can be code that never deployed;
+// a docs-only push diffed against it would skip the deploy and leave that code undeployed. Against the
+// deployed commit, "docs only" means "docs only since the last deploy". Anything else (a manual
+// redeploy) has no base, and the caller runs everything.
+export const PRODUCTION_TAG_REF = "refs/tags/production";
+
+export function comparisonRef(event: string, pullRequestBase: string): string | null {
+  if (event === "pull_request") return pullRequestBase || null;
+  if (event === "push") return PRODUCTION_TAG_REF;
+  return null;
+}
+
 function changedFiles(args: string[]): string[] {
   const output = execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   return output.split("\n").filter(Boolean);
@@ -38,6 +53,10 @@ function changedFiles(args: string[]): string[] {
 
 function main() {
   const arg = process.argv[2];
+  if (arg === "--comparison-ref") {
+    console.log(comparisonRef(process.env.EVENT ?? "", process.env.PR_BASE ?? "") ?? "");
+    return;
+  }
   let files: string[] = [];
   try {
     if (arg === "--staged") files = changedFiles(["diff", "--cached", "--name-only"]);
