@@ -209,6 +209,8 @@ export class InMemoryMediaRepository implements MediaRepository {
   }
 
   async add(asset: NewMediaAsset) {
+    // The table's CHECK: only an upload may go without the key that names where it came from.
+    if ((asset.source ?? "upload") !== "upload" && !asset.source_key) throw new Error("new row for relation \"media_assets\" violates check constraint \"media_assets_check1\"");
     if (await this.bySha(asset.sha256, asset.owner_member_id ?? null)) throw new Error("duplicate key value violates unique constraint \"media_assets_owner_sha256_key\"");
     if (asset.source_key && (await this.bySource(asset.source ?? "upload", asset.source_key))) throw new Error("duplicate key value violates unique constraint \"media_assets_source_key\"");
     if (this.data.mediaAssets.some((a) => a.storage_path === asset.storage_path)) throw new Error("duplicate key value violates unique constraint \"media_assets_storage_path_key\"");

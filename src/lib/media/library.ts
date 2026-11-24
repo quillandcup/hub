@@ -13,6 +13,15 @@ export type StoreResult =
   | { ok: true; asset: MediaAsset; duplicate: boolean; convertedFrom: "heic" | null }
   | { ok: false; error: string };
 
+/** The longest key an import builds (`kajabi-import-service.ts`). */
+const SOURCE_KEY_MAX = 300;
+
+/** `<key>#<12 hex of the bytes' hash>`, shortening the key (never the hash) to stay within the cap. */
+export function versionedKey(key: string, sha256: string): string {
+  const suffix = `#${sha256.slice(0, 12)}`;
+  return `${key.slice(0, SOURCE_KEY_MAX - suffix.length)}${suffix}`;
+}
+
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Error && /duplicate key value violates unique constraint/i.test(error.message);
 }
@@ -78,20 +87,25 @@ export async function storeImage(
     is_public: input.isPublic ?? false,
     source: input.source ?? "upload",
   };
-  const source = input.sourceKey ? { source: fields.source, key: input.sourceKey } : null;
-  // The key names where the picture came from, and only one live asset can hold it. When the source now serves other bytes
-  // under the same key (a re-import after the picture changed), the new picture is stored without the key rather than failing.
-  const taken = source ? await media.bySource(source.source, source.key) : null;
+  const origin = input.sourceKey ? { source: fields.source, key: input.sourceKey } : null;
+  // A row that isn't an upload must have a key, and only one live asset can hold a key. When the key is already held by an asset with
+  // other bytes (the source serves a changed picture), this picture takes the key plus a short hash of its bytes: still the same
+  // for the same bytes, so a later re-import finds it again.
+  const held = origin ? await media.bySource(origin.source, origin.key) : null;
+  const key = origin ? (held && held.sha256 !== inspected.sha256 ? versionedKey(origin.key, inspected.sha256) : origin.key) : null;
   let asset: MediaAsset;
   try {
-    asset = await media.add({ ...fields, source_key: taken ? null : (source?.key ?? null) });
+    asset = await media.add({ ...fields, source_key: key });
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
     // Another request stored these bytes, or this key, a moment ago: use what is there.
-    const same = (await media.bySha(inspected.sha256, owner)) ?? (source ? await media.bySource(source.source, source.key) : null);
+    const same = (await media.bySha(inspected.sha256, owner)) ?? (key ? await media.bySource(fields.source, key) : null);
     if (same && same.sha256 === inspected.sha256) return { ok: true, asset: same, duplicate: true, convertedFrom };
-    if (!source) throw error;
-    asset = await media.add({ ...fields, source_key: null });
+    if (!origin) throw error;
+    // The key was taken meanwhile by other bytes: the hashed key is the one left.
+    const hashed = versionedKey(origin.key, inspected.sha256);
+    if (hashed === key) throw error;
+    asset = await media.add({ ...fields, source_key: hashed });
   }
   return { ok: true, asset, duplicate: false, convertedFrom };
 }
