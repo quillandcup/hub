@@ -25,7 +25,7 @@ describe("KajabiCoursesResult", () => {
           imported: imported(),
           unpublished: [],
           processed: [
-            { slug: "the-ready-writer", modules: 3, lessons: 12, comingSoon: 2, hiddenLessons: 1, deleted: { modules: 0, lessons: 1 }, access: { members: 40, removed: 2 } },
+            { slug: "the-ready-writer", kajabiId: "1", isDraft: false, accessDuration: null, launchAt: null, modules: 3, lessons: 12, comingSoon: 2, hiddenLessons: 1, deleted: { modules: 0, lessons: 1 }, access: { members: 40, removed: 2 } },
           ],
         }}
       />

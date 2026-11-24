@@ -130,6 +130,32 @@ describe('/api/process/course-media', () => {
     expect(mux.created).toBe(1)
   })
 
+  it('plans without Mux and without handing out download links', async () => {
+    vi.stubEnv('MUX_TOKEN_ID', '')
+    const response = await post({ course: SLUG, action: 'plan' })
+    expect(response.status).toBe(200)
+    const { videos } = await response.json()
+    const planned = videos.find((v: { mediaId: string }) => v.mediaId === MEDIA)
+    expect(planned).toMatchObject({ draft: false, state: 'uploaded' })
+    expect(videos.find((v: { mediaId: string }) => v.mediaId === MEDIA_DRAFT)).toMatchObject({ draft: true })
+    expect(JSON.stringify(videos)).not.toContain('downloadUrl')
+    expect(JSON.stringify(videos)).not.toContain('kajabi.test')
+  })
+
+  it('processes a course picked by its Kajabi id (the migrate command does not know the slug)', async () => {
+    const run = (body: unknown) =>
+      apiFetch(`${getTestApiBaseUrl()}/api/process/courses`, {
+        method: 'POST',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const ok = await run({ kajabiCourseId: COURSE })
+    expect(ok.status).toBe(200)
+    expect((await ok.json()).courses).toEqual([expect.objectContaining({ slug: SLUG, kajabiId: COURSE, isDraft: false })])
+    expect((await run({ kajabiCourseId: `no-such-${ts}` })).status).toBe(404)
+    expect((await run({ publish: true })).status).toBe(400)
+  })
+
   it('uploads a draft lesson\'s video only when asked for drafts, and links it for the staff preview', async () => {
     const draftVideo = async () => (await supabase.from('videos').select('id, mux_asset_id').eq('source_key', MEDIA_DRAFT).maybeSingle()).data
     const course = (await supabase.from('courses').select('id').eq('source_key', COURSE).single()).data!
