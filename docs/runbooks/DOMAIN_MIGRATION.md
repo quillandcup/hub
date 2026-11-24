@@ -69,7 +69,7 @@ Do all of these; they are your rollback.
 6. Check this table against Kajabi's page line by line (the page's A Record and SRV Record sections are empty). Also check Resend (Domains) and Mailchimp (Domains) for any record they list that is not in the table.
 
 ### 1.2 Decide and prepare
-- Pick a **quiet time** for the cutover: early morning Eastern, mid-week (Dec 3 or 4), not a billing day. Check Kajabi → Sales for when subscriptions renew in bulk.
+- Pick a **quiet time** for the cutover: early morning Eastern, inside the target window (Dec 3 to 5), not a billing day. Check Kajabi → Sales for when subscriptions renew in bulk.
 - The **top pages** come from Google Analytics (Kajabi's own numbers are inflated), 30 days to 2026-11-22: `/login`, `/library`, `/` , `/products/quill-cup-membership`, `/products/the-ready-writer`, `/waitlist`, `/hedgie-books`, `/blog`, `/products/the-ready-writer/categories/<id>`, `/about`, plus `/free-trial` (the Join link). They are in `scripts/data/redirect-check-urls.txt` with the expected outcome (`kajabi`, except `/` and `/login`). Kajabi → Website → Pages lists 16 website pages (some are System pages) and Kajabi → Pages → Landing lists the landing pages: write down each page's address and add any that is not in the list, since Analytics only shows pages someone visited. Add anything from Google Search Console → Performance → Pages, your Instagram bio, and the links in your welcome and automation emails. Only about 1,300 page views a month are tracked, so a handful of real visitors is a big share: check each of these by hand too (Part 7).
 - Draft the **member heads-up** (below). Send it 2 days before.
 - Check whether your Vercel account can add the root domain (you must be an owner or member of the project's team).
@@ -139,7 +139,7 @@ Both are inactive on the root domain until DNS points at Vercel. Merging **PR #1
 
 ---
 
-## Part 5. The cutover (Dec 3 or 4, early morning Eastern)
+## Part 5. The cutover (Dec 3 to 5, early morning Eastern)
 
 Keep the gap, between Kajabi leaving the root and the Hub taking over, to a few minutes. Open these in tabs first: Squarespace DNS, Kajabi Domain Settings, Vercel → the Hub project → Settings → Domains.
 

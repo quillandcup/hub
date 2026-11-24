@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** never (known out of date, see docs/TODO.md "Refresh the aging architecture docs"). Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Entity-relationship diagram of the Bronze, Local and Silver tables, with the foreign keys and processing links between them. Reconstructed from the full migration history (`supabase/migrations/`, 87 files) plus
+Entity-relationship diagram of the Bronze, Local and Silver tables, with the foreign keys and processing links between them. Reconstructed from the migration history (`supabase/migrations/`) plus
 verification against current application code. See `MEDALLION_ARCHITECTURE.md` for how
 data flows between these layers, and `SEQUENCE_DIAGRAMS.md` for how each integration
 populates the Bronze layer.
