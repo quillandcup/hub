@@ -159,7 +159,7 @@ describe("event offers routes", () => {
       eventAttendees: [{ id: "a1", event_id: A, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null }],
     } as never);
     state.repos = createInMemoryRepos(dataset);
-    const search = async () => (await (await findMatches(req(`/api/admin/events/${A}/kajabi-matches`), { params: Promise.resolve({ id: A }) })).json()).attendeesWithoutTicket[0].kajabi_offer;
+    const search = async (query = "?grants=1") => (await (await findMatches(req(`/api/admin/events/${A}/kajabi-matches${query}`), { params: Promise.resolve({ id: A }) })).json()).attendeesWithoutTicket[0].kajabi_offer;
 
     expect(await search()).toBe("unknown");
 
@@ -172,6 +172,11 @@ describe("event offers routes", () => {
     };
     expect(await search()).toBe("held");
     expect(asked).toEqual(["k1"]);
+
+    // Page load (no grants flag): Kajabi is never asked.
+    asked.length = 0;
+    expect(await search("")).toBe("not_checked");
+    expect(asked).toEqual([]);
   });
 
   it("404s matches for an event that does not exist", async () => {

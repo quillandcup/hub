@@ -440,13 +440,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   </div>
                 )}
                 {(attendee.ticketSource === "transferred" || pendingTransferFor === attendee.memberId) && (
-                  <div className="w-56">
+                  <div className="flex flex-col gap-1 @pair:flex-row @pair:items-center @pair:gap-2">
                     {pendingTransferFor === attendee.memberId ? (
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">Which event was this ticket bought for? Pick it to save it as transferred.</p>
+                      <p className="text-xs text-amber-700 dark:text-amber-400">Which event was this ticket bought for? Pick it to save it as transferred.</p>
                     ) : attendee.ticketFromEvent ? (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Transferred from</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 shrink-0">Transferred from</p>
                     ) : (
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">No origin on record: the event it came from may have been deleted. Pick it.</p>
+                      <p className="text-xs text-amber-700 dark:text-amber-400">No origin on record: the event it came from may have been deleted. Pick it.</p>
                     )}
                     <select
                       aria-label={`Transferred from, ${attendee.memberName}`}
@@ -458,7 +458,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         setPendingTransferFor(null);
                         return saveTicket(attendee.memberId, becoming ? { ticketSource: "transferred", ticketFromEventId: e.target.value } : { ticketFromEventId: e.target.value });
                       }}
-                      className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900 w-full"
+                      className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900 w-56 max-w-full"
                     >
                       <option value="">Transferred from...</option>
                       {otherEvents.map((o) => (

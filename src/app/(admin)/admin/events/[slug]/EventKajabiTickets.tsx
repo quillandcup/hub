@@ -27,7 +27,7 @@ function windowLabel(from: string | null | undefined, until: string | null | und
 }
 
 /** What Kajabi said about an attendee with no purchase; says "these offers" when the event has several linked. */
-function kajabiOfferNote(kind: "held" | "not_held" | "shared" | "unknown" | "no_contact", linkedCount: number): string {
+function kajabiOfferNote(kind: "held" | "not_held" | "shared" | "unknown" | "no_contact" | "not_checked", linkedCount: number): string | null {
   const offers = linkedCount > 1 ? "any of the linked offers" : "this offer";
   switch (kind) {
     case "held":
@@ -40,6 +40,8 @@ function kajabiOfferNote(kind: "held" | "not_held" | "shared" | "unknown" | "no_
       return "Couldn't check Kajabi.";
     case "no_contact":
       return "No Kajabi contact for this member.";
+    case "not_checked":
+      return null;
   }
 }
 
@@ -63,14 +65,14 @@ function NotAttendingControl({ name, busy, onSave }: { name: string; busy: boole
   const [note, setNote] = useState("");
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} disabled={busy} aria-label={`Mark ${name} as not attending`} className="mt-0.5 block text-xs text-plum-700 dark:text-plum-300 hover:underline disabled:opacity-50">
-        Not attending
+      <button type="button" onClick={() => setOpen(true)} disabled={busy} aria-label={`Mark ${name} as not attending`} className="shrink-0 px-2 py-1 border border-plum-600 text-plum-700 dark:text-plum-300 rounded hover:bg-plum-50 dark:hover:bg-slate-800 text-xs disabled:opacity-50">
+        Mark not attending
       </button>
     );
   }
   const needsNote = reason === "other";
   return (
-    <span className="mt-1 flex flex-wrap items-center gap-2">
+    <span className="flex flex-wrap items-center gap-2">
       <select aria-label={`Why ${name} is not attending`} value={reason} onChange={(e) => setReason(e.target.value as NotAttendingReason)} className="px-2 py-1 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900">
         <option value="forfeited">{NOT_ATTENDING_LABELS.forfeited}</option>
         <option value="other">Other…</option>
@@ -123,6 +125,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<EventKajabiMatches | null>(null);
+  const [loadingMatches, setLoadingMatches] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const loadOffers = useCallback(async () => {
@@ -137,9 +140,28 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
     }
   }, [eventId]);
 
+  // On page open: the matches from our own data only. Kajabi is asked live (the grants check) only
+  // when "Find Kajabi matches" is clicked.
+  const loadMatches = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/events/${eventId}/kajabi-matches`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Failed to load the Kajabi matches");
+      const found = body as EventKajabiMatches;
+      if (!found.offersLinked) return;
+      setMatches(found);
+      setSelected(new Set(found.buyers.filter((b) => !b.deactivated && !b.possible_duplicate).map((b) => b.member_id)));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingMatches(false);
+    }
+  }, [eventId]);
+
   useEffect(() => {
     loadOffers();
-  }, [loadOffers]);
+    loadMatches();
+  }, [loadOffers, loadMatches]);
 
   const call = async (run: () => Promise<Response>, failure: string) => {
     setBusy(true);
@@ -195,7 +217,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/kajabi-matches`);
+      const res = await fetch(`/api/admin/events/${eventId}/kajabi-matches?grants=1`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Failed to find Kajabi matches");
       const found = body as EventKajabiMatches;
@@ -368,6 +390,8 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
         )}
       </div>
 
+      {loadingMatches && !matches && <p className="mt-4 text-sm text-gray-500 dark:text-slate-400 min-h-12">Loading tickets...</p>}
+
       {matches && (
         <div className="mt-4 space-y-4">
           {matches.buyers.length === 0 ? (
@@ -377,7 +401,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
               <h3 className="text-sm font-semibold mb-1">Bought a ticket, not an attendee ({matches.buyers.length})</h3>
               <ul className="divide-y divide-gray-200 dark:divide-slate-800">
                 {matches.buyers.map((buyer) => (
-                  <li key={buyer.member_id} className="flex items-start gap-2 py-1.5 text-sm">
+                  <li key={buyer.member_id} className="flex flex-wrap items-start gap-2 py-1.5 text-sm">
                     <input
                       type="checkbox"
                       aria-label={`Add ${buyer.member_name}`}
@@ -385,7 +409,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                       onChange={() => toggle(buyer.member_id)}
                       className="mt-1"
                     />
-                    <span>
+                    <span className="min-w-0 flex-1">
                       <Link href={`/admin/members/${buyer.member_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
                         {buyer.member_name}
                       </Link>
@@ -395,8 +419,8 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                         {buyer.deactivated && <span className="ml-1 text-amber-700 dark:text-amber-400">· purchase deactivated or refunded</span>}
                       </span>
                       {buyer.possible_duplicate && <DuplicateHint other={buyer.possible_duplicate} />}
-                      <NotAttendingControl name={buyer.member_name} busy={busy} onSave={(reason, note) => markNotAttending(buyer.member_id, reason, note)} />
                     </span>
+                    <NotAttendingControl name={buyer.member_name} busy={busy} onSave={(reason, note) => markNotAttending(buyer.member_id, reason, note)} />
                   </li>
                 ))}
               </ul>
@@ -516,7 +540,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                   <li key={attendee.member_id}>
                     {attendee.member_name}
                     {attendee.possible_duplicate && <DuplicateHint other={attendee.possible_duplicate} />}
-                    <span className="block text-xs text-slate-500 dark:text-slate-400">{kajabiOfferNote(attendee.kajabi_offer, linked.length)}</span>
+                    {kajabiOfferNote(attendee.kajabi_offer, linked.length) && <span className="block text-xs text-slate-500 dark:text-slate-400">{kajabiOfferNote(attendee.kajabi_offer, linked.length)}</span>}
                   </li>
                 ))}
               </ul>

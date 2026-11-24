@@ -47,7 +47,7 @@ beforeEach(() => {
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       if (failNext && method !== "GET") return { ok: false, json: async () => ({ error: failNext }) } as Response;
       if (url.endsWith("/offers") && method === "GET") return { ok: true, json: async () => ({ linked, available }) } as Response;
-      if (url.endsWith("/kajabi-matches")) return { ok: true, json: async () => matches } as Response;
+      if (url.includes("/kajabi-matches")) return { ok: true, json: async () => matches } as Response;
       return { ok: true, json: async () => ({ success: true }) } as Response;
     }),
   );
@@ -59,6 +59,32 @@ afterEach(() => {
 });
 
 describe("Kajabi tickets on an event", () => {
+  it("loads the matches on open without asking Kajabi, and checks grants only on Find Kajabi matches", async () => {
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    expect(await screen.findByText(/Bought a ticket, not an attendee/)).toBeInTheDocument();
+    const matchUrls = () => calls.filter((c) => c.url.includes("/kajabi-matches")).map((c) => c.url);
+    expect(matchUrls()).toEqual([`/api/admin/events/${EVENT}/kajabi-matches`]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Find Kajabi matches" }));
+    await waitFor(() => expect(matchUrls()).toEqual([`/api/admin/events/${EVENT}/kajabi-matches`, `/api/admin/events/${EVENT}/kajabi-matches?grants=1`]));
+  });
+
+  it("shows no Kajabi note for an attendee whose grants were not checked", async () => {
+    matches = { ...MATCHES, attendeesWithoutTicket: [{ ...MATCHES.attendeesWithoutTicket[0], kajabi_offer: "not_checked" }] };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    expect(await screen.findByText("Cy Example")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't check Kajabi.")).toBeNull();
+  });
+
+  it("shows Mark not attending as a visible button beside each buyer", async () => {
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+    const buttons = await screen.findAllByRole("button", { name: /^Mark .* as not attending$/ });
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toHaveTextContent("Mark not attending");
+  });
+
   it("shows the linked offers and links another one", async () => {
     const onAttendeesChanged = vi.fn();
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={onAttendeesChanged} />);
@@ -349,7 +375,7 @@ describe("Kajabi tickets on an event", () => {
       await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
       await waitFor(() => expect(calls.find((c) => c.method === "POST" && c.url.endsWith("/not-attending"))?.body).toEqual({ memberId: "mbr_AAAAAAAAAAA1", reason: "forfeited", note: "" }));
-      await waitFor(() => expect(calls.filter((c) => c.url.endsWith("/kajabi-matches")).length).toBe(2));
+      await waitFor(() => expect(calls.filter((c) => c.url.includes("/kajabi-matches")).length).toBe(3));
     });
 
     it("needs a note for Other", async () => {
@@ -396,7 +422,7 @@ describe("Kajabi tickets on an event", () => {
       await userEvent.click(screen.getByRole("button", { name: "Undo not attending for Cy E" }));
 
       await waitFor(() => expect(calls.some((c) => c.method === "DELETE" && c.url === `/api/admin/events/${EVENT}/not-attending/mbr_AAAAAAAAAAA3`)).toBe(true));
-      await waitFor(() => expect(calls.filter((c) => c.url.endsWith("/kajabi-matches")).length).toBe(2));
+      await waitFor(() => expect(calls.filter((c) => c.url.includes("/kajabi-matches")).length).toBe(3));
     });
 
     it("shows no section when nobody is marked", async () => {
