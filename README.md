@@ -60,7 +60,7 @@ Data moves through four layers, so anything derived can always be rebuilt:
 
 Details: [`docs/architecture/MEDALLION_ARCHITECTURE.md`](docs/architecture/MEDALLION_ARCHITECTURE.md) and [`supabase/ARCHITECTURE.md`](supabase/ARCHITECTURE.md). The rest of [`docs/architecture/`](docs/architecture/) covers the data access layer, permissions, member matching, the event log and the chat module.
 
-## Quick start
+## Getting started: build and run from source
 
 You need Docker Desktop (running), Node.js (the version in `engines.node` of `package.json`), pnpm and the Supabase CLI. The full walkthrough, including a deployed environment, is in the [Setup Guide](docs/runbooks/SETUP.md).
 
@@ -68,6 +68,7 @@ You need Docker Desktop (running), Node.js (the version in `engines.node` of `pa
 pnpm install        # also points git at the hooks in config/husky
 supabase start      # local Postgres, Auth, Studio and the email catcher
 pnpm dev            # http://localhost:3000
+pnpm build          # production build (what CI and the pre-commit hook run)
 ```
 
 To sign in locally, enter any email on the sign-in page and open the magic link from the local email catcher (Mailpit) at http://127.0.0.1:54324.

@@ -1,0 +1,119 @@
+# OpenSSF Security Insights (https://security-insights.openssf.org), schema 2.2.0.
+# Machine-readable facts about the project's security, read by tools such as the OpenSSF
+# `pvtr-github-repo-scanner`. Every claim here is also stated in a document it links to; when one
+# changes, change both (docs/checklists/OSPS_BASELINE.md says where the evidence lives).
+# The repository is public: contacts are GitHub-native channels or a handle, never an email.
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-11-23'
+  last-reviewed: '2026-11-23'
+  url: https://raw.githubusercontent.com/quillandcup/hub/main/.github/security-insights.yml
+  comment: |
+    One repository makes up the project, so this file holds both the project and the repository
+    sections. There are no versioned releases (the app is deployed continuously from main), so the
+    release section is left out.
+
+project:
+  name: Hedgie Hub
+  homepage: https://github.com/quillandcup/hub
+  administrators:
+    - name: codyaray
+      social: https://github.com/codyaray
+      primary: true
+  documentation:
+    quickstart-guide: https://github.com/quillandcup/hub/blob/main/docs/runbooks/SETUP.md
+    detailed-guide: https://github.com/quillandcup/hub/blob/main/docs/README.md
+    code-of-conduct: https://github.com/quillandcup/hub/blob/main/.github/CODE_OF_CONDUCT.md
+    support-policy: https://github.com/quillandcup/hub/blob/main/.github/SECURITY.md
+  repositories:
+    - name: hub
+      url: https://github.com/quillandcup/hub
+      comment: |
+        The only repository: the Hedgie Hub member platform (application, database migrations,
+        CI and the docs).
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    contact:
+      name: GitHub private vulnerability reporting (the Report a vulnerability button on the Security tab)
+      primary: true
+    policy: https://github.com/quillandcup/hub/blob/main/.github/SECURITY.md
+    in-scope:
+      - The Hub application in this repository and its production deployment
+      - Secrets, member data or credentials found in the repository
+    comment: |
+      Report through https://github.com/quillandcup/hub/security/advisories/new, never in a public
+      issue or pull request. Only the current production deployment is supported.
+
+repository:
+  url: https://github.com/quillandcup/hub
+  status: active
+  accepts-change-request: false
+  accepts-automated-change-request: true
+  bug-fixes-only: false
+  no-third-party-packages: false
+  core-team:
+    - name: codyaray
+      social: https://github.com/codyaray
+      primary: true
+  documentation:
+    contributing-guide: https://github.com/quillandcup/hub/blob/main/.github/CONTRIBUTING.md
+    governance: https://github.com/quillandcup/hub/blob/main/.github/GOVERNANCE.md
+    dependency-management-policy: https://github.com/quillandcup/hub/blob/main/.github/GOVERNANCE.md
+    review-policy: https://github.com/quillandcup/hub/blob/main/.github/CONTRIBUTING.md
+    security-policy: https://github.com/quillandcup/hub/blob/main/.github/SECURITY.md
+  license:
+    url: https://github.com/quillandcup/hub/blob/main/LICENSE
+    expression: LicenseRef-Proprietary
+  security:
+    assessments:
+      self:
+        name: Threat model and OWASP Top 10 review
+        comment: |
+          The maintainers' own review of what is protected, who might attack it and what stops
+          them. It is not an independent assessment.
+        evidence: https://github.com/quillandcup/hub/blob/main/docs/trust/THREAT_MODEL.md
+        date: '2026-11-17'
+    tools:
+      - name: CodeQL
+        type: SAST
+        comment: GitHub code scanning (default setup); a required check on every pull request.
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results: {}
+      - name: OSV-Scanner
+        type: SCA
+        comment: |
+          A scheduled full scan (osv-scan.yml) and a diff scan that fails a pull request which
+          introduces a vulnerable dependency (osv-diff.yml, a required check).
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results: {}
+      - name: Gitleaks
+        type: secret
+        comment: A scheduled scan of the full git history (gitleaks.yml).
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: false
+          release: false
+        results: {}
+      - name: OWASP ZAP baseline
+        type: other
+        comment: A scheduled passive scan of the production site (zap-baseline.yml).
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: false
+          release: false
+        results: {}
