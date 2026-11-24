@@ -53,4 +53,22 @@ describe("submitFormOnModEnter", () => {
     setup();
     expect(submitFormOnModEnter(event(window))).toBe(false);
   });
+
+  it("with focus on the dialog itself, submits its only form", () => {
+    document.body.innerHTML = `<div id="dialog"><form><button type="submit">Save</button></form></div>`;
+    const dialog = document.getElementById("dialog")!;
+    const onSubmit = vi.fn();
+    (dialog.querySelector("form") as HTMLFormElement).requestSubmit = onSubmit;
+    expect(submitFormOnModEnter(event(dialog, { currentTarget: dialog }))).toBe(true);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("with focus on the dialog and several forms, submits none", () => {
+    document.body.innerHTML = `<div id="dialog"><form><button type="submit">A</button></form><form><button type="submit">B</button></form></div>`;
+    const dialog = document.getElementById("dialog")!;
+    const onSubmit = vi.fn();
+    document.querySelectorAll("form").forEach((f) => (f.requestSubmit = onSubmit));
+    expect(submitFormOnModEnter(event(dialog, { currentTarget: dialog }))).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

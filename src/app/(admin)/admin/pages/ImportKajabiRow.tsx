@@ -178,7 +178,7 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
         e.preventDefault();
         void send();
       }}
-      className="space-y-3 rounded border border-slate-200 p-3 dark:border-slate-700"
+      className="group space-y-3 rounded border border-slate-200 p-3 dark:border-slate-700"
     >
       {heading}
       <div>
@@ -265,7 +265,10 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
       <div className="flex justify-end gap-2">
         <button type="submit" disabled={pending || !ready} aria-keyshortcuts="Control+Enter Meta+Enter" className={`${PRIMARY} inline-flex items-center gap-2`}>
           {pending ? "Importing…" : replacing ? "Replace the draft" : "Import"}
-          <Kbd keys={["mod", "enter"]} onAccent />
+          {/* Several exports are listed at once and the key submits the one with focus, so only that row shows it. */}
+          <span className="hidden group-focus-within:contents">
+            <Kbd keys={["mod", "enter"]} onAccent />
+          </span>
         </button>
       </div>
     </form>
