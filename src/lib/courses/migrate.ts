@@ -49,6 +49,14 @@ export interface CommentsCaptureCounts {
   lessonsCapped: number;
 }
 
+/** What the comments import counts (dry run or real). */
+export interface CommentsImportCounts {
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  unmatchedLessonComments: number;
+}
+
 /** What an optional capture did: wrote, found nothing new, was declined, or failed (the run carries on, exit code 1). */
 export type OptionalOutcome = "applied" | "nothing_new" | "declined" | "failed";
 
@@ -71,6 +79,8 @@ export interface MigrateSummary {
   /** The insert-only import of Bronze progress into the Hub's own progress (counts of members' completed lessons). */
   progressImport?: { dryRun: { inserted: number; alreadyCompleted: number; leftAlone: number }; inserted: number; applied: boolean };
   comments?: { outcome: OptionalOutcome; counts: CommentsCaptureCounts | null };
+  /** The import of Bronze comments into the Hub's lesson comments (counts of comments). */
+  commentsImport?: { dryRun: CommentsImportCounts; written: number; applied: boolean };
   /** Optional captures left out with --skip-progress / --skip-comments. */
   skippedOptional?: ("progress" | "comments")[];
   files?: { copied: number; alreadyCopied: number; removed: number; needsNewLink: number; waitingForLesson: number; failed: number };
@@ -366,9 +376,58 @@ const stepComments: MigrateStep = {
       flag: "--comments",
       parse: parseCommentsSummary,
       isNew: (c) => hasNewRows(c.rows),
-      question: "Write the comments the dry run found to Bronze (they are not shown in the Hub yet)?",
+      question: "Write the comments the dry run found to Bronze (the next step shows them in the Hub)?",
       hint: "This capture is not verified against the live Kajabi site; videos and files still run. Read the lines above, then re-run.",
     });
+  },
+};
+
+const stepCommentsImport: MigrateStep = {
+  id: "K2",
+  title: "Comments into the Hub (optional)",
+  async run(ctx) {
+    if (ctx.args.skipComments) {
+      ctx.io.log("Skipped (--skip-comments).");
+      return;
+    }
+    if (ctx.summary.comments?.outcome === "failed") {
+      ctx.io.log("Skipped: the comments capture failed, so the Hub import would work from a half-captured snapshot. Fix that and re-run.");
+      return;
+    }
+    try {
+      const probe = await callStep(ctx, "Step K2 (comments)", "/api/process/course-comments", { course: ctx.slug, dryRun: true }, "Fix that and re-run.");
+      const dry = (probe.courses ?? [])[0];
+      if (!dry) throw new Error("the route returned no course");
+      const counts: CommentsImportCounts = {
+        inserted: dry.inserted ?? 0,
+        updated: dry.updated ?? 0,
+        unchanged: dry.unchanged ?? 0,
+        unmatchedLessonComments: dry.unmatchedLessonComments ?? 0,
+      };
+      ctx.io.log(
+        `Dry run: ${counts.inserted} comments would be added and ${counts.updated} updated, ${counts.unchanged} already the same; ` +
+          `${dry.replies ?? 0} replies (${dry.orphanReplies ?? 0} without their comment), ${dry.authorsWithoutMember ?? 0} authors shown by name only (Kajabi's page has no email to match a member), ` +
+          `${counts.unmatchedLessonComments} comments on lessons the Hub doesn't have, ${dry.skipped ?? 0} skipped. Nobody is notified and nobody follows a lesson because of this.`
+      );
+      if (counts.inserted + counts.updated === 0) {
+        ctx.summary.commentsImport = { dryRun: counts, written: 0, applied: false };
+        ctx.io.log("Nothing to add.");
+        return;
+      }
+      if (!ctx.args.yes && !(await ctx.io.confirm("Write these comments into the Hub's lesson threads (members with access see them once lesson comments are on)?"))) {
+        ctx.summary.commentsImport = { dryRun: counts, written: 0, applied: false };
+        ctx.io.log("Skipped writing the comments. Nothing changed; run the command again to import them.");
+        return;
+      }
+      const real = await callStep(ctx, "Step K2 (comments)", "/api/process/course-comments", { course: ctx.slug, dryRun: false }, "Fix that and re-run.");
+      const done = (real.courses ?? [])[0];
+      const written = (done?.inserted ?? 0) + (done?.updated ?? 0);
+      ctx.summary.commentsImport = { dryRun: counts, written, applied: true };
+      ctx.io.log(`Wrote ${written} comments. Keyed on Kajabi's own ids, so this is safe to repeat.`);
+    } catch (error) {
+      ctx.failures.push(`comments import into the Hub failed: ${error instanceof Error ? error.message : String(error)}`);
+      ctx.io.log("The comments import failed; carrying on with the next step.");
+    }
   },
 };
 
@@ -547,7 +606,7 @@ const stepVideos: MigrateStep = {
 
 /** The steps in order. A quiz step would go between B and C; the optional progress and comments steps follow C (they need its lessons and access rows). */
 export function buildSteps(): MigrateStep[] {
-  return [stepA, stepB, stepC, stepProgressCapture, stepProgressImport, stepComments, stepFiles, stepVideos];
+  return [stepA, stepB, stepC, stepProgressCapture, stepProgressImport, stepComments, stepCommentsImport, stepFiles, stepVideos];
 }
 
 export async function runMigration(args: MigrateArgs, env: MigrateEnvironment, io: MigrateIO, steps: MigrateStep[] = buildSteps()): Promise<MigrateResult> {
@@ -603,8 +662,15 @@ export function formatSummary(result: MigrateResult): string[] {
     const captured = s.comments.outcome === "applied" || s.comments.outcome === "nothing_new";
     lines.push(
       captured
-        ? "Comments: captured to Bronze, not yet shown in the Hub." + (c ? ` (${c.rows.written} written, ${c.rows.unchanged} unchanged, ${c.rows.removed} removed.)` : "")
-        : `Comments: ${s.comments.outcome === "declined" ? "not written (declined)" : "capture failed"}; they are not shown in the Hub either way yet.`
+        ? "Comments: captured to Bronze." + (c ? ` (${c.rows.written} written, ${c.rows.unchanged} unchanged, ${c.rows.removed} removed.)` : "")
+        : `Comments: ${s.comments.outcome === "declined" ? "not written (declined)" : "capture failed"}.`
+    );
+  }
+  if (s.commentsImport) {
+    const c = s.commentsImport;
+    lines.push(
+      `Comments in the Hub: ${c.written} written${c.applied ? "" : " (nothing written)"}, ${c.dryRun.unchanged} already the same, ${c.dryRun.unmatchedLessonComments} on lessons the Hub doesn't have. ` +
+        "Keyed on Kajabi's ids, so a re-run adds nothing twice; nobody is notified."
     );
   }
   if (s.files) lines.push(`Downloads: ${s.files.copied} copied, ${s.files.alreadyCopied} already there, ${s.files.removed} removed, ${s.files.failed} failed.`);

@@ -30,6 +30,9 @@ export type StoredLessonComment = Pick<
   "course_kajabi_id" | "comment_key" | "parent_comment_key" | "author_name" | "posted_at" | "body" | "deleted_at"
 >;
 
+/** A comment of a lesson as the Hub import reads it (soft-deleted ones included). */
+export type ImportableLessonComment = StoredLessonComment & { lesson_kajabi_id: string; captured_at: string };
+
 /** A lesson without its text and raw payload: what outlines, visibility and the video and file plans need. */
 export type KajabiLessonOutline = Pick<
   KajabiLesson,
@@ -189,6 +192,8 @@ export interface KajabiCourseRepository {
   lessonComments(lessonKajabiId: string): Promise<StoredLessonComment[]>;
   upsertLessonComments(rows: NewLessonComment[]): Promise<void>;
   softDeleteLessonComments(lessonKajabiId: string, commentKeys: string[], at: string): Promise<void>;
+  /** Every stored comment of a course's lessons (soft-deleted ones included), for the import into the Hub. Reads past 1000. */
+  commentsOfCourse(courseKajabiId: string): Promise<ImportableLessonComment[]>;
 }
 
 
@@ -502,6 +507,19 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
           .from("kajabi_lesson_comments")
           .select("course_kajabi_id, comment_key, parent_comment_key, author_name, posted_at, body, deleted_at")
           .eq("lesson_kajabi_id", lessonKajabiId)
+          .order("comment_key")
+          .range(a, b),
+    );
+  }
+
+  async commentsOfCourse(courseKajabiId: string) {
+    return fetchAllRows<ImportableLessonComment>(
+      (a, b) =>
+        this.bronze
+          .from("kajabi_lesson_comments")
+          .select("lesson_kajabi_id, course_kajabi_id, comment_key, parent_comment_key, author_name, posted_at, body, captured_at, deleted_at")
+          .eq("course_kajabi_id", courseKajabiId)
+          .order("lesson_kajabi_id")
           .order("comment_key")
           .range(a, b),
     );
@@ -850,6 +868,23 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
         deleted_at,
       }))
       .sort((a, b) => cmp(a.comment_key, b.comment_key));
+  }
+
+  async commentsOfCourse(courseKajabiId: string) {
+    return this.data.kajabiLessonComments
+      .filter((c) => c.course_kajabi_id === courseKajabiId)
+      .map(({ lesson_kajabi_id, course_kajabi_id, comment_key, parent_comment_key, author_name, posted_at, body, captured_at, deleted_at }) => ({
+        lesson_kajabi_id,
+        course_kajabi_id,
+        comment_key,
+        parent_comment_key,
+        author_name,
+        posted_at,
+        body,
+        captured_at,
+        deleted_at,
+      }))
+      .sort((a, b) => cmp(a.lesson_kajabi_id, b.lesson_kajabi_id) || cmp(a.comment_key, b.comment_key));
   }
 
   async upsertLessonComments(rows: NewLessonComment[]) {

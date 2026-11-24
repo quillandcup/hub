@@ -4340,6 +4340,7 @@ export type Database = {
       }
       lesson_comments: {
         Row: {
+          author_name: string | null
           body: string
           created_at: string
           deleted_at: string | null
@@ -4353,10 +4354,13 @@ export type Database = {
           id: string
           is_staff_reply: boolean
           lesson_id: string
-          member_id: string
+          member_id: string | null
           parent_id: string | null
+          source: string | null
+          source_key: string | null
         }
         Insert: {
+          author_name?: string | null
           body: string
           created_at?: string
           deleted_at?: string | null
@@ -4370,10 +4374,13 @@ export type Database = {
           id?: string
           is_staff_reply?: boolean
           lesson_id: string
-          member_id: string
+          member_id?: string | null
           parent_id?: string | null
+          source?: string | null
+          source_key?: string | null
         }
         Update: {
+          author_name?: string | null
           body?: string
           created_at?: string
           deleted_at?: string | null
@@ -4387,8 +4394,10 @@ export type Database = {
           id?: string
           is_staff_reply?: boolean
           lesson_id?: string
-          member_id?: string
+          member_id?: string | null
           parent_id?: string | null
+          source?: string | null
+          source_key?: string | null
         }
         Relationships: [
           {

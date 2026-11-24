@@ -365,6 +365,27 @@ describe("deleteLessonComment", () => {
   });
 });
 
+describe("imported comments (no member behind them)", () => {
+  const importedComment = async () =>
+    (await comments().upsertImported("kajabi", [{ lessonId: LESSON, sourceKey: "k/1", parentId: null, authorName: "Pen Name", body: "From Kajabi", createdAt: new Date(NOW - 60_000).toISOString(), deletedAt: null }]))[0].id;
+
+  it("can't be edited or deleted by a member, but can be replied to and reported", async () => {
+    const id = await importedComment();
+
+    expect((await editLessonComment(id, "Mine now")).error).toBeTruthy();
+    expect((await deleteLessonComment(id)).error).toBeTruthy();
+    expect((await comments().byId(id))).toMatchObject({ body: "From Kajabi", deletedAt: null });
+
+    const reply = await postLessonComment(LESSON, "A reply from a member", id);
+    expect(reply.error).toBeUndefined();
+    expect((await comments().byId(reply.id!))?.parentId).toBe(id);
+
+    state.caller = callerFor(CAL);
+    expect((await reportLessonComment(id, "Not for this course")).error).toBeUndefined();
+    expect(data.lessonCommentReports).toHaveLength(1);
+  });
+});
+
 describe("clock", () => {
   it("is restored for other tests", () => {
     setClock(systemClock);

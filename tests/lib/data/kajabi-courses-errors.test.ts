@@ -53,6 +53,7 @@ describe("SupabaseKajabiCourseRepository on a database error", () => {
     ["softDeleteProductProgress", () => repo.softDeleteProductProgress("c1", ["ada@example.com"], at, "b")],
     ["lessonProgress", () => repo.lessonProgress("c1", "ada@example.com")],
     ["completedLessons", () => repo.completedLessons("c1")],
+    ["commentsOfCourse", () => repo.commentsOfCourse("c1")],
     ["upsertLessonProgress", () => repo.upsertLessonProgress([{ course_kajabi_id: "c1", email: "ada@example.com", kajabi_lesson_id: "l1", completed: true }])],
     ["softDeleteLessonProgress", () => repo.softDeleteLessonProgress("c1", "ada@example.com", ["l1"], at)],
   ])("%s throws the database's error", async (_name, run) => {

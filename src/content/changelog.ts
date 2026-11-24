@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "imported-lesson-comments-engineering",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments can be imported, and an imported comment has no member",
+    summary: "A comment in a lesson thread can come from another site: it keeps where it came from and the author's own name, and importing again never duplicates it.",
+    body: `A lesson comment can now be imported, Kajabi being the first source. It records its source and the id it had there, unique together, so running the import again updates the same rows. Its author is a plain display name when no member can be matched: Kajabi's page carries only a name, and members are never matched by name.
+
+- **Rule.** An imported comment is history, not activity: it is never held, notifies no one, creates no follow, and is left out of the daily digest, the "new" count and the unanswered list. The import owns only what the source said (name, text, time, place in the thread, whether it was removed there) and never undoes what staff or a member did. Code that reads a comment's author must handle there being no member.
+- **Hooks.** \`importKajabiLessonComments\` (Bronze to Silver, run from \`courses:migrate\` or the admin route, a manual pull since the capture is a person's browser) and the comments repository's import methods; another source would add its own reader and reuse them.
+- **Detail.** \`docs/product/COURSES.md\`, "Lesson comments", Kajabi migration.`,
+  },
+  {
     slug: "quizzes-in-courses",
     date: "2026-11-24",
     audience: "product",
