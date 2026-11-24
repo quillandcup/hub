@@ -35,6 +35,8 @@ import { isValidTimeZone } from "@/lib/time-zone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { clock } from "@/lib/clock";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
+import { loadMemberQuiz } from "@/lib/courses/quiz-member";
+import QuizTaker from "@/components/courses/QuizTaker";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -172,6 +174,10 @@ export default async function LessonPage({
     );
   }
 
+  // A quiz lesson: the questions come without their right answers (the server scores), and passing is what completes the lesson.
+  const quiz = await loadMemberQuiz(repos, lesson.id, caller.identity.memberId);
+  const quizTimeZone = quiz ? await getUserTimezonePreference() : null;
+
   let player: React.ReactNode = null;
   if (video) {
     const restrictionId = video.status === "ready" && video.playbackId ? await restrictionIdForViewer(caller.userId, caller.identity) : null;
@@ -303,7 +309,20 @@ export default async function LessonPage({
           {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads
               card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
           <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900 @outline:col-start-1 @outline:row-start-3 @outline:mr-8">
-            <MarkCompleteButton />
+            {quiz ? (
+              <QuizTaker
+                lessonId={lesson.id}
+                questions={quiz.questions}
+                passingPercent={quiz.passingPercent}
+                hideAnswers={quiz.hideAnswers}
+                attempts={quiz.attempts}
+                passedBefore={quiz.passed}
+                readOnlyReason={readOnlyReason}
+                timeZone={isValidTimeZone(quizTimeZone) ? quizTimeZone : ORG_TIMEZONE}
+              />
+            ) : (
+              <MarkCompleteButton />
+            )}
             <NextLessonPreview slug={view.course.slug} next={nextLesson} />
 
             <h1 className="mt-8 text-3xl font-bold leading-tight">{lesson.title}</h1>

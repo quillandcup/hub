@@ -238,6 +238,22 @@ export function defineQuizContract(name: string, setup: () => QuizContractContex
       expect((await ctx.repo().attemptCountsOfLessons([])).size).toBe(0);
     });
 
+    it("clears one member's attempts at a quiz, with their answers, and nobody else's", async () => {
+      const quiz = await ctx.repo().createQuiz(ctx.lessons[0]);
+      const q = await ctx.repo().saveQuestion(quiz.id, null, pick());
+      const attempt = (memberId: string) => ({ quizId: quiz.id, memberId, questionCount: 1, correctCount: 1, scorePercent: 100, passed: true, answers: [{ questionId: q, selectedOptionIds: [], isCorrect: true }] });
+      const mine = await ctx.repo().recordAttempt(attempt(ctx.members[0]));
+      await ctx.repo().recordAttempt(attempt(ctx.members[0]));
+      const theirs = await ctx.repo().recordAttempt(attempt(ctx.members[1]));
+
+      expect(await ctx.repo().clearAttempts(ctx.members[0], quiz.id)).toBe(2);
+
+      expect(await ctx.repo().attemptsOf(ctx.members[0], quiz.id)).toEqual([]);
+      expect(await ctx.repo().answersOf(mine.id)).toEqual([]);
+      expect((await ctx.repo().attemptsOf(ctx.members[1], quiz.id)).map((a) => a.id)).toEqual([theirs.id]);
+      expect(await ctx.repo().clearAttempts(ctx.members[0], quiz.id)).toBe(0);
+    });
+
     it("keeps an attempt, with its score, when a question is deleted, and drops only the answers to it", async () => {
       const quiz = await ctx.repo().createQuiz(ctx.lessons[0]);
       const q1 = await ctx.repo().saveQuestion(quiz.id, null, pick());

@@ -27,6 +27,8 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
   if (!lesson || lesson.state !== "open") return { error: "Lesson not found" };
   const access = await loadMemberCourseAccess(createRepos(service), caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return { error: "You don't have access to this course" };
+  // A quiz lesson is completed by passing its quiz (the server does it after scoring), never by a click: the database refuses it too.
+  if (await createRepos(service).quizzes.quizOfLesson(lessonId)) return { error: "This lesson is completed by passing its quiz" };
 
   // Written as the member (RLS: their own rows only), not with the service role.
   const supabase = await createClient();
@@ -64,6 +66,8 @@ async function clearMyLessonProgressImpl(lessonId: string): Promise<{ error?: st
   if (!lesson) return { error: "Lesson not found" };
   const memberId = caller.identity.memberId;
 
+  // A quiz lesson's attempts are part of the viewing record: clearing them lets staff take the quiz as new.
+  const quiz = await repos.quizzes.quizOfLesson(lessonId);
   let segments = 0;
   if (lesson.video_id) {
     try {
@@ -74,6 +78,7 @@ async function clearMyLessonProgressImpl(lessonId: string): Promise<{ error?: st
     }
   }
   try {
+    if (quiz) await repos.quizzes.clearAttempts(memberId, quiz.id);
     await repos.courseProgress.clearProgress(memberId, lessonId);
   } catch (error) {
     console.error("lesson_progress delete failed:", error instanceof Error ? error.message : error);

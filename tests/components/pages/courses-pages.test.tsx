@@ -48,6 +48,9 @@ vi.mock("@/lib/features.server", () => ({
   effectiveMemberHasFeature: async (key: string) => key !== "lesson_comments" && sharing.on,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
+// A quiz lesson's questions come from the quiz tables (tests/lib/quiz-member.test.ts); these pages are plain lessons unless a test says otherwise.
+const loadMemberQuiz = vi.fn();
+vi.mock("@/lib/courses/quiz-member", () => ({ loadMemberQuiz: (...a: unknown[]) => loadMemberQuiz(...a) }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
 import { TimedLessonPlayer } from "@/components/courses/PlayerTime";
@@ -74,6 +77,7 @@ const outline = buildOutline([mod], [lesson(LESSON_A, "Welcome", 1), lesson(LESS
 const course = { id: "c1", slug: "the-ready-writer", title: "The Ready Writer", description: "Write a book." };
 
 beforeEach(() => {
+  loadMemberQuiz.mockReset().mockResolvedValue(null);
   resetServerPageMocks();
   loadCourseList.mockReset();
   loadCourseView.mockReset();
@@ -426,6 +430,39 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.getByRole("button", { name: "Mark as complete" })).toBeEnabled();
     expect(screen.queryByRole("navigation", { name: "Course outline" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View the full course outline" })).toHaveAttribute("href", "/courses/the-ready-writer");
+  });
+
+  it("gives a quiz lesson its questions in place of Mark complete, and the completion shows after a pass", async () => {
+    loadLessonView.mockResolvedValue(ok({ lesson: lesson(LESSON_B, "Let's check in", 2) }));
+    loadMemberQuiz.mockResolvedValue({
+      passingPercent: 80,
+      hideAnswers: false,
+      passed: false,
+      attempts: [],
+      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
+    });
+    await renderServerPage(LessonPage, params());
+
+    expect(loadMemberQuiz).toHaveBeenCalledWith(expect.anything(), LESSON_B, "m1");
+    expect(screen.getByRole("heading", { level: 1, name: "Let's check in" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as complete" })).not.toBeInTheDocument();
+    const form = screen.getByRole("form", { name: "Quiz questions" });
+    expect(within(form).getByRole("radio", { name: "Fine" })).toBeEnabled();
+    expect(within(form).getByRole("button", { name: "Submit answers" })).toBeEnabled();
+    expect(screen.getByText(/Score at least 80% to pass/)).toBeInTheDocument();
+  });
+
+  it("turns the quiz off, with the reason, for a staff preview of a lesson members can't open yet", async () => {
+    loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Let's check in", 2), state: "coming_soon" } }));
+    loadMemberQuiz.mockResolvedValue({
+      passingPercent: null,
+      hideAnswers: false,
+      passed: false,
+      attempts: [],
+      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
+    });
+    await renderServerPage(LessonPage, params());
+    expect(screen.getByRole("button", { name: "Submit answers" })).toBeDisabled();
   });
 
   it("sanitizes the stored lesson text when it renders it", async () => {

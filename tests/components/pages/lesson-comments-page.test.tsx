@@ -8,6 +8,9 @@ import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-p
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
+// A quiz lesson's questions come from the quiz tables (tests/lib/quiz-member.test.ts); these pages are plain lessons unless a test says otherwise.
+const loadMemberQuiz = vi.fn();
+vi.mock("@/lib/courses/quiz-member", () => ({ loadMemberQuiz: (...a: unknown[]) => loadMemberQuiz(...a) }));
 
 const caller = { userId: "u", identity: { memberId: "m1", isSudo: false }, scope: { memberId: "m1", isAdminActing: false } };
 vi.mock("@/lib/courses/caller", () => ({ requireCoursesPage: async () => caller }));
@@ -64,6 +67,7 @@ const view = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  loadMemberQuiz.mockReset().mockResolvedValue(null);
   cleanup();
   resetServerPageMocks();
   loadLessonView.mockReset();

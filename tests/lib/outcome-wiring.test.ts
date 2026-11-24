@@ -81,6 +81,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     "src/app/(admin)/admin/courses/quiz-actions.ts",
     [["addQuizLesson", "course_quiz_added"], ["saveQuizQuestion", "course_quiz_question_saved"], ["deleteQuizQuestion", "course_quiz_question_deleted"], ["reorderQuizQuestions", "course_quiz_questions_reordered"], ["saveQuizSettings", "course_quiz_settings_saved"], ["removeQuiz", "course_quiz_removed"]],
   ],
+  [() => import("@/app/(member)/courses/quiz-actions"), "src/app/(member)/courses/quiz-actions.ts", [["submitQuiz", "quiz_attempt_submitted"]]],
   [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "src/app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],
   [() => import("@/app/(admin)/admin/courses/delete-actions"), "src/app/(admin)/admin/courses/delete-actions.ts", [["deleteCourse", "course_deleted"]]],
   [
