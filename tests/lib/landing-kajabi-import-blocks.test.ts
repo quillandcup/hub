@@ -298,3 +298,93 @@ describe("the whole result stays safe", () => {
     expect(json).not.toMatch(/alert\(|<script|onerror/);
   });
 });
+
+describe("buttons inside a text block", () => {
+  const withButton = (label: string, action: string, over: Record<string, unknown> = {}) => ({ use_btn: true, btn_text: label, btn_action: action, btn_background_color: "#a64d79", btn_width: "full", ...over });
+  const text = (html: string, over: Record<string, unknown> = {}) => block("text", { width: "7", text_align: "left", text: html, ...over });
+
+  it("follows its text as a Button block, with the look of a call to action", () => {
+    const { inner, notes } = more({ t1: text("<h2>Join us</h2><p>Words here.</p>", withButton("Join now", "https://example.com/join")) });
+    expect(inner.map((b) => b.type)).toEqual(["Heading", "RichText", "Button"]);
+    expect(inner[2].props).toMatchObject({ label: "Join now", href: "https://example.com/join", look: "solid", color: "plum", full: true });
+    expect(note(notes, "approximated", "1 button inside text blocks is now a Button block right after its text")).toBe(true);
+    expect(notes.some((n) => n.text.includes("has a button inside it"))).toBe(false);
+  });
+
+  it("takes two buttons in two text blocks, and none from a block with its button switched off", () => {
+    const { inner, notes } = more({
+      t1: text("<p>One</p>", withButton("First", "https://example.com/1")),
+      t2: text("<p>Two</p>", { use_btn: false, btn_text: "Call To Action", btn_action: "https://example.com/unused" }),
+      t3: text("<p>Three</p>", withButton("Second<br>one", "https://example.com/3", { btn_style: "outline", btn_text_color: "#a64d79", btn_background_color: "", text_align: "center" })),
+    });
+    expect(inner.map((b) => b.type)).toEqual(["RichText", "Button", "RichText", "RichText", "Button"]);
+    expect(inner[1].props.label).toBe("First");
+    expect(inner[4].props).toMatchObject({ label: "Second one", look: "outline", align: "center" });
+    expect(note(notes, "approximated", "2 buttons inside text blocks are now Button blocks")).toBe(true);
+  });
+
+  it("puts a block's button inside its card when the block has a fill of its own", () => {
+    const { inner } = more({ t1: text("<p>Boxed</p>", withButton("Go", "https://example.com/go", { background_color: "#ffffff" })), t2: text("<p>Plain</p>") });
+    const card = inner.find((b) => b.type === "Section");
+    expect((card?.props.content as Puck[]).map((b) => b.type)).toEqual(["RichText", "Button"]);
+  });
+
+  it("keeps a Kajabi path as it is, with the usual note", () => {
+    const { inner, notes } = more({ t1: text("<p>Wait</p>", withButton("Waitlist", "/resource_redirect/landing_pages/123")) });
+    expect(inner[1].props.href).toBe("https://kajabi.example.test/resource_redirect/landing_pages/123");
+    expect(note(notes, "approximated", "goes to a Kajabi path (/resource_redirect/landing_pages/123)")).toBe(true);
+  });
+
+  it("makes the button of an older export that has no switch, from its label and link", () => {
+    const { inner } = more({ t1: text("<p>Old</p>", { btn_text: "Older", btn_action: "https://example.com/old" }), t2: text("<p>None</p>", { btn_text: "Call To Action", btn_action: "" }) });
+    expect(inner.filter((b) => b.type === "Button")).toHaveLength(1);
+  });
+
+  it("asks for the link of a button that has none, and refuses an unsafe one", () => {
+    const { inner, notes } = more({ t1: text("<p>x</p>", withButton("No link", "")), t2: text("<p>y</p>", withButton("Bad link", "javascript:alert(1)")) });
+    expect(inner.filter((b) => b.type === "Button").map((b) => b.props.href)).toEqual(["", ""]);
+    expect(note(notes, "todo", 'Button "No link" has no link')).toBe(true);
+    expect(note(notes, "todo", 'Button "Bad link" has a link that can\'t be used')).toBe(true);
+  });
+
+  it("says a switched-on button with no label is left out", () => {
+    const { inner, notes } = more({ t1: text("<p>x</p>", withButton("<br>", "https://example.com/x")) });
+    expect(inner.some((b) => b.type === "Button")).toBe(false);
+    expect(note(notes, "left_out", 'The text block "text" has a button inside it with no label')).toBe(true);
+  });
+
+  it("removes a link styled as a button from the words and makes it a Button", () => {
+    const html = '<p>Before</p><p><a class="btn btn-primary" href="https://example.com/styled">Styled go</a></p><p>Read <a href="https://example.com/plain">a plain link</a>. <a class="button" href="https://example.com/inline">Inline go</a></p>';
+    const { inner, notes } = more({ t1: text(html) });
+    expect(inner.map((b) => b.type)).toEqual(["RichText", "Button", "Button"]);
+    expect(inner[0].props.html).toContain("Before");
+    expect(inner[0].props.html).toContain("a plain link");
+    expect(inner[0].props.html).not.toMatch(/Styled go|Inline go|<p><\/p>/);
+    expect(inner.slice(1).map((b) => b.props.label)).toEqual(["Styled go", "Inline go"]);
+    expect(note(notes, "approximated", "2 buttons inside text blocks")).toBe(true);
+  });
+
+  it("does not show a button twice when the words hold it and the settings name it", () => {
+    const { inner, json } = more({ t1: text('<p>Hi</p><p><a class="btn" href="https://example.com/join">Join now</a></p>', withButton("Join now", "https://example.com/join")) });
+    expect(inner.filter((b) => b.type === "Button")).toHaveLength(1);
+    expect(json.match(/Join now/g)).toHaveLength(1);
+  });
+
+  it("reports a button-styled link with no label", () => {
+    const { notes } = more({ t1: text('<p>x</p><p><a class="btn" href="https://example.com/e"><br></a></p>') });
+    expect(note(notes, "left_out", "has a button inside it with no label")).toBe(true);
+  });
+
+  it("reports pictures and embeds in the words, which the rich text drops", () => {
+    const one = more({ t1: text('<p>See</p><img src="x.png">') });
+    expect(note(one.notes, "left_out", 'The text block "text" has a picture or embed inside it')).toBe(true);
+    const many = more({ t1: text('<p>See</p><iframe src="https://example.com/e"></iframe><video src="v.mp4"></video>') });
+    expect(note(many.notes, "left_out", "has 2 pictures or embeds inside it")).toBe(true);
+    expect(many.json).not.toMatch(/iframe|video/);
+  });
+
+  it("gives the same page for the same export twice", () => {
+    const blocks = () => ({ t1: text("<p>One</p>", withButton("First", "/resource_redirect/offers/1")), t2: text('<p>Two</p><p><a class="btn" href="https://example.com/2">Second</a></p>') });
+    expect(more(blocks()).json).toBe(more(blocks()).json);
+  });
+});
