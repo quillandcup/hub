@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { QuizQuestionInput, QuizRepository } from "@/lib/data/quizzes";
+import type { ImportedQuiz, QuizQuestionInput, QuizRepository } from "@/lib/data/quizzes";
 
 export type QuizContractContext = {
   repo: () => QuizRepository;
   /** Two Hub-owned lessons that exist and are not quizzes yet. */
   lessons: [string, string];
+  /** Two lessons imported from Kajabi that exist and are not quizzes yet. */
+  kajabiLessons: [string, string];
   /** Two members that exist. */
   members: [string, string];
   /** Removes the quizzes (with their questions and attempts) this context made. */
@@ -27,6 +29,17 @@ const many = (): QuizQuestionInput => ({
     { label: "Monday", isCorrect: true },
     { label: "Tuesday", isCorrect: false },
     { label: "Wednesday", isCorrect: true },
+  ],
+});
+
+/** The sample quiz of Kajabi's "Let's Check In" lesson, as the Silver step is given it. */
+const imported = (): ImportedQuiz => ({
+  sourceKey: "1573355",
+  passingPercent: null,
+  hideAnswers: true,
+  questions: [
+    { sourceKey: "q1", prompt: "How do you feel?", allowsMultiple: false, options: [{ sourceKey: "q1a", label: "Great", isCorrect: false }, { sourceKey: "q1b", label: "Fine", isCorrect: true }] },
+    { sourceKey: "q2", prompt: "Which are true?", allowsMultiple: false, options: [{ sourceKey: "q2a", label: "A", isCorrect: false }, { sourceKey: "q2b", label: "Both B and C", isCorrect: true }] },
   ],
 });
 
@@ -287,6 +300,76 @@ export function defineQuizContract(name: string, setup: () => QuizContractContex
       await expect(ctx.repo().deleteQuiz(quiz.id)).rejects.toMatchObject({ code: "not_found" });
       // The lesson can become a quiz again, empty.
       expect((await ctx.repo().createQuiz(ctx.lessons[0])).revision).toBe(0);
+    });
+
+    it("syncs a Kajabi quiz into its lesson, and syncing it again changes nothing", async () => {
+      const [lesson] = ctx.kajabiLessons;
+
+      const first = await ctx.repo().syncImportedQuiz(lesson, imported());
+
+      expect(first).toEqual({ status: "synced", questions: 2, options: 4, removedQuestions: 0 });
+      const quiz = (await ctx.repo().quizOfLesson(lesson))!;
+      expect(quiz).toMatchObject({ passingPercent: null, hideAnswers: true, sourceKey: "1573355" });
+      const before = await ctx.repo().questionsOf(quiz.id);
+      expect(before.map((q) => [q.sourceKey, q.prompt, q.options.map((o) => [o.sourceKey, o.label, o.isCorrect])])).toEqual([
+        ["q1", "How do you feel?", [["q1a", "Great", false], ["q1b", "Fine", true]]],
+        ["q2", "Which are true?", [["q2a", "A", false], ["q2b", "Both B and C", true]]],
+      ]);
+
+      expect(await ctx.repo().syncImportedQuiz(lesson, imported())).toEqual(first);
+      expect(await ctx.repo().questionsOf(quiz.id)).toEqual(before);
+      expect((await ctx.repo().quizOfLesson(lesson))?.id).toBe(quiz.id);
+    });
+
+    it("updates a synced quiz in place, keeps a member's attempt, and drops what Kajabi dropped", async () => {
+      const [lesson] = ctx.kajabiLessons;
+      await ctx.repo().syncImportedQuiz(lesson, imported());
+      const quiz = (await ctx.repo().quizOfLesson(lesson))!;
+      const [q1, q2] = await ctx.repo().questionsOf(quiz.id);
+      const attempt = await ctx.repo().recordAttempt({
+        quizId: quiz.id,
+        memberId: ctx.members[0],
+        questionCount: 2,
+        correctCount: 1,
+        scorePercent: 50,
+        passed: true,
+        answers: [{ questionId: q1.id, selectedOptionIds: [q1.options[1].id], isCorrect: true }, { questionId: q2.id, selectedOptionIds: [], isCorrect: false }],
+      });
+      const changed = imported();
+      changed.passingPercent = 80;
+      changed.hideAnswers = false;
+      changed.questions = [{ ...changed.questions[0], prompt: "How do you feel today?", options: [changed.questions[0].options[1]] }];
+
+      expect(await ctx.repo().syncImportedQuiz(lesson, changed)).toEqual({ status: "synced", questions: 1, options: 1, removedQuestions: 1 });
+
+      expect(await ctx.repo().quizOfLesson(lesson)).toMatchObject({ id: quiz.id, passingPercent: 80, hideAnswers: false });
+      const after = await ctx.repo().questionsOf(quiz.id);
+      expect(after.map((q) => [q.id, q.prompt, q.options.map((o) => o.label)])).toEqual([[q1.id, "How do you feel today?", ["Fine"]]]);
+      expect(after[0].options[0].id).toBe(q1.options[1].id);
+      expect((await ctx.repo().attemptsOf(ctx.members[0], quiz.id)).map((a) => [a.id, a.scorePercent])).toEqual([[attempt.id, 50]]);
+      expect((await ctx.repo().answersOf(attempt.id)).map((a) => a.questionId)).toEqual([q1.id]);
+    });
+
+    it("skips a lesson that isn't Kajabi's or isn't there, and leaves the Hub's own quiz alone", async () => {
+      const [hub] = ctx.lessons;
+      expect(await ctx.repo().syncImportedQuiz(hub, imported())).toEqual({ status: "skipped", questions: 0, options: 0, removedQuestions: 0 });
+      expect(await ctx.repo().quizOfLesson(hub)).toBeNull();
+      expect((await ctx.repo().syncImportedQuiz("les_NoSuchLesson1", imported())).status).toBe("skipped");
+    });
+
+    it("removes the imported quizzes whose Kajabi quiz is gone, and never one made in the Hub", async () => {
+      const [a, b] = ctx.kajabiLessons;
+      await ctx.repo().syncImportedQuiz(a, imported());
+      await ctx.repo().syncImportedQuiz(b, { ...imported(), sourceKey: "999" });
+      await ctx.repo().createQuiz(ctx.lessons[0]);
+
+      expect(await ctx.repo().removeImportedQuizzes([a, b, ctx.lessons[0]], ["1573355"])).toBe(1);
+
+      expect(await ctx.repo().quizOfLesson(a)).not.toBeNull();
+      expect(await ctx.repo().quizOfLesson(b)).toBeNull();
+      expect(await ctx.repo().quizOfLesson(ctx.lessons[0])).not.toBeNull();
+      expect(await ctx.repo().removeImportedQuizzes([], [])).toBe(0);
+      expect(await ctx.repo().removeImportedQuizzes([ctx.lessons[0]], [])).toBe(0);
     });
   });
 }

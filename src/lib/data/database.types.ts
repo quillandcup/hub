@@ -534,6 +534,36 @@ export type Database = {
         }
         Relationships: []
       }
+      kajabi_quizzes: {
+        Row: {
+          captured_at: string
+          content_hash: string
+          course_kajabi_id: string
+          deleted_at: string | null
+          kajabi_id: string
+          lesson_kajabi_id: string
+          raw_payload: Json
+        }
+        Insert: {
+          captured_at?: string
+          content_hash: string
+          course_kajabi_id: string
+          deleted_at?: string | null
+          kajabi_id: string
+          lesson_kajabi_id: string
+          raw_payload: Json
+        }
+        Update: {
+          captured_at?: string
+          content_hash?: string
+          course_kajabi_id?: string
+          deleted_at?: string | null
+          kajabi_id?: string
+          lesson_kajabi_id?: string
+          raw_payload?: Json
+        }
+        Relationships: []
+      }
       resend_events: {
         Row: {
           bounce_type: string | null
@@ -9786,6 +9816,10 @@ export type Database = {
       sync_event_badge_awards: {
         Args: { p_event_id: string }
         Returns: undefined
+      }
+      sync_imported_quiz: {
+        Args: { p_lesson_id: string; p_quiz: Json }
+        Returns: Json
       }
       take_over_kajabi_course: {
         Args: { p_course_id: string }

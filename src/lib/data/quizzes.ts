@@ -56,6 +56,17 @@ export type NewQuizAttempt = {
   answers: { questionId: string; selectedOptionIds: string[]; isCorrect: boolean | null }[];
 };
 
+/** A quiz as Kajabi has it, for the Silver step: every question and option carries Kajabi's key, so a re-import updates rows in place. */
+export type ImportedQuiz = {
+  /** Kajabi's quiz id. */
+  sourceKey: string;
+  passingPercent: number | null;
+  hideAnswers: boolean;
+  questions: { sourceKey: string; prompt: string; allowsMultiple: boolean; options: { sourceKey: string; label: string; isCorrect: boolean }[] }[];
+};
+/** What syncing one imported quiz did: skipped when the lesson isn't there or isn't Kajabi's. */
+export type QuizSyncResult = { status: "synced" | "skipped"; questions: number; options: number; removedQuestions: number };
+
 /** A refused write. `code` is the function's own error (`invalid_question`, `not_found`, `stale_order`, `not_editable`) or the database's (23505 unique, 42501 policy). */
 export class QuizWriteError extends Error {
   constructor(
@@ -109,6 +120,14 @@ export interface QuizRepository {
   attemptsOfQuiz(quizId: string): Promise<QuizAttemptRecord[]>;
   /** Whether the member has a passing attempt at the quiz. */
   hasPassed(memberId: string, quizId: string): Promise<boolean>;
+  /**
+   * The Silver step for one Kajabi quiz (service role): makes the quiz of this Kajabi lesson match what was captured, in one
+   * transaction, on Kajabi's keys, so a member's attempts keep pointing at the same rows when nothing changed. A lesson that
+   * isn't there or isn't Kajabi's (a Hub lesson, or one taken over) is skipped and left alone.
+   */
+  syncImportedQuiz(lessonId: string, quiz: ImportedQuiz): Promise<QuizSyncResult>;
+  /** Removes the imported quizzes (the ones with a Kajabi key) of these lessons that are not in `keepSourceKeys`; returns how many. A quiz made in the Hub is never touched. */
+  removeImportedQuizzes(lessonIds: string[], keepSourceKeys: string[]): Promise<number>;
   /** Removes a member's attempts at a quiz, their answers with them (staff clearing their own test attempts); returns how many there were. */
   clearAttempts(memberId: string, quizId: string): Promise<number>;
   /** How many attempts members have made at the quiz of each of these lessons, by lesson id; a lesson with none (or no quiz) is absent. */
@@ -268,6 +287,38 @@ export class SupabaseQuizRepository implements QuizRepository {
     const { count, error } = await this.db.from("quiz_attempts").select("id", { count: "exact", head: true }).eq("member_id", memberId).eq("quiz_id", quizId).eq("passed", true);
     if (error) throw new Error(error.message);
     return (count ?? 0) > 0;
+  }
+
+  async syncImportedQuiz(lessonId: string, quiz: ImportedQuiz) {
+    const { data, error } = await this.db.rpc("sync_imported_quiz", {
+      p_lesson_id: lessonId,
+      p_quiz: {
+        source_key: quiz.sourceKey,
+        passing_percent: quiz.passingPercent,
+        hide_answers: quiz.hideAnswers,
+        questions: quiz.questions.map((q) => ({
+          source_key: q.sourceKey,
+          prompt: q.prompt,
+          allows_multiple: q.allowsMultiple,
+          options: q.options.map((o) => ({ source_key: o.sourceKey, label: o.label, is_correct: o.isCorrect })),
+        })),
+      },
+    });
+    if (error) throw new Error(error.message);
+    const result = data as { status: "synced" | "skipped"; questions: number; options: number; removed_questions: number };
+    return { status: result.status, questions: result.questions, options: result.options, removedQuestions: result.removed_questions };
+  }
+
+  async removeImportedQuizzes(lessonIds: string[], keepSourceKeys: string[]) {
+    const keep = new Set(keepSourceKeys);
+    // Which quizzes are imported ones is read first (a quiz made in the Hub has no Kajabi key), then removed by id.
+    const found = await inChunks(lessonIds, ID_CHUNK, async (part) => must(await this.db.from("quizzes").select("id, source_key").in("lesson_id", part).not("source_key", "is", null)) ?? []);
+    const gone = found.filter((q) => !keep.has(q.source_key as string)).map((q) => q.id);
+    for (let i = 0; i < gone.length; i += ID_CHUNK) {
+      const { error } = await this.db.from("quizzes").delete().in("id", gone.slice(i, i + ID_CHUNK));
+      if (error) throw new Error(error.message);
+    }
+    return gone.length;
   }
 
   async clearAttempts(memberId: string, quizId: string) {
@@ -493,6 +544,59 @@ export class InMemoryQuizRepository implements QuizRepository {
 
   async hasPassed(memberId: string, quizId: string) {
     return this.data.quizAttempts.some((a) => a.member_id === memberId && a.quiz_id === quizId && a.passed);
+  }
+
+  async syncImportedQuiz(lessonId: string, imported: ImportedQuiz) {
+    const lesson = this.data.courseLessons.find((l) => l.id === lessonId);
+    if (!lesson || lesson.source !== "kajabi") return { status: "skipped" as const, questions: 0, options: 0, removedQuestions: 0 };
+    const now = new Date().toISOString();
+    let quiz = this.data.quizzes.find((q) => q.lesson_id === lessonId);
+    if (!quiz) {
+      quiz = { id: this.nextId("quiz"), lesson_id: lessonId, passing_percent: null, hide_answers: false, revision: 0, source_key: null, created_at: now, updated_at: now };
+      this.data.quizzes.push(quiz);
+    }
+    quiz.passing_percent = imported.passingPercent;
+    quiz.hide_answers = imported.hideAnswers;
+    quiz.source_key = imported.sourceKey;
+
+    let options = 0;
+    const questionKeys = new Set(imported.questions.map((q) => q.sourceKey));
+    imported.questions.forEach((q, i) => {
+      let row = this.data.quizQuestions.find((x) => x.quiz_id === quiz.id && x.source_key === q.sourceKey);
+      if (!row) {
+        row = { id: this.nextId("qques"), quiz_id: quiz.id, position: i + 1, prompt: q.prompt, allows_multiple: q.allowsMultiple, source_key: q.sourceKey, created_at: now, updated_at: now };
+        this.data.quizQuestions.push(row);
+      }
+      row.position = i + 1;
+      row.prompt = q.prompt.trim();
+      row.allows_multiple = q.allowsMultiple;
+      const optionKeys = new Set(q.options.map((o) => o.sourceKey));
+      q.options.forEach((o, j) => {
+        let opt = this.data.quizOptions.find((x) => x.question_id === row!.id && x.source_key === o.sourceKey);
+        if (!opt) {
+          opt = { id: this.nextId("qopt"), question_id: row!.id, position: j + 1, label: o.label, is_correct: o.isCorrect, source_key: o.sourceKey, created_at: now, updated_at: now };
+          this.data.quizOptions.push(opt);
+        }
+        opt.position = j + 1;
+        opt.label = o.label.trim();
+        opt.is_correct = o.isCorrect;
+        options++;
+      });
+      this.data.quizOptions = this.data.quizOptions.filter((x) => x.question_id !== row!.id || x.source_key === null || optionKeys.has(x.source_key));
+    });
+    const dropped = this.data.quizQuestions.filter((q) => q.quiz_id === quiz.id && q.source_key !== null && !questionKeys.has(q.source_key));
+    const droppedIds = new Set(dropped.map((q) => q.id));
+    this.data.quizQuestions = this.data.quizQuestions.filter((q) => !droppedIds.has(q.id));
+    this.data.quizOptions = this.data.quizOptions.filter((o) => !droppedIds.has(o.question_id));
+    this.data.quizAttemptAnswers = this.data.quizAttemptAnswers.filter((a) => !droppedIds.has(a.question_id));
+    return { status: "synced" as const, questions: imported.questions.length, options, removedQuestions: dropped.length };
+  }
+
+  async removeImportedQuizzes(lessonIds: string[], keepSourceKeys: string[]) {
+    const keep = new Set(keepSourceKeys);
+    const gone = this.data.quizzes.filter((q) => lessonIds.includes(q.lesson_id) && q.source_key !== null && !keep.has(q.source_key));
+    for (const q of gone) await this.deleteQuiz(q.id);
+    return gone.length;
   }
 
   async clearAttempts(memberId: string, quizId: string) {

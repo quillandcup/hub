@@ -116,6 +116,9 @@ export default function KajabiCoursesResult({ courses }: { courses: CoursesSyncR
                 • {p.slug}: {p.lessons} lessons ({p.comingSoon} coming soon), {p.access.members} with access
                 {p.access.removed > 0 && `, ${p.access.removed} access removed`}
                 {(p.deleted.lessons > 0 || p.deleted.modules > 0) && `, ${p.deleted.lessons} lessons and ${p.deleted.modules} modules removed`}
+                {p.quizzes.synced > 0 && `, ${p.quizzes.synced} ${p.quizzes.synced === 1 ? "quiz" : "quizzes"} (${p.quizzes.questions} questions)`}
+                {p.quizzes.skippedManual > 0 && `, ${p.quizzes.skippedManual} ${p.quizzes.skippedManual === 1 ? "quiz" : "quizzes"} not imported (short answer or file upload questions are graded by hand in Kajabi)`}
+                {p.quizzes.unreadable > 0 && `, ${p.quizzes.unreadable} ${p.quizzes.unreadable === 1 ? "quiz" : "quizzes"} captured but not readable (see docs/product/COURSES.md, Importing quizzes)`}
               </li>
             ))}
           </ul>
