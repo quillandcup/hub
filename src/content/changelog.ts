@@ -84,6 +84,22 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "page-builder-exit-popup",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "new",
+    title: "Page builder: an Exit popup for a page, like Kajabi's",
+    summary: "A page can now have a popup with a picture, words and a sign-up form, shown when a visitor goes to leave or after a few seconds. It stays off until you switch it on and publish the page.",
+    body: [
+      "In the page editor, **Add**, **Layout**, **Exit popup**. It starts switched off, with a heading, a line and a Sign-up form to change; choose the Kajabi form on it as you do for any sign-up form. Turn on **Edit popup** in its panel to see the popup's box in the page and drag blocks into it (a picture, Heading, Text, Button, Sign-up form). That switch is only for you while editing; it is never saved.",
+      "- **When it shows.** After a number of seconds, when the visitor's mouse leaves the window through the top (computers only), or whichever comes first. Phones and tablets have no way to tell that someone is leaving, so a popup set to \"when they go to leave\" alone never shows on them.",
+      "- **Who doesn't see it.** Anyone who is signed in, anyone who closed it in the last few days (you choose how many), anyone who signed up on the page, and the devices you hide it on. To see it on the live page, use Preview or a private window.",
+      "- **Closing.** The close button and Escape always work; a click outside the box closes it unless you turn that off. It works with the keyboard and a screen reader, and doesn't animate for visitors who have asked for less motion.",
+      "- **What it keeps.** It remembers on the visitor's own device that they closed it, and nothing else; nothing is sent anywhere. Where the cookie banner asks for consent (the EU, UK and where we can't tell), it remembers only after the visitor accepts, so until then the popup can show again on every page load.",
+      "A page has one popup; publishing checks that it has something in it. Popups for the whole site, a popup that opens from a button, and the Kajabi import are not built yet.",
+    ].join("\n\n"),
+  },
+  {
     slug: "dark-mode-site-logo",
     date: "2026-11-23",
     audience: "staff",

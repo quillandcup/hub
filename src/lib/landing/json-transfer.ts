@@ -111,6 +111,8 @@ export const EXTRA_PROPS: Record<string, string[]> = {
   Hero: ["imageAssetId"],
   FinisherCard: ["imageAssetId"],
   GridCard: ["imageAssetId"],
+  // The editor-only "Edit popup" switch is a field with no stored value.
+  ExitPopup: ["editPopup"],
 };
 
 /** The page frame's own props (`root.props`). */

@@ -104,6 +104,15 @@ export function spanClasses(span: unknown, spanMobile: unknown): string {
   return `${MOBILE_SPAN[mobile]} ${DESKTOP_SPAN[desktop]}`;
 }
 
+/** How wide an Exit popup's box is (full class strings, so Tailwind finds them). */
+export const POPUP_WIDTH_CLASSES = { small: "max-w-sm", medium: "max-w-lg", large: "max-w-2xl" } as const;
+
+/** The box of an Exit popup: its width, and a theme background with the text colour that is readable on it. The same in the editor's canvas and for a visitor. */
+export function popupBoxClasses(width: unknown, backgroundKey: unknown): string {
+  const theme = background(backgroundKey);
+  return `${pick(POPUP_WIDTH_CLASSES, width, "medium")} ${theme.bg} ${theme.text} ${theme.scope}`;
+}
+
 /** A media library image at a preset's size; null when no image is chosen. Public assets are served to anyone (see docs/product/LANDING_PAGES.md). */
 export function pageImage(assetId: unknown, preset: PresetName): string | null {
   return typeof assetId === "string" && assetId ? mediaSrc(assetId, preset) : null;

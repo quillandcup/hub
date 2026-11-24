@@ -19,19 +19,21 @@ type Node = { type?: string; props?: Record<string, unknown> };
 const GENERIC_LINK_TEXT = /^(click here|here|read more|more|link|this link|learn more)$/i;
 
 /** Where a block sits: the type of the block whose slot holds it, and its place (from 0) among its neighbours there. */
-type Place = { parent?: string; index: number };
+type Place = { parent?: string; index: number; /** Inside an Exit popup: its blocks are not part of the page's own outline. */ popup: boolean };
 
-function walk(content: unknown[], visit: (node: Node, place: Place) => void, parent?: string) {
+function walk(content: unknown[], visit: (node: Node, place: Place) => void, parent?: string, popup = false) {
   for (const [index, raw] of content.entries()) {
     if (!raw || typeof raw !== "object") continue;
     const node = raw as Node;
-    visit(node, { parent, index });
+    visit(node, { parent, index, popup });
     for (const [key, value] of Object.entries(node.props ?? {})) {
       // A third column that is switched off is not shown, so what is left in it is not checked either.
       if (node.type === "Columns" && key === "col3" && node.props?.count !== "3") continue;
+      // A popup that is switched off is not shown, so what is in it is not checked either (it starts with a sign-up form to fill in).
+      if (node.type === "ExitPopup" && key === "content" && node.props?.enabled !== true) continue;
       // A slot holds a list of blocks.
       if (Array.isArray(value) && value.length > 0 && value.every((v) => v && typeof v === "object" && "type" in (v as object) && "props" in (v as object))) {
-        walk(value, visit, node.type);
+        walk(value, visit, node.type, popup || node.type === "ExitPopup");
       }
     }
   }
@@ -70,7 +72,10 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
     for (const message of buttonStyleProblems(resolveStyle(normalizeStyleOverride(siteStyle), override))) issues.push({ severity: "warning", block: "Page style", message });
   }
   const headings: { level: number; text: string }[] = [];
+  /** What a popup's own headings are collected into: a popup is not part of the page's outline, so they are not counted there. */
+  const popupHeadings: { level: number; text: string }[] = [];
   let blocks = 0;
+  let popups = 0;
 
   /** A button or link with words but no usable address is an error; one that says only "click here" a warning. */
   const checkButton = (block: string, label: unknown, href: unknown, what?: string) => {
@@ -82,7 +87,10 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
   walk(data.content, (node, place) => {
     const p = node.props ?? {};
     const type = node.type ?? "";
-    blocks += 1;
+    const target = place.popup ? popupHeadings : headings;
+    // A popup is not content of the page, so a page with only a popup is still an empty page.
+    if (type === "ExitPopup") popups += p.enabled === true ? 1 : 0;
+    else if (!place.popup) blocks += 1;
     const owner = ITEM_PARENT[type];
     // An item (a step, a Finisher card) belongs inside its block's list; on its own it is drawn as a bare piece of it.
     if (owner && place.parent !== owner) issues.push({ severity: "warning", block: ITEM_BLOCKS[owner].block, message: `A ${ITEM_BLOCKS[owner].noun} is outside a ${ITEM_BLOCKS[owner].block} block. Drag it into one, or delete it.` });
@@ -95,7 +103,7 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
     // "Finisher 2" by its place in its block's list; one standing on its own has no place to number it by.
     const finisher = place.parent === "FinisherCards" ? `Finisher ${place.index + 1}` : "A Finisher";
     // What a block adds to the generic checks, from its registry definition (a module's blocks come this way).
-    pageBlocks.get(type)?.publishCheck?.(p, { str, rows, heading: (level, text) => headings.push({ level, text }), checkButton, warn: (block, message) => issues.push({ severity: "warning", block, message }), error: (block, message) => issues.push({ severity: "error", block, message }) });
+    pageBlocks.get(type)?.publishCheck?.(p, { str, rows, heading: (level, text) => target.push({ level, text }), checkButton, warn: (block, message) => issues.push({ severity: "warning", block, message }), error: (block, message) => issues.push({ severity: "error", block, message }) });
     switch (type) {
       case "Image":
       case "Split":
@@ -110,19 +118,19 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
           if (str(button.label) && !safeHref(button.href)) issues.push({ severity: "error", block: "Hero", message: `The button "${str(button.label)}" has no link.` });
           if (GENERIC_LINK_TEXT.test(str(button.label))) issues.push({ severity: "warning", block: "Hero", message: `A button that says "${str(button.label)}" doesn't say where it goes.` });
         }
-        if (str(p.headline)) headings.push({ level: p.level === "h2" ? 2 : 1, text: str(p.headline) });
+        if (str(p.headline)) target.push({ level: p.level === "h2" ? 2 : 1, text: str(p.headline) });
         break;
       }
       case "Steps":
         // Mirrors the block: its heading is an h2, and each step's title an h3.
-        if (str(p.heading)) headings.push({ level: 2, text: str(p.heading) });
+        if (str(p.heading)) target.push({ level: 2, text: str(p.heading) });
         break;
       case "Step":
         // Always a level below the block's heading (h2), so a Steps block with no heading still sits under the section's.
-        if (str(p.title)) headings.push({ level: 3, text: str(p.title) });
+        if (str(p.title)) target.push({ level: 3, text: str(p.title) });
         break;
       case "CtaBanner":
-        if (str(p.heading)) headings.push({ level: 2, text: str(p.heading) });
+        if (str(p.heading)) target.push({ level: 2, text: str(p.heading) });
         if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Banner", message: `The button "${str(p.label)}" has no link.` });
         if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Banner", message: `A button that says "${str(p.label)}" doesn't say where it goes.` });
         break;
@@ -136,7 +144,7 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
       }
       case "FinisherCard":
         if (str(p.imageAssetId) && !str(p.alt)) issues.push({ severity: "error", block: "Finisher cards", message: `${finisher} has a photo with no description.` });
-        if (str(p.name)) headings.push({ level: 3, text: str(p.name) });
+        if (str(p.name)) target.push({ level: 3, text: str(p.name) });
         checkButton("Finisher cards", p.linkLabel, p.href, `${finisher}'s link`);
         break;
       case "FinisherCards": {
@@ -145,19 +153,19 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
         break;
       }
       case "Timeline":
-        if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
+        if (str(p.heading)) target.push({ level: 3, text: str(p.heading) });
         break;
       case "TimelineMoment":
-        if (str(p.title)) headings.push({ level: 3, text: str(p.title) });
+        if (str(p.title)) target.push({ level: 3, text: str(p.title) });
         break;
       case "FinishLineCard":
         if (str(p.title)) {
-          headings.push({ level: 3, text: str(p.title) });
+          target.push({ level: 3, text: str(p.title) });
           checkButton("Finish-line cards", p.buttonLabel, p.href);
         }
         break;
       case "PlanPhases":
-        if (str(p.heading)) headings.push({ level: 3, text: str(p.heading) });
+        if (str(p.heading)) target.push({ level: 3, text: str(p.heading) });
         break;
       case "JourneyMap": {
         const seen = new Set<string>();
@@ -173,7 +181,7 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
           seen.add(name.toLowerCase());
           // Offers show only with a title. Only the featured one (the one marked, else the first) is a heading under the section's; the others are a short list of links.
           const shown = offers.filter((o) => str(o.title)).slice(0, 4);
-          if (shown.length > 0) headings.push({ level: 3, text: str(shown[featuredOfferIndex(shown)].title) });
+          if (shown.length > 0) target.push({ level: 3, text: str(shown[featuredOfferIndex(shown)].title) });
           for (const offer of shown) {
             checkButton("Journey map", offer.buttonLabel, offer.href, `The "${str(offer.title)}" button in ${name}`);
           }
@@ -185,7 +193,8 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
         break;
       }
       case "Heading":
-        if (str(p.text)) headings.push({ level: Number(String(p.level).replace("h", "")) || 2, text: str(p.text) });
+        if (str(p.text)) target.push({ level: Number(String(p.level).replace("h", "")) || 2, text: str(p.text) });
+        if (place.popup && p.level === "h1" && str(p.text)) issues.push({ severity: "warning", block: "Exit popup", message: `"${str(p.text)}" is a page title (h1) inside the popup. Use Section heading, so the page keeps one title.` });
         break;
       case "Button":
         if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Button", message: `The button "${str(p.label)}" has no link.` });
@@ -220,6 +229,7 @@ export function checkLandingPage(value: unknown, siteStyle?: unknown): A11yIssue
   });
 
   if (blocks === 0) issues.push({ severity: "error", block: "Page", message: "The page is empty." });
+  if (popups > 1) issues.push({ severity: "error", block: "Exit popup", message: `The page has ${popups} exit popups switched on. A page can have one: switch the others off or remove them.` });
   const h1s = headings.filter((h) => h.level === 1);
   if (blocks > 0 && h1s.length === 0) issues.push({ severity: "error", block: "Page", message: "The page needs one title: add a Heading set to Page title (h1)." });
   if (h1s.length > 1) issues.push({ severity: "warning", block: "Page", message: "There is more than one page title (h1). Use Section heading for the others." });
