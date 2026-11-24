@@ -62,6 +62,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "dark-mode-site-logo",
+    date: "2026-11-23",
+    audience: "staff",
+    category: "improved",
+    title: "A second logo for dark mode on the website header",
+    summary: "In Design, the header's Logo block has a new optional picture for dark mode, so a logo with dark lettering stays readable on the dark header.",
+    body: [
+      "Open Admin, Pages, Design, then the header's **Logo** block. Under the logo, **Logo for dark mode (optional)** takes a second picture, usually the same logo with light lettering.",
+      "Visitors whose device or the site is in dark mode see that picture; everyone else sees the first one. Leave it empty and the first logo is used in both, as before.",
+    ].join("\n\n"),
+  },
+  {
     slug: "delete-a-course",
     date: "2026-11-23",
     audience: "staff",

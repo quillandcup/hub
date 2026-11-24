@@ -37,6 +37,20 @@ describe("the site header", () => {
     expect(screen.queryByRole("link", { name: "X" })).toBeNull();
   });
 
+  it("swaps in the dark-mode logo with the theme, and shows one logo when there is none", () => {
+    const withDark = normalizeSiteTemplate({ header: { show: true, items: [{ id: "l", type: "logo", logoAssetId: "mda_AAAAAAAAAAA1", darkLogoAssetId: "mda_AAAAAAAAAAA2", alt: "Quill & Cup", href: "/" }] } });
+    const { container, unmount } = render(<>{SiteHeaderView({ header: withDark.header })}</>);
+    const imgs = container.querySelectorAll("img");
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0].getAttribute("src")).toBe("/api/media/mda_AAAAAAAAAAA1/logo");
+    expect(imgs[0].className).toContain("dark:hidden");
+    expect(imgs[1].getAttribute("src")).toBe("/api/media/mda_AAAAAAAAAAA2/logo");
+    expect(imgs[1].className).toContain("hidden dark:block");
+    unmount();
+    const { container: plain } = render(<>{SiteHeaderView({ header: full.header })}</>);
+    expect(plain.querySelectorAll("img")).toHaveLength(1);
+  });
+
   it("shows the logo whole: the logo preset, its height fixed, never a crop frame", () => {
     render(<>{SiteHeaderView({ header: full.header })}</>);
     const img = screen.getByRole("img", { name: "Quill & Cup" });
