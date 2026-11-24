@@ -23,7 +23,7 @@
     },
     "OSPS-AC-04.02": {
       "result": "Needs Review",
-      "reason": "The scanner lists every job that has write permissions (auto-merge, the coverage comment) and asks for a human to confirm they are needed; each is limited to the job that needs it (docs/checklists/OSPS_BASELINE.md).",
+      "reason": "The scanner lists every permission grant in every workflow (46 on 2026-11-24, read-only ones included) and asks for a human to confirm each is needed, so it cannot read Passed while any workflow declares permissions; each grant is limited to the job that needs it (docs/checklists/OSPS_BASELINE.md).",
       "expires": "2027-05-24"
     },
     "OSPS-BR-01.01": {
@@ -243,9 +243,7 @@
       "result": "Passed"
     },
     "OSPS-VM-05.01": {
-      "result": "Needs Review",
-      "reason": "The scanner could not inspect the documentation completely to confirm an SCA remediation threshold; it is in .github/SECURITY.md, How fast findings are fixed.",
-      "expires": "2027-05-24"
+      "result": "Passed"
     },
     "OSPS-VM-05.02": {
       "result": "Passed"
@@ -256,9 +254,7 @@
       "expires": "2027-05-24"
     },
     "OSPS-VM-06.01": {
-      "result": "Needs Review",
-      "reason": "The scanner could not inspect the documentation completely to confirm a SAST remediation threshold; it is in .github/SECURITY.md, How fast findings are fixed.",
-      "expires": "2027-05-24"
+      "result": "Passed"
     },
     "OSPS-VM-06.02": {
       "result": "Needs Review",
