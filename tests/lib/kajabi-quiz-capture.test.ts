@@ -204,10 +204,47 @@ describe("the capture's small helpers", () => {
     expect(embeddedDocuments("<html></html>")).toEqual([]);
   });
 
-  it("hashes the same documents the same however their keys are ordered, and different ones differently", () => {
-    expect(quizContentHash([{ a: 1, b: { c: [1, { d: 2, e: 3 }] } }])).toBe(quizContentHash([{ b: { c: [1, { e: 3, d: 2 }] }, a: 1 }]));
-    expect(quizContentHash([{ a: 1 }])).not.toBe(quizContentHash([{ a: 2 }]));
-    expect(quizContentHash([{ a: 1 }, { b: 2 }])).not.toBe(quizContentHash([{ b: 2 }, { a: 1 }]));
+  describe("quizContentHash", () => {
+    const withImage = (url: string, extra: Record<string, unknown> = {}) => {
+      const doc = jsonApiQuiz(extra) as any;
+      return [{ ...doc, thumbnailUrl: url, store: { posterImageUrl: url, other: [{ previewUrl: url }] } }];
+    };
+
+    it("ignores a different signature in an image URL and anything outside the parsed quiz", () => {
+      expect(quizContentHash(withImage("https://cdn.example.com/a.png?Signature=aaa&Expires=1"))).toBe(quizContentHash(withImage("https://cdn.example.com/a.png?Signature=bbb&Expires=2")));
+      expect(quizContentHash(withImage("https://cdn.example.com/a.png?Signature=aaa"))).toBe(quizContentHash([jsonApiQuiz()]));
+    });
+
+    it("changes with a question, an option, a right answer, the passing grade or hidden answers", () => {
+      const base = quizContentHash([jsonApiQuiz()]);
+      const edit = (fn: (doc: any) => void) => {
+        const doc = jsonApiQuiz() as any;
+        fn(doc);
+        return quizContentHash([doc]);
+      };
+      const answer = (doc: any, id: string) => doc.included.find((i: any) => i.id === id);
+      const results = [
+        edit((d) => { d.included.find((i: any) => i.id === "11").attributes.body = "How are you feeling?"; }),
+        edit((d) => { answer(d, "111").attributes.text = "Wonderful"; }),
+        edit((d) => { answer(d, "111").attributes.correct = true; }),
+        edit((d) => { answer(d, "112").attributes.correct = false; }),
+        quizContentHash([jsonApiQuiz({ passing_grade: 70 })]),
+        quizContentHash([jsonApiQuiz({ passing_grade: 80 })]),
+        quizContentHash([jsonApiQuiz({ hide_answers: true })]),
+      ];
+      for (const r of results) expect(r).not.toBe(base);
+      expect(new Set(results).size).toBe(results.length);
+    });
+
+    it("does not change when the response is reordered", () => {
+      const doc = jsonApiQuiz() as any;
+      const reordered = { included: [...doc.included].reverse(), data: { relationships: doc.data.relationships, attributes: doc.data.attributes, type: doc.data.type, id: doc.data.id } };
+      expect(quizContentHash([reordered])).toBe(quizContentHash([doc]));
+    });
+
+    it("carries a scheme prefix, so a hash stored the old way (a bare digest) never matches", () => {
+      expect(quizContentHash([jsonApiQuiz()])).toMatch(/^q2:[0-9a-f]{64}$/);
+    });
   });
 
   it("gives the stored documents back, or none for a payload that isn't ours", () => {
@@ -243,6 +280,11 @@ describe("saving to Bronze", () => {
     expect(await mod.saveQuizCapture({} as never, capture([jsonApiQuiz({ passing_grade: 70 })]), NOW)).toBe("updated");
     expect(await mod.saveQuizCapture({} as never, capture([jsonApiQuiz({ passing_grade: 90 })]), NOW, { dryRun: true })).toBe("updated");
     expect(mod.documentsOf(data.kajabiQuizzes[0].raw_payload)).toEqual([jsonApiQuiz({ passing_grade: 70 })]);
+
+    // A row stored with the old whole-document hash is rewritten once, then it is unchanged.
+    data.kajabiQuizzes[0].content_hash = "a".repeat(64);
+    expect(await mod.saveQuizCapture({} as never, capture([jsonApiQuiz({ passing_grade: 70 })]), NOW)).toBe("updated");
+    expect(await mod.saveQuizCapture({} as never, capture([jsonApiQuiz({ passing_grade: 70 })]), NOW)).toBe("unchanged");
 
     expect(await mod.retireQuizzesOfLesson({} as never, "2200968704", NOW, { dryRun: true })).toBe(0);
     expect(await mod.retireQuizzesOfLesson({} as never, "2200968704", NOW)).toBe(1);
