@@ -18,6 +18,7 @@ const MATCHES = {
   offersLinked: true,
   multiTicketBuyers: [] as { member_id: string | null; name: string; tickets: number; first_bought: string | null; is_attendee: boolean; passed_to: string[]; unexplained: number }[],
   passedOn: [] as { giver_id: string; giver_name: string; tickets: number; receivers: string[] }[],
+  notAttending: [] as { member_id: string; member_name: string; member_real_name: string | null; reason: string; note: string | null }[],
   buyers: [
     { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", member_status: "active", offer_names: ["Summer Retreat"], purchase_date: "2097-01-10T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: false },
     { member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example", member_real_name: null, member_status: "cancelled", offer_names: ["Summer Retreat"], purchase_date: "2097-01-11T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: true },
@@ -180,7 +181,7 @@ describe("Kajabi tickets on an event", () => {
     expect(screen.getByLabelText("Add Bo Example")).not.toBeChecked();
     expect(screen.getByText(/purchase deactivated or refunded/)).toBeInTheDocument();
     expect(screen.getByText("stranger@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Cy Example")).toBeInTheDocument();
+    expect(screen.getAllByText("Cy Example").length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: "Add 1 as attendees" }));
 
@@ -201,7 +202,7 @@ describe("Kajabi tickets on an event", () => {
   });
 
   it("says when everyone who bought is already an attendee", async () => {
-    matches = { offersLinked: true, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+    matches = { offersLinked: true, multiTicketBuyers: [], passedOn: [], notAttending: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
@@ -258,15 +259,35 @@ describe("Kajabi tickets on an event", () => {
     expect(screen.queryByText(/not accounted for/)).not.toBeInTheDocument();
   });
 
-  it("lists tickets passed on, giver to receivers", async () => {
+  it("lists a buyer who passed their ticket on in the Not attending section, read-only, with the way to remove it", async () => {
     matches = { ...MATCHES, passedOn: [{ giver_id: "mbr_AAAAAAAAAAA2", giver_name: "Bo Example", tickets: 1, receivers: ["Cy Example"] }] };
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
 
-    expect(await screen.findByText("Tickets passed on (1)")).toBeInTheDocument();
+    expect(await screen.findByText("Not attending (1)")).toBeInTheDocument();
+    expect(screen.queryByText(/Tickets passed on/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Bo Example" }).map((a) => a.getAttribute("href"))).toContain("/admin/members/mbr_AAAAAAAAAAA2");
-    expect(screen.getByText("-> Cy Example")).toBeInTheDocument();
+    expect(screen.getByText("Gave their ticket to Cy Example")).toBeInTheDocument();
+    expect(screen.getByText("To remove it, change the recipient's Gifted by.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Undo/ })).not.toBeInTheDocument();
+  });
+
+  it("shows passed-on and marked buyers in one list, passed-on first, and only the marked ones can be undone", async () => {
+    matches = {
+      ...MATCHES,
+      passedOn: [{ giver_id: "mbr_AAAAAAAAAAA2", giver_name: "Bo Example", tickets: 1, receivers: ["Cy Example"] }],
+      notAttending: [{ member_id: "mbr_AAAAAAAAAAA4", member_name: "Di Example", member_real_name: null, reason: "forfeited", note: null }],
+    };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByText("Not attending (2)")).toBeInTheDocument();
+    const rows = screen.getByText("Not attending (2)").parentElement!.querySelectorAll("li");
+    expect(rows[0]).toHaveTextContent("Gave their ticket to Cy Example");
+    expect(rows[1]).toHaveTextContent("Deposit forfeited");
+    expect(screen.getAllByRole("button", { name: /Undo/ })).toHaveLength(1);
   });
 
   it("says what Kajabi knows about each attendee with no purchase", async () => {
@@ -287,5 +308,77 @@ describe("Kajabi tickets on an event", () => {
     expect(screen.getByText("Kajabi shows no sign of this offer for them.")).toBeInTheDocument(); // one offer linked
     expect(screen.getByText("Couldn't check Kajabi.")).toBeInTheDocument();
     expect(screen.getByText("No Kajabi contact for this member.")).toBeInTheDocument();
+  });
+
+  describe("buyers who are not attending", () => {
+    const findAndWait = async () => {
+      render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+      await screen.findByText(/Bought a ticket, not an attendee/);
+    };
+
+    it("marks a buyer whose deposit was forfeited without asking for a note, then searches again", async () => {
+      await findAndWait();
+
+      await userEvent.click(screen.getByRole("button", { name: "Mark Ada E as not attending" }));
+      expect(screen.getByLabelText("Why Ada E is not attending")).toHaveValue("forfeited");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(calls.find((c) => c.method === "POST" && c.url.endsWith("/not-attending"))?.body).toEqual({ memberId: "mbr_AAAAAAAAAAA1", reason: "forfeited", note: "" }));
+      await waitFor(() => expect(calls.filter((c) => c.url.endsWith("/kajabi-matches")).length).toBe(2));
+    });
+
+    it("needs a note for Other", async () => {
+      await findAndWait();
+
+      await userEvent.click(screen.getByRole("button", { name: "Mark Ada E as not attending" }));
+      await userEvent.selectOptions(screen.getByLabelText("Why Ada E is not attending"), "other");
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      await userEvent.type(screen.getByLabelText("Note for Ada E"), "moved to autumn");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(calls.find((c) => c.method === "POST" && c.url.endsWith("/not-attending"))?.body).toEqual({ memberId: "mbr_AAAAAAAAAAA1", reason: "other", note: "moved to autumn" }));
+    });
+
+    it("cancels without saving, and keeps the form open with the message when the save fails", async () => {
+      await findAndWait();
+      await userEvent.click(screen.getByRole("button", { name: "Mark Ada E as not attending" }));
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByLabelText("Why Ada E is not attending")).not.toBeInTheDocument();
+
+      failNext = "This member is on the attendee list. Remove them from it first.";
+      await userEvent.click(screen.getByRole("button", { name: "Mark Ada E as not attending" }));
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(await screen.findByText(failNext)).toBeInTheDocument();
+      expect(screen.getByLabelText("Why Ada E is not attending")).toBeInTheDocument();
+    });
+
+    it("lists the marked buyers with their reason and note, and undoes a mark", async () => {
+      matches = {
+        ...MATCHES,
+        notAttending: [
+          { member_id: "mbr_AAAAAAAAAAA3", member_name: "Cy E", member_real_name: "Cy Example", reason: "forfeited", note: null },
+          { member_id: "mbr_AAAAAAAAAAA4", member_name: "Di Example", member_real_name: null, reason: "other", note: "ticket moved to autumn" },
+        ],
+      };
+      await findAndWait();
+
+      expect(screen.getByText("Not attending (2)")).toBeInTheDocument();
+      expect(screen.getByText("Deposit forfeited")).toBeInTheDocument();
+      expect(screen.getByText("Other: ticket moved to autumn")).toBeInTheDocument();
+      expect(screen.getAllByText("Cy Example").length).toBeGreaterThan(0);
+
+      await userEvent.click(screen.getByRole("button", { name: "Undo not attending for Cy E" }));
+
+      await waitFor(() => expect(calls.some((c) => c.method === "DELETE" && c.url === `/api/admin/events/${EVENT}/not-attending/mbr_AAAAAAAAAAA3`)).toBe(true));
+      await waitFor(() => expect(calls.filter((c) => c.url.endsWith("/kajabi-matches")).length).toBe(2));
+    });
+
+    it("shows no section when nobody is marked", async () => {
+      await findAndWait();
+
+      expect(screen.queryByText(/^Not attending \(/)).not.toBeInTheDocument();
+    });
   });
 });

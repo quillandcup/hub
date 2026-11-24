@@ -2,6 +2,7 @@ import type { Repos } from "@/lib/data/repos";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { membersForPurchases } from "@/lib/kajabi-purchase-members";
 import { resolveMatchDate } from "@/lib/kajabi-cohort-matching";
+import type { NotAttendingReason } from "@/lib/event-not-attending";
 import type { TicketSource } from "@/lib/event-tickets";
 import { hasWindow, purchaseCountsForEvent } from "@/lib/event-offer-window";
 
@@ -79,6 +80,16 @@ export interface PassedOnTicket {
   receivers: string[];
 }
 
+/** A buyer staff marked as not attending: left out of `buyers`, so the bulk add can't pick them. */
+export interface NotAttendingBuyer {
+  member_id: string;
+  member_name: string;
+  /** Their legal name when it differs from the name shown. */
+  member_real_name: string | null;
+  reason: NotAttendingReason;
+  note: string | null;
+}
+
 export interface EventKajabiMatches {
   /** False when no offer is linked to the event yet. */
   offersLinked: boolean;
@@ -86,6 +97,8 @@ export interface EventKajabiMatches {
   multiTicketBuyers: MultiTicketBuyer[];
   /** Buyers who are not attendees because their tickets went to gifted attendees; they are left out of `buyers`. */
   passedOn: PassedOnTicket[];
+  /** Buyers marked as not attending (a forfeited deposit, a ticket moved elsewhere), with the reason. */
+  notAttending: NotAttendingBuyer[];
   buyers: EventTicketBuyer[];
   unmatched: UnmatchedBuyer[];
   attendeesWithoutTicket: AttendeeWithoutTicket[];
@@ -110,13 +123,14 @@ export async function findKajabiMatchesForEvent(
 ): Promise<EventKajabiMatches> {
   const links = await repos.events.offersOf(eventId);
   const offerIds = Array.from(new Set(links.map((l) => l.kajabi_offer_id)));
-  if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+  if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], passedOn: [], notAttending: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
 
-  const [offers, allPurchases, attendees, allLinks] = await Promise.all([
+  const [offers, allPurchases, attendees, allLinks, marks] = await Promise.all([
     repos.billing.kajabiOffersByIds(offerIds),
     repos.billing.kajabiPurchases({ offerIds }),
     repos.events.attendeesOf(eventId),
     repos.events.linkedOffers(),
+    repos.events.notAttendingOf(eventId),
   ]);
   const purchases = allPurchases.filter((p) => purchaseCountsForEvent(p, links));
   const offerNameById = new Map(offers.map((o) => [o.kajabi_offer_id, o.name ?? "Unknown offer"]));
@@ -166,6 +180,10 @@ export async function findKajabiMatchesForEvent(
 
   const earliest = (acc: Accum) => acc.purchases.map(resolveMatchDate).filter((d): d is string => !!d).sort()[0] ?? null;
 
+  // A mark for someone who is an attendee now means nothing: the roster wins.
+  const markOf = new Map(marks.filter((m) => !attendeeIds.has(m.member_id)).map((m) => [m.member_id, m]));
+  const markedBuyers = new Set<string>();
+
   const buyers: EventTicketBuyer[] = [];
   const passedOn: PassedOnTicket[] = [];
   // The names each buyer goes by (legal and shown), to compare with attendees that have no ticket.
@@ -178,6 +196,10 @@ export async function findKajabiMatchesForEvent(
     const receivers = receiversOf.get(memberId) ?? [];
     if (tickets > 0 && receivers.length >= tickets) {
       passedOn.push({ giver_id: memberId, giver_name: display, tickets, receivers });
+      continue;
+    }
+    if (markOf.has(memberId)) {
+      markedBuyers.add(memberId);
       continue;
     }
     buyers.push({
@@ -195,6 +217,13 @@ export async function findKajabiMatchesForEvent(
     legalNames.set(memberId, [member.name, display]);
   }
   passedOn.sort((a, b) => a.giver_name.localeCompare(b.giver_name));
+
+  const notAttending: NotAttendingBuyer[] = Array.from(markedBuyers, (memberId) => {
+    const member = memberById.get(memberId)!;
+    const mark = markOf.get(memberId)!;
+    const display = getMemberDisplayName({ name: member.name, display_name: member.displayName });
+    return { member_id: memberId, member_name: display, member_real_name: display !== member.name ? member.name : null, reason: mark.reason, note: mark.note };
+  }).sort((a, b) => a.member_name.localeCompare(b.member_name));
   buyers.sort((a, b) => (a.purchase_date ?? "").localeCompare(b.purchase_date ?? "") || a.member_name.localeCompare(b.member_name));
 
   const unmatched: UnmatchedBuyer[] = Array.from(byUnmatchedEmail, ([key, acc]) => ({
@@ -248,7 +277,7 @@ export async function findKajabiMatchesForEvent(
   for (const [key, acc] of byUnmatchedEmail) addMulti(acc, null, key.startsWith("customer:") ? "(no email on the Kajabi customer)" : key);
   multiTicketBuyers.sort((a, b) => b.tickets - a.tickets || (a.first_bought ?? "").localeCompare(b.first_bought ?? "") || a.name.localeCompare(b.name));
 
-  return { offersLinked: true, multiTicketBuyers, passedOn, buyers, unmatched, attendeesWithoutTicket };
+  return { offersLinked: true, multiTicketBuyers, passedOn, notAttending, buyers, unmatched, attendeesWithoutTicket };
 }
 
 /**

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import DatePicker from "@/components/DatePicker";
+import { NOT_ATTENDING_LABELS, type NotAttendingReason } from "@/lib/event-not-attending";
 import type { EventKajabiMatches } from "@/lib/kajabi-event-matching";
 
 interface OfferRow {
@@ -49,6 +50,51 @@ function DuplicateHint({ other }: { other: { member_id: string; member_name: str
         {other.member_name}
       </Link>
       : merge the two members first, then search again.
+    </span>
+  );
+}
+
+/** "Not attending": pick why (a forfeited deposit, or something else with a note) and save. */
+function NotAttendingControl({ name, busy, onSave }: { name: string; busy: boolean; onSave: (reason: NotAttendingReason, note: string) => Promise<boolean> }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<NotAttendingReason>("forfeited");
+  const [note, setNote] = useState("");
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} disabled={busy} aria-label={`Mark ${name} as not attending`} className="mt-0.5 block text-xs text-plum-700 dark:text-plum-300 hover:underline disabled:opacity-50">
+        Not attending
+      </button>
+    );
+  }
+  const needsNote = reason === "other";
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-2">
+      <select aria-label={`Why ${name} is not attending`} value={reason} onChange={(e) => setReason(e.target.value as NotAttendingReason)} className="px-2 py-1 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900">
+        <option value="forfeited">{NOT_ATTENDING_LABELS.forfeited}</option>
+        <option value="other">Other…</option>
+      </select>
+      <input
+        type="text"
+        aria-label={`Note for ${name}`}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder={needsNote ? "What happened?" : "Note"}
+        maxLength={500}
+        className="px-2 py-1 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900 w-56"
+      />
+      <button
+        type="button"
+        onClick={async () => {
+          if (await onSave(reason, note)) setOpen(false);
+        }}
+        disabled={busy || (needsNote && !note.trim())}
+        className="px-2 py-1 bg-plum-600 text-white rounded hover:bg-plum-700 text-xs disabled:opacity-50"
+      >
+        Save
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-gray-600 dark:text-slate-400 hover:underline">
+        Cancel
+      </button>
     </span>
   );
 }
@@ -160,6 +206,20 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
     } finally {
       setBusy(false);
     }
+  };
+
+  const markNotAttending = async (memberId: string, reason: NotAttendingReason, note: string) => {
+    const ok = await call(
+      () => fetch(`/api/admin/events/${eventId}/not-attending`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memberId, reason, note }) }),
+      "Failed to mark the buyer as not attending"
+    );
+    if (ok) await findMatches();
+    return ok;
+  };
+
+  const undoNotAttending = async (memberId: string) => {
+    const ok = await call(() => fetch(`/api/admin/events/${eventId}/not-attending/${memberId}`, { method: "DELETE" }), "Failed to remove the mark");
+    if (ok) await findMatches();
   };
 
   const toggle = (memberId: string) =>
@@ -333,6 +393,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                         {buyer.deactivated && <span className="ml-1 text-amber-700 dark:text-amber-400">· purchase deactivated or refunded</span>}
                       </span>
                       {buyer.possible_duplicate && <DuplicateHint other={buyer.possible_duplicate} />}
+                      <NotAttendingControl name={buyer.member_name} busy={busy} onSave={(reason, note) => markNotAttending(buyer.member_id, reason, note)} />
                     </span>
                   </li>
                 ))}
@@ -345,6 +406,41 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
               >
                 {`Add ${selected.size} as attendees`}
               </button>
+            </div>
+          )}
+
+          {matches.passedOn.length + matches.notAttending.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Not attending ({matches.passedOn.length + matches.notAttending.length})</h3>
+              <ul className="text-sm space-y-0.5">
+                {matches.passedOn.map((passed) => (
+                  <li key={passed.giver_id}>
+                    <Link href={`/admin/members/${passed.giver_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
+                      {passed.giver_name}
+                    </Link>
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{`Gave their ticket to ${passed.receivers.join(", ")}`}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">To remove it, change the recipient&apos;s Gifted by.</span>
+                  </li>
+                ))}
+                {matches.notAttending.map((buyer) => (
+                  <li key={buyer.member_id}>
+                    <Link href={`/admin/members/${buyer.member_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
+                      {buyer.member_name}
+                    </Link>
+                    {buyer.member_real_name && <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{buyer.member_real_name}</span>}
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{[NOT_ATTENDING_LABELS[buyer.reason], buyer.note].filter(Boolean).join(": ")}</span>
+                    <button
+                      type="button"
+                      onClick={() => undoNotAttending(buyer.member_id)}
+                      disabled={busy}
+                      aria-label={`Undo not attending for ${buyer.member_name}`}
+                      className="ml-3 text-xs text-plum-700 dark:text-plum-300 hover:underline disabled:opacity-50"
+                    >
+                      Undo
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -363,25 +459,6 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
               </ul>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Add an email alias for the member, or add them as an attendee by hand.
-              </p>
-            </div>
-          )}
-
-          {matches.passedOn.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold mb-1">Tickets passed on ({matches.passedOn.length})</h3>
-              <ul className="text-sm space-y-0.5">
-                {matches.passedOn.map((passed) => (
-                  <li key={passed.giver_id}>
-                    <Link href={`/admin/members/${passed.giver_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
-                      {passed.giver_name}
-                    </Link>
-                    {` -> ${passed.receivers.join(", ")}`}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                These buyers gave every ticket to a gifted attendee, so they are not listed as missing from the roster.
               </p>
             </div>
           )}

@@ -52,7 +52,7 @@ function repos(over: Record<string, unknown> = {}) {
 describe("findKajabiMatchesForEvent", () => {
   it("says so when no offer is linked", async () => {
     const result = await findKajabiMatchesForEvent(repos({ eventOffers: [] }), EVENT);
-    expect(result).toEqual({ offersLinked: false, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] });
+    expect(result).toEqual({ offersLinked: false, multiTicketBuyers: [], passedOn: [], notAttending: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] });
   });
 
   it("lists buyers of the linked offers who are not attendees, by display name, through email aliases", async () => {
@@ -162,6 +162,82 @@ describe("findKajabiMatchesForEvent", () => {
       const { buyers, attendeesWithoutTicket } = await findKajabiMatchesForEvent(twoRecords({ name: "Someone Else" }), EVENT);
 
       expect(buyers[0].possible_duplicate).toBeNull();
+      expect(attendeesWithoutTicket[0].possible_duplicate).toBeNull();
+    });
+  });
+  describe("buyers marked as not attending", () => {
+    const ADA = "mbr_AAAAAAAAAAA1";
+    const BO = "mbr_AAAAAAAAAAA2";
+    const mark = (member: string, reason: string, note: string | null = null) => ({ id: `evna_${member}`, event_id: EVENT, member_id: member, reason, note, created_by: null, created_at: "2097-02-01T00:00:00Z" });
+    const bought = [purchase("p1", "c1", FULL), purchase("p2", "c2", FULL)];
+
+    it("takes a marked buyer out of the buyers and lists them with the reason and note", async () => {
+      const r = repos({ kajabiPurchases: bought, eventNotAttending: [mark(ADA, "other", "ticket moved to the autumn retreat")] });
+
+      const { buyers, notAttending } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(buyers.map((b) => b.member_id)).toEqual([BO]);
+      expect(notAttending).toEqual([{ member_id: ADA, member_name: "Ada E", member_real_name: "Ada Example", reason: "other", note: "ticket moved to the autumn retreat" }]);
+    });
+
+    it("lists marked buyers by name", async () => {
+      const r = repos({ kajabiPurchases: bought, eventNotAttending: [mark(BO, "forfeited"), mark(ADA, "forfeited")] });
+
+      expect((await findKajabiMatchesForEvent(r, EVENT)).notAttending.map((n) => [n.member_name, n.reason, n.note])).toEqual([
+        ["Ada E", "forfeited", null],
+        ["Bo Example", "forfeited", null],
+      ]);
+    });
+
+    it("ignores a mark for someone who is an attendee now, and does not list them as a buyer either", async () => {
+      const r = repos({
+        kajabiPurchases: bought,
+        eventNotAttending: [mark(ADA, "forfeited")],
+        eventAttendees: [{ id: "a1", event_id: EVENT, member_id: ADA }],
+      });
+
+      const { buyers, notAttending } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(notAttending).toEqual([]);
+      expect(buyers.map((b) => b.member_id)).toEqual([BO]);
+    });
+
+    it("leaves a mark for another event alone", async () => {
+      const r = repos({ kajabiPurchases: bought, eventNotAttending: [{ ...mark(ADA, "forfeited"), event_id: "evt_AAAAAAAAAAA2" }] });
+
+      const { buyers, notAttending } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(notAttending).toEqual([]);
+      expect(buyers.map((b) => b.member_id)).toEqual([ADA, BO]);
+    });
+
+    it("keeps a marked buyer who gave every ticket away under tickets passed on, not both", async () => {
+      const r = repos({
+        kajabiPurchases: bought,
+        eventNotAttending: [mark(ADA, "forfeited")],
+        eventAttendees: [{ id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA3", ticket_source: "gifted", ticket_giver_id: ADA }],
+      });
+
+      const { passedOn, notAttending } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(passedOn.map((p) => p.giver_id)).toEqual([ADA]);
+      expect(notAttending).toEqual([]);
+    });
+
+    it("does not hint a duplicate for a marked buyer, who is no longer listed", async () => {
+      const r = repos({
+        members: [
+          { id: ADA, name: "Erica Example", email: "ada@example.com" },
+          { id: BO, name: "Edy E", email: "bo@example.com" },
+        ],
+        kajabiPurchases: [purchase("p1", "c1", FULL)],
+        eventNotAttending: [mark(ADA, "forfeited")],
+        eventAttendees: [{ id: "a1", event_id: EVENT, member_id: BO, ticket_source: null }],
+      });
+
+      const { attendeesWithoutTicket, notAttending } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(notAttending).toHaveLength(1);
       expect(attendeesWithoutTicket[0].possible_duplicate).toBeNull();
     });
   });

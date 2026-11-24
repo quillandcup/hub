@@ -1,4 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { MarkNotAttendingResult, NotAttendingMark, NotAttendingReason } from "@/lib/event-not-attending";
 import { recordedTicketSource, type SetTicketResult, type TicketInput, type TicketSource } from "@/lib/event-tickets";
 import { windowsOverlap, type EventOfferLink, type OfferWindow } from "@/lib/event-offer-window";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
@@ -209,6 +210,20 @@ export interface EventRepository {
   setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<SetTicketResult>;
   /** Moves the "gifted by" link of every attendee from one member to another (a member merge); returns how many moved. Without it deleting the duplicate would clear them. */
   moveTicketGiver(fromMemberId: string, toMemberId: string): Promise<number>;
+  /** The buyers staff marked as not attending the event, oldest first. A mark for a member who is an attendee is still returned: the reader ignores it. */
+  notAttendingOf(eventId: string): Promise<NotAttendingMark[]>;
+  /**
+   * Marks a member who bought a ticket as not attending (marking again replaces the reason and note).
+   * Refused, changing nothing, for an attendee of the event and for "other" without a note.
+   */
+  markNotAttending(eventId: string, memberId: string, reason: NotAttendingReason, note: string | null, createdBy: string | null): Promise<MarkNotAttendingResult>;
+  /** Removes a mark; false when there was none. */
+  unmarkNotAttending(eventId: string, memberId: string): Promise<boolean>;
+  /**
+   * Moves one member's marks to another (a member merge). An event where the target already has a mark,
+   * or is an attendee, keeps the target's side and the source's mark is dropped. Returns how many moved.
+   */
+  moveNotAttending(fromMemberId: string, toMemberId: string): Promise<number>;
   /** The Kajabi offer ids that sell this event, oldest link first. */
   offerIdsOf(eventId: string): Promise<string[]>;
   /** The offers that sell this event with their purchase windows, oldest link first. */
@@ -757,6 +772,51 @@ export class SupabaseEventRepository implements EventRepository {
     return (data ?? []).length;
   }
 
+  async notAttendingOf(eventId: string) {
+    const rows = await fetchAllRows<{ member_id: string; reason: string; note: string | null; created_at: string }>((from, to) =>
+      this.db.from("event_buyers_not_attending").select("member_id, reason, note, created_at").eq("event_id", eventId).order("created_at").order("id").range(from, to)
+    );
+    return rows.map((r) => ({ ...r, reason: r.reason as NotAttendingReason }));
+  }
+
+  async markNotAttending(eventId: string, memberId: string, reason: NotAttendingReason, note: string | null, createdBy: string | null): Promise<MarkNotAttendingResult> {
+    const text = note?.trim() || null;
+    if (reason === "other" && !text) return "invalid_note";
+    const { data: attendee, error: attendeeError } = await this.db.from("event_attendees").select("id").eq("event_id", eventId).eq("member_id", memberId).limit(1);
+    if (attendeeError) throw new Error(attendeeError.message);
+    if ((attendee ?? []).length > 0) return "already_attendee";
+    const { error } = await this.db
+      .from("event_buyers_not_attending")
+      .upsert({ event_id: eventId, member_id: memberId, reason, note: text, created_by: createdBy }, { onConflict: "event_id,member_id" });
+    if (error) throw new Error(error.message);
+    return "set";
+  }
+
+  async unmarkNotAttending(eventId: string, memberId: string) {
+    const { data, error } = await this.db.from("event_buyers_not_attending").delete().eq("event_id", eventId).eq("member_id", memberId).select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
+  async moveNotAttending(fromMemberId: string, toMemberId: string) {
+    const marks = (member: string) =>
+      fetchAllRows<{ id: string; event_id: string }>((from, to) => this.db.from("event_buyers_not_attending").select("id, event_id").eq("member_id", member).order("id").range(from, to));
+    const attends = fetchAllRows<{ id: string; event_id: string }>((from, to) => this.db.from("event_attendees").select("id, event_id").eq("member_id", toMemberId).order("id").range(from, to));
+    const [mine, theirs, attended] = await Promise.all([marks(fromMemberId), marks(toMemberId), attends]);
+    const blocked = new Set([...theirs.map((r) => r.event_id), ...attended.map((r) => r.event_id)]);
+    const moving = mine.filter((r) => !blocked.has(r.event_id)).map((r) => r.id);
+    const dropping = mine.filter((r) => blocked.has(r.event_id)).map((r) => r.id);
+    for (const part of chunk(moving, 100)) {
+      const { error } = await this.db.from("event_buyers_not_attending").update({ member_id: toMemberId }).in("id", part);
+      if (error) throw new Error(error.message);
+    }
+    for (const part of chunk(dropping, 100)) {
+      const { error } = await this.db.from("event_buyers_not_attending").delete().in("id", part);
+      if (error) throw new Error(error.message);
+    }
+    return moving.length;
+  }
+
   async offerIdsOf(eventId: string) {
     const rows = await fetchAllRows<{ kajabi_offer_id: string }>((from, to) =>
       this.db.from("community_event_offers").select("kajabi_offer_id").eq("event_id", eventId).order("created_at").order("id").range(from, to)
@@ -1072,6 +1132,7 @@ export class InMemoryEventRepository implements EventRepository {
     this.data.eventPhotos = this.data.eventPhotos.filter((p) => p.event_id !== id);
     this.data.eventAttendees = this.data.eventAttendees.filter((a) => a.event_id !== id);
     this.data.eventOffers = this.data.eventOffers.filter((o) => o.event_id !== id);
+    this.data.eventNotAttending = this.data.eventNotAttending.filter((r) => r.event_id !== id);
   }
 
   async allPhotosOf(eventId: string) {
@@ -1190,6 +1251,48 @@ export class InMemoryEventRepository implements EventRepository {
       a.ticket_giver_id = a.member_id === toMemberId ? null : toMemberId;
       moved++;
     }
+    return moved;
+  }
+
+  async notAttendingOf(eventId: string) {
+    return this.data.eventNotAttending
+      .filter((r) => r.event_id === eventId)
+      .map((r) => ({ member_id: r.member_id, reason: r.reason as NotAttendingReason, note: r.note ?? null, created_at: r.created_at ?? "" }))
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.member_id.localeCompare(b.member_id));
+  }
+
+  async markNotAttending(eventId: string, memberId: string, reason: NotAttendingReason, note: string | null, createdBy: string | null): Promise<MarkNotAttendingResult> {
+    const text = note?.trim() || null;
+    if (reason === "other" && !text) return "invalid_note";
+    if (this.data.eventAttendees.some((a) => a.event_id === eventId && a.member_id === memberId)) return "already_attendee";
+    const row = this.data.eventNotAttending.find((r) => r.event_id === eventId && r.member_id === memberId);
+    if (row) Object.assign(row, { reason, note: text, created_by: createdBy });
+    else this.data.eventNotAttending.push({ id: `evna_${this.data.eventNotAttending.length + 1}`, event_id: eventId, member_id: memberId, reason, note: text, created_by: createdBy, created_at: new Date().toISOString() });
+    return "set";
+  }
+
+  async unmarkNotAttending(eventId: string, memberId: string) {
+    const before = this.data.eventNotAttending.length;
+    this.data.eventNotAttending = this.data.eventNotAttending.filter((r) => !(r.event_id === eventId && r.member_id === memberId));
+    return this.data.eventNotAttending.length < before;
+  }
+
+  async moveNotAttending(fromMemberId: string, toMemberId: string) {
+    let moved = 0;
+    const kept: typeof this.data.eventNotAttending = [];
+    for (const r of this.data.eventNotAttending) {
+      if (r.member_id !== fromMemberId) {
+        kept.push(r);
+        continue;
+      }
+      const blocked =
+        this.data.eventNotAttending.some((o) => o.event_id === r.event_id && o.member_id === toMemberId) ||
+        this.data.eventAttendees.some((a) => a.event_id === r.event_id && a.member_id === toMemberId);
+      if (blocked) continue;
+      kept.push({ ...r, member_id: toMemberId });
+      moved++;
+    }
+    this.data.eventNotAttending = kept;
     return moved;
   }
 

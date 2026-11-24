@@ -75,6 +75,10 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).zoom.reassignAmbiguousMember(secondaryId, primaryId),
     ]);
 
+    // "Bought a ticket, not attending" marks. After the attendances above, so a mark for an event
+    // the kept member now attends is dropped instead of moved.
+    await createRepos(supabase).events.moveNotAttending(secondaryId, primaryId);
+
     // Handle name aliases carefully — alias column is UNIQUE so we can't blindly reassign
     const aliases = createRepos(supabase).aliases;
     const [primaryAliases, secondaryAliases] = await Promise.all([aliases.namesOf(primaryId), aliases.namesOf(secondaryId)]);

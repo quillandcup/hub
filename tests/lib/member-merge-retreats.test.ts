@@ -21,6 +21,7 @@ const DUP = "mbr_AAAAAAAAAAA2";
 const OTHER = "mbr_AAAAAAAAAAA3";
 const SPRING = "evt_AAAAAAAAAAA1";
 const ARKANSAS = "evt_AAAAAAAAAAA2";
+const NEXT = "evt_AAAAAAAAAAA3";
 const TYPE = "badge_AAAAAAAAAAA1";
 
 let dataset: InMemoryDataset;
@@ -30,6 +31,7 @@ beforeEach(() => {
     ...eventSeed([
       { id: SPRING, title: "Spring retreat", slug: "spring" },
       { id: ARKANSAS, title: "Arkansas retreat", slug: "arkansas" },
+      { id: NEXT, title: "Next retreat", slug: "next" },
     ]),
     members: [
       { id: KEEP, name: "Ada Example", email: "ada@example.com" },
@@ -41,6 +43,11 @@ beforeEach(() => {
       { id: "a2", event_id: ARKANSAS, member_id: DUP },
       { id: "a3", event_id: ARKANSAS, member_id: KEEP },
       { id: "a4", event_id: SPRING, member_id: OTHER, ticket_source: "gifted", ticket_giver_id: DUP },
+    ],
+    eventNotAttending: [
+      { id: "n1", event_id: NEXT, member_id: DUP, reason: "forfeited", note: null, created_by: null, created_at: "2097-01-01T00:00:00Z" },
+      { id: "n2", event_id: ARKANSAS, member_id: DUP, reason: "forfeited", note: null, created_by: null, created_at: "2097-01-01T00:00:00Z" },
+      { id: "n3", event_id: SPRING, member_id: DUP, reason: "forfeited", note: null, created_by: null, created_at: "2097-01-01T00:00:00Z" },
     ],
     memberBadges: [
       { id: "b1", memberId: DUP, badgeTypeId: TYPE, occurredAt: "2023-04-01", note: null, eventId: SPRING, awardedBy: null },
@@ -68,6 +75,12 @@ describe("POST /api/admin/members/merge keeps retreats, badges and Big Sister re
     expect(attendeesOfKeep.map((a) => a.event_id).sort()).toEqual([SPRING, ARKANSAS]);
     expect(attendeesOfKeep.find((a) => a.event_id === SPRING)?.ticket_source).toBe("gifted");
     expect(dataset.memberBadges.filter((b) => b.memberId === KEEP).map((b) => b.eventId).sort()).toEqual([SPRING, ARKANSAS]);
+  });
+
+  it("moves the duplicate's not-attending marks, dropping one for an event the kept member attends after the merge", async () => {
+    await merge();
+
+    expect(dataset.eventNotAttending.map((n) => [n.event_id, n.member_id])).toEqual([[NEXT, KEEP]]);
   });
 
   it("repoints the gifted-by link of tickets the duplicate gave, so deleting the duplicate does not clear it", async () => {

@@ -336,6 +336,52 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().moveTicketGiver(dup, keep)).toBe(0);
       });
 
+      it("marks a buyer as not attending, replaces the mark, refuses an attendee and an 'other' without a note, and undoes it", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "Deposit retreat", startsAt: "2097-03-01T09:00:00Z" }]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        await ctx.attend(ids.e, bo, "2097-01-01T00:00:00Z");
+
+        expect(await ctx.repo().notAttendingOf(ids.e)).toEqual([]);
+        expect(await ctx.repo().markNotAttending(ids.e, ada, "other", null, null)).toBe("invalid_note");
+        expect(await ctx.repo().markNotAttending(ids.e, ada, "other", "   ", null)).toBe("invalid_note");
+        expect(await ctx.repo().markNotAttending(ids.e, bo, "forfeited", null, null)).toBe("already_attendee");
+        expect(await ctx.repo().notAttendingOf(ids.e)).toEqual([]);
+
+        expect(await ctx.repo().markNotAttending(ids.e, ada, "forfeited", null, null)).toBe("set");
+        expect((await ctx.repo().notAttendingOf(ids.e)).map((m) => [m.member_id, m.reason, m.note])).toEqual([[ada, "forfeited", null]]);
+
+        // Marking again replaces the reason and note instead of adding a second row.
+        expect(await ctx.repo().markNotAttending(ids.e, ada, "other", "  moved to the autumn retreat ", null)).toBe("set");
+        expect((await ctx.repo().notAttendingOf(ids.e)).map((m) => [m.member_id, m.reason, m.note])).toEqual([[ada, "other", "moved to the autumn retreat"]]);
+
+        expect(await ctx.repo().unmarkNotAttending(ids.e, ada)).toBe(true);
+        expect(await ctx.repo().unmarkNotAttending(ids.e, ada)).toBe(false);
+        expect(await ctx.repo().notAttendingOf(ids.e)).toEqual([]);
+      });
+
+      it("moves not-attending marks to another member, keeping the target's own mark and dropping one for an event the target attends", async () => {
+        const ids = await ctx.seed([
+          { key: "a", title: "Moved retreat", startsAt: "2097-03-01T09:00:00Z" },
+          { key: "b", title: "Both marked retreat", startsAt: "2097-04-01T09:00:00Z" },
+          { key: "c", title: "Attended retreat", startsAt: "2097-05-01T09:00:00Z" },
+        ]);
+        const dup = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        const keep = await ctx.member({ name: "Ada E", displayName: null, email: "ada.new@example.com" });
+        await ctx.repo().markNotAttending(ids.a, dup, "forfeited", null, null);
+        await ctx.repo().markNotAttending(ids.b, dup, "forfeited", null, null);
+        await ctx.repo().markNotAttending(ids.b, keep, "other", "ticket moved", null);
+        await ctx.repo().markNotAttending(ids.c, dup, "forfeited", null, null);
+        await ctx.attend(ids.c, keep, "2097-01-01T00:00:00Z");
+
+        expect(await ctx.repo().moveNotAttending(dup, keep)).toBe(1);
+
+        expect((await ctx.repo().notAttendingOf(ids.a)).map((m) => m.member_id)).toEqual([keep]);
+        expect((await ctx.repo().notAttendingOf(ids.b)).map((m) => [m.member_id, m.reason])).toEqual([[keep, "other"]]);
+        expect((await ctx.repo().notAttendingOf(ids.c)).map((m) => m.member_id)).toEqual([]);
+        expect(await ctx.repo().moveNotAttending(dup, keep)).toBe(0);
+      });
+
       it("says so when the member is not an attendee of the event", async () => {
         const ids = await ctx.seed([{ key: "e", title: "No guests", startsAt: "2097-03-01T09:00:00Z" }]);
         const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
