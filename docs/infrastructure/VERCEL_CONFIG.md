@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-`config/vercel.yml` is the source of truth for the Vercel project settings that `vercel.json` can't express. Today that is **Skew Protection's maximum age** (`skewProtection.maxAgeSeconds`: how long, from a deployment's creation, a tab opened on it keeps being served by it; also baked into the build by `next.config.ts` so `AppUpdatedBar` can warn a tab before it stops) and **always-on tracing sampling rules** ([Vercel docs](https://vercel.com/docs/tracing/always-on-tracing)): production only, with a 0% rule on `/api/health` so Checkly's uptime pings aren't traced.
+Vercel project settings that `vercel.json` can't express are kept as code in `config/vercel.yml` and pushed by CI. That file is the source of truth for the Vercel project settings that `vercel.json` can't express. Today that is **Skew Protection's maximum age** (`skewProtection.maxAgeSeconds`: how long, from a deployment's creation, a tab opened on it keeps being served by it; also baked into the build by `next.config.ts` so `AppUpdatedBar` can warn a tab before it stops) and **always-on tracing sampling rules** ([Vercel docs](https://vercel.com/docs/tracing/always-on-tracing)): production only, with a 0% rule on `/api/health` so Checkly's uptime pings aren't traced.
 
 On a push to main that changes the file or `scripts/vercel-config.ts`, after the production deploy, CI's `push-vercel-config` job runs `scripts/vercel-config.ts push`. It prints the difference from the live project, applies it, then reads the rules back to confirm. A manual run (`gh workflow run ci.yml --ref main`) always applies it.
 

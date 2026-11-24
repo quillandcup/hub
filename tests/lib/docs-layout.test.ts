@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseReview } from "../../scripts/docs-overdue";
+import { expectedReadmes } from "../../scripts/docs-index";
 
 // docs/ is sorted by whether a doc is living (kept up to date with the code) or a snapshot (a
 // decision or analysis as of a date). See docs/README.md.
@@ -12,8 +13,9 @@ const LIVING_FOLDERS = ["runbooks", "checklists", "architecture", "infrastructur
 const SNAPSHOT_FOLDERS = ["decisions"];
 const ALL_FOLDERS = [...LIVING_FOLDERS, ...SNAPSHOT_FOLDERS];
 
+// A living folder's README.md is its generated index (scripts/docs-index.ts), not a doc: no status header.
 function docsIn(folder: string): string[] {
-  return readdirSync(path.join(DOCS, folder)).filter((f) => f.endsWith(".md"));
+  return readdirSync(path.join(DOCS, folder)).filter((f) => f.endsWith(".md") && !(LIVING_FOLDERS.includes(folder) && f === "README.md"));
 }
 
 // docs/decisions/ holds earlier snapshots (a status header with a date), new decisions as ADRs
@@ -30,6 +32,13 @@ function header(folder: string, file: string): string {
 }
 
 describe("docs layout", () => {
+  it("keeps each living folder's README index current and every doc described (run pnpm docs:index)", () => {
+    for (const r of expectedReadmes(DOCS, LIVING_FOLDERS)) {
+      expect(r.problems).toEqual([]);
+      expect(r.current, `${path.relative(ROOT, r.file)} is out of date: run pnpm docs:index`).toBe(r.expected);
+    }
+  });
+
   it("has only TODO.md and README.md as markdown directly under docs/", () => {
     const top = readdirSync(DOCS).filter((f) => f.endsWith(".md"));
     expect(top.sort()).toEqual(["README.md", "TODO.md"]);

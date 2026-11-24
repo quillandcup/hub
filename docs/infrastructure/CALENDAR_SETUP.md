@@ -2,6 +2,8 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+How to connect the Hub to Google Calendar with a service account, and how events are then synced into the Hub.
+
 ## Why Service Account?
 
 - **No OAuth flow** - Just a JSON key file

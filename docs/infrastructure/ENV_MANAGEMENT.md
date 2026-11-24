@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-How environment variables are declared, where their values live, how they reach Vercel, GitHub and Supabase Vault, and how they are rotated. Getting a machine or a new environment running is `docs/runbooks/SETUP.md`.
+Explains how environment variables are declared, where their values live, how they reach Vercel, GitHub and Supabase Vault, and how they are rotated. Getting a machine or a new environment running is `docs/runbooks/SETUP.md`.
 
 ## The three places a value can live
 

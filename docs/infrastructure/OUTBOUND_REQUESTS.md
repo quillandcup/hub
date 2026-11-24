@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Every request the app makes to a server that is not ours says who we are in its `User-Agent`:
+Every request the app makes to a server that is not ours identifies the Hub in its `User-Agent` header. The format is:
 
 ```
 HedgieHub/<short commit sha> (+https://<app url>; <support email>)

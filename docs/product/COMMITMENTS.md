@@ -3,7 +3,7 @@
 > **Status:** living. **Last reviewed:** 2026-11-04. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 A **commitment** is a member's promise to attend one or more recurring prickle slots for a set
-number of weeks: "Mondays 7am Progress Prickle for the next 4 weeks", or "M/W/F 5am Sprint for 4
+number of weeks. For example: "Mondays 7am Progress Prickle for the next 4 weeks", or "M/W/F 5am Sprint for 4
 weeks." It's the attendee-side sibling of Hosting (`prickle_schedules`): Hosting is "I'll run
 this slot", a commitment is "I'll show up to these slots."
 

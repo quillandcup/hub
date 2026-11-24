@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Quick reference for managing all external service integrations. These dashboards are hard to find — bookmark this file.
+Dashboard links and quick facts for every external service the Hub integrates with, such as Zoom, Slack, Kajabi, Vercel and Supabase. These dashboards are hard to find — bookmark this file.
 
 Rotating a credential (or all of them, after an exposure)? See `docs/runbooks/SECRET_ROTATION.md` for
 the step-by-step per-service runbook — this file has the dashboard links, that one has the

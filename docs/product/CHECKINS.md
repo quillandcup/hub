@@ -2,8 +2,8 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-06. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-A check-in is a few taps before and after a prickle, answered on the site (the check-in /
-check-out modal, Log Progress, Find a Prickle) or in the Slack DMs. Code: `src/lib/prickle-checkins.ts`
+A check-in is a few taps before and after a prickle, answered on the site or in Slack DMs. The site asks in the check-in /
+check-out modal, Log Progress and Find a Prickle. Code: `src/lib/prickle-checkins.ts`
 (questions and keys), `src/lib/prickle-checkin-dms.ts` (Slack), `src/components/writing/CheckinFields.tsx`
 (inputs). Table: `prickle_checkins`, reshaped by migration `20261220000000`. When and where the
 offers and messages appear (timings, channels, who gets what): `CHECKIN_DELIVERY.md`.

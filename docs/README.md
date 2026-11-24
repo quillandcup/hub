@@ -4,6 +4,8 @@ Every doc is either **living** (maintained with the code; if it is wrong, that i
 
 **Freshness.** Every living doc's Status line carries `**Last reviewed:** YYYY-MM-DD` and a cadence (`Review: quarterly.` for `checklists/`, `Review: yearly.` for the rest). A doc is overdue when its date plus its cadence is behind today; `never` is always overdue. `pnpm docs:overdue` prints the list, and the weekly `docs-overdue` workflow keeps one GitHub issue, "Docs overdue for review", with it. To clear an item, review the doc, fix what is wrong and bump its Last reviewed date. Whenever you edit a doc to make it correct, bump the date too. The tests check only that the date and cadence are well formed, so a doc going overdue never fails CI.
 
+Each living folder has a `README.md` that lists its docs, each with its title and first sentence. It is generated: `pnpm docs:index` (`scripts/docs-index.ts`) rewrites the list between its two marker comments, the pre-commit hook runs it when a doc under `docs/` is staged, and `tests/lib/docs-layout.test.ts` fails if a list is out of date or a doc has no summary. So a new doc opens with its title and, after the Status line, a plain first sentence that says what it is. Text in the README outside the markers is yours to edit.
+
 | Folder | Kind | What is in it |
 |---|---|---|
 | `runbooks/` | living | Step-by-step procedures (setup, inviting users, rotating secrets, the changelog process, the quillandcup.com domain move). Reviewed yearly. |

@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
-Evaluation of the production project against Supabase's [Production security checklist](https://supabase.com/docs/guides/security/production-checklist), done 2026-11-17. The general checklist (performance, availability, deployment, rate limits) is in `docs/checklists/SUPABASE_PRODUCTION_CHECKLIST.md`.
+Where the production Supabase project stands against Supabase's Production security checklist, with the evidence for each item. Evaluation of the production project against Supabase's [Production security checklist](https://supabase.com/docs/guides/security/production-checklist), done 2026-11-17. The general checklist (performance, availability, deployment, rate limits) is in `docs/checklists/SUPABASE_PRODUCTION_CHECKLIST.md`.
 
 Sources: `supabase/config.toml`, the code in this repo, and read-only checks of production (`supabase db query --linked`, `supabase ssl-enforcement get --experimental`, `supabase network-restrictions get --experimental`), per `.claude/rules/verify-against-prod.md`. Each line says which. Status: **Done**, **Done (owner-reported)** (the CLI can't read it; the owner said so, with the date), **Partial**, **Gap**, **Accepted**, **Unchecked**.
 

@@ -4,7 +4,7 @@
 
 ## Overview
 
-This system uses a **Medallion Architecture** with Bronze (raw imports), Local (operational), and Silver (canonical) layers. A "Gold" layer was originally planned as pre-aggregated tables but never got wired up — see the note at the end of this doc.
+Explains the **Medallion Architecture** layers (Bronze raw imports, Local operational data, Silver canonical state) and how data flows between them. A "Gold" layer was originally planned as pre-aggregated tables but never got wired up — see the note at the end of this doc.
 
 For full column-level detail see `ERD.md`. For how each integration actually gets data into Bronze (webhook vs. cron), see `SEQUENCE_DIAGRAMS.md`.
 

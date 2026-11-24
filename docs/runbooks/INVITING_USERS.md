@@ -4,7 +4,7 @@
 
 ## Overview
 
-Public signups are **disabled** for security. Only admins can invite new users.
+How an admin invites a new member to the Hedgie Hub, since public signups are turned off. Public signups are **disabled** for security. Only admins can invite new users.
 
 ## Current Method: Supabase Studio
 

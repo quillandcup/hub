@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-The page builder ([Landing pages](../product/LANDING_PAGES.md)) offers blocks. A block about events (the next retreats, today's schedule) needs events code, but the page builder must not: it is meant to be reused without the events part, and the next product (a real estate app, a community product) will bring blocks of its own. So the builder has one **block registry**, and a **module** (`src/modules/<name>/`) adds blocks to it. The pages code never imports a module; the one place that names which modules are installed is the **composition root**, `src/modules/`.
+Explains the page builder's block registry and how a module, such as events, contributes blocks to it. The page builder ([Landing pages](../product/LANDING_PAGES.md)) offers blocks. A block about events (the next retreats, today's schedule) needs events code, but the page builder must not: it is meant to be reused without the events part, and the next product (a real estate app, a community product) will bring blocks of its own. So the builder has one **block registry**, and a **module** (`src/modules/<name>/`) adds blocks to it. The pages code never imports a module; the one place that names which modules are installed is the **composition root**, `src/modules/`.
 
 This is the first and so far only contribution point (page blocks). It is deliberately concrete: no plugin framework, no discovery, no loading at run time. A general shape for modules is for a later decision, written from what this teaches.
 

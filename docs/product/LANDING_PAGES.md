@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block (sign-ups into Kajabi) and the import of Kajabi page exports are built too; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
+The page builder lets staff make and publish landing and website pages from blocks, on the Puck editor. Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block (sign-ups into Kajabi) and the import of Kajabi page exports are built too; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
 
 Kajabi has landing pages with a block editor. The Hub has the same, on [Puck](https://puckeditor.com) (`@puckeditor/core`, MIT): a page is Puck's JSON, `{ content: [...], root: { props } }`, and the same React components render in the editor's canvas and on the public page. We chose an open source editor over writing our own: the drag and drop, the outline, undo and redo, the viewport preview and the iframe canvas are Puck's; the blocks, the shell around it, the model and the rules are ours.
 

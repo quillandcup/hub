@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-23. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
-The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels. **We are not applying for the badge**: the Passing level requires a FLOSS license and ours is proprietary (`LICENSE`). This page uses the checklist as a list of good practice and records how we score, so we know what is already done and what is worth doing anyway.
+Where the project stands against the OpenSSF Best Practices criteria, used as a guide to good practice rather than for a badge. The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels. **We are not applying for the badge**: the Passing level requires a FLOSS license and ours is proprietary (`LICENSE`). This page uses the checklist as a list of good practice and records how we score, so we know what is already done and what is worth doing anyway.
 
 **The source of truth is OpenSSF's own criteria**, which change over time; if this page disagrees with them, they win:
 [Passing](https://www.bestpractices.dev/en/criteria/0) · [Silver](https://www.bestpractices.dev/en/criteria/1) · [Gold](https://www.bestpractices.dev/en/criteria/2) · [source text](https://github.com/coreinfrastructure/best-practices-badge/blob/main/docs/criteria.md) and [Silver/Gold text](https://github.com/coreinfrastructure/best-practices-badge/blob/main/docs/other.md).

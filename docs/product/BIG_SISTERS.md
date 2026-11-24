@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Every new member is matched with an existing member (their **big sister**) for **30 days**: someone who shows them around, answers the questions that are easier to ask a person, and invites them to prickles. "New member" means anyone whose membership just began, however:
+The Big Sister program matches each new member with an existing member for their first 30 days, to show them around and invite them to prickles. Every new member is matched with an existing member (their **big sister**) for **30 days**: someone who shows them around, answers the questions that are easier to ask a person, and invites them to prickles. "New member" means anyone whose membership just began, however:
 
 - a **trial** (a Stripe subscription that shows one),
 - a **direct sign-up** (a membership with no trial),

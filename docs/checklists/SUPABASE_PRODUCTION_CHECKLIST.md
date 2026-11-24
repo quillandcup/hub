@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-18. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
-Evaluation of the production project against Supabase's [Production Checklist](https://supabase.com/docs/guides/deployment/going-into-prod), done 2026-11-17. The security half of that checklist lives on a separate page ([Production security checklist](https://supabase.com/docs/guides/security/production-checklist)), evaluated in `docs/checklists/SUPABASE_SECURITY_CHECKLIST.md`.
+Where the production Supabase project stands against Supabase's Production Checklist, with the evidence for each item. Evaluation of the production project against Supabase's [Production Checklist](https://supabase.com/docs/guides/deployment/going-into-prod), done 2026-11-17. The security half of that checklist lives on a separate page ([Production security checklist](https://supabase.com/docs/guides/security/production-checklist)), evaluated in `docs/checklists/SUPABASE_SECURITY_CHECKLIST.md`.
 
 Sources: `supabase/config.toml`, the docs and CI in this repo, and read-only checks of production (`supabase db query --linked`, `supabase db advisors --linked`, `supabase backups list`), per `.claude/rules/verify-against-prod.md`. Each line says which. Status: **Done**, **Partial**, **Gap**, **N/A**.
 

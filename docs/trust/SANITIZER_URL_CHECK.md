@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Production counts read on 2026-11-21. Follow-up to the sanitizer review in `docs/trust/THREAT_MODEL.md` (A03, rich text) and `docs/TODO.md`, "Threat model follow-ups" (3).
+Check of which addresses production's stored HTML actually uses, done before the sanitizers stopped allowing relative addresses. Production counts read on 2026-11-21. Follow-up to the sanitizer review in `docs/trust/THREAT_MODEL.md` (A03, rich text) and `docs/TODO.md`, "Threat model follow-ups" (3).
 
 ## The concern
 

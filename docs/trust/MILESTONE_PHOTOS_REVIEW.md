@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Written with the feature (`docs/product/FINISHERS.md`, "Photos"). A photo of a member on the day they wrote THE END, or holding their book, is personal data that a member may make public one level at a time. This is what was decided, why, and which test pins each point. It is a review of design and code, not a penetration test; nothing was run against production.
+Security review of the photos members can add to milestones and Bookshelf books, with each design decision and the test that pins it. Written with the feature (`docs/product/FINISHERS.md`, "Photos"). A photo of a member on the day they wrote THE END, or holding their book, is personal data that a member may make public one level at a time. This is what was decided, why, and which test pins each point. It is a review of design and code, not a penetration test; nothing was run against production.
 
 ## What is protected
 

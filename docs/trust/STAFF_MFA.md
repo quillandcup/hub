@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Why: a staff account takeover is the highest-impact risk in `docs/trust/THREAT_MODEL.md` (A07). A sign-in link or code is enough to become that person, and sudo, imports and the admin pages are powerful. A second factor, a 6-digit code from an authenticator app, puts something a stolen email link cannot supply in front of the admin area.
+How staff accounts are protected by a second sign-in step, a 6-digit code from an authenticator app. Why: a staff account takeover is the highest-impact risk in `docs/trust/THREAT_MODEL.md` (A07). A sign-in link or code is enough to become that person, and sudo, imports and the admin pages are powerful. A second factor, a 6-digit code from an authenticator app, puts something a stolen email link cannot supply in front of the admin area.
 
 It uses Supabase Auth's MFA (TOTP), switched on in production by `[remotes.prod.auth.mfa.totp]` in `supabase/config.toml` (and locally by `[auth.mfa.totp]`). No migration, no table: the factor lives in Supabase Auth.
 
