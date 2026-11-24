@@ -122,7 +122,7 @@ describe("a quiz that mixes graded and ungraded questions", () => {
     const { graded, text, right } = await mixed(repos, 50);
     await submit(repos, answers({ picks: { [graded]: [right] }, texts: { [text]: "My own words." } }));
     const mine = (await loadMemberQuiz(repos, LESSON, ADA))!;
-    expect(mine.attempts[0].openAnswers).toEqual([{ questionId: text, text: "My own words.", fileName: null }]);
+    expect(mine.attempts[0].openAnswers).toEqual([{ questionId: text, prompt: "Why?", text: "My own words.", fileName: null }]);
     expect(mine.questions.map((q) => q.kind)).toEqual(["choice", "short_answer"]);
     expect((await loadMemberQuiz(repos, LESSON, "mbr_BBBBBBBBBBB2"))!.attempts).toEqual([]);
   });

@@ -150,7 +150,8 @@ describe("QuizTaker: short answer and file questions", () => {
     show({ attempts: [attempt] });
     expect(screen.getByText(/Jan 4, 2027, 10:00 AM: submitted/)).toHaveTextContent("(from Kajabi)");
     expect(screen.getByText("What stood out, as it was asked then?")).toBeInTheDocument();
-    expect(screen.getByText("Upload your letter")).toBeInTheDocument();
+    // A snapshot that wasn't recorded falls back to the question as it is now.
+    expect(screen.getByRole("link", { name: "old.pdf" }).closest("li")).toHaveTextContent("Upload your letter");
     expect(screen.getByText("Earlier words")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "old.pdf" })).toHaveAttribute("href", `/api/course-quiz-answers/qatt_AAAAAAAAAAA1/${FILE_Q}`);
   });
