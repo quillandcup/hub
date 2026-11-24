@@ -91,7 +91,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- **Settings.** \"Set a passing grade\" (a whole percent): members complete the lesson only by reaching it, and can retake the quiz. Without it, any submitted attempt completes the lesson. \"Hide answers on the results page\" shows members only their score.",
       "- **Results.** Every attempt, newest first, with the member, the date and the score.",
       "- **Imported quizzes.** The Kajabi capture that reads lessons also reads quiz lessons (it needs a logged-in browser, like the lesson capture). A quiz from Kajabi is read only until you take the course over, and taking over keeps it. Check an imported quiz against Kajabi before you publish it.",
-      "- **Not yet.** Duplicating a lesson, module or course that holds a quiz is refused, and there are no completion emails or results export yet.",
+      "- **Not yet.** Only multiple choice (one right answer) and checkboxes (several) exist: Kajabi's short answer and file upload questions are not built, and a Kajabi quiz that has one is not imported. Duplicating a lesson, module or course that holds a quiz is refused, and there are no completion emails or results export yet.",
       "Details for each of these are in the Courses doc, under Quizzes.",
     ].join("\n\n"),
   },
