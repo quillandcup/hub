@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fullDate, linkifyText, relativeAgo, richParts, spokenTimestamp, timestampSeconds } from "@/lib/courses/comment-text";
+import { fullDate, linkifyText, mentionIds, namesToTokens, relativeAgo, richParts, spokenTimestamp, timestampSeconds, tokensToNames } from "@/lib/courses/comment-text";
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LINKS, cleanCommentBody, cleanReportReason, commentCountBucket, countCommentLinks, involvesInstructor, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
 import type { ThreadComment } from "@/lib/data/course-comments";
 
@@ -159,5 +159,43 @@ describe("richParts", () => {
   it("returns what linkifyText returns when there is no time, and nothing for nothing", () => {
     expect(richParts("no times, https://example.com here")).toEqual(linkifyText("no times, https://example.com here"));
     expect(richParts("")).toEqual([]);
+  });
+});
+
+describe("mentions in the text", () => {
+  const ADA = "mbr_AAAAAAAAAAA1";
+  const BEA = "mbr_AAAAAAAAAAA2";
+
+  it("finds each mentioned member once, in order, and only real ids", () => {
+    expect(mentionIds(`Hi @[${BEA}] and @[${ADA}], again @[${BEA}], not @[mbr_short] or @[${ADA.replace("mbr_", "xyz_")}]`)).toEqual([BEA, ADA]);
+    expect(mentionIds("no one")).toEqual([]);
+  });
+
+  it("makes a mention part between text and a timestamp, and keeps one inside an address out of it", () => {
+    expect(richParts(`Ask @[${ADA}] at 2:35.`)).toEqual([
+      { type: "text", value: "Ask " },
+      { type: "mention", memberId: ADA },
+      { type: "text", value: " at " },
+      { type: "time", value: "2:35", seconds: 155 },
+      { type: "text", value: "." },
+    ]);
+  });
+
+  it("shows a stored comment to its editor by name, and forgets someone who can't be named", () => {
+    expect(tokensToNames(`Hi @[${ADA}] & @[${BEA}]`, { [ADA]: "Ada <Quill> & Co" })).toEqual({
+      text: "Hi @Ada <Quill> & Co & @someone",
+      picked: [{ memberId: ADA, name: "Ada <Quill> & Co" }],
+    });
+  });
+
+  it("turns the names the writer picked back into tokens, left to right, and leaves the rest as typed", () => {
+    const picked = [
+      { memberId: ADA, name: "Ada" },
+      { memberId: BEA, name: "Ada Example" },
+    ];
+    // The longer name wins where both fit; a hand-typed name and an email address are not mentions.
+    expect(namesToTokens("@Ada Example, @Ada, ada@Ada and @Ada", picked)).toBe(`@[${BEA}], @[${ADA}], ada@Ada and @Ada`);
+    expect(namesToTokens("@Adam is not @Ada", [{ memberId: ADA, name: "Ada" }])).toBe(`@Adam is not @[${ADA}]`);
+    expect(namesToTokens("Nothing picked @Ada", [])).toBe("Nothing picked @Ada");
   });
 });

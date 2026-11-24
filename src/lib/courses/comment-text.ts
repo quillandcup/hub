@@ -54,10 +54,68 @@ export function fullDate(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-US", { timeZone, dateStyle: "long", timeStyle: "short" }).format(new Date(iso));
 }
 
-export type RichPart = TextPart | { type: "time"; value: string; seconds: number };
+export type RichPart = TextPart | { type: "time"; value: string; seconds: number } | { type: "mention"; memberId: string };
 
+/** A mention as stored in a comment: `@[mbr_...]`, the member's id, shown by their current display name. */
+const MENTION_SOURCE = "@\\[(mbr_[1-9A-HJ-NP-Za-km-z]{12})\\]";
 /** `2:35` or `1:02:03`: not inside a longer number or word, and not a clock time followed by am or pm. */
-const TIME_PATTERN = /(?<![\w:./])(\d{1,2}:\d{2}(?::\d{2})?)(?![\w:])(?!\s?[ap]\.?m\b)/gi;
+const TIME_SOURCE = "(?<![\\w:./])(\\d{1,2}:\\d{2}(?::\\d{2})?)(?![\\w:])(?!\\s?[apAP]\\.?[mM]\\b)";
+const RICH_PATTERN = new RegExp(`${MENTION_SOURCE}|${TIME_SOURCE}`, "g");
+
+/** The members a comment mentions, each once, in the order they appear. */
+export function mentionIds(text: string): string[] {
+  return [...new Set([...text.matchAll(new RegExp(MENTION_SOURCE, "g"))].map((m) => m[1]))];
+}
+
+/** A person chosen from the mention list while writing: what the box shows (`@Name`) stands for this member. */
+export interface PickedMention {
+  memberId: string;
+  name: string;
+}
+
+/**
+ * A stored comment as the writer edits it: each `@[mbr_...]` becomes `@Name` (the member's current display name) and is
+ * remembered as picked. A token for someone who can't be named any more becomes `@someone` and is not kept.
+ */
+export function tokensToNames(body: string, names: Readonly<Record<string, string>>): { text: string; picked: PickedMention[] } {
+  const picked: PickedMention[] = [];
+  const text = body.replace(new RegExp(MENTION_SOURCE, "g"), (_, memberId: string) => {
+    const name = names[memberId];
+    if (!name) return "@someone";
+    picked.push({ memberId, name });
+    return `@${name}`;
+  });
+  return { text, picked };
+}
+
+/**
+ * The text as it will be stored: each `@Name` the writer picked from the list becomes its token, left to right, one picked
+ * person per occurrence. A name typed by hand, or one the writer picked and then changed, stays plain text and mentions no one.
+ */
+export function namesToTokens(text: string, picked: readonly PickedMention[]): string {
+  const queue = [...picked];
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === "@" && (i === 0 || !/\w/.test(text[i - 1]))) {
+      let best = -1;
+      queue.forEach((p, index) => {
+        const label = `@${p.name}`;
+        if (!text.startsWith(label, i) || /[\p{L}\p{N}_]/u.test(text[i + label.length] ?? "")) return;
+        if (best < 0 || p.name.length > queue[best].name.length) best = index;
+      });
+      if (best >= 0) {
+        out += `@[${queue[best].memberId}]`;
+        i += 1 + queue[best].name.length;
+        queue.splice(best, 1);
+        continue;
+      }
+    }
+    out += text[i];
+    i += 1;
+  }
+  return out;
+}
 
 /** The seconds a typed timestamp stands for, or null when it isn't one (`2:75`, `1:75:00`). `m:ss` or `h:mm:ss`. */
 export function timestampSeconds(text: string): number | null {
@@ -80,7 +138,8 @@ export function spokenTimestamp(seconds: number): string {
 
 /**
  * `linkifyText`, and in the text between the links, typed timestamps (`2:35`) as `time` parts that the thread turns into buttons
- * which move the lesson's video. Addresses are linked first, so a time inside one stays part of it. Nothing is decoded.
+ * which move the lesson's video, and `@[mbr_...]` tokens as `mention` parts. Addresses are linked first, so a time inside one
+ * stays part of it. Nothing is decoded.
  */
 export function richParts(text: string): RichPart[] {
   const out: RichPart[] = [];
@@ -90,13 +149,19 @@ export function richParts(text: string): RichPart[] {
       continue;
     }
     let last = 0;
-    for (const match of part.value.matchAll(TIME_PATTERN)) {
-      const seconds = timestampSeconds(match[1]);
-      if (seconds === null) continue;
+    for (const match of part.value.matchAll(RICH_PATTERN)) {
       const start = match.index ?? 0;
+      if (match[1]) {
+        if (start > last) out.push({ type: "text", value: part.value.slice(last, start) });
+        out.push({ type: "mention", memberId: match[1] });
+        last = start + match[0].length;
+        continue;
+      }
+      const seconds = timestampSeconds(match[2]);
+      if (seconds === null) continue;
       if (start > last) out.push({ type: "text", value: part.value.slice(last, start) });
-      out.push({ type: "time", value: match[1], seconds });
-      last = start + match[1].length;
+      out.push({ type: "time", value: match[2], seconds });
+      last = start + match[2].length;
     }
     if (last < part.value.length) out.push({ type: "text", value: part.value.slice(last) });
   }

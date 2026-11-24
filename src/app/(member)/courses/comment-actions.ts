@@ -6,6 +6,7 @@ import { withAction } from "@/lib/analytics/server";
 import { clock } from "@/lib/clock";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { notifyLessonComment } from "@/lib/courses/comment-notifications";
+import { mentionError, suggestMentionable, type MentionChoice } from "@/lib/courses/comment-mentions";
 import { COMMENT_MAX_LINKS, COMMENT_RATE_LIMITS, REPORT_RATE_LIMIT, cleanCommentBody, cleanReportReason, isRemovedComment, lessonOpenForComments, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
 import { createRepos } from "@/lib/data/repos";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
@@ -47,6 +48,8 @@ async function postLessonCommentImpl(lessonId: string, rawBody: string, parentId
 
   const cleaned = cleanCommentBody(rawBody);
   if ("error" in cleaned) return { error: cleaned.error };
+  const badMention = await mentionError(repos, open.courseId, cleaned.body);
+  if (badMention) return { error: badMention };
 
   // A reply goes under a top-level comment on this lesson; replying to a reply attaches to the comment above it.
   let attachTo: string | null = null;
@@ -101,16 +104,21 @@ async function editLessonCommentImpl(commentId: string, rawBody: string): Promis
   const comment = await repos.courseComments.byId(commentId);
   // Someone else's comment looks the same as one that isn't there.
   if (!comment || comment.memberId !== caller.identity.memberId || isRemovedComment(comment)) return { error: NOT_AVAILABLE };
-  if (!(await lessonOpenForComments(repos, caller, comment.lessonId))) return { error: NOT_AVAILABLE };
+  const open = await lessonOpenForComments(repos, caller, comment.lessonId);
+  if (!open) return { error: NOT_AVAILABLE };
   if (!withinEditWindow(comment.createdAt, clock.now())) return { error: "Comments can be edited for 15 minutes after you post them" };
 
   const cleaned = cleanCommentBody(rawBody);
   if ("error" in cleaned) return { error: cleaned.error };
   // An edit can't be used to slip past the link rule.
   if (!caller.scope.isAdminActing && shouldHoldComment(cleaned.body)) return { error: `Comments can have up to ${COMMENT_MAX_LINKS} links` };
+  const badMention = await mentionError(repos, open.courseId, cleaned.body);
+  if (badMention) return { error: badMention };
 
   try {
     await repos.courseComments.edit(commentId, cleaned.body, new Date(clock.now()).toISOString());
+    // Someone mentioned by the edit is told (each person once per comment); replies were told when it was posted.
+    if (!comment.heldAt) after(() => notifyLessonComment(createRepos(createServiceRoleClient()), commentId, new Date(clock.now()), "mentions"));
     revalidatePath("/courses", "layout");
     return { id: commentId };
   } catch (error) {
@@ -195,6 +203,20 @@ async function setLessonCommentFollowImpl(lessonId: string, following: boolean):
     console.error("lesson_comment_follows write failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't save that" };
   }
+}
+
+/**
+ * People the writer can mention while typing `@name` under this lesson: members who can open its course (and staff, badged as
+ * instructors), never the writer. A read: it needs the same gate as posting, and returns names only.
+ */
+export async function suggestCommentMentions(lessonId: string, typed: string): Promise<MentionChoice[]> {
+  if (!isId(lessonId, "les") || typeof typed !== "string") return [];
+  const caller = await getCoursesCaller();
+  if (!caller || caller.identity.isSudo || !(await commentsOn(caller))) return [];
+  const repos = createRepos(createServiceRoleClient());
+  const open = await lessonOpenForComments(repos, caller, lessonId);
+  if (!open) return [];
+  return suggestMentionable(repos, open.courseId, caller.identity.memberId, typed);
 }
 
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).

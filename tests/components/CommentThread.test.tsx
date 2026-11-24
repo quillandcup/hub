@@ -13,12 +13,14 @@ const editLessonComment = vi.fn();
 const deleteLessonComment = vi.fn();
 const reportLessonComment = vi.fn();
 const setLessonCommentFollow = vi.fn();
+const suggestCommentMentions = vi.fn();
 vi.mock("@/app/(member)/courses/comment-actions", () => ({
   postLessonComment: (...a: unknown[]) => postLessonComment(...a),
   editLessonComment: (...a: unknown[]) => editLessonComment(...a),
   deleteLessonComment: (...a: unknown[]) => deleteLessonComment(...a),
   reportLessonComment: (...a: unknown[]) => reportLessonComment(...a),
   setLessonCommentFollow: (...a: unknown[]) => setLessonCommentFollow(...a),
+  suggestCommentMentions: (...a: unknown[]) => suggestCommentMentions(...a),
 }));
 
 import CommentThread from "@/components/courses/CommentThread";
@@ -71,6 +73,7 @@ beforeEach(() => {
   deleteLessonComment.mockReset().mockResolvedValue({ id: "x" });
   reportLessonComment.mockReset().mockResolvedValue({ id: "x" });
   setLessonCommentFollow.mockReset().mockResolvedValue({ id: "les_AAAAAAAAAAA1" });
+  suggestCommentMentions.mockReset().mockResolvedValue([]);
   window.history.replaceState(null, "", "/");
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
@@ -93,7 +96,7 @@ describe("CommentThread", () => {
     expect(postLessonComment).toHaveBeenCalledWith("les_AAAAAAAAAAA1", "How do I start?", null);
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(screen.getByRole("status")).toHaveTextContent("Comment posted");
-    expect(track).toHaveBeenCalledWith("lesson_comment_posted", { course_id: "crs_AAAAAAAAAAA1", is_reply: false, is_staff: false });
+    expect(track).toHaveBeenCalledWith("lesson_comment_posted", { course_id: "crs_AAAAAAAAAAA1", is_reply: false, is_staff: false, has_mention: false });
     expect(JSON.stringify(track.mock.calls)).not.toContain("How do I start");
     expect(box).toHaveValue("");
     expect(box).toHaveFocus();
@@ -137,7 +140,7 @@ describe("CommentThread", () => {
 
     expect(postLessonComment).toHaveBeenCalledWith("les_AAAAAAAAAAA1", "Try the hook first", "cmnt_AAAAAAAAAAA1");
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Reply posted"));
-    expect(track).toHaveBeenCalledWith("lesson_comment_posted", { course_id: "crs_AAAAAAAAAAA1", is_reply: true, is_staff: false });
+    expect(track).toHaveBeenCalledWith("lesson_comment_posted", { course_id: "crs_AAAAAAAAAAA1", is_reply: true, is_staff: false, has_mention: false });
   });
 
   it("shows replies oldest first, an Instructor badge, edited, and a tombstone that keeps its replies", () => {
@@ -408,6 +411,112 @@ describe("CommentThread", () => {
     it("has no filter when no instructor is in the thread", () => {
       renderThread([asked]);
       expect(screen.queryByRole("button", { name: "Instructor answers" })).toBeNull();
+    });
+  });
+
+  describe("mentions", () => {
+    const CAL = "mbr_AAAAAAAAAAA3";
+    const SAM = "mbr_AAAAAAAAAAA4";
+    const choices = [
+      { memberId: CAL, name: "Cal <Quill> & Co", isInstructor: false },
+      { memberId: SAM, name: "Sam Staff", isInstructor: true },
+    ];
+
+    it("offers the people of the course after an @, with instructors badged, and a click puts the name in the box", async () => {
+      suggestCommentMentions.mockResolvedValue(choices);
+      const user = userEvent.setup();
+      renderThread([]);
+      const box = screen.getByLabelText("Ask a question or leave a comment");
+      await user.type(box, "Thanks @ca");
+
+      const list = await screen.findByRole("listbox", { name: "People you can mention" });
+      expect(suggestCommentMentions).toHaveBeenLastCalledWith("les_AAAAAAAAAAA1", "ca");
+      expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual(["Cal <Quill> & Co", "Sam StaffInstructor"]);
+      await user.click(within(list).getAllByRole("option")[0]);
+
+      expect(box).toHaveValue("Thanks @Cal <Quill> & Co ");
+      expect(screen.queryByRole("listbox")).toBeNull();
+    });
+
+    it("picks with the keyboard and sends the member's token, not the name", async () => {
+      suggestCommentMentions.mockResolvedValue(choices);
+      const user = userEvent.setup();
+      renderThread([]);
+      const box = screen.getByLabelText("Ask a question or leave a comment");
+      await user.type(box, "@sa");
+      await screen.findByRole("listbox");
+      expect(box).toHaveAttribute("aria-expanded", "true");
+
+      await user.keyboard("{ArrowDown}{Enter}");
+      expect(box).toHaveValue("@Sam Staff ");
+      await user.type(box, "can you look?");
+      await user.click(screen.getByRole("button", { name: "Post comment" }));
+
+      expect(postLessonComment).toHaveBeenCalledWith("les_AAAAAAAAAAA1", `@[${SAM}] can you look?`, null);
+      expect(track).toHaveBeenCalledWith("lesson_comment_posted", { course_id: "crs_AAAAAAAAAAA1", is_reply: false, is_staff: false, has_mention: true });
+    });
+
+    it("closes the list on Escape, and a name typed by hand mentions no one", async () => {
+      suggestCommentMentions.mockResolvedValue(choices);
+      const user = userEvent.setup();
+      renderThread([]);
+      const box = screen.getByLabelText("Ask a question or leave a comment");
+      await user.type(box, "@Sam Staff");
+      await screen.findByRole("listbox");
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("listbox")).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Post comment" }));
+      expect(postLessonComment).toHaveBeenCalledWith("les_AAAAAAAAAAA1", "@Sam Staff", null);
+      expect(track).toHaveBeenCalledWith("lesson_comment_posted", expect.objectContaining({ has_mention: false }));
+    });
+
+    it("does not look anyone up for an email address, a lone @, or while previewing", async () => {
+      const user = userEvent.setup();
+      renderThread([]);
+      const box = screen.getByLabelText("Ask a question or leave a comment");
+      await user.type(box, "write to ada@example.com or @ later");
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(suggestCommentMentions).not.toHaveBeenCalled();
+      cleanup();
+      renderThread([], { readOnly: true });
+      expect(screen.getByLabelText("Ask a question or leave a comment")).toBeDisabled();
+    });
+
+    it("shows a mention by the person's current name, as text, and 'someone' when it can't be named", () => {
+      const body = `Hello @[${CAL}] and @[mbr_AAAAAAAAAAA9]`;
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1", body }), replies: [] }], { mentionNames: { [CAL]: "Cal <Quill> & Co" } });
+      expect(screen.getByText("@Cal <Quill> & Co")).toBeInTheDocument();
+      expect(screen.getByText("@someone")).toBeInTheDocument();
+      expect(screen.queryByText(/mbr_/)).toBeNull();
+    });
+
+    it("edits a comment with its mentions as names and saves them as tokens again", async () => {
+      const user = userEvent.setup();
+      const mine = comment({ id: "cmnt_AAAAAAAAAAA1", memberId: "m1", createdAt: new Date(NOW - 60_000).toISOString(), body: `Hi @[${CAL}], hello` });
+      renderThread([{ comment: mine, replies: [] }], { mentionNames: { [CAL]: "Cal Example" } });
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+
+      const box = screen.getByLabelText("Edit your comment");
+      expect(box).toHaveValue("Hi @Cal Example, hello");
+      await user.type(box, " there");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(editLessonComment).toHaveBeenCalledWith("cmnt_AAAAAAAAAAA1", `Hi @[${CAL}], hello there`);
+    });
+
+    it("counts the stored length, where a mention is longer than its name", async () => {
+      suggestCommentMentions.mockResolvedValue([{ memberId: CAL, name: "Al", isInstructor: false }]);
+      const user = userEvent.setup();
+      renderThread([]);
+      const box = screen.getByLabelText("Ask a question or leave a comment");
+      await user.click(box);
+      await user.paste("x".repeat(3790));
+      await user.type(box, " @al");
+      await screen.findByRole("listbox");
+      await user.keyboard("{Enter}");
+      // "@Al" is 3 characters shown, 19 stored.
+      expect(screen.getByText(/3,8\d\d of 4,000 characters/)).toBeInTheDocument();
     });
   });
 });

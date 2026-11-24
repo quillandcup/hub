@@ -117,7 +117,7 @@ describe("lesson comment samples", () => {
     });
   };
   const later = () => new Date(Date.now() + 60_000);
-  const lessonKinds = ["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_activity"] as const;
+  const lessonKinds = ["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_mention", "lesson_comment_activity"] as const;
 
   it.each(lessonKinds)("%s links to a real lesson when there is no comment yet", async (kind) => {
     withCourse();
@@ -126,7 +126,7 @@ describe("lesson comment samples", () => {
     expect(message.text).toContain("Real lesson");
   });
 
-  it.each(["lesson_comment_reply", "lesson_comment_instructor_reply"] as const)("%s links to the latest reply on a real lesson", async (kind) => {
+  it.each(["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_mention"] as const)("%s links to the latest comment on a real lesson", async (kind) => {
     withCourse();
     const r = repos();
     const root = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: null, body: "q", isStaffReply: false });
@@ -142,7 +142,7 @@ describe("lesson comment samples", () => {
     expect(message.text).toContain("Story Basics");
   });
 
-  it.each(["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_activity", "lesson_comment_moderation"] as const)(
+  it.each(["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_mention", "lesson_comment_activity", "lesson_comment_moderation"] as const)(
     "%s falls back to a real list page when no published course has a lesson",
     async (kind) => {
       withCourse(true);
