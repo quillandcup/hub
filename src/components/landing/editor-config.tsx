@@ -291,7 +291,7 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
       { label: "After a time", value: "time" },
     ]),
     delaySeconds: { type: "number", label: "Seconds before it shows (for the time trigger)", min: DELAY_MIN, max: DELAY_MAX },
-    rememberDays: { type: "number", label: "Days to leave a visitor alone after they close it (0: it may show on every visit)", min: 0, max: REMEMBER_MAX },
+    rememberDays: { type: "number", label: "Days to leave a visitor alone after they close it, here and in every other exit popup on the site (0: it may show on every visit)", min: 0, max: REMEMBER_MAX },
     closeOnOverlay: toggle("Close it when the visitor clicks outside the box (Escape and the close button always work)"),
     hideOnDesktop: toggle("Hide on desktop"),
     hideOnMobile: toggle("Hide on mobile"),

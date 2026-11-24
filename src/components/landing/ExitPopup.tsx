@@ -1,23 +1,8 @@
 "use client";
 
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { CONSENT_STORAGE_KEY } from "@/lib/analytics/consent";
-import { clock } from "@/lib/clock";
-import {
-  EXIT_ARM_MS,
-  OPT_IN_DONE_EVENT,
-  TYPING_RETRY_MS,
-  hasSignInCookie,
-  isExitIntent,
-  isSuppressed,
-  mayRemember,
-  parseDismissal,
-  planTriggers,
-  popupStorageKey,
-  publicSlugOf,
-  serializeDismissal,
-  type ExitPopupSettings,
-} from "@/lib/landing/exit-popup";
+import { EXIT_ARM_MS, OPT_IN_DONE_EVENT, TYPING_RETRY_MS, hasSignInCookie, isExitIntent, planTriggers, publicSlugOf, type ExitPopupSettings } from "@/lib/landing/exit-popup";
+import { isQuietHere, rememberClose } from "@/lib/landing/popup-memory";
 
 /**
  * The part of an Exit popup that runs on the public page (docs/product/LANDING_PAGES.md, "Exit popup"): it watches for the moment to
@@ -25,12 +10,13 @@ import {
  * HTML). The window itself, with its focus handling, is a separate chunk (ExitPopupDialog.tsx), fetched when the page is idle so
  * that it is there at the moment of showing, and not before.
  *
- * Who never sees it: a signed-in member or staff (a sign-in cookie), anyone who closed it within the page's "days to leave alone" or
- * signed up (any sign-up form on the page), and anyone whose device the settings hide it on. The editor and the admin preview
- * (an address other than `/p/<page>`) ignore the signed-in and "closed before" rules, so staff can see it, and never keep anything.
+ * Who never sees it: a signed-in member or staff (a sign-in cookie), anyone who closed any exit popup on the site within the days
+ * that popup asked for, anyone who signed up through any sign-up form on any landing page, and anyone whose device the settings hide
+ * it on. The editor and the admin preview (an address other than `/p/<page>`) ignore the signed-in and "closed before" rules, so
+ * staff can see it, and never keep anything.
  *
- * What is remembered: one small record in the visitor's own browser, `{ at, submitted }`, and only where the consent banner does not
- * ask or has been accepted (`mayRemember`). Without that the popup shows at most once per page load. Nothing is sent anywhere.
+ * What is remembered: two small site-wide records in the visitor's own browser (a sign-up, and the last close with its days; see
+ * `src/lib/landing/popup-memory.ts`), and only where the consent banner does not ask or has been accepted (`mayRemember`). Without that the popup shows at most once per page load. Nothing is sent anywhere.
  */
 
 const ExitPopupDialog = lazy(() => import("./ExitPopupDialog"));
@@ -55,19 +41,6 @@ function frameClassOf(anchor: Element | null): string {
   return (frame?.getAttribute("class") ?? "").split(/\s+/).filter((c) => c.startsWith("lp-") || c === "landing-light").join(" ");
 }
 
-function readStorage(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-/** Whether this browser may keep the record: the page marks `<html data-consent-required>` where the banner asks (src/app/layout.tsx). */
-function mayKeepRecord(): boolean {
-  return mayRemember(document.documentElement.hasAttribute("data-consent-required"), readStorage(CONSENT_STORAGE_KEY));
-}
-
 export default function ExitPopup({ trigger, delaySeconds, rememberDays, closeOnOverlay, hideOnDesktop, hideOnMobile, label, boxClass, children }: ExitPopupProps) {
   const anchor = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
@@ -81,7 +54,7 @@ export default function ExitPopup({ trigger, delaySeconds, rememberDays, closeOn
     // The real page is anonymous and cached, so who is signed in is known only here, from the cookie's name.
     if (slug !== null) {
       if (hasSignInCookie(document.cookie)) return;
-      if (isSuppressed(parseDismissal(readStorage(popupStorageKey(slug))), clock.now(), rememberDays)) return;
+      if (isQuietHere(slug, rememberDays)) return;
     }
     const plan = planTriggers(
       { enabled: true, trigger, delaySeconds, rememberDays, closeOnOverlay, hideOnDesktop, hideOnMobile, label },
@@ -116,17 +89,8 @@ export default function ExitPopup({ trigger, delaySeconds, rememberDays, closeOn
       if (isTyping() || document.visibilityState === "hidden") timer = setTimeout(tryTime, TYPING_RETRY_MS);
       else show();
     };
-    // A sign-up anywhere on the page ends it: no popup after the visitor has signed up.
-    const onSignedUp = () => {
-      stop();
-      if (slug !== null && mayKeepRecord()) {
-        try {
-          localStorage.setItem(popupStorageKey(slug), serializeDismissal({ at: clock.now(), submitted: true }));
-        } catch {
-          // Blocked storage: the popup simply is not remembered.
-        }
-      }
-    };
+    // A sign-up anywhere on the page ends it: no popup after the visitor has signed up (the form itself records it site-wide).
+    const onSignedUp = () => stop();
 
     window.addEventListener(OPT_IN_DONE_EVENT, onSignedUp);
     if (plan.time) timer = setTimeout(tryTime, delaySeconds * 1000);
@@ -141,15 +105,8 @@ export default function ExitPopup({ trigger, delaySeconds, rememberDays, closeOn
 
   function close() {
     setOpen(false);
-    const { slug } = page.current;
-    if (slug === null || rememberDays <= 0 || !mayKeepRecord()) return;
-    const key = popupStorageKey(slug);
-    const before = parseDismissal(readStorage(key));
-    try {
-      localStorage.setItem(key, serializeDismissal({ at: clock.now(), submitted: before?.submitted === true }));
-    } catch {
-      // Blocked storage: the popup simply is not remembered.
-    }
+    // Only the real page remembers; the editor and the preview keep nothing.
+    if (page.current.slug !== null) rememberClose(rememberDays);
   }
 
   return (

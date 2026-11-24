@@ -6,7 +6,7 @@ import { ExitPopupBlock } from "@/components/landing/blocks";
 import ExitPopupEditing, { EditPopupField, setEditingPopup } from "@/components/landing/ExitPopupEditing";
 import { CONSENT_STORAGE_KEY } from "@/lib/analytics/consent";
 import { trapTab } from "@/lib/landing/focus-trap";
-import { DELAY_DEFAULT, EXIT_ARM_MS, OPT_IN_DONE_EVENT, TYPING_RETRY_MS, popupStorageKey } from "@/lib/landing/exit-popup";
+import { DELAY_DEFAULT, EXIT_ARM_MS, CLOSED_KEY, OPT_IN_DONE_EVENT, SIGNED_UP_KEY, TYPING_RETRY_MS, popupStorageKey } from "@/lib/landing/exit-popup";
 import { useFakeClock } from "../helpers/fake-clock";
 
 /** What the popup's blocks are: a heading, a field and a button, so there is something to focus. */
@@ -36,7 +36,8 @@ function stubDevice({ wide = true, mouse = true }: { wide?: boolean; mouse?: boo
 
 const advance = (ms: number) => act(async () => void vi.advanceTimersByTime(ms));
 const dialog = () => screen.queryByRole("dialog");
-const key = popupStorageKey("spring");
+/** The record slice 1 kept per page; still read, never written. */
+const legacyKey = popupStorageKey("spring");
 function clickOverlay() {
   const overlay = document.querySelector("[data-exit-popup]") as HTMLElement;
   fireEvent.mouseDown(overlay);
@@ -222,7 +223,8 @@ describe("Exit popup on the public page", () => {
       const first = render(<ExitPopupBlock {...props()} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ at: fake.clock.now(), submitted: false });
+      expect(JSON.parse(localStorage.getItem(CLOSED_KEY)!)).toEqual({ at: fake.clock.now(), days: 7 });
+      expect(localStorage.getItem(legacyKey)).toBeNull();
       first.unmount();
 
       fake.clock.advance(6 * 24 * 60 * 60 * 1000);
@@ -239,20 +241,52 @@ describe("Exit popup on the public page", () => {
       const first = render(<ExitPopupBlock {...props({ rememberDays: 0 })} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(localStorage.getItem(key)).toBeNull();
+      expect(localStorage.getItem(CLOSED_KEY)).toBeNull();
       first.unmount();
       render(<ExitPopupBlock {...props({ rememberDays: 0 })} />);
       await opens();
     });
 
-    it("is kept per page", async () => {
-      localStorage.setItem(popupStorageKey("another-page"), JSON.stringify({ at: fake.clock.now(), submitted: false }));
+    it("is site-wide: a close on one page keeps the popup of another page away, for the days of the popup that was closed", async () => {
+      visit("/p/autumn");
+      const first = render(<ExitPopupBlock {...props({ rememberDays: 3 })} />);
+      await opens();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      first.unmount();
+
+      visit("/p/spring");
+      fake.clock.advance(2 * 24 * 60 * 60 * 1000);
+      // The other popup asks for 30 days, but the stored 3 days are what counts.
+      const second = render(<ExitPopupBlock {...props({ rememberDays: 30 })} />);
+      await staysShut(DELAY_DEFAULT * 1000);
+      second.unmount();
+      fake.clock.advance(2 * 24 * 60 * 60 * 1000);
+      render(<ExitPopupBlock {...props({ rememberDays: 30 })} />);
+      await opens();
+    });
+
+    it("lets a later close overwrite the earlier one", async () => {
+      localStorage.setItem(CLOSED_KEY, JSON.stringify({ at: fake.clock.now() - 20 * 24 * 60 * 60 * 1000, days: 7 }));
+      const first = render(<ExitPopupBlock {...props({ rememberDays: 2 })} />);
+      await opens();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(JSON.parse(localStorage.getItem(CLOSED_KEY)!)).toEqual({ at: fake.clock.now(), days: 2 });
+      first.unmount();
+    });
+
+    it("still leaves alone a visitor who has a slice 1 record for this page, and writes none of its own", async () => {
+      localStorage.setItem(legacyKey, JSON.stringify({ at: fake.clock.now(), submitted: false }));
+      render(<ExitPopupBlock {...props()} />);
+      await staysShut(DELAY_DEFAULT * 1000);
+      cleanup();
+      visit("/p/another-page");
       render(<ExitPopupBlock {...props()} />);
       await opens();
     });
 
     it("ignores a record it cannot read", async () => {
-      localStorage.setItem(key, "not json");
+      localStorage.setItem(legacyKey, "not json");
+      localStorage.setItem(CLOSED_KEY, "not json");
       render(<ExitPopupBlock {...props()} />);
       await opens();
     });
@@ -287,14 +321,14 @@ describe("Exit popup on the public page", () => {
       const first = render(<ExitPopupBlock {...props()} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(localStorage.getItem(key)).not.toBeNull();
+      expect(localStorage.getItem(CLOSED_KEY)).not.toBeNull();
       first.unmount();
       localStorage.clear();
       localStorage.setItem(CONSENT_STORAGE_KEY, "denied");
       render(<ExitPopupBlock {...props()} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(localStorage.getItem(key)).toBeNull();
+      expect(localStorage.getItem(CLOSED_KEY)).toBeNull();
     });
   });
 
@@ -305,25 +339,32 @@ describe("Exit popup on the public page", () => {
       await staysShut(DELAY_DEFAULT * 1000 * 2);
     });
 
-    it("a visitor who signed up on the page, with the popup's form or any other, then or on a later visit", async () => {
-      const first = render(<ExitPopupBlock {...props()} />);
+    it("a visitor who signs up while the page is open, with the popup's form or any other", async () => {
+      render(<ExitPopupBlock {...props()} />);
       await advance(5000);
       act(() => void window.dispatchEvent(new Event(OPT_IN_DONE_EVENT)));
       await staysShut(60_000);
-      expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ at: fake.clock.now(), submitted: true });
-      first.unmount();
-      fake.clock.advance(200 * 24 * 60 * 60 * 1000);
-      render(<ExitPopupBlock {...props({ rememberDays: 1 })} />);
-      await staysShut(DELAY_DEFAULT * 1000);
     });
 
-    it("keeps a sign-up in the popup on screen and remembers it, and keeps that when the popup is then closed", async () => {
+    it("a visitor who signed up on any page, on a later visit to any page, for a year", async () => {
+      localStorage.setItem(SIGNED_UP_KEY, JSON.stringify({ at: fake.clock.now(), submitted: true }));
+      fake.clock.advance(200 * 24 * 60 * 60 * 1000);
+      visit("/p/another-page");
+      render(<ExitPopupBlock {...props({ rememberDays: 0 })} />);
+      await staysShut(DELAY_DEFAULT * 1000);
+      cleanup();
+      fake.clock.advance(200 * 24 * 60 * 60 * 1000);
+      render(<ExitPopupBlock {...props()} />);
+      await opens();
+    });
+
+    it("keeps a sign-up in the popup on screen, and closing it afterwards records the close", async () => {
       render(<ExitPopupBlock {...props()} />);
       await opens();
       act(() => void window.dispatchEvent(new Event(OPT_IN_DONE_EVENT)));
       expect(dialog()).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(JSON.parse(localStorage.getItem(key)!).submitted).toBe(true);
+      expect(JSON.parse(localStorage.getItem(CLOSED_KEY)!).days).toBe(7);
     });
 
     it("a visitor on a device it is hidden on", async () => {
@@ -351,12 +392,12 @@ describe("Exit popup on the public page", () => {
   it("is always shown in the admin preview, to staff who are signed in and have closed it before, and keeps nothing", async () => {
     visit("/admin/pages/spring/preview");
     document.cookie = "sb-abcdefgh-auth-token=session; path=/";
-    localStorage.setItem(popupStorageKey("spring"), JSON.stringify({ at: fake.clock.now(), submitted: true }));
+    localStorage.setItem(legacyKey, JSON.stringify({ at: fake.clock.now(), submitted: true }));
     document.documentElement.removeAttribute("data-consent-required");
     render(<ExitPopupBlock {...props()} />);
     await opens();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(JSON.parse(localStorage.getItem(popupStorageKey("spring"))!).submitted).toBe(true);
+    expect(JSON.parse(localStorage.getItem(legacyKey)!).submitted).toBe(true);
     expect(localStorage.length).toBe(1);
   });
 

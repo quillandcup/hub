@@ -3,8 +3,8 @@
  * trigger, the frequency cap and the "who never sees it" rules are tested without a browser; `src/components/landing/ExitPopup.tsx`
  * wires them to the page.
  *
- * Nothing here is sent anywhere. The only thing remembered is one small record in the visitor's own browser, saying when they
- * closed the popup (or signed up), so it is not shown again for a while.
+ * Nothing here is sent anywhere. The only things remembered are two small records in the visitor's own browser, site-wide and not per
+ * page: when they last closed an exit popup and for how many days, and when they signed up, so no popup is shown again for a while.
  */
 
 export const POPUP_TRIGGERS = ["either", "exit", "time"] as const;
@@ -15,7 +15,7 @@ export const DELAY_MIN = 1;
 export const DELAY_MAX = 300;
 export const REMEMBER_DEFAULT = 7;
 export const REMEMBER_MAX = 365;
-/** A visitor who signed up in the popup, or anywhere on the page, is left alone for this long. */
+/** A visitor who signed up through any sign-up form on any landing page is left alone, by every exit popup on the site, for this long. */
 export const SUBMITTED_DAYS = 365;
 /** Exit intent is not watched for in the first moments on the page: a flick of the mouse at arrival is not leaving. */
 export const EXIT_ARM_MS = 3000;
@@ -27,7 +27,7 @@ export type ExitPopupSettings = {
   enabled: boolean;
   trigger: PopupTrigger;
   delaySeconds: number;
-  /** Days the popup stays away after it is closed; 0 means it may show again on the next visit to the page (it still shows once per page load). */
+  /** Days every exit popup on the site stays away after this one is closed; 0 means it may show again on the next visit (it still shows once per page load). */
   rememberDays: number;
   closeOnOverlay: boolean;
   hideOnDesktop: boolean;
@@ -91,10 +91,31 @@ export function mayRemember(consentRequired: boolean, consent: string | null): b
   return !consentRequired || consent === "granted";
 }
 
-/** The record kept per page: `at` is when the popup was closed (ms), `submitted` whether the visitor signed up. */
+/** A record of a sign-up (`submitted: true`) or a slice 1 per-page record: `at` is when (ms). */
 export type Dismissal = { at: number; submitted: boolean };
+/** The site-wide record of a close: when (ms) and the days that popup asked for, so a later close overwrites it. */
+export type Closure = { at: number; days: number };
 
+/** Site-wide: set by a sign-up through any opt-in form on any landing page. */
+export const SIGNED_UP_KEY = "lp-popup-site:signed-up";
+/** Site-wide: set when any exit popup is closed. */
+export const CLOSED_KEY = "lp-popup-site:closed";
+/** Slice 1 kept a record per page under this key; it is still read (never written or deleted) so those visitors stay left alone on that page. */
 export const popupStorageKey = (slug: string) => `lp-popup:${slug}`;
+
+export function parseClosure(raw: string | null): Closure | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!value || typeof value !== "object") return null;
+    const { at, days } = value as Record<string, unknown>;
+    return typeof at === "number" && Number.isFinite(at) && typeof days === "number" && Number.isFinite(days) ? { at, days } : null;
+  } catch {
+    return null;
+  }
+}
+
+export const serializeClosure = (record: Closure): string => JSON.stringify({ at: record.at, days: record.days });
 
 export function parseDismissal(raw: string | null): Dismissal | null {
   if (!raw) return null;
@@ -110,11 +131,27 @@ export function parseDismissal(raw: string | null): Dismissal | null {
 
 export const serializeDismissal = (record: Dismissal): string => JSON.stringify({ at: record.at, submitted: record.submitted });
 
-/** Whether a record keeps the popup away at `now`. A record dated in the future (a changed clock) does not. */
+/** Whether a sign-up or slice 1 per-page record keeps the popup away at `now`. A record dated in the future (a changed clock) does not. */
 export function isSuppressed(record: Dismissal | null, now: number, rememberDays: number): boolean {
   if (!record || record.at > now) return false;
   const days = record.submitted ? SUBMITTED_DAYS : rememberDays;
   return days > 0 && now - record.at < days * DAY_MS;
+}
+
+/** What this browser remembers (raw stored text): the two site-wide records and, for the page being viewed, the slice 1 per-page one. */
+export type PopupMemory = { signedUp: string | null; closed: string | null; legacyPage: string | null };
+
+/**
+ * Whether any record keeps the popup away at `now`: a sign-up anywhere on the site (a year), a close of any exit popup on the site
+ * (for the days that popup asked for, as stored, not this popup's own), or a slice 1 record for this page (as before). A record dated
+ * in the future (a changed clock) does not count.
+ */
+export function isQuiet(memory: PopupMemory, now: number, rememberDays: number): boolean {
+  const signedUp = parseDismissal(memory.signedUp);
+  if (signedUp && isSuppressed({ at: signedUp.at, submitted: true }, now, rememberDays)) return true;
+  const closed = parseClosure(memory.closed);
+  if (closed && closed.at <= now && closed.days > 0 && now - closed.at < closed.days * DAY_MS) return true;
+  return isSuppressed(parseDismissal(memory.legacyPage), now, rememberDays);
 }
 
 /** What the settings mean, in a sentence for the editor's canvas ("Shows after 15 seconds, or when a visitor on a computer goes to leave. ..."). */
@@ -126,7 +163,7 @@ export function describeExitPopup(settings: ExitPopupSettings): string {
         ? "when a visitor on a computer goes to leave (never on a phone)"
         : `after ${settings.delaySeconds} seconds, or when a visitor on a computer goes to leave`;
   const where = settings.hideOnDesktop && settings.hideOnMobile ? " Hidden on every device." : settings.hideOnDesktop ? " Hidden on desktop." : settings.hideOnMobile ? " Hidden on mobile." : "";
-  const again = settings.rememberDays === 0 ? "Shows again on every visit." : `Not shown again for ${settings.rememberDays} ${settings.rememberDays === 1 ? "day" : "days"} after it is closed.`;
+  const again = settings.rememberDays === 0 ? "Shows again on every visit." : `No exit popup on the site is shown again for ${settings.rememberDays} ${settings.rememberDays === 1 ? "day" : "days"} after it is closed.`;
   return `Shows ${when}.${where} ${again}`;
 }
 

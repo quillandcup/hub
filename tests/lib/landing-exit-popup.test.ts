@@ -9,7 +9,12 @@ import {
   describeExitPopup,
   hasSignInCookie,
   isExitIntent,
+  CLOSED_KEY,
+  SIGNED_UP_KEY,
+  isQuiet,
   isSuppressed,
+  parseClosure,
+  serializeClosure,
   mayRemember,
   normalizeExitPopup,
   parseDismissal,
@@ -140,8 +145,15 @@ describe("the record of a closed popup", () => {
     for (const raw of [null, "", "nope", "[]", "null", '{"at":"yesterday"}', '{"submitted":true}', '{"at":null}']) expect(parseDismissal(raw)).toBeNull();
   });
 
-  it("keeps its key per page", () => {
+  it("keeps slice 1's per-page key, and the site-wide keys cannot collide with a page's", () => {
     expect(popupStorageKey("spring")).toBe("lp-popup:spring");
+    expect(popupStorageKey("signed-up")).not.toBe(SIGNED_UP_KEY);
+    expect(popupStorageKey("closed")).not.toBe(CLOSED_KEY);
+  });
+
+  it("round-trips a close with its days, and reads nothing from anything else", () => {
+    expect(parseClosure(serializeClosure({ at: 5, days: 3 }))).toEqual({ at: 5, days: 3 });
+    for (const raw of [null, "", "nope", "[]", "null", '{"at":5}', '{"days":3}', '{"at":"x","days":3}', '{"at":5,"days":null}']) expect(parseClosure(raw)).toBeNull();
   });
 
   const now = Date.UTC(2026, 10, 23, 15, 0, 0);
@@ -183,10 +195,45 @@ describe("publicSlugOf", () => {
 
 describe("describeExitPopup", () => {
   it("says what the settings do, in words", () => {
-    expect(describeExitPopup(on())).toBe(`Shows after ${DELAY_DEFAULT} seconds, or when a visitor on a computer goes to leave. Not shown again for ${REMEMBER_DEFAULT} days after it is closed.`);
-    expect(describeExitPopup(on({ trigger: "exit", rememberDays: 1 }))).toBe("Shows when a visitor on a computer goes to leave (never on a phone). Not shown again for 1 day after it is closed.");
+    expect(describeExitPopup(on())).toBe(`Shows after ${DELAY_DEFAULT} seconds, or when a visitor on a computer goes to leave. No exit popup on the site is shown again for ${REMEMBER_DEFAULT} days after it is closed.`);
+    expect(describeExitPopup(on({ trigger: "exit", rememberDays: 1 }))).toBe("Shows when a visitor on a computer goes to leave (never on a phone). No exit popup on the site is shown again for 1 day after it is closed.");
     expect(describeExitPopup(on({ trigger: "time", delaySeconds: 20, rememberDays: 0, hideOnMobile: true }))).toBe("Shows after 20 seconds. Hidden on mobile. Shows again on every visit.");
     expect(describeExitPopup(on({ trigger: "time", hideOnDesktop: true, hideOnMobile: true }))).toContain("Hidden on every device.");
     expect(describeExitPopup(on({ trigger: "time", hideOnDesktop: true }))).toContain("Hidden on desktop.");
+  });
+});
+
+describe("isQuiet: what the whole site remembers", () => {
+  const now = Date.UTC(2026, 10, 23, 15, 0, 0);
+  const none = { signedUp: null, closed: null, legacyPage: null };
+  const signedUp = (ago: number) => serializeDismissal({ at: now - ago, submitted: true });
+  const closed = (ago: number, days: number) => serializeClosure({ at: now - ago, days });
+
+  it("is not quiet with nothing remembered, or with records it cannot read", () => {
+    expect(isQuiet(none, now, 7)).toBe(false);
+    expect(isQuiet({ signedUp: "x", closed: "y", legacyPage: "z" }, now, 7)).toBe(false);
+  });
+
+  it("keeps every popup away for a year after a sign-up on any page, whatever the popup's own days", () => {
+    expect(isQuiet({ ...none, signedUp: signedUp(300 * DAY) }, now, 0)).toBe(true);
+    expect(isQuiet({ ...none, signedUp: signedUp((SUBMITTED_DAYS + 1) * DAY) }, now, 7)).toBe(false);
+    expect(isQuiet({ ...none, signedUp: signedUp(-DAY) }, now, 7)).toBe(false);
+  });
+
+  it("keeps every popup away for the days of the popup that was closed, not its own", () => {
+    expect(isQuiet({ ...none, closed: closed(2 * DAY, 3) }, now, 30)).toBe(true);
+    expect(isQuiet({ ...none, closed: closed(3 * DAY, 3) }, now, 30)).toBe(false);
+    expect(isQuiet({ ...none, closed: closed(DAY, 30) }, now, 1)).toBe(true);
+  });
+
+  it("treats a close of 0 days, or one dated in the future, as nothing", () => {
+    expect(isQuiet({ ...none, closed: closed(1000, 0) }, now, 7)).toBe(false);
+    expect(isQuiet({ ...none, closed: closed(-DAY, 7) }, now, 7)).toBe(false);
+  });
+
+  it("still honours a slice 1 per-page record, with this popup's days", () => {
+    expect(isQuiet({ ...none, legacyPage: serializeDismissal({ at: now - 3 * DAY, submitted: false }) }, now, 7)).toBe(true);
+    expect(isQuiet({ ...none, legacyPage: serializeDismissal({ at: now - 3 * DAY, submitted: false }) }, now, 0)).toBe(false);
+    expect(isQuiet({ ...none, legacyPage: serializeDismissal({ at: now - 300 * DAY, submitted: true }) }, now, 0)).toBe(true);
   });
 });
