@@ -4,13 +4,15 @@ import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import Kbd from "@/components/Kbd";
 import type { A11yIssue } from "@/lib/landing/a11y";
+import type { PictureSlot } from "@/lib/landing/kajabi-alt-text";
 import type { ImportNote, PageStart } from "@/lib/landing/kajabi-import";
 import type { PageMatch, ReplaceablePage } from "@/lib/landing/kajabi-import-service";
+import ImportPictureDescriptions, { initialAlts, type PictureAlt } from "./ImportPictureDescriptions";
 
 const INPUT = "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900";
 const PRIMARY = "rounded bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50";
 
-type Inspected = { status: "inspected"; start: PageStart; suggestedTitle: string; blocks: number; countdowns: number; matches: PageMatch[]; pages: ReplaceablePage[] };
+type Inspected = { status: "inspected"; start: PageStart; suggestedTitle: string; blocks: number; countdowns: number; pictures: PictureSlot[]; matches: PageMatch[]; pages: ReplaceablePage[] };
 type Imported = {
   status: "imported";
   action: "created" | "updated";
@@ -61,6 +63,7 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
   const [choice, setChoice] = useState("");
   const [otherId, setOtherId] = useState("");
   const [originalPath, setOriginalPath] = useState("");
+  const [alts, setAlts] = useState<Record<string, PictureAlt>>({});
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<Imported | null>(null);
 
@@ -72,6 +75,7 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
       if (answer.status === "inspected") {
         setInfo(answer);
         setTitle(answer.suggestedTitle);
+        setAlts(initialAlts(answer.pictures ?? []));
         setChoice(answer.matches.length === 0 ? "new" : "");
       } else setError(answer.status === "error" ? answer.error : "Couldn't read that file. Try again.");
     });
@@ -88,7 +92,7 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
     if (!ready) return;
     setPending(true);
     setError(null);
-    const answer = await ask(file, { ...(choice === "new" ? { title, asNew: "true" } : { title, replacePageId: replaceId }), ...(info?.countdowns && originalPath.trim() ? { originalPath: originalPath.trim() } : {}) });
+    const answer = await ask(file, { ...(choice === "new" ? { title, asNew: "true" } : { title, replacePageId: replaceId }), ...(info?.countdowns && originalPath.trim() ? { originalPath: originalPath.trim() } : {}), ...(info?.pictures?.length ? { altTexts: JSON.stringify(Object.fromEntries(Object.entries(alts).map(([id, a]) => [id, { alt: a.alt, decorative: a.decorative }]))) } : {}) });
     setPending(false);
     if (answer.status === "imported") setDone(answer);
     else if (answer.status === "choose") {
@@ -257,6 +261,8 @@ export default function ImportKajabiRow({ file, onRemove }: { file: File; onRemo
           <span className="mt-1 block text-xs font-normal text-slate-600 dark:text-slate-400">The export doesn&apos;t include the page&apos;s title; this is suggested from its first heading. A page you replace keeps its own title.</span>
         </label>
       )}
+
+      {info.pictures?.length > 0 && <ImportPictureDescriptions file={file} slots={info.pictures} value={alts} onChange={(next) => setAlts(next)} />}
 
       {info.countdowns > 0 && (
         <label className="block font-medium">

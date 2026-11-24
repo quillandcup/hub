@@ -269,6 +269,7 @@ describe("inspectKajabiExport", () => {
       suggestedTitle: "Write a little, every day",
       blocks: 10,
       countdowns: 0,
+      pictures: expect.any(Array),
       matches: [],
       pages: [],
     });

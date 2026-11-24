@@ -7,6 +7,8 @@ import { mapAssetIds, normalizeLandingData, sameDocument, sameLandingPage } from
 
 export { sameDocument };
 import { freeImportKey, keyHasLayout, mapKajabiPage, pageStart, type ImportNote, type PageStart, type PictureSource } from "@/lib/landing/kajabi-import";
+import { applyAltEntries, defaultAltComplete, parseAltEntries, pictureSlots, suggestAltTexts, type AltSuggestion, type PictureSlot } from "@/lib/landing/kajabi-alt-text";
+import type { Complete } from "@/lib/landing/ai";
 import { resolveReferences, type KajabiLookups, type LookupFetchers } from "@/lib/landing/kajabi-lookups";
 import { readKajabiZip } from "@/lib/landing/kajabi-zip";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
@@ -83,6 +85,8 @@ export type InspectOutcome =
       blocks: number;
       /** How many countdowns the page has: their dates are read from the live page when its address is given. */
       countdowns: number;
+      /** The pictures that came without a description, with a first suggestion each (the dialog may ask the model for better ones). */
+      pictures: PictureSlot[];
       /** Pages with the same layout: often none, several when pages were cloned from each other. */
       matches: PageMatch[];
       /** Every page made by an import, for "replace another page". */
@@ -155,6 +159,22 @@ function readExport(archive: Uint8Array, year: number, lookups?: KajabiLookups):
   return mapped.ok ? { ok: true, zip, mapped } : { ok: false, error: mapped.error };
 }
 
+const slotsOf = (mapped: Mapped) => pictureSlots(mapped.data, { logoBlockId: mapped.logoBlockId, pictures: mapped.pictures });
+
+/**
+ * Suggested descriptions for the pictures the export has none for (kajabi-alt-text.ts): written from the headings near each picture, never from
+ * the pictures, by the model when it is set up and by rules otherwise. Writes nothing; the admin reviews the answer in the dialog.
+ */
+export async function suggestKajabiAltTexts(
+  input: { archive: Uint8Array; year: number },
+  deps: { complete?: Complete | null } = {},
+): Promise<{ status: "error"; error: string } | { status: "suggested"; suggestions: AltSuggestion[]; ai: "used" | "not_set_up" | "failed" }> {
+  const read = readExport(input.archive, input.year);
+  if (!read.ok) return { status: "error", error: read.error };
+  const answer = await suggestAltTexts(slotsOf(read.mapped), read.mapped.data, deps.complete === undefined ? defaultAltComplete() : deps.complete);
+  return { status: "suggested", ...answer };
+}
+
 /** The pages made by an import (under a key of any version). */
 async function importedPages(pages: LandingPageRepository): Promise<LandingPageSummary[]> {
   return (await pages.list("page")).filter((p) => p.import_key);
@@ -176,12 +196,12 @@ export async function inspectKajabiExport(deps: Pick<ImportDeps, "pages">, input
   const read = readExport(input.archive, input.year);
   if (!read.ok) return { status: "error", error: read.error };
   const imported = await importedPages(deps.pages);
-  return { status: "inspected", start: read.mapped.start, suggestedTitle: read.mapped.suggestedTitle, blocks: read.mapped.counts.blocks, countdowns: read.mapped.references.countdowns.length, matches: await matchesFor(deps.pages, read.mapped, imported), pages: imported.map(replaceable) };
+  return { status: "inspected", start: read.mapped.start, suggestedTitle: read.mapped.suggestedTitle, blocks: read.mapped.counts.blocks, countdowns: read.mapped.references.countdowns.length, pictures: slotsOf(read.mapped), matches: await matchesFor(deps.pages, read.mapped, imported), pages: imported.map(replaceable) };
 }
 
 export async function importKajabiExport(
   deps: ImportDeps,
-  input: { archive: Uint8Array; title: string; target?: ImportTarget; userId: string | null; year: number; /** The path of the public Kajabi page the export came from (the export doesn't say), to read a countdown's date from it. */ originalPath?: string },
+  input: { archive: Uint8Array; title: string; target?: ImportTarget; userId: string | null; year: number; /** The descriptions the admin reviewed, by the id of the block that holds each picture (`{ alt, decorative }`). Pictures without an entry keep none. */ altTexts?: unknown; /** The path of the public Kajabi page the export came from (the export doesn't say), to read a countdown's date from it. */ originalPath?: string },
 ): Promise<ImportOutcome> {
   let read = readExport(input.archive, input.year);
   if (!read.ok) return { status: "error", error: read.error };
@@ -211,7 +231,16 @@ export async function importKajabiExport(
   if (!existing && !title) return { status: "error", error: "Give the page a title: the export doesn't have one." };
 
   // Pictures: the export's own files first, a Kajabi upload from the CDN otherwise. A picture that can't be had is left out, and said.
-  const notes = [...mapped.notes];
+  let notes = [...mapped.notes];
+  let document = mapped.data;
+  if (input.altTexts !== undefined) {
+    const slots = slotsOf(mapped);
+    const applied = applyAltEntries(mapped.data, parseAltEntries(input.altTexts, new Set(slots.map((s) => s.id))), slots);
+    document = applied.data;
+    // The reviewed descriptions replace the generic "no description" to-dos; what is still empty is said once, with its count.
+    notes = notes.filter((n) => !(n.kind === "todo" && /no description/i.test(n.text)));
+    if (applied.remaining > 0) notes.push({ kind: "todo", text: `${applied.remaining} picture${applied.remaining === 1 ? " has" : "s have"} no description: add one in the editor (or mark it decorative) before publishing.` });
+  }
   const ids = new Map<string, string>();
   let failed = 0;
   const wanted = mapped.pictures.slice(0, MAX_PICTURES);
@@ -225,7 +254,7 @@ export async function importKajabiExport(
       notes.push({ kind: "left_out", text: `Picture ${index + 1} couldn't be imported (${stored.error}); add it in the editor.` });
     } else ids.set(picture.placeholder, stored.asset.id);
   }
-  const data = sanitizeLandingData(mapAssetIds(mapped.data, (value) => ids.get(value) ?? (value.startsWith("kajabi-import-picture:") ? "" : value)));
+  const data = sanitizeLandingData(mapAssetIds(document, (value) => ids.get(value) ?? (value.startsWith("kajabi-import-picture:") ? "" : value)));
   const issues = checkLandingPage(data);
   const counts = { blocks: mapped.counts.blocks, hidden: mapped.counts.hidden, pictures: ids.size, picturesFailed: failed + Math.max(0, mapped.pictures.length - MAX_PICTURES) };
 
