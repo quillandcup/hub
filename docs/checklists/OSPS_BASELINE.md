@@ -8,6 +8,8 @@ Where the project stands against each control of the OpenSSF Open Source Project
 
 **Status words.** *Met*: done, with where to look. *Partly*: some of it. *Not met*. *N/A*: the control doesn't apply. Many controls begin "when the project has made a release". We have no versioned releases: the app is deployed continuously from `main` and the `production` tag marks what is live (`docs/infrastructure/DEPLOYMENT.md`), so those are N/A for now, and become real if we ever publish release assets. Live settings were read with `gh api` on the assessment date.
 
+**Cross-check with the OpenSSF scanner.** On 2026-11-23 the table was compared with a read-only run of OpenSSF's `pvtr-github-repo-scanner` v0.33.2 (maturity levels 1 to 3, catalog `osps-baseline`). Where it disagreed with a row, the row was re-read against the control's text and the live setting; the cases are noted in the rows (`OSPS-AC-03.01`, `-AC-04.01`, `-BR-01.01`, `-BR-01.03`, `-DO-07.01`, `-GV-02.01`, `-QA-03.01`). Many of its checks read `.github/security-insights.yml` (the OpenSSF Security Insights file, which says who runs the project, where its documents are and which scanners run), so a scan before that file existed failed or skipped them for lack of the file, not because the control was unmet. The scanner does not apply the "when the project has made a release" condition to `OSPS-DO-03.01`, `-DO-03.02` and `-DO-04.01`, so it reports those as failed or passed where this table says N/A.
+
 ## Summary
 
 | Result | Count |
@@ -26,17 +28,17 @@ Where the project stands against each control of the OpenSSF Open Source Project
 |---|---|---|---|
 | `OSPS-AC-01.01` MFA for sensitive resources | 1 | Met | Two-factor is required for the GitHub organization (read live: `two_factor_requirement_enabled`). Vercel and Supabase are owner-reported (`.github/GOVERNANCE.md`). |
 | `OSPS-AC-02.01` New collaborators get the lowest permission | 1 | Met | The organization's default repository permission is `read` (live); collaborators are added by hand by an owner (`.github/GOVERNANCE.md`, "Access"). |
-| `OSPS-AC-03.01` Direct commits to the primary branch are blocked | 1 | Met | The `main` ruleset requires a pull request (`config/github.yml`); the only bypass is the admin role, and only through a pull request. |
+| `OSPS-AC-03.01` Direct commits to the primary branch are blocked | 1 | Met | The `main` ruleset requires a pull request (`config/github.yml`) and has no bypass actors, so admins go through a pull request too (live ruleset read 2026-11-23: rules `pull_request`, `required_status_checks`, `deletion`, `non_fast_forward`; `bypass_actors` empty). The OpenSSF scanner (v0.33.2) reports Failed because it only counts an `update` rule, a push restriction or a required approval as protection; a required pull request is not on its list, so that is a gap in the scanner, not in the ruleset. |
 | `OSPS-AC-03.02` Deleting the primary branch is prevented | 1 | Met | The `deletion` and `non_fast_forward` rules in the same ruleset. |
-| `OSPS-AC-04.01` Default CI permissions are the lowest | 2 | Met | Every workflow in `.github/workflows/` declares a top-level `permissions:` (read-only; writes only on the jobs that need them), and the repository default for the token is `read` (live, set 2026-11-23: `gh api repos/quillandcup/hub/actions/permissions/workflow`). |
+| `OSPS-AC-04.01` Default CI permissions are the lowest | 2 | Met | Every workflow in `.github/workflows/` declares a top-level `permissions:` (read-only; writes only on the jobs that need them), and the repository default for the token is `read` (live, set 2026-11-23: `gh api repos/quillandcup/hub/actions/permissions/workflow`). The OpenSSF scanner (v0.33.2) is stricter than the control's text and reports Failed because the same setting still lets the workflow token approve pull requests (`can_approve_pull_request_reviews` is `true`, kept on purpose in `config/github.yml`); no workflow approves anything, so it can be turned off (`docs/TODO.md`, "OSPS Baseline: what is left"). |
 | `OSPS-AC-04.02` Each job gets the minimum it needs | 3 | Met | Top-level `read` and per-job grants (`openssf-scorecard.yml`, `deploy.yml`, `ci.yml`); no workflow has write at the top level. |
 
 ## Build and release (BR)
 
 | Control | Level | Status | Evidence or gap |
 |---|---|---|---|
-| `OSPS-BR-01.01` Untrusted metadata is sanitized in CI | 1 | Met | No workflow uses `pull_request_target` or `workflow_run`; event fields reach shell steps through `env:` (`ci.yml`), not interpolated into `run:`. |
-| `OSPS-BR-01.03` Untrusted code gets no privileged credentials | 1 | Met | Workflows run on `pull_request`, which gives fork PRs no secrets; auto-merge and preview cleanup are limited to same-repository PRs (`auto-merge.yml`). Outside code is not accepted anyway (`.github/CONTRIBUTING.md`). |
+| `OSPS-BR-01.01` Untrusted metadata is sanitized in CI | 1 | Met | No workflow uses `pull_request_target`. One uses `workflow_run`, `main-red-alert.yml`, which fires only on completed `push` and `workflow_dispatch` runs of this repository's own CI on `main`; its event fields reach the script through `env:`, not interpolated into `run:`, as in `ci.yml`. |
+| `OSPS-BR-01.03` Untrusted code gets no privileged credentials | 1 | Met | Workflows run on `pull_request`, which gives fork PRs no secrets; auto-merge and preview cleanup are limited to same-repository PRs (`auto-merge.yml`). The one `workflow_run` workflow (`main-red-alert.yml`) checks out `main` itself, never the triggering run's code, and skips runs from forks (the scanner asks for a manual look at it). Outside code is not accepted anyway (`.github/CONTRIBUTING.md`). |
 | `OSPS-BR-01.04` Trusted collaborator input is sanitized in CI | 3 | Met | Same as `OSPS-BR-01.01`. |
 | `OSPS-BR-02.01` Releases get a unique version id | 2 | N/A | No official releases; each deploy is a commit SHA. See `version_unique` in the Best Practices checklist. |
 | `OSPS-BR-02.02` Release assets tied to the release id | 3 | N/A | No release assets. |
@@ -59,7 +61,7 @@ Where the project stands against each control of the OpenSSF Open Source Project
 | `OSPS-DO-04.01` Scope and duration of support per release | 3 | N/A | No releases. `.github/SECURITY.md` says only the current production deployment is supported. |
 | `OSPS-DO-05.01` When a version stops getting security updates | 3 | N/A | One deployed version. |
 | `OSPS-DO-06.01` How dependencies are chosen and tracked | 2 | Met | `.github/GOVERNANCE.md`, "Dependencies"; `.github/dependabot.yml`. |
-| `OSPS-DO-07.01` How to build the software | 2 | Met | `README.md`, `docs/runbooks/SETUP.md`, `CLAUDE.md` (commands). |
+| `OSPS-DO-07.01` How to build the software | 2 | Met | `README.md` ("Getting started: build and run from source": the prerequisites, `pnpm install`, `pnpm dev`, `pnpm build`), `docs/runbooks/SETUP.md`, `CLAUDE.md` (commands). The OpenSSF scanner looks for a build heading in the README, and found none under the old title "Quick start". |
 
 ## Governance (GV)
 
@@ -67,7 +69,7 @@ Where the project stands against each control of the OpenSSF Open Source Project
 |---|---|---|---|
 | `OSPS-GV-01.01` List of members with access to sensitive resources | 2 | Partly | `.github/GOVERNANCE.md` names the roles and says two owners hold admin on GitHub, Vercel and Supabase; the names are not in the repository because it is public. The list is the collaborators page and each provider's members. |
 | `OSPS-GV-01.02` Roles and responsibilities | 2 | Met | `.github/GOVERNANCE.md`, "Roles". |
-| `OSPS-GV-02.01` Public discussion of changes and obstacles | 1 | N/A | Proprietary project that takes no outside contributions, so changes are not discussed publicly the way an open source project's are. Issues and pull requests are readable on GitHub, but that is transparency, not a discussion mechanism. |
+| `OSPS-GV-02.01` Public discussion of changes and obstacles | 1 | Met | The issue tracker is enabled (live) and is the documented public place for bug reports and questions (`.github/CONTRIBUTING.md`, `.github/SUPPORT.md`); the control's own recommendation lists an issue tracker as a mechanism. Outside changes are not accepted, so nothing is proposed from outside. (Earlier read as N/A; the OpenSSF scanner passes it on the enabled tracker.) |
 | `OSPS-GV-03.01` Contribution process, or a statement that none is accepted | 1 | Met | `.github/CONTRIBUTING.md` says outside code is not accepted for now. |
 | `OSPS-GV-03.02` Guide for code contributors | 2 | Met | `.github/CONTRIBUTING.md`, "For people on the team", and `.claude/rules/`. |
 | `OSPS-GV-04.01` Collaborators are reviewed before getting elevated access | 3 | Met | `.github/GOVERNANCE.md`, "Access". |
@@ -90,7 +92,7 @@ Where the project stands against each control of the OpenSSF Open Source Project
 | `OSPS-QA-01.02` Public record of who changed what and when | 1 | Met | Git history, pull requests, squash merges. |
 | `OSPS-QA-02.01` A list of direct dependencies | 1 | Met | `package.json` and `pnpm-lock.yaml`. |
 | `OSPS-QA-02.02` Compiled release assets ship with an SBOM | 3 | N/A | No release assets. |
-| `OSPS-QA-03.01` Status checks must pass on the primary branch | 2 | Met | The `main` ruleset requires `Test (unit)`, `Test (db) & build`, `Coverage report`, `Check migrations`, `Code quality gate`, `CodeQL` and `OSV diff / osv-scan` (`config/github.yml`; the last takes effect once the ruleset is pushed). An admin can override a PR by hand. |
+| `OSPS-QA-03.01` Status checks must pass on the primary branch | 2 | Partly | The `main` ruleset requires `Test (unit)`, `Test (db) & build`, `Coverage report`, `Check migrations`, `Code quality gate`, `CodeQL` and `OSV diff / osv-scan` (`config/github.yml`; live ruleset read 2026-11-23 has the same seven, with no bypass actors). Several checks that run on every pull request are not required, so one can fail without blocking a merge: the `Analyze` jobs (CodeQL reports through the required `CodeQL` check), `Detect docs-only change`, `Code quality report` (the `Code quality gate` is the required one), `auto-merge` and the screenshot cleanup. The control wants every automated check to pass or be acknowledged, and the OpenSSF scanner (v0.33.2) fails it on exactly these. Making them required is in `docs/TODO.md`, "OSPS Baseline: what is left". |
 | `OSPS-QA-04.01` Multiple repositories are listed | 1 | N/A | One repository. |
 | `OSPS-QA-04.02` Subprojects as strict as the primary | 3 | N/A | One repository. |
 | `OSPS-QA-05.01` No generated executables in version control | 1 | Met | `git ls-files` lists no executable or library binaries (checked 2026-11-23). |
