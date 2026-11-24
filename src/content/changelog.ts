@@ -62,6 +62,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "lesson-comments-mentions",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: @-mentions, with their own notification kind",
+    summary: "A comment can mention a member of the course or an instructor, who is told through the notifier. Still behind the lesson comments flag, and the notification starts in dry run.",
+    body: `The second half of the polish phase for lesson comments.
+
+- **A mention is a token in plain text.** The stored comment holds \`@[mbr_...]\`; the thread resolves it to the member's current display name at render, as chat does for Slack mentions, and only for members who can still open the course. The composer lists people through the shared combobox hook (\`useComboboxKeys\`) and turns the picked names into tokens on send (\`namesToTokens\`); a name typed by hand mentions no one.
+- **The server decides who can be mentioned.** \`mentionError\` refuses more than five people or anyone who can't open the lesson's course. It uses the same reader rule as the senders (\`comment-readers.ts\`), so what a member sees and who gets told agree.
+- **One new kind, \`lesson_comment_mention\`,** with a sample message, an email template and a link to the exact comment. It goes through \`notifyLessonComment\` with the replies, claimed per member and comment, in dry run until the \`lesson_comment_notifications\` flag is on for someone. It never carries the comment's text.
+
+Detail: "Phase 4, as built" in \`docs/product/COURSES.md\`.`,
+  },
+  {
     slug: "lesson-comments-polish",
     date: "2026-11-24",
     audience: "engineering",

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow } from "@/app/(member)/courses/comment-actions";
+import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow, suggestCommentMentions } from "@/app/(member)/courses/comment-actions";
 import { track } from "@/lib/analytics/client";
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket, involvesInstructor } from "@/lib/courses/comments";
-import { fullDate, richParts, relativeAgo, spokenTimestamp } from "@/lib/courses/comment-text";
+import { fullDate, mentionIds, namesToTokens, richParts, relativeAgo, spokenTimestamp, tokensToNames, type PickedMention } from "@/lib/courses/comment-text";
+import type { MentionChoice } from "@/lib/courses/comment-mentions";
+import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 import { usePlayerSeek } from "@/components/courses/PlayerTime";
 import type { ThreadComment, ThreadEntry } from "@/lib/data/course-comments";
 import Tooltip from "@/components/Tooltip";
@@ -34,6 +36,8 @@ interface Props {
   readOnly: boolean;
   /** The lesson has a video that is ready, so a typed timestamp (2:35) is a button that moves it. */
   canSeek?: boolean;
+  /** Display names of the people mentioned in the thread's comments (id to name); a mention not in it reads "@someone". */
+  mentionNames?: Record<string, string>;
   /** The viewer's IANA time zone. */
   timeZone: string;
   /** When the page was made, in milliseconds: relative dates and the edit window are measured from it so server and browser agree. */
@@ -60,24 +64,92 @@ interface ComposerProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   /** Cleared by the parent after a successful post (it changes `resetKey`). */
   resetKey?: number;
+  /** Typing `@name` offers the people in this lesson's course; absent, `@` is just a character. */
+  lessonId?: string;
+  /** Names for the mentions already in `initial`. */
+  mentionNames?: Record<string, string>;
 }
 
-function Composer({ label, submitLabel, initial = "", disabled, disabledReason, busy, error, autoFocus, onSubmit, onCancel, textareaRef, resetKey }: ComposerProps) {
+const NO_NAMES: Record<string, string> = {};
+
+/** The `@name` being typed just before the caret: where it starts and what follows the `@`. */
+function mentionTrigger(value: string, caret: number): { start: number; query: string } | null {
+  const match = /(?:^|[\s(])@([^\s@[\]][^@[\]\n]{0,39})$/.exec(value.slice(0, caret));
+  return match ? { start: caret - match[1].length - 1, query: match[1] } : null;
+}
+
+function Composer({ label, submitLabel, initial = "", disabled, disabledReason, busy, error, autoFocus, onSubmit, onCancel, textareaRef, resetKey, lessonId, mentionNames }: ComposerProps) {
   const id = useId();
-  const [text, setText] = useState(initial);
-  const length = text.trim().length;
+  const seed = useMemo(() => tokensToNames(initial, mentionNames ?? NO_NAMES), [initial, mentionNames]);
+  const [text, setText] = useState(seed.text);
+  // The people picked from the list: `@Name` in the box stands for them, and becomes their token when the comment is sent.
+  const [picked, setPicked] = useState<PickedMention[]>(seed.picked);
+  const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
+  const [choices, setChoices] = useState<MentionChoice[]>([]);
+  const open = Boolean(trigger) && choices.length > 0;
+  const length = namesToTokens(text, picked).trim().length;
   const over = length > COMMENT_MAX_LENGTH;
   const near = length >= COMMENT_MAX_LENGTH - 200;
 
   useEffect(() => {
-    if (resetKey !== undefined) setText(initial);
-  }, [resetKey, initial]);
+    if (resetKey === undefined) return;
+    setText(seed.text);
+    setPicked(seed.picked);
+    // Only when the parent asks (after a post): a refresh that brings new names must not wipe what is being typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  // What is typed after the `@` is looked up a moment after the last key, and only the latest answer is kept.
+  const query = trigger?.query;
+  useEffect(() => {
+    if (!lessonId || !query) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      suggestCommentMentions(lessonId, query)
+        .then((found) => current && setChoices(found))
+        .catch(() => current && setChoices([]));
+    }, 150);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [lessonId, query]);
+
+  function pick(index: number) {
+    const choice = choices[index];
+    if (!choice || !trigger) return;
+    const end = trigger.start + 1 + trigger.query.length;
+    const inserted = `@${choice.name} `;
+    setText(text.slice(0, trigger.start) + inserted + text.slice(end));
+    setPicked((previous) => [...previous, { memberId: choice.memberId, name: choice.name }]);
+    setTrigger(null);
+    setChoices([]);
+    const caret = trigger.start + inserted.length;
+    setTimeout(() => {
+      const box = document.getElementById(id) as HTMLTextAreaElement | null;
+      box?.focus();
+      box?.setSelectionRange(caret, caret);
+    }, 0);
+  }
+
+  const combo = useComboboxKeys({
+    count: open ? choices.length : 0,
+    options: choices,
+    onPick: pick,
+    onEscape: () => {
+      if (!trigger) return false;
+      setTrigger(null);
+      return true;
+    },
+    preselect: true,
+    pickOnTab: true,
+  });
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (!disabled && !busy) onSubmit(text);
+        if (!disabled && !busy) onSubmit(namesToTokens(text, picked));
       }}
     >
       <label htmlFor={id} className="block text-sm font-medium">
@@ -87,7 +159,11 @@ function Composer({ label, submitLabel, initial = "", disabled, disabledReason, 
         id={id}
         ref={textareaRef}
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+          setTrigger(lessonId && !disabled ? mentionTrigger(event.target.value, event.target.selectionStart) : null);
+        }}
+        {...(lessonId ? combo.inputProps(open) : {})}
         rows={3}
         disabled={disabled}
         autoFocus={autoFocus}
@@ -96,6 +172,24 @@ function Composer({ label, submitLabel, initial = "", disabled, disabledReason, 
         placeholder={disabled ? disabledReason : undefined}
         className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:disabled:bg-slate-800"
       />
+      {open && (
+        <ul {...combo.listboxProps} aria-label="People you can mention" className="mt-1 max-h-48 overflow-auto rounded-lg border border-slate-300 bg-white p-1 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-950">
+          {choices.map((choice, index) => (
+            <li
+              key={choice.memberId}
+              {...combo.optionProps(index)}
+              onClick={() => pick(index)}
+              className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 ${index === combo.activeIndex ? "bg-plum-100 dark:bg-plum-900" : ""}`}
+            >
+              <span>{choice.name}</span>
+              {choice.isInstructor && <span className="rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900 dark:text-plum-100">Instructor</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="sr-only" aria-live="polite">
+        {open ? `${choices.length} ${choices.length === 1 ? "person" : "people"} to mention. Use the up and down arrow keys, then Enter.` : ""}
+      </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <p id={`${id}-count`} aria-live="polite" className={`text-xs ${over ? "text-red-700 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}`}>
           {/* Said only near the limit, so a screen reader isn't told the count at every keystroke. */}
@@ -119,7 +213,7 @@ function Composer({ label, submitLabel, initial = "", disabled, disabledReason, 
   );
 }
 
-function Body({ text, onSeek }: { text: string; onSeek?: (seconds: number) => void }) {
+function Body({ text, onSeek, mentionNames }: { text: string; onSeek?: (seconds: number) => void; mentionNames?: Record<string, string> }) {
   return (
     <p className="mt-1 whitespace-pre-wrap break-words text-sm">
       {richParts(text).map((part, index) => {
@@ -128,6 +222,13 @@ function Body({ text, onSeek }: { text: string; onSeek?: (seconds: number) => vo
             <a key={index} href={part.value} rel="nofollow noopener noreferrer" target="_blank" className="text-plum-700 underline dark:text-plum-300">
               {part.value}
             </a>
+          );
+        }
+        if (part.type === "mention") {
+          return (
+            <span key={index} className="font-medium text-plum-700 dark:text-plum-300">
+              @{mentionNames?.[part.memberId] ?? "someone"}
+            </span>
           );
         }
         if (part.type === "time" && onSeek) {
@@ -290,10 +391,10 @@ function CommentItem({ comment, isReply, props, onReply, onChanged, onSeek }: It
 
       {editing ? (
         <div className="mt-2">
-          <Composer label="Edit your comment" submitLabel="Save" initial={comment.body ?? ""} busy={pending} error={error} autoFocus onSubmit={save} onCancel={() => setEditing(false)} />
+          <Composer label="Edit your comment" submitLabel="Save" initial={comment.body ?? ""} lessonId={props.lessonId} mentionNames={props.mentionNames} busy={pending} error={error} autoFocus onSubmit={save} onCancel={() => setEditing(false)} />
         </div>
       ) : (
-        <Body text={comment.body ?? ""} onSeek={onSeek} />
+        <Body text={comment.body ?? ""} onSeek={onSeek} mentionNames={props.mentionNames} />
       )}
 
       {!editing && (
@@ -402,7 +503,7 @@ export default function CommentThread(props: Props) {
     startTransition(async () => {
       const result = await postLessonComment(props.lessonId, text, parentId);
       if (result.error) return setFailure(result.error);
-      track("lesson_comment_posted", { course_id: props.courseId, is_reply: parentId !== null, is_staff: props.isStaff });
+      track("lesson_comment_posted", { course_id: props.courseId, is_reply: parentId !== null, is_staff: props.isStaff, has_mention: mentionIds(text).length > 0 });
       setAnnouncement(result.held ? "Posted. It will show to others once staff have looked at it." : parentId ? "Reply posted" : "Comment posted");
       setResetKey((key) => key + 1);
       setReplyingTo(null);
@@ -423,6 +524,8 @@ export default function CommentThread(props: Props) {
         <Composer
           label="Your reply"
           submitLabel="Reply"
+          lessonId={props.lessonId}
+          mentionNames={props.mentionNames}
           busy={pending}
           error={replyError}
           autoFocus
@@ -463,6 +566,8 @@ export default function CommentThread(props: Props) {
         <Composer
           label="Ask a question or leave a comment"
           submitLabel="Post comment"
+          lessonId={props.lessonId}
+          mentionNames={props.mentionNames}
           disabled={props.readOnly}
           disabledReason="Read-only while previewing"
           busy={pending && replyingTo === null}

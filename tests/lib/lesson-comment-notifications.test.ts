@@ -21,6 +21,7 @@ const {
   activityMessage,
   lessonCommentRef,
   lessonCommentUrl,
+  mentionMessage,
   moderationMessage,
   notifyLessonComment,
   orgDay,
@@ -248,6 +249,85 @@ describe("notifyLessonComment (replies)", () => {
     vi.spyOn(repos.courseComments, "byId").mockRejectedValue(new Error("db down"));
     await expect(notifyLessonComment(repos, "cmnt_AAAAAAAAAAA1")).resolves.toEqual({ sent: [], dryRun: [] });
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe("mentions", () => {
+  const token = (id: string) => `@[${id}]`;
+
+  it("words a mention with who and where, a link to the comment, no text, and Slack escaped", () => {
+    const url = lessonCommentUrl({ courseSlug: "story-basics", lessonId: LESSON }, "cmnt_AAAAAAAAAAA7");
+    const message = mentionMessage({ authorName: "Bea & <Co>", lessonTitle: "Scene & <one>", url, lessonId: LESSON });
+    expect(message.text).toBe("Bea & <Co> mentioned you in a comment on “Scene & <one>”.");
+    expect(message.url).toBe(url);
+    expect(message.ref).toBe(lessonCommentRef(LESSON));
+    expect(message.slackBlocks![0].text.text as string).toContain("Bea &amp; &lt;Co&gt; mentioned you in a comment on “Scene &amp; &lt;one&gt;”.");
+  });
+
+  it("tells a mentioned member about a top-level comment, once, without the text", async () => {
+    const comment = await post(ASKER, `Hello ${token(FOLLOWER)}, a secret question`);
+
+    const result = await notifyLessonComment(repos, comment.id);
+
+    expect(result.sent).toEqual([{ memberId: FOLLOWER, kind: "lesson_comment_mention", channels: ["in_app"] }]);
+    expect(notifications(FOLLOWER)).toEqual([
+      expect.objectContaining({ kind: "lesson_comment_mention", text: "Ada Example mentioned you in a comment on “Writing & <your> first scene”." }),
+    ]);
+    expect(notifications(FOLLOWER)[0].url).toContain(`?comment=${comment.id}`);
+    expect(JSON.stringify(dataset.inAppNotifications)).not.toContain("secret question");
+    expect((await notifyLessonComment(repos, comment.id)).sent).toEqual([]);
+    expect(notifications(FOLLOWER)).toHaveLength(1);
+  });
+
+  it("does not tell the author who mentions themselves, a member whose access ended, or anyone about a held comment", async () => {
+    const own = await post(ASKER, `Note to self ${token(ASKER)}`);
+    const ended = await post(ASKER, `Hi ${token(ENDED)}`);
+    const held = await post(ASKER, `Hi ${token(FOLLOWER)}`, null, { held: true });
+
+    for (const id of [own.id, ended.id, held.id]) expect((await notifyLessonComment(repos, id)).sent).toEqual([]);
+    expect(dataset.inAppNotifications).toEqual([]);
+    // Once staff release the held comment, the mention goes out.
+    await repos.courseComments.moderate(held.id, "approve", STAFF);
+    expect((await notifyLessonComment(repos, held.id)).sent).toHaveLength(1);
+  });
+
+  it("tells staff when they are mentioned, and a mention in a reply reaches the one replied to only once", async () => {
+    const question = await post(ASKER, "A question");
+    const reply = await post(REPLIER, `${token(ASKER)} and ${token(STAFF)} and ${token(FOLLOWER)}`, question.id);
+
+    const result = await notifyLessonComment(repos, reply.id);
+
+    expect(result.sent.map((s) => [s.memberId, s.kind]).sort()).toEqual([
+      [ASKER, "lesson_comment_reply"],
+      [FOLLOWER, "lesson_comment_mention"],
+      [STAFF, "lesson_comment_mention"],
+    ]);
+  });
+
+  it("on an edit sends just the new mentions, and not the reply again", async () => {
+    const question = await post(ASKER, "A question");
+    const reply = await post(REPLIER, "A reply", question.id);
+    await notifyLessonComment(repos, reply.id);
+    await repos.courseComments.edit(reply.id, `A reply for ${token(FOLLOWER)} and ${token(ASKER)}`, new Date(NOW).toISOString());
+
+    const result = await notifyLessonComment(repos, reply.id, new Date(NOW), "mentions");
+
+    expect(result.sent.map((s) => [s.memberId, s.kind])).toEqual([[FOLLOWER, "lesson_comment_mention"]]);
+    expect(notifications(ASKER)).toHaveLength(1);
+  });
+
+  it("only logs while the flag is off, with the message and no text", async () => {
+    world({ flagOn: false });
+    const comment = await post(ASKER, `Hi ${token(FOLLOWER)} private words`);
+
+    const result = await notifyLessonComment(repos, comment.id);
+
+    expect(result).toEqual({ sent: [], dryRun: [{ memberId: FOLLOWER, kind: "lesson_comment_mention" }] });
+    expect(dataset.inAppNotifications).toEqual([]);
+    expect(dataset.notificationLog).toEqual([]);
+    const logged = vi.mocked(console.info).mock.calls.flat().map(String).join(" ");
+    expect(logged).toContain("lesson_comment_mention");
+    expect(logged).not.toContain("private words");
   });
 });
 

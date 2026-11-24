@@ -148,6 +148,14 @@ export const NOTIFICATION_KINDS = [
     feature: "lesson_comments",
   },
   {
+    id: "lesson_comment_mention",
+    category: "Courses",
+    label: "Mentions in lesson comments",
+    description: "Sent when someone mentions you with @ in a comment under a lesson of a course you are in. The message links to the comment; it doesn't repeat what was written.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
     id: "lesson_comment_activity",
     category: "Courses",
     label: "New comments on lessons you follow",

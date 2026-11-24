@@ -7,7 +7,8 @@ import { membersWithFeature } from "@/lib/features.server";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createNotifier } from "@/lib/notifications/notify";
 import type { NotificationKindId } from "@/lib/notifications/registry";
-import { canOpenLessons, resolveCourseAccess } from "@/lib/courses/member";
+import { readersOf } from "@/lib/courses/comment-readers";
+import { mentionIds } from "@/lib/courses/comment-text";
 
 /**
  * Lesson comment notifications (docs/product/COURSES.md, "Lesson comments", "Notifications"). Every send goes through createNotifier,
@@ -16,6 +17,7 @@ import { canOpenLessons, resolveCourseAccess } from "@/lib/courses/member";
  *
  *  - `lesson_comment_reply`: someone replied to your comment (immediate).
  *  - `lesson_comment_instructor_reply`: an instructor replied to you, or in a thread you follow (immediate).
+ *  - `lesson_comment_mention`: someone mentioned you in a comment (immediate).
  *  - `lesson_comment_activity`: a daily digest of new comments on the lessons you follow (the cron route).
  *  - `lesson_comment_moderation`: a daily note to staff while reported or held comments wait (the cron route).
  *
@@ -66,6 +68,20 @@ export function replyMessage(
   const linkLabel = "Read the reply";
   return {
     title,
+    text,
+    url,
+    linkLabel,
+    slackBlocks: [{ type: "section", text: { type: "mrkdwn", text: `${escapeSlack(text)}\n<${url}|${linkLabel}>` } }],
+    ref: lessonCommentRef(lessonId),
+  };
+}
+
+/** The message for a mention: who, which lesson, a link to the comment. Never the comment's text. */
+export function mentionMessage({ authorName, lessonTitle, url, lessonId }: { authorName: string; lessonTitle: string; url: string; lessonId: string }): OutboundMessage {
+  const text = `${authorName} mentioned you in a comment on “${lessonTitle}”.`;
+  const linkLabel = "Read the comment";
+  return {
+    title: "You were mentioned in a comment",
     text,
     url,
     linkLabel,
@@ -172,32 +188,6 @@ async function deliver(repos: Repos, kind: NotificationKindId, deliveries: Deliv
 
 const merge = (a: CommentNotifyResult, b: CommentNotifyResult): CommentNotifyResult => ({ sent: [...a.sent, ...b.sent], dryRun: [...a.dryRun, ...b.dryRun] });
 
-/**
- * Of these members, who can open each course's lessons now: current access, or staff (who open every course). Ended or upcoming
- * access means no notification: the comments are closed to them. One read of the courses' access rows, however many members.
- */
-async function readersOf(repos: Repos, courseIds: string[], memberIds: string[], now: Date): Promise<Map<string, Set<string>>> {
-  const wanted = new Set(memberIds);
-  const [rows, staff] = await Promise.all([repos.courseProgress.accessOfCourses(courseIds), staffAmong(repos, memberIds)]);
-  const readers = new Map<string, Set<string>>(courseIds.map((id) => [id, new Set<string>(staff)]));
-  for (const row of rows) {
-    if (!wanted.has(row.member_id)) continue;
-    if (canOpenLessons(resolveCourseAccess(row, false, now))) readers.get(row.course_id)?.add(row.member_id);
-  }
-  return readers;
-}
-
-/** The admins among these members. */
-async function staffAmong(repos: Repos, memberIds: string[]): Promise<string[]> {
-  if (memberIds.length === 0) return [];
-  const [adminUserIds, userIds] = await Promise.all([repos.profiles.adminIds(), repos.members.userIdsByMemberId(memberIds)]);
-  const admins = new Set(adminUserIds);
-  return memberIds.filter((id) => {
-    const userId = userIds.get(id);
-    return Boolean(userId && admins.has(userId));
-  });
-}
-
 /** Every admin's member id: who the moderation note goes to. */
 export async function staffRecipients(repos: Repos): Promise<string[]> {
   const userIds = await repos.profiles.adminIds();
@@ -205,68 +195,83 @@ export async function staffRecipients(repos: Repos): Promise<string[]> {
 }
 
 /**
- * A reply was posted (or released by staff): tells the author of the comment it answers and, for an instructor's reply, the
- * members following the lesson. Top-level comments notify no one here (they reach followers in the daily digest and staff in the
- * queue). Never throws: a notification must not fail the post. The claim is the comment id, so a repeat (staff approving a held
- * reply that was already sent) sends nothing twice. `repos` must be on a service-role client.
+ * A comment was posted (or released by staff): a reply tells the author of the comment it answers and, for an instructor's reply,
+ * the members following the lesson; anyone the comment mentions is told too (and not twice when they are also the reply's
+ * recipient). With `only: "mentions"` (an edit) just the mentions go. A top-level comment tells no one else here (it reaches
+ * followers in the daily digest and staff in the queue). Never throws: a notification must not fail the post. The claim is the
+ * comment id, so a repeat (staff approving a held reply that was already sent, an edit) sends nothing twice. `repos` must be on a
+ * service-role client.
  */
-export async function notifyLessonComment(repos: Repos, commentId: string, now = new Date(clock.now())): Promise<CommentNotifyResult> {
+export async function notifyLessonComment(repos: Repos, commentId: string, now = new Date(clock.now()), only?: "mentions"): Promise<CommentNotifyResult> {
   try {
-    return await notifyLessonCommentUnsafe(repos, commentId, now);
+    return await notifyLessonCommentUnsafe(repos, commentId, now, only);
   } catch (error) {
     console.error("[lesson-comment-notifications] failed for comment %s:", commentId, error instanceof Error ? error.message : error);
     return emptyResult();
   }
 }
 
-async function notifyLessonCommentUnsafe(repos: Repos, commentId: string, now: Date): Promise<CommentNotifyResult> {
+async function notifyLessonCommentUnsafe(repos: Repos, commentId: string, now: Date, only?: "mentions"): Promise<CommentNotifyResult> {
   const comment = await repos.courseComments.byId(commentId);
-  if (!comment || !comment.parentId || comment.deletedAt || comment.hiddenAt || comment.heldAt) return emptyResult();
+  if (!comment || comment.deletedAt || comment.hiddenAt || comment.heldAt) return emptyResult();
+  const mentioned = mentionIds(comment.body).filter((id) => id !== comment.memberId);
+  if (!comment.parentId && mentioned.length === 0) return emptyResult();
   const [parent, lessons, authors] = await Promise.all([
-    repos.courseComments.byId(comment.parentId),
+    comment.parentId ? repos.courseComments.byId(comment.parentId) : Promise.resolve(null),
     repos.courseComments.lessonInfo([comment.lessonId]),
     repos.members.byIds([comment.memberId]),
   ]);
   const lesson = lessons.get(comment.lessonId);
-  if (!parent || !lesson) return emptyResult();
+  if (!lesson || (comment.parentId && !parent)) return emptyResult();
   const authorName = authors[0] ? getMemberDisplayName({ name: authors[0].name, display_name: authors[0].displayName }) : "Someone";
 
   const targets = new Map<string, { kind: ReplyKind; why: string; audience: ReplyAudience }>();
-  if (parent.memberId !== comment.memberId && !parent.deletedAt && !parent.hiddenAt) {
-    targets.set(parent.memberId, {
-      kind: comment.isStaffReply ? "lesson_comment_instructor_reply" : "lesson_comment_reply",
-      why: comment.isStaffReply ? "an instructor replied to their comment" : "someone replied to their comment",
-      audience: "author",
-    });
-  }
-  if (comment.isStaffReply) {
-    const followers = (await repos.courseComments.followers([comment.lessonId])).get(comment.lessonId) ?? [];
-    for (const follower of followers) {
-      if (follower !== comment.memberId && !targets.has(follower)) {
-        targets.set(follower, { kind: "lesson_comment_instructor_reply", why: "an instructor replied in a thread they follow", audience: "follower" });
+  if (parent && only !== "mentions") {
+    if (parent.memberId !== comment.memberId && !parent.deletedAt && !parent.hiddenAt) {
+      targets.set(parent.memberId, {
+        kind: comment.isStaffReply ? "lesson_comment_instructor_reply" : "lesson_comment_reply",
+        why: comment.isStaffReply ? "an instructor replied to their comment" : "someone replied to their comment",
+        audience: "author",
+      });
+    }
+    if (comment.isStaffReply) {
+      const followers = (await repos.courseComments.followers([comment.lessonId])).get(comment.lessonId) ?? [];
+      for (const follower of followers) {
+        if (follower !== comment.memberId && !targets.has(follower)) {
+          targets.set(follower, { kind: "lesson_comment_instructor_reply", why: "an instructor replied in a thread they follow", audience: "follower" });
+        }
       }
     }
   }
-  if (targets.size === 0) return emptyResult();
+  // Someone this comment already reaches as a reply is not told twice; an edit leaves the reply's author to the reply.
+  const mentionTargets = mentioned.filter((id) => !targets.has(id) && id !== parent?.memberId);
+  if (targets.size === 0 && mentionTargets.length === 0) return emptyResult();
 
-  const ids = [...targets.keys()];
+  const ids = [...new Set([...targets.keys(), ...mentionTargets])];
   const [readers, live] = await Promise.all([readersOf(repos, [lesson.courseId], ids, now), membersWithFeature(repos, LESSON_COMMENT_NOTIFICATIONS_FEATURE, ids)]);
   const url = lessonCommentUrl(lesson, comment.id);
-  const deliveries = ids
-    .filter((id) => readers.get(lesson.courseId)?.has(id))
-    .map((memberId) => {
-      const target = targets.get(memberId)!;
-      return {
+  const canOpen = (memberId: string) => Boolean(readers.get(lesson.courseId)?.has(memberId));
+  const deliveries: Delivery[] = [
+    ...[...targets.entries()]
+      .filter(([memberId]) => canOpen(memberId))
+      .map(([memberId, target]) => ({
         memberId,
         kind: target.kind,
         dedupKey: comment.id,
         why: target.why,
         message: replyMessage(target.kind, { authorName, lessonTitle: lesson.title, url, lessonId: lesson.lessonId, audience: target.audience }),
-      } satisfies Delivery;
-    });
+      })),
+    ...mentionTargets.filter(canOpen).map((memberId) => ({
+      memberId,
+      kind: "lesson_comment_mention" as const,
+      dedupKey: comment.id,
+      why: "someone mentioned them in a comment",
+      message: mentionMessage({ authorName, lessonTitle: lesson.title, url, lessonId: lesson.lessonId }),
+    })),
+  ];
 
   let result = emptyResult();
-  for (const kind of ["lesson_comment_reply", "lesson_comment_instructor_reply"] as const) {
+  for (const kind of ["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_mention"] as const) {
     result = merge(result, await deliver(repos, kind, deliveries.filter((d) => d.kind === kind), live, now));
   }
   return result;

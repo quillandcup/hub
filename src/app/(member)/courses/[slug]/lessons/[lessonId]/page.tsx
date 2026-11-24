@@ -30,6 +30,7 @@ import { createRepos } from "@/lib/data/repos";
 import CommentThread from "@/components/courses/CommentThread";
 import { resolveLessonCommentNotifications } from "@/lib/courses/comment-notifications";
 import { countUnread } from "@/lib/courses/comments";
+import { mentionNames } from "@/lib/courses/comment-mentions";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { isValidTimeZone } from "@/lib/time-zone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -169,6 +170,7 @@ export default async function LessonPage({
         isStaff={caller.scope.isAdminActing}
         readOnly={caller.identity.isSudo}
         canSeek={video?.status === "ready" && Boolean(video.playbackId)}
+        mentionNames={await mentionNames(repos, view.course.id, thread.entries)}
         timeZone={isValidTimeZone(timezonePreference) ? timezonePreference : ORG_TIMEZONE}
         nowMs={clock.now()}
       />

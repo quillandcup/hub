@@ -12,7 +12,7 @@ import { digestMessage } from "@/lib/changelog/digest";
 import { bookVisibilityNoticeMessage } from "@/lib/book-visibility-notice";
 import { listProductChangelog } from "@/lib/changelog";
 import type { NotificationKindId } from "@/lib/notifications/registry";
-import { activityMessage, lessonCommentUrl, moderationMessage, replyMessage } from "@/lib/courses/comment-notifications";
+import { activityMessage, lessonCommentUrl, mentionMessage, moderationMessage, replyMessage } from "@/lib/courses/comment-notifications";
 import type { LessonInfo } from "@/lib/data/course-comments";
 
 type TestSendRepos = Repos;
@@ -119,6 +119,19 @@ export async function sampleMessages(
         mark(
           replyMessage(kind, {
             authorName: kind === "lesson_comment_reply" ? "Marlow" : "Linden",
+            lessonTitle: sample?.info.title ?? "Writing your first scene",
+            url: sample ? lessonCommentUrl(sample.info, sample.commentId) : `${APP_URL}/courses`,
+            lessonId: sample?.info.lessonId ?? "sample",
+          }),
+        ),
+      ];
+    }
+    case "lesson_comment_mention": {
+      const sample = await sampleLessonComment(repos, now);
+      return [
+        mark(
+          mentionMessage({
+            authorName: "Marlow",
             lessonTitle: sample?.info.title ?? "Writing your first scene",
             url: sample ? lessonCommentUrl(sample.info, sample.commentId) : `${APP_URL}/courses`,
             lessonId: sample?.info.lessonId ?? "sample",
