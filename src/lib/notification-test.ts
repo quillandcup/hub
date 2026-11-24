@@ -12,7 +12,8 @@ import { digestMessage } from "@/lib/changelog/digest";
 import { bookVisibilityNoticeMessage } from "@/lib/book-visibility-notice";
 import { listProductChangelog } from "@/lib/changelog";
 import type { NotificationKindId } from "@/lib/notifications/registry";
-import { activityMessage, moderationMessage, replyMessage } from "@/lib/courses/comment-notifications";
+import { activityMessage, lessonCommentUrl, moderationMessage, replyMessage } from "@/lib/courses/comment-notifications";
+import type { LessonInfo } from "@/lib/data/course-comments";
 
 type TestSendRepos = Repos;
 
@@ -42,6 +43,28 @@ async function samplePrickle(repos: TestSendRepos, now: Date) {
   const prickle = await repos.prickles.nextOrMostRecent(now.toISOString());
   if (prickle?.type?.name) return { id: prickle.id, typeName: prickle.type.name, startTime: prickle.startTime, endTime: prickle.endTime };
   return { id: "sample", typeName: "Sprint Prickle", startTime: now.toISOString(), endTime: new Date(now.getTime() + 60 * 60 * 1000).toISOString() };
+}
+
+const SAMPLE_COMMENT_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
+/**
+ * What the lesson comment samples point at, so a test message opens something real: a published course's open lesson (the one
+ * with the latest reply, else the latest comment, else the first lesson) and that comment's id when there is one. Null when no
+ * published course has a lesson; the samples then fall back to the course list. Ids shown are the comment's (Tier 1) and the lesson's.
+ */
+async function sampleLessonComment(repos: TestSendRepos, now: Date): Promise<{ info: LessonInfo; commentId?: string } | null> {
+  const courses = await repos.courses.courses({ isDraft: false });
+  if (courses.length === 0) return null;
+  const lessons = await repos.courses.lessonsOf(courses.map((c) => c.id));
+  if (lessons.length === 0) return null;
+  const lessonIds = new Set(lessons.map((l) => l.id));
+  const activity = (await repos.courseComments.activityBetween(new Date(now.getTime() - SAMPLE_COMMENT_WINDOW_MS).toISOString(), now.toISOString()))
+    .filter((c) => lessonIds.has(c.lessonId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const comment = activity.find((c) => c.parentId) ?? activity[0];
+  const lessonId = comment?.lessonId ?? lessons[0].id;
+  const info = (await repos.courseComments.lessonInfo([lessonId])).get(lessonId);
+  return info ? { info, commentId: comment?.id } : null;
 }
 
 const marked = (message: OutboundMessage): OutboundMessage => ({
@@ -87,15 +110,48 @@ export async function sampleMessages(
       return [mark(chatNotificationMessage("chat_mention", { authorName: "Marlow", channelKind: "channel", channelName: "writing-sprints", channelId: null, threadRootId: null }))];
     case "chat_channel_message":
       return [mark(chatNotificationMessage("chat_channel_message", { authorName: "Marlow", channelKind: "channel", channelName: "writing-sprints", channelId: null, threadRootId: null }))];
-    // Lesson comment samples link to the courses list: there is no real comment to point at.
+    // Lesson comment samples link to a real lesson (and its latest comment) with the same builders the senders use; without a
+    // published lesson they fall back to the course list and a stand-in review link.
     case "lesson_comment_reply":
-      return [mark(replyMessage("lesson_comment_reply", { authorName: "Marlow", lessonTitle: "Writing your first scene", url: `${APP_URL}/courses`, lessonId: "sample" }))];
-    case "lesson_comment_instructor_reply":
-      return [mark(replyMessage("lesson_comment_instructor_reply", { authorName: "Linden", lessonTitle: "Writing your first scene", url: `${APP_URL}/courses`, lessonId: "sample" }))];
-    case "lesson_comment_activity":
-      return [mark(activityMessage([{ lessonId: "sample", title: "Writing your first scene", url: `${APP_URL}/courses`, count: 3 }]))];
-    case "lesson_comment_moderation":
-      return [mark(moderationMessage([{ courseId: "sample", courseTitle: "Story Basics", reported: 1, held: 2 }]))];
+    case "lesson_comment_instructor_reply": {
+      const sample = await sampleLessonComment(repos, now);
+      return [
+        mark(
+          replyMessage(kind, {
+            authorName: kind === "lesson_comment_reply" ? "Marlow" : "Linden",
+            lessonTitle: sample?.info.title ?? "Writing your first scene",
+            url: sample ? lessonCommentUrl(sample.info, sample.commentId) : `${APP_URL}/courses`,
+            lessonId: sample?.info.lessonId ?? "sample",
+          }),
+        ),
+      ];
+    }
+    case "lesson_comment_activity": {
+      const sample = await sampleLessonComment(repos, now);
+      return [
+        mark(
+          activityMessage([
+            {
+              lessonId: sample?.info.lessonId ?? "sample",
+              title: sample?.info.title ?? "Writing your first scene",
+              url: sample ? lessonCommentUrl(sample.info) : `${APP_URL}/courses`,
+              count: 3,
+            },
+          ]),
+        ),
+      ];
+    }
+    case "lesson_comment_moderation": {
+      const sample = await sampleLessonComment(repos, now);
+      // Two stand-in courses make the note link to the course list (a real page) when there is no real course to review.
+      const backlog = sample
+        ? [{ courseId: sample.info.courseId, courseTitle: sample.info.courseTitle, reported: 1, held: 2 }]
+        : [
+            { courseId: "sample", courseTitle: "Story Basics", reported: 1, held: 1 },
+            { courseId: "sample-2", courseTitle: "Revision Basics", reported: 0, held: 1 },
+          ];
+      return [mark(moderationMessage(backlog))];
+    }
     case "big_sister_match":
       return [mark(bigSisterMessageForNewMember("Marlow", "sample")), mark(bigSisterMessageForMentor("Marlow", "Linden", "sample"))];
   }
