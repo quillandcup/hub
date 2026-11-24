@@ -1,6 +1,6 @@
 # OSPS Baseline: where we stand
 
-> **Status:** living. **Last reviewed:** 2026-11-23. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: quarterly. Kept up to date with the code; if it is wrong, fix it.
 
 Where the project stands against each control of the OpenSSF Open Source Project Security Baseline. The [Open Source Project Security Baseline](https://baseline.openssf.org) (OSPS Baseline, from the OpenSSF) is a list of security controls in three maturity levels: **Level 1** for any project, **Level 2** for a code project with at least two maintainers and a few consistent users, **Level 3** for a code project with many consistent users. This page maps each control to the repository and the live settings, so we know what is done and what is worth doing. It sits beside `docs/checklists/OPENSSF_BEST_PRACTICES.md`, which covers the older Best Practices badge; the Baseline overlaps with it and with the Scorecard.
 
@@ -43,7 +43,7 @@ Where the project stands against each control of the OpenSSF Open Source Project
 | `OSPS-BR-03.01` Official channels are encrypted | 1 | Met | The repository, the production site and the Vercel deployment are HTTPS only. |
 | `OSPS-BR-03.02` Distribution channels resist adversary-in-the-middle | 1 | Met | The only distribution channel is the HTTPS production site (Vercel TLS). |
 | `OSPS-BR-04.01` Releases carry a change log | 2 | N/A | No releases. The changelog (`src/content/changelog.ts`) is per feature. |
-| `OSPS-BR-05.01` Dependencies come through standard tooling | 2 | Met | pnpm with `pnpm-lock.yaml` and frozen installs in CI. One exception: `deploy.yml` runs `npm install -g vercel` before any install (`docs/TODO.md`, "External security scanners: what is left"). |
+| `OSPS-BR-05.01` Dependencies come through standard tooling | 2 | Met | pnpm with `pnpm-lock.yaml` and frozen installs in CI, including the Vercel CLI in `deploy.yml` (`pnpm exec vercel`, version and hash from the lockfile). |
 | `OSPS-BR-06.01` Releases signed or in a signed manifest | 2 | N/A | No releases. Build provenance for deploys is separate work, not assessed here. |
 | `OSPS-BR-07.01` Secrets are kept out of version control | 1 | Met | GitHub secret scanning and push protection are on (live); gitleaks scans the full history (`.github/workflows/gitleaks.yml`, `config/.gitleaksignore`); `.claude/rules/public-repo-hygiene.md`. |
 | `OSPS-BR-07.02` A policy for managing secrets | 3 | Met | `docs/runbooks/SECRET_ROTATION.md`, `config/env-vars.ts` (what is secret and where it lives). |
