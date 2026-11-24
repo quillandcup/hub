@@ -44,7 +44,7 @@ describe("the editor's fields for the Exit popup", () => {
   const fields = editorConfig.components.ExitPopup.fields as Record<string, { type: string; allow?: string[]; min?: number; max?: number }>;
 
   it("has the switch, the Edit popup switch, the blocks, the trigger, the frequency, the device and layout settings", () => {
-    expect(Object.keys(fields)).toEqual(["enabled", "editPopup", "content", "trigger", "delaySeconds", "rememberDays", "closeOnOverlay", "hideOnDesktop", "hideOnMobile", "label", "width", "background"]);
+    expect(Object.keys(fields)).toEqual(["enabled", "editPopup", "content", "trigger", "delaySeconds", "rememberDays", "popupName", "closeOnOverlay", "hideOnDesktop", "hideOnMobile", "label", "width", "background"]);
     expect(fields.editPopup.type).toBe("custom");
   });
 

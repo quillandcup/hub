@@ -5,7 +5,7 @@ import Countdown, { type CountdownProps } from "./Countdown";
 import ExitPopup from "./ExitPopup";
 import ExitPopupEditing from "./ExitPopupEditing";
 import OptInForm, { type OptInFormProps } from "./OptInForm";
-import { describeExitPopup, normalizeExitPopup } from "@/lib/landing/exit-popup";
+import { describeExitPopup, normalizeExitPopup, normalizeFormIds } from "@/lib/landing/exit-popup";
 import { sectionPadding } from "@/lib/landing/layout";
 import { SocialMark } from "./social-marks";
 import { SOCIAL_NETWORKS, socialLookOf, socialNetworkOf, type SocialLook } from "./social-networks";
@@ -693,6 +693,8 @@ export function ExitPopupBlock({ content: Content, editing, ...props }: ExitPopu
       trigger={settings.trigger}
       delaySeconds={settings.delaySeconds}
       rememberDays={settings.rememberDays}
+      popupName={settings.popupName}
+      formIds={normalizeFormIds(props.formIds)}
       closeOnOverlay={settings.closeOnOverlay}
       hideOnDesktop={settings.hideOnDesktop}
       hideOnMobile={settings.hideOnMobile}

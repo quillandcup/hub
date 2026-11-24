@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { normalizeLandingData } from "@/lib/landing/data";
+import { collectPopupNames } from "@/lib/landing/popup-names";
 import { isValidSlug } from "@/lib/landing/slug";
 import { UNKNOWN_EDITOR } from "@/lib/landing/version-notes";
 import { editorNames } from "@/lib/landing/version-people";
@@ -22,6 +23,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
   const pageType = page.page_type === "website" ? "website" : "landing";
   const [versions, templates] = await Promise.all([repos.landingPages.versions(page.id, 20), repos.landingPages.usableTemplates(pageType)]);
   const names = await editorNames(repos, versions.map((v) => v.published_by));
+  const popupNames = page.kind === "template" ? [] : collectPopupNames(await repos.landingPages.popupSources());
   const allTemplates = page.kind === "template" ? [] : await repos.landingPages.list("template");
 
   return (
@@ -48,6 +50,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
         // Only a published template is offered, and what is copied is its published copy. A template is never offered to itself.
         ...templates.filter((t) => t.id !== page.id).map((t) => ({ key: t.id, label: t.title, description: "A template you published.", group: "template" as const })),
       ]}
+      popupNames={popupNames}
       templates={allTemplates.map((t) => ({ id: t.id, name: t.title, published: t.status === "published" }))}
     />
   );

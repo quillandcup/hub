@@ -105,6 +105,7 @@ export const CORE_DEFAULTS = {
     enabled: false,
     trigger: "either",
     delaySeconds: DELAY_DEFAULT,
+    popupName: "",
     rememberDays: REMEMBER_DEFAULT,
     closeOnOverlay: true,
     hideOnDesktop: false,

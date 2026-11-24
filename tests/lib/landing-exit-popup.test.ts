@@ -11,10 +11,16 @@ import {
   isExitIntent,
   CLOSED_KEY,
   SIGNED_UP_KEY,
+  addClosure,
+  addSignUp,
   isQuiet,
+  normalizeFormIds,
+  normalizePopupName,
+  popupKey,
+  withPopupFormIds,
   isSuppressed,
-  parseClosure,
-  serializeClosure,
+  parseClosures,
+  parseSignedUp,
   mayRemember,
   normalizeExitPopup,
   parseDismissal,
@@ -37,6 +43,7 @@ describe("normalizeExitPopup", () => {
       trigger: "either",
       delaySeconds: DELAY_DEFAULT,
       rememberDays: REMEMBER_DEFAULT,
+      popupName: "",
       closeOnOverlay: true,
       hideOnDesktop: false,
       hideOnMobile: false,
@@ -151,9 +158,13 @@ describe("the record of a closed popup", () => {
     expect(popupStorageKey("closed")).not.toBe(CLOSED_KEY);
   });
 
-  it("round-trips a close with its days, and reads nothing from anything else", () => {
-    expect(parseClosure(serializeClosure({ at: 5, days: 3 }))).toEqual({ at: 5, days: 3 });
-    for (const raw of [null, "", "nope", "[]", "null", '{"at":5}', '{"days":3}', '{"at":"x","days":3}', '{"at":5,"days":null}']) expect(parseClosure(raw)).toBeNull();
+  it("reads the sign-up and close records, and drops anything that is not theirs", () => {
+    expect([...parseSignedUp('{"form-a":5,"form-b":"x","form-c":null}')]).toEqual([["form-a", 5]]);
+    expect([...parseClosures('{"name:news":{"at":5,"days":3},"page:a":{"at":5},"page:b":7,"page:c":null}')]).toEqual([["name:news", { at: 5, days: 3 }]]);
+    for (const raw of [null, "", "nope", "[]", "null", "5"]) {
+      expect(parseSignedUp(raw).size).toBe(0);
+      expect(parseClosures(raw).size).toBe(0);
+    }
   });
 
   const now = Date.UTC(2026, 10, 23, 15, 0, 0);
@@ -195,45 +206,136 @@ describe("publicSlugOf", () => {
 
 describe("describeExitPopup", () => {
   it("says what the settings do, in words", () => {
-    expect(describeExitPopup(on())).toBe(`Shows after ${DELAY_DEFAULT} seconds, or when a visitor on a computer goes to leave. No exit popup on the site is shown again for ${REMEMBER_DEFAULT} days after it is closed.`);
-    expect(describeExitPopup(on({ trigger: "exit", rememberDays: 1 }))).toBe("Shows when a visitor on a computer goes to leave (never on a phone). No exit popup on the site is shown again for 1 day after it is closed.");
+    expect(describeExitPopup(on())).toBe(`Shows after ${DELAY_DEFAULT} seconds, or when a visitor on a computer goes to leave. Not shown again for ${REMEMBER_DEFAULT} days after it is closed.`);
+    expect(describeExitPopup(on({ trigger: "exit", rememberDays: 1 }))).toBe("Shows when a visitor on a computer goes to leave (never on a phone). Not shown again for 1 day after it is closed.");
     expect(describeExitPopup(on({ trigger: "time", delaySeconds: 20, rememberDays: 0, hideOnMobile: true }))).toBe("Shows after 20 seconds. Hidden on mobile. Shows again on every visit.");
     expect(describeExitPopup(on({ trigger: "time", hideOnDesktop: true, hideOnMobile: true }))).toContain("Hidden on every device.");
     expect(describeExitPopup(on({ trigger: "time", hideOnDesktop: true }))).toContain("Hidden on desktop.");
   });
 });
 
-describe("isQuiet: what the whole site remembers", () => {
+describe("a popup's name, key and forms", () => {
+  it("compares names without regard to case, spacing or length", () => {
+    expect(normalizePopupName("  Weekly   Newsletter ")).toBe("weekly newsletter");
+    expect(normalizePopupName(7)).toBe("");
+    expect(normalizePopupName("x".repeat(100))).toHaveLength(60);
+  });
+
+  it("remembers a close under the name when there is one, and under the page when there is not", () => {
+    expect(popupKey("news", "spring")).toBe("name:news");
+    expect(popupKey("", "spring")).toBe("page:spring");
+    expect(popupKey("", "spring")).not.toBe(popupKey("", "autumn"));
+  });
+
+  it("takes only plain form ids", () => {
+    expect(normalizeFormIds(["a-1", "a-1", "b_2", "bad id", 5, "", "x".repeat(65)])).toEqual(["a-1", "b_2"]);
+    expect(normalizeFormIds("a")).toEqual([]);
+  });
+
+  it("gives each popup the ids of the forms inside it, however deep, and changes nothing else", () => {
+    const form = (id: string) => ({ type: "OptInForm", props: { id: `o-${id}`, kajabiFormId: id } });
+    const data = {
+      content: [
+        { type: "Section", props: { id: "s", content: [form("page-form"), { type: "Heading", props: { id: "h", text: "Hi" } }] } },
+        { type: "ExitPopup", props: { id: "p", enabled: true, content: [{ type: "Heading", props: { id: "h2" } }, { type: "Section", props: { id: "s2", content: [form(" in-popup ")] } }] } },
+        { type: "ExitPopup", props: { id: "q", content: [{ type: "Text", props: { id: "t" } }] } },
+      ],
+      root: { props: {} },
+    };
+    const before = JSON.stringify(data);
+    const out = withPopupFormIds(data);
+    expect(JSON.stringify(data)).toBe(before);
+    expect(out.content[1].props).toMatchObject({ formIds: ["in-popup"] });
+    expect(out.content[2].props).toMatchObject({ formIds: [] });
+    expect(out.content[0].props).not.toHaveProperty("formIds");
+    expect(withPopupFormIds(null)).toBeNull();
+  });
+});
+
+describe("isQuiet: what each popup is told to remember", () => {
   const now = Date.UTC(2026, 10, 23, 15, 0, 0);
   const none = { signedUp: null, closed: null, legacyPage: null };
-  const signedUp = (ago: number) => serializeDismissal({ at: now - ago, submitted: true });
-  const closed = (ago: number, days: number) => serializeClosure({ at: now - ago, days });
+  const news = { key: popupKey("news", "spring"), formIds: ["form-a"] };
+  const signedUp = (ago: number, id = "form-a") => JSON.stringify({ [id]: now - ago });
+  const closed = (ago: number, days: number, key = news.key) => JSON.stringify({ [key]: { at: now - ago, days } });
 
   it("is not quiet with nothing remembered, or with records it cannot read", () => {
-    expect(isQuiet(none, now, 7)).toBe(false);
-    expect(isQuiet({ signedUp: "x", closed: "y", legacyPage: "z" }, now, 7)).toBe(false);
+    expect(isQuiet(none, news, now, 7)).toBe(false);
+    expect(isQuiet({ signedUp: "x", closed: "y", legacyPage: "z" }, news, now, 7)).toBe(false);
   });
 
-  it("keeps every popup away for a year after a sign-up on any page, whatever the popup's own days", () => {
-    expect(isQuiet({ ...none, signedUp: signedUp(300 * DAY) }, now, 0)).toBe(true);
-    expect(isQuiet({ ...none, signedUp: signedUp((SUBMITTED_DAYS + 1) * DAY) }, now, 7)).toBe(false);
-    expect(isQuiet({ ...none, signedUp: signedUp(-DAY) }, now, 7)).toBe(false);
+  it("keeps a popup away for a year after a sign-up through a form it holds, whatever its own days", () => {
+    expect(isQuiet({ ...none, signedUp: signedUp(300 * DAY) }, news, now, 0)).toBe(true);
+    expect(isQuiet({ ...none, signedUp: signedUp((SUBMITTED_DAYS + 1) * DAY) }, news, now, 7)).toBe(false);
+    expect(isQuiet({ ...none, signedUp: signedUp(-DAY) }, news, now, 7)).toBe(false);
   });
 
-  it("keeps every popup away for the days of the popup that was closed, not its own", () => {
-    expect(isQuiet({ ...none, closed: closed(2 * DAY, 3) }, now, 30)).toBe(true);
-    expect(isQuiet({ ...none, closed: closed(3 * DAY, 3) }, now, 30)).toBe(false);
-    expect(isQuiet({ ...none, closed: closed(DAY, 30) }, now, 1)).toBe(true);
+  it("does not let a sign-up through form A quiet a popup that holds form B, or one with no form", () => {
+    const memory = { ...none, signedUp: signedUp(DAY, "form-a") };
+    expect(isQuiet(memory, { key: "page:other", formIds: ["form-b"] }, now, 7)).toBe(false);
+    expect(isQuiet(memory, { key: "page:other", formIds: [] }, now, 7)).toBe(false);
+    expect(isQuiet(memory, { key: "page:other", formIds: ["form-b", "form-a"] }, now, 7)).toBe(true);
+  });
+
+  it("keeps a popup away for the days stored with its close, not its own", () => {
+    expect(isQuiet({ ...none, closed: closed(2 * DAY, 3) }, news, now, 30)).toBe(true);
+    expect(isQuiet({ ...none, closed: closed(3 * DAY, 3) }, news, now, 30)).toBe(false);
+    expect(isQuiet({ ...none, closed: closed(DAY, 30) }, news, now, 1)).toBe(true);
+  });
+
+  it("shares a close between popups with one name, and not with another name or with an unnamed popup", () => {
+    const memory = { ...none, closed: closed(DAY, 7, popupKey("news", "spring")) };
+    expect(isQuiet(memory, { key: popupKey("news", "autumn"), formIds: [] }, now, 7)).toBe(true);
+    expect(isQuiet(memory, { key: popupKey("sale", "autumn"), formIds: [] }, now, 7)).toBe(false);
+    expect(isQuiet(memory, { key: popupKey("", "spring"), formIds: [] }, now, 7)).toBe(false);
+  });
+
+  it("keeps an unnamed popup's close to its own page", () => {
+    const memory = { ...none, closed: closed(DAY, 7, popupKey("", "spring")) };
+    expect(isQuiet(memory, { key: popupKey("", "spring"), formIds: [] }, now, 7)).toBe(true);
+    expect(isQuiet(memory, { key: popupKey("", "autumn"), formIds: [] }, now, 7)).toBe(false);
   });
 
   it("treats a close of 0 days, or one dated in the future, as nothing", () => {
-    expect(isQuiet({ ...none, closed: closed(1000, 0) }, now, 7)).toBe(false);
-    expect(isQuiet({ ...none, closed: closed(-DAY, 7) }, now, 7)).toBe(false);
+    expect(isQuiet({ ...none, closed: closed(1000, 0) }, news, now, 7)).toBe(false);
+    expect(isQuiet({ ...none, closed: closed(-DAY, 7) }, news, now, 7)).toBe(false);
   });
 
   it("still honours a slice 1 per-page record, with this popup's days", () => {
-    expect(isQuiet({ ...none, legacyPage: serializeDismissal({ at: now - 3 * DAY, submitted: false }) }, now, 7)).toBe(true);
-    expect(isQuiet({ ...none, legacyPage: serializeDismissal({ at: now - 3 * DAY, submitted: false }) }, now, 0)).toBe(false);
-    expect(isQuiet({ ...none, legacyPage: serializeDismissal({ at: now - 300 * DAY, submitted: true }) }, now, 0)).toBe(true);
+    const old = (ago: number, submitted: boolean) => serializeDismissal({ at: now - ago, submitted });
+    expect(isQuiet({ ...none, legacyPage: old(3 * DAY, false) }, news, now, 7)).toBe(true);
+    expect(isQuiet({ ...none, legacyPage: old(3 * DAY, false) }, news, now, 0)).toBe(false);
+    expect(isQuiet({ ...none, legacyPage: old(300 * DAY, true) }, news, now, 0)).toBe(true);
+  });
+});
+
+describe("keeping the records", () => {
+  const now = Date.UTC(2026, 10, 23, 15, 0, 0);
+
+  it("adds a sign-up beside the others, replaces one through the same form, and lets a year-old one go", () => {
+    const first = addSignUp(null, "form-a", now - 400 * DAY);
+    const second = addSignUp(first, "form-b", now - DAY);
+    const third = addSignUp(second, "form-b", now);
+    expect([...parseSignedUp(third)]).toEqual([["form-b", now]]);
+    const both = addSignUp(addSignUp(null, "form-a", now - DAY), "form-b", now);
+    expect([...parseSignedUp(both).keys()].sort()).toEqual(["form-a", "form-b"]);
+  });
+
+  it("adds a close beside the others, lets a later close of the same popup replace it, and drops the ones that ended", () => {
+    const old = addClosure(null, "name:old", { at: now - 10 * DAY, days: 7 }, now - 10 * DAY);
+    const a = addClosure(old, "name:a", { at: now - 2 * DAY, days: 7 }, now - 2 * DAY);
+    const b = addClosure(a, "name:b", { at: now, days: 3 }, now);
+    expect([...parseClosures(b).keys()].sort()).toEqual(["name:a", "name:b"]);
+    const again = addClosure(b, "name:a", { at: now, days: 1 }, now);
+    expect(parseClosures(again).get("name:a")).toEqual({ at: now, days: 1 });
+  });
+
+  it("keeps the newest fifty", () => {
+    let raw: string | null = null;
+    for (let i = 0; i < 60; i++) raw = addSignUp(raw, `form-${i}`, now - (60 - i) * 1000);
+    const kept = parseSignedUp(raw);
+    expect(kept.size).toBe(50);
+    expect(kept.has("form-59")).toBe(true);
+    expect(kept.has("form-0")).toBe(false);
   });
 });

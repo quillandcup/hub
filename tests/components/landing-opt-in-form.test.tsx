@@ -71,12 +71,12 @@ describe("OptInFormBlock", () => {
       expect(JSON.parse(init.body as string)).toEqual({ page: "spring", formId: "form-123", name: "Ada Example", email: "ada@example.test", instagram: "@ada.example", website: "" });
     });
 
-    it("remembers the sign-up site-wide, so no exit popup on any page asks again (also when it goes on to a thank-you page)", async () => {
+    it("remembers the sign-up by form, so no popup that holds this form asks again (also when it goes on to a thank-you page)", async () => {
       vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })));
       const first = render(<OptInFormBlock {...base} />);
       await fill();
       await screen.findByRole("status");
-      expect(JSON.parse(localStorage.getItem(SIGNED_UP_KEY)!)).toEqual({ at: expect.any(Number), submitted: true });
+      expect(JSON.parse(localStorage.getItem(SIGNED_UP_KEY)!)).toEqual({ "form-123": expect.any(Number) });
       first.unmount();
       localStorage.clear();
       vi.stubGlobal("location", { ...window.location, pathname: "/p/spring", assign: vi.fn() });

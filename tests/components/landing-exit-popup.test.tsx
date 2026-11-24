@@ -37,6 +37,7 @@ function stubDevice({ wide = true, mouse = true }: { wide?: boolean; mouse?: boo
 const advance = (ms: number) => act(async () => void vi.advanceTimersByTime(ms));
 const dialog = () => screen.queryByRole("dialog");
 /** The record slice 1 kept per page; still read, never written. */
+const closedAt = (key: string) => JSON.parse(localStorage.getItem(CLOSED_KEY) ?? "{}")[key];
 const legacyKey = popupStorageKey("spring");
 function clickOverlay() {
   const overlay = document.querySelector("[data-exit-popup]") as HTMLElement;
@@ -223,7 +224,7 @@ describe("Exit popup on the public page", () => {
       const first = render(<ExitPopupBlock {...props()} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(JSON.parse(localStorage.getItem(CLOSED_KEY)!)).toEqual({ at: fake.clock.now(), days: 7 });
+      expect(closedAt("page:spring")).toEqual({ at: fake.clock.now(), days: 7 });
       expect(localStorage.getItem(legacyKey)).toBeNull();
       first.unmount();
 
@@ -247,30 +248,63 @@ describe("Exit popup on the public page", () => {
       await opens();
     });
 
-    it("is site-wide: a close on one page keeps the popup of another page away, for the days of the popup that was closed", async () => {
+    it("is shared by popups with the same name: a close on one page keeps the other page's popup away, for the days stored with the close", async () => {
       visit("/p/autumn");
-      const first = render(<ExitPopupBlock {...props({ rememberDays: 3 })} />);
+      const first = render(<ExitPopupBlock {...props({ rememberDays: 3, popupName: "Newsletter" })} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
       first.unmount();
 
       visit("/p/spring");
       fake.clock.advance(2 * 24 * 60 * 60 * 1000);
-      // The other popup asks for 30 days, but the stored 3 days are what counts.
-      const second = render(<ExitPopupBlock {...props({ rememberDays: 30 })} />);
+      // The other popup asks for 30 days, but the stored 3 days are what counts; the name is compared without regard to case.
+      const second = render(<ExitPopupBlock {...props({ rememberDays: 30, popupName: " newsletter " })} />);
       await staysShut(DELAY_DEFAULT * 1000);
       second.unmount();
       fake.clock.advance(2 * 24 * 60 * 60 * 1000);
-      render(<ExitPopupBlock {...props({ rememberDays: 30 })} />);
+      render(<ExitPopupBlock {...props({ rememberDays: 30, popupName: "NEWSLETTER" })} />);
       await opens();
     });
 
-    it("lets a later close overwrite the earlier one", async () => {
-      localStorage.setItem(CLOSED_KEY, JSON.stringify({ at: fake.clock.now() - 20 * 24 * 60 * 60 * 1000, days: 7 }));
+    it("does not carry a close to a popup with another name, or to an unnamed popup on another page", async () => {
+      visit("/p/autumn");
+      const first = render(<ExitPopupBlock {...props({ popupName: "Newsletter" })} />);
+      await opens();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      first.unmount();
+
+      visit("/p/spring");
+      const other = render(<ExitPopupBlock {...props({ popupName: "Sale" })} />);
+      await opens();
+      other.unmount();
+      localStorage.setItem(CLOSED_KEY, JSON.stringify({ "name:newsletter": { at: fake.clock.now(), days: 7 } }));
+      render(<ExitPopupBlock {...props()} />);
+      await opens();
+    });
+
+    it("keeps an unnamed popup's close to its own page", async () => {
+      visit("/p/autumn");
+      const first = render(<ExitPopupBlock {...props()} />);
+      await opens();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      first.unmount();
+      expect(Object.keys(JSON.parse(localStorage.getItem(CLOSED_KEY)!))).toEqual(["page:autumn"]);
+
+      render(<ExitPopupBlock {...props()} />);
+      await staysShut(DELAY_DEFAULT * 1000);
+      cleanup();
+      visit("/p/spring");
+      render(<ExitPopupBlock {...props()} />);
+      await opens();
+    });
+
+    it("lets a later close overwrite the earlier one, and keeps the closes of other popups", async () => {
+      localStorage.setItem(CLOSED_KEY, JSON.stringify({ "page:spring": { at: fake.clock.now() - 20 * 24 * 60 * 60 * 1000, days: 7 }, "name:sale": { at: fake.clock.now() - 1000, days: 7 } }));
       const first = render(<ExitPopupBlock {...props({ rememberDays: 2 })} />);
       await opens();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(JSON.parse(localStorage.getItem(CLOSED_KEY)!)).toEqual({ at: fake.clock.now(), days: 2 });
+      expect(closedAt("page:spring")).toEqual({ at: fake.clock.now(), days: 2 });
+      expect(closedAt("name:sale")).toBeDefined();
       first.unmount();
     });
 
@@ -346,15 +380,21 @@ describe("Exit popup on the public page", () => {
       await staysShut(60_000);
     });
 
-    it("a visitor who signed up on any page, on a later visit to any page, for a year", async () => {
-      localStorage.setItem(SIGNED_UP_KEY, JSON.stringify({ at: fake.clock.now(), submitted: true }));
+    it("a visitor who signed up through a form in the popup, on any page, for a year, but not a popup whose form is another one or which has none", async () => {
+      localStorage.setItem(SIGNED_UP_KEY, JSON.stringify({ "form-a": fake.clock.now() }));
       fake.clock.advance(200 * 24 * 60 * 60 * 1000);
       visit("/p/another-page");
-      render(<ExitPopupBlock {...props({ rememberDays: 0 })} />);
+      const first = render(<ExitPopupBlock {...props({ rememberDays: 0, formIds: ["form-b", "form-a"] })} />);
       await staysShut(DELAY_DEFAULT * 1000);
+      first.unmount();
+      render(<ExitPopupBlock {...props({ formIds: ["form-b"] })} />);
+      await opens();
+      cleanup();
+      render(<ExitPopupBlock {...props()} />);
+      await opens();
       cleanup();
       fake.clock.advance(200 * 24 * 60 * 60 * 1000);
-      render(<ExitPopupBlock {...props()} />);
+      render(<ExitPopupBlock {...props({ formIds: ["form-a"] })} />);
       await opens();
     });
 
@@ -364,7 +404,7 @@ describe("Exit popup on the public page", () => {
       act(() => void window.dispatchEvent(new Event(OPT_IN_DONE_EVENT)));
       expect(dialog()).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(JSON.parse(localStorage.getItem(CLOSED_KEY)!).days).toBe(7);
+      expect(closedAt("page:spring").days).toBe(7);
     });
 
     it("a visitor on a device it is hidden on", async () => {

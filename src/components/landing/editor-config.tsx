@@ -11,6 +11,7 @@ import { SOCIAL_LOOK_OPTIONS, SOCIAL_NETWORK_OPTIONS } from "./social-networks";
 import { createEditorKit, type EditorKit, type PageBlockEditorContribution } from "./editor-kit";
 import { GroupHeading, PaddingField, SpanField } from "./layout-fields";
 import { EditPopupField } from "./ExitPopupEditing";
+import { PopupNameField } from "./PopupNameField";
 import { BACKGROUND_OPTIONS, PADDING_OPTIONS, WIDTH_OPTIONS } from "./theme";
 
 /**
@@ -291,7 +292,8 @@ const coreFields = ({ source: SOURCE, contentSlot, itemsSlot }: EditorKit): Reco
       { label: "After a time", value: "time" },
     ]),
     delaySeconds: { type: "number", label: "Seconds before it shows (for the time trigger)", min: DELAY_MIN, max: DELAY_MAX },
-    rememberDays: { type: "number", label: "Days to leave a visitor alone after they close it, here and in every other exit popup on the site (0: it may show on every visit)", min: 0, max: REMEMBER_MAX },
+    rememberDays: { type: "number", label: "Days to leave a visitor alone after they close it (0: it may show on every visit). It covers every popup with the same name below, on any page", min: 0, max: REMEMBER_MAX },
+    popupName: { type: "custom", label: "Popup name", render: ({ value, onChange }) => <PopupNameField label="Popup name (popups with the same name on different pages are remembered together)" value={value} onChange={onChange} /> },
     closeOnOverlay: toggle("Close it when the visitor clicks outside the box (Escape and the close button always work)"),
     hideOnDesktop: toggle("Hide on desktop"),
     hideOnMobile: toggle("Hide on mobile"),

@@ -15,6 +15,8 @@ import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfigFor } from "@/components/landing/editor-config";
+import { PopupNamesContext } from "@/components/landing/PopupNameField";
+import type { PopupNameUse } from "@/lib/landing/popup-names";
 import { EMPTY_SITE_TEMPLATE, type SiteTemplate } from "@/lib/landing/site-template";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import { sameLandingPage, type LandingData } from "@/lib/landing/data";
@@ -286,7 +288,7 @@ function EditorHeader({
 }
 
 /** `site` is the site template draft a website page shows at the top and bottom of its canvas (edited in Design, not here); null for a landing page. */
-export default function LandingEditor({ page: initial, data, versions, replaceChoices = [], templates = [], site = null }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; replaceChoices?: TemplateReplaceOption[]; templates?: TemplateOption[]; site?: SiteTemplate | null }) {
+export default function LandingEditor({ page: initial, data, versions, replaceChoices = [], templates = [], popupNames = [], site = null }: { page: EditorPage; data: LandingData; versions: EditorVersion[]; replaceChoices?: TemplateReplaceOption[]; templates?: TemplateOption[]; popupNames?: PopupNameUse[]; site?: SiteTemplate | null }) {
   const router = useRouter();
   useMirrorHostTheme();
   const [page, setPage] = useState(initial);
@@ -467,6 +469,7 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
   return (
     <div className="landing-editor h-[calc(100dvh-4rem)]">
       <FoldContext.Provider value={foldContext}>
+        <PopupNamesContext.Provider value={{ uses: popupNames, currentSlug: initial.slug }}>
         <Puck
           config={config}
           data={data as unknown as Data}
@@ -476,6 +479,7 @@ export default function LandingEditor({ page: initial, data, versions, replaceCh
           viewports={[{ ...DESKTOP, label: "Desktop" }, ...MODEL_SIZES.map((s) => ({ ...s, label: `${s.width}x${s.height}` }))]}
           ui={{ plugin: { current: "outline" }, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
         />
+        </PopupNamesContext.Provider>
       </FoldContext.Provider>
 
       <Modal isOpen={dialog === "publish"} onClose={() => setDialog(null)} title={page.status === "published" ? "Publish changes" : page.kind === "template" ? "Publish this template" : "Publish this page"} maxWidth="lg">

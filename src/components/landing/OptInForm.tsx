@@ -63,8 +63,8 @@ export default function OptInForm({ kajabiFormId, instagramField, buttonLabel, r
         setState("idle");
         return;
       }
-      // Every exit popup on the site leaves this visitor alone from now on (kept only where consent allows).
-      rememberSignUp();
+      // A popup that holds this form leaves this visitor alone from now on (kept only where consent allows).
+      rememberSignUp(kajabiFormId.trim());
       const next = safeHref(href);
       if (next) {
         window.location.assign(next);
