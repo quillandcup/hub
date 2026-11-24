@@ -130,7 +130,7 @@ Detail: "Phase 4, as built" in \`docs/product/COURSES.md\`.`,
       "- When you submit, you see your score. Some quizzes also show which answers were right. In others you see only the score.",
       "- Some quizzes have a passing score. Reach it and the lesson is marked complete. Miss it and you can try again, as many times as you like.",
       "- A quiz with no passing score is marked complete as soon as you submit it.",
-      "- Your score is visible to you and to staff. Staff also see your name and the date you submitted.",
+      "- Each attempt is saved. Staff can see your score, answers, name and date for each attempt.",
     ].join("\n\n"),
   },
   {
