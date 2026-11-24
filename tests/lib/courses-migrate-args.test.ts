@@ -12,12 +12,14 @@ describe("parseMigrateArgs", () => {
       accessDuration: undefined,
       launchOn: undefined,
       skipDrafts: false,
+      skipProgress: false,
+      skipComments: false,
     });
   });
 
   it("reads every option, with = or a space", () => {
     expect(
-      parseMigrateArgs(["--course=9", "--env", ".env.prod", "--base-url", "https://hub.example.com/", "--yes", "--access-duration=1 year", "--launch-on", "2026-12-01", "--skip-drafts"])
+      parseMigrateArgs(["--course=9", "--env", ".env.prod", "--base-url", "https://hub.example.com/", "--yes", "--access-duration=1 year", "--launch-on", "2026-12-01", "--skip-drafts", "--skip-progress", "--skip-comments"])
     ).toEqual({
       ok: true,
       courseId: "9",
@@ -27,6 +29,8 @@ describe("parseMigrateArgs", () => {
       accessDuration: "1 year",
       launchOn: "2026-12-01",
       skipDrafts: true,
+      skipProgress: true,
+      skipComments: true,
     });
   });
 

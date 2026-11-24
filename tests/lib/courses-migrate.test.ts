@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { buildSteps, formatSummary, parseContentSummary, resolveEnvironment, runMigration, LOCAL_APP_URL, type MigrateIO, type MigrateStep } from "@/lib/courses/migrate";
+import { buildSteps, formatSummary, parseCommentsSummary, parseContentSummary, parseProgressSummary, resolveEnvironment, runMigration, LOCAL_APP_URL, type MigrateIO, type MigrateStep } from "@/lib/courses/migrate";
 import { parseMigrateArgs, type MigrateArgs } from "@/lib/courses/migrate-args";
 
 const SECRET = "s3cret-token";
 const ENV = { baseUrl: "https://hub.example.com", secret: SECRET };
 
+/** The older tests are about the required steps, so the optional captures are left out unless a test asks for them (`withOptional`). */
 function args(extra: string[] = []): MigrateArgs {
+  return withOptional(["--skip-progress", "--skip-comments", ...extra]);
+}
+
+function withOptional(extra: string[] = []): MigrateArgs {
   const parsed = parseMigrateArgs(["--course", "42", ...extra]);
   if (!parsed.ok) throw new Error(parsed.error);
   return parsed;
@@ -77,6 +82,7 @@ const video = (id: string, state: string, over: Record<string, unknown> = {}) =>
 const baseRoutes = (over: Record<string, any> = {}) => ({
   "/api/import/kajabi-courses": A_OK,
   "/api/process/courses": { courses: [courseEntry()] },
+  "/api/process/course-progress": { success: true, courses: [{ slug: "demo-course", inserted: 0, alreadyCompleted: 0, leftAlone: 0 }] },
   "/api/process/course-files": FILES_OK,
   "/api/process/course-media:plan": { videos: [] },
   ...over,
@@ -108,7 +114,7 @@ describe("runMigration", () => {
     const h = harness({ routes: baseRoutes(), content: content() });
     const result = await runMigration(args(), ENV, h.io);
 
-    expect(buildSteps().map((s) => s.id)).toEqual(["A", "B", "C", "D1", "D2"]);
+    expect(buildSteps().map((s) => s.id)).toEqual(["A", "B", "C", "P1", "P2", "K", "D1", "D2"]);
     expect(h.paths()).toEqual(["/api/import/kajabi-courses", "/api/process/courses", "/api/process/course-files", "/api/process/course-media:plan"]);
     expect(h.calls.every((c) => c.auth === `Bearer ${SECRET}`)).toBe(true);
     expect(h.calls[0].body).toEqual({ courseIds: ["42"] });
@@ -389,5 +395,195 @@ describe("runMigration", () => {
     const h = harness({ routes: baseRoutes({ "/api/import/kajabi-courses": { status: 500, json: { error: "nope" } } }) });
     const text = formatSummary(await runMigration(args(), ENV, h.io)).join("\n");
     expect(text).toContain("STOPPED at step A");
+  });
+});
+
+const PROGRESS_LINES = (roster: number, lessons: number, failed = 0, verb = "Dry run, nothing written") =>
+  `\n${verb}: 4 students in the roster (${roster} written, 1 unchanged, 0 removed; 0 unusable, 0 duplicate emails)\n` +
+  `lessons: 4 students captured, 20 lessons listed, 9 completed; ${lessons} rows written, 2 unchanged, 0 removed; 0 students with no lessons, ${failed} failed, 0 lessons not in Bronze`;
+const COMMENT_LINES = (written: number, failed = 0, verb = "Dry run, nothing written") =>
+  `\n${verb}: 5 lessons captured, 3 with comments; 7 comments and replies (2 replies); ${written} rows written, 1 unchanged, 0 removed\n` +
+  "comment ids: 7 from the page (5 reply link, 1 reply container, 1 data-comment), 0 hashed, 0 repeated within a lesson\n" +
+  `lessons: 0 cut off at the Show More limit, 0 with a different total on the page, 2 with no comments (the page has a comment box), 0 quizzes (no comments by design), 0 locked until an earlier lesson is completed (their comments cannot be read from this preview), 0 with none of those (look at these), ${failed} failed, 0 not in Bronze (skipped)`;
+const ok = (output: string) => ({ code: 0, output });
+const PROGRESS_ROUTE = (inserted: number) => ({
+  success: true,
+  courses: [{ slug: "demo-course", inserted, alreadyCompleted: 4, leftAlone: 1, students: { matched: 3, unmatched: 1, ambiguous: 0, withoutAccess: 0 } }],
+});
+
+describe("optional progress and comments steps", () => {
+  const bDone = [ok(DRY_LINE(0, 0))]; // step B finds nothing new, so it runs once
+
+  it("go after step C and before the downloads, in this order", () => {
+    const ids = buildSteps().map((s) => s.id);
+    expect(ids.indexOf("C")).toBeLessThan(ids.indexOf("P1"));
+    expect(ids.indexOf("P1")).toBeLessThan(ids.indexOf("P2"));
+    expect(ids.indexOf("P2")).toBeLessThan(ids.indexOf("K"));
+    expect(ids.indexOf("K")).toBeLessThan(ids.indexOf("D1"));
+  });
+
+  it("the progress capture does a dry run, asks, then applies; processing does a dry run, then the real call", async () => {
+    const routes = baseRoutes({
+      "/api/process/course-progress": PROGRESS_ROUTE(6),
+    });
+    const h = harness({
+      routes,
+      content: [...bDone, ok(PROGRESS_LINES(4, 12)), ok(PROGRESS_LINES(4, 12, 0, "Done")), ok(COMMENT_LINES(0))],
+      confirms: [true],
+    });
+    const result = await runMigration(withOptional(["--env", ".env.prod"]), ENV, h.io);
+
+    expect(h.contentRuns.slice(1, 3)).toEqual([
+      ["--course", "42", "--env", ".env.prod", "--progress"],
+      ["--course", "42", "--env", ".env.prod", "--progress", "--apply"],
+    ]);
+    expect(h.confirmed).toHaveLength(1);
+    expect(h.confirmed[0]).toMatch(/progress/);
+    const progressCalls = h.calls.filter((c) => c.path === "/api/process/course-progress");
+    expect(progressCalls.map((c) => c.body)).toEqual([
+      { course: "demo-course", dryRun: true },
+      { course: "demo-course", dryRun: false },
+    ]);
+    // The capture is ordered before the processing, and both come after step C.
+    const order = h.paths();
+    expect(order.indexOf("/api/process/courses")).toBeLessThan(order.indexOf("/api/process/course-progress"));
+    expect(result.summary.progress).toMatchObject({ outcome: "applied", counts: { roster: { written: 4 }, lessons: { written: 12 } } });
+    expect(result.summary.progressImport).toMatchObject({ inserted: 6, applied: true });
+    const text = formatSummary(result).join("\n");
+    expect(text).toContain("Progress in the Hub: 6 completed lessons added");
+    expect(text).toContain("Insert-only");
+    expect(result.ok).toBe(true);
+  });
+
+  it("--yes skips the questions for both captures", async () => {
+    const h = harness({
+      routes: baseRoutes(),
+      content: [...bDone, ok(PROGRESS_LINES(1, 1)), ok(PROGRESS_LINES(1, 1, 0, "Done")), ok(COMMENT_LINES(3)), ok(COMMENT_LINES(3, 0, "Done"))],
+    });
+    const result = await runMigration(withOptional(["--yes"]), ENV, h.io);
+    expect(h.confirmed).toEqual([]);
+    expect(h.contentRuns.filter((r) => r.includes("--apply"))).toHaveLength(2);
+    expect(result.summary.comments).toMatchObject({ outcome: "applied" });
+  });
+
+  it("nothing new skips the write for each capture, and still processes what Bronze holds", async () => {
+    const h = harness({ routes: baseRoutes(), content: [...bDone, ok(PROGRESS_LINES(0, 0)), ok(COMMENT_LINES(0))] });
+    const result = await runMigration(withOptional(), ENV, h.io);
+    expect(h.contentRuns.filter((r) => r.includes("--apply"))).toHaveLength(0);
+    expect(h.confirmed).toEqual([]);
+    expect(result.summary.progress?.outcome).toBe("nothing_new");
+    expect(result.summary.comments?.outcome).toBe("nothing_new");
+    // Processing ran (a dry run), found nothing to add, and made no real call.
+    expect(h.calls.filter((c) => c.path === "/api/process/course-progress").map((c) => c.body.dryRun)).toEqual([true]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("declining a capture skips only that capture and the run carries on without failing", async () => {
+    const h = harness({
+      routes: baseRoutes(),
+      content: [...bDone, ok(PROGRESS_LINES(2, 2)), ok(COMMENT_LINES(0))],
+      confirms: [false],
+    });
+    const result = await runMigration(withOptional(), ENV, h.io);
+    expect(result.summary.progress?.outcome).toBe("declined");
+    expect(h.contentRuns.filter((r) => r.includes("--apply"))).toHaveLength(0);
+    expect(h.paths()).toContain("/api/process/course-files");
+    expect(result.stopped).toBeNull();
+    expect(result.ok).toBe(true);
+  });
+
+  it("--skip-progress and --skip-comments leave the steps out and say so", async () => {
+    const h = harness({ routes: baseRoutes(), content: bDone });
+    const result = await runMigration(withOptional(["--skip-progress", "--skip-comments"]), ENV, h.io);
+    expect(h.contentRuns).toHaveLength(1);
+    expect(h.paths().some((p) => p.includes("course-progress"))).toBe(false);
+    const text = formatSummary(result).join("\n");
+    expect(text).toContain("Progress: skipped (--skip-progress)");
+    expect(text).toContain("Comments: skipped (--skip-comments)");
+  });
+
+  it("--skip-comments alone still captures and processes progress", async () => {
+    const h = harness({ routes: baseRoutes(), content: [...bDone, ok(PROGRESS_LINES(0, 0))] });
+    await runMigration(withOptional(["--skip-comments"]), ENV, h.io);
+    expect(h.contentRuns.map((r) => r.includes("--progress"))).toEqual([false, true]);
+    expect(h.contentRuns.some((r) => r.includes("--comments"))).toBe(false);
+  });
+
+  it("a failed progress capture is reported, skips processing, carries on to the media step and fails the run", async () => {
+    const h = harness({
+      routes: baseRoutes(),
+      content: [...bDone, { code: 1, output: PROGRESS_LINES(0, 0, 2) }, ok(COMMENT_LINES(0))],
+    });
+    const result = await runMigration(withOptional(), ENV, h.io);
+    expect(result.summary.progress?.outcome).toBe("failed");
+    expect(h.paths().some((p) => p.includes("course-progress"))).toBe(false);
+    expect(h.paths()).toContain("/api/process/course-media:plan");
+    expect(result.stopped).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/progress capture failed \(exit 1\)/);
+    expect(formatSummary(result).join("\n")).toContain("Finished, but some items failed");
+  });
+
+  it("a failed comments capture does not block videos and files, but fails the run", async () => {
+    const h = harness({ routes: baseRoutes(), content: [...bDone, { code: 1, output: "" }], });
+    const result = await runMigration(withOptional(["--skip-progress"]), ENV, h.io);
+    expect(result.summary.comments?.outcome).toBe("failed");
+    expect(h.paths()).toEqual(expect.arrayContaining(["/api/process/course-files", "/api/process/course-media:plan"]));
+    expect(result.stopped).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/not verified against the live Kajabi site/);
+    expect(formatSummary(result).join("\n")).toContain("capture failed");
+  });
+
+  it("a capture that cannot start is a failure, not a crash", async () => {
+    const h = harness({ routes: baseRoutes(), content: bDone });
+    let runs = 0;
+    const original = h.io.runContent;
+    h.io.runContent = async (a) => {
+      if (++runs === 2) throw new Error("spawn failed");
+      return original(a);
+    };
+    const result = await runMigration(withOptional(["--skip-comments"]), ENV, h.io);
+    expect(result.failures.join("\n")).toMatch(/could not start \(spawn failed\)/);
+    expect(h.paths()).toContain("/api/process/course-media:plan");
+  });
+
+  it("a failed progress processing call is reported and the run carries on, exit-failing", async () => {
+    const h = harness({
+      routes: baseRoutes({ "/api/process/course-progress": { status: 500, json: { error: "boom" } } }),
+      content: [...bDone, ok(PROGRESS_LINES(0, 0))],
+    });
+    const result = await runMigration(withOptional(["--skip-comments"]), ENV, h.io);
+    expect(result.failures.join("\n")).toMatch(/progress import into the Hub failed: .*boom/);
+    expect(h.paths()).toContain("/api/process/course-media:plan");
+    expect(result.ok).toBe(false);
+  });
+
+  it("the summary says comments are in Bronze only and prints counts, never rows", async () => {
+    const h = harness({
+      routes: baseRoutes({ "/api/process/course-progress": PROGRESS_ROUTE(0) }),
+      content: [...bDone, ok(PROGRESS_LINES(0, 0)), ok(COMMENT_LINES(4)), ok(COMMENT_LINES(4, 0, "Done"))],
+    });
+    const result = await runMigration(withOptional(["--yes"]), ENV, h.io);
+    const text = formatSummary(result).join("\n");
+    expect(text).toContain("Comments: captured to Bronze, not yet shown in the Hub.");
+    expect(text).toContain("(4 written, 1 unchanged, 0 removed.)");
+    expect(text).toContain("Progress: nothing new in Bronze");
+  });
+});
+
+describe("parseProgressSummary and parseCommentsSummary", () => {
+  it("read the totals lines the capture prints", () => {
+    expect(parseProgressSummary(PROGRESS_LINES(4, 12, 1))).toEqual({
+      roster: { written: 4, unchanged: 1, removed: 0 },
+      lessons: { written: 12, unchanged: 2, removed: 0 },
+      failed: 1,
+    });
+    expect(parseCommentsSummary(COMMENT_LINES(3, 2))).toEqual({ rows: { written: 3, unchanged: 1, removed: 0 }, lessonsFailed: 2, lessonsCapped: 0 });
+  });
+
+  it("return null for output they cannot read", () => {
+    expect(parseProgressSummary("nothing")).toBeNull();
+    expect(parseCommentsSummary("nothing")).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { isValidDay, parseAccessDuration, type MigrateArgs } from "@/lib/courses
 
 /**
  * The one-command Kajabi course migration (`pnpm courses:migrate`, docs/product/COURSES.md "Migration pipeline"):
- * steps A (structure), B (content), C (process) and D (files, images, videos) run in order, stopping at the
+ * steps A (structure), B (content), C (process), the optional progress and comments captures, and D (files, images, videos) run in order, stopping at the
  * first one that fails with what to do next. Every step is safe to repeat, so a re-run only does new work and
  * a run with nothing new is a no-op that prints the same summary.
  *
@@ -28,6 +28,30 @@ export interface MigrateEnvironment {
   secret: string;
 }
 
+/** Written / unchanged / removed rows, as the capture scripts print them. */
+export interface RowCounts {
+  written: number;
+  unchanged: number;
+  removed: number;
+}
+
+/** Counts from the progress capture's two last lines. */
+export interface ProgressCaptureCounts {
+  roster: RowCounts;
+  lessons: RowCounts;
+  failed: number;
+}
+
+/** Counts from the comments capture's last lines. */
+export interface CommentsCaptureCounts {
+  rows: RowCounts;
+  lessonsFailed: number;
+  lessonsCapped: number;
+}
+
+/** What an optional capture did: wrote, found nothing new, was declined, or failed (the run carries on, exit code 1). */
+export type OptionalOutcome = "applied" | "nothing_new" | "declined" | "failed";
+
 /** Counts from the content step's own last line. */
 export interface ContentCounts {
   updated: number;
@@ -43,6 +67,12 @@ export interface MigrateSummary {
   /** Null counts: the step ran but its summary line couldn't be read. */
   content?: { applied: boolean; counts: ContentCounts | null };
   course?: { slug: string; published: boolean; justPublished: boolean };
+  progress?: { outcome: OptionalOutcome; counts: ProgressCaptureCounts | null };
+  /** The insert-only import of Bronze progress into the Hub's own progress (counts of members' completed lessons). */
+  progressImport?: { dryRun: { inserted: number; alreadyCompleted: number; leftAlone: number }; inserted: number; applied: boolean };
+  comments?: { outcome: OptionalOutcome; counts: CommentsCaptureCounts | null };
+  /** Optional captures left out with --skip-progress / --skip-comments. */
+  skippedOptional?: ("progress" | "comments")[];
   files?: { copied: number; alreadyCopied: number; removed: number; needsNewLink: number; waitingForLesson: number; failed: number };
   images?: { stored: number; failed: number } | null;
   videos?: {
@@ -190,6 +220,155 @@ const stepB: MigrateStep = {
     const applied = await ctx.io.runContent([...base, "--apply"]);
     if (applied.code !== 0) throw new MigrateStop(failedMessage(applied.code));
     ctx.summary.content = { applied: true, counts: parseContentSummary(applied.output) };
+  },
+};
+
+const rowCounts = (line: string | undefined): RowCounts | null => {
+  const m = line ? /(\d+) (?:rows )?written, (\d+) unchanged, (\d+) removed/.exec(line) : null;
+  return m ? { written: Number(m[1]), unchanged: Number(m[2]), removed: Number(m[3]) } : null;
+};
+
+/** Reads the totals the progress capture prints (the roster line and the "lessons:" line). */
+export function parseProgressSummary(output: string): ProgressCaptureCounts | null {
+  const lines = output.split("\n");
+  const roster = rowCounts(lines.find((l) => /students in the roster/.test(l)));
+  const lessonsLine = lines.find((l) => /^lessons: .*students captured/.test(l));
+  const lessons = rowCounts(lessonsLine);
+  if (!roster || !lessons || !lessonsLine) return null;
+  return { roster, lessons, failed: Number(/(\d+) failed/.exec(lessonsLine)?.[1] ?? 0) };
+}
+
+/** Reads the totals the comments capture prints (its first summary line and the "lessons:" line). */
+export function parseCommentsSummary(output: string): CommentsCaptureCounts | null {
+  const lines = output.split("\n");
+  const rows = rowCounts(lines.find((l) => /lessons captured/.test(l) && /rows written/.test(l)));
+  const lessonsLine = lines.find((l) => /^lessons: .*cut off at the Show More limit/.test(l));
+  if (!rows || !lessonsLine) return null;
+  return {
+    rows,
+    lessonsFailed: Number(/(\d+) failed/.exec(lessonsLine)?.[1] ?? 0),
+    lessonsCapped: Number(/(\d+) cut off/.exec(lessonsLine)?.[1] ?? 0),
+  };
+}
+
+const hasNewRows = (...counts: RowCounts[]) => counts.some((c) => c.written + c.removed > 0);
+
+/**
+ * A Kajabi capture that is not worth stopping the run for: dry run first, then (if anything is new) a question
+ * unless --yes, then --apply. A failure is recorded and the run carries on; a "no" skips only this capture.
+ */
+async function optionalCapture<C>(
+  ctx: Context,
+  options: { label: string; flag: string; parse: (output: string) => C | null; isNew: (counts: C) => boolean; question: string; hint: string }
+): Promise<{ outcome: OptionalOutcome; counts: C | null }> {
+  const base = ["--course", ctx.args.courseId, "--env", ctx.args.envFile, options.flag];
+  const failed = (message: string, counts: C | null) => {
+    ctx.failures.push(`${options.label} capture ${message}. ${options.hint}`);
+    ctx.io.log(`The ${options.label} capture failed; carrying on with the next step.`);
+    return { outcome: "failed" as const, counts };
+  };
+  const run = async (args: string[]) => {
+    try {
+      return await ctx.io.runContent(args);
+    } catch (error) {
+      return { code: -1, output: "", error: error instanceof Error ? error.message : String(error) };
+    }
+  };
+  const why = (r: { code: number; error?: string }) => (r.error ? `could not start (${r.error})` : `failed (exit ${r.code})`);
+
+  ctx.io.log(`Capturing ${options.label} as a dry run first (nothing is written)...`);
+  const dry = await run(base);
+  const dryCounts = options.parse(dry.output);
+  if (dry.code !== 0) return failed(why(dry), dryCounts);
+  if (dryCounts && !options.isNew(dryCounts)) {
+    ctx.io.log(`Nothing new in Kajabi: no ${options.label} to write.`);
+    return { outcome: "nothing_new", counts: dryCounts };
+  }
+  if (!ctx.args.yes && !(await ctx.io.confirm(options.question))) {
+    ctx.io.log(`Skipped writing ${options.label}. Nothing changed; run the command again to capture them.`);
+    return { outcome: "declined", counts: dryCounts };
+  }
+  const applied = await run([...base, "--apply"]);
+  const counts = options.parse(applied.output);
+  if (applied.code !== 0) return failed(why(applied), counts);
+  return { outcome: "applied", counts };
+}
+
+const stepProgressCapture: MigrateStep = {
+  id: "P1",
+  title: "Per-lesson progress from Kajabi (opens Chrome, optional)",
+  async run(ctx) {
+    if (ctx.args.skipProgress) {
+      ctx.io.log("Skipped (--skip-progress).");
+      (ctx.summary.skippedOptional ??= []).push("progress");
+      return;
+    }
+    ctx.summary.progress = await optionalCapture(ctx, {
+      label: "progress",
+      flag: "--progress",
+      parse: parseProgressSummary,
+      isNew: (c) => hasNewRows(c.roster, c.lessons),
+      question: "Write the progress the dry run found to the database (Bronze only; the Hub's own progress is not touched yet)?",
+      hint: "Read the lines above, then re-run; it only redoes what is missing.",
+    });
+  },
+};
+
+const stepProgressImport: MigrateStep = {
+  id: "P2",
+  title: "Progress into the Hub (adds only, optional)",
+  async run(ctx) {
+    if (ctx.args.skipProgress) {
+      ctx.io.log("Skipped (--skip-progress).");
+      return;
+    }
+    if (ctx.summary.progress?.outcome === "failed") {
+      ctx.io.log("Skipped: the progress capture failed, so the Hub import would work from a half-captured snapshot. Fix that and re-run.");
+      return;
+    }
+    try {
+      const probe = await callStep(ctx, "Step P2 (progress)", "/api/process/course-progress", { course: ctx.slug, dryRun: true }, "Fix that and re-run.");
+      const dry = (probe.courses ?? [])[0];
+      if (!dry) throw new Error("the route returned no course");
+      const counts = { inserted: dry.inserted ?? 0, alreadyCompleted: dry.alreadyCompleted ?? 0, leftAlone: dry.leftAlone ?? 0 };
+      ctx.io.log(
+        `Dry run: ${counts.inserted} completed lessons would be added, ${counts.alreadyCompleted} already completed in the Hub, ${counts.leftAlone} left alone ` +
+          `(members' own rows are never changed); students: ${dry.students?.matched ?? 0} matched, ${dry.students?.unmatched ?? 0} without a member, ` +
+          `${dry.students?.ambiguous ?? 0} ambiguous, ${dry.students?.withoutAccess ?? 0} without access.`
+      );
+      if (counts.inserted === 0) {
+        ctx.summary.progressImport = { dryRun: counts, inserted: 0, applied: false };
+        ctx.io.log("Nothing to add.");
+        return;
+      }
+      const real = await callStep(ctx, "Step P2 (progress)", "/api/process/course-progress", { course: ctx.slug, dryRun: false }, "Fix that and re-run.");
+      const inserted = (real.courses ?? [])[0]?.inserted ?? 0;
+      ctx.summary.progressImport = { dryRun: counts, inserted, applied: true };
+      ctx.io.log(`Added ${inserted} completed lessons. Insert-only: a member's own progress is never overwritten, so this is safe to repeat.`);
+    } catch (error) {
+      ctx.failures.push(`progress import into the Hub failed: ${error instanceof Error ? error.message : String(error)}`);
+      ctx.io.log("The progress import failed; carrying on with the next step.");
+    }
+  },
+};
+
+const stepComments: MigrateStep = {
+  id: "K",
+  title: "Lesson comments from Kajabi (opens Chrome, optional, Bronze only)",
+  async run(ctx) {
+    if (ctx.args.skipComments) {
+      ctx.io.log("Skipped (--skip-comments).");
+      (ctx.summary.skippedOptional ??= []).push("comments");
+      return;
+    }
+    ctx.summary.comments = await optionalCapture(ctx, {
+      label: "comments",
+      flag: "--comments",
+      parse: parseCommentsSummary,
+      isNew: (c) => hasNewRows(c.rows),
+      question: "Write the comments the dry run found to Bronze (they are not shown in the Hub yet)?",
+      hint: "This capture is not verified against the live Kajabi site; videos and files still run. Read the lines above, then re-run.",
+    });
   },
 };
 
@@ -366,9 +545,9 @@ const stepVideos: MigrateStep = {
   },
 };
 
-/** The steps in order. A quiz step would go between B and C. */
+/** The steps in order. A quiz step would go between B and C; the optional progress and comments steps follow C (they need its lessons and access rows). */
 export function buildSteps(): MigrateStep[] {
-  return [stepA, stepB, stepC, stepFiles, stepVideos];
+  return [stepA, stepB, stepC, stepProgressCapture, stepProgressImport, stepComments, stepFiles, stepVideos];
 }
 
 export async function runMigration(args: MigrateArgs, env: MigrateEnvironment, io: MigrateIO, steps: MigrateStep[] = buildSteps()): Promise<MigrateResult> {
@@ -402,6 +581,32 @@ export function formatSummary(result: MigrateResult): string[] {
       );
   }
   if (s.course) lines.push(`Course "${s.course.slug}": ${s.course.justPublished ? "published now" : s.course.published ? "already published" : "still a draft"}.`);
+  if (s.skippedOptional?.includes("progress")) lines.push("Progress: skipped (--skip-progress).");
+  if (s.progress) {
+    const c = s.progress.counts;
+    const what = { applied: "captured to Bronze", nothing_new: "nothing new in Bronze", declined: "not written (declined)", failed: "capture failed" }[s.progress.outcome];
+    lines.push(
+      `Progress: ${what}` +
+        (c ? ` (roster ${c.roster.written} written, ${c.roster.unchanged} unchanged, ${c.roster.removed} removed; lessons ${c.lessons.written} written, ${c.lessons.unchanged} unchanged, ${c.lessons.removed} removed).` : ".")
+    );
+  }
+  if (s.progressImport) {
+    const p = s.progressImport;
+    lines.push(
+      `Progress in the Hub: ${p.inserted} completed lessons added${p.applied ? "" : " (nothing to add)"}, ${p.dryRun.alreadyCompleted} already completed, ${p.dryRun.leftAlone} left alone. ` +
+        "Insert-only: a member's own progress is never overwritten, and a re-run adds nothing twice."
+    );
+  }
+  if (s.skippedOptional?.includes("comments")) lines.push("Comments: skipped (--skip-comments).");
+  if (s.comments) {
+    const c = s.comments.counts;
+    const captured = s.comments.outcome === "applied" || s.comments.outcome === "nothing_new";
+    lines.push(
+      captured
+        ? "Comments: captured to Bronze, not yet shown in the Hub." + (c ? ` (${c.rows.written} written, ${c.rows.unchanged} unchanged, ${c.rows.removed} removed.)` : "")
+        : `Comments: ${s.comments.outcome === "declined" ? "not written (declined)" : "capture failed"}; they are not shown in the Hub either way yet.`
+    );
+  }
   if (s.files) lines.push(`Downloads: ${s.files.copied} copied, ${s.files.alreadyCopied} already there, ${s.files.removed} removed, ${s.files.failed} failed.`);
   if (s.images) lines.push(`Images: ${s.images.stored} stored, ${s.images.failed} failed.`);
   if (s.videos) {
