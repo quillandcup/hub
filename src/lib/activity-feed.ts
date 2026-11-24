@@ -430,6 +430,7 @@ const ENTITY_LABELS: Record<string, string> = {
   member_award: "award",
   member_badge: "badge",
   prickle_commitment: "prickle commitment",
+  quiz: "quiz",
   calendar_feed: "calendar link",
   calendar_feed_item: "calendar item",
   wheel_of_wonder_match: "Wheel of Wonder match",
@@ -694,6 +695,18 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const modules = Number(fields.modules_deleted?.old);
     const holds = [Number.isFinite(modules) && `${modules} ${modules === 1 ? "module" : "modules"}`, Number.isFinite(lessons) && `${lessons} ${lessons === 1 ? "lesson" : "lessons"}`].filter(Boolean).join(", ");
     return `deleted a course${row.description ? ` “${formatValue(row.description)}”` : ""}${holds ? ` (${holds})` : ""}`;
+  }
+  // A quiz is named by its lesson. Editing its questions is one entry on the quiz (its revision moves), never the question text.
+  if (row.entity_type === "quiz") {
+    const lesson = row.description ? ` “${formatValue(row.description)}”` : "";
+    if (row.event_type === "insert") return `made the lesson${lesson || ""} a quiz`;
+    if (row.event_type === "delete") return `turned the quiz${lesson ? ` “${formatValue(row.description ?? "")}”` : ""} back into a plain lesson`;
+    const settings = Boolean(fields.passing_percent || fields.hide_answers);
+    const questions = Boolean(fields.revision);
+    const where = row.description ? ` in “${formatValue(row.description)}”` : "";
+    if (settings && questions) return `changed the settings and questions of the quiz${where}`;
+    if (settings) return `changed the settings of the quiz${where}`;
+    if (questions) return `edited the questions of the quiz${where}`;
   }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";

@@ -38,6 +38,7 @@ import { InMemoryCalendarFeedRepository, SupabaseCalendarFeedRepository, type Ca
 import { InMemoryCalendarSyncStateRepository, SupabaseCalendarSyncStateRepository, type CalendarSyncStateRepository } from "./calendar-sync-state";
 import { InMemoryCourseRepository, SupabaseCourseRepository, type CourseRepository } from "./courses";
 import { InMemoryCourseCommentRepository, SupabaseCourseCommentRepository, type CourseCommentRepository } from "./course-comments";
+import { InMemoryQuizRepository, SupabaseQuizRepository, type QuizRepository } from "./quizzes";
 import { InMemoryCourseProgressRepository, SupabaseCourseProgressRepository, type CourseProgressRepository } from "./course-progress";
 import { InMemoryStaffRepository, SupabaseStaffRepository, type StaffRepository } from "./staff";
 import { InMemoryMentorshipRepository, SupabaseMentorshipRepository, type MentorshipRepository } from "./mentorship";
@@ -97,6 +98,7 @@ export interface Repos {
   chat: ChatRepository;
   chatDrafts: ChatDraftRepository;
   chatVideos: ChatVideoRepository;
+  quizzes: QuizRepository;
   care: CareRepository;
   careDms: CareTrackedDmRepository;
   memberInteractions: MemberInteractionRepository;
@@ -165,6 +167,7 @@ export function createRepos(db: Db): Repos {
     chat: new SupabaseChatRepository(db),
     chatDrafts: new SupabaseChatDraftRepository(db),
     chatVideos: new SupabaseChatVideoRepository(db),
+    quizzes: new SupabaseQuizRepository(db),
     care: new SupabaseCareRepository(db),
     careDms: new SupabaseCareTrackedDmRepository(db),
     memberInteractions: new SupabaseMemberInteractionRepository(db),
@@ -236,6 +239,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     chat: new InMemoryChatRepository(dataset),
     chatDrafts: new InMemoryChatDraftRepository(dataset),
     chatVideos: new InMemoryChatVideoRepository(dataset),
+    quizzes: new InMemoryQuizRepository(dataset),
     care: new InMemoryCareRepository(dataset, options.signedInAs ?? null),
     careDms: new InMemoryCareTrackedDmRepository(dataset),
     memberInteractions: new InMemoryMemberInteractionRepository(dataset),

@@ -197,6 +197,17 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "lesson_comment", description: null, data: { visibility: { old: "visible", new: "hidden" } } }))).toBe("hid a comment");
   });
 
+  it("reads a quiz by its lesson, with what changed and never a question", () => {
+    const entry = (event_type: string, data: Record<string, unknown>, description: string | null = "Check <in> & go") => row({ entity_type: "quiz", event_type, description, data });
+    expect(describeRow(entry("insert", {}))).toBe("made the lesson “Check <in> & go” a quiz");
+    expect(describeRow(entry("delete", {}))).toBe("turned the quiz “Check <in> & go” back into a plain lesson");
+    expect(describeRow(entry("update", { revision: { old: 1, new: 2 } }))).toBe("edited the questions of the quiz in “Check <in> & go”");
+    expect(describeRow(entry("update", { passing_percent: { old: null, new: 80 } }))).toBe("changed the settings of the quiz in “Check <in> & go”");
+    expect(describeRow(entry("update", { hide_answers: { old: false, new: true }, revision: { old: 1, new: 2 } }))).toBe("changed the settings and questions of the quiz in “Check <in> & go”");
+    expect(describeRow(entry("update", { revision: { old: 1, new: 2 } }, null))).toBe("edited the questions of the quiz");
+    expect(describeRow(entry("insert", {}, null))).toBe("made the lesson a quiz");
+  });
+
   it("reads a duplicated course as one sentence with what it holds", () => {
     const data = { copied_from: { old: null, new: "crs_AAAAAAAAAAA1" }, lessons_copied: { old: null, new: 12 } };
     expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "Plot Lab (copy)", data }))).toBe("duplicated a course as “Plot Lab (copy)” (12 lessons)");

@@ -6931,6 +6931,213 @@ export type Database = {
           },
         ]
       }
+      quiz_attempt_answers: {
+        Row: {
+          attempt_id: string
+          is_correct: boolean | null
+          question_id: string
+          selected_option_ids: string[]
+        }
+        Insert: {
+          attempt_id: string
+          is_correct?: boolean | null
+          question_id: string
+          selected_option_ids?: string[]
+        }
+        Update: {
+          attempt_id?: string
+          is_correct?: boolean | null
+          question_id?: string
+          selected_option_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempt_answers_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempt_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempts: {
+        Row: {
+          correct_count: number
+          id: string
+          member_id: string
+          passed: boolean
+          question_count: number
+          quiz_id: string
+          score_percent: number
+          submitted_at: string
+        }
+        Insert: {
+          correct_count: number
+          id?: string
+          member_id: string
+          passed: boolean
+          question_count: number
+          quiz_id: string
+          score_percent: number
+          submitted_at?: string
+        }
+        Update: {
+          correct_count?: number
+          id?: string
+          member_id?: string
+          passed?: boolean
+          question_count?: number
+          quiz_id?: string
+          score_percent?: number
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_correct: boolean
+          label: string
+          position: number
+          question_id: string
+          source_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          label: string
+          position?: number
+          question_id: string
+          source_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          label?: string
+          position?: number
+          question_id?: string
+          source_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_options_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          allows_multiple: boolean
+          created_at: string
+          id: string
+          position: number
+          prompt: string
+          quiz_id: string
+          source_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          allows_multiple?: boolean
+          created_at?: string
+          id?: string
+          position?: number
+          prompt: string
+          quiz_id: string
+          source_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allows_multiple?: boolean
+          created_at?: string
+          id?: string
+          position?: number
+          prompt?: string
+          quiz_id?: string
+          source_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          created_at: string
+          hide_answers: boolean
+          id: string
+          lesson_id: string
+          passing_percent: number | null
+          revision: number
+          source_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hide_answers?: boolean
+          id?: string
+          lesson_id: string
+          passing_percent?: number | null
+          revision?: number
+          source_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hide_answers?: boolean
+          id?: string
+          lesson_id?: string
+          passing_percent?: number | null
+          revision?: number
+          source_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: true
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_limit_counters: {
         Row: {
           bucket: string
@@ -8690,6 +8897,10 @@ export type Database = {
         }
       }
       delete_course: { Args: { p_course_id: string }; Returns: undefined }
+      delete_quiz_question: {
+        Args: { p_question_id: string; p_quiz_id: string }
+        Returns: undefined
+      }
       delete_stale_calendar_events: {
         Args: {
           p_current_google_ids: string[]
@@ -9270,6 +9481,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      reorder_quiz_questions: {
+        Args: { p_ids: string[]; p_quiz_id: string }
+        Returns: undefined
+      }
       reorder_writing_goals: {
         Args: { p_ids: string[]; p_member_id: string; p_project_id: string }
         Returns: undefined
@@ -9341,6 +9556,16 @@ export type Database = {
       revoke_user_sessions: {
         Args: { target_user_id: string }
         Returns: undefined
+      }
+      save_quiz_question: {
+        Args: {
+          p_allows_multiple: boolean
+          p_options: Json
+          p_prompt: string
+          p_question_id: string
+          p_quiz_id: string
+        }
+        Returns: string
       }
       schedule_host: {
         Args: { "": Database["public"]["Tables"]["prickle_schedules"]["Row"] }
