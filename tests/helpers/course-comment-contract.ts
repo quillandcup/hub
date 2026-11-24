@@ -401,7 +401,8 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
 
         expect(thread.count).toBe(3);
         const entry = thread.entries.find((e) => e.comment.id === top.id)!;
-        expect(entry.comment).toMatchObject({ authorName: "Pen Name a", body: "Imported a", memberId: "", isStaffReply: false, imported: true, createdAt: IMPORTED_AT, held: false });
+        expect(entry.comment).toMatchObject({ authorName: "Pen Name a", body: "Imported a", memberId: "", isStaffReply: false, imported: true, held: false });
+        expect(new Date(entry.comment.createdAt).toISOString()).toBe(IMPORTED_AT);
         expect(entry.replies.map((r) => ({ name: r.authorName, imported: r.imported }))).toEqual([{ name: "Pen Name b", imported: true }]);
         expect(thread.entries.find((e) => e.comment.body === "Written in the Hub")!.comment.imported).toBeUndefined();
         expect(new Date((await ctx.repo().byId(top.id))!.createdAt).toISOString()).toBe(IMPORTED_AT);

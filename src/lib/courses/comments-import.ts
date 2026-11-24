@@ -1,3 +1,4 @@
+import sanitizeHtml from "sanitize-html";
 import type { ImportableLessonComment } from "@/lib/data/kajabi-courses";
 import type { ImportedCommentRecord, ImportedCommentWrite } from "@/lib/data/course-comments";
 import type { Repos } from "@/lib/data/repos";
@@ -12,8 +13,8 @@ const AUTHOR_MAX_LENGTH = 200;
 const NO_NAME = "Former member";
 
 /**
- * Bronze (bronze.kajabi_lesson_comments) -> Silver `lesson_comments` (docs/product/COURSES.md, "Importing Kajabi lesson
- * comments"). The Bronze rows are a capture of the member lesson pages, so the source is the capture, not a webhook, and
+ * Bronze (bronze.kajabi_lesson_comments) -> Silver `lesson_comments` (docs/product/COURSES.md, "Lesson comments", Kajabi
+ * migration). The Bronze rows are a capture of the member lesson pages, so the source is the capture, not a webhook, and
  * there is no pull-based twin: the capture is the pull (`courses:content --comments`).
  *
  * One Hub comment per Bronze comment, keyed `source = 'kajabi'`, `source_key = "<lesson id>/<comment key>"` (unique), so running
@@ -68,18 +69,32 @@ export class CommentsImportError extends Error {
 
 const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+/** Tags that end a line of text; every other tag is dropped with its attributes. */
+const LINE_TAGS = ["p", "div", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6"];
+const CLOSING_LINE_TAG = new RegExp(`</(?:${LINE_TAGS.join("|")})>`, "g");
+const OPENING_LINE_TAG = new RegExp(`<(?:${LINE_TAGS.join("|")})>`, "g");
+
 /**
  * A captured comment as the Hub stores it: plain text. The capture already reads text, but a body that carries markup
- * (older captures, a pasted snippet) is reduced here: line breaks and paragraph ends become newlines, tags and their
- * attributes are dropped, the common entities are decoded, then line endings are normalized, runs of blank lines collapsed and
- * the ends trimmed. Text that merely contains `<` (as in "a < b") is left alone, since only tag-shaped text is a tag.
+ * (older captures, a pasted snippet) is reduced here by the HTML parser the lesson text uses (`sanitize-html`, allowing only
+ * the line-ending tags and no attribute, and dropping what script and style hold): line breaks and block ends become newlines,
+ * every other tag goes with its attributes, and the text left is decoded once. Then line endings are normalized, runs of blank
+ * lines collapsed and the ends trimmed. Text that merely contains `<` (as in "a < b") is left alone, since only tag-shaped
+ * text is a tag. The result is only ever shown as text, never as HTML.
  */
 export function plainCommentText(raw: string): string {
-  const text = raw
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|blockquote|h[1-6])\s*>/gi, "\n")
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
+  const parsed = sanitizeHtml(raw, {
+    allowedTags: ["br", ...LINE_TAGS],
+    allowedAttributes: {},
+    nonTextTags: ["script", "style", "textarea", "option", "noscript"],
+  });
+  const text = parsed
+    // The parser writes these tags in one fixed form, so replacing exactly that form is complete.
+    .split("<br />")
+    .join("\n")
+    .replace(CLOSING_LINE_TAG, "\n")
+    .replace(OPENING_LINE_TAG, "")
+    // Text outside tags was escaped by the parser (& < > "): decode it in one pass, so a decoded & is never decoded again.
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, entity: string) => {
       if (entity[0] === "#") {
         const code = entity[1].toLowerCase() === "x" ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
@@ -88,6 +103,7 @@ export function plainCommentText(raw: string): string {
       return NAMED_ENTITIES[entity.toLowerCase()] ?? whole;
     });
   return text
+    .replace(/ /g, " ")
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.replace(/[ \t ]+$/g, ""))

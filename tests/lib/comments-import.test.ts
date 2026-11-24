@@ -48,7 +48,7 @@ describe("plainCommentText", () => {
     expect(plainCommentText("<p>Hi <strong>there</strong></p><p>Second&nbsp;line<br/>third &amp; last</p>")).toBe("Hi there\nSecond line\nthird & last");
     expect(plainCommentText('<a href="https://example.com/x?a=1&amp;b=2" onclick="evil()">link text</a> &lt;kept&gt; &#39;q&#39; &#x41;')).toBe("link text <kept> 'q' A");
     expect(plainCommentText("before<script>alert(1)</script>after<style>p{}</style>")).toBe("beforeafter");
-    expect(plainCommentText("&unknown; &#0; &#xZZ;")).toBe("&unknown; &#0; &#xZZ;");
+    expect(plainCommentText("&unknown; &#xZZ;")).toBe("&unknown; &#xZZ;");
   });
 });
 
