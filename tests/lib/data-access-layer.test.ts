@@ -46,6 +46,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   event_attendees: [],
   // The Kajabi offers that sell an event (EventRepository).
   community_event_offers: [],
+  // Buyers marked as not attending (EventRepository).
+  event_buyers_not_attending: [],
   event_photos: [],
   // The event schedule view and the Hub-made events' schedules (EventRepository, HubSessionRepository).
   community_event_details: [],

@@ -3560,6 +3560,58 @@ export type Database = {
           },
         ]
       }
+      event_buyers_not_attending: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          member_id: string
+          note: string | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          member_id: string
+          note?: string | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          member_id?: string
+          note?: string | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_buyers_not_attending_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_buyers_not_attending_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_buyers_not_attending_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_photos: {
         Row: {
           created_at: string
