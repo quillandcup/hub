@@ -62,6 +62,34 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "footer-text-placeholder-button",
+    date: "2026-11-24",
+    audience: "staff",
+    category: "improved",
+    title: "Add the year to the footer text with a button, no typing of codes",
+    summary: "The footer text now has a Placeholder button that lists what can fill itself in, starting with the year, and puts it in the text as a pill you can click, change or remove.",
+    body: [
+      "In Admin, Pages, Design, and in a landing page's own footer, the footer **Text** has a small braces button at its right edge. It opens a short list of things that fill themselves in when the page is shown, each with what it does and what it shows as today. **Insert** adds it where the cursor is.",
+      "- **Year.** Shows the current year and turns over each New Year by itself. Click the pill to give it a start year and show a range such as 2019–2026.",
+      "- **Pills are one piece.** Backspace or Delete next to one removes all of it, and so does the small x in its corner when you point at it. The text stays one line: Enter does nothing, and pasted text goes in as plain words.",
+      "Under the field, **Shows as** displays the result. What is saved is the same plain text as before (`© {year:2019} Quill & Cup`), so older pages and exports are unchanged, and typing the code by hand still works.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "text-placeholder-registry",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "Placeholders in page text come from one registry, edited in a one-line field that shows them as pills",
+    summary: "A token in a page's text (the year, so far) is one entry in a registry that the renderer resolves and the text field offers, and the field is a reusable one-line editor with pills.",
+    body: `Text that fills itself in is a registered placeholder, not a one-off regex. \`PLACEHOLDERS\` (\`src/lib/landing/placeholders.ts\`) holds each entry's token name, optional typed parameter, plain label and description, example, the surfaces that offer it and a pure resolver that reads a context (the app clock, in the org's zone). \`resolvePlaceholders\` fills in every known token and leaves anything else as written.
+
+- **Rule.** The stored text is always the plain token string (\`{year:2019}\`), so export, import, versions and the renderer never meet a pill; only the field does.
+- **Field.** \`PlaceholderTextField\` is a one-line TipTap editor with an atom node per placeholder, drawn with the shared \`Pill\` (also the tag box's look). A field opts in with \`placeholders\`, usually \`placeholdersFor("<surface>")\`, so a new entry reaches every field of that surface.
+- **Hooks.** A new entry in the registry, its test in the registry test (it fails for an entry without label, description, example or a resolver test), and a surface for a new kind of field.
+- **Detail.** \`docs/product/LANDING_PAGES.md\`, "Placeholders".`,
+  },
+  {
     slug: "tags-as-pills",
     date: "2026-11-23",
     audience: "product",

@@ -1,7 +1,7 @@
 import type { ComponentConfig, Config } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
-import { resolveYearTokens } from "@/lib/landing/footer-year";
+import { resolvePlaceholders } from "@/lib/landing/placeholders";
 import { installedPageBlocks, type InstalledBlockDefaults } from "@/modules";
 import { createPageBlockRegistry, type PageBlockDefinition, type PageBlockRegistry } from "./block-registry";
 import { CORE_DEFAULTS, coreBlocks } from "./core-blocks";
@@ -138,7 +138,7 @@ export function PageFrame({ children, frame, ...root }: RootProps & { children?:
               ))}
             </ul>
           )}
-          {root.footerText && <p>{resolveYearTokens(root.footerText)}</p>}
+          {root.footerText && <p>{resolvePlaceholders(root.footerText)}</p>}
         </footer>
       )}
       {tools}

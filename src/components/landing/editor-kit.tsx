@@ -2,6 +2,8 @@
 
 import type { Field, Fields } from "@puckeditor/core";
 import type { PageBlockRegistry } from "./block-registry";
+import PlaceholderTextField from "./PlaceholderTextField";
+import type { PlaceholderName } from "@/lib/landing/placeholders";
 import { ImageField, RichTextField, ZonedDateTimeField } from "./fields";
 
 /**
@@ -18,6 +20,8 @@ export type EditorKit = {
   opts: (...values: string[]) => { label: string; value: string }[];
   image: (label: string) => Field;
   richText: (label: string) => Field;
+  /** One line of text that can hold placeholders (`{year}`), shown as pills; the field offers only the names it is given. */
+  placeholderText: (label: string, placeholders: readonly PlaceholderName[]) => Field;
   dateTime: (label: string) => Field;
   /** A button label and an address. */
   link: (label: string) => Field;
@@ -58,6 +62,11 @@ export function createEditorKit(registry: Pick<PageBlockRegistry, "itemBlocks" |
       type: "custom",
       label,
       render: ({ value, onChange }) => <RichTextField label={label} value={(value as string) ?? ""} onChange={onChange} />,
+    }),
+    placeholderText: (label, placeholders) => ({
+      type: "custom",
+      label,
+      render: ({ value, onChange }) => <PlaceholderTextField label={label} value={(value as string) ?? ""} onChange={onChange} placeholders={placeholders} />,
     }),
     dateTime: (label) => ({
       type: "custom",

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { safeHref } from "@/lib/landing/data";
-import { resolveYearTokens } from "@/lib/landing/footer-year";
+import { resolvePlaceholders } from "@/lib/landing/placeholders";
 import { SIGN_IN_HREF, type SiteSocialLook, type HeaderItem, type ItemShow, type SiteFooter, type SiteHeader, type SiteSocialLink } from "@/lib/landing/site-template";
 import { buttonClasses, SOCIAL_LOOK, SOCIAL_SIZE, SocialLink } from "./blocks";
 import { pageImage } from "./theme";
@@ -169,7 +169,7 @@ export function SiteFooterView({ footer }: { footer: SiteFooter }) {
           <SocialLinks links={footer.social} label="Social links" look={footer.socialLook} center />
         </div>
       )}
-      {footer.text && <p>{resolveYearTokens(footer.text)}</p>}
+      {footer.text && <p>{resolvePlaceholders(footer.text)}</p>}
     </footer>
   );
 }

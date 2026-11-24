@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
+import Pill from "@/components/Pill";
 import { splitTopicInput } from "@/lib/ask-me-about";
 
 interface TagInputProps {
@@ -60,20 +61,9 @@ export default function TagInput({ id, tags, onChange, placeholder, maxTags, max
   return (
     <div className="flex flex-wrap items-center gap-1.5 w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-plum-500/40">
       {tags.map((tag) => (
-        <span
-          key={tag}
-          className="inline-flex items-center gap-1 rounded-full bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 text-sm pl-2.5 pr-1 py-0.5"
-        >
+        <Pill key={tag} removeLabel={`Remove ${tag}`} removeTrack="tag-input-change" onRemove={() => onChange(tags.filter((t) => t !== tag))}>
           {tag}
-          <button data-track="tag-input-change"
-            type="button"
-            onClick={() => onChange(tags.filter((t) => t !== tag))}
-            aria-label={`Remove ${tag}`}
-            className="rounded-full w-4 h-4 leading-none text-xs hover:bg-plum-100 dark:hover:bg-plum-800"
-          >
-            ×
-          </button>
-        </span>
+        </Pill>
       ))}
       <input
         id={id}
