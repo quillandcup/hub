@@ -9,6 +9,22 @@ One mechanism, two outputs: a fictional demo community seeded into a local stack
 
 Status: the harness, two scenes, the `/help` route and the first article ("How to join a prickle") exist (`docs/TODO.md`, "Reproducible demo and help docs").
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Layout (proposed)](#layout-proposed)
+- [Seed data](#seed-data)
+- [Scenes](#scenes)
+- [Help articles](#help-articles)
+- [Decisions to make](#decisions-to-make)
+- [Scenes are also browser tests](#scenes-are-also-browser-tests)
+- [Page checks (every scene, every size, light and dark)](#page-checks-every-scene-every-size-light-and-dark)
+- [Overview videos](#overview-videos)
+- [Integration mockups](#integration-mockups)
+- [Decisions](#decisions)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Layout (proposed)
 
 ```

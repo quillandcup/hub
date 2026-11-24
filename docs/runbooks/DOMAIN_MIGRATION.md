@@ -4,6 +4,27 @@
 
 Step-by-step checklist for moving quillandcup.com from Kajabi to the Hub while courses stay on a Kajabi subdomain. A checklist to follow by hand. Target: **Dec 3 to 5, 2026** (the retreat is Dec 12, so there is a week of buffer). Where this says "verify in your dashboard", nobody has checked that screen while writing this page, so trust what the screen says over this page.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [The plan in one picture](#the-plan-in-one-picture)
+- [Why DNS has to move first](#why-dns-has-to-move-first)
+- [Part 1. Prep (Nov 21 to Nov 30)](#part-1-prep-nov-21-to-nov-30)
+  - [1.1 Save the "before" picture](#11-save-the-before-picture)
+  - [1.2 Decide and prepare](#12-decide-and-prepare)
+  - [1.3 Member heads-up (draft)](#13-member-heads-up-draft)
+- [Part 2. Email safety](#part-2-email-safety)
+- [Part 3. Move DNS to Squarespace (as early as you like, ideally the week of Nov 24; invisible to members)](#part-3-move-dns-to-squarespace-as-early-as-you-like-ideally-the-week-of-nov-24-invisible-to-members)
+- [Part 4. Code (before the cutover)](#part-4-code-before-the-cutover)
+- [Part 5. The cutover (Dec 3 or 4, early morning Eastern)](#part-5-the-cutover-dec-3-or-4-early-morning-eastern)
+- [Part 6. Sign-in, cookies, payments](#part-6-sign-in-cookies-payments)
+- [Part 7. Verify right after the cutover](#part-7-verify-right-after-the-cutover)
+- [Part 8. Rollback and the alternative](#part-8-rollback-and-the-alternative)
+- [Part 9. After launch (first weeks)](#part-9-after-launch-first-weeks)
+- [End state: retiring Kajabi pages one at a time](#end-state-retiring-kajabi-pages-one-at-a-time)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## The plan in one picture
 
 | Address | Today | After |

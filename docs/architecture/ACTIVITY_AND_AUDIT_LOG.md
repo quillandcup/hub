@@ -4,6 +4,23 @@
 
 Explains the activity log (`member_activities`) and the audit log (`audit_log`), and why they are two tables. Two distinct systems, both "who did what when," but with a different subject — kept as two tables rather than one shared table.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [`member_activities` — the activity log](#member_activities--the-activity-log)
+- [`audit_log` — the audit log](#audit_log--the-audit-log)
+  - [What is audited today](#what-is-audited-today)
+  - [Record the intent, not the noise](#record-the-intent-not-the-noise)
+  - [A feature launches with its events in the activity log](#a-feature-launches-with-its-events-in-the-activity-log)
+- [The central activity log (`/admin/activity`)](#the-central-activity-log-adminactivity)
+  - [The date range on a member's Activity tab](#the-date-range-on-a-members-activity-tab)
+  - [The community manager's Activity tab](#the-community-managers-activity-tab)
+- [Three views, mapped to the two tables](#three-views-mapped-to-the-two-tables)
+- [Why not partition `member_activities`](#why-not-partition-member_activities)
+- [Why `prickle_attendance` stays a separate table](#why-prickle_attendance-stays-a-separate-table)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## `member_activities` — the activity log
 
 Subject is always a CRM person (`member_id`). This is a live table (not new) — written by the Slack import pipeline and writing-progress actions, and now also by prickle attendance (mirrored), outreach touches, and Hedgie Hub logins. Read by engagement scoring (`src/lib/member-engagement.ts`) and the admin member activity feed.

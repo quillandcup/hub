@@ -11,6 +11,25 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 
 **Status words.** *Met*: done, with where to look. *Partly*: some of it. *Not met*. *N/A*: the criterion doesn't apply (for example, no native binaries). *Unverified*: believed true but not checked against the repo or the live setting. A level word in brackets is the criterion's own: MUST, SHOULD or SUGGESTED. Names in `code font` are the criterion ids on bestpractices.dev.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Summary](#summary)
+- [Passing](#passing)
+  - [Basics](#basics)
+  - [Documentation](#documentation)
+  - [Other](#other)
+  - [Change control](#change-control)
+  - [Reporting](#reporting)
+  - [Quality](#quality)
+  - [Security](#security)
+  - [Analysis](#analysis)
+- [Silver](#silver)
+- [Gold](#gold)
+- [What is worth doing even without the badge](#what-is-worth-doing-even-without-the-badge)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Summary
 
 | Level | Result |

@@ -2,6 +2,24 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [How production deploys (the CI pipeline)](#how-production-deploys-the-ci-pipeline)
+  - [A red `main` is announced](#a-red-main-is-announced)
+  - [Migration numbers that collide while a PR waits](#migration-numbers-that-collide-while-a-pr-waits)
+  - [Seeing what is in production](#seeing-what-is-in-production)
+  - [Verifying what was deployed](#verifying-what-was-deployed)
+- [Setting up from scratch](#setting-up-from-scratch)
+- [Restoring the database](#restoring-the-database)
+- [When something looks wrong](#when-something-looks-wrong)
+- [Supabase production checklist](#supabase-production-checklist)
+- [Plans and headroom](#plans-and-headroom)
+  - [Supabase (production project)](#supabase-production-project)
+  - [Vercel](#vercel)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## How production deploys (the CI pipeline)
 
 Every push to `main` is tested, migrated and deployed to production by one GitHub Actions workflow (`.github/workflows/ci.yml`). Vercel's own git deploys are **off for `main`** (`git.deploymentEnabled.main:

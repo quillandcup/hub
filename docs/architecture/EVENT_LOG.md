@@ -8,6 +8,38 @@ Design for one low-level event log that consolidates the Hub's scattered behavio
 
 This is engineering's reading of the regulators' published guidance, not legal advice. Counsel should confirm the retention and consent choices before they are published to members (see [Sources](#sources-and-what-was-not-verified)).
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Decisions so far](#decisions-so-far)
+- [Why](#why)
+- [The model](#the-model)
+  - [Naming](#naming)
+  - [The registry and the catalog](#the-registry-and-the-catalog)
+- [Correlation](#correlation)
+- [Views](#views)
+  - [Writing business facts: database triggers where there is a row](#writing-business-facts-database-triggers-where-there-is-a-row)
+  - [`member_activities`: a projection, not a second copy](#member_activities-a-projection-not-a-second-copy)
+  - [What stays separate](#what-stays-separate)
+- [Retention and erasure](#retention-and-erasure)
+  - [What the guidance requires](#what-the-guidance-requires)
+  - [Lawful basis per event type](#lawful-basis-per-event-type)
+  - [Objection, withdrawal, erasure](#objection-withdrawal-erasure)
+  - [Retention schedule (decided)](#retention-schedule-decided)
+  - [What a scrub does](#what-a-scrub-does)
+  - [Mechanism](#mechanism)
+- [Device and viewport](#device-and-viewport)
+  - [Decisions the rollups must support](#decisions-the-rollups-must-support)
+  - [Statistical-purposes exceptions (UK, France)](#statistical-purposes-exceptions-uk-france)
+  - [Installed app](#installed-app)
+- [Access](#access)
+- [Migration plan](#migration-plan)
+- [Risks and open questions](#risks-and-open-questions)
+- [Out of scope](#out-of-scope)
+- [Sources and what was not verified](#sources-and-what-was-not-verified)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Decisions so far
 
 1. **One low-level event log; everything else is a view over it.** The activity feed, sessions, analytics, funnels and per-feature dashboards are queries over events, not separate stores.

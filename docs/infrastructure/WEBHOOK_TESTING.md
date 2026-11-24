@@ -2,6 +2,35 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Test Results](#test-results)
+- [Security Implementation](#security-implementation)
+  - [✅ Implemented Signature Verification](#-implemented-signature-verification)
+- [Test Coverage](#test-coverage)
+  - [Calendar Webhook (`/api/webhooks/calendar`)](#calendar-webhook-apiwebhookscalendar)
+  - [Zoom Webhook (`/api/webhooks/zoom`)](#zoom-webhook-apiwebhookszoom)
+  - [Slack Webhook (`/api/webhooks/slack`)](#slack-webhook-apiwebhooksslack)
+- [Running Tests](#running-tests)
+- [Test Infrastructure](#test-infrastructure)
+  - [Dependencies](#dependencies)
+  - [Configuration Files](#configuration-files)
+  - [Fixture Files](#fixture-files)
+- [Production Webhook Setup](#production-webhook-setup)
+  - [Environment Variables (Vercel Project Settings)](#environment-variables-vercel-project-settings)
+  - [Webhook URL Configuration](#webhook-url-configuration)
+  - [Security Checklist](#security-checklist)
+- [Integration Testing (Next Step)](#integration-testing-next-step)
+  - [Current Limitation](#current-limitation)
+  - [Implementation Plan](#implementation-plan)
+  - [Un-skipping Tests Checklist](#un-skipping-tests-checklist)
+- [Next Steps](#next-steps)
+- [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 Webhook handlers are tested without network access using **MSW (Mock Service Worker)**, with **signature verification** enabled for all webhooks.

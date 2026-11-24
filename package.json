@@ -91,6 +91,7 @@
     "docs:api-routes": "tsx scripts/api-route-inventory.ts",
     "vex": "tsx scripts/vex.ts",
     "docs:toc": "doctoc --update-only --notitle --minlevel 2 --maxlevel 3",
+    "docs:toc:top": "doctoc --update-only --notitle --minlevel 2 --maxlevel 2",
     "prepare": "git config core.hooksPath config/husky || true"
   },
   "dependencies": {

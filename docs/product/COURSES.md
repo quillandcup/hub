@@ -9,6 +9,64 @@ Quill & Cup's courses live in the Hub, synced from Kajabi until the Hub's course
 
 **Admin addresses use Hub ids, never Kajabi's.** `/admin/courses/<crs_ id>`, `/lessons/<les_ id>`, `/stats` and `/roster` all take our ids; the Kajabi id stays the importers' natural key and is resolved server-side (`kajabiIdOfCourse`). A course imported before its row exists is listed without a link until the next import.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Decisions so far](#decisions-so-far)
+- [Terms: program, course, Kajabi product](#terms-program-course-kajabi-product)
+- [Scope](#scope)
+  - [Launch (The Ready Writer)](#launch-the-ready-writer)
+  - [Soon after launch (in priority order)](#soon-after-launch-in-priority-order)
+  - [Later](#later)
+  - [Not planned](#not-planned)
+- [What Kajabi gives us](#what-kajabi-gives-us)
+- [Importing Kajabi per-lesson progress](#importing-kajabi-per-lesson-progress)
+  - [What Kajabi exposes](#what-kajabi-exposes)
+  - [What the user checks (about 15 minutes, in their own logged-in browser)](#what-the-user-checks-about-15-minutes-in-their-own-logged-in-browser)
+  - [Options, in the order to prefer them](#options-in-the-order-to-prefer-them)
+  - [Product Progress report import (built)](#product-progress-report-import-built)
+  - [Per-lesson capture and Silver step (built; the capture dry-ran on a real product 2026-10-30)](#per-lesson-capture-and-silver-step-built-the-capture-dry-ran-on-a-real-product-2026-10-30)
+  - [Design, if per-lesson data is found](#design-if-per-lesson-data-is-found)
+  - [Questions (decided 2026-10-28)](#questions-decided-2026-10-28)
+- [Data model](#data-model)
+  - [Bronze (raw Kajabi)](#bronze-raw-kajabi)
+  - [Silver (what members see)](#silver-what-members-see)
+  - [Local (ours, never reprocessed)](#local-ours-never-reprocessed)
+- [Taking a course over from Kajabi](#taking-a-course-over-from-kajabi)
+- [Duplicating a course](#duplicating-a-course)
+- [Deleting a course](#deleting-a-course)
+- [Course addresses: suggestions and redirects](#course-addresses-suggestions-and-redirects)
+- [Migration pipeline](#migration-pipeline)
+  - [Step B in practice](#step-b-in-practice)
+  - [Telling whether a video changed](#telling-whether-a-video-changed)
+- [Lesson downloads](#lesson-downloads)
+- [Captions](#captions)
+- [Lesson thumbnails](#lesson-thumbnails)
+- [Video](#video)
+- [Member experience](#member-experience)
+- [Lesson comments](#lesson-comments)
+  - [Recommendation: their own Local tables](#recommendation-their-own-local-tables)
+  - [Data model](#data-model-1)
+  - [Who can comment](#who-can-comment)
+  - [Moderation](#moderation)
+  - [Safety of rendered text](#safety-of-rendered-text)
+  - [Notifications](#notifications)
+  - [UI](#ui)
+  - [Analytics](#analytics)
+  - [Admin view](#admin-view)
+  - [Kajabi migration](#kajabi-migration)
+  - [Privacy and retention](#privacy-and-retention)
+  - [Phased build plan](#phased-build-plan)
+  - [Tests it will need](#tests-it-will-need)
+  - [Decisions (2026-10-28)](#decisions-2026-10-28)
+- [Timeline (two-week target)](#timeline-two-week-target)
+- [Ongoing sync after launch](#ongoing-sync-after-launch)
+- [Open decisions](#open-decisions)
+- [Decided (2026-10-18)](#decided-2026-10-18)
+- [Prerequisites (Cody)](#prerequisites-cody)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Decisions so far
 
 - **The Ready Writer goes first and launches in the Hub.** It's an **evergreen** program, not cohort-based. Its first run launches together, and lessons are released as they're finished (a release schedule for content, not drip for its own sake).

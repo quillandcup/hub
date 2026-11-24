@@ -18,6 +18,33 @@ follow-ups are **proposed only** (Part 2 of this doc).
 
 ---
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Part 1: What's built](#part-1-whats-built)
+  - [Data model](#data-model)
+  - [Member UI](#member-ui)
+  - [Progress: kept vs. missed (`src/lib/commitments.ts`, pure)](#progress-kept-vs-missed-srclibcommitmentsts-pure)
+  - [Activity log](#activity-log)
+- [Part 2: Proposal — commitment check-ins and check-outs](#part-2-proposal--commitment-check-ins-and-check-outs)
+  - [What already exists (reuse, don't rebuild)](#what-already-exists-reuse-dont-rebuild)
+  - [Channels, in recommended order](#channels-in-recommended-order)
+  - [Timing](#timing)
+  - [Implementation sketch](#implementation-sketch)
+  - [Opt-out](#opt-out)
+  - [What to collect post-prickle](#what-to-collect-post-prickle)
+  - [Generalizing beyond commitments](#generalizing-beyond-commitments)
+- [Part 3: Follow-up — commitments say which prickles, goals say how much](#part-3-follow-up--commitments-say-which-prickles-goals-say-how-much)
+  - [Why](#why)
+  - [Slots include the host](#slots-include-the-host)
+  - [Linking goals to commitments](#linking-goals-to-commitments)
+  - [When a commitment ends: "Renew your commitment?"](#when-a-commitment-ends-renew-your-commitment)
+  - [Nudges](#nudges)
+  - [Rollout order](#rollout-order)
+- [Open questions for the product owner](#open-questions-for-the-product-owner)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Part 1: What's built
 
 ### Data model

@@ -6,6 +6,21 @@ Prickle check-in and check-out offers appear and disappear at set times, on set 
 offer appears and disappears, on which surface, and for whom.** It is written from the code
 (constants named below), so when you change a timing, change it here too.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [The pieces](#the-pieces)
+- [Pop-Up Prickles are paused](#pop-up-prickles-are-paused)
+- [Who is "tied" to a prickle](#who-is-tied-to-a-prickle)
+- [Timing constants](#timing-constants)
+- [When the check-in appears and disappears](#when-the-check-in-appears-and-disappears)
+- [When the check-out appears and disappears](#when-the-check-out-appears-and-disappears)
+- [Scenario by channel](#scenario-by-channel)
+- [Overlap](#overlap)
+- [Checking it](#checking-it)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## The pieces
 
 | Piece | What it is | Where |

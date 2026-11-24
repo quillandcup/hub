@@ -5,6 +5,29 @@
 How the Hub finds out whether a feature earns its place: a log of what members do, and funnels over it.
 Page-level analytics (Google Analytics, Vercel) stay as they are; this is the product-event stream beside them.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Pieces](#pieces)
+- [Adding an event](#adding-an-event)
+- [Exploring without code](#exploring-without-code)
+- [Search](#search)
+- [Keyboard shortcuts panel](#keyboard-shortcuts-panel)
+- [Managing events (admin)](#managing-events-admin)
+- [Sign-in: what is and isn't recorded](#sign-in-what-is-and-isnt-recorded)
+- [What analytics is not for](#what-analytics-is-not-for)
+- [Outcomes: did it work?](#outcomes-did-it-work)
+- [Notifications: sent and opened](#notifications-sent-and-opened)
+- [Mux Data (playback quality) is consent-gated](#mux-data-playback-quality-is-consent-gated)
+- [Course viewing data is not analytics events](#course-viewing-data-is-not-analytics-events)
+- [Who the numbers count](#who-the-numbers-count)
+- [Naming controls, and click-through](#naming-controls-and-click-through)
+- [Identity and sessions](#identity-and-sessions)
+- [Privacy](#privacy)
+- [Experiments with few members](#experiments-with-few-members)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Pieces
 
 | Piece | Where |

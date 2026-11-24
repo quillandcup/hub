@@ -2,6 +2,33 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-18. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Current State](#current-state)
+- [User Roles](#user-roles)
+  - [Implemented Roles](#implemented-roles)
+  - [Future Roles (Not Implemented)](#future-roles-not-implemented)
+- [Table Access Policies](#table-access-policies)
+  - [Current Implementation](#current-implementation)
+- [How to Add Role-Based Restrictions](#how-to-add-role-based-restrictions)
+  - [Step 1: Update user_profiles table](#step-1-update-user_profiles-table)
+  - [Step 2: Create role-specific policies](#step-2-create-role-specific-policies)
+  - [Step 3: Update UI based on role](#step-3-update-ui-based-on-role)
+  - [Step 4: Test thoroughly](#step-4-test-thoroughly)
+- [Storage buckets](#storage-buckets)
+- [Table privileges (grants)](#table-privileges-grants)
+- [Security definer functions and the guard](#security-definer-functions-and-the-guard)
+- [Helper Functions](#helper-functions)
+  - [`is_admin()`](#is_admin)
+- [Auto-Created User Profiles](#auto-created-user-profiles)
+- [Migration Path](#migration-path)
+- [Security Considerations](#security-considerations)
+- [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 How Row Level Security is set up for the Hedgie Hub: roles, table policies, helper functions and the guards that keep them in place.

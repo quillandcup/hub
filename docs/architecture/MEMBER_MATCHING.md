@@ -2,6 +2,28 @@
 
 > **Status:** living. **Last reviewed:** 2026-10-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Overview](#overview)
+- [Matching Rules (Priority Order)](#matching-rules-priority-order)
+- [Name Normalization](#name-normalization)
+- [Usage](#usage)
+  - [Basic Matching](#basic-matching)
+  - [Calendar Processing (Skip Email Matching)](#calendar-processing-skip-email-matching)
+  - [Batch Matching](#batch-matching)
+- [Adding Aliases](#adding-aliases)
+- [Testing](#testing)
+- [Common Issues](#common-issues)
+  - [Issue: Active member showing zero attendance](#issue-active-member-showing-zero-attendance)
+  - [Issue: Email match not working](#issue-email-match-not-working)
+  - [Issue: Multiple people with similar names](#issue-multiple-people-with-similar-names)
+- [Migration Guide](#migration-guide)
+- [Recent Improvements](#recent-improvements)
+- [Future Improvements](#future-improvements)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
 
 Describes the priority rules that match Zoom attendees to members, all implemented in `src/lib/member-matching.ts`. This ensures consistency across the codebase and makes it easy to test and maintain.

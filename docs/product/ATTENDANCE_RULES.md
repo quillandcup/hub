@@ -4,6 +4,32 @@
 
 Attendance tracking uses time thresholds to split Zoom meetings into prickles, avoid double-counting early or late arrivals, and flag late hosts. Each rule and its threshold is defined here.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Table of Contents](#table-of-contents)
+- [Meeting Segmentation (20-minute threshold)](#meeting-segmentation-20-minute-threshold)
+  - [The 7 Rules](#the-7-rules)
+  - [Example](#example)
+- [A run reads meetings whole](#a-run-reads-meetings-whole)
+- [PUP Attendance Filtering (15-minute threshold)](#pup-attendance-filtering-15-minute-threshold)
+  - [Rules](#rules)
+  - [Logic](#logic)
+  - [Example](#example-1)
+- [Host Warning Indicators (5-minute threshold)](#host-warning-indicators-5-minute-threshold)
+  - [Rules](#rules-1)
+  - [Display](#display)
+- [Zero-Duration Filtering](#zero-duration-filtering)
+  - [Example](#example-2)
+- [Summary Table](#summary-table)
+- [Rationale](#rationale)
+  - [Why 20 minutes for segmentation?](#why-20-minutes-for-segmentation)
+  - [Why 15 minutes for PUP filtering?](#why-15-minutes-for-pup-filtering)
+  - [Why 5 minutes for late hosts?](#why-5-minutes-for-late-hosts)
+- [Related Documentation](#related-documentation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Table of Contents
 - [Meeting Segmentation (20-minute threshold)](#meeting-segmentation-20-minute-threshold)
 - [PUP Attendance Filtering (15-minute threshold)](#pup-attendance-filtering-15-minute-threshold)
