@@ -1,8 +1,10 @@
-# Route handlers: the external interfaces
+# Route handlers: inventory and who may call each
 
-> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Every HTTP route handler under `src/app` (the API routes, the sign-in endpoints under `src/app/auth` and the two member download routes), with its path, the methods it answers and the credential its caller must present. The table is generated from the code and a test fails when it is out of date, so it cannot drift from the routes.
+
+This is an inventory and a guard, not a description of the interfaces: it says who may call a route, not what to send or what comes back. Most routes are called only by the app's own pages (a staff or member session). The ones other systems call are the webhooks (`docs/infrastructure/WEBHOOK_SETUP.md`), the cron routes, the public forms and the sign-in links; describing those in detail is open (`docs/TODO.md`, "OSPS Baseline: what is left").
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
