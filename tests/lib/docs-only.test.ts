@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDocsOnly } from "@/scripts/docs-only";
+import { comparisonRef, isDocsOnly, PRODUCTION_TAG_REF } from "@/scripts/docs-only";
 
 describe("isDocsOnly", () => {
   it("accepts markdown anywhere, the docs folder and .mdc rules", () => {
@@ -29,5 +29,21 @@ describe("isDocsOnly", () => {
 
   it("answers false for an empty change, so nothing is skipped by accident", () => {
     expect(isDocsOnly([])).toBe(false);
+  });
+});
+
+describe("comparisonRef", () => {
+  it("compares a pull request with its base branch", () => {
+    expect(comparisonRef("pull_request", "main")).toBe("main");
+  });
+
+  it("compares a push to main with the deployed commit, not the previous push", () => {
+    expect(comparisonRef("push", "")).toBe(PRODUCTION_TAG_REF);
+  });
+
+  it("has no base for a manual redeploy or an unknown event, so everything runs", () => {
+    expect(comparisonRef("workflow_dispatch", "")).toBeNull();
+    expect(comparisonRef("pull_request", "")).toBeNull();
+    expect(comparisonRef("schedule", "main")).toBeNull();
   });
 });

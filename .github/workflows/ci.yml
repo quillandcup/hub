@@ -75,13 +75,16 @@ jobs:
           node-version-file: "package.json"
 
       # A failed fetch leaves FETCH_HEAD at the checked-out commit, so the diff is empty and the
-      # answer is false (run everything); it must not fail this job.
+      # answer is false (run everything); it must not fail this job. On a push to main the base is
+      # the `production` tag (what is deployed), not github.event.before: see comparisonRef in
+      # scripts/docs-only.ts. A missing tag also fails the fetch, so it also runs everything.
       - name: Fetch the comparison commit
         if: github.event_name != 'workflow_dispatch'
         continue-on-error: true
-        run: git fetch --no-tags --depth=1 origin "$BASE"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/docs-only.ts --comparison-ref | xargs -r git fetch --no-tags --depth=1 origin
         env:
-          BASE: ${{ github.event_name == 'pull_request' && github.base_ref || github.event.before }}
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.base_ref }}
 
       - name: Check whether only docs changed
         id: docs

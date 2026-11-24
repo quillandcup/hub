@@ -1,6 +1,6 @@
 # Deployment Guide
 
-> **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-24. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -27,7 +27,7 @@ false` in `vercel.json`), so nothing reaches production any other way.
 
 **Jobs on a push to `main`, in order:**
 
-1. `changes` (Detect docs-only change): if every changed file is documentation, the jobs
+1. `changes` (Detect docs-only change): if every file changed since the `production` tag (pull requests: since the base branch) is documentation, the jobs
    below are skipped and nothing deploys (`.claude/rules/docs-only-changes.md`).
 2. `check-migrations`, `test-unit`, `test-db` run in parallel. All three must pass.
 3. `push-migrations` pushes pending Supabase migrations and the Supabase config to
