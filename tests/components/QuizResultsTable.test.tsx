@@ -16,6 +16,7 @@ const row = (i: number, over: Partial<QuizResultRow> = {}): QuizResultRow => ({
   correctCount: 2,
   questionCount: 2,
   passed: true,
+  importedFrom: null,
   ...over,
 });
 

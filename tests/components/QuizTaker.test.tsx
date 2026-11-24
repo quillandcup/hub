@@ -138,8 +138,8 @@ describe("QuizTaker: answering", () => {
     show({
       passedBefore: true,
       attempts: [
-        { id: "qatt_AAAAAAAAAAA2", submittedAt: "2027-01-05T03:00:00.000Z", scorePercent: 100, correctCount: 2, questionCount: 2, passed: true, openAnswers: [] },
-        { id: "qatt_AAAAAAAAAAA1", submittedAt: "2027-01-04T15:00:00.000Z", scorePercent: 50, correctCount: 1, questionCount: 2, passed: false, openAnswers: [] },
+        { id: "qatt_AAAAAAAAAAA2", submittedAt: "2027-01-05T03:00:00.000Z", scorePercent: 100, correctCount: 2, questionCount: 2, passed: true, importedFrom: null, openAnswers: [] },
+        { id: "qatt_AAAAAAAAAAA1", submittedAt: "2027-01-04T15:00:00.000Z", scorePercent: 50, correctCount: 1, questionCount: 2, passed: false, importedFrom: null, openAnswers: [] },
       ],
     });
     expect(screen.getByText(/You've passed this quiz\. You can take it again; the lesson stays complete\./)).toBeInTheDocument();

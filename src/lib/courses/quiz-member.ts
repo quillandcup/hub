@@ -24,6 +24,8 @@ export interface PublicQuizQuestion {
 /** What a member wrote or uploaded for one question of an attempt: their own, shown back to them. */
 export interface MemberOpenAnswer {
   questionId: string;
+  /** The question as it was worded when they answered it, when that was recorded. */
+  prompt: string | null;
   text: string | null;
   fileName: string | null;
 }
@@ -35,6 +37,8 @@ export interface MemberAttempt {
   correctCount: number;
   questionCount: number;
   passed: boolean;
+  /** `kajabi` for an attempt imported from Kajabi, null for one made in the Hub. */
+  importedFrom: string | null;
   /** What they wrote or uploaded in it (short answer and file upload questions only). */
   openAnswers: MemberOpenAnswer[];
 }
@@ -63,13 +67,13 @@ export async function loadMemberQuiz(repos: Pick<Repos, "quizzes">, lessonId: st
   const openAnswers = (attemptId: string): MemberOpenAnswer[] =>
     answers
       .filter((a) => a.attemptId === attemptId && (a.answerText !== null || a.file !== null))
-      .map((a) => ({ questionId: a.questionId, text: a.answerText, fileName: a.file?.name ?? null }));
+      .map((a) => ({ questionId: a.questionId, prompt: a.promptSnapshot, text: a.answerText, fileName: a.file?.name ?? null }));
   return {
     // A passing grade applies only when some question is scored: a quiz of reflections has none, whatever was stored.
     passingPercent: questions.some((q) => q.kind === "choice" && q.graded && q.options.some((o) => o.isCorrect)) ? quiz.passingPercent : null,
     hideAnswers: quiz.hideAnswers,
     questions: questions.map((q) => ({ id: q.id, prompt: q.prompt, kind: q.kind, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label })) })),
-    attempts: shown.map((a) => ({ id: a.id, submittedAt: a.submittedAt, scorePercent: a.scorePercent, correctCount: a.correctCount, questionCount: a.questionCount, passed: a.passed, openAnswers: openAnswers(a.id) })),
+    attempts: shown.map((a) => ({ id: a.id, submittedAt: a.submittedAt, scorePercent: a.scorePercent, correctCount: a.correctCount, questionCount: a.questionCount, passed: a.passed, importedFrom: a.importedFrom, openAnswers: openAnswers(a.id) })),
     passed: attempts.some((a) => a.passed),
   };
 }
@@ -202,7 +206,14 @@ export async function submitQuizAttempt(
   const anyAnswer = score.results.some((r) => r.selectedOptionIds.length > 0) || [...open.values()].some((a) => a.answerText !== null || a.file !== null);
   if (score.questionCount === 0 && !anyAnswer) return { ok: false, error: "Answer at least one question before you submit." };
 
-  const answers: NewQuizAnswer[] = score.results.map((r) => ({ questionId: r.questionId, selectedOptionIds: r.selectedOptionIds, isCorrect: r.correct, ...open.get(r.questionId) }));
+  // The question as it is worded now is kept with what was written: a quiz is edited later.
+  const answers: NewQuizAnswer[] = score.results.map((r) => ({
+    questionId: r.questionId,
+    selectedOptionIds: r.selectedOptionIds,
+    isCorrect: r.correct,
+    ...open.get(r.questionId),
+    ...(open.has(r.questionId) ? { promptSnapshot: stored.find((q) => q.id === r.questionId)!.prompt } : {}),
+  }));
   await repos.quizzes.recordAttempt({
     quizId: quiz.id,
     memberId: input.memberId,

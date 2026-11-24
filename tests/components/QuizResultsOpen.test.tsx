@@ -22,6 +22,7 @@ const row = (over: Partial<QuizResultRow> = {}): QuizResultRow => ({
   correctCount: 0,
   questionCount: 0,
   passed: true,
+  importedFrom: null,
   ...over,
 });
 
@@ -31,6 +32,11 @@ describe("QuizResultsTable for a quiz with answers in words", () => {
     expect(screen.getByText("Not scored")).toBeInTheDocument();
     expect(screen.getByText("Completed the lesson")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /View answers/ })).toHaveAttribute("href", "/admin/courses/crs_A/lessons/les_A/results/qatt_AAAAAAAAAAAa");
+  });
+
+  it("marks an attempt imported from Kajabi", () => {
+    render(<QuizResultsTable rows={[row({ importedFrom: "kajabi" }), row({ attemptId: "qatt_AAAAAAAAAAAb" })]} graded={false} base="/admin/x" canOpenAnswers />);
+    expect(screen.getAllByText("From Kajabi")).toHaveLength(1);
   });
 
   it("shows no answers link for a quiz that has none to open, and a result for a scored attempt of a graded quiz", () => {

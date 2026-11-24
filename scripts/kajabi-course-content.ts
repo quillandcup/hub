@@ -21,6 +21,12 @@
  * admin's posts list gives every lesson's member-page link, each page is opened and "Show More" pressed until it is
  * gone, and the comments go to bronze.kajabi_lesson_comments. It never types or submits anything.
  *
+ * With --responses it captures members' PAST QUIZ RESPONSES instead (docs/product/COURSES.md, "Importing past quiz responses"): for
+ * each quiz the lesson capture found, it opens the quiz's Results tab, opens each submission through its "Grade quiz" control (it
+ * only reads: it never presses Publish grade, Pass, Fail or anything that writes in Kajabi), keeps each submission's answers and
+ * the member's email (no name) in bronze.kajabi_quiz_responses, and copies every uploaded file into the Hub's private storage
+ * (Kajabi's links expire). Only counts are printed. /api/process/quiz-responses turns them into quiz attempts for the members.
+ *
  * Run step A (/api/import/kajabi-courses) first: this only fills in lessons Bronze already has.
  *
  * Usage:
@@ -28,6 +34,7 @@
  *   npm run courses:content -- --course <kajabi-course-id> --skip-drafts
  *   npm run courses:content -- --course <kajabi-course-id> --progress [--apply]
  *   npm run courses:content -- --course <kajabi-course-id> --comments [--apply]
+ *   npm run courses:content -- --course <kajabi-course-id> --responses [--apply]
  * Without --apply it captures and reports what it would change, and writes nothing. Re-running is
  * safe: a lesson whose content hasn't changed is skipped. Writes use the service role.
  */
@@ -56,6 +63,10 @@ import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "..
 import { extractCommentsInPage, parsePostsList, type PostLink } from "../src/lib/kajabi/comments-capture";
 import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from "../src/lib/kajabi/comments-run";
 import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from "../src/lib/kajabi/capture-totals";
+import { QUIZ_ANSWER_FILES_BUCKET } from "../src/lib/courses/quiz-files";
+import { SupabaseKajabiCourseRepository } from "../src/lib/data/kajabi-courses";
+import { submissionsListedIn, type FileCopyIO } from "../src/lib/kajabi/quiz-responses";
+import { formatResponsesTotals, ResponsesSessionExpiredError, runResponsesCapture, type QuizRead, type QuizToRead } from "../src/lib/kajabi/quiz-responses-run";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
@@ -677,8 +688,166 @@ async function captureComments(courseId: string): Promise<void> {
   }
 }
 
+// Responses: how long to let a page's own API calls arrive, the most pages of one Results tab, and how long a file may take.
+const RESPONSES_SETTLE_MS = 3_000;
+const RESPONSES_MAX_PAGES = 200;
+const RESPONSES_NAV_TIMEOUT_MS = 20_000;
+const FILE_DOWNLOAD_TIMEOUT_MS = 60_000;
+
+/** The id at the end of a submission page's address, the key that names it. */
+const submissionKeyOf = (pathname: string): string | null => /\/([0-9a-f]{8}-[0-9a-f-]{27}|\d+)\/?$/i.exec(pathname)?.[1] ?? null;
+
+/** Collects every JSON response a page makes while it settles, for the quiz results and the submission views. */
+function collectJson(page: Page, into: unknown[]): () => void {
+  const onResponse = async (r: Response) => {
+    if (r.request().method() !== "GET" || r.status() !== 200) return;
+    const path = pathOf(r);
+    if (!path.startsWith("/api/admin/") || !/quiz|assessment|submission|result|answer|response|attempt|grade/i.test(path)) return;
+    if (!(r.headers()["content-type"] ?? "").includes("json")) return;
+    try {
+      into.push(await r.json());
+    } catch {
+      /* not JSON after all */
+    }
+  };
+  page.on("response", onResponse);
+  return () => page.off("response", onResponse);
+}
+
+/**
+ * Reads one quiz's Results tab: opens it through the app's router (like the quiz editor), then opens each row's submission with its
+ * "Grade quiz" control, collecting the JSON the view loads, and goes back. Reads only. Unverified against the live admin (docs/
+ * product/COURSES.md, "Importing past quiz responses"): run `--probe` on the results page first, and the capture prints the field names of
+ * anything it cannot read.
+ */
+async function readQuizResponses(page: Page, quiz: QuizToRead): Promise<QuizRead> {
+  const listDocuments: unknown[] = [];
+  const stopList = collectJson(page, listDocuments);
+  const read: QuizRead = { listed: null, submissions: [], failed: 0, incomplete: false };
+  try {
+    const resultsPath = `/admin/quizzes/${quiz.quizKajabiId}/results`;
+    const pageResponse = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === resultsPath, { timeout: RESPONSE_TIMEOUT_MS });
+    pageResponse.catch(() => undefined);
+    await page.evaluate((path) => {
+      history.pushState({}, "", path);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+    }, resultsPath);
+    const response = await pageResponse;
+    if (response.status() === 401) throw new ResponsesSessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+    if (!response.ok()) throw new Error(`Kajabi answered ${response.status()} for the results page`);
+    listDocuments.push(...embeddedDocuments(await response.text()));
+    await page.waitForTimeout(RESPONSES_SETTLE_MS);
+
+    const grade = page.locator('a:has-text("Grade quiz"), button:has-text("Grade quiz")');
+    const listedKeys = new Set<string>();
+    const opened = new Set<string>();
+    for (let pageNumber = 1; pageNumber <= RESPONSES_MAX_PAGES; pageNumber++) {
+      for (const ref of submissionsListedIn(listDocuments)) listedKeys.add(ref.submissionKey);
+      const rows = await grade.count();
+      for (let i = 0; i < rows; i++) {
+        const documents: unknown[] = [];
+        const stop = collectJson(page, documents);
+        try {
+          const before = page.url();
+          await grade.nth(i).click({ timeout: RESPONSES_NAV_TIMEOUT_MS });
+          await page.waitForURL((u) => u.toString() !== before, { timeout: RESPONSES_NAV_TIMEOUT_MS }).catch(() => undefined);
+          await page.waitForTimeout(RESPONSES_SETTLE_MS);
+          const key = submissionKeyOf(new URL(page.url()).pathname);
+          if (key && opened.has(key)) {
+            // The same submission twice (a page that came back): once is enough.
+          } else {
+            if (key) opened.add(key);
+            read.submissions.push({ key, documents });
+          }
+        } catch (error) {
+          if (error instanceof ResponsesSessionExpiredError) throw error;
+          read.failed++;
+        } finally {
+          stop();
+        }
+        await page.goBack().catch(() => undefined);
+        await page.waitForTimeout(RESPONSES_SETTLE_MS);
+        if ((await grade.count()) < rows) {
+          // The list did not come back whole: what is left of this page is not read.
+          read.incomplete = true;
+          break;
+        }
+      }
+      if (read.incomplete) break;
+      const next = page.getByRole("button", { name: /^next/i }).or(page.getByRole("link", { name: /^next/i }));
+      if (!(await next.count()) || !(await next.first().isEnabled().catch(() => false))) break;
+      listDocuments.length = 0;
+      await next.first().click({ timeout: RESPONSES_NAV_TIMEOUT_MS });
+      await page.waitForTimeout(RESPONSES_SETTLE_MS);
+    }
+    read.listed = Math.max(listedKeys.size, read.submissions.length + read.failed);
+  } finally {
+    stopList();
+  }
+  return read;
+}
+
+/** Downloads a file with the logged-in browser's session (Kajabi's links may need it) and stores copies in the Hub's private bucket. */
+function browserFileIO(context: BrowserContext): FileCopyIO {
+  return {
+    async download(source) {
+      try {
+        const r = await context.request.get(new URL(source, KAJABI_APP).toString(), { timeout: FILE_DOWNLOAD_TIMEOUT_MS });
+        if (r.status() === 401 || r.status() === 403 || r.status() === 410) return { ok: false, failure: "expired" };
+        if (!r.ok()) return { ok: false, failure: "http" };
+        return { ok: true, bytes: new Uint8Array(await r.body()), contentType: r.headers()["content-type"] ?? null };
+      } catch {
+        return { ok: false, failure: "network" };
+      }
+    },
+    async upload(path, bytes, contentType) {
+      const { error } = await supabase.storage.from(QUIZ_ANSWER_FILES_BUCKET).upload(path, bytes, { contentType: contentType ?? "application/octet-stream", upsert: true });
+      return !error;
+    },
+  };
+}
+
+async function captureResponses(courseId: string) {
+  const quizzes: QuizToRead[] = (await new SupabaseKajabiCourseRepository(supabase as never).liveQuizzes(courseId)).map((q) => ({ quizKajabiId: q.kajabi_id, courseKajabiId: q.course_kajabi_id }));
+  if (quizzes.length === 0) {
+    console.log("No quizzes of this course are captured yet: run the lesson capture first (it finds the course's quizzes).");
+    return;
+  }
+  console.log(`${args.apply ? "Capturing" : "Dry run: capturing"} the responses to ${quizzes.length} quiz(zes) from ${args.envFile}. Counts only are printed.`);
+  const context = await chromium.launchPersistentContext(args.profileDir ?? join(homedir(), ".hub-kajabi-profile"), {
+    channel: "chrome",
+    headless: args.headless,
+  });
+  try {
+    await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
+    await context.addInitScript("window.__name = window.__name || function (fn) { return fn; };");
+    await ensureLoggedIn(context);
+    const page = await openCoursePage(context, courseId);
+    const summary = await runResponsesCapture({
+      db: supabase as never,
+      quizzes,
+      readQuiz: (quiz) => readQuizResponses(page, quiz),
+      fileIO: browserFileIO(context),
+      apply: args.apply,
+      log: (line) => console.log(line),
+    }).catch((error) => {
+      if (error instanceof ResponsesSessionExpiredError) throw new SessionExpiredError(error.message);
+      throw error;
+    });
+    console.log(formatResponsesTotals(args.apply, summary));
+    if (summary.quizzesFailed > 0 || summary.unreadable > 0 || summary.openFailed > 0 || Object.keys(summary.files.failed).length > 0) process.exitCode = 1;
+    if (args.apply) console.log("The responses reach the members with POST /api/process/quiz-responses (dry run first).");
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
   if (args.probe) return probe(args.probe);
+  if (args.responses) {
+    if (!args.scope || !("courseId" in args.scope)) throw new Error("--responses needs --course");
+    return captureResponses(args.scope.courseId);
+  }
   if (args.progress) {
     if (!args.scope || !("courseId" in args.scope)) throw new Error("--progress needs --course");
     return captureProgress(args.scope.courseId);

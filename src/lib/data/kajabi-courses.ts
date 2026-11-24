@@ -24,6 +24,8 @@ export type NewLessonComment = Bronze["kajabi_lesson_comments"]["Insert"];
 /** A Kajabi quiz as the quiz editor delivered it (`bronze.kajabi_quizzes`). */
 export type KajabiQuiz = Bronze["kajabi_quizzes"]["Row"];
 export type NewKajabiQuiz = Bronze["kajabi_quizzes"]["Insert"];
+export type KajabiQuizResponse = Bronze["kajabi_quiz_responses"]["Row"];
+export type NewKajabiQuizResponse = Bronze["kajabi_quiz_responses"]["Insert"];
 /** A lesson's comment as stored (soft-deleted ones included). */
 export type StoredLessonComment = Pick<
   Bronze["kajabi_lesson_comments"]["Row"],
@@ -186,6 +188,14 @@ export interface KajabiCourseRepository {
   saveQuiz(row: NewKajabiQuiz): Promise<void>;
   /** Soft-deletes the live quizzes of a lesson that has become a plain lesson again; returns how many. */
   softDeleteQuizzesOfLesson(lessonKajabiId: string, at: string): Promise<number>;
+
+  // --- quiz responses capture (members' past submissions) ---
+  /** One stored submission, soft-deleted included, or null. */
+  quizResponse(quizKajabiId: string, submissionKey: string): Promise<KajabiQuizResponse | null>;
+  /** Adds a submission or updates the one with the same key (and restores it if it was removed). */
+  saveQuizResponse(row: NewKajabiQuizResponse): Promise<void>;
+  /** Every live stored submission of a course, in a stable order (reads past 1000). */
+  quizResponsesOfCourse(courseKajabiId: string): Promise<KajabiQuizResponse[]>;
 
   // --- lesson comments capture ---
   /** Every stored comment of one lesson, soft-deleted ones included, by key. */
@@ -556,6 +566,21 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
     if (error) throw new Error(`Could not save a quiz: ${error.message}`);
   }
 
+  async quizResponse(quizKajabiId: string, submissionKey: string) {
+    const { data, error } = await this.bronze.from("kajabi_quiz_responses").select("*").eq("quiz_kajabi_id", quizKajabiId).eq("submission_key", submissionKey).maybeSingle();
+    if (error) throw new Error(`Could not read a quiz response: ${error.message}`);
+    return data;
+  }
+
+  async saveQuizResponse(row: NewKajabiQuizResponse) {
+    const { error } = await this.bronze.from("kajabi_quiz_responses").upsert({ ...row, deleted_at: null }, { onConflict: "quiz_kajabi_id,submission_key" });
+    if (error) throw new Error(`Could not save a quiz response: ${error.message}`);
+  }
+
+  async quizResponsesOfCourse(courseKajabiId: string) {
+    return fetchAllRows<KajabiQuizResponse>((a, b) => this.bronze.from("kajabi_quiz_responses").select("*").eq("course_kajabi_id", courseKajabiId).is("deleted_at", null).order("quiz_kajabi_id").order("submission_key").range(a, b));
+  }
+
   async softDeleteQuizzesOfLesson(lessonKajabiId: string, at: string) {
     const { data, error } = await this.bronze.from("kajabi_quizzes").update({ deleted_at: at }).eq("lesson_kajabi_id", lessonKajabiId).is("deleted_at", null).select("kajabi_id");
     if (error) throw new Error(`Could not remove a quiz: ${error.message}`);
@@ -917,6 +942,24 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
     const stored = { captured_at: new Date().toISOString(), ...row, deleted_at: null };
     if (existing) Object.assign(existing, stored);
     else this.data.kajabiQuizzes.push(stored);
+  }
+
+  async quizResponse(quizKajabiId: string, submissionKey: string) {
+    const row = this.data.kajabiQuizResponses.find((r) => r.quiz_kajabi_id === quizKajabiId && r.submission_key === submissionKey);
+    return row ? { ...row } : null;
+  }
+
+  async saveQuizResponse(row: NewKajabiQuizResponse) {
+    const existing = this.data.kajabiQuizResponses.find((r) => r.quiz_kajabi_id === row.quiz_kajabi_id && r.submission_key === row.submission_key);
+    const stored = { submitted_at: null, captured_at: new Date().toISOString(), ...row, deleted_at: null };
+    if (existing) Object.assign(existing, stored);
+    else this.data.kajabiQuizResponses.push(stored);
+  }
+
+  async quizResponsesOfCourse(courseKajabiId: string) {
+    return live(this.data.kajabiQuizResponses.filter((r) => r.course_kajabi_id === courseKajabiId))
+      .map((r) => ({ ...r }))
+      .sort((a, b) => cmp(a.quiz_kajabi_id, b.quiz_kajabi_id) || cmp(a.submission_key, b.submission_key));
   }
 
   async softDeleteQuizzesOfLesson(lessonKajabiId: string, at: string) {

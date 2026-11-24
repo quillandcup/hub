@@ -57,6 +57,8 @@ export interface QuizResultRow {
   correctCount: number;
   questionCount: number;
   passed: boolean;
+  /** `kajabi` for an attempt imported from Kajabi's Results tab, null for one made in the Hub. */
+  importedFrom: string | null;
 }
 
 /** A member's best attempt first is not what staff read here: newest first, as submitted, each with the member shown by their display name. Pure. */
@@ -71,6 +73,7 @@ export function buildQuizResults(attempts: QuizAttemptRecord[], members: { id: s
     correctCount: a.correctCount,
     questionCount: a.questionCount,
     passed: a.passed,
+    importedFrom: a.importedFrom,
   }));
 }
 
@@ -84,6 +87,7 @@ export async function loadQuizResults(repos: Pick<Repos, "quizzes" | "members">,
 /** One answer of an attempt, as staff read it: the question as it is now, what the member picked, wrote and uploaded. */
 export interface AttemptAnswerView {
   questionId: string;
+  /** The question as it was worded when the member answered it (an imported answer carries that; otherwise the question now). */
   prompt: string;
   kind: QuizQuestionRecord["kind"];
   /** The labels of the options picked (a choice question). */
@@ -119,7 +123,7 @@ export async function loadAttemptView(repos: Pick<Repos, "quizzes" | "members">,
       const a = byQuestion.get(q.id);
       return {
         questionId: q.id,
-        prompt: q.prompt,
+        prompt: a?.promptSnapshot ?? q.prompt,
         kind: q.kind,
         picked: q.options.filter((o) => a?.selectedOptionIds.includes(o.id)).map((o) => o.label),
         correct: a?.isCorrect ?? null,

@@ -534,6 +534,42 @@ export type Database = {
         }
         Relationships: []
       }
+      kajabi_quiz_responses: {
+        Row: {
+          answers: Json
+          captured_at: string
+          content_hash: string
+          course_kajabi_id: string
+          deleted_at: string | null
+          email: string
+          quiz_kajabi_id: string
+          submission_key: string
+          submitted_at: string | null
+        }
+        Insert: {
+          answers: Json
+          captured_at?: string
+          content_hash: string
+          course_kajabi_id: string
+          deleted_at?: string | null
+          email: string
+          quiz_kajabi_id: string
+          submission_key: string
+          submitted_at?: string | null
+        }
+        Update: {
+          answers?: Json
+          captured_at?: string
+          content_hash?: string
+          course_kajabi_id?: string
+          deleted_at?: string | null
+          email?: string
+          quiz_kajabi_id?: string
+          submission_key?: string
+          submitted_at?: string | null
+        }
+        Relationships: []
+      }
       kajabi_quizzes: {
         Row: {
           captured_at: string
@@ -7080,6 +7116,7 @@ export type Database = {
           file_name: string | null
           file_path: string | null
           is_correct: boolean | null
+          prompt_snapshot: string | null
           question_id: string
           selected_option_ids: string[]
         }
@@ -7090,6 +7127,7 @@ export type Database = {
           file_name?: string | null
           file_path?: string | null
           is_correct?: boolean | null
+          prompt_snapshot?: string | null
           question_id: string
           selected_option_ids?: string[]
         }
@@ -7100,6 +7138,7 @@ export type Database = {
           file_name?: string | null
           file_path?: string | null
           is_correct?: boolean | null
+          prompt_snapshot?: string | null
           question_id?: string
           selected_option_ids?: string[]
         }
@@ -7124,31 +7163,37 @@ export type Database = {
         Row: {
           correct_count: number
           id: string
+          imported_from: string | null
           member_id: string
           passed: boolean
           question_count: number
           quiz_id: string
           score_percent: number
+          source_key: string | null
           submitted_at: string
         }
         Insert: {
           correct_count: number
           id?: string
+          imported_from?: string | null
           member_id: string
           passed: boolean
           question_count: number
           quiz_id: string
           score_percent: number
+          source_key?: string | null
           submitted_at?: string
         }
         Update: {
           correct_count?: number
           id?: string
+          imported_from?: string | null
           member_id?: string
           passed?: boolean
           question_count?: number
           quiz_id?: string
           score_percent?: number
+          source_key?: string | null
           submitted_at?: string
         }
         Relationships: [
@@ -9260,6 +9305,7 @@ export type Database = {
         }[]
       }
       has_course_access: { Args: { p_course_id: string }; Returns: boolean }
+      import_quiz_attempt: { Args: { p_attempt: Json }; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_community_manager: { Args: never; Returns: boolean }
       is_conversion_specialist: { Args: never; Returns: boolean }
