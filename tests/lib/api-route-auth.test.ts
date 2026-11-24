@@ -12,8 +12,9 @@ import { classify, DELEGATES, PUBLIC_ROUTES, type RouteRow } from "@/scripts/api
  * none, unless the route is in PUBLIC_ROUTES with the reason. A new route must either contain one
  * of the recognised steps below or be added there on purpose, in review.
  *
- * Static text only: it proves a recognised credential step is in the file (comments ignored), not
- * that every code path reaches it. The route's own test covers the refusal (tests/api/).
+ * This is the file-level check: a recognised credential step is somewhere in the file (comments ignored).
+ * tests/lib/api-route-handlers.test.ts holds each exported handler to it on its own, and checks the result is used and
+ * read before data is touched. The route's own test covers the refusal (tests/api/).
  * The kinds, PUBLIC_ROUTES and DELEGATES live in scripts/api-route-inventory.ts, which also renders
  * docs/architecture/API_ROUTES.md from the same data. See docs/trust/THREAT_MODEL.md, A01.
  */
