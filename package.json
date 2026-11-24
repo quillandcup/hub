@@ -89,6 +89,7 @@
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "docs:index": "tsx scripts/docs-index.ts",
     "docs:api-routes": "tsx scripts/api-route-inventory.ts",
+    "vex": "tsx scripts/vex.ts",
     "docs:toc": "doctoc --update-only --notitle --minlevel 2 --maxlevel 3",
     "prepare": "git config core.hooksPath config/husky || true"
   },

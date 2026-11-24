@@ -140,6 +140,12 @@ export const appConfig = {
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 
   /**
+   * The GitHub repository this code lives in. The OpenVEX document names the product by it (config/vex.openvex.json,
+   * scripts/vex.ts), as the purl `pkg:github/<owner>/<name>`.
+   */
+  repository: { owner: "quillandcup", name: "hub" },
+
+  /**
    * The daily check that the nonce-based Content-Security-Policy is not breaking browsers
    * (src/app/api/internal/csp-health, src/lib/csp-health.ts, docs/infrastructure/CSP_ALERTS.md). Measured 2026-11-20 on production over 30
    * days: no member loaded pages without running our scripts (0 of 91 active), about 13 of 91 never get the Google
