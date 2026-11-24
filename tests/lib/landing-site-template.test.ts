@@ -67,6 +67,14 @@ describe("the site template's pictures and checks", () => {
     expect(siteAssetIds(EMPTY_SITE_TEMPLATE)).toEqual([]);
   });
 
+  it("keeps the logo's dark-mode picture, defaults it to none and makes it public too", () => {
+    expect(newHeaderItem("logo")).toMatchObject({ darkLogoAssetId: "" });
+    const logo = { ...newHeaderItem("logo"), logoAssetId: "mda_AAAAAAAAAAA1", darkLogoAssetId: "mda_AAAAAAAAAAA2" };
+    const site = normalizeSiteTemplate({ header: { show: true, items: [logo] } });
+    expect(site.header.items[0]).toMatchObject({ darkLogoAssetId: "mda_AAAAAAAAAAA2" });
+    expect(siteAssetIds(site)).toEqual(["mda_AAAAAAAAAAA1", "mda_AAAAAAAAAAA2"]);
+  });
+
   it("stops a publish on what a visitor would meet broken, each problem once", () => {
     const site = normalizeSiteTemplate({
       header: { show: true, items: [{ id: "l", type: "logo", logoAssetId: "mda_AAAAAAAAAAA1", alt: "" }, { id: "c", type: "cta", label: "", href: "" }, { id: "s", type: "signin", label: "" }, { id: "m", type: "menu", links: [{ label: "A", href: "" }, { label: "", href: "/b" }] }, { id: "o", type: "social", links: [{ network: "instagram", href: "" }] }] },

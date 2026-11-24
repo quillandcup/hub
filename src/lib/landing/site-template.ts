@@ -47,7 +47,7 @@ export type ItemShow = (typeof ITEM_SHOWS)[number];
 export const SIGN_IN_HREF = "/login";
 
 export type HeaderItem =
-  | { id: string; type: "logo"; show: ItemShow; logoAssetId: string; alt: string; href: string }
+  | { id: string; type: "logo"; show: ItemShow; logoAssetId: string; darkLogoAssetId: string; alt: string; href: string }
   | { id: string; type: "menu"; show: ItemShow; links: SiteLink[] }
   | { id: string; type: "cta"; show: ItemShow; label: string; href: string; look: "inherit" | "solid" | "outline" }
   | { id: string; type: "social"; show: ItemShow; links: SiteSocialLink[]; look: SiteSocialLook }
@@ -98,7 +98,7 @@ function item(raw: unknown, index: number): HeaderItem | null {
   const show = oneOf(ITEM_SHOWS, o.show, "both");
   switch (o.type) {
     case "logo":
-      return { id, type: "logo", show, logoAssetId: text(o.logoAssetId, 80), alt: text(o.alt, 120), href: safeHref(o.href) };
+      return { id, type: "logo", show, logoAssetId: text(o.logoAssetId, 80), darkLogoAssetId: text(o.darkLogoAssetId, 80), alt: text(o.alt, 120), href: safeHref(o.href) };
     case "menu":
       return { id, type: "menu", show, links: links(o.links) };
     case "cta":
@@ -129,9 +129,9 @@ export function normalizeSiteTemplate(value: unknown): SiteTemplate {
   };
 }
 
-/** Every media asset the template uses (the logo and the favicon), to be made public with it. */
+/** Every media asset the template uses (the logo, its dark-mode version and the favicon), to be made public with it. */
 export function siteAssetIds(site: SiteTemplate): string[] {
-  const logos = site.header.items.flatMap((i) => (i.type === "logo" && i.logoAssetId ? [i.logoAssetId] : []));
+  const logos = site.header.items.flatMap((i) => (i.type === "logo" ? [i.logoAssetId, i.darkLogoAssetId].filter(Boolean) : []));
   return [...new Set([...logos, ...(site.favicon.assetId ? [site.favicon.assetId] : [])])];
 }
 
@@ -140,7 +140,7 @@ export function newHeaderItem(type: HeaderItemType): HeaderItem {
   const id = newItemId();
   switch (type) {
     case "logo":
-      return { id, type, show: "both", logoAssetId: "", alt: "", href: "/" };
+      return { id, type, show: "both", logoAssetId: "", darkLogoAssetId: "", alt: "", href: "/" };
     case "menu":
       return { id, type, show: "both", links: [{ label: "Home", href: "/" }] };
     case "cta":

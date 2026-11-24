@@ -75,10 +75,17 @@ function Item({ item, fold }: { item: HeaderItem; fold: boolean }): ReactNode {
     case "logo": {
       const src = pageImage(item.logoAssetId, "logo");
       if (!src) return null;
+      // A dark-mode version (light lettering for the dark header) swaps in with the theme's `.dark` class; without one the logo is shown as is.
+      const darkSrc = item.darkLogoAssetId ? pageImage(item.darkLogoAssetId, "logo") : null;
+      const IMG = "h-12 w-auto max-w-full object-contain";
       return (
         <a href={safeHref(item.href) || "/"} className="shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route */}
-          <img src={src} alt={item.alt} height={48} decoding="async" className="h-12 w-auto max-w-full object-contain" />
+          <img src={src} alt={item.alt} height={48} decoding="async" className={darkSrc ? `${IMG} dark:hidden` : IMG} />
+          {darkSrc && (
+            // eslint-disable-next-line @next/next/no-img-element -- served by the media route
+            <img src={darkSrc} alt={item.alt} height={48} decoding="async" className={`${IMG} hidden dark:block`} />
+          )}
         </a>
       );
     }

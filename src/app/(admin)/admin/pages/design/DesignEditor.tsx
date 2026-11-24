@@ -143,6 +143,13 @@ function ItemFields({ item, onChange }: { item: HeaderItem; onChange: (next: Hea
               <MediaPicker value={item.logoAssetId || null} onChange={(id) => onChange({ ...item, logoAssetId: id ?? "" })} surface="landing_page" preview="event_card" noun="logo" />
             </div>
           </div>
+          <div className="text-sm font-medium">
+            Logo for dark mode (optional)
+            <p className="text-xs font-normal text-slate-600 dark:text-slate-400">Light lettering for the dark header. Without one, the logo above is used in both.</p>
+            <div className="mt-1">
+              <MediaPicker value={item.darkLogoAssetId || null} onChange={(id) => onChange({ ...item, darkLogoAssetId: id ?? "" })} surface="landing_page" preview="event_card" noun="dark-mode logo" />
+            </div>
+          </div>
           <Field label="What the logo says (for people who can't see it)">
             <input value={item.alt} onChange={(e) => onChange({ ...item, alt: e.target.value })} className={INPUT} />
           </Field>
