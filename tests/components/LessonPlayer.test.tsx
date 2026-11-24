@@ -698,13 +698,15 @@ describe("LessonPlayer seek requests (a comment's timestamp)", () => {
   const playable = () => {
     const play = vi.fn(async () => {});
     const scrollIntoView = vi.fn();
-    const media = Object.assign(fakeMedia(), { play, closest: () => ({ scrollIntoView }) });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { value: scrollIntoView, configurable: true, writable: true });
+    const media = Object.assign(fakeMedia(), { play });
     player.media = media as never;
     return { media, play, scrollIntoView };
   };
 
   afterEach(() => {
     player.media = undefined;
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   });
 
   it("moves the video to the second, plays it and brings the player into view", () => {
@@ -714,6 +716,7 @@ describe("LessonPlayer seek requests (a comment's timestamp)", () => {
     expect(media.currentTime).toBe(155);
     expect(play).toHaveBeenCalledTimes(1);
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: expect.stringMatching(/^(auto|smooth)$/), block: "center" });
+    expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("group", { name: "T" }));
   });
 
   it.each([
@@ -732,15 +735,17 @@ describe("LessonPlayer seek requests (a comment's timestamp)", () => {
   });
 
   it("moves again for each new request, even to the same second, and not for the same request twice", () => {
-    const { media, play } = playable();
+    const { media, play, scrollIntoView } = playable();
     const { rerender } = render(withRequest({ seconds: 30, nonce: 1 }));
     media.currentTime = 90;
     rerender(withRequest({ seconds: 30, nonce: 1 }));
     expect(media.currentTime).toBe(90);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
 
     rerender(withRequest({ seconds: 30, nonce: 2 }));
     expect(media.currentTime).toBe(30);
     expect(play).toHaveBeenCalledTimes(2);
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
   it("does nothing without a request, or before the video exists", () => {
