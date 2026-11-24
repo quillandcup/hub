@@ -12,8 +12,8 @@ Where the project stands against each control of the OpenSSF Open Source Project
 
 | Result | Count |
 |---|---|
-| Met | 42 |
-| Partly | 5 |
+| Met | 44 |
+| Partly | 3 |
 | Not met | 3 |
 | N/A | 15 |
 | Total | 65 |
@@ -127,6 +127,6 @@ Where the project stands against each control of the OpenSSF Open Source Project
 
 ## What is worth doing
 
-Nothing is left that only needs a decision or a setting; what remains is design work on the Partly rows (`OSPS-SA-01.01`, `-SA-02.01`, `-SA-03.02`, `-VM-04.02` and `OSPS-GV-01.01`).
+Nothing is left that only needs a decision or a setting; what remains is design work on the Partly rows (`OSPS-SA-01.01`, `-SA-03.02` and `OSPS-GV-01.01`; the last cannot be Met in a public repository, because the names stay out of it).
 
 Not within reach without a decision or another person: an open source license (`OSPS-LE-02.01`), a DCO or CLA (`OSPS-LE-01.01`) and a second human approver (`OSPS-QA-07.01`). Details and owners of the open items are in `docs/TODO.md`.
