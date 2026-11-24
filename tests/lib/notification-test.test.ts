@@ -27,6 +27,7 @@ vi.mock("@/lib/channels", async () => {
 });
 vi.mock("@/lib/newcomer-signals", () => ({ loadIntroChannelId: mocks.introChannel }));
 
+import { APP_URL } from "@/lib/config";
 import { sampleMessages, sendTestNotification, UNREACHABLE_REASON } from "@/lib/notification-test";
 
 const NOW = new Date("2026-10-18T15:00:00Z");
@@ -102,6 +103,54 @@ describe("sampleMessages", () => {
 
     expect(message.text).toContain("Sprint Prickle");
   });
+});
+
+describe("lesson comment samples", () => {
+  const COURSE = "crs_AAAAAAAAAAA1";
+  const LESSON = "les_AAAAAAAAAAA1";
+  const MEMBER = "mbr_AAAAAAAAAAA1";
+  const withCourse = (draft = false) => {
+    dataset = new InMemoryDataset({
+      members: [{ id: MEMBER, name: "Ada Example", firstJoinedAt: "2024-01-01" }],
+      courses: [{ id: COURSE, slug: "story-basics", title: "Story Basics", is_draft: draft } as never],
+      courseLessons: [{ id: LESSON, course_id: COURSE, title: "Real lesson", state: "published" } as never],
+    });
+  };
+  const later = () => new Date(Date.now() + 60_000);
+  const lessonKinds = ["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_activity"] as const;
+
+  it.each(lessonKinds)("%s links to a real lesson when there is no comment yet", async (kind) => {
+    withCourse();
+    const [message] = await sampleMessages(repos(), kind, later());
+    expect(message.url).toBe(`${APP_URL}/courses/story-basics/lessons/${LESSON}`);
+    expect(message.text).toContain("Real lesson");
+  });
+
+  it.each(["lesson_comment_reply", "lesson_comment_instructor_reply"] as const)("%s links to the latest reply on a real lesson", async (kind) => {
+    withCourse();
+    const r = repos();
+    const root = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: null, body: "q", isStaffReply: false });
+    const reply = await r.courseComments.create({ lessonId: LESSON, memberId: MEMBER, parentId: root.id, body: "a", isStaffReply: false });
+    const [message] = await sampleMessages(r, kind, later());
+    expect(message.url).toBe(`${APP_URL}/courses/story-basics/lessons/${LESSON}?comment=${reply.id}`);
+  });
+
+  it("sends staff to the real course's review queue", async () => {
+    withCourse();
+    const [message] = await sampleMessages(repos(), "lesson_comment_moderation", later());
+    expect(message.url).toBe(`${APP_URL}/admin/courses/${COURSE}/comments/moderation`);
+    expect(message.text).toContain("Story Basics");
+  });
+
+  it.each(["lesson_comment_reply", "lesson_comment_instructor_reply", "lesson_comment_activity", "lesson_comment_moderation"] as const)(
+    "%s falls back to a real list page when no published course has a lesson",
+    async (kind) => {
+      withCourse(true);
+      const [message] = await sampleMessages(repos(), kind, later());
+      expect(message.url).toBe(kind === "lesson_comment_moderation" ? `${APP_URL}/admin/courses` : `${APP_URL}/courses`);
+      expect(message.text.startsWith("[Test] ")).toBe(true);
+    },
+  );
 });
 
 describe("sendTestNotification", () => {
