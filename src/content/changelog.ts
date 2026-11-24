@@ -62,6 +62,53 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "quizzes-in-courses",
+    date: "2026-11-24",
+    audience: "product",
+    category: "new",
+    title: "Quizzes in your courses",
+    summary: "Some course lessons are now quizzes: answer the questions, see your score and try again as often as you like.",
+    body: [
+      "Some lessons in your courses are now quizzes. Open one like any other lesson; the questions are on the page.",
+      "- Each question tells you whether to choose one answer or all that apply. A question is right only when you choose exactly the right answers.",
+      "- When you submit, you see your score. Some quizzes also show which answers were right. In others you see only the score.",
+      "- Some quizzes have a passing score. Reach it and the lesson is marked complete. Miss it and you can try again, as many times as you like.",
+      "- A quiz with no passing score is marked complete as soon as you submit it.",
+      "- Your score is visible to you and to staff. Staff also see your name and the date you submitted.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "quiz-builder",
+    date: "2026-11-24",
+    audience: "staff",
+    category: "new",
+    title: "Build quizzes in the course builder",
+    summary: "A lesson in a course the Hub owns can be a quiz: add questions with one or several right answers, set an optional passing score and see everyone's attempts.",
+    body: [
+      "In a course the Hub owns, open a module's Add content menu and choose **Add quiz**. It makes a draft lesson that is a quiz; publish it like any lesson.",
+      "A quiz lesson has four pages beside each other: **Details** (title, description, thumbnail and status, as for any lesson), **Questions**, **Settings** and **Results**.",
+      "- **Questions.** Add, edit, move and delete them. Each has its text and two to twelve answers. Tick \"Members can choose more than one answer\" for a question with several right answers. A question counts only when a member chooses exactly the right ones.",
+      "- **Settings.** \"Set a passing grade\" (a whole percent): members complete the lesson only by reaching it, and can retake the quiz. Without it, any submitted attempt completes the lesson. \"Hide answers on the results page\" shows members only their score.",
+      "- **Results.** Every attempt, newest first, with the member, the date and the score.",
+      "- **Imported quizzes.** The Kajabi capture that reads lessons also reads quiz lessons (it needs a logged-in browser, like the lesson capture). A quiz from Kajabi is read only until you take the course over, and taking over keeps it. Check an imported quiz against Kajabi before you publish it.",
+      "- **Not yet.** Only multiple choice (one right answer) and checkboxes (several) exist: Kajabi's short answer and file upload questions are not built, and a Kajabi quiz that has one is not imported. Duplicating a lesson, module or course that holds a quiz is refused, and there are no completion emails or results export yet.",
+      "Details for each of these are in the Courses doc, under Quizzes.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "course-quizzes-engineering",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "A quiz is a lesson with a quiz row, scored on the server",
+    summary: "Quizzes ride on lessons: a quizzes row points at the lesson, the server scores answers it never sends to the browser, and passing is the only way the lesson completes.",
+    body: `A lesson is a quiz lesson when a \`quizzes\` row points at it, so quizzes get status, order, progress and locks from the lesson with no second kind of outline item. Scoring is one pure function (\`src/lib/courses/quiz-scoring.ts\`, with property tests): all or nothing per question, percent rounded down, no passing grade means every attempt passes.
+
+- **Rule.** The right answers never leave the server before a submission: members have no policy on questions or options, the page builds their view field by field, and the browser sends only its picks. A trigger on \`lesson_progress\` refuses a member's own client from completing a quiz lesson; the server completes it after scoring.
+- **Hooks.** \`QuizRepository\` (the builder's saves are database functions that bump \`quizzes.revision\`, which is the one audit entry), and the Kajabi import: Bronze keeps the quiz editor's raw documents, \`parseKajabiQuiz\` reads them at processing time and \`sync_imported_quiz\` upserts on Kajabi's keys.
+- **Detail.** \`docs/product/COURSES.md\`, "Quizzes".`,
+  },
+  {
     slug: "footer-text-placeholder-button",
     date: "2026-11-24",
     audience: "staff",
