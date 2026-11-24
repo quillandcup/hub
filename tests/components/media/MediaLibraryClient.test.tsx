@@ -114,7 +114,8 @@ describe("MediaEditor", () => {
     detail = asset({ width: 1250, height: 2000 }); // big enough for the Amazon cover
     await open();
     expect(screen.getByLabelText("Title")).toHaveValue("Hedgies on First");
-    expect(screen.getByLabelText("Tags")).toHaveValue("hedgies, retreat");
+    expect(screen.getByLabelText("Remove hedgies")).toBeInTheDocument();
+    expect(screen.getByLabelText("Remove retreat")).toBeInTheDocument();
     expect(screen.getByLabelText(/Alt text/)).toHaveValue("A hedgehog at a desk");
     expect(screen.getByText("1250 x 2000 px · png")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Spring Retreat" })).toHaveAttribute("href", "/admin/events/spring-retreat-2026-04-10");
@@ -194,8 +195,9 @@ describe("MediaEditor", () => {
 
     await userEvent.clear(screen.getByLabelText("Title"));
     await userEvent.type(screen.getByLabelText("Title"), "Renamed");
-    await userEvent.clear(screen.getByLabelText("Tags"));
-    await userEvent.type(screen.getByLabelText("Tags"), "new");
+    await userEvent.click(screen.getByLabelText("Remove hedgies"));
+    await userEvent.click(screen.getByLabelText("Remove retreat"));
+    await userEvent.type(screen.getByLabelText("Tags"), "new,");
     await userEvent.click(screen.getByLabelText(/Public:/));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 

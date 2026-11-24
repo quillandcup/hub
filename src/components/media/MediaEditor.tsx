@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Kbd from "@/components/Kbd";
 import Modal from "@/components/Modal";
+import TagInput from "@/components/TagInput";
 import AmazonCoverDownload from "./AmazonCoverDownload";
 import { track } from "@/lib/analytics/client";
 import { mediaSrc } from "@/lib/media/url";
@@ -47,7 +48,7 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
 
   const [title, setTitle] = useState("");
   const [alt, setAlt] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(false);
   const [focal, setFocal] = useState<{ x: number; y: number } | null>(null);
   const [coverFit, setCoverFit] = useState<FitMode>("extend");
@@ -61,7 +62,7 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
     setAsset(a);
     setTitle(a.title);
     setAlt(a.alt_text ?? "");
-    setTags(a.tags.join(", "));
+    setTags(a.tags);
     setIsPublic(a.is_public);
     setFocal(a.focal_x !== null && a.focal_y !== null ? { x: Number(a.focal_x), y: Number(a.focal_y) } : null);
     const fits = (a.fits ?? {}) as Record<string, string>;
@@ -94,7 +95,7 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
     if (!asset) return;
     setBusy(true);
     setError(null);
-    const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
+    const tagList = tags;
     const before = (asset.fits ?? {}) as Record<string, string>;
     const fitChanged = (before.book_cover_shelf ?? PRESETS.book_cover_shelf.defaultFit) !== coverFit;
     const focalChanged = JSON.stringify(focal) !== JSON.stringify(asset.focal_x !== null ? { x: Number(asset.focal_x), y: Number(asset.focal_y) } : null);
@@ -223,10 +224,12 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
                 Title
                 <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} className={`${INPUT} mt-1`} />
               </label>
-              <label>
-                Tags
-                <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="hedgies-on-first, retreat" className={`${INPUT} mt-1`} />
-              </label>
+              <div>
+                <label htmlFor="media-editor-tags">Tags</label>
+                <div className="mt-1">
+                  <TagInput id="media-editor-tags" tags={tags} onChange={setTags} placeholder="hedgies-on-first, retreat" />
+                </div>
+              </div>
               <label className="@pair:col-span-2">
                 Alt text (what it shows, for screen readers)
                 <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} className={`${INPUT} mt-1`} />

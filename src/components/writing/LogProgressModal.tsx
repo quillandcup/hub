@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Modal from "@/components/Modal";
+import TagInput from "@/components/TagInput";
 import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode } from "@/lib/writing-projects";
 
 // 'prickles' is computed live from attendance (see derivePrickleHabitEntries in
@@ -56,7 +57,7 @@ export default function LogProgressModal({
   const [mode, setMode] = useState<EntryMode>(editingEntry?.mode ?? "delta");
   const [amount, setAmount] = useState(editingEntry ? String(editingEntry.amount) : "");
   const [note, setNote] = useState(editingEntry?.note ?? "");
-  const [tagsInput, setTagsInput] = useState(editingEntry?.tags.join(", ") ?? "");
+  const [tagList, setTagList] = useState<string[]>(editingEntry?.tags ?? []);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,7 +134,7 @@ export default function LogProgressModal({
       return;
     }
 
-    const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+    const tags = tagList;
 
     setIsPending(true);
     // Check-out first: it's an idempotent upsert, so a failure here leaves nothing half-saved
@@ -322,16 +323,10 @@ export default function LogProgressModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Tags <span className="text-slate-500 dark:text-slate-400 font-normal">(optional, comma-separated)</span>
+          <label htmlFor="log-progress-tags" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Tags
           </label>
-          <input
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            placeholder="e.g. editing, chapter 3"
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
-          />
+          <TagInput id="log-progress-tags" tags={tagList} onChange={setTagList} placeholder="e.g. editing, chapter 3" />
         </div>
 
         {showCheckout && (

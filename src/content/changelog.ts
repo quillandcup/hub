@@ -62,6 +62,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "tags-as-pills",
+    date: "2026-11-23",
+    audience: "product",
+    category: "improved",
+    title: "Tags you type turn into pills",
+    summary:
+      "When you add tags to a progress entry, each one becomes a pill as soon as you press Enter, Tab or comma, and a tap on the x removes it.",
+    body: "Progress entries now use the same tag box as \"Ask me about\" on your profile. Paste a comma-separated list and it splits into pills too.",
+  },
+  {
     slug: "dark-mode-site-logo",
     date: "2026-11-23",
     audience: "staff",
