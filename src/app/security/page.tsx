@@ -46,7 +46,7 @@ export default async function SecurityPage() {
             </Link>
             .
           </p>
-          <StatusLegend statuses={SECURITY_STATUSES} />
+          <StatusLegend statuses={SECURITY_STATUSES} collapsed />
         </TrustAside>
 
         <TrustNav links={[...SECURITY_GROUPS.map((g) => ({ id: g.id, title: g.title })), { id: "report", title: "Found a problem?" }]} />

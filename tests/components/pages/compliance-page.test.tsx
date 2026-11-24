@@ -45,6 +45,21 @@ describe("/compliance", () => {
     expect(screen.getAllByText(COMPLIANCE_STATUSES.guide).length).toBeGreaterThan(1);
   });
 
+  it("keeps the intro paragraph and puts the status words behind a closed disclosure, listing only the ones a row uses", async () => {
+    signInAs(null);
+    await renderServerPage(CompliancePage, {});
+    expect(screen.getByText(/We say what we do, not that we hold a certificate we don't/)).toBeInTheDocument();
+    const details = document.querySelector("details");
+    if (!details) throw new Error("no legend disclosure");
+    expect(details.open).toBe(false);
+    const used = new Set(COMPLIANCE_GROUPS.flatMap((g) => g.items.map((i) => i.status)));
+    expect(within(details).getAllByRole("listitem")).toHaveLength(used.size);
+    for (const status of Object.keys(COMPLIANCE_STATUSES) as (keyof typeof COMPLIANCE_STATUSES)[]) {
+      const inLegend = within(details).queryByText(COMPLIANCE_STATUSES[status]) !== null;
+      expect(inLegend).toBe(used.has(status));
+    }
+  });
+
   it("gives a signed-in member a way back to the Hub", async () => {
     signInAs(MEMBER_USER);
     await renderServerPage(CompliancePage, {});

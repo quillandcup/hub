@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { COMPLIANCE_STATUSES, type ComplianceStatus } from "@/content/compliance";
 import { richParts, type Rich } from "@/lib/trust-text";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The building blocks the trust pages share: Compliance, Security (and Privacy's staff view) each have a
@@ -27,25 +28,40 @@ export const STATUS_MEANING: Record<ComplianceStatus, string> = {
   notApplicable: "Doesn't apply to the Hub, or we don't hold it.",
 };
 
-/** The status as words in a pill: never colour alone. */
-export function StatusPill({ status }: { status: ComplianceStatus }) {
-  return (
+/**
+ * The status as words in a pill: never colour alone. Hovering it (or a long press on a phone) shows what the word
+ * means; the same text is in the legend on the page, so the tooltip is never the only place it lives. `hint={false}`
+ * where the meaning is already printed beside the pill (the legend).
+ */
+export function StatusPill({ status, hint = true }: { status: ComplianceStatus; hint?: boolean }) {
+  const pill = (
     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_STYLES[status]}`}>
       {COMPLIANCE_STATUSES[status]}
     </span>
   );
+  return hint ? <Tooltip content={STATUS_MEANING[status]}>{pill}</Tooltip> : pill;
 }
 
-/** The legend: one line per status. */
-export function StatusLegend({ statuses }: { statuses: readonly ComplianceStatus[] }) {
-  return (
+/**
+ * The legend: one line per status. `collapsed` puts it behind a "What the labels mean" disclosure that starts closed,
+ * for the public pages, where the pills carry the same text as a tooltip and the box stays small on a phone.
+ */
+export function StatusLegend({ statuses, collapsed = false }: { statuses: readonly ComplianceStatus[]; collapsed?: boolean }) {
+  const list = (
     <ul className="space-y-1">
       {statuses.map((status) => (
         <li key={status}>
-          <StatusPill status={status} /> {STATUS_MEANING[status]}
+          <StatusPill status={status} hint={false} /> {STATUS_MEANING[status]}
         </li>
       ))}
     </ul>
+  );
+  if (!collapsed) return list;
+  return (
+    <details>
+      <summary className="cursor-pointer text-sm font-medium underline decoration-dotted underline-offset-2">What the labels mean</summary>
+      <div className="mt-2">{list}</div>
+    </details>
   );
 }
 
