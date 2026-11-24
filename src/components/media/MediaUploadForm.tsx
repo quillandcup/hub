@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import TagInput from "@/components/TagInput";
 import { track } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
 import { BOOK_COVER_MAX_BYTES, describeBookCoverRequirements } from "@/lib/bookCover";
@@ -36,7 +37,7 @@ export default function MediaUploadForm({
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -80,7 +81,7 @@ export default function MediaUploadForm({
     setBusy(true);
     const large = !own && file.size > DIRECT_UPLOAD_ABOVE;
     try {
-      const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
+      const tagList = tags;
       let response: Response;
       if (own) {
         const form = new FormData();
@@ -159,10 +160,12 @@ export default function MediaUploadForm({
       </label>
       )}
       {!own && (
-      <label className="block text-sm">
-        Tags
-        <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} onKeyDown={sendOnEnter} placeholder="hedgies-on-first, retreat" className={`${INPUT} mt-1`} />
-      </label>
+      <div className="text-sm">
+        <label htmlFor="media-upload-tags">Tags</label>
+        <div className="mt-1">
+          <TagInput id="media-upload-tags" tags={tags} onChange={setTags} placeholder="hedgies-on-first, retreat" />
+        </div>
+      </div>
       )}
       <button type="button" onClick={() => void send()} disabled={!file || busy} className={PRIMARY}>
         {busy ? "Uploading..." : submitLabel}

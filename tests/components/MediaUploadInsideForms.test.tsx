@@ -71,7 +71,7 @@ describe("choosing a cover image while editing an event", () => {
     expect(container.querySelector("button[type=submit]")).toBeNull();
   });
 
-  it("uploads on Enter in the title or tags field, without submitting the form around it", async () => {
+  it("uploads on Enter in the title field, without submitting the form around it", async () => {
     const outer = vi.fn((e: React.FormEvent) => e.preventDefault());
     const onUploaded = vi.fn();
     render(
@@ -80,12 +80,26 @@ describe("choosing a cover image while editing an event", () => {
       </form>,
     );
     await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "ronda.jpg", { type: "image/jpeg" }));
-    await userEvent.type(screen.getByLabelText("Tags"), "ronda-spain{Enter}");
+    await userEvent.type(screen.getByLabelText("Title"), "Ronda{Enter}");
 
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1", expect.objectContaining({ id: "media_AAAAAAAAAAA1" })));
     expect(outer).not.toHaveBeenCalled();
     const posts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST");
     expect(posts).toHaveLength(1);
+  });
+
+  it("turns Enter in the tags field into a tag instead of uploading or submitting the form", async () => {
+    const outer = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <form onSubmit={outer}>
+        <MediaUploadForm surface="event_cover" onUploaded={vi.fn()} onError={vi.fn()} />
+      </form>,
+    );
+    await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "ronda.jpg", { type: "image/jpeg" }));
+    await userEvent.type(screen.getByLabelText("Tags"), "ronda-spain{Enter}");
+    expect(screen.getByLabelText("Remove ronda-spain")).toBeInTheDocument();
+    expect(outer).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("does nothing on Enter before a file is chosen", async () => {

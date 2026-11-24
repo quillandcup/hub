@@ -13,8 +13,9 @@ interface TagInputProps {
 }
 
 /**
- * Free-form chips: type a tag and press Enter or comma (or paste a comma-separated list) to add
- * it; Backspace in the empty box removes the last one. Case-insensitive duplicates are ignored.
+ * Free-form chips: type a tag and press Enter, Tab or comma (or paste a comma-separated list) to add
+ * it. This is the one component for any field that asks for tags; don't use a comma-separated text
+ * box. Backspace in the empty box removes the last one. Case-insensitive duplicates are ignored.
  * Text still in the box when the form submits is the caller's to pick up via `onChange` -- it's
  * committed on blur, so tabbing to "Save" doesn't lose it.
  */
@@ -37,7 +38,11 @@ export default function TagInput({ id, tags, onChange, placeholder, maxTags, max
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
+    if (e.key === "Tab" && !e.shiftKey && draft.trim()) {
+      // Tab turns the typed text into a pill and stays here, so another tag can follow.
+      e.preventDefault();
+      commit(draft);
+    } else if (e.key === "Enter" || e.key === ",") {
       if (!draft.trim()) {
         // An empty Enter shouldn't submit the surrounding form by accident either.
         if (e.key === "Enter") e.preventDefault();
