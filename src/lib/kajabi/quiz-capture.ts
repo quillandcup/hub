@@ -83,6 +83,10 @@ const MULTIPLE_KEYS = ["allowmultiple", "allowsmultiple", "multipleanswers", "mu
 const ORDER_KEYS = ["position", "order", "sort", "sortorder", "index"].map(norm);
 const PASSING_KEYS = ["passinggrade", "passingscore", "passingpercentage", "passpercentage", "passmark", "minimumscore", "minscore", "passingpercent", "requiredscore"].map(norm);
 const PASSING_ON_KEYS = ["passinggradeenabled", "setpassinggrade", "haspassinggrade", "passingenabled", "gradingenabled", "graded"].map(norm);
+const TYPE_KEYS = ["questiontype", "type", "kind", "format"].map(norm);
+const MANUAL_FLAG_KEYS = ["gradedmanually", "manuallygraded", "manualgrading", "manual"].map(norm);
+/** Question types Kajabi grades by hand (short answer, file upload): the Hub builds only the auto-graded kinds. */
+const MANUAL_TYPE = /short|free.?text|essay|file|upload|manual|open.?ended/i;
 const HIDE_KEYS = ["hideanswers", "hidecorrectanswers", "hideanswersonresults", "hideanswersonresultspage", "hideresultsanswers", "hideanswersonresult"].map(norm);
 
 /** The value of the first of these keys (in the order given) that the object has. */
@@ -254,7 +258,23 @@ function findSetting(views: unknown[], keys: string[], accept: (v: unknown) => b
   return undefined;
 }
 
+/** How many questions are graded by hand in Kajabi (short answer, file upload), counted once each. Such a quiz is not imported. */
+function countManualQuestions(views: unknown[]): number {
+  const seen = new Set<string>();
+  for (const list of views.flatMap((v) => listsIn(v))) {
+    list.forEach((o, i) => {
+      if (!firstText(o, PROMPT_KEYS)) return;
+      const type = valueOf(o, TYPE_KEYS);
+      const flagged = truthy(valueOf(o, MANUAL_FLAG_KEYS));
+      if (flagged || (typeof type === "string" && MANUAL_TYPE.test(type) && !/multiple|checkbox|choice/i.test(type))) seen.add(asKey(o.id, `${firstText(o, PROMPT_KEYS)}#${i}`));
+    });
+  }
+  return seen.size;
+}
+
 export interface ParsedQuiz {
+  /** Questions Kajabi grades by hand (short answer, file upload); when there are any the quiz is skipped, not imported. */
+  manualQuestions: number;
   /** Whole percent 1 to 100, or null for a quiz that isn't graded. */
   passingPercent: number | null;
   hideAnswers: boolean;
@@ -270,7 +290,8 @@ export function parseKajabiQuiz(documents: unknown[]): ParsedQuiz | null {
     return resolved === d ? [d] : [resolved, d];
   });
   const found = findQuestions(views);
-  if (found.length === 0) return null;
+  const manualQuestions = countManualQuestions(views);
+  if (found.length === 0 && manualQuestions === 0) return null;
   const warnings: string[] = [];
 
   const questions = found.map((q) => {
@@ -296,7 +317,7 @@ export function parseKajabiQuiz(documents: unknown[]): ParsedQuiz | null {
     else if (percent !== 0) warnings.push("the passing grade was out of range, so the quiz is not graded");
   }
   const hide = findSetting(views, HIDE_KEYS, (v) => typeof v === "boolean" || v === 0 || v === 1);
-  return { passingPercent, hideAnswers: hide === true || hide === 1, questions, warnings };
+  return { manualQuestions, passingPercent, hideAnswers: hide === true || hide === 1, questions, warnings };
 }
 
 /**

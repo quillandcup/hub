@@ -111,6 +111,21 @@ describe("parseKajabiQuiz", () => {
     expect(plainText(42)).toBe("");
   });
 
+  it("counts the questions Kajabi grades by hand (short answer, file upload) and not the choice kinds", () => {
+    const doc = { questions: [
+      { id: 1, text: "Pick", question_type: "multiple_choice", answers: [{ id: 1, text: "a", correct: true }, { id: 2, text: "b" }] },
+      { id: 2, text: "Tick", question_type: "checkboxes", answers: [{ id: 3, text: "a", correct: true }, { id: 4, text: "b", correct: true }] },
+      { id: 3, text: "Write", question_type: "short_answer" },
+      { id: 4, text: "Attach", type: "File upload" },
+      { id: 5, text: "Flagged", graded_manually: true },
+    ] };
+    const parsed = parseKajabiQuiz([doc])!;
+    expect(parsed.manualQuestions).toBe(3);
+    expect(parsed.questions.map((q) => q.id)).toEqual(["1", "2"]);
+    expect(parseKajabiQuiz([{ questions: [{ id: 3, text: "Write", question_type: "short_answer" }] }])).toMatchObject({ manualQuestions: 1, questions: [] });
+    expect(parseKajabiQuiz([jsonApiQuiz()])!.manualQuestions).toBe(0);
+  });
+
   it("is null when no question with answers is in the documents", () => {
     for (const docs of [[], [null], [{}], [{ data: { id: "1", type: "quizzes", attributes: { title: "Empty" } } }], [{ questions: [{ id: 1, text: "Only one answer", answers: [{ text: "x" }] }] }], ["text", 7]]) {
       expect(parseKajabiQuiz(docs as unknown[])).toBeNull();

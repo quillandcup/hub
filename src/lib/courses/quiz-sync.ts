@@ -16,6 +16,8 @@ export interface QuizSyncSummary {
   noLesson: number;
   /** Questions left out because they don't fit (too few or too many answers). */
   skippedQuestions: number;
+  /** Quizzes not imported because a question is graded by hand in Kajabi (short answer, file upload): the Hub builds only choice questions. They keep what Silver has. */
+  skippedManual: number;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface QuizSyncSummary {
  * writes no row that didn't change, and a member's attempts keep pointing at the same questions.
  */
 export async function syncCourseQuizzes(repos: QuizSyncRepos, courseKajabiId: string, lessonIdBySourceKey: ReadonlyMap<string, string>): Promise<QuizSyncSummary> {
-  const summary: QuizSyncSummary = { synced: 0, questions: 0, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0 };
+  const summary: QuizSyncSummary = { synced: 0, questions: 0, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, skippedManual: 0 };
   const bronze = await repos.kajabiCourses.liveQuizzes(courseKajabiId);
   const keep: string[] = [];
   for (const row of bronze) {
@@ -40,6 +42,10 @@ export async function syncCourseQuizzes(repos: QuizSyncRepos, courseKajabiId: st
     const parsed = parseKajabiQuiz(documentsOf(row.raw_payload));
     if (!parsed) {
       summary.unreadable++;
+      continue;
+    }
+    if (parsed.manualQuestions > 0) {
+      summary.skippedManual++;
       continue;
     }
     const { quiz } = importedQuizOf(row.kajabi_id, parsed);

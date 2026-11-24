@@ -25,7 +25,7 @@ describe("KajabiCoursesResult", () => {
           imported: imported(),
           unpublished: [],
           processed: [
-            { slug: "the-ready-writer", kajabiId: "1", isDraft: false, accessDuration: null, launchAt: null, modules: 3, lessons: 12, comingSoon: 2, hiddenLessons: 1, deleted: { modules: 0, lessons: 1 }, quizzes: { synced: 1, questions: 3, removed: 0, unreadable: 1, noLesson: 0, skippedQuestions: 0 }, access: { members: 40, removed: 2 } },
+            { slug: "the-ready-writer", kajabiId: "1", isDraft: false, accessDuration: null, launchAt: null, modules: 3, lessons: 12, comingSoon: 2, hiddenLessons: 1, deleted: { modules: 0, lessons: 1 }, quizzes: { synced: 1, questions: 3, removed: 0, unreadable: 1, noLesson: 0, skippedQuestions: 0, skippedManual: 2 }, access: { members: 40, removed: 2 } },
           ],
         }}
       />
@@ -35,7 +35,7 @@ describe("KajabiCoursesResult", () => {
     expect(screen.getByText("Courses refreshed:")).toBeInTheDocument();
     expect(screen.queryByText(/Published courses refreshed/)).not.toBeInTheDocument();
     expect(screen.getByText(/The Ready Writer: 3 modules, 12 lessons, 1 offers/)).toBeInTheDocument();
-    expect(screen.getByText(/the-ready-writer: 12 lessons \(2 coming soon\), 40 with access, 2 access removed, 1 lessons and 0 modules removed, 1 quiz \(3 questions\), 1 quiz captured but not readable/)).toBeInTheDocument();
+    expect(screen.getByText(/the-ready-writer: 12 lessons \(2 coming soon\), 40 with access, 2 access removed, 1 lessons and 0 modules removed, 1 quiz \(3 questions\), 2 quizzes not imported \(short answer or file upload questions are graded by hand in Kajabi\), 1 quiz captured but not readable/)).toBeInTheDocument();
   });
 
   it("warns when lessons couldn't be placed in their module", () => {
