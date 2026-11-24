@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { courseImageUrl } from "@/lib/courses/image-urls";
+import type { LessonCommentCounts } from "@/lib/data/course-comments";
 import { formatDuration, unreleasedLabel, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 
 interface Props {
@@ -11,9 +12,52 @@ interface Props {
   /** Staff: "Coming soon" lessons and drafts open too, as a preview. */
   previewComingSoon?: boolean;
   currentLessonId?: string;
+  /** Comments per lesson (flag `lesson_comments`); lessons with none are absent. Omitted when comments are off for the viewer. */
+  commentCounts?: ReadonlyMap<string, LessonCommentCounts>;
+  /** Staff: also say how many questions are waiting for an answer. */
+  showUnanswered?: boolean;
 }
 
-function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoon }: { slug: string; lesson: OutlineLesson; completed: boolean; canOpen: boolean; current: boolean; previewComingSoon?: boolean }) {
+/** "3 comments", "3 comments, 1 new" and, for staff, ", 2 unanswered": a badge in the row, said in full to a screen reader. */
+function CommentBadge({ counts, showUnanswered }: { counts: LessonCommentCounts; showUnanswered?: boolean }) {
+  const parts = [`${counts.total} ${counts.total === 1 ? "comment" : "comments"}`];
+  if (counts.newCount > 0) parts.push(`${counts.newCount} new`);
+  if (showUnanswered && counts.unanswered > 0) parts.push(`${counts.unanswered} unanswered`);
+  const highlight = counts.newCount > 0 || (showUnanswered && counts.unanswered > 0);
+  return (
+    <span
+      data-testid="comment-badge"
+      className={`mt-1 ml-2 inline-block rounded-full px-2 py-0.5 text-xs ${highlight ? "bg-plum-100 text-plum-800 dark:bg-plum-900 dark:text-plum-100" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}
+    >
+      <span className="sr-only">{parts.join(", ")}</span>
+      <span aria-hidden="true">
+        {counts.total} {counts.total === 1 ? "comment" : "comments"}
+        {counts.newCount > 0 && ` · ${counts.newCount} new`}
+        {showUnanswered && counts.unanswered > 0 && ` · ${counts.unanswered} unanswered`}
+      </span>
+    </span>
+  );
+}
+
+function LessonRow({
+  slug,
+  lesson,
+  completed,
+  canOpen,
+  current,
+  previewComingSoon,
+  counts,
+  showUnanswered,
+}: {
+  slug: string;
+  lesson: OutlineLesson;
+  completed: boolean;
+  canOpen: boolean;
+  current: boolean;
+  previewComingSoon?: boolean;
+  counts?: LessonCommentCounts;
+  showUnanswered?: boolean;
+}) {
   const duration = formatDuration(lesson.duration_seconds);
   // Not released yet: "Coming soon", or (only staff ever get these) a Kajabi draft.
   const comingSoon = lesson.state !== "open";
@@ -34,7 +78,10 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
         {comingSoon ? (
           <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(lesson.state)}</span>
         ) : (
-          duration && <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">{duration}</span>
+          <span className="block">
+            {duration && <span className="mt-1 inline-block text-xs text-slate-600 dark:text-slate-400">{duration}</span>}
+            {counts && counts.total > 0 && <CommentBadge counts={counts} showUnanswered={showUnanswered} />}
+          </span>
         )}
       </span>
       <span
@@ -86,6 +133,8 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
             canOpen={rest.canOpen}
             current={lesson.id === rest.currentLessonId}
             previewComingSoon={rest.previewComingSoon}
+            counts={rest.commentCounts?.get(lesson.id)}
+            showUnanswered={rest.showUnanswered}
           />
         ))}
       </ul>
@@ -103,18 +152,39 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
 }
 
 /** A course's modules, weeks and lessons: checkmarks, durations, and "Coming soon" for unreleased ones. */
-export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon }: Props) {
+export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon, commentCounts, showUnanswered }: Props) {
   return (
     <nav aria-label="Course outline" className="@container space-y-4">
       {outline.loose.length > 0 && (
         <ul className="space-y-1 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           {outline.loose.map((lesson) => (
-            <LessonRow key={lesson.id} slug={slug} lesson={lesson} completed={completed.has(lesson.id)} canOpen={canOpen} current={lesson.id === currentLessonId} previewComingSoon={previewComingSoon} />
+            <LessonRow
+              key={lesson.id}
+              slug={slug}
+              lesson={lesson}
+              completed={completed.has(lesson.id)}
+              canOpen={canOpen}
+              current={lesson.id === currentLessonId}
+              previewComingSoon={previewComingSoon}
+              counts={commentCounts?.get(lesson.id)}
+              showUnanswered={showUnanswered}
+            />
           ))}
         </ul>
       )}
       {outline.modules.map((node) => (
-        <ModuleNode key={node.module.id} node={node} depth={0} slug={slug} completed={completed} canOpen={canOpen} currentLessonId={currentLessonId} previewComingSoon={previewComingSoon} />
+        <ModuleNode
+          key={node.module.id}
+          node={node}
+          depth={0}
+          slug={slug}
+          completed={completed}
+          canOpen={canOpen}
+          currentLessonId={currentLessonId}
+          previewComingSoon={previewComingSoon}
+          commentCounts={commentCounts}
+          showUnanswered={showUnanswered}
+        />
       ))}
     </nav>
   );

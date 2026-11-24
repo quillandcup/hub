@@ -168,6 +168,7 @@ export default async function LessonPage({
         currentMemberId={caller.identity.memberId}
         isStaff={caller.scope.isAdminActing}
         readOnly={caller.identity.isSudo}
+        canSeek={video?.status === "ready" && Boolean(video.playbackId)}
         timeZone={isValidTimeZone(timezonePreference) ? timezonePreference : ORG_TIMEZONE}
         nowMs={clock.now()}
       />

@@ -376,6 +376,39 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
       });
     });
 
+    describe("counts for the course outline", () => {
+      it("counts live comments per lesson, the questions still waiting, and what is new since the viewer's last visit", async () => {
+        await post(ctx.lessons[0], ctx.members.ada, "Waiting");
+        const answered = await post(ctx.lessons[0], ctx.members.ada, "Answered");
+        await post(ctx.lessons[0], ctx.members.staff, "Here you go", answered.id, true);
+        const handled = await post(ctx.lessons[0], ctx.members.bea, "No answer needed");
+        await ctx.repo().moderate(handled.id, "handle", ctx.members.staff);
+        const hidden = await post(ctx.lessons[0], ctx.members.bea, "Hidden");
+        await ctx.repo().moderate(hidden.id, "hide", ctx.members.staff);
+        const deleted = await post(ctx.lessons[0], ctx.members.bea, "Deleted");
+        await ctx.repo().softDelete(deleted.id, ctx.members.bea, AT);
+        await ctx.repo().create({ lessonId: ctx.lessons[0], memberId: ctx.members.bea, parentId: null, body: "Held", isStaffReply: false, held: true });
+        await post(ctx.lessons[1], ctx.members.bea, "Asked on the other lesson");
+        await ctx.repo().markRead(ctx.members.ada, ctx.lessons[0], "2020-01-01T00:00:00.000Z");
+
+        const counts = await ctx.repo().outlineCounts(ctx.courseId, ctx.members.ada);
+
+        // Live: Waiting, Answered, its answer, No answer needed. Ada's own two are not new to her; the answer and the other are.
+        expect(counts.get(ctx.lessons[0])).toEqual({ total: 4, unanswered: 1, newCount: 2 });
+        // A lesson she never opened has nothing "new".
+        expect(counts.get(ctx.lessons[1])).toEqual({ total: 1, unanswered: 1, newCount: 0 });
+        await ctx.repo().softDelete((await post(ctx.lessons[1], ctx.members.ada, "Gone")).id, ctx.members.ada, AT);
+        expect((await ctx.repo().outlineCounts(ctx.courseId, ctx.members.ada)).get(ctx.lessons[1])?.total).toBe(1);
+      });
+
+      it("has nothing for a course with no comments, and reads past 1,000 comments", async () => {
+        expect((await ctx.repo().outlineCounts(ctx.courseId, ctx.members.ada)).size).toBe(0);
+        await ctx.bulk(ctx.lessons[0], ctx.members.bea, 1050, false);
+
+        expect((await ctx.repo().outlineCounts(ctx.courseId, ctx.members.ada)).get(ctx.lessons[0])).toMatchObject({ total: 1050, unanswered: 1050 });
+      });
+    });
+
     describe("what the notification senders read", () => {
       it("gives the live comments made in a window, with who and where but no text", async () => {
         const before = new Date(Date.now() - 1000).toISOString();

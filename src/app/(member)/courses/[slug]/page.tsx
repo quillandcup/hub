@@ -12,6 +12,7 @@ import { courseTitle } from "@/lib/courses/page-title";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { formatCourseDate } from "@/lib/courses/format";
 import { createRepos } from "@/lib/data/repos";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -73,6 +74,12 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const hero = courseImageUrl(course.hero_url);
   const buttonLabel = progress.allDone ? "Review" : started ? "Continue" : "Start";
 
+  // Comment counts beside the lessons (flag `lesson_comments`), only where the comments themselves can be opened.
+  const commentCounts =
+    canOpen && (await effectiveMemberHasFeature("lesson_comments", caller.identity, await getUserFeaturePreviews(caller.userId)))
+      ? await repos.courseComments.outlineCounts(course.id, caller.identity.memberId)
+      : undefined;
+
   return (
     <div>
       {course.is_draft && <PageBanner>This course is a draft: only staff can see it. Publish it from its admin page when it is ready for members.</PageBanner>}
@@ -110,7 +117,15 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
               Your access ended on {formatCourseDate(access.endsAt)}. Your progress is saved below, but the lessons are closed.
             </p>
           )}
-          <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
+          <CourseOutline
+            slug={course.slug}
+            outline={outline}
+            completed={completed}
+            canOpen={canOpen}
+            previewComingSoon={caller.scope.isAdminActing}
+            commentCounts={commentCounts}
+            showUnanswered={caller.scope.isAdminActing}
+          />
         </div>
 
         <aside className="order-first @split:order-none">
