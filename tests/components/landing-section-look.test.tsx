@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
-import { Section } from "@/components/landing/blocks";
+import { Image, Section, Split } from "@/components/landing/blocks";
 
 const Content = () => <p>Words</p>;
 const base = { background: "none", overlay: "none", width: "narrow", align: "left", card: false, fadeIn: false, content: Content } as const;
@@ -25,6 +25,25 @@ describe("a Section's picture framing", () => {
   it("ignores a fixed picture when there is no picture, and a position it does not know", () => {
     expect(band(render(<Section {...base} backgroundFixed />).container).className).not.toContain("bg-fixed");
     expect(band(render(<Section {...base} {...picture} backgroundPosition={"left" as never} />).container).style.backgroundPosition).toBe("center center");
+  });
+});
+
+describe("pictures in a page", () => {
+  it("are not lazy: a picture with no height until it loads leaves blank space where a logo or a photo belongs", () => {
+    const logo = render(<Image imageAssetId="media_AAAAAAAAAAA1" alt="A logo" decorative={false} size="small" rounded={false} align="center" />).container.querySelector("img")!;
+    expect(logo.getAttribute("src")).toBe("/api/media/media_AAAAAAAAAAA1/page_image");
+    expect(logo.getAttribute("loading")).not.toBe("lazy");
+    const split = render(<Split imageAssetId="media_AAAAAAAAAAA2" alt="" decorative imageSide="left" html="<p>Words</p>" />).container.querySelector("img")!;
+    expect(split.getAttribute("loading")).not.toBe("lazy");
+  });
+
+  it("still show when they are marked decorative: only their description is empty", () => {
+    const split = render(<Split imageAssetId="media_AAAAAAAAAAA2" alt="A description" decorative imageSide="left" html="<p>Words</p>" />).container.querySelector("img")!;
+    expect(split.getAttribute("src")).toBe("/api/media/media_AAAAAAAAAAA2/page_image");
+    expect(split.getAttribute("alt")).toBe("");
+    const image = render(<Image imageAssetId="media_AAAAAAAAAAA1" alt="A description" decorative size="small" rounded={false} align="center" />).container.querySelector("img")!;
+    expect(image.getAttribute("src")).toBe("/api/media/media_AAAAAAAAAAA1/page_image");
+    expect(image.getAttribute("alt")).toBe("");
   });
 });
 

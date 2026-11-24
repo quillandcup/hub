@@ -291,8 +291,9 @@ export function Image({ imageAssetId, alt, decorative, size, rounded, align, fit
   const src = pageImage(imageAssetId, crop ? "event_hero" : "page_image");
   if (!src) return noImage;
   return (
+    // Not lazy: a lazy picture has no height until it loads, so a page captured or printed before that, or a visitor scrolling down, sees blank space where the logo or a testimonial's photo belongs.
     // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-    <img src={src} alt={decorative ? "" : alt} loading="lazy" className={`my-3 h-auto w-full ${crop ? "aspect-video object-cover" : ""} ${pick(IMAGE_SIZE, size, "medium")} ${pick(IMAGE_ALIGN, align, "center")} ${rounded ? "rounded-2xl" : ""}`} />
+    <img src={src} alt={decorative ? "" : alt} decoding="async" className={`my-3 h-auto w-full ${crop ? "aspect-video object-cover" : ""} ${pick(IMAGE_SIZE, size, "medium")} ${pick(IMAGE_ALIGN, align, "center")} ${rounded ? "rounded-2xl" : ""}`} />
   );
 }
 
@@ -306,7 +307,7 @@ export function Split({ imageAssetId, alt, decorative, imageSide, html }: SplitP
     <div className="grid items-center gap-6 py-4 @split:grid-cols-2 @split:gap-10">
       {src && (
         // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-        <img src={src} alt={decorative ? "" : alt} loading="lazy" className={`h-auto w-full rounded-2xl ${imageSide === "right" ? "@split:order-2" : ""}`} />
+        <img src={src} alt={decorative ? "" : alt} decoding="async" className={`h-auto w-full rounded-2xl ${imageSide === "right" ? "@split:order-2" : ""}`} />
       )}
       <RichHtml html={html} />
     </div>
