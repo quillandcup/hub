@@ -49,7 +49,7 @@ const run = (reads: Record<string, QuizRead | Error>, apply = true, io = fileIO(
   });
   return { done, lines };
 };
-const read = (subs: unknown[], extra: Partial<QuizRead> = {}): QuizRead => ({ listed: subs.length, submissions: subs.map((s, i) => ({ key: null, documents: [s] })), failed: 0, incomplete: false, ...extra, ...(extra.submissions ? {} : {}) });
+const read = (subs: unknown[], extra: Partial<QuizRead> = {}): QuizRead => ({ listed: subs.length, submissions: subs.map((s) => ({ key: null, documents: [s] })), failed: 0, incomplete: false, ...extra });
 
 describe("runResponsesCapture", () => {
   it("saves each submission with its answers and the copy of its file, and prints counts only", async () => {
