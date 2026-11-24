@@ -83,7 +83,7 @@ Last assessed 2026-11-20 against the criteria as published that day. A different
 | `crypto_*` (published, call, FLOSS, keylength, working, weaknesses, pfs, password storage, random) | N/A | No cryptography of our own; TLS and password-less sign-in are provided by Vercel and Supabase. Provider tokens we store are encrypted (`docs/TODO.md`, "Secrets at Rest"). |
 | `delivery_mitm` [MUST] | Met | HTTPS everywhere. |
 | `delivery_unsigned` [MUST NOT] | Met | Nothing fetches a hash over HTTP. |
-| `vulnerabilities_fixed_60_days` [MUST] | Met | `pnpm audit` reports none as of 2026-11-20. OSV-Scanner accepts two advisories with no published fix, in a dev-only dependency of the Vercel CLI, with an expiry (`config/osv-scanner.toml`); Dependabot weekly. |
+| `vulnerabilities_fixed_60_days` [MUST] | Met | The weekly OSV-Scanner run passed on 2026-11-23; it accepts two advisories with no published fix, in a dev-only dependency of the Vercel CLI, with an expiry (`config/osv-scanner.toml`); Dependabot weekly. |
 | `vulnerabilities_critical_fixed` [SHOULD] | Met | Same. |
 | `no_leaked_credentials` [MUST NOT] | Met | Secrets live outside the repo (`.claude/rules/public-repo-hygiene.md`, `docs/runbooks/SECRET_ROTATION.md`) and gitleaks scans the full history. Triaged 2026-11-20: 22 of 23 findings are the public local Supabase demo keys and fake test values; the other was a database password in an early deployment doc, rotated long ago (owner-confirmed). No valid credential is in the repository. |
 
@@ -134,7 +134,7 @@ Silver also requires every Passing criterion, and promotes several SHOULD or SUG
 | `crypto_credential_agility` [MUST] | Met | Credentials are environment variables and vault entries, not code. |
 | `crypto_used_network`, `crypto_tls12`, `crypto_certificate_verification`, `crypto_verification_private` | Met | Platform defaults (Vercel, Supabase, Node). |
 | `signed_releases`, `version_tags_signed` | Not met | No releases. |
-| `dependency_monitoring` [MUST] | Met | Dependabot, OSV-Scanner, `pnpm audit`. |
+| `dependency_monitoring` [MUST] | Met | Dependabot, OSV-Scanner (weekly, and a required check on every pull request). |
 
 ## Gold
 Gold also requires Silver.

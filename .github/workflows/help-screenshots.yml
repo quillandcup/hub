@@ -423,7 +423,7 @@ jobs:
 
   # A failed run emails whoever GitHub notifies for a scheduled workflow, but a run that is CANCELLED (the 30 minute limit
   # did that for weeks) sends nothing, so this job also posts to the alerts channel when the capture or a page-check
-  # job failed or was cancelled. The same incoming webhook as audit.yml (SLACK_ALERTS_WEBHOOK_URL); not set, or a
+  # job failed or was cancelled. The same incoming webhook as osv-scan.yml (SLACK_ALERTS_WEBHOOK_URL); not set, or a
   # fork: it does nothing. A job that was skipped (nothing changed since the newest set) is not a problem.
   alert:
     name: Tell the alerts channel

@@ -5,7 +5,7 @@ name: ZAP baseline
 # it is safe to point at the live site. There are no preview deploys to aim it at. An authenticated or active scan
 # does NOT belong here: run those against a local or demo stack. Weekly, not a required check (it fails and posts to the alerts
 # channel on findings; no GitHub issue is opened); the HTML report is the run's artifact. The target is `appUrl` from config/app.ts.
-# The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL), as in audit.yml.
+# The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL), as in osv-scan.yml.
 on:
   schedule:
     - cron: "11 7 * * 4"
@@ -47,7 +47,7 @@ jobs:
           rules_file_name: config/zap-baseline.tsv
           artifact_name: zap-baseline-report
 
-      # fail_action is on and -I ignores warnings, so a FAIL-level alert turns the step red; tell the alerts channel (same webhook and pattern as audit.yml).
+      # fail_action is on and -I ignores warnings, so a FAIL-level alert turns the step red; tell the alerts channel (same webhook and pattern as osv-scan.yml).
       - name: Post findings to Slack
         if: failure()
         env:

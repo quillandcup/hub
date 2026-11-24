@@ -57,7 +57,7 @@ oauth_config:
       - files:write
       # /hub slash command (Slack sign-in)
       - commands
-      # Incoming webhooks. The weekly dependency audit (.github/workflows/audit.yml) posts one line to #hub-alerts
+      # Incoming webhooks. The scheduled scan workflows (for example .github/workflows/osv-scan.yml) post one line to #hub-alerts
       # through a webhook URL (the SLACK_ALERTS_WEBHOOK_URL GitHub secret). The URL can only post to the one channel
       # picked when it was added. The webhook itself is created in the Slack dashboard, not by this manifest.
       - incoming-webhook

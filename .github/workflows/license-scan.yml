@@ -4,7 +4,7 @@ name: License scan
 # permissive licenses, with copyleft and undeclared licenses as findings; a package we accept on purpose is an exception
 # in that file with a reason and an expiry date. Not a required check and never blocks a merge. Scheduled and manual runs
 # fail on a finding (and post to the alerts channel); a pull request that touches the lockfile or the policy only reports
-# (step-level continue-on-error), for the reason audit.yml gives. The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL).
+# (step-level continue-on-error), so an advisory already in the lockfile never stops an unrelated PR. The only secret is the alerts webhook (SLACK_ALERTS_WEBHOOK_URL).
 on:
   schedule:
     - cron: "29 6 * * 1"
@@ -37,7 +37,7 @@ jobs:
       # pnpm reads each package's license from the installed files, so the dependencies must be installed.
       - run: pnpm install --frozen-lockfile
 
-      # Step-level continue-on-error on pull requests only, as in audit.yml: the check stays green, the log shows the findings.
+      # Step-level continue-on-error on pull requests only: the check stays green, the log shows the findings.
       - name: Check licenses
         id: licenses
         continue-on-error: ${{ github.event_name == 'pull_request' }}

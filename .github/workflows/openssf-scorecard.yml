@@ -1,11 +1,11 @@
 name: OpenSSF Scorecard
 
 # Grades the repository's own supply-chain habits (pinned actions, token permissions, branch protection, review,
-# dependency update tooling, security policy). Informational, like audit.yml: not a required check and it never
+# dependency update tooling, security policy). Informational, like osv-scan.yml: not a required check and it never
 # blocks a merge. Findings land in the Security tab (code scanning) and the score is published to the OpenSSF
 # API, which only works for a public repository. The `floor` job then fails, and posts to the alerts channel, when the
 # published score is under `scorecard.minScore` in config/app.ts (it is a separate job because Scorecard's publishing
-# check rejects `run` steps next to its action). The only secret is the alerts webhook, as in audit.yml.
+# check rejects `run` steps next to its action). The only secret is the alerts webhook, as in osv-scan.yml.
 on:
   schedule:
     - cron: "41 6 * * 2"

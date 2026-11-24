@@ -66,7 +66,7 @@ jobs:
             --title "Refresh the temp-mail domain list" \
             --body "Weekly refresh of \`src/lib/disposable-email-domains.generated.ts\` from the public disposable-email-domains list (CC0), by \`.github/workflows/disposable-email-domains.yml\`. One domain per line, so the diff shows exactly which were added or removed. Auto-merges when the required checks pass."
 
-      # Same channel and secret as audit.yml: a failed refresh (including the script refusing a bad list) is not only a red run.
+      # Same channel and secret as osv-scan.yml: a failed refresh (including the script refusing a bad list) is not only a red run.
       - name: Post failure to Slack
         if: failure()
         env:
