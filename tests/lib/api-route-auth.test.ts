@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { classify, DELEGATES, PUBLIC_ROUTES, type RouteRow } from "@/scripts/api-route-inventory";
 
 /**
- * Guard: every route handler under src/app/api authenticates itself.
+ * Guard: every route handler under src/app (the API, the sign-in endpoints, the downloads) authenticates itself.
  *
  * The proxy treats all of /api/ as public (src/lib/supabase/middleware.ts), so a route that forgets
  * to check its caller is open to the internet, and nothing else fails when one does. This test
- * lists each src/app/api route file with the credential step it contains and fails when a route has
+ * lists each src/app route file with the credential step it contains and fails when a route has
  * none, unless the route is in PUBLIC_ROUTES with the reason. A new route must either contain one
  * of the recognised steps below or be added there on purpose, in review.
  *

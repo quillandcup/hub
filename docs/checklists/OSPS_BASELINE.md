@@ -105,7 +105,7 @@ Where the project stands against each control of the OpenSSF Open Source Project
 | Control | Level | Status | Evidence or gap |
 |---|---|---|---|
 | `OSPS-SA-01.01` Design docs showing all actions and actors | 2 | Partly | `docs/architecture/` (layers, ERD, sequence diagrams, permissions); not every action and actor is drawn. |
-| `OSPS-SA-02.01` External interfaces described | 2 | Partly | Routes and webhooks are documented in `docs/` and `.claude/rules/`; no generated API reference. |
+| `OSPS-SA-02.01` External interfaces described | 2 | Met | `docs/architecture/API_ROUTES.md` lists every route handler under `src/app` (the API, the sign-in endpoints and the download routes) with its methods and the credential its caller needs, generated from `scripts/api-route-inventory.ts` (`pnpm docs:api-routes`); `tests/lib/api-route-inventory.test.ts` fails when it is out of date. It points to the webhook and outbound docs in `docs/infrastructure/`. |
 | `OSPS-SA-03.01` A security assessment | 2 | Met | `docs/trust/THREAT_MODEL.md` (our own review, not an independent one), `docs/trust/RLS_SECURITY.md`. |
 | `OSPS-SA-03.02` Threat model and attack surface analysis | 3 | Partly | `docs/trust/THREAT_MODEL.md` has the model and per-category status; the attack-surface analysis of critical code paths is not separate. |
 
