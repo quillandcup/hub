@@ -47,14 +47,21 @@ async function handle(request: NextRequest): Promise<{ response: NextResponse; o
       );
     }
   } catch (error) {
-    console.error("landing page import failed:", error instanceof Error ? error.message : String(error));
-    outcome = { status: "error", error: "Couldn't import that page. Nothing was lost; try again." };
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("landing page import failed:", message);
+    outcome = { status: "error", error: importFailureText(message) };
   }
   if (outcome.status === "imported") {
     revalidatePath("/admin/pages");
     revalidatePath(`/p/${outcome.slug}`);
   }
   return { response: NextResponse.json(outcome, { status: outcome.status === "error" ? 400 : 200 }), outcome };
+}
+
+/** What to tell the admin when the import threw: the step that failed when it is known, never the database's own words. */
+function importFailureText(message: string): string {
+  const step = /media_assets|media upload/i.test(message) ? "A picture could not be saved." : "Couldn't import that page.";
+  return `${step} Nothing was lost; try again.`;
 }
 
 // Usage analytics: each action records whether it worked (src/lib/analytics/server.ts).

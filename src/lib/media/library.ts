@@ -13,6 +13,10 @@ export type StoreResult =
   | { ok: true; asset: MediaAsset; duplicate: boolean; convertedFrom: "heic" | null }
   | { ok: false; error: string };
 
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Error && /duplicate key value violates unique constraint/i.test(error.message);
+}
+
 /** A title from a file name: no extension, separators as spaces. */
 export function titleFromFileName(name: string | null | undefined): string {
   const base = (name ?? "").replace(/^.*[\\/]/, "").replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
@@ -60,7 +64,7 @@ export async function storeImage(
   const { error: uploadError } = await storage.from(MEDIA_BUCKET).upload(path, bytes, { contentType: inspected.mime, upsert: true });
   if (uploadError) throw new Error(`media upload failed: ${uploadError.message}`);
 
-  const asset = await media.add({
+  const fields = {
     storage_path: path,
     mime_type: inspected.mime,
     width: inspected.width,
@@ -73,8 +77,22 @@ export async function storeImage(
     created_by: input.createdBy ?? null,
     is_public: input.isPublic ?? false,
     source: input.source ?? "upload",
-    source_key: input.sourceKey ?? null,
-  });
+  };
+  const source = input.sourceKey ? { source: fields.source, key: input.sourceKey } : null;
+  // The key names where the picture came from, and only one live asset can hold it. When the source now serves other bytes
+  // under the same key (a re-import after the picture changed), the new picture is stored without the key rather than failing.
+  const taken = source ? await media.bySource(source.source, source.key) : null;
+  let asset: MediaAsset;
+  try {
+    asset = await media.add({ ...fields, source_key: taken ? null : (source?.key ?? null) });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    // Another request stored these bytes, or this key, a moment ago: use what is there.
+    const same = (await media.bySha(inspected.sha256, owner)) ?? (source ? await media.bySource(source.source, source.key) : null);
+    if (same && same.sha256 === inspected.sha256) return { ok: true, asset: same, duplicate: true, convertedFrom };
+    if (!source) throw error;
+    asset = await media.add({ ...fields, source_key: null });
+  }
   return { ok: true, asset, duplicate: false, convertedFrom };
 }
 

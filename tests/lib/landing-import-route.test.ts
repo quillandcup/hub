@@ -121,6 +121,13 @@ describe("POST /api/admin/landing-pages/import", () => {
     expect(await failed.json()).toEqual({ status: "error", error: "Couldn't import that page. Nothing was lost; try again." });
   });
 
+  it("says a picture could not be saved when the media library refuses it, without the database's words", async () => {
+    vi.spyOn(state.repos.media, "add").mockRejectedValueOnce(new Error("insert into media_assets failed: boom"));
+    const failed = await POST(request({ file: zipFile(), title: "A" }));
+    expect(failed.status).toBe(400);
+    expect(await failed.json()).toEqual({ status: "error", error: "A picture could not be saved. Nothing was lost; try again." });
+  });
+
   it("answers 400 for no file, a file that isn't an export, and a missing title", async () => {
     expect((await POST(request({ title: "A" }))).status).toBe(400);
     const notZip = await POST(request({ file: new File(["hello"], "x.zip"), title: "A" }));
