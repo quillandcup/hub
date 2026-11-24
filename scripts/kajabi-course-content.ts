@@ -37,6 +37,7 @@ import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { chromium, type BrowserContext, type Page, type Response } from "playwright";
 import {
+  isQuizRedirect,
   parseEmbeddedPost,
   parseLessonContent,
   saveLessonContent,
@@ -71,6 +72,8 @@ const ROSTER_REASK_MS = 4_000;
 const SKIPPED_RESOURCES = new Set(["image", "media", "font"]);
 
 class SessionExpiredError extends Error {}
+/** The lesson is a Kajabi quiz: its editor is a quiz editor, with no lesson text, video or downloads to capture. */
+class QuizLessonError extends Error {}
 
 const parsed = parseContentArgs(process.argv.slice(2));
 if (!parsed.ok) {
@@ -230,7 +233,17 @@ async function capture(page: Page, lessonId: string): Promise<{ post: EditorPost
     if (!post) throw new Error("the lesson page came back without its lesson data (is the login still valid?)");
     return post;
   });
-  const [post, downloads] = await Promise.all([
+  // A quiz's editor page redirects to the quiz editor. Stop at once instead of waiting out the other responses
+  // (which never come); a page that isn't a quiz leaves this pending, and the content below settles the race.
+  const never = () => new Promise<never>(() => undefined);
+  const quizRedirect = pageResponse.then(
+    (r) => (isQuizRedirect(r.status(), r.headers()["location"]) ? Promise.reject(new QuizLessonError("a Kajabi quiz")) : never()),
+    // The page response not arriving is an ordinary failure, reported by the content below, not a quiz.
+    never
+  );
+  quizRedirect.catch(() => undefined);
+
+  const content = Promise.all([
     Promise.any([fromApi, fromPage]).catch((error: unknown) => {
       if (!(error instanceof AggregateError)) throw error;
       // A session problem is the useful thing to say, whichever source reported it.
@@ -240,12 +253,14 @@ async function capture(page: Page, lessonId: string): Promise<{ post: EditorPost
     }),
     downloadsResponse,
   ]);
+  const [post, downloads] = await Promise.race([content, quizRedirect]);
   return { post, downloads: (await checked(downloads).json()) as EditorDownloads };
 }
 
 interface LessonResult {
   lesson: LessonTarget;
-  outcome: SaveOutcome | "failed";
+  outcome: SaveOutcome | "failed" | "quiz";
+  /** For a failure, why; for a quiz, a note. */
   error?: string;
   warnings: string[];
 }
@@ -273,8 +288,13 @@ async function processLesson(context: BrowserContext, worker: Worker, lesson: Le
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
       lastError = error;
+      // The page is now on another editor (or in an odd state): the next lesson, or the retry, starts from a clean one.
       await worker.page?.close().catch(() => undefined);
       worker.page = null;
+      // Not a failure and not worth a retry: a quiz has nothing to capture, and what Bronze already holds is left as it is.
+      if (error instanceof QuizLessonError) {
+        return { lesson, outcome: "quiz", error: "a Kajabi quiz: no lesson text to capture, so it is left as it is", warnings: [] };
+      }
     }
   }
   return { lesson, outcome: "failed", error: lastError instanceof Error ? lastError.message : String(lastError), warnings: [] };
@@ -655,7 +675,7 @@ async function main() {
   const count = (o: LessonResult["outcome"]) => results.filter((r) => r.outcome === o).length;
   console.log(
     `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${count("updated")} updated, ${count("urls_refreshed")} links refreshed, ` +
-      `${count("unchanged")} unchanged, ${count("missing")} not in Bronze, ${count("failed")} failed`
+      `${count("unchanged")} unchanged, ${count("missing")} not in Bronze, ${count("quiz")} quizzes skipped, ${count("failed")} failed`
   );
   if (count("failed") > 0) process.exitCode = 1;
 }
