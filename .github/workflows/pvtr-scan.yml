@@ -10,8 +10,8 @@ name: OpenSSF baseline scan
 #
 # The scanner is a third-party binary and its release has a checksum but no attestation, so config/pvtr-scanner.json pins the
 # version and the sha256 of the tarball, and the download is refused when they differ. Dependabot cannot bump it: the steps to
-# bump it by hand are in that file. The scan runs with the workflow's own GITHUB_TOKEN (contents: read), handed to it through a
-# named pipe, so it is never in a file, a log or an artifact. That token cannot read everything the owner's token can (rulesets,
+# bump it by hand are in that file. The scan runs with the workflow's own GITHUB_TOKEN (contents: read), handed to it in a
+# config file (mode 600, removed when the step ends), so it is never in a log or an artifact. That token cannot read everything the owner's token can (rulesets,
 # some settings), so a control may read differently here than in a run by hand; the baseline records what CI sees, with the reason.
 # Update the baseline: docs/trust/THREAT_MODEL.md, "Scheduled scanners".
 on:
@@ -70,8 +70,10 @@ jobs:
           tar -xzf "$RUNNER_TEMP/pvtr-dl/$asset" -C "$RUNNER_TEMP/pvtr-bin"
           test -x "$RUNNER_TEMP/pvtr-bin/github-repo"
 
-      # The scanner only takes its token from the config file. A named pipe hands it the config with the token on the end, so the
-      # token is never written to disk. The scanner runs in an empty directory, not in the checkout, and writes its results there.
+      # The scanner only takes its token from the config file, so the config is written (mode 600) to a private directory under
+      # RUNNER_TEMP and removed when the step ends. The token is the job's own GITHUB_TOKEN: read-only, and dead when the job
+      # ends, on a runner that is thrown away. (A named pipe was tried first and was a race: the scanner read the config twice and
+      # failed on duplicate keys.) The scanner runs in an empty directory, not in the checkout, and writes its results there.
       - name: Scan
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -79,8 +81,10 @@ jobs:
           set -euo pipefail
           catalog=$(jq -r .catalog config/pvtr-scanner.json)
           out="$RUNNER_TEMP/pvtr-out"
-          fifo_dir="$RUNNER_TEMP/pvtr-fifo"
-          mkdir "$out" "$fifo_dir"
+          conf_dir="$RUNNER_TEMP/pvtr-conf"
+          umask 077
+          mkdir "$out" "$conf_dir"
+          trap 'rm -r -f "$conf_dir"' EXIT
           {
             echo "loglevel: error"
             echo "services:"
@@ -94,14 +98,11 @@ jobs:
             echo "    vars:"
             echo "      owner: ${GITHUB_REPOSITORY%%/*}"
             echo "      repo: ${GITHUB_REPOSITORY#*/}"
-          } > "$RUNNER_TEMP/pvtr-config-base.yml"
-          mkfifo "$fifo_dir/config.yml"
-          while true; do { cat "$RUNNER_TEMP/pvtr-config-base.yml"; printf '      token: %s\n' "$GITHUB_TOKEN"; } > "$fifo_dir/config.yml"; done &
-          writer=$!
-          trap 'kill "$writer" 2>/dev/null || true' EXIT
+            printf '      token: %s\n' "$GITHUB_TOKEN"
+          } > "$conf_dir/config.yml"
           cd "$out"
           status=0
-          "$RUNNER_TEMP/pvtr-bin/github-repo" debug --config "$fifo_dir/config.yml" --service hub \
+          "$RUNNER_TEMP/pvtr-bin/github-repo" debug --config "$conf_dir/config.yml" --service hub \
             --write-directory "$out" -o json > "$out/stdout.json" 2> "$out/stderr.txt" || status=$?
           if [ "$status" -ne 0 ]; then echo "::error::The scanner exited with status $status."; tail -n 20 "$out/stderr.txt"; exit 1; fi
           if [ ! -s "$out/hub/hub.json" ]; then echo "::error::The scanner wrote no results."; tail -n 20 "$out/stderr.txt"; exit 1; fi
