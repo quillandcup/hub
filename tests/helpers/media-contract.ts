@@ -67,6 +67,12 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
       await expect(ctx.repo().add(asset("s2", { source: "kajabi", source_key: key }))).rejects.toThrow();
     });
 
+    it("refuses a row from an import without the key that names it (the table's check), but takes an upload without one", async () => {
+      await expect(ctx.repo().add(asset("nokey", { source: "kajabi", source_key: null }))).rejects.toThrow(/media_assets_check/);
+      await expect(ctx.repo().add(asset("nokey2", { source: "kajabi" }))).rejects.toThrow();
+      expect(await ctx.repo().add(asset("upload-nokey"))).toMatchObject({ source: "upload", source_key: null });
+    });
+
     it("searches a scope by title or tag, newest first, a page at a time", async () => {
       const [m1] = await ctx.owners();
       const word = ctx.unique("zq").toLowerCase().replace(/[^a-z0-9]/g, "");
