@@ -441,7 +441,9 @@ describe("a transferred ticket", () => {
     serve({ ...ADA, ticketSource: "transferred", ticketFromEvent: OTHER_EVENTS[0] });
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    expect(await screen.findByText("Transferred from Spring Retreat")).toBeInTheDocument();
+    // The label doesn't repeat the event name: the picker right under it already shows it.
+    expect(await screen.findByText("Transferred from")).toBeInTheDocument();
+    expect(screen.queryByText("Transferred from Spring Retreat")).toBeNull();
     expect(screen.getByLabelText("Transferred from, Ada Example")).toHaveValue(OTHER_EVENTS[0].id);
   });
 
