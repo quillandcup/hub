@@ -16,6 +16,8 @@ import LessonStaffTools, { type StaffToolsProps } from "../../LessonStaffTools";
 import LessonMediaPanel from "./LessonMediaPanel";
 import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
+import QuizLessonTabs from "./QuizLessonTabs";
+import { isQuizLesson } from "@/lib/courses/admin-quiz";
 import { LessonSaveButton, LessonSaveProvider } from "./LessonSave";
 import LessonVideoControls from "./LessonVideoControls";
 import { createRepos } from "@/lib/data/repos";
@@ -154,7 +156,9 @@ export default async function AdminLessonPage({ params }: Params) {
   // Mux Data for this admin's views (never in sudo); an admin with no member record has none.
   const identity = await getEffectiveIdentity(user);
   const muxData = identity ? await muxDataConsentFor(user.id, identity) : null;
-  const media = await lessonMedia(detail, chatShare, muxData);
+  // A quiz lesson has no video or downloads: its pages are Details (this one), Questions, Settings and Results.
+  const quiz = hub ? await isQuizLesson(createRepos(await createClient()), hub.lessonId) : false;
+  const media = quiz ? null : await lessonMedia(detail, chatShare, muxData);
   const path = hub ? `/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
 
   return (
@@ -177,7 +181,8 @@ export default async function AdminLessonPage({ params }: Params) {
           </div>
         </div>
         {!detail.editable && <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">Last imported from Kajabi {formatCourseDateTime(lesson.fetchedAt)}.</p>}
-        <LessonBuilderForm detail={detail} media={media} />
+        {quiz && <QuizLessonTabs base={`/admin/courses/${id}/lessons/${lessonId}`} current="details" />}
+        <LessonBuilderForm detail={detail} media={media} quiz={quiz} />
       </div>
       </LessonSaveProvider>
     </>

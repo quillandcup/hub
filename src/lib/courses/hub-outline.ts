@@ -27,12 +27,14 @@ export interface HubLessonRow {
   /** Whether the lesson has text and a video yet, for the "text ✓ · video –" line. */
   hasText: boolean;
   hasVideo: boolean;
+  /** The lesson is a quiz (it has a `quizzes` row): the outline draws it with a quiz icon and no text or video line. */
+  isQuiz?: boolean;
 }
 
 export interface HubOutline {
   loose: ExplainedLesson[];
   modules: ExplainedModule[];
-  content: Record<string, { hasText: boolean; hasVideo: boolean }>;
+  content: Record<string, { hasText: boolean; hasVideo: boolean; isQuiz?: boolean }>;
 }
 
 export function buildHubOutline(modules: HubModuleRow[], lessons: HubLessonRow[]): HubOutline {
@@ -45,7 +47,7 @@ export function buildHubOutline(modules: HubModuleRow[], lessons: HubLessonRow[]
   return {
     loose: explained.loose,
     modules: explained.modules,
-    content: Object.fromEntries(lessons.map((l) => [l.id, { hasText: l.hasText, hasVideo: l.hasVideo }])),
+    content: Object.fromEntries(lessons.map((l) => [l.id, { hasText: l.hasText, hasVideo: l.hasVideo, ...(l.isQuiz ? { isQuiz: true } : {}) }])),
   };
 }
 

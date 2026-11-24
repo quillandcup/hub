@@ -23,7 +23,7 @@ const SOON = "Not available yet: courses are imported from Kajabi for now";
  * everything that changes it disabled. In a Hub-owned course (`detail.editable`) the title, the
  * status and the text can be changed; the rest waits for the editor (docs/TODO.md).
  */
-export default function LessonBuilderForm({ detail, media }: { detail: AdminLessonDetail; media: ReactNode }) {
+export default function LessonBuilderForm({ detail, media, quiz = false }: { detail: AdminLessonDetail; media: ReactNode; quiz?: boolean }) {
   const { lesson, trail, modules, files } = detail;
   const choices = statusChoices(lesson.publishingOption);
   const inModule = trail.at(-1)?.kajabiId ?? "";
@@ -56,10 +56,14 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
             </label>
           )}
 
-          <h3 className="mb-2 mt-6 font-semibold">Media</h3>
-          {media}
+          {!quiz && (
+            <>
+              <h3 className="mb-2 mt-6 font-semibold">Media</h3>
+              {media}
+            </>
+          )}
 
-          <h3 className="mb-2 mt-6 font-semibold">Lesson text</h3>
+          <h3 className="mb-2 mt-6 font-semibold">{quiz ? "Description" : "Lesson text"}</h3>
           {detail.editable ? (
             <LessonTextField courseId={detail.course.id} lessonId={lesson.kajabiId} initialHtml={lesson.bodyHtml} />
           ) : lesson.bodyHtml ? (
@@ -71,8 +75,8 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
             </p>
           )}
 
-          <h3 className="mb-2 mt-6 font-semibold">Downloads</h3>
-          {detail.editable ? (
+          {!quiz && <h3 className="mb-2 mt-6 font-semibold">Downloads</h3>}
+          {quiz ? null : detail.editable ? (
             <LessonFilesField courseId={detail.course.id} lessonId={lesson.kajabiId} files={files} />
           ) : (
             <>
@@ -163,7 +167,7 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
         </div>
 
         {detail.editable ? (
-          <LessonDeleteButton courseId={detail.course.id} lessonId={lesson.kajabiId} title={lesson.title} />
+          <LessonDeleteButton courseId={detail.course.id} lessonId={lesson.kajabiId} title={lesson.title} quiz={quiz} />
         ) : (
           <Tooltip content={SOON}>
             <button type="button" disabled className="text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300">

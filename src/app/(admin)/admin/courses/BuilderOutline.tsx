@@ -11,6 +11,7 @@ import { moduleContents } from "@/lib/courses/hub-outline";
 import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { moveBefore, moveToPosition, positionItems, positionsHeading } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
+import { addQuizLesson } from "./quiz-actions";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
 import Tooltip from "@/components/Tooltip";
 
@@ -25,7 +26,7 @@ export interface OutlineCourse {
   loose: ExplainedLesson[];
   modules: ExplainedModule[];
   /** Per lesson id: what the content step found. */
-  content: Record<string, { hasText: boolean; hasVideo: boolean }>;
+  content: Record<string, { hasText: boolean; hasVideo: boolean; isQuiz?: boolean }>;
   /** Kajabi lesson id -> Hub lesson id, for lessons that are in the Hub. */
   hubLessonIds: Record<string, string>;
 }
@@ -314,11 +315,12 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
   // A lesson has a builder page once it is in the Hub, under its own Hub id.
   const builder = hubId ? `/admin/courses/${course.id}/lessons/${hubId}` : null;
   const preview = hubId && course.slug ? `/courses/${course.slug}/lessons/${hubId}` : null;
-  const note = [rowNote(lesson.reason), content && `text ${content.hasText ? "✓" : "–"} · video ${content.hasVideo ? "✓" : "–"}`].filter(Boolean).join(" · ");
+  const isQuiz = content?.isQuiz === true;
+  const note = [rowNote(lesson.reason), isQuiz ? "Quiz" : content && `text ${content.hasText ? "✓" : "–"} · video ${content.hasVideo ? "✓" : "–"}`].filter(Boolean).join(" · ");
   const what = editor ? "lesson" : "video";
   const previewLabel = `Open ${what} preview`;
   const actions: RowAction[] = [
-    { key: "edit", label: editor ? "Edit lesson" : "Edit video", icon: "edit", href: builder ?? undefined },
+    { key: "edit", label: editor ? (isQuiz ? "Edit quiz" : "Edit lesson") : "Edit video", icon: "edit", href: builder ?? undefined },
     ...(editor ? [{ key: "rename", label: "Rename lesson", icon: "rename" as const, onClick: () => setRenaming(true) }] : []),
     { key: "duplicate", label: lifecycleLabel("duplicate", what), icon: lifecycleIcon("duplicate"), onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId)) : undefined },
     { key: "comments", label: `Open ${what} comments`, icon: "comment", quickOnly: true },
@@ -332,7 +334,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       {...dropProps(editor, sibling)}
     >
       <DragHandle label="Drag to reorder lesson" sibling={sibling} />
-      <Icon name="video" className="h-4 w-4 shrink-0 text-slate-500" />
+      <Icon name={isQuiz ? "quiz" : "video"} className="h-4 w-4 shrink-0 text-slate-500" />
       {renaming && editor ? (
         <NameField label="Lesson name" initial={lesson.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "lesson", lesson.kajabiId, title))} onCancel={() => setRenaming(false)} />
       ) : (
@@ -384,7 +386,7 @@ function ModuleRow({
   const [renaming, setRenaming] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [adding, setAdding] = useState<"lesson" | "submodule" | null>(null);
+  const [adding, setAdding] = useState<"lesson" | "quiz" | "submodule" | null>(null);
   // "Expand all" / "Collapse all" set every section at once; after that each one is its own again.
   if (seen !== expansion.version) {
     setSeen(expansion.version);
@@ -403,7 +405,7 @@ function ModuleRow({
   // A Hub-owned module has a member page to preview it on; an imported one has none we link to.
   const preview = course.slug && editor ? `/courses/${course.slug}/modules/${mod.kajabiId}` : null;
   const note = rowNote(mod.reason);
-  const startAdding = (what: "lesson" | "submodule") => {
+  const startAdding = (what: "lesson" | "quiz" | "submodule") => {
     setMenu(false);
     setOpen(true);
     setAdding(what);
@@ -414,6 +416,7 @@ function ModuleRow({
     { key: "preview", label: `Open ${noun} preview`, icon: lifecycleIcon("preview"), href: preview ?? undefined },
     // On a wide outline these are the Add content button; here they are menu items.
     { key: "add-lesson", label: "Add lesson", onClick: editor ? () => startAdding("lesson") : undefined },
+    { key: "add-quiz", label: "Add quiz", onClick: editor ? () => startAdding("quiz") : undefined },
     ...(submodule ? [] : [{ key: "add-submodule", label: "Add submodule", onClick: editor ? () => startAdding("submodule") : undefined }]),
     { key: "delete", label: lifecycleLabel("delete", noun), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
   ];
@@ -452,6 +455,9 @@ function ModuleRow({
               <button type="button" role="menuitem" onClick={() => { setMenu(false); setOpen(true); setAdding("lesson"); }} className="block w-full px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
                 Add lesson
               </button>
+              <button type="button" role="menuitem" onClick={() => { setMenu(false); setOpen(true); setAdding("quiz"); }} className="block w-full px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
+                Add quiz
+              </button>
               {!submodule && (
                 <button type="button" role="menuitem" onClick={() => { setMenu(false); setOpen(true); setAdding("submodule"); }} className="block w-full px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
                   Add submodule
@@ -484,11 +490,15 @@ function ModuleRow({
           {adding && editor && (
             <li className="flex items-center gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800" style={{ paddingLeft: `${1 + (depth + 1) * 1.5}rem` }}>
               <NameField
-                label={adding === "lesson" ? "New lesson name" : "New submodule name"}
+                label={adding === "lesson" ? "New lesson name" : adding === "quiz" ? "New quiz name" : "New submodule name"}
                 initial=""
-                placeholder={adding === "lesson" ? "Lesson name" : "Submodule name"}
+                placeholder={adding === "lesson" ? "Lesson name" : adding === "quiz" ? "Quiz name" : "Submodule name"}
                 submitLabel="Add"
-                onSubmit={(title) => editor.run(() => (adding === "lesson" ? addCourseLesson(editor.courseId, mod.kajabiId, title) : addCourseModule(editor.courseId, mod.kajabiId, title)))}
+                onSubmit={(title) =>
+                  editor.run(() =>
+                    adding === "lesson" ? addCourseLesson(editor.courseId, mod.kajabiId, title) : adding === "quiz" ? addQuizLesson(editor.courseId, mod.kajabiId, title) : addCourseModule(editor.courseId, mod.kajabiId, title),
+                  )
+                }
                 onCancel={() => setAdding(null)}
               />
             </li>

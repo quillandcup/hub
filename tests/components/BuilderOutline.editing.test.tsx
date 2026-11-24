@@ -16,6 +16,8 @@ const actions = vi.hoisted(() => ({
   setCourseItemStatus: vi.fn(),
 }));
 vi.mock("@/app/(admin)/admin/courses/outline-actions", () => actions);
+const quizActions = vi.hoisted(() => ({ addQuizLesson: vi.fn() }));
+vi.mock("@/app/(admin)/admin/courses/quiz-actions", () => quizActions);
 
 import BuilderOutline, { type OutlineCourse } from "@/app/(admin)/admin/courses/BuilderOutline";
 import { buildHubOutline } from "@/lib/courses/hub-outline";
@@ -54,7 +56,7 @@ const course = (over: Partial<OutlineCourse> = {}): OutlineCourse => ({
 
 beforeEach(() => {
   router.refresh.mockReset();
-  for (const action of Object.values(actions)) {
+  for (const action of [...Object.values(actions), ...Object.values(quizActions)]) {
     action.mockReset();
     action.mockResolvedValue({ id: "ok" });
   }
@@ -105,7 +107,7 @@ describe("the row ⋯ menu (the narrow layout's one control for a row's actions)
     await user.click(screen.getByRole("button", { name: "Actions for Module 2" }));
     const menu = screen.getByRole("menu", { name: "Actions for Module 2" });
     const names = within(menu).getAllByRole("menuitem").map((i) => i.textContent);
-    expect(names).toEqual(["Edit module", "Duplicate module", "Open module preview", "Add lesson", "Add submodule", "Delete module", "Move to position 1", "Position 2 (current)"]);
+    expect(names).toEqual(["Edit module", "Duplicate module", "Open module preview", "Add lesson", "Add quiz", "Add submodule", "Delete module", "Move to position 1", "Position 2 (current)"]);
     await user.click(within(menu).getByRole("menuitem", { name: "Move to position 1" }));
     expect(actions.reorderCourseItems).toHaveBeenCalledWith(COURSE, "module", null, [M2, M1]);
   });
@@ -206,6 +208,24 @@ describe("adding", () => {
     await user.click(within(weekRow).getAllByRole("button", { name: "Add content" })[0]);
     expect(screen.getByRole("menuitem", { name: "Add lesson" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Add submodule" })).not.toBeInTheDocument();
+  });
+
+  it("adds a quiz from a module's Add content menu, and draws a quiz lesson with its own icon and no text or video line", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course({ content: { ...outline.content, [L3]: { hasText: false, hasVideo: false, isQuiz: true } } })} />);
+    await user.click(screen.getAllByRole("button", { name: "Add content" })[0]);
+    await user.click(screen.getByRole("menuitem", { name: "Add quiz" }));
+    await user.type(screen.getByRole("textbox", { name: "New quiz name" }), "Let's check in{Enter}");
+    expect(quizActions.addQuizLesson).toHaveBeenCalledWith(COURSE, M1, "Let's check in");
+    expect(actions.addCourseLesson).not.toHaveBeenCalled();
+
+    await open(user);
+    const quizRow = screen.getByText("Lesson three").closest("li")!;
+    expect(within(quizRow).getByText("Quiz")).toBeInTheDocument();
+    expect(within(quizRow).queryByText(/text .* video/)).not.toBeInTheDocument();
+    expect(within(quizRow).getByRole("link", { name: "Edit quiz" })).toHaveAttribute("href", `/admin/courses/${COURSE}/lessons/${L3}`);
+    // A plain lesson keeps its line.
+    expect(within(screen.getByText("Lesson one").closest("li")!).getByText(/text ✓ · video –/)).toBeInTheDocument();
   });
 
   it("closes a module's Add content menu with Escape", async () => {

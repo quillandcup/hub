@@ -225,6 +225,19 @@ export function defineQuizContract(name: string, setup: () => QuizContractContex
       expect(await ctx.repo().hasPassed(ctx.members[1], quiz.id)).toBe(false);
     });
 
+    it("counts the attempts made at each lesson's quiz, leaving out a lesson with none or no quiz", async () => {
+      const [a, b] = ctx.lessons;
+      const quizA = await ctx.repo().createQuiz(a);
+      await ctx.repo().createQuiz(b);
+      const attempt = (memberId: string) => ({ quizId: quizA.id, memberId, questionCount: 1, correctCount: 0, scorePercent: 0, passed: false, answers: [] });
+      await ctx.repo().recordAttempt(attempt(ctx.members[0]));
+      await ctx.repo().recordAttempt(attempt(ctx.members[0]));
+      await ctx.repo().recordAttempt(attempt(ctx.members[1]));
+
+      expect([...(await ctx.repo().attemptCountsOfLessons([a, b, "les_NoSuchLesson1"])).entries()]).toEqual([[a, 3]]);
+      expect((await ctx.repo().attemptCountsOfLessons([])).size).toBe(0);
+    });
+
     it("keeps an attempt, with its score, when a question is deleted, and drops only the answers to it", async () => {
       const quiz = await ctx.repo().createQuiz(ctx.lessons[0]);
       const q1 = await ctx.repo().saveQuestion(quiz.id, null, pick());

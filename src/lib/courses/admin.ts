@@ -11,7 +11,7 @@ import { slugifyTitle, type Visibility } from "@/lib/courses/visibility";
 import { planCourseVideos, type PlannedVideo } from "@/lib/courses/media";
 import { planCourseFiles, type FilePlan } from "@/lib/courses/files";
 
-type AdminCourseRepos = Pick<Repos, "courseProgress" | "courses" | "kajabiCourses" | "programs">;
+type AdminCourseRepos = Pick<Repos, "courseProgress" | "courses" | "kajabiCourses" | "programs" | "quizzes">;
 
 /**
  * What the admin Courses page reads: every Kajabi course with its Hub state (published or not,
@@ -155,7 +155,7 @@ export interface AdminCourseDetail {
   course: AdminCourseRow;
   explained: ExplainedCourse;
   /** Per lesson, whether step B has fetched its text and found a video (keyed by Kajabi lesson id). */
-  content: Record<string, { hasText: boolean; hasVideo: boolean }>;
+  content: Record<string, { hasText: boolean; hasVideo: boolean; isQuiz?: boolean }>;
   /** Kajabi lesson id -> the Hub lesson id, for lessons that are in the Hub (published course; drafts are stored too, as hidden). */
   hubLessonIds: Record<string, string>;
   /** Each distinct video of a visible lesson, and what step D would do with it. */
@@ -421,9 +421,10 @@ async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: 
 export async function loadHubOutline(repos: AdminCourseRepos, courseId: string): Promise<HubOutline> {
   const courses = repos.courses;
   const [modules, lessons] = await Promise.all([courses.modulesOf([courseId], { includeHidden: true }), courses.lessonsOf([courseId], { includeHidden: true })]);
+  const quizzes = await repos.quizzes.quizzesOfLessons(lessons.map((l) => l.id));
   return buildHubOutline(
     modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, publishing_option: m.publishing_option })),
     // `excerpt` stands in for "has text": the full text is large, and the excerpt is set whenever there is some.
-    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, publishing_option: l.publishing_option, hasText: l.excerpt !== null, hasVideo: l.video_id !== null }))
+    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, publishing_option: l.publishing_option, hasText: l.excerpt !== null, hasVideo: l.video_id !== null, isQuiz: quizzes.has(l.id) }))
   );
 }

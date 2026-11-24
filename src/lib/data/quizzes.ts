@@ -109,6 +109,8 @@ export interface QuizRepository {
   attemptsOfQuiz(quizId: string): Promise<QuizAttemptRecord[]>;
   /** Whether the member has a passing attempt at the quiz. */
   hasPassed(memberId: string, quizId: string): Promise<boolean>;
+  /** How many attempts members have made at the quiz of each of these lessons, by lesson id; a lesson with none (or no quiz) is absent. */
+  attemptCountsOfLessons(lessonIds: string[]): Promise<Map<string, number>>;
 }
 
 type QuizRow = Row<"quizzes">;
@@ -265,6 +267,21 @@ export class SupabaseQuizRepository implements QuizRepository {
     if (error) throw new Error(error.message);
     return (count ?? 0) > 0;
   }
+
+  async attemptCountsOfLessons(lessonIds: string[]) {
+    const quizzes = await this.quizzesOfLessons(lessonIds);
+    const byQuiz = new Map([...quizzes.values()].map((q) => [q.id, q.lessonId]));
+    const counts = new Map<string, number>();
+    // One head-count query per quiz: a lesson list holds few quizzes, and a count never pages.
+    await Promise.all(
+      [...byQuiz.keys()].map(async (quizId) => {
+        const { count, error } = await this.db.from("quiz_attempts").select("id", { count: "exact", head: true }).eq("quiz_id", quizId);
+        if (error) throw new Error(error.message);
+        if (count) counts.set(byQuiz.get(quizId)!, count);
+      }),
+    );
+    return counts;
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`; it enforces the same rules as the database and its functions. */
@@ -273,7 +290,9 @@ export class InMemoryQuizRepository implements QuizRepository {
 
   /** A fresh id of the table's shape (`prefix_` and twelve characters), never reused after a delete. */
   private nextId(prefix: string) {
-    return `${prefix}_${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(12));
+    return `${prefix}_${Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("")}`;
   }
 
   private quiz(quizId: string) {
@@ -466,5 +485,14 @@ export class InMemoryQuizRepository implements QuizRepository {
 
   async hasPassed(memberId: string, quizId: string) {
     return this.data.quizAttempts.some((a) => a.member_id === memberId && a.quiz_id === quizId && a.passed);
+  }
+
+  async attemptCountsOfLessons(lessonIds: string[]) {
+    const counts = new Map<string, number>();
+    for (const quiz of this.data.quizzes.filter((q) => lessonIds.includes(q.lesson_id))) {
+      const count = this.data.quizAttempts.filter((a) => a.quiz_id === quiz.id).length;
+      if (count) counts.set(quiz.lesson_id, count);
+    }
+    return counts;
   }
 }
