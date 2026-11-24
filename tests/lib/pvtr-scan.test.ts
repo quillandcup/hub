@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { compare, parseResults, summarize, type Baseline, type ControlResult } from "@/scripts/pvtr-scan";
+import { compare, expectedResults, parseResults, summarize, type Baseline, type ControlResult } from "@/scripts/pvtr-scan";
 
 const results = (entries: Record<string, string>): Map<string, ControlResult> =>
   new Map(Object.entries(entries).map(([id, result]) => [id, { result, message: `${id} says ${result}` }]));
@@ -129,5 +129,34 @@ describe("the pinned scanner", () => {
     expect(pinned.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(pinned.asset).toMatch(/Linux_x86_64\.tar\.gz$/);
     expect(pinned.repository).toBe("ossf/pvtr-github-repo-scanner");
+  });
+});
+
+describe("config/pvtr-baseline.json", () => {
+  const committed = JSON.parse(readFileSync("config/pvtr-baseline.json", "utf8")) as Baseline;
+  const known = new Set(["Passed", "Not Applicable", "Not Run", "Needs Review", "Failed"]);
+
+  it("lists controls by id with a result the scanner uses", () => {
+    const ids = Object.keys(committed.controls);
+    expect(ids.length).toBeGreaterThan(50);
+    for (const id of ids) {
+      expect(id).toMatch(/^OSPS-[A-Z]{2}-\d{2}\.\d{2}$/);
+      expect(expectedResults(committed.controls[id]).every((r) => known.has(r))).toBe(true);
+    }
+  });
+
+  it("gives every result that is not Passed a reason and an expiry date", () => {
+    for (const [id, entry] of Object.entries(committed.controls)) {
+      if (expectedResults(entry).every((r) => r === "Passed")) continue;
+      expect(entry.reason?.trim(), id).toBeTruthy();
+      expect(entry.expires, id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it("is quiet when the scan gives the first expected result of each control", () => {
+    const scan = new Map(Object.entries(committed.controls).map(([id, e]) => [id, { result: expectedResults(e)[0], message: "" }]));
+    const c = compare(committed, scan, "2026-11-24");
+    expect(c.worse).toEqual([]);
+    expect(c.improved).toEqual([]);
   });
 });

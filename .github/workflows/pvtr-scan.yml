@@ -13,7 +13,7 @@ name: OpenSSF baseline scan
 # bump it by hand are in that file. The scan runs with the workflow's own GITHUB_TOKEN (contents: read), handed to it through a
 # named pipe, so it is never in a file, a log or an artifact. That token cannot read everything the owner's token can (rulesets,
 # some settings), so a control may read differently here than in a run by hand; the baseline records what CI sees, with the reason.
-# Update the baseline: docs/runbooks/README.md, "OpenSSF baseline scan".
+# Update the baseline: docs/trust/THREAT_MODEL.md, "Scheduled scanners".
 on:
   schedule:
     - cron: "19 7 * * 5"
