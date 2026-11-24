@@ -4,7 +4,7 @@
 
 ## Overview
 
-This project uses **MSW (Mock Service Worker)** for hermetic webhook testing with **signature verification** enabled for all webhooks.
+Webhook handlers are tested without network access using **MSW (Mock Service Worker)**, with **signature verification** enabled for all webhooks.
 
 ## Test Results
 

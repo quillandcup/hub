@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-`config/sentry.yml` is the source of truth for two things in Sentry:
+Sentry's data-scrubbing settings and alert rules are kept as code in `config/sentry.yml` and pushed by CI. That file is the source of truth for two things in Sentry:
 
 - **Organization data-scrubbing settings** (Settings → Security & Privacy): server-side data scrubbing, the default scrubbers, and not storing IP addresses. They are organization-wide, so every project inherits them and shows its own switches as locked.
 - **Issue alert rules** for the `hub` project (`alerts:`), today the four CSP alerts described in `docs/infrastructure/CSP_ALERTS.md` (three on CSP reports, one on the daily health check's own events). The organization is on Sentry's workflow engine, so a rule is a workflow connected to the project's issue stream detector, with a trigger (new issue, regression, every event), filters (a tag such as `logger=csp`, a frequency threshold) and an email action. Sentry's own default alerts are not touched: only workflows named `Hub: ...` are managed, matched by name, so a push is idempotent, and a rule removed from the file is deleted from Sentry.

@@ -4,7 +4,7 @@
 
 ## Overview
 
-All member name matching for Zoom attendance processing uses the centralized logic in `src/lib/member-matching.ts`. This ensures consistency across the codebase and makes it easy to test and maintain.
+Describes the priority rules that match Zoom attendees to members, all implemented in `src/lib/member-matching.ts`. This ensures consistency across the codebase and makes it easy to test and maintain.
 
 ## Matching Rules (Priority Order)
 

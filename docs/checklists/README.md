@@ -4,9 +4,9 @@ Lists to check the project against (Supabase, OpenSSF Best Practices, OSPS Basel
 
 <!-- START docs-index generated: run `pnpm docs:index` to update, don't edit by hand -->
 
-- [OpenSSF Best Practices: where we stand](OPENSSF_BEST_PRACTICES.md): The OpenSSF Best Practices badge (bestpractices.dev) is a self-assessed checklist at three levels
-- [OSPS Baseline: where we stand](OSPS_BASELINE.md): The Open Source Project Security Baseline (OSPS Baseline, from the OpenSSF) is a list of security controls in three maturity levels: Level 1 for any project, Level 2 for a code project with at least…
-- [Supabase production checklist: where we stand](SUPABASE_PRODUCTION_CHECKLIST.md): Evaluation of the production project against Supabase's Production Checklist, done 2026-11-17
-- [Supabase production security checklist: where we stand](SUPABASE_SECURITY_CHECKLIST.md): Evaluation of the production project against Supabase's Production security checklist, done 2026-11-17
+- [OpenSSF Best Practices: where we stand](OPENSSF_BEST_PRACTICES.md): Where the project stands against the OpenSSF Best Practices criteria, used as a guide to good practice rather than for a badge
+- [OSPS Baseline: where we stand](OSPS_BASELINE.md): Where the project stands against each control of the OpenSSF Open Source Project Security Baseline
+- [Supabase production checklist: where we stand](SUPABASE_PRODUCTION_CHECKLIST.md): Where the production Supabase project stands against Supabase's Production Checklist, with the evidence for each item
+- [Supabase production security checklist: where we stand](SUPABASE_SECURITY_CHECKLIST.md): Where the production Supabase project stands against Supabase's Production security checklist, with the evidence for each item
 
 <!-- END docs-index -->

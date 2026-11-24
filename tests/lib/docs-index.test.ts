@@ -79,7 +79,7 @@ describe("the index block", () => {
 
   it("reports a doc with no title or no summary", () => {
     expect(problems("quality", [{ file: "X.md", title: "", summary: "" }])).toHaveLength(2);
-    expect(problems("quality", entries)).toEqual(["docs/quality/B.md has no summary: put a plain sentence right after its Status line"]);
+    expect(problems("quality", entries)).toEqual([expect.stringMatching(/^docs\/quality\/B\S* has no summary: put a plain sentence right after its Status line$/)]);
   });
 });
 

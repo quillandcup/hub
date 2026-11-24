@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-The Kajabi API is the only source of Kajabi data for the Hub's regular sync. Members, purchases, offers and course structure are read from it. Two CSV uploads still exist for other purposes; see "CSV uploads" below.
+How the Hub reads from and writes to Kajabi through its API, and how access is set up. The Kajabi API is the only source of Kajabi data for the Hub's regular sync. Members, purchases, offers and course structure are read from it. Two CSV uploads still exist for other purposes; see "CSV uploads" below.
 
 ## What it is used for
 

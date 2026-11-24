@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-21. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-The Sentry Slack integration requires a Team plan, so the Hub app posts its own production
+The Hub posts its own production alerts to a Slack alerts channel, covering failed notifications, crashed pages and scheduled jobs with problems. The Sentry Slack integration requires a Team plan, so the Hub app posts its own production
 alerts to the alerts channel (`slack.alertsChannelName` in `config/app.ts`) through Billie Bot.
 The channel is set in `config/app.ts` (`slack.alertsChannelId`); the alert cases are in `src/lib/operations-alerts.ts`:
 

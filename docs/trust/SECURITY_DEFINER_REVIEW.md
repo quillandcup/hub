@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Done 2026-11-21 for the second half of item 3 of "Threat model follow-ups" in `docs/TODO.md` ("is each `SECURITY DEFINER` function correct, and does any build SQL dynamically"), the A03 and A01 rows of `docs/trust/THREAT_MODEL.md`. It goes past the 2026-11-18 review and the guard in `supabase/tests/database/security_guards.test.sql` (PR #1467, described in `docs/trust/RLS_SECURITY.md`, "Security definer functions and the guard"), which prove each callable function has a recognizable caller check and a pinned `search_path`, but not that the check is right, and say nothing about dynamic SQL.
+Review of every SECURITY DEFINER function that signed-in users can call, checking each for a caller check and for dynamic SQL. Done 2026-11-21 for the second half of item 3 of "Threat model follow-ups" in `docs/TODO.md` ("is each `SECURITY DEFINER` function correct, and does any build SQL dynamically"), the A03 and A01 rows of `docs/trust/THREAT_MODEL.md`. It goes past the 2026-11-18 review and the guard in `supabase/tests/database/security_guards.test.sql` (PR #1467, described in `docs/trust/RLS_SECURITY.md`, "Security definer functions and the guard"), which prove each callable function has a recognizable caller check and a pinned `search_path`, but not that the check is right, and say nothing about dynamic SQL.
 
 ## What was checked, and how
 

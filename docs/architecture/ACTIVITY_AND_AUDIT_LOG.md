@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Two distinct systems, both "who did what when," but with a different subject — kept as two tables rather than one shared table.
+Explains the activity log (`member_activities`) and the audit log (`audit_log`), and why they are two tables. Two distinct systems, both "who did what when," but with a different subject — kept as two tables rather than one shared table.
 
 ## `member_activities` — the activity log
 

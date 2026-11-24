@@ -2,6 +2,8 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
+Design for one low-level event log that consolidates the Hub's scattered behavioral logs, with its retention and erasure rules.
+
 **Status (2026-10-31): accepted through phase 0, which is built (#668 and #671); phases 1-6 are conditional and decided one phase at a time, only where a decision needs the data.** Everything below phase 0 is still a proposal; nothing in it is built except what is marked "exists". It consolidates the Hub's scattered behavioral logs into one low-level event log. The other logs, dashboards and the activity feed become *views* over it.
 
 This is engineering's reading of the regulators' published guidance, not legal advice. Counsel should confirm the retention and consent choices before they are published to members (see [Sources](#sources-and-what-was-not-verified)).

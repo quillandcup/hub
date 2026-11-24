@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-22. Review: yearly. Kept up to date with the code; if it is wrong, fix it. Delete it once Kajabi is retired and the "End state" section is done.
 
-A checklist to follow by hand. Target: **Dec 3 to 5, 2026** (the retreat is Dec 12, so there is a week of buffer). Where this says "verify in your dashboard", nobody has checked that screen while writing this page, so trust what the screen says over this page.
+Step-by-step checklist for moving quillandcup.com from Kajabi to the Hub while courses stay on a Kajabi subdomain. A checklist to follow by hand. Target: **Dec 3 to 5, 2026** (the retreat is Dec 12, so there is a week of buffer). Where this says "verify in your dashboard", nobody has checked that screen while writing this page, so trust what the screen says over this page.
 
 ## The plan in one picture
 

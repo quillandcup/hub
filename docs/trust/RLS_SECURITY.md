@@ -4,7 +4,7 @@
 
 ## Overview
 
-This document describes the Row Level Security implementation for the Hedgie Hub.
+How Row Level Security is set up for the Hedgie Hub: roles, table policies, helper functions and the guards that keep them in place.
 
 ## Current State
 

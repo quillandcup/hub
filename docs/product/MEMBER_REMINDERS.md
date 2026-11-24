@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-08. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Two reminders the Hub sends on its own, from one hourly job.
+The Hub nudges members on its own to introduce themselves on Slack and to put a prickle on their calendar, from one hourly job.
 
 | Kind | Says | Stops |
 |------|------|-------|

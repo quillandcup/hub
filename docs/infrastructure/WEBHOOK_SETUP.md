@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-18. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-This guide explains how to configure and test real-time webhook handlers for Bronze layer updates.
+How to configure and test the real-time webhooks from Google Calendar, Zoom, Slack and Resend that feed Bronze layer updates.
 
 ## Overview
 

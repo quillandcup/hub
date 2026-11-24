@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Plan for moving Quill & Cup's courses from Kajabi into the Hub, starting with **The Ready Writer**, which launches in about two weeks (target: early November 2026). Written 2026-10-18; update it as decisions land.
+Quill & Cup's courses live in the Hub, synced from Kajabi until the Hub's course builder is good enough to replace it. Plan for moving Quill & Cup's courses from Kajabi into the Hub, starting with **The Ready Writer**, which launches in about two weeks (target: early November 2026). Written 2026-10-18; update it as decisions land.
 
 
 **Two independent axes.** Where a course is authored is `courses.source` (`kajabi`: read-only here, rebuilt on sync; `hub`: edited in the builder). Whether members can open it is `courses.is_draft`, for every course whatever its source. A new course (imported or Hub-made) starts as a draft; **Publish** and **Unpublish** on the course's admin page (`setCoursePublished`) flip it. Publishing a Kajabi course also builds its access (the people who bought it get it); unpublishing keeps the rows but opens nothing. A draft is hidden from members and from staff in sudo, and visible to staff acting as themselves (marked "Draft") to preview. Syncing is separate from availability: the Kajabi import gives every course a row (`ensureDraftCourses`) and processing syncs the content of every imported course, drafts included, so lessons have Hub ids and the builder pages work before publishing; only access follows `is_draft`. The Import Data publish step posts `publish: true` to `/api/process/courses`; without it processing never publishes.

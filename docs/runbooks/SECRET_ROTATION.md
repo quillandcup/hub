@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-When to use this: after any credential exposure (a leaked `.env` file, a secret dumped into
+Steps to rotate the project's secrets and credentials after an exposure or as routine hygiene. When to use this: after any credential exposure (a leaked `.env` file, a secret dumped into
 a session log, a compromised laptop, etc.), or routine rotation hygiene. Written up after a
 real incident on 2026-09-25 where `.env.prod` was accidentally dumped in full, in plaintext,
 into 16 local Claude Code session transcripts going back to late August.

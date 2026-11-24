@@ -4,8 +4,7 @@
 
 ## How production deploys (the CI pipeline)
 
-Production is deployed by one GitHub Actions workflow (`.github/workflows/ci.yml`) on every
-push to `main`. Vercel's own git deploys are **off for `main`** (`git.deploymentEnabled.main:
+Every push to `main` is tested, migrated and deployed to production by one GitHub Actions workflow (`.github/workflows/ci.yml`). Vercel's own git deploys are **off for `main`** (`git.deploymentEnabled.main:
 false` in `vercel.json`), so nothing reaches production any other way.
 
 **Jobs on a push to `main`, in order:**

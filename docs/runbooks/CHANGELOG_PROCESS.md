@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-What's new and fixed in the Hedgie Hub, for members. One source, three readers.
+How changelog entries are written and published: one typed list feeds the member pages, the admin Changelog, a weekly digest and a Slack post. What's new and fixed in the Hedgie Hub, for members. One source, three readers.
 
 - **Source:** `src/content/changelog.ts`, a typed list. Add an entry in the same PR as the change it describes, so it goes live with the deploy that ships the feature.
 - **In the app:** `/changelog` (list) and `/changelog/<slug>` (one entry, with its own link), reached from the **?** menu in the top bar.

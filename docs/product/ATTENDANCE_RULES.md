@@ -2,7 +2,7 @@
 
 > **Status:** living. **Last reviewed:** 2026-11-04. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-This document defines all the rules and time thresholds used in the attendance tracking system.
+Attendance tracking uses time thresholds to split Zoom meetings into prickles, avoid double-counting early or late arrivals, and flag late hosts. Each rule and its threshold is defined here.
 
 ## Table of Contents
 - [Meeting Segmentation (20-minute threshold)](#meeting-segmentation-20-minute-threshold)
