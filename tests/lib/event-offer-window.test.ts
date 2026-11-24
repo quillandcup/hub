@@ -162,18 +162,23 @@ describe("a window on a linked offer", () => {
 
   describe("offers held in Kajabi", () => {
     const attendee = (over: Record<string, unknown>) => repos({ eventAttendees: [{ id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null }], ...over });
-    const state = async (r: ReturnType<typeof repos>) => (await findKajabiMatchesForEvent(r, EVENT, async () => [FULL])).attendeesWithoutTicket[0].kajabi_offer;
+    const state = async (r: ReturnType<typeof repos>, held: string[] = [FULL]) => (await findKajabiMatchesForEvent(r, EVENT, async () => held)).attendeesWithoutTicket[0].kajabi_offer;
 
     it("is still answered for an offer with no window that sells only this event", async () => {
       expect(await state(attendee({ eventOffers: [{ event_id: EVENT, kajabi_offer_id: FULL }] }))).toBe("held");
     });
 
-    it("is unknown for an offer with a window, since Kajabi gives no date for a grant", async () => {
-      expect(await state(attendee({}))).toBe("unknown");
+    it("is shared for an offer with a window, since Kajabi gives no date for a grant", async () => {
+      expect(await state(attendee({}))).toBe("shared");
     });
 
-    it("is unknown for an offer another event also sells", async () => {
-      expect(await state(attendee({ eventOffers: [{ event_id: EVENT, kajabi_offer_id: FULL }, { event_id: OTHER, kajabi_offer_id: FULL, purchased_from: "2027-01-01" }] }))).toBe("unknown");
+    it("is shared for an offer another event also sells", async () => {
+      expect(await state(attendee({ eventOffers: [{ event_id: EVENT, kajabi_offer_id: FULL }, { event_id: OTHER, kajabi_offer_id: FULL, purchased_from: "2027-01-01" }] }))).toBe("shared");
+    });
+
+    it("is still a definite none for a contact that holds none of the event's offers, dated or shared", async () => {
+      expect(await state(attendee({}), ["unrelated"])).toBe("not_held");
+      expect(await state(attendee({ eventOffers: [{ event_id: EVENT, kajabi_offer_id: FULL }, { event_id: OTHER, kajabi_offer_id: FULL, purchased_from: "2027-01-01" }] }), [])).toBe("not_held");
     });
   });
 });
