@@ -54,6 +54,7 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 | `permissions-for-resources.md` | a new resource or operation defines its permissions: verbs, role decisions, guard, RLS, audit, tests |
 | `migrations.md`, `config-as-code.md` | numbering, expand/contract, squawk; Supabase, GitHub, Sentry, Slack manifest as code |
 | `testing-requirements.md` | integration, route, component, pgTAP, fake clock |
+| `property-based-testing.md` | when to write a `fast-check` property test, and how |
 
 <!-- BEGIN:nextjs-agent-rules -->
 
