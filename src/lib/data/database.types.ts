@@ -4355,6 +4355,8 @@ export type Database = {
           lesson_id: string
           member_id: string
           parent_id: string | null
+          source: string | null
+          source_key: string | null
         }
         Insert: {
           body: string
@@ -4372,6 +4374,8 @@ export type Database = {
           lesson_id: string
           member_id: string
           parent_id?: string | null
+          source?: string | null
+          source_key?: string | null
         }
         Update: {
           body?: string
@@ -4389,6 +4393,8 @@ export type Database = {
           lesson_id?: string
           member_id?: string
           parent_id?: string | null
+          source?: string | null
+          source_key?: string | null
         }
         Relationships: [
           {

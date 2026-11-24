@@ -51,7 +51,7 @@ describe("deleteCourse in the in-memory repository: what was left on the lessons
       courseLessons: [lessonRow({ id: L1, course_id: COURSE, title: "One" })],
       lessonProgress: [progressRow({ member_id: MEMBER, lesson_id: L1 })],
       lessonComments: [
-        { id: "cmnt_AAAAAAAAAAA1", lesson_id: L1, member_id: MEMBER, parent_id: null, body: "Test", is_staff_reply: false, created_at: "2026-01-01T00:00:00Z", edited_at: null, hidden_at: null, deleted_at: null, deleted_by: null, held_at: null, held_reason: null, handled_at: null, handled_by: null },
+        { id: "cmnt_AAAAAAAAAAA1", lesson_id: L1, member_id: MEMBER, parent_id: null, body: "Test", is_staff_reply: false, created_at: "2026-01-01T00:00:00Z", edited_at: null, hidden_at: null, deleted_at: null, deleted_by: null, held_at: null, held_reason: null, handled_at: null, handled_by: null, source: null, source_key: null },
       ],
       chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: L1, open_to_channel: false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" }],
     });

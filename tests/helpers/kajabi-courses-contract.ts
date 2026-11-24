@@ -303,6 +303,38 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
       expect((await repo.lessonProgress(c, "bo@example.com"))[0].deleted_at).toBeNull();
     });
 
+    it("reads a course's lesson comments for the import, removed ones included, past 1,000, and no other course's", async () => {
+      const repo = ctx.repo();
+      const c = ctx.unique("comments-course");
+      const other = ctx.unique("comments-other");
+      const l1 = ctx.unique("cl1");
+      const l2 = ctx.unique("cl2");
+      const comment = (course: string, lesson: string, key: string, over: Record<string, unknown> = {}) => ({ course_kajabi_id: course, lesson_kajabi_id: lesson, comment_key: key, author_name: "Ada Example", body: `Text ${key}`, ...over });
+
+      await repo.upsertLessonComments([
+        comment(c, l2, "b", { parent_comment_key: "a", posted_at: T1 }),
+        comment(c, l1, "a", { posted_at: T1 }),
+        comment(c, l2, "a"),
+        comment(other, ctx.unique("cl9"), "a"),
+      ]);
+      await repo.softDeleteLessonComments(l2, ["a"], T2);
+
+      const rows = await repo.commentsOfCourse(c);
+
+      expect(rows.map((r) => `${r.lesson_kajabi_id}/${r.comment_key}`).sort()).toEqual([`${l1}/a`, `${l2}/a`, `${l2}/b`].sort());
+      const removed = rows.find((r) => r.lesson_kajabi_id === l2 && r.comment_key === "a")!;
+      expect(instant(removed.deleted_at!)).toBe(T2);
+      const reply = rows.find((r) => r.comment_key === "b")!;
+      expect(reply).toMatchObject({ parent_comment_key: "a", author_name: "Ada Example", body: "Text b" });
+      expect(instant(reply.posted_at!)).toBe(T1);
+      expect(typeof reply.captured_at).toBe("string");
+      expect(await repo.commentsOfCourse(ctx.unique("none"))).toEqual([]);
+
+      const many = Array.from({ length: 1050 }, (_, i) => comment(other, l1, `m${String(i).padStart(4, "0")}`));
+      await repo.upsertLessonComments(many);
+      expect(await repo.commentsOfCourse(other)).toHaveLength(1051);
+    });
+
     it("keeps a course's quizzes, rewrites one that changed, restores one that came back, and retires the quizzes of a lesson that is plain again", async () => {
       const repo = ctx.repo();
       const c = ctx.unique("quiz-course");

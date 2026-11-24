@@ -163,6 +163,20 @@ describe("notifyLessonComment (replies)", () => {
     expect(notifications(ASKER)).toHaveLength(1);
   });
 
+  it("tells the member who wrote an imported comment about a reply, like any comment, and an instructor's reply reaches followers", async () => {
+    const [imported] = await repos.courseComments.upsertImported("kajabi", [
+      { lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId: ASKER, isStaffReply: false, body: "Old question", createdAt: "2025-01-01T00:00:00.000Z", deletedAt: null },
+    ]);
+    await repos.courseComments.setFollowing(FOLLOWER, LESSON, true);
+    const plain = await post(REPLIER, "A member's reply", imported.id);
+    const instructor = await post(STAFF, "An instructor's reply", imported.id, { isStaffReply: true });
+
+    expect((await notifyLessonComment(repos, plain.id)).sent).toEqual([{ memberId: ASKER, kind: "lesson_comment_reply", channels: ["in_app"] }]);
+    const result = await notifyLessonComment(repos, instructor.id);
+
+    expect(result.sent).toEqual(expect.arrayContaining([{ memberId: FOLLOWER, kind: "lesson_comment_instructor_reply", channels: ["in_app"] }]));
+  });
+
   it("tells no one about a top-level comment, a reply to yourself, a held or deleted comment, or one that is not there", async () => {
     const question = await post(ASKER, "A question");
     const own = await post(ASKER, "Replying to myself", question.id);
@@ -503,6 +517,11 @@ describe("countUnread", () => {
   it("counts live comments by others made after the last visit", () => {
     expect(countUnread(entries, ASKER, "2027-03-02T10:30:00Z")).toBe(1);
     expect(countUnread(entries, ASKER, "2027-03-02T09:00:00Z")).toBe(2);
+  });
+
+  it("never counts an imported comment, however recent its date", () => {
+    const imported = [{ comment: comment("i1", "", "2027-03-02T12:00:00Z", { imported: true }), replies: [comment("i2", "", "2027-03-02T13:00:00Z", { imported: true })] }];
+    expect(countUnread(imported, ASKER, "2027-03-02T09:00:00Z")).toBe(0);
   });
 
   it("is zero on a first visit, and never counts your own comments, removed ones or held ones", () => {

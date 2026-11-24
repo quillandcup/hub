@@ -365,6 +365,34 @@ describe("deleteLessonComment", () => {
   });
 });
 
+describe("imported comments", () => {
+  const importedBy = async (memberId: string) =>
+    (await comments().upsertImported("kajabi", [{ lessonId: LESSON, sourceKey: "k/1", parentId: null, memberId, isStaffReply: false, body: "From Kajabi", createdAt: new Date(NOW - 60 * 60_000).toISOString(), deletedAt: null }]))[0].id;
+
+  it("can't be edited or deleted by another member, but can be replied to and reported", async () => {
+    const id = await importedBy(CAL);
+
+    expect((await editLessonComment(id, "Mine now")).error).toBeTruthy();
+    expect((await deleteLessonComment(id)).error).toBeTruthy();
+    expect(await comments().byId(id)).toMatchObject({ body: "From Kajabi", deletedAt: null });
+
+    const reply = await postLessonComment(LESSON, "A reply from a member", id);
+    expect(reply.error).toBeUndefined();
+    expect((await comments().byId(reply.id!))?.parentId).toBe(id);
+
+    expect((await reportLessonComment(id, "Not for this course")).error).toBeUndefined();
+    expect(data.lessonCommentReports).toHaveLength(1);
+  });
+
+  it("belongs to its author: they can delete it, but the 15 minutes to edit it long ago ended", async () => {
+    const id = await importedBy(ADA);
+
+    expect((await editLessonComment(id, "Changed")).error).toMatch(/15 minutes/);
+    expect((await deleteLessonComment(id)).error).toBeUndefined();
+    expect((await comments().byId(id))?.deletedAt).not.toBeNull();
+  });
+});
+
 describe("clock", () => {
   it("is restored for other tests", () => {
     setClock(systemClock);

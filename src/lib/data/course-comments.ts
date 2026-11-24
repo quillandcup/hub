@@ -27,6 +27,8 @@ export interface LessonCommentRecord {
   heldAt: string | null;
   /** Staff marked this question as needing no answer. */
   handledAt: string | null;
+  /** Where an imported comment came from (`kajabi`); null for one written in the Hub. */
+  source: string | null;
 }
 
 /** A comment as shown in a thread: the author by display name, and the text only while it is there to read. */
@@ -47,6 +49,8 @@ export interface ThreadComment {
   hidden: boolean;
   /** Held for staff review: shown only to its author (with a note) and to staff. */
   held: boolean;
+  /** Imported from another site (Kajabi): written by its member then, never counted as new. */
+  imported?: boolean;
 }
 
 /** Who is reading a thread: decides whether a hidden or held comment shows, and its text. */
@@ -209,10 +213,49 @@ export interface CourseCommentRepository {
    * counts what others wrote since `viewerId` last opened the thread (`lesson_comment_reads`). Reads past 1000; never the text.
    */
   outlineCounts(courseId: string, viewerId: string): Promise<Map<string, LessonCommentCounts>>;
+  /** The comments imported from `source` on these lessons, deleted ones included. Reads past 1000. */
+  importedOf(source: string, lessonIds: string[]): Promise<ImportedCommentRecord[]>;
+  /**
+   * Writes imported comments, one row per `source` + `sourceKey`: a new one is inserted, one already there has its lesson, parent,
+   * author, badge, text, time and deleted time brought up to date, and nothing else of it (hidden, reports, follows) is touched,
+   * so running it again changes nothing. No follow and no notification is ever created. Returns each row's id.
+   */
+  upsertImported(source: string, rows: ImportedCommentWrite[]): Promise<{ sourceKey: string; id: string }[]>;
+}
+
+/** An imported comment as stored, for the import to compare with what its source says now. */
+export interface ImportedCommentRecord {
+  id: string;
+  lessonId: string;
+  sourceKey: string;
+  parentId: string | null;
+  memberId: string;
+  isStaffReply: boolean;
+  body: string;
+  createdAt: string;
+  deletedAt: string | null;
+  /** Set when a person (staff) deleted it; null when only the import did, which the import may undo. */
+  deletedBy: string | null;
+}
+
+/** What the import writes for one imported comment. */
+export interface ImportedCommentWrite {
+  lessonId: string;
+  sourceKey: string;
+  /** A top-level comment's id (already in the table, or written by an earlier call); null for a question. */
+  parentId: string | null;
+  /** The Hub member who wrote it at the source. */
+  memberId: string;
+  /** The member is staff: shown with the Instructor badge. */
+  isStaffReply: boolean;
+  body: string;
+  /** The time it was written at its source. */
+  createdAt: string;
+  deletedAt: string | null;
 }
 
 /** The columns a count needs: never the text. */
-type CountRow = Pick<StoredRow, "id" | "lesson_id" | "member_id" | "parent_id" | "is_staff_reply" | "created_at" | "held_at" | "hidden_at" | "deleted_at" | "handled_at">;
+type CountRow = Pick<StoredRow, "id" | "lesson_id" | "member_id" | "parent_id" | "is_staff_reply" | "created_at" | "held_at" | "hidden_at" | "deleted_at" | "handled_at" | "source">;
 
 type Embedded = { name: string; display_name: string | null };
 type StoredRow = {
@@ -228,9 +271,10 @@ type StoredRow = {
   deleted_at: string | null;
   held_at: string | null;
   handled_at: string | null;
+  source: string | null;
 };
 
-const COLUMNS = "id, lesson_id, member_id, parent_id, body, is_staff_reply, created_at, edited_at, hidden_at, deleted_at, held_at, handled_at";
+const COLUMNS = "id, lesson_id, member_id, parent_id, body, is_staff_reply, created_at, edited_at, hidden_at, deleted_at, held_at, handled_at, source";
 
 const record = (row: StoredRow): LessonCommentRecord => ({
   id: row.id,
@@ -245,6 +289,7 @@ const record = (row: StoredRow): LessonCommentRecord => ({
   deletedAt: row.deleted_at,
   heldAt: row.held_at,
   handledAt: row.handled_at,
+  source: row.source,
 });
 
 const isRemoved = (row: { hidden_at: string | null; deleted_at: string | null }) => Boolean(row.hidden_at || row.deleted_at);
@@ -281,6 +326,7 @@ export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => str
       body: removed ? null : row.body,
       hidden: !removed && Boolean(row.hidden_at),
       held: !removed && isHeld(row),
+      ...(row.source ? { imported: true } : {}),
     };
   };
   const byNewest = (a: StoredRow, b: StoredRow) => compareText(b.created_at, a.created_at) || compareText(b.id, a.id);
@@ -306,7 +352,8 @@ export function pickUnanswered(
 ): UnansweredQuestion[] {
   const answered = new Set(rows.filter((r) => r.parent_id && r.is_staff_reply && isLive(r)).map((r) => r.parent_id as string));
   return rows
-    .filter((r) => !r.parent_id && isLive(r) && !answered.has(r.id) && !r.is_staff_reply && !r.handled_at)
+    // An imported question is old and was answered (or not) on the site it came from: it never joins the list.
+    .filter((r) => !r.parent_id && isLive(r) && !answered.has(r.id) && !r.is_staff_reply && !r.handled_at && !r.source)
     .sort((a, b) => compareText(a.created_at, b.created_at) || compareText(a.id, b.id))
     .map((r) => ({ id: r.id, lessonId: r.lesson_id, lessonTitle: lessonTitle(r.lesson_id), authorName: nameOf(r.member_id), createdAt: r.created_at, body: r.body }));
 }
@@ -315,7 +362,7 @@ type ReportRow = { comment_id: string; reason: string; created_at: string };
 type ReportEmbed = ReportRow & { id: string; lesson_comments: StoredRow };
 
 const REPORT_SELECT =
-  "id, comment_id, reason, created_at, lesson_comments!inner(id, lesson_id, member_id, parent_id, body, is_staff_reply, created_at, edited_at, hidden_at, deleted_at, held_at, handled_at)";
+  "id, comment_id, reason, created_at, lesson_comments!inner(id, lesson_id, member_id, parent_id, body, is_staff_reply, created_at, edited_at, hidden_at, deleted_at, held_at, handled_at, source)";
 
 /** Groups open reports by comment, most reported first (then oldest first). A comment that is deleted or hidden is left out: its reports are settled. */
 export function groupReports(
@@ -361,6 +408,8 @@ export function pickHeld(rows: StoredRow[], lessonTitle: (lessonId: string) => s
 /** The notification senders' view of comments: no text. */
 function activityOf(rows: StoredRow[]): CommentActivity[] {
   return rows
+    // An imported comment is history, not activity: it never reaches a digest.
+    .filter((r) => !r.source)
     .map((r) => ({ id: r.id, lessonId: r.lesson_id, memberId: r.member_id, parentId: r.parent_id, isStaffReply: r.is_staff_reply, createdAt: r.created_at }))
     .sort((a, b) => compareText(a.createdAt, b.createdAt) || compareText(a.id, b.id));
 }
@@ -414,9 +463,10 @@ export function tallyLessons(rows: CountRow[], seenAt: (lessonId: string) => str
   for (const row of live) {
     const counts = out.get(row.lesson_id) ?? { total: 0, unanswered: 0, newCount: 0 };
     counts.total += 1;
-    if (!row.parent_id && !row.is_staff_reply && !row.handled_at && !answered.has(row.id)) counts.unanswered += 1;
+    // An imported comment is history: it counts in the total, but is never an open question and never new.
+    if (!row.parent_id && !row.is_staff_reply && !row.handled_at && !row.source && !answered.has(row.id)) counts.unanswered += 1;
     const seen = seenAt(row.lesson_id);
-    if (seen && row.member_id !== viewerId && Date.parse(row.created_at) > Date.parse(seen)) counts.newCount += 1;
+    if (seen && !row.source && row.member_id !== viewerId && Date.parse(row.created_at) > Date.parse(seen)) counts.newCount += 1;
     out.set(row.lesson_id, counts);
   }
   return out;
@@ -568,6 +618,7 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
         .is("deleted_at", null)
         .is("hidden_at", null)
         .is("held_at", null)
+        .is("source", null)
         .order("id")
         .range(from, to),
     );
@@ -606,7 +657,7 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
         fetchAllRows<CountRow>((from, to) =>
           this.db
             .from("lesson_comments")
-            .select("id, lesson_id, member_id, parent_id, is_staff_reply, created_at, held_at, hidden_at, deleted_at, handled_at")
+            .select("id, lesson_id, member_id, parent_id, is_staff_reply, created_at, held_at, hidden_at, deleted_at, handled_at, source")
             .in("lesson_id", part)
             .is("deleted_at", null)
             .is("hidden_at", null)
@@ -633,7 +684,60 @@ export class SupabaseCourseCommentRepository implements CourseCommentRepository 
     const names = await this.authorNames(rows.filter((r) => !r.parent_id).map((r) => r.member_id));
     return pickUnanswered(rows, (id) => titles.get(id) ?? "", (id) => names.get(id) ?? "Former member");
   }
+
+  async importedOf(source: string, lessonIds: string[]) {
+    type Row = ImportedRow;
+    const rows = await inChunks(lessonIds, 100, (part) =>
+      fetchAllRows<Row>((from, to) =>
+        this.db
+          .from("lesson_comments")
+          .select("id, lesson_id, source_key, parent_id, member_id, is_staff_reply, body, created_at, deleted_at, deleted_by")
+          .eq("source", source)
+          .in("lesson_id", part)
+          .order("id")
+          .range(from, to),
+      ),
+    );
+    return rows.map(importedRecord);
+  }
+
+  async upsertImported(source: string, rows: ImportedCommentWrite[]) {
+    const written: { sourceKey: string; id: string }[] = [];
+    for (let i = 0; i < rows.length; i += IMPORT_CHUNK) {
+      const batch = rows.slice(i, i + IMPORT_CHUNK).map((r) => ({
+        source,
+        source_key: r.sourceKey,
+        lesson_id: r.lessonId,
+        parent_id: r.parentId,
+        member_id: r.memberId,
+        is_staff_reply: r.isStaffReply,
+        body: r.body,
+        created_at: r.createdAt,
+        deleted_at: r.deletedAt,
+      }));
+      const data = must(await this.db.from("lesson_comments").upsert(batch, { onConflict: "source,source_key" }).select("id, source_key"));
+      for (const row of data ?? []) if (row.source_key) written.push({ sourceKey: row.source_key, id: row.id });
+    }
+    return written;
+  }
 }
+
+const IMPORT_CHUNK = 500;
+
+type ImportedRow = { id: string; lesson_id: string; source_key: string | null; parent_id: string | null; member_id: string; is_staff_reply: boolean; body: string; created_at: string; deleted_at: string | null; deleted_by: string | null };
+
+const importedRecord = (row: ImportedRow): ImportedCommentRecord => ({
+  id: row.id,
+  lessonId: row.lesson_id,
+  sourceKey: row.source_key ?? "",
+  parentId: row.parent_id,
+  memberId: row.member_id,
+  isStaffReply: row.is_staff_reply,
+  body: row.body,
+  createdAt: row.created_at,
+  deletedAt: row.deleted_at,
+  deletedBy: row.deleted_by,
+});
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -682,8 +786,9 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
       deleted_at: null,
       held_at: comment.held ? new Date().toISOString() : null,
       handled_at: null,
+      source: null,
     };
-    this.data.lessonComments.push({ ...row, deleted_by: null, handled_by: null, held_reason: comment.held ? "links" : null });
+    this.data.lessonComments.push({ ...row, deleted_by: null, handled_by: null, held_reason: comment.held ? "links" : null, source_key: null });
     return record(row);
   }
 
@@ -834,7 +939,7 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
   }
 
   async activityBetween(since: string, until: string) {
-    return activityOf(this.data.lessonComments.filter((c) => c.created_at > since && c.created_at <= until && isLive(c)));
+    return activityOf(this.data.lessonComments.filter((c) => c.created_at > since && c.created_at <= until && isLive(c) && !c.source));
   }
 
   async lessonInfo(lessonIds: string[]) {
@@ -873,5 +978,51 @@ export class InMemoryCourseCommentRepository implements CourseCommentRepository 
     const titles = new Map(lessons.map((l) => [l.id, l.title]));
     const rows = this.data.lessonComments.filter((c) => titles.has(c.lesson_id));
     return pickUnanswered(rows, (id) => titles.get(id) ?? "", (id) => this.name(id));
+  }
+
+  async importedOf(source: string, lessonIds: string[]) {
+    const wanted = new Set(lessonIds);
+    return this.data.lessonComments.filter((c) => c.source === source && wanted.has(c.lesson_id)).map(importedRecord);
+  }
+
+  async upsertImported(source: string, rows: ImportedCommentWrite[]) {
+    const written: { sourceKey: string; id: string }[] = [];
+    for (const r of rows) {
+      if (r.body.length < 1 || r.body.length > 4000) throw new Error('new row for relation "lesson_comments" violates check constraint "lesson_comments_body_check"');
+      if (r.parentId) {
+        const parent = this.data.lessonComments.find((c) => c.id === r.parentId);
+        if (!parent) throw new Error("The comment being replied to does not exist");
+        if (parent.parent_id) throw new Error("A reply goes under a top-level comment, not under another reply");
+        if (parent.lesson_id !== r.lessonId) throw new Error("A reply belongs to the same lesson as the comment it answers");
+      }
+      const existing = this.data.lessonComments.find((c) => c.source === source && c.source_key === r.sourceKey);
+      if (existing) {
+        Object.assign(existing, { lesson_id: r.lessonId, parent_id: r.parentId, member_id: r.memberId, is_staff_reply: r.isStaffReply, body: r.body, created_at: r.createdAt, deleted_at: r.deletedAt });
+        written.push({ sourceKey: r.sourceKey, id: existing.id });
+        continue;
+      }
+      const id = nextCommentId(this.data);
+      this.data.lessonComments.push({
+        id,
+        lesson_id: r.lessonId,
+        member_id: r.memberId,
+        parent_id: r.parentId,
+        body: r.body,
+        is_staff_reply: r.isStaffReply,
+        created_at: r.createdAt,
+        edited_at: null,
+        hidden_at: null,
+        deleted_at: r.deletedAt,
+        deleted_by: null,
+        held_at: null,
+        held_reason: null,
+        handled_at: null,
+        handled_by: null,
+        source,
+        source_key: r.sourceKey,
+      });
+      written.push({ sourceKey: r.sourceKey, id });
+    }
+    return written;
   }
 }

@@ -93,7 +93,8 @@ export function countUnread(entries: ThreadEntry[], viewerId: string, since: str
   let count = 0;
   for (const entry of entries) {
     for (const comment of [entry.comment, ...entry.replies]) {
-      if (comment.removed || comment.held || comment.hidden || comment.memberId === viewerId) continue;
+      // An imported comment is history: it is never new, whenever it was written at its source.
+      if (comment.removed || comment.held || comment.hidden || comment.imported || comment.memberId === viewerId) continue;
       if (Date.parse(comment.createdAt) > after) count += 1;
     }
   }

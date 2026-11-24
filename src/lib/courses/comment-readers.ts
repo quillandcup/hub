@@ -19,7 +19,7 @@ export async function readersOf(repos: Repos, courseIds: string[], memberIds: st
 }
 
 /** The admins among these members. */
-export async function staffAmong(repos: Repos, memberIds: string[]): Promise<string[]> {
+export async function staffAmong(repos: Pick<Repos, "profiles" | "members">, memberIds: string[]): Promise<string[]> {
   if (memberIds.length === 0) return [];
   const [adminUserIds, userIds] = await Promise.all([repos.profiles.adminIds(), repos.members.userIdsByMemberId(memberIds)]);
   const admins = new Set(adminUserIds);

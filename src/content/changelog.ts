@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "imported-lesson-comments-engineering",
+    date: "2026-11-24",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments can be imported, written as the member they match",
+    summary: "A comment in a lesson thread can come from another site: it keeps where it came from, is written as the member its author matches, and importing again never duplicates it.",
+    body: `A lesson comment can now be imported, Kajabi being the first source. It records its source and the id it had there, unique together, so running the import again updates the same rows. Its author is the Hub member the name on the comment resolves to: the capture has only a displayed name, so it must equal one Kajabi contact's name exactly (never fuzzy) and give exactly one member. A name that matches none or several is not guessed: its comments are left out and listed in the dry run. A staff member shows with the Instructor badge.
+
+- **Rule.** An imported comment is history, not activity: it is never held, notifies no one, creates no follow, and is left out of the daily digest, the "new" counts and the unanswered list. The import owns only what the source said (author, text, time, place in the thread, whether it was removed there) and never undoes what staff or a member did.
+- **Hooks.** \`importKajabiLessonComments\` and \`matchAuthors\` (Bronze to Silver, run from \`courses:migrate\` or the admin route, a manual pull since the capture is a person's browser) and the comments repository's import methods; another source would add its own reader and reuse them.
+- **Detail.** \`docs/product/COURSES.md\`, "Lesson comments", Kajabi migration.`,
+  },
+  {
     slug: "lesson-comments-mentions",
     date: "2026-11-24",
     audience: "engineering",
