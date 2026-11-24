@@ -95,6 +95,9 @@ export const SITE_URL = appConfig.siteUrl.replace(/\/+$/, "");
 /** A member's own profile photo: the largest upload, the one host a Gravatar photo is copied from (config/app.ts `memberPhoto`). */
 export const MEMBER_PHOTO = appConfig.memberPhoto;
 
+/** What a course quiz answer takes: the largest file, the longest text, the accepted file kinds (config/app.ts `quizAnswers`). */
+export const QUIZ_ANSWERS = appConfig.quizAnswers;
+
 /** Photos on milestones: the upload limit, the stored size, the description length, the web cache time (config/app.ts `milestonePhoto`). */
 export const MILESTONE_PHOTO = appConfig.milestonePhoto;
 
@@ -132,6 +135,9 @@ export const KAJABI_PHOTO_HOSTS: readonly string[] = appConfig.kajabiPhotoHosts;
 
 /** The Kajabi site's public address: what a Kajabi path in an imported landing page is resolved against. */
 export const KAJABI_SITE_URL: string = appConfig.kajabiSiteUrl;
+
+/** Where Kajabi lives after the root domain moves to the Hub (courses and checkout): the address of an imported link to an offer the Hub doesn't know. */
+export const KAJABI_COURSES_URL: string = appConfig.kajabiCoursesUrl;
 
 /** The Claude API for "Build with AI" on landing pages (src/lib/landing/ai.ts). No key, no feature: the button says so. */
 export const ANTHROPIC = {

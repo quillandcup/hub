@@ -9,6 +9,8 @@ import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { parseItemTitle } from "@/lib/courses/editor";
 import { checkQuestion, isQuestionId, parsePassingPercent, type QuestionDraft } from "@/lib/courses/quiz-editor";
+import { removeQuizFiles } from "@/lib/courses/quiz-files-storage";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
  * The quiz builder's writes: make a quiz lesson, save, delete and reorder its questions, change its settings, take the quiz off a
@@ -30,7 +32,7 @@ function describe(error: unknown, what: string): string {
   if (code === "42501" || /row-level security/i.test(message)) return NOT_EDITABLE;
   if (code === "not_found" || message === "not_found") return NOT_FOUND;
   if (code === "stale_order" || message === "stale_order") return "The questions changed since you opened this page. Refresh the page and try again.";
-  if (code === "invalid_question" || message === "invalid_question") return "That question isn't complete: it needs a prompt, two or more answers and a right answer.";
+  if (code === "invalid_question" || message === "invalid_question") return "That question isn't complete: it needs a prompt, and a multiple choice question needs two or more answers and, when graded, a right answer.";
   if (code === "23505") return "That lesson is already a quiz.";
   console.error(`course quiz: ${what} failed:`, message);
   return `Couldn't ${what}.`;
@@ -95,11 +97,14 @@ async function deleteQuestionImpl(auth: Auth, courseId: string, lessonId: string
   if (!isQuestionId(questionId)) return { error: "Not found." };
   const found = await quizOf(auth, courseId, lessonId);
   if ("error" in found) return found;
+  // The files members uploaded to it go with it: found first, deleted once the question is gone.
+  const files = await found.repos.quizzes.answerFilePathsOfQuestions([questionId]).catch(() => []);
   try {
     await found.repos.quizzes.deleteQuestion(found.quiz.id, questionId);
   } catch (error) {
     return { error: describe(error, "delete the question") };
   }
+  await removeQuizFiles(createServiceRoleClient(), files);
   revalidate(courseId, lessonId);
   return { id: questionId };
 }
@@ -136,11 +141,15 @@ async function saveSettingsImpl(auth: Auth, courseId: string, lessonId: string, 
 async function removeQuizImpl(auth: Auth, courseId: string, lessonId: string): Promise<QuizResult> {
   const found = await quizOf(auth, courseId, lessonId);
   if ("error" in found) return found;
+  // Every member's uploaded files go with the quiz: found first, deleted once the quiz is gone.
+  const questions = await found.repos.quizzes.questionsOf(found.quiz.id).catch(() => []);
+  const files = await found.repos.quizzes.answerFilePathsOfQuestions(questions.filter((q) => q.kind === "file_upload").map((q) => q.id)).catch(() => []);
   try {
     await found.repos.quizzes.deleteQuiz(found.quiz.id);
   } catch (error) {
     return { error: describe(error, "remove the quiz") };
   }
+  await removeQuizFiles(createServiceRoleClient(), files);
   revalidate(courseId, lessonId);
   return { id: lessonId };
 }

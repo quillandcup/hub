@@ -192,6 +192,12 @@ export const appConfig = {
    */
   kajabiSiteUrl: "https://www.quillandcup.com",
 
+  /**
+   * Where Kajabi lives once the root domain serves the Hub (docs/runbooks/DOMAIN_MIGRATION.md): courses and checkout. An imported
+   * page's link to a Kajabi offer the Hub doesn't know goes here (src/lib/landing/kajabi-import.ts); retire it with Kajabi.
+   */
+  kajabiCoursesUrl: "https://courses.quillandcup.com",
+
   /** The public site members arrive from, no trailing slash: where the footer of a writer profile links to. */
   siteUrl: "https://www.quillandcup.com",
 
@@ -215,6 +221,18 @@ export const appConfig = {
   memberPhoto: {
     maxUploadBytes: 4 * 1024 * 1024, // under the 4.5 MB request body a Vercel function accepts
     gravatarHost: "www.gravatar.com",
+  },
+
+  /**
+   * What members answer in a course quiz with words or a file (src/lib/courses/quiz-files.ts, docs/product/COURSES.md, "Quizzes").
+   * `maxFileBytes`: the largest file one answer takes (the bucket enforces it too; the file goes straight from the browser to storage).
+   * `maxTextChars`: the longest short answer a member can write.
+   * `fileExtensions`: the kinds of file an answer accepts, by extension (documents and pictures; never a program or a script).
+   */
+  quizAnswers: {
+    maxFileBytes: 10 * 1024 * 1024,
+    maxTextChars: 10_000,
+    fileExtensions: ["pdf", "doc", "docx", "odt", "rtf", "txt", "md", "pages", "png", "jpg", "jpeg", "gif", "webp", "heic"],
   },
 
   /**

@@ -14,7 +14,7 @@ describe("checkQuestion", () => {
     const result = checkQuestion(draft({ prompt: "  How are you?  ", options: [{ id: "qopt_AAAAAAAAAAA1", label: " Fine ", isCorrect: true }, { label: "", isCorrect: false }, { label: "Tired", isCorrect: false }] }));
     expect(result).toEqual({
       ok: true,
-      input: { prompt: "How are you?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine", isCorrect: true }, { label: "Tired", isCorrect: false }] },
+      input: { prompt: "How are you?", kind: "choice", graded: true, allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine", isCorrect: true }, { label: "Tired", isCorrect: false }] },
     });
   });
 
@@ -54,7 +54,7 @@ describe("checkQuestion", () => {
 
 describe("the form's helpers", () => {
   it("starts a new question with two empty answers and the first one marked", () => {
-    expect(blankQuestion()).toEqual({ prompt: "", allowsMultiple: false, options: [{ label: "", isCorrect: true }, { label: "", isCorrect: false }] });
+    expect(blankQuestion()).toEqual({ prompt: "", kind: "choice", graded: true, allowsMultiple: false, options: [{ label: "", isCorrect: true }, { label: "", isCorrect: false }] });
   });
 
   it("keeps only the first right answer when members may no longer choose several", () => {

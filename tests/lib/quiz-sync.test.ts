@@ -38,7 +38,7 @@ describe("syncCourseQuizzes", () => {
 
     const summary = await syncCourseQuizzes(repos, COURSE_K, lessons);
 
-    expect(summary).toEqual({ synced: 1, questions: 2, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, skippedManual: 0 });
+    expect(summary).toEqual({ synced: 1, questions: 2, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, ungradedManual: 0 });
     const quiz = (await repos.quizzes.quizOfLesson(LESSON_A))!;
     expect(quiz).toMatchObject({ passingPercent: 80, hideAnswers: false, sourceKey: "100" });
     expect((await repos.quizzes.questionsOf(quiz.id)).map((q) => [q.sourceKey, q.prompt, q.options.filter((o) => o.isCorrect).map((o) => o.label)])).toEqual([["q1", "Question q1", ["Yes"]], ["q2", "Question q2", ["Yes"]]]);
@@ -92,7 +92,7 @@ describe("syncCourseQuizzes", () => {
 
     const summary = await syncCourseQuizzes(repos, COURSE_K, lessons);
 
-    expect(summary).toEqual({ synced: 0, questions: 0, removed: 0, unreadable: 1, noLesson: 1, skippedQuestions: 0, skippedManual: 0 });
+    expect(summary).toEqual({ synced: 0, questions: 0, removed: 0, unreadable: 1, noLesson: 1, skippedQuestions: 0, ungradedManual: 0 });
     expect((await repos.quizzes.quizOfLesson(LESSON_A))?.id).toBe(quiz.id);
     expect((await repos.quizzes.questionsOf(quiz.id)).length).toBe(1);
   });
@@ -104,21 +104,23 @@ describe("syncCourseQuizzes", () => {
     expect(await syncCourseQuizzes(repos, COURSE_K, lessons)).toMatchObject({ synced: 1, questions: 1, skippedQuestions: 1 });
   });
 
-  it("skips a quiz with a question graded by hand in Kajabi, keeping what Silver has, and says so", async () => {
+  it("imports short answer and file upload questions as questions that are recorded, not scored, and counts the ones Kajabi grades by hand", async () => {
     const { data, repos, lessons } = build();
     await syncCourseQuizzes(repos, COURSE_K, lessons);
     const quiz = (await repos.quizzes.quizOfLesson(LESSON_A))!;
-    const manual = { questions: [...document(["q1"]).questions, { id: "s1", text: "Tell us more", question_type: "short_answer" }, { id: "f1", text: "Upload a page", type: "file_upload", graded_manually: true }] };
+    const manual = { questions: [...document(["q1"]).questions, { id: "s1", text: "Tell us more", question_type: "short_answer" }, { id: "f1", text: "Upload a page", type: "file_upload", graded: true }] };
     data.kajabiQuizzes[0].raw_payload = asJson({ documents: [manual] });
 
-    expect(await syncCourseQuizzes(repos, COURSE_K, lessons)).toEqual({ synced: 0, questions: 0, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, skippedManual: 1 });
+    expect(await syncCourseQuizzes(repos, COURSE_K, lessons)).toEqual({ synced: 1, questions: document(["q1"]).questions.length + 2, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, ungradedManual: 1 });
 
-    expect((await repos.quizzes.questionsOf(quiz.id)).length).toBe(2);
+    const stored = await repos.quizzes.questionsOf(quiz.id);
+    expect(stored.map((q) => [q.kind, q.graded]).slice(-2)).toEqual([["short_answer", false], ["file_upload", false]]);
+    expect(stored.slice(-2).every((q) => q.options.length === 0)).toBe(true);
   });
 
   it("does nothing for a course with no captured quiz, and skips a lesson that is the Hub's", async () => {
     const empty = build([]);
-    expect(await syncCourseQuizzes(empty.repos, COURSE_K, empty.lessons)).toEqual({ synced: 0, questions: 0, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, skippedManual: 0 });
+    expect(await syncCourseQuizzes(empty.repos, COURSE_K, empty.lessons)).toEqual({ synced: 0, questions: 0, removed: 0, unreadable: 0, noLesson: 0, skippedQuestions: 0, ungradedManual: 0 });
     const { repos } = build([bronzeQuiz("300", "hub-lesson", [document(["q1"])])]);
     expect(await syncCourseQuizzes(repos, COURSE_K, new Map([["hub-lesson", LESSON_HUB]]))).toMatchObject({ synced: 0 });
     expect(await repos.quizzes.quizOfLesson(LESSON_HUB)).toBeNull();

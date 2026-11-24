@@ -1,5 +1,8 @@
-import { scoreQuiz, type QuizAnswers, type ScoringQuestion } from "@/lib/courses/quiz-scoring";
+import { QUIZ_ANSWERS } from "@/lib/config";
+import { scoreQuiz, type QuestionKind, type QuizAnswers, type ScoringQuestion } from "@/lib/courses/quiz-scoring";
+import { checkQuizFile, isOwnQuizFilePath, type UploadedFileRef } from "@/lib/courses/quiz-files";
 import { recordLessonCompleted } from "@/lib/courses/activity";
+import type { AnswerFile, NewQuizAnswer } from "@/lib/data/quizzes";
 import type { Repos } from "@/lib/data/repos";
 
 type QuizMemberRepos = Pick<Repos, "quizzes" | "courses" | "courseProgress" | "activities">;
@@ -13,8 +16,16 @@ type QuizMemberRepos = Pick<Repos, "quizzes" | "courses" | "courseProgress" | "a
 export interface PublicQuizQuestion {
   id: string;
   prompt: string;
+  kind: QuestionKind;
   allowsMultiple: boolean;
   options: { id: string; label: string }[];
+}
+
+/** What a member wrote or uploaded for one question of an attempt: their own, shown back to them. */
+export interface MemberOpenAnswer {
+  questionId: string;
+  text: string | null;
+  fileName: string | null;
 }
 
 export interface MemberAttempt {
@@ -24,6 +35,8 @@ export interface MemberAttempt {
   correctCount: number;
   questionCount: number;
   passed: boolean;
+  /** What they wrote or uploaded in it (short answer and file upload questions only). */
+  openAnswers: MemberOpenAnswer[];
 }
 
 export interface MemberQuiz {
@@ -44,21 +57,41 @@ export async function loadMemberQuiz(repos: Pick<Repos, "quizzes">, lessonId: st
   const quiz = await repos.quizzes.quizOfLesson(lessonId);
   if (!quiz) return null;
   const [questions, attempts] = await Promise.all([repos.quizzes.questionsOf(quiz.id), repos.quizzes.attemptsOf(memberId, quiz.id)]);
+  const shown = attempts.slice(0, ATTEMPTS_SHOWN);
+  // Their own words and files, for the attempts listed (one batch, never a query per attempt).
+  const answers = await repos.quizzes.answersOfAttempts(shown.map((a) => a.id));
+  const openAnswers = (attemptId: string): MemberOpenAnswer[] =>
+    answers
+      .filter((a) => a.attemptId === attemptId && (a.answerText !== null || a.file !== null))
+      .map((a) => ({ questionId: a.questionId, text: a.answerText, fileName: a.file?.name ?? null }));
   return {
-    passingPercent: quiz.passingPercent,
+    // A passing grade applies only when some question is scored: a quiz of reflections has none, whatever was stored.
+    passingPercent: questions.some((q) => q.kind === "choice" && q.graded && q.options.some((o) => o.isCorrect)) ? quiz.passingPercent : null,
     hideAnswers: quiz.hideAnswers,
-    questions: questions.map((q) => ({ id: q.id, prompt: q.prompt, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label })) })),
-    attempts: attempts.slice(0, ATTEMPTS_SHOWN).map((a) => ({ id: a.id, submittedAt: a.submittedAt, scorePercent: a.scorePercent, correctCount: a.correctCount, questionCount: a.questionCount, passed: a.passed })),
+    questions: questions.map((q) => ({ id: q.id, prompt: q.prompt, kind: q.kind, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label })) })),
+    attempts: shown.map((a) => ({ id: a.id, submittedAt: a.submittedAt, scorePercent: a.scorePercent, correctCount: a.correctCount, questionCount: a.questionCount, passed: a.passed, openAnswers: openAnswers(a.id) })),
     passed: attempts.some((a) => a.passed),
   };
 }
 
-/** What the browser may send: option ids by question id, bounded, so a hostile body costs nothing. */
+/**
+ * What the browser sends for an attempt: the options picked, the text typed and the files uploaded, each by question id. Everything
+ * is bounded, so a hostile body costs nothing; what a file reference really is gets checked against storage on the server.
+ */
+export interface SubmittedAnswers {
+  picks: QuizAnswers;
+  texts: Readonly<Record<string, string>>;
+  files: Readonly<Record<string, UploadedFileRef>>;
+}
+
 const MAX_QUESTIONS = 200;
 const MAX_PICKS = 50;
-export function parseAnswers(input: unknown): QuizAnswers | null {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) return null;
-  const entries = Object.entries(input as Record<string, unknown>);
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+function parsePicks(input: unknown): QuizAnswers | null {
+  if (!isRecord(input)) return null;
+  const entries = Object.entries(input);
   if (entries.length > MAX_QUESTIONS) return null;
   const answers: Record<string, string[]> = {};
   for (const [questionId, picked] of entries) {
@@ -66,6 +99,37 @@ export function parseAnswers(input: unknown): QuizAnswers | null {
     answers[questionId] = picked as string[];
   }
   return answers;
+}
+
+/** A body of `{ picks, texts, files }` (each optional); a plain object of picks by question, as the first version sent, is read as `picks`. Null when anything is the wrong shape. */
+export function parseAnswers(input: unknown): SubmittedAnswers | null {
+  if (!isRecord(input)) return null;
+  const structured = "picks" in input || "texts" in input || "files" in input;
+  if (!structured) {
+    const picks = parsePicks(input);
+    return picks && { picks, texts: {}, files: {} };
+  }
+  const picks = input.picks === undefined ? {} : parsePicks(input.picks);
+  if (!picks) return null;
+
+  const texts: Record<string, string> = {};
+  if (input.texts !== undefined) {
+    if (!isRecord(input.texts) || Object.keys(input.texts).length > MAX_QUESTIONS) return null;
+    for (const [questionId, text] of Object.entries(input.texts)) {
+      if (typeof text !== "string" || text.length > QUIZ_ANSWERS.maxTextChars) return null;
+      texts[questionId] = text;
+    }
+  }
+
+  const files: Record<string, UploadedFileRef> = {};
+  if (input.files !== undefined) {
+    if (!isRecord(input.files) || Object.keys(input.files).length > MAX_QUESTIONS) return null;
+    for (const [questionId, ref] of Object.entries(input.files)) {
+      if (!isRecord(ref) || typeof ref.path !== "string" || typeof ref.name !== "string" || typeof ref.bytes !== "number" || ref.path.length > 300 || ref.name.length > 300) return null;
+      files[questionId] = { path: ref.path, name: ref.name, bytes: ref.bytes };
+    }
+  }
+  return { picks, texts, files };
 }
 
 /** One question of a submitted attempt, for the review a quiz that shows its answers gives. */
@@ -78,6 +142,8 @@ export interface ReviewItem {
 }
 
 export interface QuizSubmission {
+  /** Whether any question was scored. When not, there is no score to show: the answers are recorded and the lesson is complete. */
+  scored: boolean;
   scorePercent: number;
   correctCount: number;
   questionCount: number;
@@ -92,6 +158,9 @@ export interface QuizSubmission {
 
 export type SubmitOutcome = { ok: true; submission: QuizSubmission } | { ok: false; error: string };
 
+/** Looks a member's uploaded file up in storage: its size when it is really there, null when it isn't. The action gives the service role's version. */
+export type VerifyAnswerFile = (path: string) => Promise<{ bytes: number } | null>;
+
 /**
  * Scores an attempt on the server and records it; a pass (or any attempt at a quiz that isn't graded) completes the lesson, once:
  * the first completion keeps its date and writes the activity row, a later pass changes nothing. Assumes the caller has checked
@@ -99,7 +168,7 @@ export type SubmitOutcome = { ok: true; submission: QuizSubmission } | { ok: fal
  */
 export async function submitQuizAttempt(
   repos: QuizMemberRepos,
-  input: { memberId: string; lessonId: string; answers: QuizAnswers; now?: Date },
+  input: { memberId: string; lessonId: string; answers: SubmittedAnswers; verifyFile: VerifyAnswerFile; now?: Date },
 ): Promise<SubmitOutcome> {
   const lesson = await repos.courses.lessonById(input.lessonId);
   const quiz = lesson ? await repos.quizzes.quizOfLesson(input.lessonId) : null;
@@ -107,10 +176,33 @@ export async function submitQuizAttempt(
   const stored = await repos.quizzes.questionsOf(quiz.id);
   if (stored.length === 0) return { ok: false, error: "This quiz has no questions yet." };
 
-  const questions: ScoringQuestion[] = stored.map((q) => ({ id: q.id, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, isCorrect: o.isCorrect })) }));
-  const score = scoreQuiz(questions, input.answers, quiz.passingPercent);
+  // What was written and uploaded, kept apart from the picks: it is recorded, never scored.
+  const open = new Map<string, { answerText: string | null; file: AnswerFile | null }>();
+  for (const q of stored) {
+    if (q.kind === "short_answer") {
+      const text = (input.answers.texts[q.id] ?? "").trim();
+      open.set(q.id, { answerText: text === "" ? null : text, file: null });
+    } else if (q.kind === "file_upload") {
+      const ref = input.answers.files[q.id];
+      if (!ref) {
+        open.set(q.id, { answerText: null, file: null });
+        continue;
+      }
+      const checked = await checkAnswerFile(ref, input.memberId, input.verifyFile);
+      if (!checked.ok) return { ok: false, error: checked.error };
+      open.set(q.id, { answerText: null, file: checked.file });
+    }
+  }
+
+  const questions: ScoringQuestion[] = stored.map((q) => ({ id: q.id, kind: q.kind, graded: q.graded, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, isCorrect: o.isCorrect })) }));
+  const score = scoreQuiz(questions, input.answers.picks, quiz.passingPercent);
   const now = input.now ?? new Date();
 
+  // A quiz with nothing to score completes the lesson on submitting, so an empty submission would complete it for nothing.
+  const anyAnswer = score.results.some((r) => r.selectedOptionIds.length > 0) || [...open.values()].some((a) => a.answerText !== null || a.file !== null);
+  if (score.questionCount === 0 && !anyAnswer) return { ok: false, error: "Answer at least one question before you submit." };
+
+  const answers: NewQuizAnswer[] = score.results.map((r) => ({ questionId: r.questionId, selectedOptionIds: r.selectedOptionIds, isCorrect: r.correct, ...open.get(r.questionId) }));
   await repos.quizzes.recordAttempt({
     quizId: quiz.id,
     memberId: input.memberId,
@@ -119,7 +211,7 @@ export async function submitQuizAttempt(
     scorePercent: score.scorePercent,
     passed: score.passed,
     submittedAt: now.toISOString(),
-    answers: score.results.map((r) => ({ questionId: r.questionId, selectedOptionIds: r.selectedOptionIds, isCorrect: r.correct })),
+    answers,
   });
 
   let lessonComplete = (await repos.courseProgress.completedLessonIds(input.memberId, [input.lessonId])).has(input.lessonId);
@@ -135,9 +227,10 @@ export async function submitQuizAttempt(
     }, now);
   }
 
+  // Only choice questions are reviewed: what was written or uploaded has no right answer to show.
   const review: ReviewItem[] | null = quiz.hideAnswers
     ? null
-    : score.results.map((r) => ({
+    : score.results.filter((r) => stored.find((q) => q.id === r.questionId)!.kind === "choice").map((r) => ({
         questionId: r.questionId,
         correct: r.correct,
         selectedOptionIds: r.selectedOptionIds,
@@ -146,6 +239,33 @@ export async function submitQuizAttempt(
 
   return {
     ok: true,
-    submission: { scorePercent: score.scorePercent, correctCount: score.correctCount, questionCount: score.questionCount, passed: score.passed, passingPercent: quiz.passingPercent, lessonComplete, review },
+    submission: {
+      scored: score.questionCount > 0,
+      scorePercent: score.scorePercent,
+      correctCount: score.correctCount,
+      questionCount: score.questionCount,
+      passed: score.passed,
+      passingPercent: score.questionCount > 0 ? quiz.passingPercent : null,
+      lessonComplete,
+      review,
+    },
   };
+}
+
+const FILE_PROBLEM = "One of your files couldn't be found. Upload it again.";
+
+/** A file reference from the browser, checked: the member's own path, an allowed kind, and really in storage within the size limit. */
+async function checkAnswerFile(ref: UploadedFileRef, memberId: string, verify: VerifyAnswerFile): Promise<{ ok: true; file: AnswerFile } | { ok: false; error: string }> {
+  if (!isOwnQuizFilePath(memberId, ref.path)) return { ok: false, error: FILE_PROBLEM };
+  const found = await verify(ref.path);
+  if (!found) return { ok: false, error: FILE_PROBLEM };
+  // What storage says counts, not what the browser claimed.
+  const stored = ref.path.slice(ref.path.lastIndexOf("/") + 1);
+  const name = ref.name.trim() || stored;
+  // Both the name shown back and the name stored must be an allowed kind (the browser could claim one and upload another).
+  const check = checkQuizFile(stored, found.bytes);
+  if (!check.ok) return { ok: false, error: check.error };
+  const shown = checkQuizFile(name, found.bytes);
+  if (!shown.ok) return { ok: false, error: shown.error };
+  return { ok: true, file: { path: ref.path, name: name.slice(0, 200), bytes: found.bytes } };
 }

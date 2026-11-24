@@ -15,7 +15,7 @@ const USER = "00000000-0000-4000-a000-0000000000a1";
 
 const run = (over: { zip?: Uint8Array; title?: string; target?: ImportTarget; fetchPicture?: FetchPicture } = {}) =>
   importKajabiExport(
-    { pages: repos.landingPages, media: repos.media, storage, fetchPicture: over.fetchPicture ?? cdn },
+    { pages: repos.landingPages, media: repos.media, storage, fetchPicture: over.fetchPicture ?? cdn, lookupFetchers: { finalUrl: async () => null, html: async () => null } },
     { archive: over.zip ?? exportZip(), title: over.title ?? "Example Sprint", target: over.target, userId: USER, year: 2031 },
   );
 
@@ -268,6 +268,7 @@ describe("inspectKajabiExport", () => {
       start: { heading: "Write a little, every day", lines: ["Join the Example Sprint & see.", "Second paragraph.", "Short line."] },
       suggestedTitle: "Write a little, every day",
       blocks: 10,
+      countdowns: 0,
       matches: [],
       pages: [],
     });

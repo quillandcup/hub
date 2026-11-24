@@ -29,6 +29,7 @@ export const OUTCOME_ACTIONS = [
   // Courses
   "lesson_completion_saved",
   "quiz_attempt_submitted",
+  "quiz_file_upload_prepared",
   "lesson_comment_posted",
   "lesson_comment_edited",
   "lesson_comment_deleted",

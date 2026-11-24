@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Icon from "@/components/Icon";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import type { LessonCommentCounts } from "@/lib/data/course-comments";
 import { formatDuration, unreleasedLabel, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
@@ -72,7 +73,11 @@ function LessonRow({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block text-sm ${current ? "font-semibold" : "font-medium"}`}>{lesson.title}</span>
+        <span className={`flex items-center gap-1.5 text-sm ${current ? "font-semibold" : "font-medium"}`}>
+          <Icon name={lesson.quiz ? "quiz" : "video"} className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+          <span className="sr-only">{lesson.quiz ? "Quiz: " : "Video: "}</span>
+          {lesson.title}
+        </span>
         {completed && <span className="sr-only"> (completed)</span>}
         {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-600 dark:text-slate-400">{lesson.excerpt}</span>}
         {comingSoon ? (

@@ -439,7 +439,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       hideAnswers: false,
       passed: false,
       attempts: [],
-      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
+      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", kind: "choice", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
     });
     await renderServerPage(LessonPage, params());
 
@@ -459,7 +459,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       hideAnswers: false,
       passed: false,
       attempts: [],
-      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
+      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", kind: "choice", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
     });
     await renderServerPage(LessonPage, params());
     expect(screen.getByRole("button", { name: "Submit answers" })).toBeDisabled();

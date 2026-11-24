@@ -39,6 +39,7 @@ const THROUGH_SAFE_FETCH = [
   "src/lib/chat/link-previews.ts",
   "src/lib/chat/unfurl-image-cache.ts",
   "src/lib/landing/kajabi-import-service.ts",
+  "src/lib/landing/kajabi-lookups.ts",
   "src/lib/media/fetch-cover.ts",
   "src/lib/members/adopt-photos.ts",
 ];

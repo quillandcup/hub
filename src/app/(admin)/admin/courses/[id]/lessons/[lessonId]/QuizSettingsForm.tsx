@@ -20,6 +20,7 @@ export default function QuizSettingsForm({
   lessonTitle,
   passingPercent,
   hideAnswers,
+  hasGradedQuestions,
   editable,
   attemptCount,
 }: {
@@ -28,11 +29,13 @@ export default function QuizSettingsForm({
   lessonTitle: string;
   passingPercent: number | null;
   hideAnswers: boolean;
+  /** Some question counts toward the score. Without one there is no score, so no passing grade can apply. */
+  hasGradedQuestions: boolean;
   editable: boolean;
   attemptCount: number;
 }) {
   const router = useRouter();
-  const [graded, setGraded] = useState(passingPercent !== null);
+  const [graded, setGraded] = useState(passingPercent !== null && hasGradedQuestions);
   const [percent, setPercent] = useState(passingPercent === null ? DEFAULT_PASSING : String(passingPercent));
   const [hide, setHide] = useState(hideAnswers);
   const [busy, setBusy] = useState(false);
@@ -66,13 +69,15 @@ export default function QuizSettingsForm({
         <fieldset disabled={!editable || busy} className="space-y-5">
           <div>
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={graded} onChange={(e) => setGraded(e.target.checked)} />
+              <input type="checkbox" checked={graded} disabled={!hasGradedQuestions} onChange={(e) => setGraded(e.target.checked)} />
               Set a passing grade
             </label>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              {graded
-                ? "Members complete the lesson only when they pass. They can retake the quiz as often as they like."
-                : "Without a passing grade the quiz isn't graded: submitting it completes the lesson, whatever the score."}
+              {!hasGradedQuestions
+                ? "No question in this quiz counts toward a score, so there is nothing to pass: submitting it completes the lesson. Add a multiple choice or checkboxes question with a right answer to set a passing grade."
+                : graded
+                  ? "Members complete the lesson only when they pass. They can retake the quiz as often as they like. Short answers and file uploads are recorded, not scored."
+                  : "Without a passing grade the quiz isn't graded: submitting it completes the lesson, whatever the score."}
             </p>
             {graded && (
               <label className="mt-2 flex items-center gap-2 text-sm">

@@ -4,6 +4,8 @@ import { BLOCK_DEFAULTS } from "@/components/landing/config";
 import { ITEM_LIMITS } from "@/components/landing/item-limits";
 import type { SocialNetwork } from "@/components/landing/social-networks";
 import { safeHref, type LandingData } from "@/lib/landing/data";
+import { describeTarget } from "@/lib/landing/countdown";
+import type { KajabiLookups, KajabiReferences } from "@/lib/landing/kajabi-lookups";
 import { presetPadding } from "@/lib/landing/layout";
 import { sanitizeLandingData, sanitizeRichText } from "@/lib/landing/sanitize";
 
@@ -67,11 +69,15 @@ export type KajabiMapOptions = {
   cdnBase: string;
   /** The year for a footer's copyright line. */
   year: number;
+  /** Where Kajabi keeps courses and checkout (`kajabiCoursesUrl`): the link of a Kajabi offer the Hub doesn't know. */
+  coursesUrl: string;
+  /** What a lookup found for the export's references (kajabi-lookups.ts); without it the mapping is offline and what needs one keeps its to-do. */
+  lookups?: KajabiLookups;
 };
 
 export type KajabiMapResult =
   | { ok: false; error: string }
-  | { ok: true; data: LandingData; layout: string; importKey: string; start: PageStart; suggestedTitle: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number } };
+  | { ok: true; data: LandingData; layout: string; importKey: string; start: PageStart; suggestedTitle: string; pictures: PictureSource[]; notes: ImportNote[]; counts: { blocks: number; hidden: number }; references: KajabiReferences };
 
 type Settings = Record<string, unknown>;
 type Block = { type?: unknown; name?: unknown; hidden?: unknown; settings?: Settings };
@@ -267,7 +273,19 @@ function splitTextButtons(html: string): { html: string; anchors: TextButton[]; 
 
 // ---- blocks beyond text, pictures and forms ------------------------------------------------------------------
 
-type Ctx = { notes: ImportNote[]; pictures: Pictures; id: (type: string) => string; siteUrl: string; themeRadius: number | null };
+type Ctx = {
+  notes: ImportNote[];
+  pictures: Pictures;
+  id: (type: string) => string;
+  siteUrl: string;
+  coursesUrl: string;
+  themeRadius: number | null;
+  lookups: KajabiLookups | undefined;
+  /** What the export refers to that only a lookup can answer (reported with the result). */
+  refs: { landingPageIds: Set<string>; offerCodes: Set<string>; countdowns: KajabiReferences["countdowns"] };
+  /** Links turned into addresses of their own, counted so the report says it once. */
+  moved: { pages: Map<string, number>; knownOffers: number; otherOffers: number };
+};
 
 const settingsOf = (block: Block): Settings => (isObject(block.settings) ? block.settings : {});
 const isHiddenBlock = (block: Block) => flag(block.hidden) || (flag(settingsOf(block).hide_on_desktop) && flag(settingsOf(block).hide_on_mobile));
@@ -289,10 +307,37 @@ function liveNotes(ctx: Ctx, b: Settings, label: string) {
   if (str(b.reveal_event)) ctx.notes.push({ kind: "left_out", text: `"${label}" appears after a delay or an event in Kajabi; here it is always shown.` });
 }
 
-/** A link for a button or a card: usable as is, resolved through the Kajabi site, or empty (and said). */
+/** Kajabi's internal redirects: to the current address of one of its pages, and to an offer's checkout. */
+const PAGE_REDIRECT = /^\/resource_redirect\/landing_pages\/(\d{1,20})\/?$/;
+const OFFER_REDIRECT = /^\/resource_redirect\/offers\/([A-Za-z0-9]{3,40})\/?$/;
+
+/**
+ * A link for a button or a card: usable as is, resolved through the Kajabi site, or empty (and said). Kajabi's redirect to one of its pages
+ * becomes that page's own path when the lookup found it (kajabi-lookups.ts), and a redirect to an offer becomes the offer's checkout
+ * address (the Hub's own record of it, or else the same redirect on the courses site, where Kajabi stays).
+ */
 function checkedLink(ctx: Ctx, label: string, action: unknown, what: string): string {
-  const href = resolveLink(action, ctx.siteUrl);
   const raw = clean(str(action));
+  const page = PAGE_REDIRECT.exec(raw);
+  if (page) {
+    ctx.refs.landingPageIds.add(page[1]);
+    const path = ctx.lookups?.pagePaths[page[1]];
+    if (path && safeHref(path)) {
+      ctx.moved.pages.set(path, (ctx.moved.pages.get(path) ?? 0) + 1);
+      return path;
+    }
+  }
+  const offer = OFFER_REDIRECT.exec(raw);
+  if (offer) {
+    ctx.refs.offerCodes.add(offer[1]);
+    const known = ctx.lookups?.offerLinks[offer[1]];
+    const href = known && safeHref(known) ? known : safeHref(`${ctx.coursesUrl.replace(/\/$/, "")}/resource_redirect/offers/${offer[1]}`);
+    if (href) {
+      ctx.moved[known ? "knownOffers" : "otherOffers"] += 1;
+      return href;
+    }
+  }
+  const href = resolveLink(action, ctx.siteUrl);
   if (!href) ctx.notes.push({ kind: "todo", text: `${what} "${label}" has ${raw ? "a link that can't be used here" : "no link"}: set its link in the editor.` });
   else if (raw.startsWith("/")) ctx.notes.push({ kind: "approximated", text: `${what} "${label}" goes to a Kajabi path (${raw}) through the Kajabi site, which works while Kajabi stays; point it at the final address when the page moves.` });
   return href;
@@ -478,18 +523,31 @@ function mapAccordion(ctx: Ctx, entries: Settings[]): Puck {
   return { type: "Accordion", props: { id: ctx.id("Accordion"), items } };
 }
 
-/** The export names a Kajabi event, not its date, so the countdown has none until it is set in the editor. */
-function mapCountdown(ctx: Ctx, b: Settings, name: string): Puck {
+/**
+ * The export names a Kajabi event, not its date. When the admin gave the page's address, the lookup read the date from the live page (the
+ * instant Kajabi counts down to), and it is copied as it is; otherwise the countdown has none until it is set in the editor.
+ */
+function mapCountdown(ctx: Ctx, b: Settings, name: string, where: { sectionKey: string; blockKey: string }): Puck {
   const event = clean(str(b.event));
-  ctx.notes.push({ kind: "todo", text: `Countdown "${name}": the export names a Kajabi event${event ? ` (${event})` : ""}, not its date. Set the date in the editor; until then the countdown isn't shown to visitors.` });
+  const key = `${where.sectionKey}:${where.blockKey}`;
+  ctx.refs.countdowns.push({ key, ...where, eventId: event });
+  const found = ctx.lookups?.countdowns[key];
+  if (found?.ok) {
+    ctx.notes.push({
+      kind: "approximated",
+      text: `Countdown "${name}": the export names a Kajabi event${event ? ` (${event})` : ""}, not its date, so the date was copied from the live Kajabi page ${found.path} on ${found.readOn}: ${describeTarget(found.at)}. It is not linked to Kajabi, so change it in the editor if the date changes.${found.past ? " That time has passed, so the countdown shows zeros." : ""}`,
+    });
+  } else {
+    ctx.notes.push({ kind: "todo", text: `Countdown "${name}": the export names a Kajabi event${event ? ` (${event})` : ""}, not its date${found ? ` (and it couldn't be copied from the live page: ${found.problem})` : ""}. Set the date in the editor; until then the countdown isn't shown to visitors.` });
+  }
   if (flag(b.enable_end_action) || str(b.end_action)) ctx.notes.push({ kind: "left_out", text: `What Kajabi does when the countdown "${name}" ends (${clean(str(b.end_action)) || "an action"}) is not imported; choose what happens in the editor.` });
-  return { type: "Countdown", props: { id: ctx.id("Countdown"), ...BLOCK_DEFAULTS.Countdown, targetAt: "", heading: "", whenExpired: flag(b.remove_section_on_complete) ? "hide" : "zeros" } };
+  return { type: "Countdown", props: { id: ctx.id("Countdown"), ...BLOCK_DEFAULTS.Countdown, targetAt: found?.ok ? found.at : "", heading: "", whenExpired: flag(b.remove_section_on_complete) ? "hide" : "zeros" } };
 }
 
 /** A Kajabi-hosted video is an id in the export, with no address to play it from; the Hub plays YouTube, Vimeo and Mux. */
 function mapVideo(ctx: Ctx, b: Settings): Puck {
   const video = clean(str(b.video));
-  ctx.notes.push({ kind: "todo", text: `A video${video ? ` (Kajabi video ${video})` : ""} can't be carried over: the export has only its Kajabi id. Paste its YouTube, Vimeo or Mux link into the Video block in the editor.` });
+  ctx.notes.push({ kind: "todo", text: `A video${video ? ` (Kajabi video ${video})` : ""} can't be carried over: the export has only its Kajabi id, and Kajabi plays it from its own player, so there is no link to copy. Upload it to YouTube, Vimeo or Mux and paste that link into the Video block in the editor.` });
   return { type: "Video", props: { id: ctx.id("Video"), url: "", title: "" } };
 }
 
@@ -608,7 +666,17 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   let blockCount = 0;
   let hiddenCount = 0;
   const themeRadius = num(current.btn_border_radius);
-  const ctx: Ctx = { notes, pictures, id, siteUrl: options.siteUrl, themeRadius };
+  const ctx: Ctx = {
+    notes,
+    pictures,
+    id,
+    siteUrl: options.siteUrl,
+    coursesUrl: options.coursesUrl,
+    themeRadius,
+    lookups: options.lookups,
+    refs: { landingPageIds: new Set(), offerCodes: new Set(), countdowns: [] },
+    moved: { pages: new Map(), knownOffers: 0, otherOffers: 0 },
+  };
   /** Embedded code that runs a script or loads another site: never imported, said once for the page. */
   const leftOutCode = { count: 0, hosts: new Set<string>() };
   /** Buttons found inside text blocks and made into Button blocks after their text. */
@@ -618,6 +686,8 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const header = sections.header;
   const headerHidden = header && isObject(header.settings) && flag(header.settings.hide_on_desktop) && flag(header.settings.hide_on_mobile);
   let headerLogo: Puck | null = null;
+  /** The logo's file says it is the white version (Kajabi keeps a dark one for pale pages; the export has only the one in use). */
+  let headerLogoWhite = false;
   const headerOverlays = Boolean(header && isObject(header.settings) && str(header.settings.position) === "overlay");
   if (header && !headerHidden) {
     for (const key of Array.isArray(header.block_order) ? (header.block_order as string[]) : []) {
@@ -626,6 +696,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
       if (!b || flag(b.hidden)) continue;
       if (b.type === "logo" && str(s.logo_type) !== "text" && str(s.logo)) {
         const width = num(s.logo_width) ?? 300;
+        headerLogoWhite = /white/i.test(str(s.logo).split("/").pop() ?? "");
         if (!clean(str(s.image_alt)) || clean(str(s.image_alt)) === "Header Logo") notes.push({ kind: "todo", text: "The picture at the top has no description: add one in the editor (or mark it decorative) before publishing." });
         headerLogo = {
           type: "Image",
@@ -666,7 +737,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const wholeCard = shown.length > 0 && shown.every(hasFill);
     const words: string[] = [];
     // The header's logo is over the page's top picture in Kajabi ("overlay"): where the picture is this section's, it stays out of the card.
-    const logoOutside = first && headerLogo !== null && headerOverlays && str(s.bg_type).includes("image") && Boolean(str(s.bg_image));
+    const logoOutside = first && headerLogo !== null && headerOverlays && (str(s.bg_type).includes("image") || str(s.bg_type).includes("video")) && Boolean(str(s.bg_image));
     if (first && headerLogo && !logoOutside) inner.push(headerLogo);
     first = false;
 
@@ -704,6 +775,26 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         const alt = clean(str(b.image_alt));
         if (!alt) notes.push({ kind: "todo", text: `A picture has no description: add one in the editor (or mark it decorative) before publishing.` });
         if (str(b.img_action)) notes.push({ kind: "left_out", text: `A picture that links somewhere in Kajabi is a plain picture here.` });
+        // A narrow picture with a text block of the rest of the row right after it (a testimonial: the face, then the words) is one Split: the picture beside its words.
+        const nextKey = blockOrder[index + 1];
+        const next = nextKey && !consumed.has(nextKey) ? blocks[nextKey] : undefined;
+        const nb = next ? settingsOf(next) : null;
+        const nextWidth = nb ? num(nb.width) : null;
+        if (next && nb && str(next.type) === "text" && !isHiddenBlock(next) && rgb(nb.background_color) === null && width !== null && width <= 5 && nextWidth !== null && nextWidth <= 8 && width + nextWidth <= 12) {
+          consumed.add(nextKey);
+          const nextName = clean(str(next.name)) || "text";
+          liveNotes(ctx, nb, nextName);
+          const parts = splitTextButtons(str(nb.text));
+          if (parts.media > 0) notes.push({ kind: "left_out", text: `The text block "${nextName}" has ${parts.media === 1 ? "a picture or embed" : `${parts.media} pictures or embeds`} inside it, which rich text here can't hold; add ${parts.media === 1 ? "it" : "them"} as ${parts.media === 1 ? "a Picture or Video block" : "Picture or Video blocks"} if you want ${parts.media === 1 ? "it" : "them"}.` });
+          inner.push({ type: "Split", props: { id: id("Split"), imageAssetId: ref, alt, decorative: false, imageSide: "left", html: sanitizeRichText(parts.html).replace(/<p>\s*<\/p>/g, "") } });
+          const made = mapTextButtons(ctx, nb, nextName, parts.anchors);
+          inner.push(...made);
+          textButtons += made.length;
+          words.push(str(nb.text));
+          blockCount += inner.length - before;
+          widths.push(width + nextWidth);
+          continue;
+        }
         inner.push({ type: "Image", props: { id: id("Image"), imageAssetId: ref, alt, decorative: false, size: width !== null && width <= 3 ? "small" : width !== null && width <= 8 ? "medium" : "full", rounded: false, align: "center" } });
       } else if (type === "cta") {
         inner.push(makeButton(ctx, b, label));
@@ -725,7 +816,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         }
         inner.push(mapAccordion(ctx, group.map((k) => settingsOf(blocks[k]))));
       } else if (type === "countdown") {
-        inner.push(mapCountdown(ctx, b, name));
+        inner.push(mapCountdown(ctx, b, name, { sectionKey: sectionId, blockKey: key }));
       } else if (type === "video") {
         inner.push(mapVideo(ctx, b));
       } else if (type === "link_list") {
@@ -764,12 +855,15 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
       } else if (type === "form") {
         inner.push(...textBlocks(str(b.text), alignOf(b.text_align), id));
         const formId = clean(str(b.form));
-        notes.push({ kind: "todo", text: `Choose the Kajabi form for the sign-up form${formId ? ` (the export names form ${formId}, not its name)` : ""} in the editor; until then it isn't shown to visitors.` });
+        // The export's form id is the id of the owner's own Kajabi form (the one its public page posts to), which is what the sign-up form's relay submits to.
+        const usable = /^\d{1,20}$/.test(formId);
+        if (usable) notes.push({ kind: "approximated", text: `The sign-up form is connected to the Kajabi form the export names (${formId}; the export doesn't carry its name): check in the editor that it is the form you want.` });
+        else notes.push({ kind: "todo", text: `Choose the Kajabi form for the sign-up form${formId ? ` (the export names form ${formId}, not its name)` : ""} in the editor; until then it isn't shown to visitors.` });
         notes.push({ kind: "todo", text: "The export doesn't list the form's fields. The sign-up form asks for name and email; turn on the Instagram handle in the editor if the Kajabi form asks for it." });
         const thanks = resolveLink(b.thank_you, options.siteUrl);
         inner.push({
           type: "OptInForm",
-          props: { id: id("OptInForm"), ...BLOCK_DEFAULTS.OptInForm, kajabiFormId: "", buttonLabel: clean(str(b.btn_text)) || BLOCK_DEFAULTS.OptInForm.buttonLabel, reassurance: clean(str(b.disclaimer_text)), href: thanks },
+          props: { id: id("OptInForm"), ...BLOCK_DEFAULTS.OptInForm, kajabiFormId: usable ? formId : "", buttonLabel: clean(str(b.btn_text)) || BLOCK_DEFAULTS.OptInForm.buttonLabel, reassurance: clean(str(b.disclaimer_text)), href: thanks },
         });
       } else {
         notes.push({ kind: "left_out", text: `"${name}" (${type || "unknown"} block) is not imported: it has no counterpart here yet.` });
@@ -806,19 +900,28 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const counts = new Map<number, number>();
     for (const w of widths) counts.set(w, (counts.get(w) ?? 0) + 1);
     const common = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 12;
-    const bgPicture = str(s.bg_type).includes("image") ? pictures.add(s.bg_image) : null;
-    if (str(s.bg_video)) notes.push({ kind: "left_out", text: "A section background video is not imported." });
+    // A background video has a still (its poster) in `bg_image`: that is the picture here, and the video is not imported.
+    const bgIsVideo = str(s.bg_type).includes("video");
+    const bgPicture = str(s.bg_type).includes("image") || (bgIsVideo && str(s.bg_image)) ? pictures.add(s.bg_image) : null;
+    if (str(s.bg_video) || bgIsVideo) {
+      notes.push({ kind: "left_out", text: bgPicture ? "A section background video is not imported; its still picture is the section's background picture here." : "A section background video is not imported, and it has no still picture: the section has a plain background." });
+    }
+    const bgPosition = str(s.bg_position) === "top" ? "top" : str(s.bg_position) === "bottom" ? "bottom" : "center";
+    const bgFixed = bgPicture !== null && flag(s.background_fixed);
+    if (bgFixed) notes.push({ kind: "approximated", text: "The section's picture stays still while the page scrolls (as in Kajabi) on a computer; on a phone it scrolls with the section." });
     const bgColor = rgb(s.background_color);
     const tint = bgColor ? { color: bgColor, alpha: alphaOf(s.background_color) } : null;
     // Over a picture, the section's colour is a tint on it (a light one with a low opacity washes the picture out); without one it is the background.
     let overlay: "none" | "dark" | "light" | "cream" = "none";
     if (bgPicture) {
-      if (tint && lightness(tint.color) >= 0.6) overlay = tint.alpha >= 0.6 ? "light" : "cream";
+      // A very faint tint (a quarter strength or less) leaves the picture as it is.
+      if (tint && lightness(tint.color) >= 0.6 && tint.alpha < 0.25) overlay = "none";
+      else if (tint && lightness(tint.color) >= 0.6) overlay = tint.alpha >= 0.6 ? "light" : "cream";
       else overlay = "dark";
       notes.push({
         kind: "approximated",
         text: tint
-          ? `The section's picture has a ${lightness(tint.color) >= 0.6 ? "light" : "dark"} tint in Kajabi (${str(s.background_color)}); it is a ${overlay === "dark" ? "dark" : overlay === "light" ? "light" : "soft cream"} shade here, which is the nearest we offer (the exact colour and strength are not carried over).`
+          ? `The section's picture has a ${lightness(tint.color) >= 0.6 ? "light" : "dark"} tint in Kajabi (${str(s.background_color)}); it is ${overlay === "none" ? "left without a shade" : `a ${overlay === "dark" ? "dark" : overlay === "light" ? "light" : "soft cream"} shade`} here, which is the nearest we offer (the exact colour and strength are not carried over).`
           : "A dark shade was added over the section's background picture so the text stays readable.",
       });
     }
@@ -841,21 +944,71 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     // Kajabi's "full width" lets the blocks spread; a block of half the row is still half the page, so only a section of wide blocks is full width.
     const sectionWidth = flag(s.full_width) && common >= 11 ? "full" : common <= 6 || (boxed && common === 7) ? "narrow" : common <= 9 ? "medium" : "wide";
     const spacing = presetPadding(padding >= 60 ? "large" : "medium");
+    // The section's own space above and below, as Kajabi has it (the preset is only for a side that is blank).
+    const own = (name: "padding_desktop" | "padding_mobile", side: "top" | "bottom") => (isObject(s[name]) ? num((s[name] as Record<string, unknown>)[side]) : null);
+    const space = {
+      paddingDesktop: { ...spacing.paddingDesktop, top: own("padding_desktop", "top") ?? spacing.paddingDesktop.top, bottom: own("padding_desktop", "bottom") ?? spacing.paddingDesktop.bottom },
+      paddingMobile: { ...spacing.paddingMobile, top: own("padding_mobile", "top") ?? spacing.paddingMobile.top, bottom: own("padding_mobile", "bottom") ?? spacing.paddingMobile.bottom },
+    };
+    const picture = { backgroundPosition: bgPosition, backgroundFixed: bgFixed };
 
-    if (logoOutside && headerLogo) {
+    // A white logo over a pale band is invisible: it gets a band of its own in plum (Kajabi's other logo is not in the export).
+    const lightBehind = bgPicture ? overlay !== "dark" : !["plum", "brownMid", "brown", "charcoal"].includes(bgPick.key);
+    const logoHere = headerLogo !== null && (logoOutside || inner[0] === headerLogo);
+    let logoBand: Puck | null = null;
+    if (headerLogo && logoHere && headerLogoWhite && lightBehind) {
+      if (inner[0] === headerLogo) inner.shift();
+      logoBand = { type: "Section", props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "plum", width: "wide", ...presetPadding("small"), align: "center", content: [headerLogo] } };
+      notes.push({ kind: "approximated", text: "The logo is the white version, which can't be seen on this pale picture: it sits on a plum band above the section. Swap in the dark logo in the editor if you would rather have it on the picture." });
+    }
+    const logoInBand = logoOutside && !logoBand;
+
+    // A card in the left of the page is a Section of its own, as many of the columns as Kajabi's block takes (with a little extra for the wider page there), so its width and place follow Kajabi's.
+    const leftCard = boxed && place === "left" && common >= 4 && common <= 11;
+    if ((logoInBand && headerLogo) || leftCard) {
       // The picture and its shade are the band; the logo sits on it, and the card is a Section of its own inside, so the logo is not in the card.
-      const logoAlign = place === "center" ? "center" : (headerLogo.props.align as string);
-      headerLogo.props.align = logoAlign;
+      if (logoInBand && headerLogo) headerLogo.props.align = place === "center" ? "center" : (headerLogo.props.align as string);
+      const sideless = { left: 0, right: 0 };
       const inside: Puck = {
         type: "Section",
-        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "none", overlay: "none", width: sectionWidth, ...zeroVertical(), align: textAlign, place, card: boxed, cardColor, cardSoft, textTone: tone, content: inner },
+        props: {
+          ...BLOCK_DEFAULTS.Section,
+          id: id("Section"),
+          background: "none",
+          overlay: "none",
+          width: leftCard ? "wide" : sectionWidth,
+          paddingDesktop: { ...space.paddingDesktop, ...sideless, top: logoInBand ? space.paddingDesktop.top : 0, bottom: 0 },
+          paddingMobile: { ...space.paddingMobile, ...sideless, top: logoInBand ? space.paddingMobile.top : 0, bottom: 0 },
+          align: textAlign,
+          place: leftCard ? "center" : place,
+          card: boxed,
+          cardColor,
+          cardSoft,
+          textTone: tone,
+          ...(leftCard ? { span: Math.min(12, Math.round(common * 1.15)), spanMobile: 12 } : {}),
+          content: inner,
+        },
       };
+      if (logoBand) content.push(logoBand);
       content.push({
         type: "Section",
-        props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: bgPick.key, backgroundImageAssetId: bgPicture ?? undefined, overlay, width: "wide", ...spacing, align: "center", content: [headerLogo, inside] },
+        props: {
+          ...BLOCK_DEFAULTS.Section,
+          id: id("Section"),
+          background: bgPick.key,
+          backgroundImageAssetId: bgPicture ?? undefined,
+          ...picture,
+          overlay,
+          width: "wide",
+          paddingDesktop: { ...space.paddingDesktop, top: logoInBand ? 24 : space.paddingDesktop.top },
+          paddingMobile: { ...space.paddingMobile, top: logoInBand ? 16 : space.paddingMobile.top },
+          align: "center",
+          content: logoInBand && headerLogo ? [headerLogo, inside] : [inside],
+        },
       });
       continue;
     }
+    if (logoBand) content.push(logoBand);
     content.push({
       type: "Section",
       props: {
@@ -863,9 +1016,10 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         id: id("Section"),
         background: bgPick.key,
         backgroundImageAssetId: bgPicture ?? undefined,
+        ...picture,
         overlay,
         width: sectionWidth,
-        ...spacing,
+        ...space,
         align: textAlign,
         place,
         card: boxed,
@@ -878,6 +1032,12 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   }
 
   if (textButtons > 0) notes.push({ kind: "approximated", text: `${textButtons} button${textButtons === 1 ? "" : "s"} inside text blocks ${textButtons === 1 ? "is" : "are"} now ${textButtons === 1 ? "a Button block" : "Button blocks"} right after ${textButtons === 1 ? "its" : "their"} text.` });
+  if (ctx.moved.pages.size > 0) {
+    const where = [...ctx.moved.pages.entries()].map(([path, n]) => `${path}${n > 1 ? ` (${n} links)` : ""}`).join(", ");
+    notes.push({ kind: "approximated", text: `Links to other Kajabi pages now go to the address Kajabi sends them to: ${where}. Once the root domain serves the Hub these open the Hub's page at that address, or the Kajabi page on the courses site if there is none; before that they only work on the Kajabi site itself.` });
+  }
+  if (ctx.moved.knownOffers > 0) notes.push({ kind: "approximated", text: `Offer links: ${ctx.moved.knownOffers} now go to the offer's checkout page, as the Hub already knows it (checkout stays in Kajabi).` });
+  if (ctx.moved.otherOffers > 0) notes.push({ kind: "approximated", text: `Offer links: ${ctx.moved.otherOffers} go to the offer through the courses site (${ctx.coursesUrl}), where Kajabi stays, because the Hub doesn't know the offer; that address works once the courses site is set up.` });
   if (leftOutCode.count > 0) {
     const hosts = [...leftOutCode.hosts].slice(0, 3).join(", ");
     notes.push({ kind: "left_out", text: `${leftOutCode.count} embedded code block${leftOutCode.count === 1 ? "" : "s"} ${leftOutCode.count === 1 ? "runs" : "run"} a script or load${leftOutCode.count === 1 ? "s" : ""} another site${hosts ? ` (${hosts})` : ""}, which the Hub never allows on a page. Add what they showed (products, buttons) with our blocks.` });
@@ -904,7 +1064,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
   const data = sanitizeLandingData({ content, root: { props: root } });
   const layout = layoutFingerprint(order, sections);
   const start = pageStart(data);
-  return { ok: true, data, layout, importKey: layoutKeyOf(layout), start, suggestedTitle: suggestTitle(start), pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount } };
+  return { ok: true, data, layout, importKey: layoutKeyOf(layout), start, suggestedTitle: suggestTitle(start), pictures: pictures.list, notes, counts: { blocks: blockCount, hidden: hiddenCount }, references: { landingPageIds: [...ctx.refs.landingPageIds], offerCodes: [...ctx.refs.offerCodes], countdowns: ctx.refs.countdowns } };
 }
 
 /**

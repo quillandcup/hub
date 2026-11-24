@@ -78,12 +78,18 @@ const LIGHT_OVERLAYS: readonly string[] = ["light", "cream"];
 const PLACE = { left: "mr-auto", center: "mx-auto", right: "ml-auto" } as const;
 /** With Fill the page, where the content sits in the grown section: at the top, in the middle (the default) or at the bottom. */
 const VERTICAL = { top: "justify-start", center: "justify-center", bottom: "justify-end" } as const;
+/** Where the Section's picture is anchored. */
+const BG_POSITION = { top: "top", center: "center", bottom: "bottom" } as const;
 /** A card in one of the theme's colours, solid or softened (80%) so the picture shows faintly through. Full class strings, so Tailwind finds them. */
 const CARD_SOFT = { white: "bg-white/80", cream: "bg-cream/80", blush: "bg-blush/80", mist: "bg-mist-200/80", plum: "bg-plum-700/80", brownMid: "bg-brown/80", brown: "bg-brown-deep/80", charcoal: "bg-cup/80" } as const;
 
 export type SectionProps = {
   background: string;
   backgroundImageAssetId?: string;
+  /** Which part of the picture stays in view when the band is not the picture's shape: the top (heads stay in), the middle (the default) or the bottom. */
+  backgroundPosition?: "top" | "center" | "bottom";
+  /** Keep the picture still while the page scrolls, so it is sized to the screen and not to a tall band. Desktop only: on a phone it scrolls with the band, as fixed pictures are unreliable there. */
+  backgroundFixed?: boolean;
   overlay: "none" | "dark" | "light" | "cream";
   width: string;
   /** Inner space in px, per size (src/lib/landing/layout.ts); a missing or invalid side takes the default. */
@@ -115,7 +121,7 @@ export type SectionProps = {
 const SECTION_GRID = "grid grid-cols-12 gap-x-4 @split:gap-x-6";
 
 /** A full-width band with a background colour or picture, and a 12-column grid of other blocks inside it. */
-export function Section({ background: bg, backgroundImageAssetId, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, fill, verticalAlign, content: Content, editing }: SectionProps) {
+export function Section({ background: bg, backgroundImageAssetId, backgroundPosition, backgroundFixed, overlay, width, paddingDesktop, paddingMobile, hideOnDesktop, hideOnMobile, align, card, cardColor, cardSoft, place, textTone, fadeIn, fill, verticalAlign, content: Content, editing }: SectionProps) {
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
@@ -125,7 +131,8 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
   const tone = textTone === "plum" ? "text-accent-ink" : "";
   // A card in a theme colour carries its own readable text (and keeps light text light in dark mode); the standard card is the page's white.
   const cardTheme = cardColor && cardColor !== "default" && cardColor in BACKGROUNDS ? background(cardColor) : null;
-  const cardClass = cardTheme ? `${cardSoft ? CARD_SOFT[cardColor as keyof typeof CARD_SOFT] : cardTheme.bg} ${cardTheme.text} ${cardTheme.scope}` : `${cardSoft ? "bg-card/80" : "bg-card"} text-ink`;
+  // Plum text reaches into the card too: the card sets its own text colour, so the tone replaces it there.
+  const cardClass = cardTheme ? `${cardSoft ? CARD_SOFT[cardColor as keyof typeof CARD_SOFT] : cardTheme.bg} ${tone || cardTheme.text} ${cardTheme.scope}` : `${cardSoft ? "bg-card/80" : "bg-card"} ${tone || "text-ink"}`;
   // Content narrower than the page sits at `place`: the frame is the wide column and the content is its left, middle or right.
   const placed = place === "left" || place === "right";
   const body = card ? (
@@ -141,8 +148,8 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
   const hide = hideClass(Boolean(hideOnDesktop), Boolean(hideOnMobile), Boolean(editing));
   return (
     <section
-      className={`relative ${fills ? `lp-fill flex flex-col ${pick(VERTICAL, verticalAlign, "center")}` : ""} ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${fills ? hide.replace("@split:block", "@split:flex") : hide} ${fadeIn ? "landing-fade-in" : ""}`}
-      style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}
+      className={`relative ${fills ? `lp-fill flex flex-col ${pick(VERTICAL, verticalAlign, "center")}` : ""} ${theme.bg} ${text} ${scope} ${SECTION_SPACE} ${image && backgroundFixed === true ? "@split:bg-fixed" : ""} ${fills ? hide.replace("@split:block", "@split:flex") : hide} ${fadeIn ? "landing-fade-in" : ""}`}
+      style={{ ...sectionVars(space.desktop, space.mobile), ...(image ? { backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: pick(BG_POSITION, backgroundPosition, "center") } : {}) }}
     >
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}
       <div className={`relative mx-auto ${fills ? "w-full" : ""} ${placed ? WIDTHS.wide.cls : pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")} ${tone}`}>

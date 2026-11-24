@@ -7074,19 +7074,31 @@ export type Database = {
       }
       quiz_attempt_answers: {
         Row: {
+          answer_text: string | null
           attempt_id: string
+          file_bytes: number | null
+          file_name: string | null
+          file_path: string | null
           is_correct: boolean | null
           question_id: string
           selected_option_ids: string[]
         }
         Insert: {
+          answer_text?: string | null
           attempt_id: string
+          file_bytes?: number | null
+          file_name?: string | null
+          file_path?: string | null
           is_correct?: boolean | null
           question_id: string
           selected_option_ids?: string[]
         }
         Update: {
+          answer_text?: string | null
           attempt_id?: string
+          file_bytes?: number | null
+          file_name?: string | null
+          file_path?: string | null
           is_correct?: boolean | null
           question_id?: string
           selected_option_ids?: string[]
@@ -7201,7 +7213,9 @@ export type Database = {
         Row: {
           allows_multiple: boolean
           created_at: string
+          graded: boolean
           id: string
+          kind: string
           position: number
           prompt: string
           quiz_id: string
@@ -7211,7 +7225,9 @@ export type Database = {
         Insert: {
           allows_multiple?: boolean
           created_at?: string
+          graded?: boolean
           id?: string
+          kind?: string
           position?: number
           prompt: string
           quiz_id: string
@@ -7221,7 +7237,9 @@ export type Database = {
         Update: {
           allows_multiple?: boolean
           created_at?: string
+          graded?: boolean
           id?: string
+          kind?: string
           position?: number
           prompt?: string
           quiz_id?: string
@@ -9701,6 +9719,18 @@ export type Database = {
       save_quiz_question: {
         Args: {
           p_allows_multiple: boolean
+          p_options: Json
+          p_prompt: string
+          p_question_id: string
+          p_quiz_id: string
+        }
+        Returns: string
+      }
+      save_quiz_question_of_kind: {
+        Args: {
+          p_allows_multiple: boolean
+          p_graded: boolean
+          p_kind: string
           p_options: Json
           p_prompt: string
           p_question_id: string

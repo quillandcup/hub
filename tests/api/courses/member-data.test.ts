@@ -135,6 +135,16 @@ describe('Course member data', () => {
       expect(view!.course.title).toBe(`Member Data ${ts}`)
     })
 
+    it('flags the lessons that are quizzes, and only those', async () => {
+      const { data: quiz } = await supabase.from('quizzes').insert({ lesson_id: ids.lessonB }).select('id').single()
+      try {
+        const view = await loadCourseView(createRepos(supabase), SLUG, scope('current'))
+        expect(view!.outline!.lessons.map((l) => [l.title, l.quiz])).toEqual([['A', false], ['Soon', false], ['B', true]])
+      } finally {
+        await supabase.from('quizzes').delete().eq('id', quiz!.id)
+      }
+    })
+
     it('gives the outline in order, with coming-soon lessons included', async () => {
       const view = await loadCourseView(createRepos(supabase), SLUG, scope('current'))
       expect(view!.outline!.lessons.map((l) => l.title)).toEqual(['A', 'Soon', 'B'])

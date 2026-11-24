@@ -31,7 +31,7 @@ export default async function QuizLessonPage({ idParam, lessonId, tab }: { idPar
   if (!quiz) notFound();
   const base = `/admin/courses/${idParam}/lessons/${lessonId}`;
   const results = tab === "results" ? await loadQuizResults(repos, quiz.quiz.id) : null;
-  const graded = quiz.quiz.passingPercent !== null;
+  const graded = quiz.hasGradedQuestions && quiz.quiz.passingPercent !== null;
 
   return (
     <>
@@ -48,14 +48,14 @@ export default async function QuizLessonPage({ idParam, lessonId, tab }: { idPar
               <h2 className="mb-1 text-lg font-semibold">Questions</h2>
               <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
                 {graded ? `Members need ${quiz.quiz.passingPercent}% to pass.` : "No passing grade: submitting the quiz completes the lesson."}{" "}
-                {quiz.quiz.hideAnswers ? "Members don't see which answers were right." : "Members see which answers were right."}
+                {quiz.hasGradedQuestions ? (quiz.quiz.hideAnswers ? "Members don't see which answers were right." : "Members see which answers were right.") : "Nothing in it is scored."}
               </p>
               <QuizQuestionsEditor
                 courseId={quiz.course.id}
                 lessonId={quiz.lesson.id}
                 editable={quiz.editable}
                 attemptCount={quiz.attemptCount}
-                questions={quiz.questions.map((q) => ({ id: q.id, prompt: q.prompt, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })) }))}
+                questions={quiz.questions.map((q) => ({ id: q.id, prompt: q.prompt, kind: q.kind, graded: q.graded, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })) }))}
               />
             </>
           )}
@@ -68,6 +68,7 @@ export default async function QuizLessonPage({ idParam, lessonId, tab }: { idPar
                 lessonTitle={quiz.lesson.title}
                 passingPercent={quiz.quiz.passingPercent}
                 hideAnswers={quiz.quiz.hideAnswers}
+                hasGradedQuestions={quiz.hasGradedQuestions}
                 editable={quiz.editable}
                 attemptCount={quiz.attemptCount}
               />
@@ -76,7 +77,7 @@ export default async function QuizLessonPage({ idParam, lessonId, tab }: { idPar
           {tab === "results" && results && (
             <>
               <h2 className="mb-4 text-lg font-semibold">Results</h2>
-              <QuizResultsTable rows={results} graded={graded} />
+              <QuizResultsTable rows={results} graded={graded} base={base} canOpenAnswers={quiz.hasOpenQuestions} />
             </>
           )}
         </div>

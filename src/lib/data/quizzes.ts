@@ -2,6 +2,7 @@ import { fetchAllRows } from "@/lib/supabase/paginate";
 import { compareText, inChunks, must } from "./query";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import type { QuestionKind } from "@/lib/courses/quiz-scoring";
 
 /** How a lesson is a quiz: a `quizzes` row points at it (one per lesson). Settings only; title, text and status are the lesson's. */
 export type QuizRecord = {
@@ -18,6 +19,9 @@ export type QuizRecord = {
 };
 export type QuizSettings = { passingPercent: number | null; hideAnswers: boolean };
 
+/** What kind of answer a question takes: pick options, write text, or upload one file. */
+export type { QuestionKind };
+
 export type QuizOptionRecord = { id: string; position: number; label: string; isCorrect: boolean; sourceKey: string | null };
 /** A question with its options, correct answers included: for staff and the server's scoring only, never sent to a member before they submit. */
 export type QuizQuestionRecord = {
@@ -25,12 +29,16 @@ export type QuizQuestionRecord = {
   quizId: string;
   position: number;
   prompt: string;
+  kind: QuestionKind;
+  /** Counts toward the score: only a choice question with a right answer marked. A short answer or a file upload never does. */
+  graded: boolean;
   allowsMultiple: boolean;
   sourceKey: string | null;
   options: QuizOptionRecord[];
 };
 /** What the builder sends for one question; an option with an `id` keeps it (so past answers still point at it). */
-export type QuizQuestionInput = { prompt: string; allowsMultiple: boolean; options: { id?: string; label: string; isCorrect: boolean }[] };
+/** `kind` and `graded` default to a graded choice question. */
+export type QuizQuestionInput = { prompt: string; kind?: QuestionKind; graded?: boolean; allowsMultiple: boolean; options: { id?: string; label: string; isCorrect: boolean }[] };
 
 export type QuizAttemptRecord = {
   id: string;
@@ -43,7 +51,19 @@ export type QuizAttemptRecord = {
   passed: boolean;
   submittedAt: string;
 };
-export type QuizAttemptAnswerRecord = { attemptId: string; questionId: string; selectedOptionIds: string[]; isCorrect: boolean | null };
+/** A file a member uploaded as an answer: where it is in the private bucket, the name it had, and its size. */
+export type AnswerFile = { path: string; name: string; bytes: number };
+export type QuizAttemptAnswerRecord = {
+  attemptId: string;
+  questionId: string;
+  selectedOptionIds: string[];
+  isCorrect: boolean | null;
+  /** What the member typed for a short answer question; null for any other. */
+  answerText: string | null;
+  /** The file they uploaded for a file upload question; null for any other, or when they skipped it. */
+  file: AnswerFile | null;
+};
+export type NewQuizAnswer = { questionId: string; selectedOptionIds: string[]; isCorrect: boolean | null; answerText?: string | null; file?: AnswerFile | null };
 export type NewQuizAttempt = {
   quizId: string;
   memberId: string;
@@ -53,7 +73,7 @@ export type NewQuizAttempt = {
   passed: boolean;
   /** When it was submitted; now when omitted (for seeding and imports). */
   submittedAt?: string;
-  answers: { questionId: string; selectedOptionIds: string[]; isCorrect: boolean | null }[];
+  answers: NewQuizAnswer[];
 };
 
 /** A quiz as Kajabi has it, for the Silver step: every question and option carries Kajabi's key, so a re-import updates rows in place. */
@@ -62,7 +82,7 @@ export type ImportedQuiz = {
   sourceKey: string;
   passingPercent: number | null;
   hideAnswers: boolean;
-  questions: { sourceKey: string; prompt: string; allowsMultiple: boolean; options: { sourceKey: string; label: string; isCorrect: boolean }[] }[];
+  questions: { sourceKey: string; prompt: string; kind?: QuestionKind; graded?: boolean; allowsMultiple: boolean; options: { sourceKey: string; label: string; isCorrect: boolean }[] }[];
 };
 /** What syncing one imported quiz did: skipped when the lesson isn't there or isn't Kajabi's. */
 export type QuizSyncResult = { status: "synced" | "skipped"; questions: number; options: number; removedQuestions: number };
@@ -104,18 +124,24 @@ export interface QuizRepository {
 
   /** The quiz's questions in order, each with its options in order and which are correct. Staff and the server only. */
   questionsOf(quizId: string): Promise<QuizQuestionRecord[]>;
-  /** Saves one question whole (a new one when `questionId` is null) and returns its id. Throws `QuizWriteError` with `invalid_question` for a bad shape. */
+  /** Saves one question whole (a new one when `questionId` is null; the kind of an existing one can't change) and returns its id. Throws `QuizWriteError` with `invalid_question` for a bad shape. */
   saveQuestion(quizId: string, questionId: string | null, input: QuizQuestionInput): Promise<string>;
   deleteQuestion(quizId: string, questionId: string): Promise<void>;
   /** Puts the questions in this order; the list must be exactly the current ones (`stale_order` otherwise). */
   reorderQuestions(quizId: string, questionIds: string[]): Promise<void>;
 
-  /** Stores a scored attempt and its answers (service role: the server scores first). */
+  /** Stores an attempt and its answers: picks, typed text and uploaded files (service role: the server scores first). */
   recordAttempt(attempt: NewQuizAttempt): Promise<QuizAttemptRecord>;
   /** A member's attempts at a quiz, newest first. */
   attemptsOf(memberId: string, quizId: string): Promise<QuizAttemptRecord[]>;
-  /** What was picked in one attempt, by question. */
+  /** What was picked, typed and uploaded in one attempt, by question. */
   answersOf(attemptId: string): Promise<QuizAttemptAnswerRecord[]>;
+  /** What was picked, typed and uploaded in each of these attempts (one batch for a list of attempts), in a stable order. */
+  answersOfAttempts(attemptIds: string[]): Promise<QuizAttemptAnswerRecord[]>;
+  /** The stored paths of the files members uploaded as answers to these questions (to delete from storage with them). */
+  answerFilePathsOfQuestions(questionIds: string[]): Promise<string[]>;
+  /** One attempt, or null when there is none (the caller checks who may read it: the member it belongs to, or staff). */
+  attemptById(attemptId: string): Promise<QuizAttemptRecord | null>;
   /** Every attempt at a quiz, newest first (paginated past 1000). */
   attemptsOfQuiz(quizId: string): Promise<QuizAttemptRecord[]>;
   /** Whether the member has a passing attempt at the quiz. */
@@ -135,6 +161,24 @@ export interface QuizRepository {
 }
 
 type QuizRow = Row<"quizzes">;
+const answerRow = (attemptId: string, a: NewQuizAnswer): Row<"quiz_attempt_answers"> => ({
+  attempt_id: attemptId,
+  question_id: a.questionId,
+  selected_option_ids: a.selectedOptionIds,
+  is_correct: a.isCorrect,
+  answer_text: a.answerText ?? null,
+  file_path: a.file?.path ?? null,
+  file_name: a.file?.name ?? null,
+  file_bytes: a.file?.bytes ?? null,
+});
+const toAnswer = (r: Row<"quiz_attempt_answers">): QuizAttemptAnswerRecord => ({
+  attemptId: r.attempt_id,
+  questionId: r.question_id,
+  selectedOptionIds: r.selected_option_ids,
+  isCorrect: r.is_correct,
+  answerText: r.answer_text,
+  file: r.file_path !== null && r.file_name !== null && r.file_bytes !== null ? { path: r.file_path, name: r.file_name, bytes: r.file_bytes } : null,
+});
 const toQuiz = (row: QuizRow): QuizRecord => ({
   id: row.id,
   lessonId: row.lesson_id,
@@ -208,6 +252,8 @@ export class SupabaseQuizRepository implements QuizRepository {
       quizId: q.quiz_id,
       position: q.position,
       prompt: q.prompt,
+      kind: q.kind as QuestionKind,
+      graded: q.graded,
       allowsMultiple: q.allows_multiple,
       sourceKey: q.source_key,
       options: options
@@ -218,11 +264,13 @@ export class SupabaseQuizRepository implements QuizRepository {
   }
 
   async saveQuestion(quizId: string, questionId: string | null, input: QuizQuestionInput) {
-    const { data, error } = await this.db.rpc("save_quiz_question", {
+    const { data, error } = await this.db.rpc("save_quiz_question_of_kind", {
       p_quiz_id: quizId,
       // The function treats null as "a new question"; the generated argument type doesn't allow it.
       p_question_id: questionId as string,
       p_prompt: input.prompt,
+      p_kind: input.kind ?? "choice",
+      p_graded: input.graded ?? true,
       p_allows_multiple: input.allowsMultiple,
       p_options: input.options.map((o) => ({ ...(o.id ? { id: o.id } : {}), label: o.label, is_correct: o.isCorrect })),
     });
@@ -258,7 +306,7 @@ export class SupabaseQuizRepository implements QuizRepository {
     if (attempt.answers.length) {
       const { error } = await this.db
         .from("quiz_attempt_answers")
-        .insert(attempt.answers.map((a) => ({ attempt_id: row.id, question_id: a.questionId, selected_option_ids: a.selectedOptionIds, is_correct: a.isCorrect })));
+        .insert(attempt.answers.map((a) => answerRow(row.id, a)));
       if (error) {
         // Don't keep an attempt without its answers: a retry then records it whole.
         await this.db.from("quiz_attempts").delete().eq("id", row.id);
@@ -275,7 +323,22 @@ export class SupabaseQuizRepository implements QuizRepository {
 
   async answersOf(attemptId: string) {
     const rows = must(await this.db.from("quiz_attempt_answers").select("*").eq("attempt_id", attemptId).order("question_id")) ?? [];
-    return rows.map((r) => ({ attemptId: r.attempt_id, questionId: r.question_id, selectedOptionIds: r.selected_option_ids, isCorrect: r.is_correct }));
+    return rows.map(toAnswer);
+  }
+
+  async answersOfAttempts(attemptIds: string[]) {
+    const rows = await inChunks(attemptIds, ID_CHUNK, async (part) => must(await this.db.from("quiz_attempt_answers").select("*").in("attempt_id", part)) ?? []);
+    return rows.map(toAnswer).sort((a, b) => compareText(a.attemptId, b.attemptId) || compareText(a.questionId, b.questionId));
+  }
+
+  async answerFilePathsOfQuestions(questionIds: string[]) {
+    const rows = await inChunks(questionIds, ID_CHUNK, async (part) => must(await this.db.from("quiz_attempt_answers").select("file_path").in("question_id", part).not("file_path", "is", null)) ?? []);
+    return rows.flatMap((r) => (r.file_path === null ? [] : [r.file_path]));
+  }
+
+  async attemptById(attemptId: string) {
+    const row = must(await this.db.from("quiz_attempts").select("*").eq("id", attemptId).maybeSingle());
+    return row ? toAttempt(row) : null;
   }
 
   async attemptsOfQuiz(quizId: string) {
@@ -299,6 +362,8 @@ export class SupabaseQuizRepository implements QuizRepository {
         questions: quiz.questions.map((q) => ({
           source_key: q.sourceKey,
           prompt: q.prompt,
+          kind: q.kind ?? "choice",
+          graded: q.graded ?? true,
           allows_multiple: q.allowsMultiple,
           options: q.options.map((o) => ({ source_key: o.sourceKey, label: o.label, is_correct: o.isCorrect })),
         })),
@@ -414,6 +479,8 @@ export class InMemoryQuizRepository implements QuizRepository {
         quizId: q.quiz_id,
         position: q.position,
         prompt: q.prompt,
+        kind: q.kind as QuestionKind,
+        graded: q.graded,
         allowsMultiple: q.allows_multiple,
         sourceKey: q.source_key,
         options: this.data.quizOptions
@@ -423,19 +490,27 @@ export class InMemoryQuizRepository implements QuizRepository {
       }));
   }
 
-  async saveQuestion(quizId: string, questionId: string | null, input: QuizQuestionInput) {
+  async saveQuestion(quizId: string, questionId: string | null, raw: QuizQuestionInput) {
+    const input = { ...raw, kind: raw.kind ?? "choice", graded: raw.graded ?? true };
     const prompt = input.prompt.trim();
     const invalid = () => new QuizWriteError("invalid_question", "invalid_question");
     const correct = input.options.filter((o) => o.isCorrect).length;
     if (!prompt || prompt.length > 1000) throw invalid();
-    if (input.options.length < 2 || input.options.length > 12) throw invalid();
-    if (input.options.some((o) => !o.label.trim() || o.label.trim().length > 500)) throw invalid();
-    if (correct < 1 || (!input.allowsMultiple && correct !== 1)) throw invalid();
+    if (input.kind === "choice") {
+      if (input.options.length < 2 || input.options.length > 12) throw invalid();
+      if (input.options.some((o) => !o.label.trim() || o.label.trim().length > 500)) throw invalid();
+      if (input.graded && (correct < 1 || (!input.allowsMultiple && correct !== 1))) throw invalid();
+    } else if (input.options.length !== 0 || input.graded || input.allowsMultiple) {
+      // A short answer or a file upload has nothing to choose from and nothing to score.
+      throw invalid();
+    }
     const quiz = this.quiz(quizId);
     if (!quiz) throw new QuizWriteError("not_found", "not_found");
 
     let question = questionId === null ? undefined : this.data.quizQuestions.find((q) => q.id === questionId && q.quiz_id === quizId);
     if (questionId !== null && !question) throw new QuizWriteError("not_found", "not_found");
+    // A different kind is a different question.
+    if (question && question.kind !== input.kind) throw invalid();
     const existing = question ? this.data.quizOptions.filter((o) => o.question_id === question!.id) : [];
     // An option id must be one of this question's own (checked before anything changes, like the function's rollback).
     if (input.options.some((o) => o.id && !existing.some((e) => e.id === o.id))) throw invalid();
@@ -447,6 +522,8 @@ export class InMemoryQuizRepository implements QuizRepository {
         quiz_id: quizId,
         position: Math.max(0, ...this.data.quizQuestions.filter((q) => q.quiz_id === quizId).map((q) => q.position)) + 1,
         prompt,
+        kind: input.kind,
+        graded: input.graded,
         allows_multiple: input.allowsMultiple,
         source_key: null,
         created_at: now,
@@ -455,6 +532,7 @@ export class InMemoryQuizRepository implements QuizRepository {
       this.data.quizQuestions.push(question);
     } else {
       question.prompt = prompt;
+      question.graded = input.graded;
       question.allows_multiple = input.allowsMultiple;
     }
     const kept = new Set(input.options.map((o) => o.id).filter((id): id is string => !!id));
@@ -464,14 +542,14 @@ export class InMemoryQuizRepository implements QuizRepository {
       if (found) {
         found.position = i + 1;
         found.label = o.label.trim();
-        found.is_correct = o.isCorrect;
+        found.is_correct = input.graded && o.isCorrect;
       } else {
         this.data.quizOptions.push({
           id: this.nextId("qopt"),
           question_id: question!.id,
           position: i + 1,
           label: o.label.trim(),
-          is_correct: o.isCorrect,
+          is_correct: input.graded && o.isCorrect,
           source_key: null,
           created_at: now,
           updated_at: now,
@@ -522,7 +600,7 @@ export class InMemoryQuizRepository implements QuizRepository {
     };
     this.data.quizAttempts.push(row);
     for (const a of attempt.answers) {
-      this.data.quizAttemptAnswers.push({ attempt_id: row.id, question_id: a.questionId, selected_option_ids: a.selectedOptionIds, is_correct: a.isCorrect });
+      this.data.quizAttemptAnswers.push(answerRow(row.id, a));
     }
     return toAttempt(row);
   }
@@ -535,7 +613,25 @@ export class InMemoryQuizRepository implements QuizRepository {
     return this.data.quizAttemptAnswers
       .filter((a) => a.attempt_id === attemptId)
       .sort((a, b) => compareText(a.question_id, b.question_id))
-      .map((a) => ({ attemptId: a.attempt_id, questionId: a.question_id, selectedOptionIds: a.selected_option_ids, isCorrect: a.is_correct }));
+      .map(toAnswer);
+  }
+
+  async answersOfAttempts(attemptIds: string[]) {
+    const wanted = new Set(attemptIds);
+    return this.data.quizAttemptAnswers
+      .filter((a) => wanted.has(a.attempt_id))
+      .map(toAnswer)
+      .sort((a, b) => compareText(a.attemptId, b.attemptId) || compareText(a.questionId, b.questionId));
+  }
+
+  async answerFilePathsOfQuestions(questionIds: string[]) {
+    const wanted = new Set(questionIds);
+    return this.data.quizAttemptAnswers.flatMap((a) => (wanted.has(a.question_id) && a.file_path !== null ? [a.file_path] : []));
+  }
+
+  async attemptById(attemptId: string) {
+    const row = this.data.quizAttempts.find((a) => a.id === attemptId);
+    return row ? toAttempt(row) : null;
   }
 
   async attemptsOfQuiz(quizId: string) {
@@ -562,24 +658,30 @@ export class InMemoryQuizRepository implements QuizRepository {
     let options = 0;
     const questionKeys = new Set(imported.questions.map((q) => q.sourceKey));
     imported.questions.forEach((q, i) => {
+      // Only a choice question can be graded, and only a choice question has options.
+      const kind = q.kind ?? "choice";
+      const graded = kind === "choice" && (q.graded ?? true);
+      const wanted = kind === "choice" ? q.options : [];
       let row = this.data.quizQuestions.find((x) => x.quiz_id === quiz.id && x.source_key === q.sourceKey);
       if (!row) {
-        row = { id: this.nextId("qques"), quiz_id: quiz.id, position: i + 1, prompt: q.prompt, allows_multiple: q.allowsMultiple, source_key: q.sourceKey, created_at: now, updated_at: now };
+        row = { id: this.nextId("qques"), quiz_id: quiz.id, position: i + 1, prompt: q.prompt, kind, graded, allows_multiple: q.allowsMultiple, source_key: q.sourceKey, created_at: now, updated_at: now };
         this.data.quizQuestions.push(row);
       }
       row.position = i + 1;
       row.prompt = q.prompt.trim();
+      row.kind = kind;
+      row.graded = graded;
       row.allows_multiple = q.allowsMultiple;
-      const optionKeys = new Set(q.options.map((o) => o.sourceKey));
-      q.options.forEach((o, j) => {
+      const optionKeys = new Set(wanted.map((o) => o.sourceKey));
+      wanted.forEach((o, j) => {
         let opt = this.data.quizOptions.find((x) => x.question_id === row!.id && x.source_key === o.sourceKey);
         if (!opt) {
-          opt = { id: this.nextId("qopt"), question_id: row!.id, position: j + 1, label: o.label, is_correct: o.isCorrect, source_key: o.sourceKey, created_at: now, updated_at: now };
+          opt = { id: this.nextId("qopt"), question_id: row!.id, position: j + 1, label: o.label, is_correct: graded && o.isCorrect, source_key: o.sourceKey, created_at: now, updated_at: now };
           this.data.quizOptions.push(opt);
         }
         opt.position = j + 1;
         opt.label = o.label.trim();
-        opt.is_correct = o.isCorrect;
+        opt.is_correct = graded && o.isCorrect;
         options++;
       });
       this.data.quizOptions = this.data.quizOptions.filter((x) => x.question_id !== row!.id || x.source_key === null || optionKeys.has(x.source_key));

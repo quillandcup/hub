@@ -112,19 +112,37 @@ describe("parseKajabiQuiz", () => {
     expect(plainText("<<b>script>alert(1)<</b>/script>ok")).toBe("alert(1)ok");
   });
 
-  it("counts the questions Kajabi grades by hand (short answer, file upload) and not the choice kinds", () => {
+  it("reads short answer and file upload questions as questions that are recorded, never scored", () => {
     const doc = { questions: [
       { id: 1, text: "Pick", question_type: "multiple_choice", answers: [{ id: 1, text: "a", correct: true }, { id: 2, text: "b" }] },
       { id: 2, text: "Tick", question_type: "checkboxes", answers: [{ id: 3, text: "a", correct: true }, { id: 4, text: "b", correct: true }] },
-      { id: 3, text: "Write", question_type: "short_answer" },
-      { id: 4, text: "Attach", type: "File upload" },
-      { id: 5, text: "Flagged", graded_manually: true },
+      { id: 3, text: "Write", question_type: "short_answer", graded: true },
+      { id: 4, text: "Attach", type: "File upload", graded: false },
     ] };
     const parsed = parseKajabiQuiz([doc])!;
-    expect(parsed.manualQuestions).toBe(3);
-    expect(parsed.questions.map((q) => q.id)).toEqual(["1", "2"]);
-    expect(parseKajabiQuiz([{ questions: [{ id: 3, text: "Write", question_type: "short_answer" }] }])).toMatchObject({ manualQuestions: 1, questions: [] });
-    expect(parseKajabiQuiz([jsonApiQuiz()])!.manualQuestions).toBe(0);
+    expect(parsed.questions.map((q) => [q.id, q.kind, q.graded])).toEqual([["1", "choice", true], ["2", "choice", true], ["3", "short_answer", false], ["4", "file_upload", false]]);
+    // Only the one Kajabi marks graded (by hand) is counted for the summary.
+    expect(parsed.ungradedManual).toBe(1);
+    expect(parseKajabiQuiz([{ questions: [{ id: 3, text: "Write", question_type: "short_answer" }] }])).toMatchObject({ ungradedManual: 0, questions: [{ id: "3", kind: "short_answer", graded: false, options: [] }] });
+    expect(parseKajabiQuiz([jsonApiQuiz()])!.ungradedManual).toBe(0);
+  });
+
+  it("reads a choice question with the graded toggle off as not graded, with no right answer needed", () => {
+    const parsed = parseKajabiQuiz([{ questions: [{ id: 7, text: "How do you feel?", question_type: "multiple_choice", graded: false, answers: [{ id: 1, text: "Fine" }, { id: 2, text: "Tired" }, { id: 3, text: "Great" }] }] }])!;
+    expect(parsed.questions[0]).toMatchObject({ kind: "choice", graded: false });
+    expect(parsed.warnings).toEqual([]);
+    // The question's toggle is not the quiz's passing grade being on.
+    expect(parsed.passingPercent).toBeNull();
+    const { quiz } = importedQuizOf("489121", parsed);
+    expect(quiz.questions[0]).toMatchObject({ kind: "choice", graded: false });
+    expect(quiz.questions[0].options.every((o) => !o.isCorrect)).toBe(true);
+  });
+
+  it("imports open questions with no options and keeps choice questions that have two to twelve", () => {
+    const parsed = parseKajabiQuiz([{ questions: [{ id: 1, text: "Write", question_type: "short_answer" }, { id: 2, text: "Attach", question_type: "file_upload" }, { id: 3, text: "Pick", question_type: "multiple_choice", answers: [{ id: 1, text: "only one" }] }] }])!;
+    const { quiz, warnings } = importedQuizOf("9", parsed);
+    expect(quiz.questions.map((q) => q.kind)).toEqual(["short_answer", "file_upload"]);
+    expect(warnings).toEqual([]);
   });
 
   it("is null when no question with answers is in the documents", () => {

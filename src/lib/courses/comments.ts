@@ -64,7 +64,7 @@ export function withinEditWindow(createdAt: string, now: number): boolean {
 /** A comment someone can no longer act on: deleted, or hidden by staff. */
 export const isRemovedComment = (comment: Pick<LessonCommentRecord, "deletedAt" | "hiddenAt">) => Boolean(comment.deletedAt || comment.hiddenAt);
 
-type CommentRepos = Pick<Repos, "courses" | "courseProgress">;
+type CommentRepos = Pick<Repos, "courses" | "courseProgress" | "quizzes">;
 
 export type CommentLesson = { lessonId: string; courseId: string };
 

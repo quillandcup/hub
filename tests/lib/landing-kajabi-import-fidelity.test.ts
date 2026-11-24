@@ -4,7 +4,7 @@ import { block, exportSettings } from "@/tests/helpers/kajabi-export";
 
 /** How an imported page looks like its original: the overlay, the card, where it sits, the logo, the text colour. Every fixture is made up. */
 
-const OPTIONS = { siteUrl: "https://kajabi.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
+const OPTIONS = { siteUrl: "https://kajabi.example.test", coursesUrl: "https://courses.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
 type Puck = { type: string; props: Record<string, unknown> };
 const kids = (b: Puck) => b.props.content as Puck[];
 const PLUM = '<span style="color: #a64d79;">';
@@ -65,17 +65,18 @@ describe("the logo over the picture", () => {
 
   it("is the first thing in the first section when the header is not over a picture", () => {
     const flat = page({ header: { position: "static" } });
-    expect(kids(flat.content[0])[0].type).toBe("Image");
-    expect(flat.content[0].props.card).toBe(true);
+    const [flatCard] = kids(flat.content[0]);
+    expect(kids(flatCard)[0].type).toBe("Image");
+    expect(flatCard.props.card).toBe(true);
     const noPicture = page({ section: { bg_type: "none", bg_image: "" } });
-    expect(kids(noPicture.content[0])[0].type).toBe("Image");
+    expect(kids(kids(noPicture.content[0])[0])[0].type).toBe("Image");
   });
 });
 
 describe("the card", () => {
   it("takes the block's fill as the nearest theme colour, its width and its side, and keeps plum text", () => {
     const [, card] = kids(page({}).content[0]);
-    expect(card.props).toMatchObject({ cardColor: "blush", cardSoft: false, place: "left", width: "narrow", align: "left", textTone: "plum" });
+    expect(card.props).toMatchObject({ cardColor: "blush", cardSoft: false, place: "center", width: "wide", span: 8, spanMobile: 12, align: "left", textTone: "plum" });
   });
 
   it("is a theme colour at 80% when the fill has some transparency, white and plain when the fill is white", () => {
@@ -91,8 +92,9 @@ describe("the card", () => {
     expect(kids(page({ section: { horizontal: "center" } }).content[0])[1].props.place).toBe("center");
   });
 
-  it("is not full width because Kajabi's section is: a block of seven twelfths is a narrow card", () => {
-    expect(kids(page({ section: { full_width: true } }).content[0])[1].props.width).toBe("narrow");
+  it("is not full width because Kajabi's section is: a block of seven twelfths on the left is a card of most of the columns, not the whole row", () => {
+    expect(kids(page({ section: { full_width: true } }).content[0])[1].props).toMatchObject({ width: "wide", span: 8 });
+    expect(kids(page({ section: { full_width: true, horizontal: "right" } }).content[0])[1].props.width).toBe("narrow");
   });
 
   it("is a card around only the block that has a fill, when other blocks in the section have none", () => {
@@ -110,7 +112,7 @@ describe("the card", () => {
 
   it("is the section's own card when every block has a fill", () => {
     const all = page({ header: { position: "static" }, section: { bg_type: "none", bg_image: "", background_color: "" }, blocks: { t1: block("text", { width: "7", background_color: "#4d4d4d", text: "<h1>One</h1>" }) } });
-    expect(all.content[0].props).toMatchObject({ card: true, cardColor: "charcoal", width: "narrow" });
+    expect(kids(all.content[0])[0].props).toMatchObject({ card: true, cardColor: "charcoal", width: "wide", span: 8 });
   });
 });
 
