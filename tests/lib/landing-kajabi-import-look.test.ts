@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { mapAssetIds } from "@/lib/landing/data";
 import { mapKajabiPage } from "@/lib/landing/kajabi-import";
+import { applyAltEntries, pictureSlots } from "@/lib/landing/kajabi-alt-text";
+import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { block, exportSettings } from "@/tests/helpers/kajabi-export";
 
 /** The look of an imported hero: how the picture is framed, the space around the card, a video's still and a white logo. Every fixture is made up. */
@@ -90,6 +93,52 @@ describe("a picture beside its words", () => {
   it("stays a picture and a text block when the text is too wide for the rest of the row, or has a fill of its own", () => {
     expect(kids(testimonials({ width: "10" })[0]).map((b) => b.type)).toContain("Image");
     expect(kids(testimonials({ background_color: "#eadada" })[0]).map((b) => b.type)).toContain("Image");
+  });
+});
+
+describe("the pictures of a hero and its testimonials after the descriptions are reviewed", () => {
+  it("keep the header logo above the card and every testimonial photo, marked decorative or not, with its picture", () => {
+    const blocks = {
+      t0: block("text", { width: "7", text_align: "left", background_color: "#eadada", text: "<h1>A big promise</h1>" }),
+    };
+    const testimonial = {
+      i1: block("image", { width: "3", image: "assets/face1.jpg", image_alt: "" }),
+      t1: block("text", { width: "6", text: "<h4>First words</h4><p>Thanks.</p>" }),
+      i2: block("image", { width: "3", image: "assets/face2.jpg", image_alt: "" }),
+      t2: block("text", { width: "6", text: "<h4>Second words</h4><p>Thanks.</p>" }),
+    };
+    const settings = exportSettings({
+      order: ["hero", "voices"],
+      sections: {
+        hero: { type: "section", settings: { bg_type: "image", bg_image: "assets/bg.jpg", background_color: "rgba(244, 236, 232, 0.45)", horizontal: "left", padding_desktop: { top: "190", bottom: "190" } }, block_order: Object.keys(blocks), blocks },
+        voices: { type: "section", settings: { bg_type: "none" }, block_order: Object.keys(testimonial), blocks: testimonial },
+        header: { type: "header", settings: { position: "overlay" }, block_order: ["lg"], blocks: { lg: block("logo", { logo: "assets/logo.png", image_alt: "Header Logo", logo_width: "300", alignment: "center", logo_type: "image" }) } },
+      },
+    });
+    const mapped = mapKajabiPage(settings, OPTIONS);
+    if (!mapped.ok) throw new Error(mapped.error);
+    const slots = pictureSlots(mapped.data, { logoBlockId: mapped.logoBlockId, pictures: mapped.pictures });
+    expect(slots.map((s) => s.role)).toEqual(["logo", "side picture", "side picture"]);
+    // The reviewer left the logo described and the testimonial pictures decorative.
+    const entries = Object.fromEntries(slots.map((s) => [s.id, s.role === "logo" ? { alt: "Quill & Cup", decorative: false } : { alt: "", decorative: true }]));
+    const applied = applyAltEntries(mapped.data, entries, slots);
+    const ids = new Map(mapped.pictures.map((p, i) => [p.placeholder, `media_AAAAAAAAAAA${i}`]));
+    const stored = sanitizeLandingData(mapAssetIds(applied.data, (value) => ids.get(value) ?? ""));
+    const pictures: { type: string; asset: unknown; decorative: unknown }[] = [];
+    const walk = (blocks: unknown) => {
+      for (const b of Array.isArray(blocks) ? (blocks as Puck[]) : []) {
+        if (b.type === "Image" || b.type === "Split") pictures.push({ type: b.type, asset: b.props.imageAssetId, decorative: b.props.decorative });
+        walk(b.props.content);
+      }
+    };
+    walk(stored.content);
+    expect(pictures.map((p) => p.type)).toEqual(["Image", "Split", "Split"]);
+    expect(pictures.every((p) => typeof p.asset === "string" && (p.asset as string).startsWith("media_"))).toBe(true);
+    expect(pictures.map((p) => p.decorative)).toEqual([false, true, true]);
+    // The logo is the first thing in the hero's band, above the card.
+    const hero = stored.content[0] as unknown as Puck;
+    expect(kids(hero)[0].type).toBe("Image");
+    expect(kids(hero)[1].type).toBe("Section");
   });
 });
 
