@@ -38,6 +38,17 @@ describe("API route inventory (docs/architecture/API_ROUTES.md)", () => {
     expect(urlPathOf("src/app/api/members/[id]/route.ts")).toBe("/api/members/[id]");
   });
 
+  it("covers the route handlers outside src/app/api, each with its guard", () => {
+    expect(urlPathOf("src/app/(member)/help/images/[scene]/[file]/route.ts")).toBe("/help/images/[scene]/[file]");
+    expect(urlPathOf("src/app/auth/slack/route.ts")).toBe("/auth/slack");
+    const kinds = Object.fromEntries(classify().map((r) => [r.path, r.kinds]));
+    expect(kinds["/auth/callback"]).toEqual(["pkce-code"]);
+    expect(kinds["/auth/confirm"]).toEqual(["one-time-token"]);
+    expect(kinds["/auth/slack"]).toEqual(["one-time-token"]);
+    expect(kinds["/courses/[slug]/lessons/[lessonId]/files/[fileId]"]).toEqual(["session"]);
+    expect(kinds["/help/images/[scene]/[file]"]).toEqual(["session"]);
+  });
+
   it("renders methods and credentials, marks public routes and flags a route with none", () => {
     const rows: RouteRow[] = [
       { file: "src/app/api/health/route.ts", path: "/api/health", methods: ["GET"], kinds: [] },

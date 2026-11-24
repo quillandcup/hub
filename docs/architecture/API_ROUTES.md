@@ -1,19 +1,19 @@
-# API routes: the external interfaces
+# Route handlers: the external interfaces
 
 > **Status:** living. **Last reviewed:** 2026-11-23. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
-Every HTTP route handler under `src/app/api`, with its path, the methods it answers and the credential its caller must present. The table is generated from the code and a test fails when it is out of date, so it cannot drift from the routes.
+Every HTTP route handler under `src/app` (the API routes, the sign-in endpoints under `src/app/auth` and the two member download routes), with its path, the methods it answers and the credential its caller must present. The table is generated from the code and a test fails when it is out of date, so it cannot drift from the routes.
 
 ## How it stays true
 
-- `scripts/api-route-inventory.ts` is the one place a route is classified. It reads each `src/app/api/**/route.ts`, takes the exported methods, and looks for the recognised credential step in the file (comments ignored; for a thin route that only calls a module, in the module too).
+- `scripts/api-route-inventory.ts` is the one place a route is classified. It reads each `src/app/**/route.ts`, takes the exported methods, and looks for the recognised credential step in the file (comments ignored; for a thin route that only calls a module, in the module too).
 - `pnpm docs:api-routes` rewrites the table below. `tests/lib/api-route-inventory.test.ts` fails when the committed table differs from what the code renders, and `tests/lib/api-route-auth.test.ts` (same data) fails on a route with no credential step, unless it is listed as public on purpose with a reason.
 - A new route therefore needs a recognised credential step, then `pnpm docs:api-routes`. Nothing else is written by hand.
 - This is a static check: it proves a recognised step is in the file, not that every code path reaches it. Each route's own test (`tests/api/`) covers the refusal. The threat-model view is in `docs/trust/THREAT_MODEL.md` (A01).
 
 ## Who may call a route
 
-The proxy treats all of `/api/` as public (`src/lib/supabase/middleware.ts`), so each route authenticates itself. The kinds:
+The proxy treats all of `/api/` as public (`src/lib/supabase/middleware.ts`), and the sign-in endpoints must be reachable before there is a session, so each route authenticates itself. The kinds:
 
 | Kind | Meaning |
 |---|---|
@@ -24,6 +24,8 @@ The proxy treats all of `/api/` as public (`src/lib/supabase/middleware.ts`), so
 | `signed-token` | A token we signed that names the member and the action (unsubscribe links). |
 | `url-secret` | A secret in the URL, looked up on the server (calendar feeds). |
 | `oauth-state` | The state cookie of an OAuth round trip, consumed once. |
+| `one-time-token` | Sign-in link (`/auth/confirm`, `/auth/slack`): a single-use token checked and spent on the server (`verifyOtp`, `consumeSlackSignIn`). A GET only spends it for a real browser navigation; anything else gets a Continue page whose button (a POST) spends it. |
+| `pkce-code` | Sign-in link (`/auth/callback`): a PKCE code only the browser holding the matching verifier cookie can exchange. |
 | `public` | No credential, on purpose: the uptime check (`/api/health`, returns only up or down and timings) and the public opt-in form of a published landing page (`/api/landing/opt-in`: honeypot, rate limits, target looked up in the published page). |
 
 A route with more than one kind accepts either (for example a staff account or the scheduled-job secret).
@@ -40,7 +42,7 @@ What the app calls on other servers, and the `User-Agent` it sends, is in `docs/
 
 <!-- START api-routes generated: run `pnpm docs:api-routes` to update, don't edit by hand -->
 
-168 routes.
+173 routes.
 
 | Path | Methods | Who may call it |
 |---|---|---|
@@ -212,5 +214,10 @@ What the app calls on other servers, and the `User-Agent` it sends, is in `docs/
 | `/api/zoom/ignore` | POST, DELETE | `admin` |
 | `/api/zoom/prickles` | GET | `admin` |
 | `/api/zoom/resolve-ambiguous` | POST | `admin` |
+| `/auth/callback` | GET | `pkce-code` |
+| `/auth/confirm` | GET, POST | `one-time-token` |
+| `/auth/slack` | GET | `one-time-token` |
+| `/courses/[slug]/lessons/[lessonId]/files/[fileId]` | GET | `session` |
+| `/help/images/[scene]/[file]` | GET | `session` |
 
 <!-- END api-routes -->

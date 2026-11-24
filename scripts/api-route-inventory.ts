@@ -1,5 +1,5 @@
 #!/usr/bin/env npx tsx
-// Lists every route handler under src/app/api with its path, HTTP methods and who may call it, and keeps that
+// Lists every route handler under src/app (the API and the sign-in and download routes) with its path, HTTP methods and who may call it, and keeps that
 // table in docs/architecture/API_ROUTES.md.
 //
 //   tsx scripts/api-route-inventory.ts           rewrite the table   (pnpm docs:api-routes)
@@ -33,6 +33,10 @@ export const CREDENTIAL_KINDS: Record<string, RegExp> = {
   "url-secret": /\bparseFeedToken\(/,
   // The state cookie of an OAuth round trip, consumed once.
   "oauth-state": /\bverifyAndConsumeOAuthState\(/,
+  // Sign-in endpoints, public by nature: the credential is the one-time token in the link, spent on the server.
+  "one-time-token": /\b(verifyOtp|consumeSlackSignIn)\(/,
+  // Sign-in endpoint: a PKCE code that only the browser holding the matching verifier cookie can exchange.
+  "pkce-code": /\bexchangeCodeForSession\(/,
 };
 
 /** What each credential kind means to a caller, for the doc. */
@@ -44,6 +48,8 @@ export const CREDENTIAL_DESCRIPTIONS: Record<string, string> = {
   "signed-token": "A token we signed that names the member and the action (unsubscribe links).",
   "url-secret": "A secret in the URL, looked up on the server (calendar feeds).",
   "oauth-state": "The state cookie of an OAuth round trip, consumed once.",
+  "one-time-token": "Sign-in link: a single-use token checked and spent on the server (email link, Slack button).",
+  "pkce-code": "Sign-in link: a PKCE code, exchangeable only by the browser holding the matching verifier cookie.",
   public: "Public: no credential, on purpose (see the reason in the list below).",
 };
 
@@ -82,18 +88,18 @@ export function handlersOf(code: string): string[] {
 
 export interface RouteRow {
   file: string;
-  /** The URL path, e.g. `/api/members/[id]`. */
+  /** The URL path, e.g. `/api/members/[id]` (route groups such as `(member)` are not part of it). */
   path: string;
   methods: string[];
   kinds: string[];
 }
 
 export function urlPathOf(file: string): string {
-  return "/" + file.replace(/^src\/app\//, "").replace(/\/route\.ts$/, "");
+  return "/" + file.replace(/^src\/app\//, "").replace(/\/?route\.ts$/, "").split("/").filter((seg) => !/^\(.*\)$/.test(seg)).join("/");
 }
 
 export function classify(root = process.cwd()): RouteRow[] {
-  return routeFiles(join(root, "src/app/api"))
+  return routeFiles(join(root, "src/app"))
     .map((abs) => {
       const file = relative(root, abs);
       const own = stripComments(readFileSync(abs, "utf8"));
