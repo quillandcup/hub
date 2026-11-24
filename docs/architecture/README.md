@@ -5,6 +5,7 @@ How the data and the code are put together.
 <!-- START docs-index generated: run `pnpm docs:index` to update, don't edit by hand -->
 
 - [Activity log vs. audit log](ACTIVITY_AND_AUDIT_LOG.md): Explains the activity log (`member_activities`) and the audit log (`audit_log`), and why they are two tables
+- [API routes: the external interfaces](API_ROUTES.md): Every HTTP route handler under `src/app/api`, with its path, the methods it answers and the credential its caller must present
 - [Chat core and the Slack adapter](CHAT_MODULE.md): Describes how chat core is split from its Slack adapter behind a transport port, and what still has to move
 - [Data Access Layer: Repository Catalog](DATA_ACCESS_LAYER.md): Catalog of every table or API that has a repository in `src/lib/data/`, with the rules specific to each
 - [Email on the member timeline (Resend)](EMAIL_TIMELINE.md): What an email did after the Hub sent it (sent, delivered, opened, clicked, bounced, marked as spam, failed) shows on the member's timeline, next to their Slack activity and logins
