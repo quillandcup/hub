@@ -89,21 +89,7 @@ An authenticated or active ZAP scan does not belong in the schedule: run those a
 
 ## How fast findings are fixed
 
-A finding is a vulnerable dependency (Dependabot alert, OSV-Scanner) or a static analysis alert (CodeQL). The time to fix is counted from the day the finding is first reported against the code we run, and the severity is the one the scanner or advisory gives, raised one level when the vulnerable code is reachable from the production app or the advisory is known to be exploited.
-
-| Severity | Fixed or mitigated within |
-|---|---|
-| Critical | 10 days |
-| High | 30 days |
-| Medium | 60 days |
-| Low | 90 days (the next quarterly pass at the latest) |
-
-- **Fixed** means the dependency is upgraded or removed, or the code is changed. **Mitigated** means the risk is removed without that (a feature switched off, an input blocked) and the real fix is tracked in `docs/TODO.md`.
-- **No fix published.** A finding with no fixed version is not left silent: it is recorded with a reason and an expiry no later than its deadline above in `config/osv-scanner.toml`, so the scheduled run fails again on that date and someone looks at it. A finding in a development-only dependency that never reaches the production build can be recorded the same way, saying so. Each accepted finding is also published as an [OpenVEX](https://github.com/openvex/spec) statement in `config/vex.openvex.json` (`not_affected` with justification `component_not_present` for the development-only ones, `affected` for one with no fix); `pnpm vex` generates it from `config/osv-scanner.toml` and `tests/lib/vex.test.ts` fails when it is out of date.
-- **What is enforced, and what is not.** A new CodeQL alert blocks the merge (a required check). A pull request that introduces a vulnerable dependency version fails the `OSV diff / osv-scan` check (a required check on `main`; `OSPS-VM-05.03`); a vulnerability already on `main` is not blocked, only reported by the scheduled scan. Nothing computes a deadline: the table is a target the maintainers hold themselves to. What makes a missed one visible is that the scheduled scan (`osv-scan.yml`, any severity) fails and posts to the alerts channel every week a finding stays open, and that an accepted finding in `config/osv-scanner.toml` expires. A finding past its deadline that is still open goes in `docs/TODO.md` with the reason and a new date.
-- **Dependabot security updates** open the pull request as soon as an advisory lands (`auto-merge.yml` merges only patch and minor ones; a major always waits for a person), so for most findings the time to fix is the time to review and merge.
-- **Licenses** (`OSPS-VM-05.05`). `license-scan.yml` checks every installed package against `config/license-policy.json`. The app is hosted, not distributed, so copyleft duties that arise on distribution (LGPL, MPL) are not triggered, but we still allow only permissive licenses (MIT, ISC, Apache-2.0, BSD, 0BSD, BlueOak, CC0) plus MPL-2.0 (file-level copyleft), and `Python-2.0` for development-only packages. Anything else is a finding: strong copyleft (GPL, AGPL, SSPL) or an undeclared license, in production or development; weak copyleft and other licenses unless accepted. **Threshold:** a finding in a production dependency is replaced, removed or recorded as an exception within 30 days; one in a development-only dependency within 60 days. An exception in the policy file carries a reason and an expiry of at most 12 months, and the package is a finding again when it passes. Like the other scans this is reported weekly and not a gate: nothing blocks a pull request that adds such a dependency, and the days are a target the maintainers hold themselves to.
-- **Who.** The maintainers. The weekly scanner runs and Dependabot alerts are how a finding reaches them.
+The severity targets, how an accepted finding is recorded, the license rule and what is and is not enforced are in [`.github/SECURITY.md`](../../.github/SECURITY.md), "How fast findings are fixed": one place, so the numbers cannot differ between documents.
 
 ## Review again when
 
