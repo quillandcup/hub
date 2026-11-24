@@ -1,4 +1,5 @@
-import { KAJABI_PHOTO_HOSTS, KAJABI_SITE_URL } from "@/lib/config";
+import { KAJABI_COURSES_URL, KAJABI_PHOTO_HOSTS, KAJABI_SITE_URL } from "@/lib/config";
+import type { BillingRepository } from "@/lib/data/billing";
 import { LandingPageSlugTakenError, type LandingPage, type LandingPageRepository, type LandingPageSummary } from "@/lib/data/landing-pages";
 import type { MediaRepository } from "@/lib/data/media";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
@@ -6,6 +7,7 @@ import { mapAssetIds, normalizeLandingData, sameDocument, sameLandingPage } from
 
 export { sameDocument };
 import { freeImportKey, keyHasLayout, mapKajabiPage, pageStart, type ImportNote, type PageStart, type PictureSource } from "@/lib/landing/kajabi-import";
+import { resolveReferences, type KajabiLookups, type LookupFetchers } from "@/lib/landing/kajabi-lookups";
 import { readKajabiZip } from "@/lib/landing/kajabi-zip";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { isValidSlug, slugify, SLUG_MAX } from "@/lib/landing/slug";
@@ -48,6 +50,10 @@ export interface ImportDeps {
   /** Service role, for the media files. */
   storage: Parameters<typeof storeImage>[1];
   fetchPicture?: FetchPicture;
+  /** The Hub's Kajabi offers, to turn a link to an offer into its checkout page. */
+  billing?: Pick<BillingRepository, "kajabiOfferRows">;
+  /** How the live Kajabi site is read for what the export only names (tests replace it; kajabi-lookups.ts). */
+  lookupFetchers?: LookupFetchers;
 }
 
 /** A page that looks like the export: it has the same layout (`layoutFingerprint` in kajabi-import.ts). Never proof that it is the same page. */
@@ -75,6 +81,8 @@ export type InspectOutcome =
       start: PageStart;
       suggestedTitle: string;
       blocks: number;
+      /** How many countdowns the page has: their dates are read from the live page when its address is given. */
+      countdowns: number;
       /** Pages with the same layout: often none, several when pages were cloned from each other. */
       matches: PageMatch[];
       /** Every page made by an import, for "replace another page". */
@@ -134,7 +142,7 @@ async function freeSlug(pages: LandingPageRepository, wish: string, taken: Set<s
 type Mapped = Extract<ReturnType<typeof mapKajabiPage>, { ok: true }>;
 type Read = { ok: true; zip: Extract<ReturnType<typeof readKajabiZip>, { ok: true }>; mapped: Mapped } | { ok: false; error: string };
 
-function readExport(archive: Uint8Array, year: number): Read {
+function readExport(archive: Uint8Array, year: number, lookups?: KajabiLookups): Read {
   const zip = readKajabiZip(archive);
   if (!zip.ok) return { ok: false, error: zip.error };
   let settings: unknown;
@@ -143,7 +151,7 @@ function readExport(archive: Uint8Array, year: number): Read {
   } catch {
     return { ok: false, error: "The page's settings in that export couldn't be read." };
   }
-  const mapped = mapKajabiPage(settings, { siteUrl: KAJABI_SITE_URL, cdnBase: `https://${KAJABI_PHOTO_HOSTS[0]}/${CDN_PATH}`, year });
+  const mapped = mapKajabiPage(settings, { siteUrl: KAJABI_SITE_URL, cdnBase: `https://${KAJABI_PHOTO_HOSTS[0]}/${CDN_PATH}`, year, coursesUrl: KAJABI_COURSES_URL, lookups });
   return mapped.ok ? { ok: true, zip, mapped } : { ok: false, error: mapped.error };
 }
 
@@ -168,15 +176,22 @@ export async function inspectKajabiExport(deps: Pick<ImportDeps, "pages">, input
   const read = readExport(input.archive, input.year);
   if (!read.ok) return { status: "error", error: read.error };
   const imported = await importedPages(deps.pages);
-  return { status: "inspected", start: read.mapped.start, suggestedTitle: read.mapped.suggestedTitle, blocks: read.mapped.counts.blocks, matches: await matchesFor(deps.pages, read.mapped, imported), pages: imported.map(replaceable) };
+  return { status: "inspected", start: read.mapped.start, suggestedTitle: read.mapped.suggestedTitle, blocks: read.mapped.counts.blocks, countdowns: read.mapped.references.countdowns.length, matches: await matchesFor(deps.pages, read.mapped, imported), pages: imported.map(replaceable) };
 }
 
 export async function importKajabiExport(
   deps: ImportDeps,
-  input: { archive: Uint8Array; title: string; target?: ImportTarget; userId: string | null; year: number },
+  input: { archive: Uint8Array; title: string; target?: ImportTarget; userId: string | null; year: number; /** The path of the public Kajabi page the export came from (the export doesn't say), to read a countdown's date from it. */ originalPath?: string },
 ): Promise<ImportOutcome> {
-  const read = readExport(input.archive, input.year);
+  let read = readExport(input.archive, input.year);
   if (!read.ok) return { status: "error", error: read.error };
+  // What the export only names (a page's address, an offer's checkout, a countdown's date) is looked up, and the page mapped again with the answers.
+  const refs = read.mapped.references;
+  if (refs.landingPageIds.length > 0 || refs.offerCodes.length > 0 || refs.countdowns.length > 0) {
+    const lookups = await resolveReferences(refs, { originalPath: input.originalPath }, { fetchers: deps.lookupFetchers, offers: deps.billing ? () => deps.billing!.kajabiOfferRows() : undefined });
+    const again = readExport(input.archive, input.year, lookups);
+    if (again.ok) read = again;
+  }
   const { zip, mapped } = read;
 
   const title = input.title.trim().slice(0, 120);

@@ -4,7 +4,7 @@ import { block, exportSettings } from "@/tests/helpers/kajabi-export";
 
 /** The block types the importer maps beyond text, pictures, buttons and forms. Every fixture is made up. */
 
-const OPTIONS = { siteUrl: "https://kajabi.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
+const OPTIONS = { siteUrl: "https://kajabi.example.test", coursesUrl: "https://courses.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
 type Puck = { type: string; props: Record<string, unknown> };
 type Made = ReturnType<typeof block>;
 
@@ -106,13 +106,13 @@ describe("pricing", () => {
     expect(inner.map((b) => b.type)).toEqual(["Pricing", "Button"]);
     const [a, b] = kids(inner[0]);
     expect(kids(inner[0]).map((k) => k.type)).toEqual(["PricingPlan", "PricingPlan"]);
-    expect(a.props).toMatchObject({ name: "Plan A", price: "$97", period: "", description: "Pay once.\nWhat you get", features: "One thing", badge: "", featured: false, buttonLabel: "Enroll", href: "https://kajabi.example.test/resource_redirect/offers/AAA" });
+    expect(a.props).toMatchObject({ name: "Plan A", price: "$97", period: "", description: "Pay once.\nWhat you get", features: "One thing", badge: "", featured: false, buttonLabel: "Enroll", href: "https://courses.example.test/resource_redirect/offers/AAA" });
     expect(b.props).toMatchObject({ name: "Plan B", price: "$197", href: "https://example.com/b" });
     expect(inner[1].props).toMatchObject({ label: "Payment plan", href: "https://example.com/plan", look: "outline" });
     expect(note(notes, "approximated", "2 pricing columns became a Pricing block")).toBe(true);
     expect(note(notes, "approximated", "billing period line is empty")).toBe(true);
     expect(note(notes, "approximated", "1 second button follow")).toBe(true);
-    expect(note(notes, "approximated", "/resource_redirect/offers/AAA")).toBe(true);
+    expect(note(notes, "approximated", "Offer links: 1 go to the offer through the courses site")).toBe(true);
   });
 
   it("splits a row of more than three plans into Pricing blocks of at most three", () => {

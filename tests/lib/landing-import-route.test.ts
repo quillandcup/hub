@@ -2,11 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
-import { exportZip } from "@/tests/helpers/kajabi-export";
+import { block, exportSettings, exportZip } from "@/tests/helpers/kajabi-export";
 
 const state: { auth: "ok" | "anon" | "nonadmin"; repos: Repos; dataset: InMemoryDataset } = { auth: "ok", repos: undefined as never, dataset: undefined as never };
 const revalidated: string[] = [];
 const recorded: { action: string; outcome: unknown }[] = [];
+/** The live Kajabi site is not reachable from a test: what the route asks it for is recorded, and it never answers. */
+const asked: string[] = [];
+const offlineSite = { finalUrl: async (url: string) => (asked.push(url), null), html: async (url: string) => (asked.push(url), null) };
 
 vi.mock("next/cache", () => ({ revalidatePath: (path: string) => revalidated.push(path) }));
 vi.mock("@/lib/analytics/server", () => ({
@@ -25,7 +28,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ sto
 vi.mock("@/lib/landing/kajabi-import-service", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/landing/kajabi-import-service")>();
   // The Kajabi CDN is not reachable from a test: pictures there come back as one the export itself has.
-  return { ...real, importKajabiExport: (deps: Parameters<typeof real.importKajabiExport>[0], input: Parameters<typeof real.importKajabiExport>[1]) => real.importKajabiExport({ ...deps, fetchPicture: async () => ({ error: "offline" }) }, input) };
+  return { ...real, importKajabiExport: (deps: Parameters<typeof real.importKajabiExport>[0], input: Parameters<typeof real.importKajabiExport>[1]) => real.importKajabiExport({ ...deps, fetchPicture: async () => ({ error: "offline" }), lookupFetchers: offlineSite }, input) };
 });
 
 import { POST } from "@/app/api/admin/landing-pages/import/route";
@@ -43,6 +46,7 @@ beforeEach(() => {
   state.repos = createInMemoryRepos(state.dataset);
   revalidated.length = 0;
   recorded.length = 0;
+  asked.length = 0;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -90,6 +94,17 @@ describe("POST /api/admin/landing-pages/import", () => {
     const bad = await POST(request({ file: new File(["hello"], "x.zip"), mode: "inspect" }));
     expect(bad.status).toBe(400);
     expect(await bad.json()).toEqual({ status: "error", error: "That isn't a zip file." });
+  });
+
+  it("passes the page address given for a countdown to the lookup, and nothing else the form says", async () => {
+    const withCountdown = exportZip(exportSettings({ order: ["more"], sections: { more: { type: "section", settings: {}, block_order: ["c1"], blocks: { c1: block("countdown", { event: "EV1" }) } } } }));
+    const imported = await POST(request({ file: zipFile(withCountdown), title: "Countdown page", originalPath: "/example-program" }));
+    expect(await imported.json()).toMatchObject({ status: "imported", notes: expect.arrayContaining([expect.objectContaining({ kind: "todo", text: expect.stringContaining("the live page /example-program couldn't be read") })]) });
+    expect(asked.some((u) => u.endsWith("/example-program"))).toBe(true);
+
+    asked.length = 0;
+    await POST(request({ file: zipFile(withCountdown), title: "Other page", originalPath: "https://evil.test/x" }));
+    expect(asked.filter((u) => !u.includes("/resource_redirect/"))).toEqual([]);
   });
 
   it("refuses to replace a page that isn't one an import made", async () => {

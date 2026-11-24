@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { freeImportKey, keyHasLayout, layoutKeyOf, mapKajabiPage, pageStart, PICTURE_PREFIX, suggestTitle } from "@/lib/landing/kajabi-import";
 import { block, exportSettings } from "@/tests/helpers/kajabi-export";
 
-const OPTIONS = { siteUrl: "https://kajabi.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
+const OPTIONS = { siteUrl: "https://kajabi.example.test", coursesUrl: "https://courses.example.test", cdnBase: "https://cdn.example.test/prefix", year: 2031 };
 type Puck = { type: string; props: Record<string, unknown> };
 type Sections = Record<string, { type?: string; settings?: Record<string, unknown>; block_order: string[]; blocks: Record<string, { type: string; settings: Record<string, unknown> }> }>;
 const sectionsOf = (settings: ReturnType<typeof exportSettings>) => settings.current.sections as unknown as Sections;
@@ -44,10 +44,11 @@ describe("mapKajabiPage", () => {
     expect(counts.hidden).toBe(1);
   });
 
-  it("makes the sign-up form without a form chosen, and tells how to pick it", () => {
+  it("makes the sign-up form with the Kajabi form the export names, and says to check it", () => {
     const { inner, notes } = map();
-    expect(inner[9].props).toMatchObject({ kajabiFormId: "", buttonLabel: "Sign me up", reassurance: "No spam.", instagramField: "none" });
-    expect(notes.some((n) => n.kind === "todo" && n.text.includes("123456"))).toBe(true);
+    expect(inner[9].props).toMatchObject({ kajabiFormId: "123456", buttonLabel: "Sign me up", reassurance: "No spam.", instagramField: "none" });
+    expect(notes.some((n) => n.kind === "approximated" && n.text.includes("123456") && n.text.includes("check in the editor"))).toBe(true);
+    expect(notes.some((n) => n.text.includes("Choose the Kajabi form"))).toBe(false);
     expect(notes.some((n) => n.kind === "todo" && n.text.includes("Instagram"))).toBe(true);
   });
 
