@@ -1,0 +1,50 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/quillandcup/hub/blob/main/config/vex.openvex.json",
+  "author": "quillandcup/hub maintainers",
+  "role": "Maintainers",
+  "timestamp": "2026-11-24T01:36:47.142Z",
+  "last_updated": "2026-11-24T01:36:47.142Z",
+  "version": 1,
+  "tooling": "quillandcup/hub scripts/vex.ts",
+  "statements": [
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-fm4j-4xhm-xpwx",
+        "name": "GHSA-fm4j-4xhm-xpwx"
+      },
+      "products": [
+        {
+          "@id": "pkg:github/quillandcup/hub",
+          "identifiers": {
+            "purl": "pkg:github/quillandcup/hub"
+          }
+        }
+      ],
+      "status_notes": "Accepted until 2027-02-20 (config/osv-scanner.toml); it fails the weekly scan again then. Reason recorded: No fix published; dev-only transitive dependency of the vercel CLI, not in the production build.",
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "The affected package is a development-only dependency and is not part of the production build. No fix published; dev-only transitive dependency of the vercel CLI, not in the production build.",
+      "timestamp": "2026-11-24T01:36:47.142Z"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://osv.dev/vulnerability/GHSA-gc25-3vc5-2jf9",
+        "name": "GHSA-gc25-3vc5-2jf9"
+      },
+      "products": [
+        {
+          "@id": "pkg:github/quillandcup/hub",
+          "identifiers": {
+            "purl": "pkg:github/quillandcup/hub"
+          }
+        }
+      ],
+      "status_notes": "Accepted until 2027-02-20 (config/osv-scanner.toml); it fails the weekly scan again then. Reason recorded: No fix published; dev-only transitive dependency of the vercel CLI, not in the production build.",
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "The affected package is a development-only dependency and is not part of the production build. No fix published; dev-only transitive dependency of the vercel CLI, not in the production build.",
+      "timestamp": "2026-11-24T01:36:47.142Z"
+    }
+  ]
+}
