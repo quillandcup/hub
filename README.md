@@ -3,26 +3,25 @@
 The member platform for [Quill & Cup](https://quillandcup.com), a community of writers who show up to write together. Members see their own writing journey and take part in the community; staff get the tools to run it and see how it is doing.
 
 <p>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/quillandcup/hub/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/code-quality.yml"><img alt="Code quality" src="https://github.com/quillandcup/hub/actions/workflows/code-quality.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/ci.yml"><img alt="Coverage" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage.json"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/quillandcup/hub/ci.yml?branch=main&label=CI"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/code-quality.yml"><img alt="Code quality" src="https://img.shields.io/github/actions/workflow/status/quillandcup/hub/code-quality.yml?branch=main&label=Code%20quality"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/ci.yml"><img alt="Coverage" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage.json&label=Coverage"></a>
   <a href="https://hub.quillandcup.com"><img alt="Hub uptime" src="https://api.checklyhq.com/v1/badges/checks/d4e1e531-5370-4982-a996-317709722dc6"></a>
-  <a href="LICENSE"><img alt="License: Proprietary" src="https://img.shields.io/badge/license-proprietary-lightgrey"></a>
+  <a href="LICENSE"><img alt="License: Proprietary" src="https://img.shields.io/badge/License-Proprietary-lightgrey"></a>
 </p>
 
 <p>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/quillandcup/hub/badge"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml"><img alt="OSV scan" src="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml"><img alt="OSV scan" src="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml"><img alt="gitleaks" src="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml"><img alt="ZAP baseline" src="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml/badge.svg?branch=main"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/quillandcup/hub"><img alt="OpenSSF Scorecard" src="https://img.shields.io/ossf-scorecard/github.com/quillandcup/hub?label=OpenSSF%20Scorecard"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/osv-scan.yml"><img alt="OSV scan" src="https://img.shields.io/github/actions/workflow/status/quillandcup/hub/osv-scan.yml?branch=main&label=OSV%20scan"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/gitleaks.yml"><img alt="gitleaks" src="https://img.shields.io/github/actions/workflow/status/quillandcup/hub/gitleaks.yml?branch=main&label=gitleaks"></a>
+  <a href="https://github.com/quillandcup/hub/actions/workflows/zap-baseline.yml"><img alt="ZAP baseline" src="https://img.shields.io/github/actions/workflow/status/quillandcup/hub/zap-baseline.yml?branch=main&label=ZAP%20baseline"></a>
 </p>
 
 <p>
   Coverage by area:
-  <img alt="src/lib" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json">
-  <img alt="src/components" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json">
-  <img alt="src/app/api" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json">
+  <img alt="src/lib" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-lib.json&label=src%2Flib">
+  <img alt="src/components" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-components.json&label=src%2Fcomponents">
+  <img alt="src/app/api" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquillandcup%2Fhub%2Fbadges%2Fcoverage-app-api.json&label=src%2Fapp%2Fapi">
 </p>
 
 ## What it does
