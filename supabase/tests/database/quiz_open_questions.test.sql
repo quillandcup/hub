@@ -12,7 +12,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(30);
+SELECT plan(29);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000d02a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'qo-alice@example.test'),
