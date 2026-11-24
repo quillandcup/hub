@@ -341,6 +341,7 @@ export default function QuizTaker({
       {attempts.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold">Your earlier attempts</h2>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Staff can see your score, answers, name and date for each attempt.</p>
           <ul className="mt-2 space-y-2 text-sm text-slate-700 dark:text-slate-300">
             {attempts.map((a) => (
               <li key={a.id}>

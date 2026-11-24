@@ -145,6 +145,12 @@ describe("QuizTaker: answering", () => {
     expect(screen.getByText(/You've passed this quiz\. You can take it again; the lesson stays complete\./)).toBeInTheDocument();
     expect(screen.getByText("Jan 4, 2027, 10:00 PM: 100% (2 of 2), passed")).toBeInTheDocument();
     expect(screen.getByText("Jan 4, 2027, 10:00 AM: 50% (1 of 2), not passed")).toBeInTheDocument();
+    expect(screen.getByText("Staff can see your score, answers, name and date for each attempt.")).toBeInTheDocument();
+  });
+
+  it("says nothing about staff when there are no earlier attempts", () => {
+    show({ attempts: [] });
+    expect(screen.queryByText(/Staff can see/)).not.toBeInTheDocument();
   });
 });
 
