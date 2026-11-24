@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(30);
+SELECT plan(46);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000d1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dupcourse-alice@example.test'),
@@ -39,6 +39,22 @@ INSERT INTO public.course_lesson_files (lesson_id, source_key, filename, storage
 INSERT INTO public.lesson_progress (member_id, lesson_id, completed_at) VALUES ('mbr_DupCourse0001', 'les_DupCourseA01', now());
 INSERT INTO public.course_access (member_id, course_id, starts_at, origin) VALUES ('mbr_DupCourse0001', 'crs_DupCourse001', now(), 'purchase');
 INSERT INTO public.course_access_grants (member_id, course_id) VALUES ('mbr_DupCourse0001', 'crs_DupCourse001');
+
+-- A quiz in the submodule's lesson (as an imported one has Kajabi keys): a passing grade, hidden answers, two questions (one
+-- choose-one, one choose-several) with their options, and a member's attempt with its answers.
+INSERT INTO public.quizzes (id, lesson_id, passing_percent, hide_answers, revision, source_key) VALUES ('quiz_DupCourseQ01', 'les_DupCourseA11', 80, true, 4, 'pgtap-dup-quiz');
+INSERT INTO public.quiz_questions (id, quiz_id, position, prompt, allows_multiple, source_key) VALUES
+  ('qques_DupCourseQ01', 'quiz_DupCourseQ01', 1, 'Pick one', false, 'pgtap-dup-q1'),
+  ('qques_DupCourseQ02', 'quiz_DupCourseQ01', 2, 'Pick all that apply', true, 'pgtap-dup-q2');
+INSERT INTO public.quiz_questions (id, quiz_id, position, prompt, kind, graded, source_key) VALUES
+  ('qques_DupCourseQ03', 'quiz_DupCourseQ01', 3, 'In your words', 'short_answer', false, 'pgtap-dup-q3');
+INSERT INTO public.quiz_options (id, question_id, position, label, is_correct, source_key) VALUES
+  ('qopt_DupCourseO01', 'qques_DupCourseQ01', 1, 'Wrong', false, 'pgtap-dup-o1'),
+  ('qopt_DupCourseO02', 'qques_DupCourseQ01', 2, 'Right', true, 'pgtap-dup-o2'),
+  ('qopt_DupCourseO03', 'qques_DupCourseQ02', 1, 'Yes A', true, 'pgtap-dup-o3'),
+  ('qopt_DupCourseO04', 'qques_DupCourseQ02', 2, 'Yes B', true, 'pgtap-dup-o4');
+INSERT INTO public.quiz_attempts (id, quiz_id, member_id, question_count, correct_count, score_percent, passed) VALUES ('qatt_DupCourseA01', 'quiz_DupCourseQ01', 'mbr_DupCourse0001', 2, 2, 100, true);
+INSERT INTO public.quiz_attempt_answers (attempt_id, question_id, selected_option_ids, is_correct) VALUES ('qatt_DupCourseA01', 'qques_DupCourseQ01', ARRAY['qopt_DupCourseO02'], true);
 
 -- A course nested one level too deep for the editor, and one that already owns the address "pgtap-dup-copy".
 INSERT INTO public.courses (id, slug, title, source, source_key) VALUES
@@ -174,5 +190,61 @@ SELECT is((SELECT count(DISTINCT source_key)::int FROM public.course_lesson_file
 SELECT is((SELECT count(*)::int FROM public.course_lesson_files WHERE storage_path = 'pgtap/a.pdf'), 6, 'and all of them point at the one stored object');
 SELECT is((SELECT value FROM result WHERE label = 'member_helper'), '"not_editable"'::jsonb, 'the helper refuses a target that is not a Hub-owned lesson');
 
+-- Quizzes: the copy of the course holds a copy of the quiz, with the settings, questions, options and right answers.
+CREATE TEMP TABLE qshape(label text, value jsonb) ON COMMIT DROP;
+CREATE FUNCTION pg_temp.quiz_shape(p_lesson text) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_build_object(
+    'passing', q.passing_percent, 'hide', q.hide_answers,
+    'questions', (SELECT jsonb_agg(jsonb_build_array(qq.position, qq.prompt, qq.allows_multiple, qq.kind, qq.graded,
+                   (SELECT jsonb_agg(jsonb_build_array(o.position, o.label, o.is_correct) ORDER BY o.position) FROM public.quiz_options o WHERE o.question_id = qq.id)) ORDER BY qq.position)
+                  FROM public.quiz_questions qq WHERE qq.quiz_id = q.id))
+    FROM public.quizzes q WHERE q.lesson_id = p_lesson
+$$;
+CREATE TEMP TABLE qlessons AS
+  SELECT (SELECT l.id FROM public.course_lessons l JOIN public.course_modules m ON m.id = l.module_id JOIN public.course_modules p ON p.id = m.parent_id
+           WHERE l.course_id = (SELECT id FROM copy) AND l.title = 'Lesson A1' AND p.title = 'Module A') AS copied;
+GRANT SELECT ON qlessons TO authenticated;
+
+SELECT is(pg_temp.quiz_shape('les_DupCourseA11'),
+  '{"passing": 80, "hide": true, "questions": [[1, "Pick one", false, "choice", true, [[1, "Wrong", false], [2, "Right", true]]], [2, "Pick all that apply", true, "choice", true, [[1, "Yes A", true], [2, "Yes B", true]]], [3, "In your words", false, "short_answer", false, null]]}'::jsonb,
+  'the original quiz is untouched (a short answer question has no options)');
+SELECT is(pg_temp.quiz_shape((SELECT copied FROM qlessons)), pg_temp.quiz_shape('les_DupCourseA11'),
+  'a duplicated course copies its quiz: passing grade, hide answers, questions, options in order and which are right');
+SELECT is((SELECT count(*)::int FROM public.quizzes WHERE lesson_id IN (SELECT id FROM public.course_lessons WHERE course_id = (SELECT id FROM copy2))), 1, 'exactly the one quiz is copied');
+SELECT is(
+  (SELECT jsonb_build_object('quiz', (SELECT count(*) FROM public.quizzes q WHERE q.lesson_id = (SELECT copied FROM qlessons) AND (q.id = 'quiz_DupCourseQ01' OR q.source_key IS NOT NULL OR q.revision <> 0)),
+          'questions', (SELECT count(*) FROM public.quiz_questions qq JOIN public.quizzes q ON q.id = qq.quiz_id WHERE q.lesson_id = (SELECT copied FROM qlessons) AND (qq.id LIKE 'qques\_DupCourse%' OR qq.source_key IS NOT NULL)),
+          'options', (SELECT count(*) FROM public.quiz_options o JOIN public.quiz_questions qq ON qq.id = o.question_id JOIN public.quizzes q ON q.id = qq.quiz_id WHERE q.lesson_id = (SELECT copied FROM qlessons) AND (o.id LIKE 'qopt\_DupCourse%' OR o.source_key IS NOT NULL)))),
+  '{"quiz": 0, "questions": 0, "options": 0}'::jsonb, 'the copied quiz, questions and options have new ids and no Kajabi keys');
+SELECT is(
+  (SELECT jsonb_build_object('attempts', (SELECT count(*) FROM public.quiz_attempts a JOIN public.quizzes q ON q.id = a.quiz_id WHERE q.lesson_id = (SELECT copied FROM qlessons)),
+          'answers', (SELECT count(*) FROM public.quiz_attempt_answers x JOIN public.quiz_questions qq ON qq.id = x.question_id JOIN public.quizzes q ON q.id = qq.quiz_id WHERE q.lesson_id = (SELECT copied FROM qlessons)))),
+  '{"attempts": 0, "answers": 0}'::jsonb, 'no attempts or answers are copied');
+SELECT is((SELECT count(*)::int FROM public.quiz_attempts WHERE quiz_id = 'quiz_DupCourseQ01') + (SELECT count(*)::int FROM public.quiz_attempt_answers WHERE attempt_id = 'qatt_DupCourseA01'), 2, 'the original keeps its attempt and its answer');
+SELECT is((SELECT count(*)::int FROM public.quiz_questions WHERE quiz_id = 'quiz_DupCourseQ01') + (SELECT count(*)::int FROM public.quiz_options WHERE question_id IN ('qques_DupCourseQ01', 'qques_DupCourseQ02')), 7, 'and its questions and options');
+SELECT is((SELECT changes -> 'quizzes_copied' ->> 'new' FROM public.audit_log WHERE entity_type = 'course' AND entity_id = (SELECT id FROM copy)), '1', 'the course''s audit entry counts the quizzes copied');
+SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'quiz' AND entity_id IN (SELECT id FROM public.quizzes WHERE lesson_id IN (SELECT id FROM public.course_lessons WHERE course_id = (SELECT id FROM copy2) UNION SELECT copied FROM qlessons))), 0, 'and there is no entry per copied quiz');
+
+-- One lesson, and one module.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a4", "email": "dupcourse-dana@example.test", "role": "authenticated"}', true);
+INSERT INTO result SELECT 'quiz_lesson_copy', to_jsonb(public.duplicate_course_lesson((SELECT copied FROM qlessons)));
+RESET ROLE;
+SELECT is(pg_temp.quiz_shape((SELECT value #>> '{}' FROM result WHERE label = 'quiz_lesson_copy')), pg_temp.quiz_shape('les_DupCourseA11'),
+  'duplicating a quiz lesson copies the quiz with its questions, options and right answers');
+SELECT is((SELECT jsonb_build_object('draft', publishing_option, 'state', state, 'source', source) FROM public.course_lessons WHERE id = (SELECT value #>> '{}' FROM result WHERE label = 'quiz_lesson_copy')),
+  '{"draft": "draft", "state": "hidden", "source": "hub"}'::jsonb, 'the copied quiz lesson is a Hub-owned draft');
+SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'quiz' AND action = 'insert' AND entity_id = (SELECT id FROM public.quizzes WHERE lesson_id = (SELECT value #>> '{}' FROM result WHERE label = 'quiz_lesson_copy'))), 1, 'a quiz copied with one lesson gets its own audit entry, as the admin');
+SELECT is((SELECT count(*)::int FROM public.quiz_attempts a JOIN public.quizzes q ON q.id = a.quiz_id WHERE q.lesson_id = (SELECT value #>> '{}' FROM result WHERE label = 'quiz_lesson_copy')), 0, 'and has no attempts');
+SELECT is((SELECT count(*)::int FROM public.quizzes WHERE lesson_id = 'les_DupCourseA01'), 0, 'a lesson without a quiz gets none');
+
+-- The module copy made earlier held the submodule with the quiz lesson.
+SELECT is(
+  (SELECT pg_temp.quiz_shape(l.id) FROM public.course_lessons l JOIN public.course_modules m ON m.id = l.module_id
+    WHERE l.title = 'Lesson A1' AND m.parent_id = (SELECT value #>> '{}' FROM result WHERE label = 'module_copy')),
+  pg_temp.quiz_shape('les_DupCourseA11'), 'duplicating a module copies the quizzes of its submodules'' lessons');
+SELECT is(
+  (SELECT count(*)::int FROM public.quiz_attempts a JOIN public.quizzes q ON q.id = a.quiz_id JOIN public.course_lessons l ON l.id = q.lesson_id JOIN public.course_modules m ON m.id = l.module_id
+    WHERE m.parent_id = (SELECT value #>> '{}' FROM result WHERE label = 'module_copy')), 0, 'and no attempts');
 SELECT * FROM finish(true);
 ROLLBACK;
