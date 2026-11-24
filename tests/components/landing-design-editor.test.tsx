@@ -211,4 +211,14 @@ describe("the Design view", () => {
     view({ publishedAt: "2026-11-01T00:00:00Z", hasPublished: true, unpublished: false });
     expect(screen.getByRole("button", { name: "Reset to published" })).toBeDisabled();
   });
+
+  it("explains {year} and shows the footer text as it will read, in the field and in the preview", () => {
+    view();
+    expect(screen.getByText(/Type \{year\} for the current year/)).toBeInTheDocument();
+    expect(screen.queryByTestId("footer-text-preview")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Show a footer on website pages"));
+    fireEvent.change(screen.getByLabelText(/Text \(for example/), { target: { value: "© {year:2019} Fern Quills" } });
+    expect(screen.getByTestId("footer-text-preview")).toHaveTextContent(/^© 2019–\d{4} Fern Quills$/);
+    expect(screen.getByRole("contentinfo")).toHaveTextContent(/© 2019–\d{4} Fern Quills/);
+  });
 });

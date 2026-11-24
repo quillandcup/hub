@@ -8,6 +8,7 @@ import Tooltip from "@/components/Tooltip";
 import { FaviconField, StyleFields } from "@/components/landing/style-fields";
 import { SOCIAL_LOOK_OPTIONS } from "@/components/landing/social-networks";
 import { SiteFooterView, SiteHeaderView } from "@/components/landing/site-frame";
+import { FOOTER_YEAR_HELP, resolveYearTokens } from "@/lib/landing/footer-year";
 import {
   HEADER_ALIGNMENTS,
   HEADER_ITEM_TYPES,
@@ -41,11 +42,12 @@ const SHOW_LABELS = { both: "On every size", desktop: "Only when there is room (
 const ALIGN_LABELS = { spread: "Logo at the start, the rest at the far end", start: "Everything at the start", center: "Everything centred" } as const;
 const MOBILE_LABELS = { fold: "Fold the menu into a Menu button", wrap: "Show the links, wrapping onto more lines" } as const;
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="block text-sm font-medium">
       {label}
       {children}
+      {hint && <span className="mt-1 block text-xs font-normal text-ink-muted">{hint}</span>}
     </label>
   );
 }
@@ -463,9 +465,14 @@ export default function DesignEditor({
           Footer
         </h2>
         <Toggle label="Show a footer on website pages" checked={site.footer.show} onChange={(show) => setFooter({ show })} />
-        <Field label="Text (for example, a copyright line)">
+        <Field label="Text (for example, a copyright line)" hint={FOOTER_YEAR_HELP}>
           <input value={site.footer.text} onChange={(e) => setFooter({ text: e.target.value })} className={INPUT} />
         </Field>
+        {site.footer.text.includes("{year") && (
+          <p className="text-sm text-ink-muted">
+            Shows as: <span data-testid="footer-text-preview">{resolveYearTokens(site.footer.text)}</span>
+          </p>
+        )}
         <div>
           <h3 className="mb-2 text-sm font-semibold">Links</h3>
           <LinkRows links={site.footer.links} onChange={(links) => setFooter({ links })} noun="footer link" />
