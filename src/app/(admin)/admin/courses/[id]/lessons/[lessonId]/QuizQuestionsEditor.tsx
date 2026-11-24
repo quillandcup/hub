@@ -7,13 +7,17 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import Icon from "@/components/Icon";
 import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { moveToPosition, positionItems, positionsHeading } from "@/lib/reorder";
-import { blankQuestion, checkQuestion, markCorrect, QUIZ_LIMITS, withAllowsMultiple, type QuestionDraft } from "@/lib/courses/quiz-editor";
+import { QUIZ_ANSWERS } from "@/lib/config";
+import { blankQuestion, checkQuestion, markCorrect, QUESTION_KIND_LABELS, QUIZ_LIMITS, withAllowsMultiple, withGraded, withKind, type FullQuestionDraft, type QuestionDraft } from "@/lib/courses/quiz-editor";
+import type { QuestionKind } from "@/lib/courses/quiz-scoring";
 import { deleteQuizQuestion, reorderQuizQuestions, saveQuizQuestion } from "../../../quiz-actions";
 
 /** One question as the editor shows it (the correct answers are staff-only, so this page never reaches a member). */
 export interface EditorQuestion {
   id: string;
   prompt: string;
+  kind: QuestionKind;
+  graded: boolean;
   allowsMultiple: boolean;
   options: { id: string; label: string; isCorrect: boolean }[];
 }
@@ -23,10 +27,10 @@ const BUTTON = "rounded border border-slate-300 px-3 py-1.5 text-sm font-medium 
 const PRIMARY = "rounded bg-plum-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-plum-700 disabled:cursor-not-allowed disabled:opacity-60";
 const ICON_BUTTON = "flex items-center rounded p-1.5 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300 dark:hover:bg-slate-800";
 
-const draftOf = (q: EditorQuestion): QuestionDraft => ({ prompt: q.prompt, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })) });
+const draftOf = (q: EditorQuestion): FullQuestionDraft => ({ prompt: q.prompt, kind: q.kind, graded: q.graded, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label, isCorrect: o.isCorrect })) });
 
 /** A question's form: its text, whether several answers may be chosen, and the answers with the right ones marked. */
-function QuestionForm({ initial, label, busy, error, onSave, onCancel }: { initial: QuestionDraft; label: string; busy: boolean; error: string | null; onSave: (draft: QuestionDraft) => void; onCancel: () => void }) {
+function QuestionForm({ initial, label, busy, error, kindLocked, onSave, onCancel }: { initial: FullQuestionDraft; label: string; busy: boolean; error: string | null; kindLocked: boolean; onSave: (draft: QuestionDraft) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(initial);
   const [problem, setProblem] = useState<string | null>(null);
   const ids = useId();
@@ -54,24 +58,62 @@ function QuestionForm({ initial, label, busy, error, onSave, onCancel }: { initi
         <textarea value={draft.prompt} onChange={(e) => setDraft({ ...draft, prompt: e.target.value })} rows={2} maxLength={QUIZ_LIMITS.prompt} className={FIELD} />
       </label>
 
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={multiple} onChange={(e) => setDraft(withAllowsMultiple(draft, e.target.checked))} />
-        Members can choose more than one answer
-      </label>
+      {kindLocked ? (
+        <p className="text-sm">
+          <span className="font-medium">Type: </span>
+          {QUESTION_KIND_LABELS[draft.kind]}
+        </p>
+      ) : (
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">Type</span>
+          <select value={draft.kind} onChange={(e) => setDraft(withKind(draft, e.target.value as QuestionKind))} className={FIELD}>
+            {(Object.keys(QUESTION_KIND_LABELS) as QuestionKind[]).map((kind) => (
+              <option key={kind} value={kind}>
+                {QUESTION_KIND_LABELS[kind]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
+      {draft.kind === "short_answer" && <p className="text-sm text-slate-600 dark:text-slate-400">Members write their answer in a text box. It is saved, not scored, and only the member and the course team can read it.</p>}
+      {draft.kind === "file_upload" && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Members upload one file (a document or a picture, up to {QUIZ_ANSWERS.maxFileBytes / (1024 * 1024)} MB). It is saved, not scored, and only the member and the course team can open it.
+        </p>
+      )}
+
+      {draft.kind === "choice" && (
+        <>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={draft.graded} onChange={(e) => setDraft(withGraded(draft, e.target.checked))} />
+            Graded question (counts toward the score)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={multiple} onChange={(e) => setDraft(withAllowsMultiple(draft, e.target.checked))} />
+            Members can choose more than one answer
+          </label>
+        </>
+      )}
+
+      {draft.kind === "choice" && (
       <fieldset>
         <legend className="mb-1 text-sm font-medium">Answers</legend>
-        <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">{multiple ? "Tick every right answer. A member is right only when they choose exactly those." : "Choose the one right answer."}</p>
+        <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
+          {!draft.graded ? "No answer is marked right: members' choices are saved, not scored." : multiple ? "Tick every right answer. A member is right only when they choose exactly those." : "Choose the one right answer."}
+        </p>
         <ul className="space-y-2">
           {draft.options.map((o, i) => (
             <li key={o.id ?? `new-${i}`} className="flex items-center gap-2">
-              <input
-                type={multiple ? "checkbox" : "radio"}
-                name={`${ids}-correct`}
-                checked={o.isCorrect}
-                onChange={(e) => setDraft(markCorrect(draft, i, multiple ? e.target.checked : true))}
-                aria-label={`Answer ${i + 1} is right`}
-              />
+              {draft.graded && (
+                <input
+                  type={multiple ? "checkbox" : "radio"}
+                  name={`${ids}-correct`}
+                  checked={o.isCorrect}
+                  onChange={(e) => setDraft(markCorrect(draft, i, multiple ? e.target.checked : true))}
+                  aria-label={`Answer ${i + 1} is right`}
+                />
+              )}
               <input type="text" value={o.label} onChange={(e) => setLabel(i, e.target.value)} maxLength={QUIZ_LIMITS.option} aria-label={`Answer ${i + 1}`} className={FIELD} />
               <button
                 type="button"
@@ -90,6 +132,7 @@ function QuestionForm({ initial, label, busy, error, onSave, onCancel }: { initi
           Add answer
         </button>
       </fieldset>
+      )}
 
       {shown && (
         <p role="alert" className="text-sm text-red-700 dark:text-red-300">
@@ -116,7 +159,13 @@ function QuestionView({ question, number }: { question: EditorQuestion; number: 
         <span className="mr-2 text-slate-500">{number}.</span>
         {question.prompt}
       </p>
-      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">{question.allowsMultiple ? "Choose all that apply" : "Choose one"}</p>
+      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+        {question.kind === "short_answer"
+          ? "Short answer, not scored"
+          : question.kind === "file_upload"
+            ? "File upload, not scored"
+            : `${question.allowsMultiple ? "Choose all that apply" : "Choose one"}${question.graded && question.options.some((o) => o.isCorrect) ? "" : ", not scored"}`}
+      </p>
       <ul className="mt-2 space-y-1 text-sm">
         {question.options.map((o) => (
           <li key={o.id} className="flex items-center gap-2">
@@ -182,6 +231,7 @@ export default function QuizQuestionsEditor({ courseId, lessonId, questions, edi
                 key={q.id}
                 label={`Edit question ${i + 1}`}
                 initial={draftOf(q)}
+                kindLocked
                 busy={busy}
                 error={error}
                 onCancel={() => {
@@ -219,6 +269,7 @@ export default function QuizQuestionsEditor({ courseId, lessonId, questions, edi
           <QuestionForm
             label="New question"
             initial={blankQuestion()}
+            kindLocked={false}
             busy={busy}
             error={error}
             onCancel={() => {

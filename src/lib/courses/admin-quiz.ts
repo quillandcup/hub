@@ -1,5 +1,6 @@
 import { resolveCourseParam } from "@/lib/courses/course-param";
 import type { Repos } from "@/lib/data/repos";
+import { hasGradedQuestions } from "@/lib/courses/quiz-editor";
 import type { QuizAttemptRecord, QuizQuestionRecord, QuizRecord } from "@/lib/data/quizzes";
 import { isId } from "@/lib/ids";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -14,6 +15,10 @@ export interface AdminQuiz {
   editable: boolean;
   quiz: QuizRecord;
   questions: QuizQuestionRecord[];
+  /** Some question counts toward the score; without one the quiz has no score and no passing grade applies. */
+  hasGradedQuestions: boolean;
+  /** Some question takes words or a file, so a member's answers are worth opening from the Results tab. */
+  hasOpenQuestions: boolean;
   /** Attempts members have made, for what removing the quiz would delete. */
   attemptCount: number;
 }
@@ -31,6 +36,8 @@ export async function loadAdminQuiz(repos: AdminQuizRepos, courseParam: string, 
     editable: lesson.source === "hub",
     quiz,
     questions,
+    hasGradedQuestions: hasGradedQuestions(questions),
+    hasOpenQuestions: questions.some((q) => q.kind !== "choice"),
     attemptCount: attempts.get(lessonId) ?? 0,
   };
 }
@@ -72,4 +79,53 @@ export async function loadQuizResults(repos: Pick<Repos, "quizzes" | "members">,
   const attempts = await repos.quizzes.attemptsOfQuiz(quizId);
   const members = await repos.members.byIds([...new Set(attempts.map((a) => a.memberId))]);
   return buildQuizResults(attempts, members);
+}
+
+/** One answer of an attempt, as staff read it: the question as it is now, what the member picked, wrote and uploaded. */
+export interface AttemptAnswerView {
+  questionId: string;
+  prompt: string;
+  kind: QuizQuestionRecord["kind"];
+  /** The labels of the options picked (a choice question). */
+  picked: string[];
+  /** Whether it was right; null when the question wasn't scored. */
+  correct: boolean | null;
+  text: string | null;
+  file: { name: string; bytes: number } | null;
+}
+
+export interface AttemptView {
+  result: QuizResultRow;
+  answers: AttemptAnswerView[];
+}
+
+/**
+ * One member's attempt with every answer, for the Results tab (staff only: it is the member's own writing and files). Null when the
+ * attempt isn't at this quiz. A question deleted since is left out, since its answers went with it.
+ */
+export async function loadAttemptView(repos: Pick<Repos, "quizzes" | "members">, quizId: string, attemptId: string): Promise<AttemptView | null> {
+  const attempt = await repos.quizzes.attemptById(attemptId);
+  if (!attempt || attempt.quizId !== quizId) return null;
+  const [questions, answers, members] = await Promise.all([
+    repos.quizzes.questionsOf(quizId),
+    repos.quizzes.answersOfAttempts([attemptId]),
+    repos.members.byIds([attempt.memberId]),
+  ]);
+  const [result] = buildQuizResults([attempt], members);
+  const byQuestion = new Map(answers.map((a) => [a.questionId, a]));
+  return {
+    result,
+    answers: questions.map((q) => {
+      const a = byQuestion.get(q.id);
+      return {
+        questionId: q.id,
+        prompt: q.prompt,
+        kind: q.kind,
+        picked: q.options.filter((o) => a?.selectedOptionIds.includes(o.id)).map((o) => o.label),
+        correct: a?.isCorrect ?? null,
+        text: a?.answerText ?? null,
+        file: a?.file ? { name: a.file.name, bytes: a.file.bytes } : null,
+      };
+    }),
+  };
 }

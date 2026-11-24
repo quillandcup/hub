@@ -25,7 +25,9 @@ const quiz = (over: Partial<AdminQuiz> = {}, settings: Partial<AdminQuiz["quiz"]
   lesson: { id: "les_AAAAAAAAAAA1", title: "Let's check in" },
   editable: true,
   quiz: { id: "quiz_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1", passingPercent: 80, hideAnswers: false, revision: 1, sourceKey: null, ...settings },
-  questions: [{ id: "qques_AAAAAAAAAAA1", quizId: "quiz_AAAAAAAAAAA1", position: 1, prompt: "How do you feel?", allowsMultiple: false, sourceKey: null, options: [{ id: "qopt_AAAAAAAAAAA1", position: 1, label: "Fine", isCorrect: true, sourceKey: null }, { id: "qopt_AAAAAAAAAAA2", position: 2, label: "Tired", isCorrect: false, sourceKey: null }] }],
+  questions: [{ id: "qques_AAAAAAAAAAA1", quizId: "quiz_AAAAAAAAAAA1", position: 1, prompt: "How do you feel?", kind: "choice", graded: true, allowsMultiple: false, sourceKey: null, options: [{ id: "qopt_AAAAAAAAAAA1", position: 1, label: "Fine", isCorrect: true, sourceKey: null }, { id: "qopt_AAAAAAAAAAA2", position: 2, label: "Tired", isCorrect: false, sourceKey: null }] }],
+  hasGradedQuestions: true,
+  hasOpenQuestions: false,
   attemptCount: 0,
   ...over,
 });

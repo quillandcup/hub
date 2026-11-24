@@ -16,8 +16,8 @@ const LESSON = "les_AAAAAAAAAAA1";
 const Q1 = "qques_AAAAAAAAAAA1";
 const Q2 = "qques_AAAAAAAAAAA2";
 const questions: EditorQuestion[] = [
-  { id: Q1, prompt: "How do you feel?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Great", isCorrect: false }, { id: "qopt_AAAAAAAAAAA2", label: "Fine", isCorrect: true }] },
-  { id: Q2, prompt: "Pick the writing days", allowsMultiple: true, options: [{ id: "qopt_AAAAAAAAAAA3", label: "Monday", isCorrect: true }, { id: "qopt_AAAAAAAAAAA4", label: "Tuesday", isCorrect: false }, { id: "qopt_AAAAAAAAAAA5", label: "Wednesday", isCorrect: true }] },
+  { id: Q1, prompt: "How do you feel?", kind: "choice", graded: true, allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Great", isCorrect: false }, { id: "qopt_AAAAAAAAAAA2", label: "Fine", isCorrect: true }] },
+  { id: Q2, prompt: "Pick the writing days", kind: "choice", graded: true, allowsMultiple: true, options: [{ id: "qopt_AAAAAAAAAAA3", label: "Monday", isCorrect: true }, { id: "qopt_AAAAAAAAAAA4", label: "Tuesday", isCorrect: false }, { id: "qopt_AAAAAAAAAAA5", label: "Wednesday", isCorrect: true }] },
 ];
 const show = (over: Partial<Parameters<typeof QuizQuestionsEditor>[0]> = {}) => render(<QuizQuestionsEditor courseId={COURSE} lessonId={LESSON} questions={questions} editable attemptCount={0} {...over} />);
 
@@ -59,6 +59,8 @@ describe("QuizQuestionsEditor", () => {
 
     expect(actions.saveQuizQuestion).toHaveBeenCalledWith(COURSE, LESSON, null, {
       prompt: "What day is it?",
+      kind: "choice",
+      graded: true,
       allowsMultiple: false,
       options: [{ label: "Monday", isCorrect: false }, { label: "Tuesday", isCorrect: false }, { label: "Wednesday", isCorrect: true }],
     });
@@ -115,6 +117,8 @@ describe("QuizQuestionsEditor", () => {
 
     expect(actions.saveQuizQuestion).toHaveBeenCalledWith(COURSE, LESSON, Q1, {
       prompt: "How are you today?",
+      kind: "choice",
+      graded: true,
       allowsMultiple: false,
       options: [{ id: "qopt_AAAAAAAAAAA1", label: "Great", isCorrect: false }, { id: "qopt_AAAAAAAAAAA2", label: "Fine", isCorrect: true }],
     });

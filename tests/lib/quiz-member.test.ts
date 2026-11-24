@@ -25,7 +25,7 @@ async function seed(repos: ReturnType<typeof build>, settings: { passingPercent?
   return { quiz, q1: await mk("One?", false, ["b"]), q2: await mk("Two?", false, ["a"]), q3: await mk("Three?", true, ["a", "c"]) };
 }
 
-const submit = (repos: ReturnType<typeof build>, answers: Record<string, string[]>, memberId = ADA, now = NOW) => submitQuizAttempt(repos, { memberId, lessonId: LESSON, answers, now });
+const submit = (repos: ReturnType<typeof build>, answers: Record<string, string[]>, memberId = ADA, now = NOW) => submitQuizAttempt(repos, { memberId, lessonId: LESSON, answers: { picks: answers, texts: {}, files: {} }, verifyFile: async () => null, now });
 
 describe("loadMemberQuiz", () => {
   it("is null for a lesson that isn't a quiz", async () => {
@@ -46,7 +46,7 @@ describe("loadMemberQuiz", () => {
     ]);
     // What goes to the browser carries no correct-answer field at all, however it is nested.
     for (const q of quiz.questions) {
-      expect(Object.keys(q).sort()).toEqual(["allowsMultiple", "id", "options", "prompt"]);
+      expect(Object.keys(q).sort()).toEqual(["allowsMultiple", "id", "kind", "options", "prompt"]);
       for (const o of q.options) expect(Object.keys(o).sort()).toEqual(["id", "label"]);
     }
     expect(JSON.stringify(quiz)).not.toMatch(/isCorrect|is_correct|correct/i);
@@ -65,7 +65,7 @@ describe("loadMemberQuiz", () => {
     expect(mine.attempts.map((a) => a.submittedAt.slice(0, 10))).toEqual(["2027-01-07", "2027-01-06", "2027-01-05", "2027-01-04", "2027-01-03"]);
     // The pass was on the 2nd, which is no longer in the list but still counts.
     expect(mine.passed).toBe(true);
-    expect(Object.keys(mine.attempts[0]).sort()).toEqual(["correctCount", "id", "passed", "questionCount", "scorePercent", "submittedAt"]);
+    expect(Object.keys(mine.attempts[0]).sort()).toEqual(["correctCount", "id", "openAnswers", "passed", "questionCount", "scorePercent", "submittedAt"]);
     expect((await loadMemberQuiz(repos, LESSON, "mbr_AAAAAAAAAAA9"))!.attempts).toEqual([]);
   });
 });
@@ -173,13 +173,13 @@ describe("submitQuizAttempt", () => {
     // An imported question can come without one (the builder never saves such a question).
     data.quizOptions.forEach((o) => (o.is_correct = false));
     const outcome = await submit(repos, { [id]: [stored.options[0].id] });
-    expect(outcome).toMatchObject({ ok: true, submission: { questionCount: 0, passed: false } });
+    expect(outcome).toMatchObject({ ok: true, submission: { questionCount: 0, scored: false, passed: true } });
   });
 
   it("refuses a lesson that isn't a quiz and a quiz with no questions, recording nothing", async () => {
     const repos = build();
-    expect(await submitQuizAttempt(repos, { memberId: ADA, lessonId: PLAIN, answers: {}, now: NOW })).toEqual({ ok: false, error: "This isn't a quiz." });
-    expect(await submitQuizAttempt(repos, { memberId: ADA, lessonId: "les_AAAAAAAAAAA9", answers: {}, now: NOW })).toEqual({ ok: false, error: "This isn't a quiz." });
+    expect(await submitQuizAttempt(repos, { memberId: ADA, lessonId: PLAIN, answers: { picks: {}, texts: {}, files: {} }, verifyFile: async () => null, now: NOW })).toEqual({ ok: false, error: "This isn't a quiz." });
+    expect(await submitQuizAttempt(repos, { memberId: ADA, lessonId: "les_AAAAAAAAAAA9", answers: { picks: {}, texts: {}, files: {} }, verifyFile: async () => null, now: NOW })).toEqual({ ok: false, error: "This isn't a quiz." });
     const quiz = await repos.quizzes.createQuiz(LESSON);
     expect(await submit(repos, {})).toEqual({ ok: false, error: "This quiz has no questions yet." });
     expect(await repos.quizzes.attemptsOfQuiz(quiz.id)).toEqual([]);
@@ -188,8 +188,8 @@ describe("submitQuizAttempt", () => {
 
 describe("parseAnswers", () => {
   it("reads option ids by question id", () => {
-    expect(parseAnswers({ qques_a: ["qopt_a", "qopt_b"], qques_b: [] })).toEqual({ qques_a: ["qopt_a", "qopt_b"], qques_b: [] });
-    expect(parseAnswers({})).toEqual({});
+    expect(parseAnswers({ qques_a: ["qopt_a", "qopt_b"], qques_b: [] })).toEqual({ picks: { qques_a: ["qopt_a", "qopt_b"], qques_b: [] }, texts: {}, files: {} });
+    expect(parseAnswers({})).toEqual({ picks: {}, texts: {}, files: {} });
   });
 
   it("refuses anything else: not an object, picks that aren't lists of short strings, or too many", () => {

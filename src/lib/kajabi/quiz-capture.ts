@@ -20,6 +20,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { asJson } from "../data/json";
 import { SupabaseKajabiCourseRepository } from "../data/kajabi-courses";
 import type { ImportedQuiz } from "../data/quizzes";
+import type { QuestionKind } from "../courses/quiz-scoring";
 import type { Db } from "../data/db";
 
 const coursesOf = (supabase: SupabaseClient) => new SupabaseKajabiCourseRepository(supabase as Db);
@@ -82,11 +83,14 @@ const QUESTION_REF_KEYS = ["questionid", "quizquestionid"].map(norm);
 const MULTIPLE_KEYS = ["allowmultiple", "allowsmultiple", "multipleanswers", "multiselect", "multipleselection", "allowmultipleanswers"].map(norm);
 const ORDER_KEYS = ["position", "order", "sort", "sortorder", "index"].map(norm);
 const PASSING_KEYS = ["passinggrade", "passingscore", "passingpercentage", "passpercentage", "passmark", "minimumscore", "minscore", "passingpercent", "requiredscore"].map(norm);
-const PASSING_ON_KEYS = ["passinggradeenabled", "setpassinggrade", "haspassinggrade", "passingenabled", "gradingenabled", "graded"].map(norm);
+// The question-level "graded" toggle is NOT a quiz setting, so it is not listed here (it would read as the grade being on).
+const PASSING_ON_KEYS = ["passinggradeenabled", "setpassinggrade", "haspassinggrade", "passingenabled", "gradingenabled"].map(norm);
 const TYPE_KEYS = ["questiontype", "type", "kind", "format"].map(norm);
-const MANUAL_FLAG_KEYS = ["gradedmanually", "manuallygraded", "manualgrading", "manual"].map(norm);
-/** Question types Kajabi grades by hand (short answer, file upload): the Hub builds only the auto-graded kinds. */
-const MANUAL_TYPE = /short|free.?text|essay|file|upload|manual|open.?ended/i;
+/** The "Graded question" toggle each Kajabi question has (it reads "Non-graded" when off, "Graded manually" for a short answer or file upload when on). */
+const GRADED_KEYS = ["graded", "isgraded", "gradedquestion", "gradable", "scored", "isscored"].map(norm);
+/** Question types by their name, as a value or a class name in whatever case: a short answer takes text, a file upload takes one file. Anything else with answers is a choice question. */
+const SHORT_ANSWER_TYPE = /short.?answer|free.?text|essay|open.?ended|text.?answer/i;
+const FILE_UPLOAD_TYPE = /file.?upload|upload.?file|file.?answer/i;
 const HIDE_KEYS = ["hideanswers", "hidecorrectanswers", "hideanswersonresults", "hideanswersonresultspage", "hideresultsanswers", "hideanswersonresult"].map(norm);
 
 /** The value of the first of these keys (in the order given) that the object has. */
@@ -178,10 +182,24 @@ interface RawOption {
 interface RawQuestion {
   id: string;
   prompt: string;
+  kind: QuestionKind;
+  /** Kajabi's "Graded question" toggle, or null when the question doesn't carry one. */
+  gradedFlag: boolean | null;
   options: RawOption[];
   order: number | null;
   allowsMultiple: boolean;
   correctIds: string[];
+}
+
+/** Short answer or file upload by the question's own type (a short-answer or file-upload name in a type-like field), else null: choice is decided by its answers. */
+function openKindOf(o: Obj): QuestionKind | null {
+  for (const name of TYPE_KEYS) {
+    const entry = Object.entries(o).find(([k]) => norm(k) === name);
+    if (!entry || typeof entry[1] !== "string") continue;
+    if (FILE_UPLOAD_TYPE.test(entry[1])) return "file_upload";
+    if (SHORT_ANSWER_TYPE.test(entry[1])) return "short_answer";
+  }
+  return null;
 }
 
 /** One option from an object, or null when it has no text. `isCorrect` is null when the object carries no flag at all. */
@@ -195,6 +213,13 @@ function optionOf(o: Obj, index: number): RawOption | null {
 function questionOf(o: Obj, index: number, referenced: Map<string, Obj[]>): RawQuestion | null {
   const prompt = firstText(o, PROMPT_KEYS);
   if (!prompt) return null;
+  const open = openKindOf(o);
+  const gradedRaw = valueOf(o, GRADED_KEYS);
+  const gradedFlag = typeof gradedRaw === "boolean" ? gradedRaw : gradedRaw === 0 || gradedRaw === 1 ? gradedRaw === 1 : null;
+  // A short answer or a file upload has no answers to read: it is a question by its type and its text.
+  if (open) {
+    return { id: asKey(o.id, `q${index + 1}`), prompt, kind: open, gradedFlag, options: [], order: typeof valueOf(o, ORDER_KEYS) === "number" ? (valueOf(o, ORDER_KEYS) as number) : null, allowsMultiple: false, correctIds: [] };
+  }
   let options: RawOption[] = [];
   const list = Object.entries(o).find(([k, v]) => OPTION_LIST_KEYS.includes(norm(k)) && Array.isArray(v));
   if (list) options = (list[1] as unknown[]).filter(isObj).map(optionOf).filter((x): x is RawOption => x !== null);
@@ -206,6 +231,8 @@ function questionOf(o: Obj, index: number, referenced: Map<string, Obj[]>): RawQ
   return {
     id: asKey(o.id, `q${index + 1}`),
     prompt,
+    kind: "choice",
+    gradedFlag,
     options,
     order: typeof order === "number" ? order : null,
     allowsMultiple: truthy(valueOf(o, MULTIPLE_KEYS)),
@@ -261,27 +288,13 @@ function findSetting(views: unknown[], keys: string[], accept: (v: unknown) => b
   return undefined;
 }
 
-/** How many questions are graded by hand in Kajabi (short answer, file upload), counted once each. Such a quiz is not imported. */
-function countManualQuestions(views: unknown[]): number {
-  const seen = new Set<string>();
-  for (const list of views.flatMap((v) => listsIn(v))) {
-    list.forEach((o, i) => {
-      if (!firstText(o, PROMPT_KEYS)) return;
-      const type = valueOf(o, TYPE_KEYS);
-      const flagged = truthy(valueOf(o, MANUAL_FLAG_KEYS));
-      if (flagged || (typeof type === "string" && MANUAL_TYPE.test(type) && !/multiple|checkbox|choice/i.test(type))) seen.add(asKey(o.id, `${firstText(o, PROMPT_KEYS)}#${i}`));
-    });
-  }
-  return seen.size;
-}
-
 export interface ParsedQuiz {
-  /** Questions Kajabi grades by hand (short answer, file upload); when there are any the quiz is skipped, not imported. */
-  manualQuestions: number;
+  /** Short answer and file upload questions Kajabi marks "graded manually": the Hub records them and never scores them, so they are imported as not graded. */
+  ungradedManual: number;
   /** Whole percent 1 to 100, or null for a quiz that isn't graded. */
   passingPercent: number | null;
   hideAnswers: boolean;
-  questions: { id: string; prompt: string; allowsMultiple: boolean; options: { id: string; label: string; isCorrect: boolean }[] }[];
+  questions: { id: string; prompt: string; kind: QuestionKind; graded: boolean; allowsMultiple: boolean; options: { id: string; label: string; isCorrect: boolean }[] }[];
   /** What was left out or guessed, in plain words (never a question's text). */
   warnings: string[];
 }
@@ -293,11 +306,13 @@ export function parseKajabiQuiz(documents: unknown[]): ParsedQuiz | null {
     return resolved === d ? [d] : [resolved, d];
   });
   const found = findQuestions(views);
-  const manualQuestions = countManualQuestions(views);
-  if (found.length === 0 && manualQuestions === 0) return null;
+  if (found.length === 0) return null;
   const warnings: string[] = [];
+  const ungradedManual = found.filter((q) => q.kind !== "choice" && q.gradedFlag === true).length;
 
   const questions = found.map((q) => {
+    // A short answer or a file upload is recorded, not scored, whatever Kajabi says about who grades it.
+    if (q.kind !== "choice") return { id: q.id, prompt: q.prompt, kind: q.kind, graded: false, allowsMultiple: false, options: [] };
     const flagged = q.options.some((o) => o.isCorrect !== null);
     const options = q.options.map((o) => ({
       id: o.id,
@@ -305,8 +320,10 @@ export function parseKajabiQuiz(documents: unknown[]): ParsedQuiz | null {
       // The question names its right answers by id, or each answer carries a flag; never both guessed, never defaulted.
       isCorrect: q.correctIds.length > 0 ? q.correctIds.includes(o.id) : o.isCorrect === true,
     }));
-    if (!flagged && q.correctIds.length === 0) warnings.push("a question has no right answer marked in what was captured, so it is not scored");
-    return { id: q.id, prompt: q.prompt, allowsMultiple: q.allowsMultiple || options.filter((o) => o.isCorrect).length > 1, options };
+    // Graded unless Kajabi's toggle says otherwise; a graded question with no right answer marked in what was captured is not scored.
+    const graded = q.gradedFlag !== false;
+    if (graded && !flagged && q.correctIds.length === 0) warnings.push("a question has no right answer marked in what was captured, so it is not scored");
+    return { id: q.id, prompt: q.prompt, kind: "choice" as const, graded, allowsMultiple: q.allowsMultiple || options.filter((o) => o.isCorrect).length > 1, options };
   });
 
   const passingRaw = findSetting(views, PASSING_KEYS, (v) => typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))));
@@ -320,7 +337,7 @@ export function parseKajabiQuiz(documents: unknown[]): ParsedQuiz | null {
     else if (percent !== 0) warnings.push("the passing grade was out of range, so the quiz is not graded");
   }
   const hide = findSetting(views, HIDE_KEYS, (v) => typeof v === "boolean" || v === 0 || v === 1);
-  return { manualQuestions, passingPercent, hideAnswers: hide === true || hide === 1, questions, warnings };
+  return { ungradedManual, passingPercent, hideAnswers: hide === true || hide === 1, questions, warnings };
 }
 
 /**
@@ -331,6 +348,10 @@ export function importedQuizOf(quizKajabiId: string, parsed: ParsedQuiz): { quiz
   const warnings = [...parsed.warnings];
   const questions: ImportedQuiz["questions"] = [];
   for (const q of parsed.questions) {
+    if (q.kind !== "choice") {
+      questions.push({ sourceKey: q.id, prompt: q.prompt.slice(0, 1000), kind: q.kind, graded: false, allowsMultiple: false, options: [] });
+      continue;
+    }
     if (q.options.length < 2 || q.options.length > 12) {
       warnings.push(`a question with ${q.options.length} answers was left out (a question has two to twelve)`);
       continue;
@@ -340,7 +361,7 @@ export function importedQuizOf(quizKajabiId: string, parsed: ParsedQuiz): { quiz
       .filter((o) => (optionKeys.has(o.id) ? false : (optionKeys.add(o.id), true)))
       .map((o) => ({ sourceKey: o.id, label: o.label.slice(0, 500), isCorrect: o.isCorrect }));
     const right = options.filter((o) => o.isCorrect).length;
-    questions.push({ sourceKey: q.id, prompt: q.prompt.slice(0, 1000), allowsMultiple: q.allowsMultiple || right > 1, options });
+    questions.push({ sourceKey: q.id, prompt: q.prompt.slice(0, 1000), kind: "choice", graded: q.graded, allowsMultiple: q.allowsMultiple || right > 1, options });
   }
   return { quiz: { sourceKey: quizKajabiId, passingPercent: parsed.passingPercent, hideAnswers: parsed.hideAnswers, questions }, warnings };
 }

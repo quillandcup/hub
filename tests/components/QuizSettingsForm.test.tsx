@@ -14,7 +14,7 @@ import QuizSettingsForm from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId
 const COURSE = "crs_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
 const show = (over: Partial<Parameters<typeof QuizSettingsForm>[0]> = {}) =>
-  render(<QuizSettingsForm courseId={COURSE} lessonId={LESSON} lessonTitle="Let's check in" passingPercent={null} hideAnswers={false} editable attemptCount={0} {...over} />);
+  render(<QuizSettingsForm courseId={COURSE} lessonId={LESSON} lessonTitle="Let's check in" passingPercent={null} hideAnswers={false} hasGradedQuestions editable attemptCount={0} {...over} />);
 
 beforeEach(() => {
   vi.clearAllMocks();

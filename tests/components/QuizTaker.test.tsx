@@ -17,10 +17,10 @@ import type { PublicQuizQuestion, QuizSubmission } from "@/lib/courses/quiz-memb
 
 const LESSON = "les_AAAAAAAAAAA1";
 const questions: PublicQuizQuestion[] = [
-  { id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Great" }, { id: "qopt_AAAAAAAAAAA2", label: "Fine" }] },
-  { id: "qques_AAAAAAAAAAA2", prompt: "Pick the writing days", allowsMultiple: true, options: [{ id: "qopt_AAAAAAAAAAA3", label: "Monday" }, { id: "qopt_AAAAAAAAAAA4", label: "Tuesday" }, { id: "qopt_AAAAAAAAAAA5", label: "Wednesday" }] },
+  { id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", kind: "choice", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Great" }, { id: "qopt_AAAAAAAAAAA2", label: "Fine" }] },
+  { id: "qques_AAAAAAAAAAA2", prompt: "Pick the writing days", kind: "choice", allowsMultiple: true, options: [{ id: "qopt_AAAAAAAAAAA3", label: "Monday" }, { id: "qopt_AAAAAAAAAAA4", label: "Tuesday" }, { id: "qopt_AAAAAAAAAAA5", label: "Wednesday" }] },
 ];
-const submission = (over: Partial<QuizSubmission> = {}): QuizSubmission => ({ scorePercent: 100, correctCount: 2, questionCount: 2, passed: true, passingPercent: 80, lessonComplete: true, review: null, ...over });
+const submission = (over: Partial<QuizSubmission> = {}): QuizSubmission => ({ scored: true, scorePercent: 100, correctCount: 2, questionCount: 2, passed: true, passingPercent: 80, lessonComplete: true, review: null, ...over });
 
 const Completion = () => {
   const completion = useLessonCompletion();
@@ -76,7 +76,7 @@ describe("QuizTaker: answering", () => {
     await user.click(screen.getByRole("checkbox", { name: "Wednesday" }));
     await user.click(screen.getByRole("button", { name: "Submit answers" }));
 
-    expect(actions.submitQuiz).toHaveBeenCalledWith(LESSON, { qques_AAAAAAAAAAA1: ["qopt_AAAAAAAAAAA2"], qques_AAAAAAAAAAA2: ["qopt_AAAAAAAAAAA3", "qopt_AAAAAAAAAAA5"] });
+    expect(actions.submitQuiz).toHaveBeenCalledWith(LESSON, { picks: { qques_AAAAAAAAAAA1: ["qopt_AAAAAAAAAAA2"], qques_AAAAAAAAAAA2: ["qopt_AAAAAAAAAAA3", "qopt_AAAAAAAAAAA5"] }, texts: {}, files: {} });
   });
 
   it("works from the keyboard: arrows choose, space ticks, enter submits", async () => {
@@ -93,14 +93,14 @@ describe("QuizTaker: answering", () => {
     await user.tab({ shift: true });
     await user.keyboard("{Enter}");
     // Enter on a radio submits the form.
-    await waitFor(() => expect(actions.submitQuiz).toHaveBeenCalledWith(LESSON, { qques_AAAAAAAAAAA1: ["qopt_AAAAAAAAAAA2"], qques_AAAAAAAAAAA2: ["qopt_AAAAAAAAAAA3"] }));
+    await waitFor(() => expect(actions.submitQuiz).toHaveBeenCalledWith(LESSON, { picks: { qques_AAAAAAAAAAA1: ["qopt_AAAAAAAAAAA2"], qques_AAAAAAAAAAA2: ["qopt_AAAAAAAAAAA3"] }, texts: {}, files: {} }));
   });
 
   it("allows submitting with questions unanswered (they count as wrong)", async () => {
     const user = userEvent.setup();
     show();
     await user.click(screen.getByRole("button", { name: "Submit answers" }));
-    expect(actions.submitQuiz).toHaveBeenCalledWith(LESSON, {});
+    expect(actions.submitQuiz).toHaveBeenCalledWith(LESSON, { picks: {}, texts: {}, files: {} });
   });
 
   it("shows the questions without a form to fill when there are none yet", () => {
@@ -138,8 +138,8 @@ describe("QuizTaker: answering", () => {
     show({
       passedBefore: true,
       attempts: [
-        { id: "qatt_AAAAAAAAAAA2", submittedAt: "2027-01-05T03:00:00.000Z", scorePercent: 100, correctCount: 2, questionCount: 2, passed: true },
-        { id: "qatt_AAAAAAAAAAA1", submittedAt: "2027-01-04T15:00:00.000Z", scorePercent: 50, correctCount: 1, questionCount: 2, passed: false },
+        { id: "qatt_AAAAAAAAAAA2", submittedAt: "2027-01-05T03:00:00.000Z", scorePercent: 100, correctCount: 2, questionCount: 2, passed: true, openAnswers: [] },
+        { id: "qatt_AAAAAAAAAAA1", submittedAt: "2027-01-04T15:00:00.000Z", scorePercent: 50, correctCount: 1, questionCount: 2, passed: false, openAnswers: [] },
       ],
     });
     expect(screen.getByText(/You've passed this quiz\. You can take it again; the lesson stays complete\./)).toBeInTheDocument();

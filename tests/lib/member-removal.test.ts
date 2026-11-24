@@ -85,8 +85,28 @@ describe("removeMemberOnRequest", () => {
     rpc.mockResolvedValue({ data: { auth_user_id: null, media_paths: [], feedback_paths: [] }, error: null });
     expect(await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false)).toEqual({ ok: true, leftovers: [] });
     expect(deleteUser).not.toHaveBeenCalled();
-    expect(from).toHaveBeenCalledTimes(1);
+    expect(from).toHaveBeenCalledTimes(2);
     expect(from).toHaveBeenCalledWith("milestone-photos");
+    expect(from).toHaveBeenCalledWith("quiz-answer-files");
+  });
+
+  it("deletes the files a member uploaded as quiz answers, from each folder under their own", async () => {
+    rpc.mockResolvedValue({ data: { auth_user_id: null, media_paths: [], feedback_paths: [] }, error: null });
+    list
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [{ name: "11111111-1111-1111-1111-111111111111" }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: "letter.pdf" }], error: null })
+      .mockResolvedValue({ data: [], error: null });
+    expect(await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false)).toEqual({ ok: true, leftovers: [] });
+    expect(remove).toHaveBeenCalledWith(["mbr_AAAAAAAAAAA1/11111111-1111-1111-1111-111111111111/letter.pdf"]);
+  });
+
+  it("says so when the quiz answer files cannot be listed", async () => {
+    rpc.mockResolvedValue({ data: { auth_user_id: null, media_paths: [], feedback_paths: [] }, error: null });
+    list.mockResolvedValueOnce({ data: [], error: null }).mockResolvedValue({ data: null, error: { message: "boom" } });
+    const result = await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false);
+    expect(result).toMatchObject({ ok: true });
+    expect((result as { leftovers: string[] }).leftovers.join(" ")).toMatch(/quiz answer files could not be listed \(boom\)/);
   });
 
   it("deletes every photo on a milestone from the member's own folder of the private bucket", async () => {
