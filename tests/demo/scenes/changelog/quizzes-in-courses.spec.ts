@@ -2,9 +2,6 @@ import { expect, shot, test } from "../../fixtures";
 import { DEMO_COURSE_SLUGS, DEMO_QUIZ_LESSON } from "../../courses-seed";
 import { resetQuizAttempts } from "../../db";
 
-// The page checks inject a style that hides the development badge; the app's own content security policy blocks it, so it is let through here.
-test.use({ bypassCSP: true });
-
 /**
  * Screenshots for the changelog entries "Quizzes in your courses" and "Quiz questions you answer in your own words": a member
  * opens the demo quiz ("Check your draft plan", tests/demo/courses-seed.ts), answers every kind of question, submits, and reads

@@ -37,6 +37,8 @@ describe("MemberIdentityPanel", () => {
     );
 
     const input = screen.getByDisplayValue("Edy Hackett");
+    // The name field has a name of its own for a screen reader, as the email fields do.
+    expect(screen.getByRole("textbox", { name: "Name" })).toBe(input);
     await userEvent.clear(input);
     await userEvent.type(input, "Erica Haraldsen");
 
@@ -102,7 +104,10 @@ describe("MemberIdentityPanel", () => {
       />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Use Edy Hackett as the default pen name" }));
+    // The accessible name starts with the words on the button (WCAG 2.5.3, Label in Name): the pen name and where it came from.
+    const useButton = screen.getByRole("button", { name: "Edy Hackett admin added: use as the default pen name" });
+    expect(useButton.getAttribute("aria-label")).toContain((useButton.textContent ?? "").trim());
+    await userEvent.click(useButton);
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -276,9 +281,11 @@ describe("MemberIdentityPanel", () => {
     const fetchMock = okFetch({ member: { email: "old@example.com" } });
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
     renderWithEmails();
-    expect(screen.queryByRole("button", { name: "Make zoom@example.com the primary email" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Make primary: zoom@example.com" })).not.toBeInTheDocument();
 
-    const button = screen.getByRole("button", { name: "Make old@example.com the primary email" });
+    const button = screen.getByRole("button", { name: "Make primary: old@example.com" });
+    // The accessible name starts with the words on the button (WCAG 2.5.3, Label in Name), so voice control "click Make primary" works.
+    expect(button.getAttribute("aria-label")).toContain(button.textContent ?? "");
     await userEvent.click(button);
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("old@example.com"));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -295,7 +302,7 @@ describe("MemberIdentityPanel", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     renderWithEmails();
 
-    await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make primary: old@example.com" }));
     expect(await screen.findByText(/already has a sign-in account/)).toBeInTheDocument();
     expect(screen.getByDisplayValue("erica@example.com")).toBeInTheDocument();
   });
@@ -316,7 +323,7 @@ describe("MemberIdentityPanel", () => {
       const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
       renderWithEmails();
 
-      await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+      await userEvent.click(screen.getByRole("button", { name: "Make primary: old@example.com" }));
       expect(await screen.findByText(/Kajabi contact dup1 already has that email/)).toBeInTheDocument();
 
       await userEvent.click(screen.getByRole("button", { name: "Delete the empty Kajabi contact and try again" }));
@@ -335,7 +342,7 @@ describe("MemberIdentityPanel", () => {
       vi.stubGlobal("fetch", fetchMock);
       renderWithEmails();
 
-      await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+      await userEvent.click(screen.getByRole("button", { name: "Make primary: old@example.com" }));
       expect(await screen.findByText(/Kajabi contact dup1 already has that email/)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Delete the empty Kajabi contact/ })).not.toBeInTheDocument();
     });
@@ -349,7 +356,7 @@ describe("MemberIdentityPanel", () => {
       vi.spyOn(window, "confirm").mockReturnValueOnce(true).mockReturnValueOnce(true);
       renderWithEmails();
 
-      await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+      await userEvent.click(screen.getByRole("button", { name: "Make primary: old@example.com" }));
       await userEvent.click(await screen.findByRole("button", { name: "Delete the empty Kajabi contact and try again" }));
 
       expect(await screen.findByText(/so it isn't deleted/)).toBeInTheDocument();

@@ -234,6 +234,14 @@ export default async function LessonPage({
   const backHref = parent ? `/courses/${view.course.slug}/modules/${parent.id}` : `/courses/${view.course.slug}`;
   const backTitle = parent?.title ?? view.course.title;
 
+  // The lesson's title and text: one heading per page, then the lesson's own words (sanitized with an allowlist when imported and again here, never rendered raw).
+  const titleAndText = (
+    <>
+      <h1 className="text-3xl font-bold leading-tight">{lesson.title}</h1>
+      {lesson.body_html && <div className="prose prose-slate prose-lg mt-6 max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeLessonHtml(lesson.body_html) ?? "" }} />}
+    </>
+  );
+
   return (
     <>
       {preview && (
@@ -313,26 +321,29 @@ export default async function LessonPage({
               card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
           <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900 @outline:col-start-1 @outline:row-start-3 @outline:mr-8">
             {quiz ? (
-              <QuizTaker
-                lessonId={lesson.id}
-                questions={quiz.questions}
-                passingPercent={quiz.passingPercent}
-                hideAnswers={quiz.hideAnswers}
-                attempts={quiz.attempts}
-                passedBefore={quiz.passed}
-                readOnlyReason={readOnlyReason}
-                timeZone={isValidTimeZone(quizTimeZone) ? quizTimeZone : ORG_TIMEZONE}
-              />
+              <>
+                {/* A quiz lesson opens with its title and text, then the questions: the title is what the page is about, so it comes first (a video lesson keeps it under the player and its button). */}
+                {titleAndText}
+                <div className={lesson.body_html ? "mt-8" : "mt-6"}>
+                  <QuizTaker
+                    lessonId={lesson.id}
+                    questions={quiz.questions}
+                    passingPercent={quiz.passingPercent}
+                    hideAnswers={quiz.hideAnswers}
+                    attempts={quiz.attempts}
+                    passedBefore={quiz.passed}
+                    readOnlyReason={readOnlyReason}
+                    timeZone={isValidTimeZone(quizTimeZone) ? quizTimeZone : ORG_TIMEZONE}
+                  />
+                </div>
+                <NextLessonPreview slug={view.course.slug} next={nextLesson} />
+              </>
             ) : (
-              <MarkCompleteButton />
-            )}
-            <NextLessonPreview slug={view.course.slug} next={nextLesson} />
-
-            <h1 className="mt-8 text-3xl font-bold leading-tight">{lesson.title}</h1>
-
-            {lesson.body_html && (
-              // Sanitized with an allowlist when it was imported and again here (src/lib/courses/sanitize.ts); never rendered raw.
-              <div className="prose prose-slate prose-lg mt-6 max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeLessonHtml(lesson.body_html) ?? "" }} />
+              <>
+                <MarkCompleteButton />
+                <NextLessonPreview slug={view.course.slug} next={nextLesson} />
+                <div className="mt-8">{titleAndText}</div>
+              </>
             )}
 
             <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">

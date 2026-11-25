@@ -106,7 +106,7 @@ function SummaryTable({ summary }: { summary: SummaryRow[] }) {
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="text-left text-slate-500 dark:text-slate-400">
+        <tr className="text-left text-slate-600 dark:text-slate-400">
           <th className="py-1 pr-3 font-medium">What</th>
           <th className="py-1 pr-3 font-medium">Records</th>
           <th className="py-1 font-medium">What happens</th>

@@ -2,9 +2,6 @@ import { expect, shot, test } from "../../fixtures";
 import { DEMO_QUIZ_ATTEMPT_AUTHORS } from "../../courses-seed";
 import { demoMemberIdByEmail } from "../../db";
 
-// The page checks inject a style that hides the development badge; the app's own content security policy blocks it, so it is let through here.
-test.use({ bypassCSP: true });
-
 /**
  * Screenshots for the changelog entry "Removing a member now removes their quiz answers and their Kajabi course data too": the
  * "Remove on request" panel of an invented member who took the demo quiz, after "See what would be removed" (the dry run: counts

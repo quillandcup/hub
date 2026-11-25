@@ -452,6 +452,29 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.getByText(/Score at least 80% to pass/)).toBeInTheDocument();
   });
 
+  it("puts a quiz lesson's title and text above its questions, and keeps the quiz's own headings below the page's one heading", async () => {
+    loadLessonView.mockResolvedValue(ok({ lesson: { ...lesson(LESSON_B, "Let's check in", 2), body_html: "<p>Answer honestly.</p>" } }));
+    loadMemberQuiz.mockResolvedValue({
+      passingPercent: null,
+      hideAnswers: false,
+      passed: false,
+      attempts: [{ id: "qatt_AAAAAAAAAAA1", submittedAt: "2026-11-20T15:00:00Z", scorePercent: 100, correctCount: 1, questionCount: 1, passed: true, importedFrom: null, openAnswers: [] }],
+      questions: [{ id: "qques_AAAAAAAAAAA1", prompt: "How do you feel?", kind: "choice", allowsMultiple: false, options: [{ id: "qopt_AAAAAAAAAAA1", label: "Fine" }, { id: "qopt_AAAAAAAAAAA2", label: "Tired" }] }],
+    });
+    await renderServerPage(LessonPage, params());
+
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const title = screen.getByRole("heading", { level: 1, name: "Let's check in" });
+    const text = screen.getByText("Answer honestly.");
+    const quiz = screen.getByRole("form", { name: "Quiz questions" });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(follows(title, text)).toBe(true);
+    expect(follows(text, quiz)).toBe(true);
+    // The quiz's own heading (its earlier attempts) is a second-level one, after the page's heading.
+    const earlier = screen.getByRole("heading", { level: 2, name: "Your earlier attempts" });
+    expect(follows(title, earlier)).toBe(true);
+  });
+
   it("turns the quiz off, with the reason, for a staff preview of a lesson members can't open yet", async () => {
     loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Let's check in", 2), state: "coming_soon" } }));
     loadMemberQuiz.mockResolvedValue({

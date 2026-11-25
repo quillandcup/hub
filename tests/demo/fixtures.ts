@@ -31,10 +31,14 @@ export const test = base.extend<{
       await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
       // Next's dev-mode badge, the feedback bubble and the environment label aren't what a help article or a
       // showcase is about; keep them out of screenshots.
+      // A constructable stylesheet, not a <style> element: a production build's content security policy only allows nonced
+      // <style> tags, so an injected one is blocked (and logged as a console error on every page). The app's policy is untouched.
       await page.addInitScript(() => {
-        const hide = document.createElement("style");
-        hide.textContent = "nextjs-portal, [data-feedback-widget], [data-environment-indicator] { display: none !important; }";
-        document.addEventListener("DOMContentLoaded", () => document.head.appendChild(hide));
+        document.addEventListener("DOMContentLoaded", () => {
+          const hide = new CSSStyleSheet();
+          hide.replaceSync("nextjs-portal, [data-feedback-widget], [data-environment-indicator] { display: none !important; }");
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, hide];
+        });
       });
     });
   },

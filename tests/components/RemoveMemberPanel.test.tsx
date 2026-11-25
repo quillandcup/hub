@@ -57,6 +57,14 @@ describe("RemoveMemberPanel", () => {
     await screen.findByText("writing projects");
   };
 
+  it("draws the table headers in a colour that is readable on the page (slate-600 in the light theme, not slate-500), and labels the confirm field by what it asks", async () => {
+    await open();
+    const header = screen.getByRole("columnheader", { name: "Records" });
+    expect(header.closest("tr")).toHaveClass("text-slate-600", "dark:text-slate-400");
+    expect(header.closest("tr")).not.toHaveClass("text-slate-500");
+    expect(screen.getByRole("textbox", { name: /Type Ada Example to confirm/ })).toBeTruthy();
+  });
+
   it("says up front what the course capture removal covers and that the other imports are untouched", () => {
     render(<RemoveMemberPanel member={member} />);
     expect(screen.getByText(/course data from the Kajabi capture .* goes with them and can't come back/i)).toBeTruthy();
