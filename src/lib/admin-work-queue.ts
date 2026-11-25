@@ -13,6 +13,7 @@ import {
   type InactivePeriod,
 } from "./member-tenure";
 import { computeAllHiatusTouchpoints } from "./hiatus-touchpoints";
+import { ORG_TIMEZONE } from "./config";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -25,8 +26,34 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 // e.g. the Welcome Back badge) since this is just a bootstrap window for
 // items that were already due when the feature launched — steady-state
 // items get plenty of runway from the lookahead side instead.
-export const WORK_QUEUE_LOOKAHEAD_DAYS = 14;
+//
+// The lookahead is not a fixed number of days: staff plan in the last week or
+// two of a month for the whole month ahead, so the queue reaches through the
+// end of NEXT month (Eastern), see workQueueLookaheadDays.
 export const WORK_QUEUE_LOOKBACK_DAYS = 14;
+
+const easternDateParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: ORG_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * Days from `now` until the last day of next month in the org's timezone, as a
+ * fraction so `now + days` lands exactly on that day's date-only deadline
+ * (read as 00:00Z): a deadline on the last day is in the window, the day after
+ * is not.
+ */
+export function workQueueLookaheadDays(now: Date): number {
+  const parts = Object.fromEntries(easternDateParts.formatToParts(now).map((p) => [p.type, p.value]));
+  const year = Number(parts.year);
+  const monthIndex = Number(parts.month) - 1;
+  // Day 0 of the month after next = last day of next month. Deadlines are date-only
+  // values read as 00:00Z, so that is the latest deadline instant to include.
+  const lastDayMs = Date.UTC(year, monthIndex + 2, 0);
+  return (lastDayMs - now.getTime()) / MS_PER_DAY;
+}
 
 export type WorkQueueType = "welcome_back" | "hedgieversary" | "hiatus_nudge" | "big_sister";
 
@@ -106,7 +133,7 @@ export function buildWelcomeBackQueue(
   membersById: Map<string, { name: string }>,
   completed: CompletionLookup,
   now: Date,
-  lookaheadDays: number = WORK_QUEUE_LOOKAHEAD_DAYS,
+  lookaheadDays: number = workQueueLookaheadDays(now),
   lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
 ): WorkQueueItem[] {
   const nowMs = now.getTime();
@@ -143,7 +170,7 @@ export function buildHedgieversaryQueue(
   hiatusWindowsByMember: Map<string, HiatusWindow[]>,
   completed: CompletionLookup,
   now: Date,
-  lookaheadDays: number = WORK_QUEUE_LOOKAHEAD_DAYS,
+  lookaheadDays: number = workQueueLookaheadDays(now),
   lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
 ): WorkQueueItem[] {
   const nowMs = now.getTime();
@@ -190,7 +217,7 @@ export function buildHiatusNudgeQueue(
   membersById: Map<string, { name: string }>,
   completed: CompletionLookup,
   now: Date,
-  lookaheadDays: number = WORK_QUEUE_LOOKAHEAD_DAYS,
+  lookaheadDays: number = workQueueLookaheadDays(now),
   lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
 ): WorkQueueItem[] {
   const nowMs = now.getTime();
