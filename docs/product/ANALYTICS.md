@@ -66,7 +66,7 @@ Search is measured with a few typed events plus named controls (`src/lib/analyti
 |---|---|---|
 | `search_opened` | the palette opens (`button`, `shortcut_k`, `shortcut_slash`) | how people reach search |
 | `search_ran` | a search's results were shown (palette: once typing settles or the member acts, not per keystroke; results page and chat search page: on render) | how often each surface is used, how often chat is searched (`chat_searched`), zero-result rate (`results`), which scopes and operators are used |
-| `search_result_clicked` | a result was opened, with its `kind` (chat, members...), `rank`, and `via` click or Enter | how often chat messages (or any kind) are clicked, and how far down |
+| `search_result_clicked` | a result was opened, with its `kind` (chat, members...), `rank`, and `via` click, Enter, or Ctrl/Cmd+Enter (`enter_new_tab`) | how often chat messages (or any kind) are clicked, and how far down |
 | `search_suggestion_clicked` | something on the empty palette was opened: needs attention, a recent place, or a recent search | whether those sections earn their place |
 | `search_filter_used` | a palette filter changed (kind, quick chip, From..., time range, a + option, a date, an autocomplete choice) | which filters get used |
 

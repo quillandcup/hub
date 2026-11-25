@@ -265,6 +265,19 @@ const DRIVERS: Record<string, Driver> = {
     await user.keyboard(keyString(chordFor(s, "enter")));
     expect(push).toHaveBeenLastCalledWith("/bookshelf");
   },
+  "search-go-new-tab": async (s) => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const user = await openPaletteWithResults();
+    const down = keyString(chordFor(SHORTCUTS.find((x) => x.id === "search-move")!, "down"));
+    await user.keyboard(down);
+    await user.keyboard(down);
+    push.mockClear();
+    await user.keyboard(keyString(chordFor(s, "enter")));
+    expect(open).toHaveBeenCalledWith("/bookshelf", "_blank", "noopener");
+    expect(push).not.toHaveBeenCalled();
+    expect(paletteInput()).toBeInTheDocument();
+    open.mockRestore();
+  },
   "search-close": async (s) => {
     const user = await openPaletteWithResults();
     await user.keyboard(keyString(chordFor(s, "esc")));

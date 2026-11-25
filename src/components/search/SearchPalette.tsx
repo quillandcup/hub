@@ -124,8 +124,8 @@ interface NavRow {
   key: string;
   href?: string;
   onSelect?: () => void;
-  /** Reports the row being opened with Enter (a click is reported where the row is rendered). */
-  track?: () => void;
+  /** Reports the row being opened with Enter, or Ctrl/Cmd+Enter for a new tab (a click is reported where the row is rendered). */
+  track?: (via: "enter" | "enter_new_tab") => void;
 }
 
 /**
@@ -432,19 +432,19 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         ...needsAttention.map((s, i) => ({
           key: s.id,
           href: s.href,
-          track: () => track("search_suggestion_clicked", { source: "needs_attention", kind: s.kind, rank: i + 1, via: "enter" }),
+          track: (via: "enter" | "enter_new_tab") => track("search_suggestion_clicked", { source: "needs_attention", kind: s.kind, rank: i + 1, via }),
         })),
         ...places.map((p, i) => ({
           key: `place:${p.href}`,
           href: p.href,
-          track: () => track("search_suggestion_clicked", { source: "recent_place", kind: placeArea(p.href), rank: needsAttention.length + i + 1, via: "enter" }),
+          track: (via: "enter" | "enter_new_tab") => track("search_suggestion_clicked", { source: "recent_place", kind: placeArea(p.href), rank: needsAttention.length + i + 1, via }),
         })),
       ];
     }
     return hits.map((h, i) => ({
       key: `${h.kind}:${h.id}`,
       href: h.href,
-      track: () => track("search_result_clicked", { surface: "palette", kind: h.kind, rank: i + 1, via: "enter" }),
+      track: (via) => track("search_result_clicked", { surface: "palette", kind: h.kind, rank: i + 1, via }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, options, recents, needsAttention, places, hits, completion]);
@@ -476,11 +476,21 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       } else if (row?.href) {
         e.preventDefault();
         reportSearch();
-        row.track?.();
-        go(row.href);
+        if (e.metaKey || e.ctrlKey) {
+          // Like Cmd+click on a link: the page stays, so several results can be opened in a row.
+          row.track?.("enter_new_tab");
+          saveSearch(input);
+          window.open(row.href, "_blank", "noopener");
+        } else {
+          row.track?.("enter");
+          go(row.href);
+        }
       } else if (trimmed) {
         e.preventDefault();
-        go(resultsHref);
+        if (e.metaKey || e.ctrlKey) {
+          saveSearch(input);
+          window.open(resultsHref, "_blank", "noopener");
+        } else go(resultsHref);
       }
     }
   };

@@ -153,6 +153,34 @@ describe("suggestions", () => {
     expect(callsOf("search_suggestion_clicked")).toEqual([{ source: "needs_attention", kind: "notification", rank: 1, via: "click" }]);
   });
 
+  it("records opening a needs-attention item, a recent place and a search result in a new tab with Ctrl+Enter, leaving the palette open", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    localStorage.setItem("hub:recent-places", JSON.stringify([{ href: "/members", title: "Members" }]));
+    searchSuggestions.mockResolvedValue({
+      needsAttention: [{ id: "n1", kind: "notification", title: "Something new", href: "/notifications" }],
+    });
+    const user = await openPalette();
+    await screen.findByRole("link", { name: /Something new/ });
+    await user.click(box());
+    await user.keyboard("{ArrowDown}{Control>}{Enter}{/Control}{ArrowDown}{Control>}{Enter}{/Control}");
+    expect(open).toHaveBeenNthCalledWith(1, "/notifications", "_blank", "noopener");
+    expect(open).toHaveBeenNthCalledWith(2, "/members", "_blank", "noopener");
+    expect(callsOf("search_suggestion_clicked")).toEqual([
+      { source: "needs_attention", kind: "notification", rank: 1, via: "enter_new_tab" },
+      { source: "recent_place", kind: "members", rank: 2, via: "enter_new_tab" },
+    ]);
+    expect(push).not.toHaveBeenCalled();
+    expect(box()).toBeInTheDocument();
+
+    await user.type(box(), "fern");
+    await screen.findByRole("heading", { name: "Members" });
+    track.mockClear();
+    await user.keyboard("{ArrowDown}{Control>}{Enter}{/Control}");
+    expect(open).toHaveBeenLastCalledWith("/members/m1", "_blank", "noopener");
+    expect(callsOf("search_result_clicked")).toEqual([{ surface: "palette", kind: "members", rank: 1, via: "enter_new_tab" }]);
+    open.mockRestore();
+  });
+
   it("records choosing a recent search", async () => {
     localStorage.setItem("hub:recent-searches", JSON.stringify(["fern lunch"]));
     const user = await openPalette();

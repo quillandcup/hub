@@ -78,6 +78,7 @@ const ENTRIES: Entry[] = [
   { id: "search-open", group: "search", keys: [["mod", "K"], ["/"]], label: "Open search" },
   { id: "search-move", group: "search", keys: [["up"], ["down"]], label: "Move through the results" },
   { id: "search-go", group: "search", keys: [["enter"]], label: "Open the highlighted result" },
+  { id: "search-go-new-tab", group: "search", keys: [["mod", "enter"]], label: "Open the highlighted result in a new tab" },
   { id: "search-close", group: "search", keys: [["esc"]], label: "Close search" },
   // `src/lib/submit-form-on-mod-enter.ts`, reported by `Modal` while a dialog with a form is open.
   { id: "forms-submit", group: "forms", keys: [["mod", "enter"]], label: "Save a form in a dialog" },
