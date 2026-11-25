@@ -38,6 +38,7 @@ describe("SupabaseBillingRepository on a database error", () => {
     ["stripeCustomers by email", () => repo.stripeCustomers({ emails: ["a@example.test"] })],
     ["stripeCustomersWithData", () => repo.stripeCustomersWithData()],
     ["stripeProductsByName", () => repo.stripeProductsByName(["n"])],
+    ["stripeProductsByIds", () => repo.stripeProductsByIds(["p"])],
     ["stripeSubscriptionStatuses", () => repo.stripeSubscriptionStatuses(["active"])],
     ["stripeSubscriptionStatuses by customer", () => repo.stripeSubscriptionStatuses(["active"], ["c"])],
     ["stripeSubscriptionRows", () => repo.stripeSubscriptionRows()],

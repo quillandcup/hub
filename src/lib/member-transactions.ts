@@ -16,7 +16,10 @@ export interface TransactionRow {
   createdAt: string;
   /** The date as staff read it, in the org's zone. */
   createdLabel: string;
+  /** What it was for: the Stripe product's name, else the invoice's own description, else a plain label. */
   description: string;
+  /** Why Stripe issued the invoice ("subscription cycle", "subscription create"), for an invoice that has one. */
+  reason: string | null;
   /** What was billed or taken, in cents. */
   amountCents: number;
   /** What was handed back, in cents (0 when nothing). */
@@ -73,7 +76,7 @@ function chargeOutcome(charge: StripeChargeRow): [string, TransactionTone] {
  * are joined both ways, because the import fills `stripe_charge_id` on one side or `stripe_invoice_id` on
  * the other depending on which it saw first.
  */
-export function buildTransactions(invoices: StripeInvoiceRow[], charges: StripeChargeRow[]): TransactionRow[] {
+export function buildTransactions(invoices: StripeInvoiceRow[], charges: StripeChargeRow[], productNames: ReadonlyMap<string, string> = new Map()): TransactionRow[] {
   const chargeById = new Map(charges.map((c) => [c.stripe_charge_id, c]));
   const chargesByInvoice = new Map<string, StripeChargeRow[]>();
   const attach = (invoiceId: string, charge: StripeChargeRow) => {
@@ -105,7 +108,8 @@ export function buildTransactions(invoices: StripeInvoiceRow[], charges: StripeC
       kind: "invoice",
       createdAt: invoice.created_at_stripe,
       createdLabel: formatDateTime(invoice.created_at_stripe, ORG_TIMEZONE),
-      description: invoice.description?.trim() || (invoice.billing_reason ? invoice.billing_reason.replace(/_/g, " ") : "Invoice"),
+      description: (invoice.stripe_product_id && productNames.get(invoice.stripe_product_id)) || invoice.description?.trim() || "Invoice",
+      reason: invoice.billing_reason ? invoice.billing_reason.replace(/_/g, " ") : null,
       amountCents: invoice.status === "paid" ? invoice.amount_paid : invoice.amount_due,
       refundedCents: refunded,
       currency: invoice.currency ?? "usd",
@@ -126,6 +130,7 @@ export function buildTransactions(invoices: StripeInvoiceRow[], charges: StripeC
       createdAt: charge.created_at_stripe,
       createdLabel: formatDateTime(charge.created_at_stripe, ORG_TIMEZONE),
       description: charge.description?.trim() || "Payment",
+      reason: null,
       amountCents: charge.amount,
       refundedCents: charge.amount_refunded,
       currency: charge.currency ?? "usd",

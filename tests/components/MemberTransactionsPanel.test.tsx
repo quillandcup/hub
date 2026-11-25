@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import MemberTransactionsPanel from "@/app/(admin)/admin/members/[id]/MemberTransactionsPanel";
 import type { TransactionRow } from "@/lib/member-transactions";
 
 const row: TransactionRow = {
-  id: "in_1", kind: "invoice", createdAt: "2026-03-01T15:00:00Z", createdLabel: "3/1/2026, 10:00 AM", description: "Membership",
+  id: "in_1", kind: "invoice", createdAt: "2026-03-01T15:00:00Z", createdLabel: "3/1/2026, 10:00 AM", description: "Membership", reason: "subscription cycle",
   amountCents: 2500, refundedCents: 500, currency: "usd", statusLabel: "Partly refunded", tone: "warn", failureCode: "card_declined", attempts: 2,
   dashboardUrl: "https://dashboard.stripe.com/invoices/in_1",
 };
@@ -26,5 +27,25 @@ describe("MemberTransactionsPanel", () => {
     expect(screen.getByText(/No Stripe customer is linked/)).toBeInTheDocument();
     rerender(<MemberTransactionsPanel rows={[]} customerCount={1} />);
     expect(screen.getByText(/No transactions imported/)).toBeInTheDocument();
+  });
+
+  it("shows the product name and the invoice reason", () => {
+    render(<MemberTransactionsPanel rows={[row]} customerCount={1} />);
+    expect(screen.getByText("Membership")).toBeInTheDocument();
+    expect(screen.getByText(/Invoice · subscription cycle/)).toBeInTheDocument();
+  });
+
+  it("searches, sorts by a header, and pages a long list with the standard pager", async () => {
+    const many = Array.from({ length: 60 }, (_, i): TransactionRow => ({
+      ...row, id: `in_${i}`, description: i === 7 ? "Retreat deposit" : "Membership", amountCents: 1000 + i,
+      createdAt: `2026-01-${String((i % 28) + 1).padStart(2, "0")}T00:00:00Z`,
+    }));
+    const user = userEvent.setup();
+    render(<MemberTransactionsPanel rows={many} customerCount={1} />);
+    expect(screen.getByText(/Showing 1–\d+ of 60 transactions/)).toBeInTheDocument();
+    await user.type(screen.getByRole("searchbox", { name: "Search transactions" }), "retreat");
+    const body = screen.getAllByRole("row").slice(1);
+    expect(body).toHaveLength(1);
+    expect(within(body[0]).getByText("Retreat deposit")).toBeInTheDocument();
   });
 });

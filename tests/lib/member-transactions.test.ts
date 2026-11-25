@@ -44,9 +44,14 @@ describe("buildTransactions", () => {
     expect(failed).toMatchObject({ statusLabel: "Failed", failureCode: "card_declined", attempts: 2, amountCents: 2500 });
   });
 
-  it("describes an invoice from its reason when it has no description, and an unpaid one by what is due", () => {
-    const [row] = buildTransactions([invoice({ status: "open", amount_paid: 0, amount_due: 900 })], []);
-    expect(row).toMatchObject({ description: "subscription cycle", statusLabel: "Open", amountCents: 900 });
+  it("names an invoice by its Stripe product, else its description, and keeps the reason; an unpaid one shows what is due", () => {
+    const names = new Map([["prod_m", "Monthly Membership"]]);
+    const [named] = buildTransactions([invoice({ stripe_product_id: "prod_m", description: "ignored" })], [], names);
+    expect(named).toMatchObject({ description: "Monthly Membership", reason: "subscription cycle" });
+    const [described] = buildTransactions([invoice({ stripe_product_id: "prod_gone", description: "Retreat" })], [], names);
+    expect(described.description).toBe("Retreat");
+    const [bare] = buildTransactions([invoice({ status: "open", amount_paid: 0, amount_due: 900, billing_reason: null })], []);
+    expect(bare).toMatchObject({ description: "Invoice", reason: null, statusLabel: "Open", amountCents: 900 });
   });
 });
 

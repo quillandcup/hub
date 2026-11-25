@@ -20,8 +20,7 @@ import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
 import ActivityRangeSummary from "@/app/(admin)/admin/activity/ActivityRangeSummary";
 import { ALL_TIME_DAYS, feedSearch, MEMBER_DEFAULTS, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
-import MemberTransactionsPanel from "./MemberTransactionsPanel";
-import type { TransactionRow } from "@/lib/member-transactions";
+import MemberTransactions from "./MemberTransactions";
 import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNotificationsPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
@@ -80,8 +79,6 @@ interface MemberDetailsProps {
   emailAliases: EmailAliasRow[];
   /** The Notifications tab's data; null off that tab or when the viewer may not see it. */
   notificationsInfo?: { devices: string[]; newcomer: boolean; kinds: NotificationKindRow[] } | null;
-  /** The Transactions tab's rows; null off that tab or when the viewer may not see it. */
-  transactions?: { rows: TransactionRow[]; customerCount: number } | null;
   /** What the viewer may see or do beyond reading (src/lib/staff-access.ts): everything else is hidden. */
   features: readonly StaffFeature[];
 }
@@ -111,7 +108,6 @@ export default function MemberDetails({
   nameAliases,
   emailAliases,
   notificationsInfo = null,
-  transactions = null,
   features,
 }: MemberDetailsProps) {
   const can = (feature: StaffFeature) => features.includes(feature);
@@ -302,7 +298,7 @@ export default function MemberDetails({
         <MemberNotificationsPanel email={member.email} {...notificationsInfo} />
       )}
 
-      {activeTab === "transactions" && transactions && <MemberTransactionsPanel {...transactions} />}
+      {activeTab === "transactions" && can("member.transactions_tab") && <MemberTransactions memberId={member.id} />}
 
       {activeTab === "attendance" && (
         <MemberAttendanceView
