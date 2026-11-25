@@ -91,7 +91,7 @@ jobs:
         id: run
         run: echo "capture=${{ steps.needed.outputs.needed == 'true' || inputs.force == true }}" >> "$GITHUB_OUTPUT"
 
-      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v1
         if: steps.run.outputs.capture == 'true'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -297,7 +297,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 

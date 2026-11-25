@@ -149,7 +149,7 @@ jobs:
 
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
-      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v1
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -260,7 +260,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
@@ -596,7 +596,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
