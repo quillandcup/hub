@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { DataTablePager } from "@/components/DataTablePager";
 import { CARE_STATUS_LABELS, type CareStatus } from "@/lib/care";
 import type { CareOwner } from "@/lib/care-owners";
@@ -22,7 +22,7 @@ type ActiveFilter = "all" | Exclude<CareStatus, "lapsed" | "closed">;
 const ACTIVE_FILTERS: ActiveFilter[] = ["all", "needs_reply", "review_due", "gone_quiet", "waiting"];
 
 /** The Active tab, in the order the server sorted it (what needs her first), with an owner filter and a chip per status to narrow it. */
-export function ActiveList({ cards, canWrite, canSeeMemberActivity, owners, meId }: ListProps) {
+export function ActiveList({ cards, canWrite, canSeeMemberActivity, owners, meId, action }: ListProps & { action?: ReactNode }) {
   const [filter, setFilter] = useState<ActiveFilter>("all");
   const [choice, setChoice] = useOwnerChoice();
   const mine = cards.filter((c) => matchesOwner(c, choice, meId));
@@ -31,7 +31,7 @@ export function ActiveList({ cards, canWrite, canSeeMemberActivity, owners, meId
 
   return (
     <section aria-label="Active care plans">
-      <OwnerFilter cards={cards} owners={owners} meId={meId} choice={choice} onChoose={setChoice} />
+      <OwnerFilter cards={cards} owners={owners} meId={meId} choice={choice} onChoose={setChoice} action={action} />
       <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Show">
         {ACTIVE_FILTERS.map((f) => (
           <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={chipClass(filter === f)}>

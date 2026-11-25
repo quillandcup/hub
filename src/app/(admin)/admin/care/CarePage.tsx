@@ -141,7 +141,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
               label: `${CARE_TAB_LABELS.active} (${active.length})`,
               title: CARE_TAB_LABELS.active,
               content: (
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {needsSlack && (
                     <AnnouncementBar
                       tone="info"
@@ -153,9 +153,15 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
                   )}
                   <HandoverInbox cards={waiting} />
                   <TakeoverNotices cards={takenOver} />
-                  {canWrite && <StartEngagementForm today={orgYmd(now)} />}
                   <MemberOnly name={shownMember} base="/admin/care" show={!!memberId} />
-                  <ActiveList cards={only(active)} canWrite={canWrite} canSeeMemberActivity={canSeeMemberActivity} owners={owners} meId={staff.id} />
+                  <ActiveList
+                    cards={only(active)}
+                    canWrite={canWrite}
+                    canSeeMemberActivity={canSeeMemberActivity}
+                    owners={owners}
+                    meId={staff.id}
+                    action={canWrite ? <StartEngagementForm today={orgYmd(now)} /> : undefined}
+                  />
                 </div>
               ),
             },

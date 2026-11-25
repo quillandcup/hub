@@ -25,7 +25,7 @@ export default function StartEngagementForm({ today }: { today: string }) {
     busy.current = b;
   }, []);
   return (
-    <div className="flex justify-end">
+    <div>
       <button
         type="button"
         data-track="care-start-open"
