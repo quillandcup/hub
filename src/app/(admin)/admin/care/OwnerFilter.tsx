@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import EntitySearch from "@/components/EntitySearch";
@@ -49,6 +49,7 @@ export default function OwnerFilter({
   meId,
   choice,
   onChoose,
+  action,
 }: {
   /** Every card of the tab, before the filter. */
   cards: readonly EngagementCardData[];
@@ -56,6 +57,8 @@ export default function OwnerFilter({
   meId: string;
   choice: OwnerChoice;
   onChoose: (choice: OwnerChoice) => void;
+  /** Sits at the right end of the same row (the Start a care plan button). */
+  action?: ReactNode;
 }) {
   const counts = new Map<string | null, { name: string; n: number }>();
   for (const c of cards) counts.set(c.ownerId, { name: c.ownerName, n: (counts.get(c.ownerId)?.n ?? 0) + 1 });
@@ -113,6 +116,7 @@ export default function OwnerFilter({
           ariaLabel="Find an owner"
         />
       </div>
+      {action && <div className="@pair:ml-auto">{action}</div>}
     </div>
     </div>
   );

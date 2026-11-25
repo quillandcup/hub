@@ -153,9 +153,15 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
                   )}
                   <HandoverInbox cards={waiting} />
                   <TakeoverNotices cards={takenOver} />
-                  {canWrite && <StartEngagementForm today={orgYmd(now)} />}
                   <MemberOnly name={shownMember} base="/admin/care" show={!!memberId} />
-                  <ActiveList cards={only(active)} canWrite={canWrite} canSeeMemberActivity={canSeeMemberActivity} owners={owners} meId={staff.id} />
+                  <ActiveList
+                    cards={only(active)}
+                    canWrite={canWrite}
+                    canSeeMemberActivity={canSeeMemberActivity}
+                    owners={owners}
+                    meId={staff.id}
+                    action={canWrite ? <StartEngagementForm today={orgYmd(now)} /> : undefined}
+                  />
                 </div>
               ),
             },
