@@ -62,6 +62,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "removal-covers-quiz-data",
+    date: "2026-11-25",
+    audience: "staff",
+    category: "improved",
+    title: "Removing a member now removes their quiz answers and their Kajabi course data too",
+    summary: "When a member asks to be removed, their quiz answers and uploaded files go, and so does the course data the Kajabi import holds under their email: past quiz responses, progress and the comments matched to them.",
+    body: [
+      "On a member's page, \"Remove on request\" first shows what would be removed, with a count for each kind of record, before anything is deleted. Quiz data is now on that list: their attempts, their answers, the files they uploaded, and the Kajabi copies of their past responses, progress and matched comments.",
+      "- **Every address counts.** The Kajabi copies are found by the member's own email and every other address they have on file, including old ones. An address that another member also holds is left alone and counted, so nobody else's answers are removed by mistake.",
+      "- **It stays removed.** The Hub keeps a one-way fingerprint of each removed address (nothing that says who it was), so running the Kajabi capture or the imports again does not bring the answers back.",
+      "- **Comments need a check.** The Kajabi comment capture only has the name shown, so a comment is deleted only when the import matched it to this member. Comments with the same name that were never matched are counted and kept, because they could be someone else's; check them by hand if the member wants them gone.",
+      "- **Other sources are separate.** Kajabi contact and payment records, and the Stripe, Zoom and Slack copies, are not part of this: remove them at the source, as before.",
+    ].join("\n\n"),
+  },
+  {
     slug: "course-instructors-engineering",
     date: "2026-11-24",
     audience: "engineering",
@@ -208,7 +223,7 @@ Detail: "Phase 4, as built" in \`docs/product/COURSES.md\`.`,
     summary: "A question has a kind and a graded flag; what a member writes or uploads is private to them and staff, and imports from Kajabi keep every response and only ever add.",
     body: `Only graded choice questions with a right answer are scored (\`src/lib/courses/quiz-scoring.ts\`); short answers, files and ungraded choices are recorded with the attempt. A quiz with nothing scored has no score and any answered submission passes.
 
-- **Rule.** A member's words and files are readable by that member and by staff who manage courses, and nobody else. Files sit in a private bucket with no storage policy, in the member's own folder, uploaded straight from the browser to an address the server signs for one path, accepted at submit only if they are really in storage, and served through one checking route. A removal request deletes the member's attempts and that folder.
+- **Rule.** A member's words and files are readable by that member and by staff who manage courses, and nobody else. Files sit in a private bucket with no storage policy, in the member's own folder, uploaded straight from the browser to an address the server signs for one path, accepted at submit only if they are really in storage, and served through one checking route. A removal request deletes the member's attempts and that folder, and the Bronze copies of their responses keyed by email (with an import-file sweep and a fingerprint so a re-run of the capture can't restore them: \`docs/product/COURSES.md\`, "Removal on request").
 - **Imports.** Bronze keeps every Kajabi response for everyone, keyed by email; the Silver step matches to any existing member by email or alias, inserts once per submission key and never touches an attempt made in the Hub. Reuse the shape for the next import of members' own work: capture to Bronze, copy files at capture, match late, insert only.
 - **Detail.** \`docs/product/COURSES.md\`, "Questions that are not graded" and "Importing past quiz responses".`,
   },

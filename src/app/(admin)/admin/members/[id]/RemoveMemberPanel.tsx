@@ -28,6 +28,25 @@ const EXTRA_LABELS: Record<string, string> = {
   feedback_details: "Feedback browser details",
   audit_entries: "Audit-log entries about them",
   audit_mentions: "Other audit-log entries that name them",
+  quiz_answers: "Quiz answers (written, and the choices picked)",
+  quiz_answer_files: "Files they uploaded as quiz answers",
+  kajabi_quiz_responses: "Imported Kajabi quiz responses",
+  kajabi_quiz_response_files: "Files of imported Kajabi quiz responses",
+  kajabi_lesson_progress: "Imported Kajabi lesson progress",
+  kajabi_product_progress: "Imported Kajabi course progress",
+  kajabi_lesson_comments: "Imported Kajabi comments matched to them",
+  kajabi_comments_same_name: "Kajabi comments under the same name, not matched",
+  shared_emails: "Email addresses shared with another member",
+  removal_fingerprints: "Removal fingerprints",
+};
+
+/** What to say when a line of the removal's extras is opened and it needs more than a count (these are the ones that are kept). */
+const EXTRA_NOTES: Record<string, string> = {
+  kajabi_comments_same_name:
+    "The comment capture has only the name Kajabi shows, so a comment is deleted only when the import matched it to this member. These carry the same name but could be anyone's, and are not deleted: check them by hand if the member wants them gone.",
+  shared_emails: "Another member holds the same address (as their own or an alias), so rows under it can't be told apart from theirs and stay.",
+  removal_fingerprints:
+    "A one-way fingerprint of each removed address and comment key is kept, with no name or address in it, so a later Kajabi capture can't bring the removed data back.",
 };
 
 const EXTRA_ACTIONS: Record<string, string> = {
@@ -65,6 +84,7 @@ function summaryRows(preview: RemovalPreview): SummaryRow[] {
       label: EXTRA_LABELS[extra.item] ?? extra.item.replace(/_/g, " "),
       count: extra.count,
       action: extra.action,
+      why: EXTRA_NOTES[extra.item],
       samples: extra.samples,
     })),
   ];
@@ -201,7 +221,7 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
           </div>
         )}
         <p className="text-slate-600 dark:text-slate-400">
-          Copies in the imports from Kajabi, Stripe, Zoom and Slack are not touched: remove them at the source, or the next import brings the person back.
+          Their course data from the Kajabi capture (quiz responses and the files in them, progress, matched comments) goes with them and can&apos;t come back. Copies in the Kajabi contact and payment, Stripe, Zoom and Slack imports are not touched: remove them at the source, or the next import brings the person back.
         </p>
         <Link href="/admin/members" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
           Back to members
@@ -220,7 +240,7 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
       </div>
 
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        Copies in the imports from Kajabi, Stripe, Zoom and Slack are not touched: remove them at the source, or the next import brings the person back.
+        Their course data from the Kajabi capture (quiz responses and the files in them, progress, matched comments) goes with them and can&apos;t come back. Copies in the Kajabi contact and payment, Stripe, Zoom and Slack imports are not touched: remove them at the source, or the next import brings the person back.
       </p>
 
       {preview === null ? (

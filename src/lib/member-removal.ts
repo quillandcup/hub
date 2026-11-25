@@ -9,7 +9,9 @@ import { QUIZ_ANSWER_FILES_BUCKET } from "@/lib/courses/quiz-files";
  * work in one transaction (`remove_member_data`, per the choices in `member_data_handling`); this adds the parts
  * the database can't: their auth user and the files in storage. Service role only.
  *
- * Irreversible once it has run (docs/TODO.md, "Removal on request for records with a required member id"). The
+ * What it reaches: the member's rows (the catalog), their quiz attempts, answers and files, and the Kajabi capture copies keyed by their
+ * email addresses or by the comments matched to them, with the import files those name. It keeps one-way fingerprints of those so a later
+ * capture can't bring them back (docs/product/COURSES.md, "Removal on request"). Irreversible once it has run (docs/TODO.md, "Removal on request for records with a required member id"). The
  * caller checks the staff member's role, who is being removed and the typed confirmation.
  */
 
@@ -103,6 +105,26 @@ async function removeQuizAnswerFiles(db: Db, memberId: string): Promise<string |
   return `Some quiz answer files may remain in the ${memberId} folder of the ${QUIZ_ANSWER_FILES_BUCKET} bucket.`;
 }
 
+/** How many paths go in one call to the storage API. */
+const REMOVE_BATCH = 100;
+
+/** Deletes files by path in batches; a sentence for the person doing the removal when some stayed (a count, never a path), else null. */
+async function removePaths(db: Db, bucketName: string, what: string, paths: string[]): Promise<string | null> {
+  if (paths.length === 0) return null;
+  const bucket = db.storage.from(bucketName);
+  let failed = 0;
+  let reason = "";
+  for (let start = 0; start < paths.length; start += REMOVE_BATCH) {
+    const batch = paths.slice(start, start + REMOVE_BATCH);
+    const { error } = await bucket.remove(batch);
+    if (error) {
+      failed += batch.length;
+      reason = error.message;
+    }
+  }
+  return failed > 0 ? `${failed} ${what} file(s) were not deleted from the ${bucketName} bucket (${reason}).` : null;
+}
+
 export type RemovalResult =
   | { ok: true; /** What did not finish after the database part had committed: the person must follow these up by hand. */ leftovers: string[] }
   | { ok: false; error: string };
@@ -115,7 +137,7 @@ export type RemovalResult =
 export async function removeMemberOnRequest(db: Db, memberId: string, keepPublic: boolean): Promise<RemovalResult> {
   const { data, error } = await db.rpc("remove_member_data", { p_member_id: memberId, p_keep_public: keepPublic });
   if (error) return { ok: false, error: error.message };
-  const result = data as { auth_user_id: string | null; media_paths: string[]; feedback_paths: string[] };
+  const result = data as { auth_user_id: string | null; media_paths: string[]; feedback_paths: string[]; quiz_import_paths?: string[] };
 
   const leftovers: string[] = [];
 
@@ -144,6 +166,22 @@ export async function removeMemberOnRequest(db: Db, memberId: string, keepPublic
   // What they wrote and uploaded in course quizzes: the rows went with the member, so their files go too.
   const quizLeftover = await removeQuizAnswerFiles(db, memberId);
   if (quizLeftover) leftovers.push(quizLeftover);
+
+  // The Kajabi capture holds copies of their quiz answers' files (`kajabi-import/...`), keyed by their addresses: the rows went
+  // with the database part, and these are the files those rows named.
+  const importLeftover = await removePaths(db, QUIZ_ANSWER_FILES_BUCKET, "imported Kajabi quiz response", result.quiz_import_paths ?? []);
+  if (importLeftover) leftovers.push(importLeftover);
+
+  // A capture that wrote a row between the removal reading the tables and its commit: the same deletion, driven by what the
+  // removal kept (`removal_tombstones`), so nothing of theirs outlives it. Safe to repeat.
+  const swept = await db.rpc("purge_removed_member_bronze");
+  if (swept.error) {
+    leftovers.push(`The check for Kajabi capture rows that arrived during the removal could not run (${swept.error.message}). Run purge_removed_member_bronze() in the database.`);
+  } else {
+    const sweptPaths = (swept.data as { quiz_import_paths?: string[] } | null)?.quiz_import_paths ?? [];
+    const sweptLeftover = await removePaths(db, QUIZ_ANSWER_FILES_BUCKET, "imported Kajabi quiz response", sweptPaths);
+    if (sweptLeftover) leftovers.push(sweptLeftover);
+  }
 
   return { ok: true, leftovers };
 }

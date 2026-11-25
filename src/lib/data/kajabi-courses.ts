@@ -2,6 +2,7 @@ import { chunk, fetchAllRows } from "../supabase/paginate";
 import type { Database, Json } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import { removalHash } from "./removal-hash";
 
 // Relative imports only: scripts/kajabi-course-content.ts uses the progress writes outside Next.
 
@@ -196,6 +197,8 @@ export interface KajabiCourseRepository {
   saveQuizResponse(row: NewKajabiQuizResponse): Promise<void>;
   /** Every live stored submission of a course, in a stable order (reads past 1000). */
   quizResponsesOfCourse(courseKajabiId: string): Promise<KajabiQuizResponse[]>;
+  /** Which of these email addresses a member removal has fingerprinted (`removal_tombstones`): the capture must not store anything for them. Chunked. */
+  removedEmails(emails: string[]): Promise<Set<string>>;
 
   // --- lesson comments capture ---
   /** Every stored comment of one lesson, soft-deleted ones included, by key. */
@@ -577,6 +580,17 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
     if (error) throw new Error(`Could not save a quiz response: ${error.message}`);
   }
 
+  async removedEmails(emails: string[]) {
+    const byHash = new Map(emails.map((email) => [removalHash(email), email] as [string, string]));
+    const removed = new Set<string>();
+    for (const part of chunk([...byHash.keys()], ID_CHUNK)) {
+      const { data, error } = await this.db.from("removal_tombstones").select("key_hash").eq("kind", "email").in("key_hash", part);
+      if (error) throw new Error(`Could not read removed addresses: ${error.message}`);
+      for (const row of data ?? []) removed.add(byHash.get(row.key_hash)!);
+    }
+    return removed;
+  }
+
   async quizResponsesOfCourse(courseKajabiId: string) {
     return fetchAllRows<KajabiQuizResponse>((a, b) => this.bronze.from("kajabi_quiz_responses").select("*").eq("course_kajabi_id", courseKajabiId).is("deleted_at", null).order("quiz_kajabi_id").order("submission_key").range(a, b));
   }
@@ -954,6 +968,11 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
     const stored = { submitted_at: null, captured_at: new Date().toISOString(), ...row, deleted_at: null };
     if (existing) Object.assign(existing, stored);
     else this.data.kajabiQuizResponses.push(stored);
+  }
+
+  async removedEmails(emails: string[]) {
+    const hashes = new Set(this.data.removalTombstones.filter((t) => t.kind === "email").map((t) => t.key_hash));
+    return new Set(emails.filter((email) => hashes.has(removalHash(email))));
   }
 
   async quizResponsesOfCourse(courseKajabiId: string) {

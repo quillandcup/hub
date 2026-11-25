@@ -1,5 +1,6 @@
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryKajabiCourseRepository } from "@/lib/data/kajabi-courses";
+import { removalHash } from "@/lib/data/removal-hash";
 import { defineKajabiCoursesContract } from "@/tests/helpers/kajabi-courses-contract";
 
 defineKajabiCoursesContract("InMemoryKajabiCourseRepository", () => {
@@ -10,6 +11,9 @@ defineKajabiCoursesContract("InMemoryKajabiCourseRepository", () => {
     unique: (label) => `kc-${label}-${++n}`,
     clear: async () => {
       Object.assign(data, new InMemoryDataset());
+    },
+    fingerprintEmail: async (email) => {
+      data.removalTombstones.push({ kind: "email", key_hash: removalHash(email), created_at: new Date().toISOString() });
     },
   };
 });
