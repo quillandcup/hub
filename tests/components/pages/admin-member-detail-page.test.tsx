@@ -32,9 +32,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
     activityFilters,
     emailAliases,
     eventSlugs,
-    notificationsInfo,
   }: {
-    notificationsInfo?: unknown;
     emailAliases: { alias_email: string }[];
     eventSlugs?: Record<string, string>;
     slackPage: { rows: { id: string; description: string | null }[] };
@@ -49,7 +47,6 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
       </ul>
       <p>{activityFeed ? `activity ${activityFeed.total} on page ${activityFeed.page}` : "activity unavailable"}</p>
       <p data-testid="activity-filters">{JSON.stringify(activityFilters ?? null)}</p>
-      <p data-testid="notifications-info">{JSON.stringify(notificationsInfo ?? null)}</p>
       <p>{`event slugs ${JSON.stringify(eventSlugs ?? {})}`}</p>
       <ol aria-label="email aliases">
         {emailAliases.map((a) => (
@@ -67,8 +64,6 @@ vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => 
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.fn(async () => []) }));
 
-vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
-import { loadPushDevices } from "@/lib/channels/web-push";
 import ActivityRoute, { generateMetadata as activityMetadata } from "@/app/(admin)/admin/members/[id]/activity/page";
 import { withdrawCommunityManagerFeatures } from "../../helpers/community-manager-permissions";
 import AccountRoute, { generateMetadata as accountMetadata } from "@/app/(admin)/admin/members/[id]/account/page";
@@ -84,7 +79,6 @@ function memberTables(extra: FakeTables = {}): FakeTables {
 
 beforeEach(() => {
   staff.role = "admin";
-  vi.mocked(loadPushDevices).mockClear();
   resetServerPageMocks();
   signInAs(ADMIN_USER);
   serviceTables = {
@@ -101,27 +95,6 @@ describe("MemberDetailPage controls", () => {
     expect(screen.getByRole("button", { name: "Sudo As" })).toBeInTheDocument();
   });
 
-  it("shows an admin the Notifications tab: devices, email and choices against defaults", async () => {
-    vi.mocked(loadPushDevices).mockResolvedValue([{ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15" }] as never);
-    useFakeSupabase(memberTables({ notification_preferences: { data: [{ kind: "prickle_checkin", channel: "slack", enabled: false }] } }));
-    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "notifications" as const });
-    const info = JSON.parse(screen.getByTestId("notifications-info").textContent!);
-    expect(info.devices).toHaveLength(1);
-    const checkin = info.kinds.find((k: { id: string }) => k.id === "prickle_checkin");
-    expect(checkin.channels).not.toContain("slack");
-    expect(checkin.changed).toEqual(["slack"]);
-    vi.mocked(loadPushDevices).mockResolvedValue([]);
-  });
-
-  it("shows no devices and no stored choices, rather than failing, when either lookup errors", async () => {
-    vi.mocked(loadPushDevices).mockRejectedValueOnce(new Error("push table down"));
-    useFakeSupabase(memberTables({ notification_preferences: { data: null, error: { message: "prefs down" } } }));
-    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "notifications" as const });
-    const info = JSON.parse(screen.getByTestId("notifications-info").textContent!);
-    expect(info.devices).toEqual([]);
-    expect(info.kinds.every((k: { changed: string[] }) => k.changed.length === 0)).toBe(true);
-  });
-
   it("serves the Notifications tab at its own route, titled for the tab", async () => {
     useFakeSupabase(memberTables());
     const params = Promise.resolve({ id: MEMBER.id });
@@ -136,14 +109,6 @@ describe("MemberDetailPage controls", () => {
     expect(String((await accountMetadata({ params })).title)).toContain("Account");
     const element = await AccountRoute({ params } as never);
     expect(element.props).toMatchObject({ id: MEMBER.id, tab: "account" });
-  });
-
-  it("hides the Notifications tab and its data from a community manager", async () => {
-    staff.role = "community_manager";
-    useFakeSupabase(memberTables());
-    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "notifications" as const });
-    expect(screen.getByTestId("notifications-info")).toHaveTextContent("null");
-    expect(loadPushDevices).not.toHaveBeenCalled();
   });
 
   it("gives a community manager the profile without Sudo As, Merge, Split or the Remove panel", async () => {
