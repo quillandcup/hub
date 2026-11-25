@@ -139,3 +139,15 @@ export function buildTransactions(invoices: StripeInvoiceRow[], charges: StripeC
 
   return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
 }
+
+/** The addresses to look Stripe customers up by: each email of the member (primary and aliases) as written and lowercased, no blanks, no repeats. */
+export function stripeLookupEmails(emails: (string | null | undefined)[]): string[] {
+  const out = new Set<string>();
+  for (const email of emails) {
+    const trimmed = email?.trim();
+    if (!trimmed) continue;
+    out.add(trimmed);
+    out.add(trimmed.toLowerCase());
+  }
+  return [...out];
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTransactions, formatCents } from "@/lib/member-transactions";
+import { buildTransactions, formatCents, stripeLookupEmails } from "@/lib/member-transactions";
 import type { StripeChargeRow, StripeInvoiceRow } from "@/lib/data/billing";
 
 const invoice = (o: Partial<StripeInvoiceRow>): StripeInvoiceRow => ({
@@ -55,5 +55,13 @@ describe("formatCents", () => {
     expect(formatCents(1250, "usd")).toBe("$12.50");
     expect(formatCents(1250, null)).toBe("$12.50");
     expect(formatCents(1250, "zz")).toContain("12.50");
+  });
+});
+
+describe("stripeLookupEmails", () => {
+  it("covers the primary and alias emails, as written and lowercased, without blanks or repeats", () => {
+    expect(stripeLookupEmails(["Ada@Example.test", "old@example.test", " ", null, undefined, "old@example.test"])).toEqual([
+      "Ada@Example.test", "ada@example.test", "old@example.test",
+    ]);
   });
 });
