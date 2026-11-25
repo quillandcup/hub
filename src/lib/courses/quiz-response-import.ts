@@ -22,7 +22,7 @@ type ResponseImportRepos = Pick<Repos, "aliases" | "courses" | "kajabiCourses" |
  *    `imported_from = 'kajabi'`, are not scored, and notify nobody (nothing here calls the notifier).
  *  - Files were copied into the private bucket when they were captured (`kajabi-import/...`); each is copied again into the member's
  *    own folder, so a removal request deletes it, and the Bronze copy stays for reprocessing.
- *  - It never marks a lesson complete: that comes from the separate Kajabi progress import (`courses:content --progress`,
+ *  - It never marks a lesson complete: that comes from the separate Kajabi progress import (`courses:migrate`, step P2,
  *    src/lib/courses/progress-import.ts), the one place that decides who completed what. This only writes attempts and answers.
  */
 

@@ -354,8 +354,9 @@ const stepProgressImport: MigrateStep = {
       const counts = { inserted: dry.inserted ?? 0, alreadyCompleted: dry.alreadyCompleted ?? 0, leftAlone: dry.leftAlone ?? 0 };
       ctx.io.log(
         `Dry run: ${counts.inserted} completed lessons would be added, ${counts.alreadyCompleted} already completed in the Hub, ${counts.leftAlone} left alone ` +
-          `(members' own rows are never changed); students: ${dry.students?.matched ?? 0} matched, ${dry.students?.unmatched ?? 0} without a member, ` +
-          `${dry.students?.ambiguous ?? 0} ambiguous, ${dry.students?.withoutAccess ?? 0} without access.`
+          `(members' own rows are never changed); students: ${dry.students?.matched ?? 0} matched, ${dry.students?.keptNoMember ?? 0} kept, no member yet, ` +
+          `${dry.students?.ambiguous ?? 0} ambiguous (shared email), ${dry.students?.removed ?? 0} removed, ${dry.orphanLessons ?? 0} lessons the Hub doesn't have. ` +
+          "Members who no longer have access are included: what they completed is theirs."
       );
       if (counts.inserted === 0) {
         ctx.summary.progressImport = { dryRun: counts, inserted: 0, applied: false };

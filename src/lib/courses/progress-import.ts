@@ -8,19 +8,24 @@ type ProgressImportRepos = Pick<Repos, "aliases" | "courseProgress" | "courses" 
  * progress"). Hub progress is member-written and Local, so this is NOT a rebuild: it only ever inserts a
  * completed row where the member has none, marked `imported_from = 'kajabi'`. It never changes or removes a
  * row that exists, whatever it says, so it can never lower Hub progress, and running it twice inserts nothing
- * the second time. It writes no member_activities rows.
+ * the second time. It writes no member_activities rows, notifies nobody and awards nothing.
  *
- * A Kajabi completion is used only when the member is found by email (their own or an active alias, never by
- * name; one email shared by several members is ambiguous and skipped), has current access to the course
- * (a `course_access` row that has not ended), and the lesson exists in Silver under the Kajabi source key.
+ * What a member completed is theirs even after Kajabi (or their access) is gone, so the match is by email only, to ANY
+ * existing member (current, lapsed, cancelled, on hiatus), through their own email or an active alias (never by name; one
+ * email shared by several members is ambiguous and skipped). No `course_access` row is needed: a member without access can't
+ * open the lesson, and the rows are there for them if access returns. A lesson must exist in Silver under the Kajabi source key
+ * (otherwise it is an orphan: counted, never guessed). A completion whose email has no member is kept in Bronze, counted
+ * ("kept, no member yet"), and applied by a later run once a member with that email exists; members are never created here.
+ * An address a member removal fingerprinted (`removal_tombstones`) is skipped even if a row slipped into Bronze, so a removed
+ * person's progress never comes back.
  */
 
 export interface CourseProgressImport {
   slug: string;
   /** Completed lessons in Bronze for the course (one per student and lesson). */
   completedInBronze: number;
-  /** Students with a completed lesson, by how their email matched a member. */
-  students: { matched: number; unmatched: number; ambiguous: number; withoutAccess: number };
+  /** Students (distinct emails) with a completed lesson, by how their email matched a member. `keptNoMember`: no member has it yet, so it stays in Bronze for a later run. `removed`: a removal fingerprint covers it. */
+  students: { matched: number; keptNoMember: number; ambiguous: number; removed: number };
   /** Completed lessons whose Kajabi lesson has no Silver lesson (deleted, or not synced yet). */
   orphanLessons: number;
   /** The member already has a completed row: left as it is. */
@@ -44,10 +49,9 @@ export class CourseProgressError extends Error {
 
 export async function importKajabiLessonProgress(
   repos: ProgressImportRepos,
-  options: { courseSlug?: string; dryRun?: boolean; now?: Date } = {},
+  options: { courseSlug?: string; dryRun?: boolean } = {},
 ): Promise<CourseProgressResult> {
   const dryRun = options.dryRun ?? false;
-  const now = options.now ?? new Date();
   const only = options.courseSlug ? await repos.courses.courseBySlug(options.courseSlug, { source: "kajabi" }) : null;
   const courses = options.courseSlug ? (only ? [only] : []) : await repos.courses.courses({ source: "kajabi" });
   if (options.courseSlug && courses.length === 0) throw new CourseProgressError(`No Kajabi course has the slug "${options.courseSlug}"`, 404);
@@ -65,7 +69,7 @@ export async function importKajabiLessonProgress(
     const summary: CourseProgressImport = {
       slug: course.slug,
       completedInBronze: 0,
-      students: { matched: 0, unmatched: 0, ambiguous: 0, withoutAccess: 0 },
+      students: { matched: 0, keptNoMember: 0, ambiguous: 0, removed: 0 },
       orphanLessons: 0,
       alreadyCompleted: 0,
       leftAlone: 0,
@@ -81,19 +85,21 @@ export async function importKajabiLessonProgress(
     const lessons = await repos.courses.lessonsOf([course.id], { source: "kajabi", includeHidden: true });
     const lessonIdByKey = new Map<string, string>(lessons.flatMap((l) => (l.source_key ? [[l.source_key, l.id] as [string, string]] : [])));
 
-    const access = await repos.courseProgress.accessOfCourses([course.id]);
-    const hasAccess = new Set<string>(access.filter((a) => a.ends_at === null || new Date(a.ends_at).getTime() > now.getTime()).map((a) => a.member_id));
-
-    // Who each Bronze email is, once per email.
+    // Who each Bronze email is, once per email. A removed person's address never matches, even if a row is still in Bronze.
     const memberOfEmail = new Map<string, string | null>();
     const emails = [...new Set<string>(bronze.map((r) => r.email))];
+    const removed = await repos.kajabiCourses.removedEmails(emails);
     for (const email of emails) {
+      if (removed.has(email)) {
+        memberOfEmail.set(email, null);
+        summary.students.removed++;
+        continue;
+      }
       const ids = memberIdsByEmail.get(resolveEmail(email, aliasMap)) ?? [];
       memberOfEmail.set(email, ids.length === 1 ? ids[0] : null);
-      if (ids.length === 0) summary.students.unmatched++;
+      if (ids.length === 0) summary.students.keptNoMember++;
       else if (ids.length > 1) summary.students.ambiguous++;
     }
-    const withoutAccess = new Set<string>();
     const matchedMembers = new Set<string>();
 
     // One candidate per (member, lesson); a member with two emails in Bronze keeps the earlier completion.
@@ -102,10 +108,6 @@ export async function importKajabiLessonProgress(
       const memberId = memberOfEmail.get(row.email);
       if (!memberId) continue;
       matchedMembers.add(memberId);
-      if (!hasAccess.has(memberId)) {
-        withoutAccess.add(memberId);
-        continue;
-      }
       const lessonId = lessonIdByKey.get(row.kajabi_lesson_id);
       if (!lessonId) {
         summary.orphanLessons++;
@@ -116,8 +118,7 @@ export async function importKajabiLessonProgress(
       const earlier = candidates.get(key);
       if (!earlier || completedAt < earlier.completedAt) candidates.set(key, { memberId, lessonId, completedAt });
     }
-    summary.students.matched = matchedMembers.size - withoutAccess.size;
-    summary.students.withoutAccess = withoutAccess.size;
+    summary.students.matched = matchedMembers.size;
 
     // What the members already have for these lessons.
     const existing = new Map<string, string | null>();

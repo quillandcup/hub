@@ -88,6 +88,24 @@ describe("loadCourseRoster", () => {
     ]);
   });
 
+  it("does not list a member who has progress but no access row (an imported completion of a lapsed member)", async () => {
+    dataset = new InMemoryDataset({
+      members: [
+        { id: "mbr_AAAAAAAAAAA1", name: "Ada Example" },
+        { id: "mbr_AAAAAAAAAAA2", name: "Bo Example" },
+      ],
+      courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "course", title: "Course" })],
+      courseLessons: [lessonRow({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1", title: "One" })],
+      courseAccess: [accessRow({ member_id: "mbr_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1", starts_at: "2026-01-01T00:00:00Z" })],
+      lessonProgress: [
+        progressRow({ member_id: "mbr_AAAAAAAAAAA1", lesson_id: "les_AAAAAAAAAAA1", completed_at: "2026-10-01T00:00:00Z" }),
+        progressRow({ member_id: "mbr_AAAAAAAAAAA2", lesson_id: "les_AAAAAAAAAAA1", completed_at: "2026-10-01T00:00:00Z", imported_from: "kajabi" }),
+      ],
+    });
+    const data = await loadCourseRoster(createRepos(client), "crs_AAAAAAAAAAA1", NOW);
+    expect(data!.rows.map((r) => r.name)).toEqual(["Ada Example"]);
+  });
+
   it("reads past 1000 access and progress rows", async () => {
     const members = Array.from({ length: 1500 }, (_, i) => `mbr_${String(i).padStart(12, "A")}`);
     dataset = new InMemoryDataset({

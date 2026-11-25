@@ -473,7 +473,7 @@ const COMMENT_LINES = (written: number, failed = 0, verb = "Dry run, nothing wri
 const ok = (output: string) => ({ code: 0, output });
 const PROGRESS_ROUTE = (inserted: number) => ({
   success: true,
-  courses: [{ slug: "demo-course", inserted, alreadyCompleted: 4, leftAlone: 1, students: { matched: 3, unmatched: 1, ambiguous: 0, withoutAccess: 0 } }],
+  courses: [{ slug: "demo-course", inserted, alreadyCompleted: 4, leftAlone: 1, students: { matched: 3, keptNoMember: 1, ambiguous: 0, removed: 0 } }],
 });
 
 describe("optional progress and comments steps", () => {
