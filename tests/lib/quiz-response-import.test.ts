@@ -10,7 +10,6 @@ const COURSE = "crs_AAAAAAAAAAA1";
 const COURSE_K = "course-kajabi-1";
 const LESSON = "les_AAAAAAAAAAA1";
 const GRADED_LESSON = "les_AAAAAAAAAAA2";
-const NOW = new Date("2027-02-03T15:00:00.000Z");
 
 // Four members: current (with access), lapsed (no access), merged (the kept member has the other address as an alias), and twins who share an address.
 const CURRENT = "mbr_AAAAAAAAAAA1";
@@ -92,15 +91,16 @@ const deps = (): ResponseImportDeps & { copies: [string, string][] } => {
     randomId: () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
   };
 };
-const run = (built: Awaited<ReturnType<typeof build>>, d = deps(), options: Parameters<typeof importKajabiQuizResponses>[2] = {}) => importKajabiQuizResponses(built.repos, d, { now: NOW, ...options });
+const run = (built: Awaited<ReturnType<typeof build>>, d = deps(), options: Parameters<typeof importKajabiQuizResponses>[2] = {}) => importKajabiQuizResponses(built.repos, d, options);
 const quizOf = async (b: Awaited<ReturnType<typeof build>>, lesson = LESSON) => (await b.repos.quizzes.quizOfLesson(lesson))!;
 
 describe("a current member's past response", () => {
-  it("becomes an attempt marked from Kajabi, never scored, with the question as it was worded then, and completes the lesson", async () => {
+  it("becomes an attempt marked from Kajabi, never scored, with the question as it was worded then, and does not complete the lesson", async () => {
     const built = await build({ rows: [bronzeRow("current@example.test")] });
     const { courses } = await run(built);
 
-    expect(courses[0]).toMatchObject({ submissionsInBronze: 1, responders: { matched: 1 }, submissions: { imported: 1, keptNoMember: 0 }, answers: { imported: 2 }, completions: { added: 1 } });
+    expect(courses[0]).toMatchObject({ submissionsInBronze: 1, responders: { matched: 1 }, submissions: { imported: 1, keptNoMember: 0 }, answers: { imported: 2 } });
+    expect(courses[0]).not.toHaveProperty("completions");
     const quiz = await quizOf(built);
     const [attempt] = await built.repos.quizzes.attemptsOf(CURRENT, quiz.id);
     expect(attempt).toMatchObject({ importedFrom: "kajabi", questionCount: 0, correctCount: 0, scorePercent: 0, passed: true, submittedAt: "2026-03-04T15:30:00.000Z" });
@@ -109,9 +109,9 @@ describe("a current member's past response", () => {
     const byQuestion = Object.fromEntries(answers.map((a) => [questions.find((q) => q.id === a.questionId)!.sourceKey, a]));
     expect(byQuestion["q-text"]).toMatchObject({ answerText: "Words.", promptSnapshot: "What stood out? (as it was asked)", isCorrect: null });
     expect(byQuestion["q-choice"].selectedOptionIds).toEqual([questions.find((q) => q.sourceKey === "q-choice")!.options.find((o) => o.sourceKey === "o-hard")!.id]);
-    expect(await built.repos.courseProgress.completedLessonIds(CURRENT, [LESSON])).toEqual(new Set([LESSON]));
-    const progress = (await built.repos.courseProgress.progressOfLessons([LESSON]))[0];
-    expect(progress).toMatchObject({ member_id: CURRENT, imported_from: "kajabi", completed_at: "2026-03-04T15:30:00.000Z" });
+    // Completion comes from the Kajabi progress import, never from this one.
+    expect(built.data.lessonProgress).toHaveLength(0);
+    expect(await built.repos.courseProgress.completedLessonIds(CURRENT, [LESSON])).toEqual(new Set());
   });
 
   it("sends nobody anything and writes no activity", async () => {
@@ -124,26 +124,16 @@ describe("a current member's past response", () => {
 });
 
 describe("a lapsed member (no course access)", () => {
-  it("keeps their response in the Hub for staff, with no completion and no new access", async () => {
+  it("keeps their response in the Hub for staff, with no new access", async () => {
     const built = await build({ rows: [bronzeRow("lapsed@example.test")] });
     const { courses } = await run(built);
 
-    expect(courses[0]).toMatchObject({ responders: { matched: 1, keptNoMember: 0 }, submissions: { imported: 1 }, completions: { added: 0, noAccess: 1 } });
+    expect(courses[0]).toMatchObject({ responders: { matched: 1, keptNoMember: 0 }, submissions: { imported: 1 } });
     const quiz = await quizOf(built);
     expect(await built.repos.quizzes.attemptsOf(LAPSED, quiz.id)).toHaveLength(1);
     // The import records what happened in Kajabi; it opens nothing for them.
     expect(await built.repos.courseProgress.completedLessonIds(LAPSED, [LESSON])).toEqual(new Set());
     expect(built.data.courseAccess.filter((a) => a.member_id === LAPSED)).toHaveLength(1);
-  });
-
-  it("adds the completion on a later run once their access is back, and never before", async () => {
-    const built = await build({ rows: [bronzeRow("lapsed@example.test")] });
-    await run(built);
-    built.data.courseAccess.find((a) => a.member_id === LAPSED)!.ends_at = null;
-    const again = (await run(built)).courses[0];
-    expect(again.submissions).toMatchObject({ imported: 0, alreadyImported: 1 });
-    expect(again.completions.added).toBe(1);
-    expect(await built.repos.courseProgress.completedLessonIds(LAPSED, [LESSON])).toEqual(new Set([LESSON]));
   });
 });
 
@@ -154,8 +144,6 @@ describe("a merged member or a second address", () => {
     expect(courses[0]).toMatchObject({ responders: { matched: 2 }, submissions: { imported: 2 } });
     const quiz = await quizOf(built);
     expect((await built.repos.quizzes.attemptsOf(MERGED, quiz.id)).map((a) => a.importedFrom)).toEqual(["kajabi", "kajabi"]);
-    // One completion for the member, the earliest.
-    expect(courses[0].completions.added).toBe(1);
   });
 
   it("does not use an inactive alias, and never guesses between two members who share an address", async () => {
@@ -208,18 +196,19 @@ describe("insert only, and repeatable", () => {
     const built = await build({ rows: [bronzeRow("current@example.test")] });
     await built.repos.courseProgress.insertProgressIfAbsent([{ member_id: CURRENT, lesson_id: LESSON, completed_at: "2025-05-05T00:00:00.000Z", last_position_seconds: 0 }]);
     const dry = (await run(built, deps(), { dryRun: true })).courses[0];
-    expect(dry).toMatchObject({ submissions: { imported: 1 }, completions: { added: 0, alreadyHad: 1 } });
+    expect(dry).toMatchObject({ submissions: { imported: 1 } });
     expect(built.data.quizAttempts).toHaveLength(0);
     await run(built);
+    expect(built.data.lessonProgress).toHaveLength(1);
     expect((await built.repos.courseProgress.progressOfLessons([LESSON]))[0].completed_at).toBe("2025-05-05T00:00:00.000Z");
   });
 
-  it("gives no completion for a quiz that has a scored question: that is the progress import's to say", async () => {
+  it("writes no completion for a quiz with a scored question either", async () => {
     const rows = [bronzeRow("current@example.test", { quiz_kajabi_id: "1573355", submission_key: "g-1", answers: answersToJson([answerOf({ questionKey: "g1", prompt: "Two plus two?", text: null, optionKeys: ["g1a"] })]) })];
     const built = await build({ rows, graded: true });
     const { courses } = await run(built);
-    expect(courses[0]).toMatchObject({ submissions: { imported: 1 }, completions: { added: 0 } });
-    expect(await built.repos.courseProgress.completedLessonIds(CURRENT, [GRADED_LESSON])).toEqual(new Set());
+    expect(courses[0]).toMatchObject({ submissions: { imported: 1 } });
+    expect(built.data.lessonProgress).toHaveLength(0);
     const [attempt] = await built.repos.quizzes.attemptsOf(CURRENT, (await quizOf(built, GRADED_LESSON)).id);
     expect(attempt).toMatchObject({ questionCount: 0, importedFrom: "kajabi" });
   });
