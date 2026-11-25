@@ -45,6 +45,10 @@ export interface ParsedAnswer {
   optionKeys: string[];
   optionLabels: string[];
   file: ParsedFile | null;
+  /** Where the question sits in the quiz (1-based) when the submission says: the join to a Hub question when it names no question id. */
+  position?: number | null;
+  /** Kajabi's own name for the question's type, as it came (its enum value, never member data). */
+  questionType?: string | null;
 }
 
 export interface ParsedSubmission {
@@ -73,12 +77,16 @@ const views = (documents: unknown[]): unknown[] =>
   });
 
 const EMAIL_KEYS = ["email", "emailaddress", "useremail", "studentemail", "contactemail", "memberemail", "respondentemail"].map(norm);
-const DATE_KEYS = ["submittedat", "datesubmitted", "completedat", "createdat", "submissiondate", "date", "submitted"].map(norm);
+const DATE_KEYS = ["submittedat", "datesubmittedat", "datesubmitted", "completedat", "createdat", "submissiondate", "date", "submitted"].map(norm);
 const QUESTION_ID_KEYS = ["questionid", "quizquestionid", "questionkey"].map(norm);
 const QUESTION_TEXT_KEYS = ["questiontext", "question", "prompt", "questiontitle", "questionbody", "title"].map(norm);
 const TEXT_KEYS = ["answertext", "textanswer", "response", "responsetext", "answer", "body", "value", "text", "content", "freetext"].map(norm);
 const OPTION_ID_KEYS = ["answerid", "answerids", "quizanswerid", "quizanswerids", "selectedanswerid", "selectedanswerids", "optionid", "optionids", "selectedoptionid", "selectedoptionids", "choiceid", "choiceids"].map(norm);
 const OPTION_LIST_KEYS = ["selectedanswers", "selectedoptions", "selectedchoices", "answers", "options", "choices", "quizanswers", "selected"].map(norm);
+const POSITION_KEYS = ["questionposition", "position", "questionorder", "questionindex"].map(norm);
+const QUESTION_TYPE_KEYS = ["questiontype", "type", "kind"].map(norm);
+const FILE_LINK_KEYS = ["fileurl", "filelink", "attachmenturl", "uploadurl", "downloadurl"].map(norm);
+const FILE_LABEL_KEYS = ["filename", "originalfilename", "attachmentname"].map(norm);
 const FILE_KEYS = ["file", "files", "attachment", "attachments", "upload", "uploads", "fileupload", "uploadedfile", "document"].map(norm);
 const FILE_URL_KEYS = ["url", "fileurl", "downloadurl", "href", "link", "signedurl", "src"].map(norm);
 const FILE_NAME_KEYS = ["filename", "name", "originalfilename", "title", "label"].map(norm);
@@ -193,11 +201,31 @@ function fileOf(value: unknown): ParsedFile | null {
   return null;
 }
 
-/** One answer from an object, or null when it names no question or carries no answer at all (a question left unanswered is not an answer). */
-function answerOf(o: Obj): ParsedAnswer | null {
+/** What kind of answer a question's type name asks for, by whatever it is called: a file, a choice (multiple choice, checkboxes) or free text. Null when the name says none of these. */
+export function kindOfTypeName(name: string | null | undefined): "file_upload" | "choice" | "short_answer" | null {
+  if (!name) return null;
+  if (/file|upload|attach/i.test(name)) return "file_upload";
+  if (/choice|checkbox|radio|select|multiple|option/i.test(name)) return "choice";
+  if (/short|text|essay|open|free/i.test(name)) return "short_answer";
+  return null;
+}
+
+/**
+ * One answer from an object, or null when it names no question or carries no answer at all (a question left unanswered is not an
+ * answer). A question is named by its id, or, when the submission carries none (Kajabi's own answers don't), by its position in the
+ * quiz: key `pos:<n>` with the question's title as its wording.
+ */
+function answerOf(raw: Obj): ParsedAnswer | null {
+  // A JSON:API resource keeps its fields under `attributes`.
+  const o: Obj = isObj(raw.attributes) ? { ...raw, ...raw.attributes } : raw;
   const questionObj = ["question", "quizquestion"].map((k) => Object.entries(o).find(([key]) => norm(key) === k)?.[1]).find(isObj);
-  const questionKey = keyText(valueOf(o, QUESTION_ID_KEYS)) ?? (questionObj ? keyText(questionObj.id) : null);
+  const positionRaw = valueOf(o, POSITION_KEYS);
+  const position = typeof positionRaw === "number" && Number.isInteger(positionRaw) && positionRaw >= 0 ? positionRaw : null;
+  const questionKey = keyText(valueOf(o, QUESTION_ID_KEYS)) ?? (questionObj ? keyText(questionObj.id) : null) ?? (position !== null ? `pos:${position}` : null);
   if (!questionKey) return null;
+  const typeRaw = valueOf(o, QUESTION_TYPE_KEYS);
+  const questionType = typeof typeRaw === "string" && typeRaw.trim() !== "" ? typeRaw.trim().slice(0, 60) : null;
+  const kind = kindOfTypeName(questionType);
 
   let prompt: string | null = null;
   if (questionObj) prompt = plainText(questionObj.text ?? questionObj.prompt ?? questionObj.title ?? questionObj.body ?? questionObj.question) || null;
@@ -214,7 +242,13 @@ function answerOf(o: Obj): ParsedAnswer | null {
 
   // Files first: a file's own fields (a name, a url) must not be read as text.
   let file: ParsedFile | null = null;
-  for (const name of FILE_KEYS) {
+  const linkEntry = FILE_LINK_KEYS.map((k) => Object.entries(o).find(([key]) => norm(key) === k)).find((e) => e && typeof e[1] === "string" && /^https?:\/\//.test(e[1] as string));
+  if (linkEntry) {
+    file = fileOf(linkEntry[1]);
+    const label = FILE_LABEL_KEYS.map((k) => Object.entries(o).find(([key]) => norm(key) === k)).find((e) => e && typeof e[1] === "string" && (e[1] as string).trim() !== "");
+    if (file && label) file = { ...file, name: (label[1] as string).trim() };
+  }
+  for (const name of file ? [] : FILE_KEYS) {
     const entry = Object.entries(o).find(([k]) => norm(k) === name);
     file = entry ? fileOf(entry[1]) : null;
     if (file) break;
@@ -238,8 +272,13 @@ function answerOf(o: Obj): ParsedAnswer | null {
     }
   }
 
+  // A choice question's answer is the text of what was chosen (one per line when several).
+  if (kind === "choice" && !file && optionLabels.length === 0) {
+    for (const line of (answerText(valueOf(o, TEXT_KEYS)) ?? "").split("\n")) if (line.trim() !== "" && line.trim() !== prompt) optionLabels.push(line.trim());
+  }
+
   let text: string | null = null;
-  if (!file && optionKeys.length === 0 && optionLabels.length === 0) {
+  if (!file && optionKeys.length === 0 && optionLabels.length === 0 && kind !== "choice") {
     for (const name of TEXT_KEYS) {
       const entry = Object.entries(o).find(([k]) => norm(k) === name);
       const t = entry ? answerText(entry[1]) : null;
@@ -251,7 +290,7 @@ function answerOf(o: Obj): ParsedAnswer | null {
     }
   }
   if (!file && !text && optionKeys.length === 0 && optionLabels.length === 0) return null;
-  return { questionKey, prompt, text, optionKeys: [...new Set(optionKeys)], optionLabels: [...new Set(optionLabels)], file };
+  return { questionKey, prompt, text, optionKeys: [...new Set(optionKeys)], optionLabels: [...new Set(optionLabels)], file, position, questionType };
 }
 
 /**
@@ -331,6 +370,8 @@ export function answersToJson(answers: StoredAnswer[]): unknown[] {
     text: a.text,
     option_keys: a.optionKeys,
     option_labels: a.optionLabels,
+    position: a.position ?? null,
+    question_type: a.questionType ?? null,
     file: a.file ? { name: a.file.name, bytes: a.file.bytes, source_url: a.file.sourceUrl, storage_path: a.file.storagePath, copy_failure: a.file.copyFailure } : null,
   }));
 }
@@ -349,6 +390,8 @@ export function answersFromJson(json: unknown): StoredAnswer[] {
         text: typeof raw.text === "string" ? raw.text : null,
         optionKeys: strings(raw.option_keys),
         optionLabels: strings(raw.option_labels),
+        position: typeof raw.position === "number" ? raw.position : null,
+        questionType: typeof raw.question_type === "string" ? raw.question_type : null,
         file: f
           ? {
               name: typeof f.name === "string" ? f.name : "file",
@@ -486,3 +529,54 @@ export function addFileCounts(total: FileCopyCounts, more: FileCopyCounts): void
 
 /** The Bronze answers of a stored row as the capture's `ParsedAnswer` shape needs them (for a re-run that wants the previous copies). */
 export const storedAnswersOf = (answers: unknown): StoredAnswer[] => answersFromJson(answers);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// What the Results list says about its pages, and which type names a capture saw
+// ---------------------------------------------------------------------------------------------------------------------
+
+export interface PageMeta {
+  currentPage: number;
+  pageCount: number;
+  /** Rows in all pages, when the list says. */
+  itemsTotalCount: number | null;
+}
+
+/** The paging the list's own `meta` reports (JSON:API: `currentPage`, `pageCount`, `itemsTotalCount`), or null when no document has it. */
+export function pageMetaOf(documents: unknown[]): PageMeta | null {
+  for (const d of documents) {
+    const meta = isObj(d) && isObj(d.meta) ? d.meta : null;
+    if (!meta) continue;
+    const num = (names: string[]) => {
+      const v = valueOf(meta, names.map(norm));
+      return typeof v === "number" && Number.isFinite(v) ? v : null;
+    };
+    const currentPage = num(["currentpage", "page"]);
+    const pageCount = num(["pagecount", "totalpages"]);
+    if (currentPage === null || pageCount === null) continue;
+    return { currentPage, pageCount, itemsTotalCount: num(["itemstotalcount", "totalcount", "total"]) };
+  }
+  return null;
+}
+
+/** The distinct values of the `type` and `questionType` fields found in the documents: Kajabi's own enum names, never member data, so they are safe to print. */
+export function typeValuesIn(documents: unknown[]): { types: string[]; questionTypes: string[] } {
+  const types = new Set<string>();
+  const questionTypes = new Set<string>();
+  const safe = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_. :/-]{1,60}$/.test(v) ? v : null);
+  const visit = (node: unknown, depth: number) => {
+    if (depth > 12 || node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child, depth + 1);
+      return;
+    }
+    for (const [key, value] of Object.entries(node)) {
+      const k = norm(key);
+      const v = safe(value);
+      if (v && k === "type") types.add(v);
+      else if (v && k === "questiontype") questionTypes.add(v);
+      else visit(value, depth + 1);
+    }
+  };
+  for (const d of documents) visit(d, 0);
+  return { types: [...types].sort().slice(0, 30), questionTypes: [...questionTypes].sort().slice(0, 30) };
+}

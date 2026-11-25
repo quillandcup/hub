@@ -64,16 +64,19 @@ export async function loadMemberQuiz(repos: Pick<Repos, "quizzes">, lessonId: st
   const shown = attempts.slice(0, ATTEMPTS_SHOWN);
   // Their own words and files, for the attempts listed (one batch, never a query per attempt).
   const answers = await repos.quizzes.answersOfAttempts(shown.map((a) => a.id));
-  const openAnswers = (attemptId: string): MemberOpenAnswer[] =>
-    answers
-      .filter((a) => a.attemptId === attemptId && (a.answerText !== null || a.file !== null))
-      .map((a) => ({ questionId: a.questionId, prompt: a.promptSnapshot, text: a.answerText, fileName: a.file?.name ?? null }));
+  const openAnswers = (attempt: { id: string; unlinkedAnswers: { position: number; prompt: string | null; text: string | null; labels: string[]; file: { name: string } | null }[] }): MemberOpenAnswer[] => [
+    ...answers
+      .filter((a) => a.attemptId === attempt.id && (a.answerText !== null || a.file !== null))
+      .map((a) => ({ questionId: a.questionId, prompt: a.promptSnapshot, text: a.answerText, fileName: a.file?.name ?? null })),
+    // Imported answers whose question isn't in the quiz as it is now: still theirs to read, under their own wording. `pos_<n>` names them for the file link.
+    ...attempt.unlinkedAnswers.map((u) => ({ questionId: `pos_${u.position}`, prompt: u.prompt, text: u.text ?? (u.labels.length > 0 ? u.labels.join(", ") : null), fileName: u.file?.name ?? null })),
+  ];
   return {
     // A passing grade applies only when some question is scored: a quiz of reflections has none, whatever was stored.
     passingPercent: questions.some((q) => q.kind === "choice" && q.graded && q.options.some((o) => o.isCorrect)) ? quiz.passingPercent : null,
     hideAnswers: quiz.hideAnswers,
     questions: questions.map((q) => ({ id: q.id, prompt: q.prompt, kind: q.kind, allowsMultiple: q.allowsMultiple, options: q.options.map((o) => ({ id: o.id, label: o.label })) })),
-    attempts: shown.map((a) => ({ id: a.id, submittedAt: a.submittedAt, scorePercent: a.scorePercent, correctCount: a.correctCount, questionCount: a.questionCount, passed: a.passed, importedFrom: a.importedFrom, openAnswers: openAnswers(a.id) })),
+    attempts: shown.map((a) => ({ id: a.id, submittedAt: a.submittedAt, scorePercent: a.scorePercent, correctCount: a.correctCount, questionCount: a.questionCount, passed: a.passed, importedFrom: a.importedFrom, openAnswers: openAnswers(a) })),
     passed: attempts.some((a) => a.passed),
   };
 }

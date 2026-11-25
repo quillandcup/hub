@@ -81,6 +81,27 @@ describe("GET /api/course-quiz-answers/[attemptId]/[questionId]", () => {
     expect((await call(attemptId, "nope")).status).toBe(404);
   });
 
+  it("serves a file kept by its place (pos_<n>) for an imported answer no question matched, to the same people and no one else", async () => {
+    const quiz = (await repos().quizzes.quizOfLesson(LESSON))!;
+    const imported = await repos().quizzes.importAttempt({
+      quizId: quiz.id,
+      memberId: ADA,
+      sourceKey: "s-1",
+      submittedAt: null,
+      answers: [],
+      unlinked: [{ position: 4, prompt: "Old wording", kind: "file_upload", text: null, labels: [], file: { path: `${ADA}/11111111-1111-4111-8111-111111111111/old.pdf`, name: "old.pdf", bytes: 5 } }],
+    });
+    expect(imported).toBe("inserted");
+    const attempts = await repos().quizzes.attemptsOf(ADA, quiz.id);
+    const id = attempts.find((a) => a.importedFrom === "kajabi")!.id;
+    const ok = await call(id, "pos_4");
+    expect(ok.status).toBe(302);
+    expect(storage.signedQuizFileDownload).toHaveBeenCalledWith({ marker: "service" }, `${ADA}/11111111-1111-4111-8111-111111111111/old.pdf`, "old.pdf");
+    expect((await call(id, "pos_5")).status).toBe(404);
+    caller.value = { identity: { memberId: GRACE } };
+    expect((await call(id, "pos_4")).status).toBe(404);
+  });
+
   it("says so when storage can't make the link", async () => {
     storage.signedQuizFileDownload.mockResolvedValue(null);
     expect((await call(attemptId, fileQuestion)).status).toBe(502);

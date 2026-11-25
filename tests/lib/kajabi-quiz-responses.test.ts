@@ -96,10 +96,11 @@ describe("what Bronze keeps", () => {
   ];
 
   it("round-trips through the JSON in the column, and reads a malformed one as what it can", () => {
-    expect(answersFromJson(answersToJson(answers()))).toEqual(answers());
+    // A shape that names no position or type reads back with them as null.
+    expect(answersFromJson(answersToJson(answers()))).toEqual(answers().map((x) => ({ ...x, position: null, questionType: null })));
     expect(answersFromJson("nope")).toEqual([]);
     expect(answersFromJson([{ no: "key" }, { question_key: "1", option_keys: "x", file: { name: 4 } }])).toEqual([
-      { questionKey: "1", prompt: null, text: null, optionKeys: [], optionLabels: [], file: { name: "file", bytes: null, sourceUrl: null, storagePath: null, copyFailure: null } },
+      { questionKey: "1", prompt: null, text: null, optionKeys: [], optionLabels: [], position: null, questionType: null, file: { name: "file", bytes: null, sourceUrl: null, storagePath: null, copyFailure: null } },
     ]);
   });
 

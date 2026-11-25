@@ -9,7 +9,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(18);
+SELECT plan(22);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000d03a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'qr-alice@example.test'),
@@ -59,6 +59,12 @@ SELECT is((SELECT prompt_snapshot FROM public.quiz_attempt_answers WHERE answer_
 SELECT is(public.import_quiz_attempt('{"quiz_id":"quiz_AAAAAAAAQr01","member_id":"mbr_AAAAAAAAQrA2","source_key":"s-1","answers":[{"question_id":"qques_AAAAAAAAQr11","answer_text":"other"}]}'::jsonb), 'exists', 'the same submission again does nothing, whoever it is for');
 SELECT is((SELECT count(*)::int FROM public.quiz_attempts WHERE quiz_id = 'quiz_AAAAAAAAQr01'), 1, 'so there is still one attempt');
 SELECT is((SELECT answer_text FROM public.quiz_attempt_answers WHERE answer_text IS NOT NULL AND attempt_id = (SELECT id FROM public.quiz_attempts WHERE source_key = 's-1')), 'Alice''s own words', 'and its answers are unchanged');
+
+-- Answers no question could be matched to are kept on the attempt, whole.
+SELECT is(public.import_quiz_attempt('{"quiz_id":"quiz_AAAAAAAAQr01","member_id":"mbr_AAAAAAAAQrA1","source_key":"s-2","answers":[],"unlinked":[{"position":3,"prompt":"As it was asked","kind":"short_answer","text":"Kept words","labels":[],"file":null}]}'::jsonb), 'inserted', 'an import with answers that match no question is inserted');
+SELECT is((SELECT unlinked_answers -> 0 ->> 'text' FROM public.quiz_attempts WHERE source_key = 's-2'), 'Kept words', 'and keeps them with their own wording on the attempt');
+SELECT is((SELECT unlinked_answers IS NULL FROM public.quiz_attempts WHERE source_key = 's-1'), true, 'an attempt with none has none');
+SELECT isnt(pg_temp.failure($$UPDATE public.quiz_attempts SET unlinked_answers = '{"not":"a list"}'::jsonb WHERE source_key = 's-2'$$), '', 'what is kept there is a list');
 
 -- A Hub attempt has no key, and several can exist beside an import.
 INSERT INTO public.quiz_attempts (id, quiz_id, member_id, question_count, correct_count, score_percent, passed) VALUES

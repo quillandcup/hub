@@ -480,7 +480,15 @@ export function defineQuizContract(name: string, setup: () => QuizContractContex
       expect(answers.find((a) => a.questionId === file.id)).toMatchObject({ answerText: null, promptSnapshot: "Upload", file: { name: "letter.pdf", bytes: 2048 } });
       expect((await ctx.repo().answersOf(mine.id)).map((a) => a.answerText)).toEqual(["Made in the Hub"]);
 
-      expect(await ctx.repo().importedSourceKeys([quiz.id])).toEqual(new Set([`${quiz.id}|s-100`]));
+      // An answer no question could be matched to is kept on the attempt, whole, and comes back as it went in.
+      const unlinked = [{ position: 3, prompt: "As it was asked", kind: "file_upload" as const, text: null, labels: [], file: { path: `${member}/11111111-1111-4111-8111-111111111111/old.pdf`, name: "old.pdf", bytes: 9 } }, { position: 5, prompt: null, kind: null, text: "Words", labels: ["A", "B"], file: null }];
+      expect(await ctx.repo().importAttempt({ ...submission, sourceKey: "s-101", answers: [], unlinked })).toBe("inserted");
+      const withUnlinked = (await ctx.repo().attemptsOf(member, quiz.id)).find((a) => a.unlinkedAnswers.length > 0)!;
+      expect(withUnlinked.unlinkedAnswers).toEqual(unlinked);
+      expect(imported.unlinkedAnswers).toEqual([]);
+      expect((await ctx.repo().attemptById(mine.id))?.unlinkedAnswers).toEqual([]);
+
+      expect(await ctx.repo().importedSourceKeys([quiz.id])).toEqual(new Set([`${quiz.id}|s-100`, `${quiz.id}|s-101`]));
       expect(await ctx.repo().importedSourceKeys([])).toEqual(new Set());
       expect([...(await ctx.repo().quizzesBySourceKeys(["489121", "no-such"])).keys()]).toEqual(["489121"]);
       expect(await ctx.repo().quizzesBySourceKeys([])).toEqual(new Map());

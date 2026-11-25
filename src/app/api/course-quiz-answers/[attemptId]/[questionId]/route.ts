@@ -16,7 +16,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 export async function GET(_request: Request, { params }: { params: Promise<{ attemptId: string; questionId: string }> }) {
   const { attemptId, questionId } = await params;
   const notFound = () => new NextResponse("Not found", { status: 404 });
-  if (!isAttemptId(attemptId) || !isQuestionId(questionId)) return notFound();
+  // A question of the quiz, or `pos_<n>`: an imported answer kept by its place because no question could be matched to it.
+  const position = /^pos_(\d{1,4})$/.exec(questionId)?.[1];
+  if (!isAttemptId(attemptId) || !(isQuestionId(questionId) || position)) return notFound();
 
   // Who is asking comes first: the member's session, or staff who manage courses. Neither is nobody.
   const caller = await getCoursesCaller();
@@ -30,8 +32,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ att
   const isOwner = !!caller && caller.identity.memberId === attempt.memberId;
   if (!isOwner && !isStaff) return notFound();
 
-  const answers = await repos.quizzes.answersOfAttempts([attemptId]);
-  const file = answers.find((a) => a.questionId === questionId)?.file;
+  const file = position
+    ? attempt.unlinkedAnswers.find((u) => u.position === Number(position))?.file
+    : (await repos.quizzes.answersOfAttempts([attemptId])).find((a) => a.questionId === questionId)?.file;
   if (!file) return notFound();
 
   const url = await signedQuizFileDownload(service, file.path, file.name);

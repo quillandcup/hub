@@ -134,6 +134,16 @@ describe("runResponsesCapture", () => {
     expect(summary.removedResponders).toBe(0);
   });
 
+  it("prints the distinct type names it saw (Kajabi's own enum values), and reads a position-keyed submission", async () => {
+    const real = { data: { id: "7", type: "quiz_results", attributes: { contactEmail: "ada@example.test", dateSubmittedAt: "2026-05-10T22:38:00.000Z" } }, included: [{ id: "a", type: "quiz_result_answers", attributes: { answer: "words", questionTitle: "Why?", questionType: "short_answer", questionPosition: 1, fileUrl: null } }] };
+    const { done, lines } = run({ "489121": read([real]) });
+    const summary = await done;
+    expect(summary).toMatchObject({ read: 1, seen: { types: ["quiz_result_answers", "quiz_results"], questionTypes: ["short_answer"] } });
+    expect(lines).toContain("resource types seen: quiz_result_answers, quiz_results; question types seen: short_answer");
+    expect(data.kajabiQuizResponses[0]).toMatchObject({ submission_key: "7", email: "ada@example.test", submitted_at: "2026-05-10T22:38:00.000Z" });
+    expect(JSON.stringify(data.kajabiQuizResponses[0].answers)).toContain("pos:1");
+  });
+
   it("lists the files that could not be copied by reason", async () => {
     const io = fileIO();
     io.download = vi.fn(async () => ({ ok: false as const, failure: "expired" as const }));
