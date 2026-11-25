@@ -1,15 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { apiFetch } from '../../helpers/api-fetch'
+import { removalHash } from '../../../src/lib/data/removal-hash'
 
 /**
  * /api/process/course-progress (Bronze Kajabi per-lesson progress -> Silver lesson_progress). Hub progress is
  * member-written and Local, so this is an insert-if-absent merge, not DELETE + INSERT:
  * 1. A dry run counts and writes nothing
- * 2. First run inserts a completed row (marked imported, Kajabi's date, no position) for matched members with access
+ * 2. First run inserts a completed row (marked imported, Kajabi's date, no position) for every matched member, with or
+ *    without course access (a lapsed member's progress is still theirs)
  * 3. Running again inserts nothing; a row the member has (completed or not) is never changed
- * 4. Unmatched, ambiguous and no-access members and orphan lessons are counted, not written
- * 5. Members are found by email or alias, never by name; a member whose access ended gets nothing
+ * 4. Unmatched ("kept, no member yet") and ambiguous emails and orphan lessons are counted, not written; an address
+ *    with no member is applied by a later run once a member has it
+ * 5. Members are found by email or alias, never by name; a removed address (tombstone) never comes back
  * 6. Only completed, live Bronze rows count; a lesson later removed in Bronze is not imported
  * 7. More than 1000 rows are imported
  * 8. No member_activities are written
@@ -55,6 +58,7 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
   })
 
   async function cleanup() {
+    await supabase.from('removal_tombstones').delete().eq('kind', 'email').eq('key_hash', removalHash(email('gone')))
     await supabase.from('courses').delete().eq('source_key', COURSE) // cascades to lessons, access and their progress
     await bronze.from('kajabi_lesson_progress').delete().eq('course_kajabi_id', COURSE)
     await supabase.from('member_email_aliases').delete().eq('alias_email', email('bo-old'))
@@ -64,7 +68,7 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
 
   beforeAll(async () => {
     await cleanup()
-    const names = ['ada', 'bo', 'cy', 'dee', 'eve', 'fay', 'gus', 'big']
+    const names = ['ada', 'bo', 'cy', 'dee', 'eve', 'fay', 'gus', 'big', 'gone']
     const rows = [
       ...names.map((n) => ({ name: `Progress ${n}`, email: email(n) })),
       { name: 'Progress cy twin', email: email('cy').replace('cp-cy', 'CP-CY') },
@@ -119,8 +123,8 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
       bronzeRow('ada', 'gone'), // no such Silver lesson
       bronzeRow('bo-old', '1'), // an old address, through the alias
       bronzeRow('cy', '1'), // two members share this email apart from case
-      bronzeRow('dee', '1'), // member without access
-      bronzeRow('eve', '1'), // access ended
+      bronzeRow('dee', '1'), // member who never had access: still gets it
+      bronzeRow('eve', '1'), // access ended: still gets it
       bronzeRow('ghost', '1'), // no member at all
       bronzeRow('fay', '1', { completed_at: '2026-01-05T17:00:00Z' }), // Hub already completed it, on another date
       bronzeRow('gus', '1'), // Hub row exists but is not completed
@@ -136,12 +140,12 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
 
   it('counts a dry run and writes nothing', async () => {
     const summary = await run({ course: SLUG, dryRun: true })
-    expect(summary.inserted).toBe(3 + BIG)
+    expect(summary.inserted).toBe(5 + BIG)
     expect(await progress('ada')).toHaveLength(0)
     expect(await progress('big')).toHaveLength(0)
   })
 
-  it('inserts completed rows for matched members with access, marked imported, and counts the rest', async () => {
+  it('inserts completed rows for every matched member, with or without access, marked imported, and counts the rest', async () => {
     const summary = await run()
     expect(summary).toMatchObject({
       slug: SLUG,
@@ -149,8 +153,8 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
       orphanLessons: 1,
       alreadyCompleted: 1,
       leftAlone: 1,
-      inserted: 3 + BIG,
-      students: { unmatched: 1, ambiguous: 1, withoutAccess: 2 },
+      inserted: 5 + BIG,
+      students: { keptNoMember: 1, ambiguous: 1, removed: 0 },
     })
 
     const ada = await progress('ada')
@@ -164,8 +168,14 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
     expect(await progress('big')).toHaveLength(BIG)
   })
 
-  it('leaves unmatched, ambiguous, no-access and ended-access members without rows', async () => {
-    for (const who of ['cy', 'dee', 'eve']) expect(await progress(who)).toHaveLength(0)
+  it('gives members without access their completion too, and grants them nothing', async () => {
+    for (const who of ['dee', 'eve']) expect(await progress(who)).toEqual([expect.objectContaining({ lesson_id: lessonIds['1'], imported_from: 'kajabi' })])
+    const { count } = await supabase.from('course_access').select('member_id', { count: 'exact', head: true }).eq('member_id', ids.dee)
+    expect(count).toBe(0)
+  })
+
+  it('leaves an ambiguous email without rows', async () => {
+    expect(await progress('cy')).toHaveLength(0)
   })
 
   it('never changes a row the member already has', async () => {
@@ -181,7 +191,7 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
     const before = await progress('ada')
     const again = await run()
     expect(again.inserted).toBe(0)
-    expect(again.alreadyCompleted).toBe(1 + 3 + BIG) // fay, ada x2 + bo, big
+    expect(again.alreadyCompleted).toBe(6 + BIG) // fay, ada x2, bo, dee, eve, big
     expect(await progress('ada')).toEqual(before)
   })
 
@@ -197,6 +207,23 @@ describe('Kajabi lesson progress -> lesson_progress', () => {
     await supabase.from('lesson_progress').delete().eq('member_id', ids.bo)
     expect((await run()).inserted).toBe(0)
     expect(await progress('bo')).toHaveLength(0)
+  })
+
+  it('keeps an address with no member yet and applies it on a later run once the member exists', async () => {
+    expect(await progress('ghost')).toHaveLength(0)
+    const { data, error } = await supabase.from('members').insert({ name: 'Progress ghost', email: email('ghost'), joined_at: new Date().toISOString(), status: 'cancelled' }).select('id').single()
+    expect(error).toBeNull()
+    ids.ghost = data!.id
+    expect((await run()).inserted).toBe(1)
+    expect(await progress('ghost')).toEqual([expect.objectContaining({ lesson_id: lessonIds['1'], imported_from: 'kajabi' })])
+  })
+
+  it('never brings back a removed person: a fingerprinted address is not stored in Bronze and imports nothing', async () => {
+    const tomb = await supabase.from('removal_tombstones').insert({ kind: 'email', key_hash: removalHash(email('gone')) })
+    expect(tomb.error).toBeNull()
+    await bronze.from('kajabi_lesson_progress').insert(bronzeRow('gone', '1')) // the capture trigger drops it
+    expect((await run()).inserted).toBe(0)
+    expect(await progress('gone')).toHaveLength(0)
   })
 
   it('writes no activity-log rows', async () => {

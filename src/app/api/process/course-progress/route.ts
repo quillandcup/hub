@@ -11,8 +11,8 @@ export const maxDuration = 300;
  * progress"). Body: `{ "course": "self-editing-academy", "dryRun": true }`; `course` is the Silver slug (omit it
  * for every Kajabi course); `dryRun` counts without writing.
  *
- * Insert-only: it adds completed rows for members who have none, marked imported, and never changes or removes
- * Hub progress (see `importKajabiLessonProgress`). The caller is checked as an admin, then the writes use the
+ * Insert-only: it adds completed rows for any existing member (with or without course access) who has none, marked
+ * imported, and never changes or removes Hub progress (see `importKajabiLessonProgress`). The caller is checked as an admin, then the writes use the
  * service role.
  */
 export async function POST(request: NextRequest) {
