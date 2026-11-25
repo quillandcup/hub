@@ -64,7 +64,8 @@ export default function OwnerFilter({
   const toggle = (value: OwnerChoice) => onChoose(choice === value ? "everyone" : value);
 
   return (
-    <div className="@container mb-3 flex flex-col gap-2 @pair:flex-row @pair:flex-wrap @pair:items-center" role="group" aria-label="Owner">
+    <div className="@container mb-3">
+    <div className="flex flex-col gap-2 @pair:flex-row @pair:flex-wrap @pair:items-center" role="group" aria-label="Owner">
       <div className="flex gap-2">
         {(["everyone", "me"] as const).map((value) => (
           <button
@@ -112,6 +113,7 @@ export default function OwnerFilter({
           ariaLabel="Find an owner"
         />
       </div>
+    </div>
     </div>
   );
 }
