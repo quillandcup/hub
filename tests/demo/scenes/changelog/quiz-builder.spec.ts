@@ -1,9 +1,6 @@
 import { expect, shot, test } from "../../fixtures";
 import { demoQuizIds } from "../../db";
 
-// The page checks inject a style that hides the development badge; the app's own content security policy blocks it, so it is let through here.
-test.use({ bypassCSP: true });
-
 /**
  * Screenshots for the changelog entry "Build quizzes in the course builder": the Questions page of the demo quiz ("Check your draft
  * plan", tests/demo/courses-seed.ts) with a graded choice question, a short answer and a file upload; the Results page; and one

@@ -335,7 +335,7 @@ export default function MemberIdentityPanel({
                       type="button"
                       onClick={() => handleMakePrimary(alias)}
                       disabled={makingPrimaryId === alias.id}
-                      aria-label={`Make ${alias.alias_email} the primary email`}
+                      aria-label={`Make primary: ${alias.alias_email}`}
                       className="text-xs text-plum-700 dark:text-plum-300 hover:underline disabled:opacity-50"
                     >
                       Make primary
@@ -391,6 +391,7 @@ export default function MemberIdentityPanel({
               type="text"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
+              aria-label="Name"
               className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
               maxLength={200}
             />
@@ -446,10 +447,10 @@ export default function MemberIdentityPanel({
                 <button
                   onClick={() => handleSetDefault(alias.alias, alias.id)}
                   disabled={settingDefaultId === alias.id || isDefault || !alias.active}
-                  aria-label={isDefault || !alias.active ? undefined : `Use ${alias.alias} as the default pen name`}
+                  aria-label={isDefault || !alias.active ? undefined : `${alias.alias} ${sourceLabel(alias.source)}: use as the default pen name`}
                   className="flex items-center gap-2 hover:underline disabled:no-underline"
                 >
-                  {alias.alias}
+                  {alias.alias}{" "}
                   <span className="text-xs text-slate-500 dark:text-slate-400">{sourceLabel(alias.source)}</span>
                   {isDefault && <span className="text-xs font-medium">· default</span>}
                 </button>
