@@ -41,6 +41,8 @@ export interface QuizRead {
   submissions: { key: string | null; documents: unknown[] }[];
   /** Submissions that could not be opened. */
   failed: number;
+  /** How the list was paged, when it was read by id (printed so a run says what it could and couldn't do). */
+  paging?: "single_page" | "paged" | "could_not_page" | "page_limit";
   /** The Results tab could not be read to the end (a page failed to load): nothing about it is complete. */
   incomplete: boolean;
 }
@@ -56,6 +58,8 @@ export interface ResponsesSummary {
   /** Submissions whose responder was removed on their request (`removal_tombstones`): nothing is stored or copied for them. */
   removedResponders: number;
   openFailed: number;
+  /** Submissions the lists named that were never opened (neither read nor reported failed): listed and read must reconcile. */
+  notOpened: number;
   rows: Record<ResponseSaveOutcome, number>;
   responders: number;
   answers: number;
@@ -83,6 +87,7 @@ export async function runResponsesCapture(opts: {
     unreadable: 0,
     removedResponders: 0,
     openFailed: 0,
+    notOpened: 0,
     rows: { created: 0, updated: 0, unchanged: 0 },
     responders: 0,
     answers: 0,
@@ -113,6 +118,8 @@ export async function runResponsesCapture(opts: {
     }
     if (read.listed !== null) summary.listed += read.listed;
     summary.openFailed += read.failed;
+    const notOpened = read.listed === null ? 0 : Math.max(0, read.listed - read.submissions.length - read.failed);
+    summary.notOpened += notOpened;
 
     const counts = { created: 0, updated: 0, unchanged: 0, unreadable: 0, removed: 0 };
     let shown = false;
@@ -163,7 +170,7 @@ export async function runResponsesCapture(opts: {
     }
     summary.responders = responders.size;
     opts.log(
-      `quiz ${quiz.quizKajabiId}: ${read.listed ?? "?"} listed, ${read.submissions.length} opened, ${read.failed} failed to open, ${counts.unreadable} unreadable, ${counts.removed} skipped (removed on request), ${counts.created} new, ${counts.updated} changed, ${counts.unchanged} unchanged${read.incomplete ? " (the Results tab was not read to the end)" : ""}`,
+      `quiz ${quiz.quizKajabiId}: ${read.listed ?? "?"} listed, ${read.submissions.length} opened, ${read.failed} failed to open, ${counts.unreadable} unreadable, ${counts.removed} skipped (removed on request), ${counts.created} new, ${counts.updated} changed, ${counts.unchanged} unchanged${notOpened > 0 ? `, ${notOpened} listed but never opened` : ""}${read.paging === "could_not_page" ? " (could not page the list: the page parameter was not accepted)" : read.paging === "page_limit" ? " (stopped at the page limit)" : ""}${read.incomplete ? " (the Results tab was not read to the end)" : ""}`,
     );
   }
   summary.seen = { types: [...seenTypes].sort().slice(0, 30), questionTypes: [...seenQuestionTypes].sort().slice(0, 30) };
@@ -178,7 +185,7 @@ export function formatResponsesTotals(apply: boolean, s: ResponsesSummary): stri
     .join(", ");
   return (
     `${apply ? "Written" : "Dry run, nothing written"}: ${s.quizzes} quizzes (${s.quizzesFailed} could not be read), ${s.listed} submissions listed, ${s.read} read from ${s.responders} responders ` +
-    `(${s.unreadable} unreadable, ${s.removedResponders} skipped because the member was removed on request, ${s.openFailed} could not be opened); rows ${s.rows.created} new, ${s.rows.updated} changed, ${s.rows.unchanged} unchanged; ${s.answers} answers; ` +
+    `(${s.unreadable} unreadable, ${s.removedResponders} skipped because the member was removed on request, ${s.openFailed} could not be opened, ${s.notOpened} listed but never opened); rows ${s.rows.created} new, ${s.rows.updated} changed, ${s.rows.unchanged} unchanged; ${s.answers} answers; ` +
     `files ${s.files.copied} ${apply ? "copied" : "would copy"}, ${s.files.alreadyCopied} already copied${failedFiles ? `, could not copy: ${failedFiles}` : ""}.`
   );
 }
