@@ -11,8 +11,8 @@ const OPTIONS = { siteUrl: "https://kajabi.example.test", coursesUrl: "https://c
 type Puck = { type: string; props: Record<string, unknown> };
 const kids = (b: Puck) => b.props.content as Puck[];
 
-function page(opts: { section?: Record<string, unknown>; header?: Record<string, unknown>; logo?: Record<string, unknown> }) {
-  const blocks = { t1: block("text", { width: "7", text_align: "left", background_color: "#eadada", text: "<h1>A big promise</h1><p>Body words here.</p>" }) };
+function page(opts: { section?: Record<string, unknown>; header?: Record<string, unknown>; logo?: Record<string, unknown>; blocks?: Record<string, ReturnType<typeof block>> }) {
+  const blocks = opts.blocks ?? { t1: block("text", { width: "7", text_align: "left", background_color: "#eadada", text: "<h1>A big promise</h1><p>Body words here.</p>" }) };
   const settings = exportSettings({
     order: ["hero"],
     sections: {
@@ -144,13 +144,20 @@ describe("the pictures of a hero and its testimonials after the descriptions are
 
 describe("a white logo", () => {
   it("gets a plum band of its own when the picture behind it is pale, so it can be seen", () => {
-    const { content, notes } = page({ logo: { logo: "assets/Logo_White_Text.png" } });
+    const { content, notes } = page({ logo: { logo: "assets/Logo_White_Text.png" }, section: { background_color: "rgba(255, 255, 255, 0.9)" } });
     expect(content).toHaveLength(2);
     expect(content[0].props).toMatchObject({ background: "plum" });
     expect(kids(content[0])[0].type).toBe("Image");
     expect(kids(content[1])[0].props).toMatchObject({ card: true });
     expect(kids(kids(content[1])[0]).map((b) => b.type)).not.toContain("Image");
     expect(note(notes, "approximated", "white version")).toBe(true);
+  });
+
+  it("stays on the picture under a faint cream tint, as in Kajabi, and the report says its brightness was not read", () => {
+    const { content, notes } = page({ logo: { logo: "assets/Logo_White_Text.png" } });
+    expect(content).toHaveLength(1);
+    expect(kids(content[0])[0].type).toBe("Image");
+    expect(note(notes, "approximated", "brightness is not read here")).toBe(true);
   });
 
   it("stays on the picture when the picture is shaded dark", () => {
@@ -163,5 +170,39 @@ describe("a white logo", () => {
     const { content } = page({ header: { position: "static" }, section: { bg_type: "none", bg_image: "", background_color: "#ffffff" }, logo: { logo: "assets/Logo_White_Text.png" } });
     expect(content[0].props.background).toBe("plum");
     expect(content).toHaveLength(2);
+  });
+});
+
+describe("the logo's alignment", () => {
+  it("follows the header's own alignment: a block that says right in a centred header is centred", () => {
+    expect(kids(page({ header: { horizontal: "center" }, logo: { alignment: "right" } }).content[0])[0].props.align).toBe("center");
+    expect(kids(page({ header: { horizontal: "left" }, logo: { alignment: "center" } }).content[0])[0].props.align).toBe("left");
+  });
+
+  it("uses the block's alignment when the header has none", () => {
+    expect(kids(page({ logo: { alignment: "right" } }).content[0])[0].props.align).toBe("right");
+  });
+});
+
+describe("a card of half a full-width page", () => {
+  const half = (over: Record<string, unknown> = {}, width = "6") => page({ header: { horizontal: "center" }, section: { full_width: true, horizontal: "right", ...over }, blocks: { t1: block("text", { width, text_align: "left", background_color: "#4d4d4d", text: "<h1>Words</h1>" }) } }).content[0];
+
+  it("is the right column of two equal columns, so it reaches the page's edge, below the logo", () => {
+    const hero = half();
+    expect(hero.props).toMatchObject({ width: "full", paddingDesktop: { top: 24, left: 15, right: 15 } });
+    const [logo, columns] = kids(hero);
+    expect(logo.props).toMatchObject({ align: "center" });
+    expect(columns.type).toBe("Columns");
+    expect(columns.props).toMatchObject({ count: "2", col1: [] });
+    const card = (columns.props.col2 as Puck[])[0];
+    expect(card.props).toMatchObject({ card: true, cardColor: "charcoal", paddingDesktop: { top: 190, left: 0, right: 0 } });
+  });
+
+  it("is the left column when the section is on the left, and only for five or six twelfths of a full-width section", () => {
+    const left = kids(half({ horizontal: "left" }))[1];
+    expect(left.props.col2).toEqual([]);
+    expect((left.props.col1 as Puck[]).length).toBe(1);
+    expect(kids(half({}, "8"))[1].type).toBe("Section");
+    expect(kids(half({ full_width: false }))[1].type).toBe("Section");
   });
 });
