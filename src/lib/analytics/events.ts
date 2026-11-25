@@ -89,14 +89,14 @@ export const EVENTS = {
     surface: oneOf("palette", "page", "chat_page"),
     kind: text(20),
     rank: int(1000),
-    via: oneOf("click", "enter"),
+    via: oneOf("click", "enter", "enter_new_tab"),
   },
   /** A suggestion on the empty palette was opened: something needing attention, a recent place, or a recent search. */
   search_suggestion_clicked: {
     source: oneOf("needs_attention", "recent_place", "recent_search"),
     kind: text(20),
     rank: int(100),
-    via: oneOf("click", "enter"),
+    via: oneOf("click", "enter", "enter_new_tab"),
   },
   /** A palette filter was changed (`option` is from a fixed list: a kind, a chip, a time range, an operator name). */
   search_filter_used: {

@@ -80,6 +80,25 @@ describe("SearchPalette", () => {
     expect(push).toHaveBeenLastCalledWith("/bookshelf");
   });
 
+  it("Ctrl+Enter opens the highlighted row, or the results page, in a new tab and keeps the palette open", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const user = await openAndType("cody");
+    await screen.findByRole("heading", { name: "Members" });
+    push.mockClear();
+
+    await user.keyboard("{ArrowDown}{ArrowDown}{Control>}{Enter}{/Control}");
+    expect(open).toHaveBeenLastCalledWith("/bookshelf", "_blank", "noopener");
+    await user.keyboard("{ArrowDown}{Control>}{Enter}{/Control}");
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("textbox", { name: "Search" })).toBeInTheDocument();
+
+    await user.keyboard("{ArrowUp}{ArrowUp}{ArrowUp}");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(open).toHaveBeenLastCalledWith("/search?q=cody", "_blank", "noopener");
+    expect(push).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
   it("goes to the results page on Enter with nothing highlighted", async () => {
     const user = await openAndType("cody");
     await screen.findByRole("heading", { name: "Members" });
