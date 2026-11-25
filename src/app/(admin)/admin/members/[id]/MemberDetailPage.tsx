@@ -28,7 +28,6 @@ import {
 import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { buildTransactions, stripeLookupEmails, type TransactionRow } from "@/lib/member-transactions";
 import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
@@ -192,21 +191,6 @@ export default async function MemberDetailPage({
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
   const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
-
-  // The Transactions tab: Bronze billing is service-role only, so read it here and pass only display rows.
-  // Stripe customers are found by the linked id plus every email the member has (primary and aliases, as
-  // Stripe stored it or lowercased): a checkout can create a second customer under an old address.
-  // TODO(docs/TODO.md: "Support several Stripe customers per member"): read the link table once it exists.
-  let transactions: { rows: TransactionRow[]; customerCount: number } | null = null;
-  if (tab === "transactions" && can("member.transactions_tab")) {
-    const billing = createRepos(createServiceRoleClient()).billing;
-    const byEmail = await billing.stripeCustomers({ emails: stripeLookupEmails(allEmails) });
-    const stripeIds = [...new Set([memberRow.stripeCustomerId, ...byEmail.map((c) => c.stripe_customer_id)].filter((c): c is string => !!c))];
-    const [invoices, charges] = stripeIds.length
-      ? await Promise.all([billing.stripeInvoices({ customerIds: stripeIds }), billing.stripeCharges({ customerIds: stripeIds })])
-      : [[], []];
-    transactions = { rows: buildTransactions(invoices, charges), customerCount: stripeIds.length };
-  }
 
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(createRepos(supabase), customerIds, createRepos(createServiceRoleClient())), { memberId: id });
@@ -420,7 +404,6 @@ export default async function MemberDetailPage({
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
           notificationsInfo={notificationsInfo}
-          transactions={transactions}
           features={features}
         />
       </main>

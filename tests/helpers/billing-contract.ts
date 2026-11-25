@@ -238,6 +238,8 @@ export function defineBillingContract(name: string, setup: () => BillingContract
       expect(await ctx.repo().stripeProductsByName([a.name, "No such product"])).toEqual([{ stripe_product_id: a.stripe_product_id, name: a.name }]);
       expect((await ctx.repo().stripeProductsByName([a.name, b.name])).map((p) => p.stripe_product_id)).toEqual([a.stripe_product_id, b.stripe_product_id].sort());
       expect(await ctx.repo().stripeProductsByName([])).toEqual([]);
+      expect(await ctx.repo().stripeProductsByIds([b.stripe_product_id, "no-such-product"])).toEqual([{ stripe_product_id: b.stripe_product_id, name: b.name }]);
+      expect(await ctx.repo().stripeProductsByIds([])).toEqual([]);
     });
 
     it("reads Stripe subscriptions by status and by customer", async () => {

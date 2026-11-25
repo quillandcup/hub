@@ -136,6 +136,8 @@ export interface BillingRepository {
   stripeCustomersWithData(): Promise<StripeCustomerWithData[]>;
   /** The products with one of these names. */
   stripeProductsByName(names: string[]): Promise<StripeProductRef[]>;
+  /** The products with one of these Stripe ids (those that exist). Chunked. */
+  stripeProductsByIds(productIds: string[]): Promise<StripeProductRef[]>;
   /** One row per subscription with one of these statuses. `customerIds` narrows to those customers (chunked). */
   stripeSubscriptionStatuses(statuses: string[], customerIds?: string[]): Promise<StripeSubscriptionStatus[]>;
   /** Every subscription with its raw record. */
@@ -387,6 +389,15 @@ export class SupabaseBillingRepository implements BillingRepository {
     const rows = await inChunks(names, (part) =>
       fetchAllRows<StripeProductRef>((from, to) =>
         this.products.select("stripe_product_id, name").in("name", part).order("stripe_product_id").range(from, to)
+      )
+    );
+    return sortByKey(rows, (r) => r.stripe_product_id);
+  }
+
+  async stripeProductsByIds(productIds: string[]) {
+    const rows = await inChunks(productIds, (part) =>
+      fetchAllRows<StripeProductRef>((from, to) =>
+        this.products.select("stripe_product_id, name").in("stripe_product_id", part).order("stripe_product_id").range(from, to)
       )
     );
     return sortByKey(rows, (r) => r.stripe_product_id);
@@ -856,6 +867,13 @@ export class InMemoryBillingRepository implements BillingRepository {
     const wanted = new Set(names);
     return sortByKey(this.dataset.stripeProducts, (r) => r.stripe_product_id)
       .filter((p) => wanted.has(p.name))
+      .map(({ stripe_product_id, name }) => ({ stripe_product_id, name }));
+  }
+
+  async stripeProductsByIds(productIds: string[]) {
+    const wanted = new Set(productIds);
+    return sortByKey(this.dataset.stripeProducts, (r) => r.stripe_product_id)
+      .filter((p) => wanted.has(p.stripe_product_id))
       .map(({ stripe_product_id, name }) => ({ stripe_product_id, name }));
   }
 
