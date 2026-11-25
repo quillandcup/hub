@@ -62,6 +62,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "billing-reconciliation",
+    date: "2026-11-25",
+    audience: "staff",
+    category: "new",
+    title: "Billing schedule: see which membership payments are missing, wrong or late",
+    summary: "A member's Transactions tab now lines up the days their membership should be billed against what Stripe actually did, and a new Billing Reconciliation page lists the members who need a look.",
+    body: [
+      "Until now you had to read a member's Stripe history and work out yourself which months should have been paid. The Transactions tab now shows a Billing schedule above the payments: one row per billing day, with a status.",
+      "- **What is expected.** The billing days come from the member's Stripe subscription, leaving out the months they were on hiatus and the months covered by a program that includes membership.",
+      "- **Statuses.** Paid, refunded, missed, failed, open, charged when it should not be (for example during a hiatus), unexpected (a payment that matches no billing day), and not expected. A payment a few days either side of its billing day still counts as that day's.",
+      "- **Only what needs a look.** The rows that need attention show first, with a switch for the full list. A hiatus or program's first and last day are never flagged, since those are the days billing stops and resumes.",
+      "- **All members at once.** Hygiene, then Billing Reconciliation, lists the members with at least one row that needs a look and links to their Transactions tab. It only reads: fixing a payment or a date is still done in Stripe or on the member.",
+      "The membership plan is covered today; program, course and event payments are not lined up yet.",
+    ].join("\n\n"),
+  },
+  {
     slug: "member-transactions-tab",
     date: "2026-11-25",
     audience: "staff",

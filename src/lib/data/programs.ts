@@ -134,6 +134,8 @@ export interface ProgramRepository {
   allEnrollmentCohorts(): Promise<EnrollmentCohortEnd[]>;
   /** The start and end dates of every member's cohorts. Paginated. */
   allEnrollmentWindows(): Promise<EnrollmentWindow[]>;
+  /** The start and end dates of every member's cohorts in programs that include membership (their membership is covered by the program). Paginated. */
+  membershipEnrollmentWindows(): Promise<EnrollmentWindow[]>;
   /** Enrollments in cohorts that start between these dates (inclusive, YYYY-MM-DD) of programs that include membership. Paginated. */
   membershipArrivals(sinceDate: string, today: string): Promise<ProgramArrival[]>;
 }
@@ -338,6 +340,22 @@ export class SupabaseProgramRepository implements ProgramRepository {
     });
   }
 
+  async membershipEnrollmentWindows() {
+    const rows = await fetchAllRows<WindowEmbedRow>(
+      (from, to) =>
+        this.db
+          .from("member_program_enrollments")
+          .select("member_id, program_cohorts!inner(starts_at, expires_at, programs!inner(includes_membership))")
+          .eq("program_cohorts.programs.includes_membership", true)
+          .order("id")
+          .range(from, to)
+    );
+    return rows.flatMap((row) => {
+      const cohort = one(row.program_cohorts);
+      return cohort ? [{ memberId: row.member_id, startsAt: cohort.starts_at, expiresAt: cohort.expires_at }] : [];
+    });
+  }
+
   async membershipArrivals(sinceDate: string, today: string) {
     const rows = await fetchAllRows<ArrivalEmbedRow>(
       (from, to) =>
@@ -516,6 +534,14 @@ export class InMemoryProgramRepository implements ProgramRepository {
     return [...this.data.programEnrollments].sort(byKeyThenId((e) => e.id, (e) => e.id)).flatMap((e) => {
       const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
       return cohort ? [{ memberId: e.member_id, startsAt: cohort.starts_at, expiresAt: cohort.expires_at }] : [];
+    });
+  }
+
+  async membershipEnrollmentWindows() {
+    return [...this.data.programEnrollments].sort(byKeyThenId((e) => e.id, (e) => e.id)).flatMap((e) => {
+      const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
+      const program = cohort && this.data.programs.find((p) => p.id === cohort.program_id);
+      return cohort && program?.includes_membership ? [{ memberId: e.member_id, startsAt: cohort.starts_at, expiresAt: cohort.expires_at }] : [];
     });
   }
 

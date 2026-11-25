@@ -92,6 +92,7 @@ export const PERMISSIONS = {
   "data.export": "Download or export data (no admin surface yet; reserved)",
   "data.pipeline.run": "Imports, processing, reconciliation and the analyses",
   "data.hygiene.manage": "Data health and hygiene tools, aliases and restricted Slack channels",
+  "billing.reconciliation.read": "The billing reconciliation overview: members whose Stripe payments disagree with what the Hub expects",
   "system.users.manage": "Users and their roles",
   "system.compliance.read": "The Security, Privacy and Compliance staff pages",
   "system.previews.manage": "Feature previews, flags and segments",

@@ -55,11 +55,13 @@ describe("loadMemberTransactions", () => {
     expect(result.customerCount).toBe(2);
     expect(result.rows.map((r) => r.id)).toEqual(["in_linked", "in_old"]);
     expect(result.rows[0]).toMatchObject({ description: "Monthly Membership", reason: "subscription cycle" });
+    // No subscription is imported for the member, so the schedule has nothing to expect and one unmatched payment.
+    expect(result.schedules.map((s) => s.purchaseType)).toEqual([]);
   });
 
   it("says no customer when none is linked or found", async () => {
     dataset = new InMemoryDataset({ members: [{ id: MEMBER, name: "Ada Example", email: "nobody@example.test" }] } as never);
-    expect(await loadMemberTransactions(MEMBER)).toEqual({ rows: [], customerCount: 0 });
+    expect(await loadMemberTransactions(MEMBER)).toEqual({ rows: [], customerCount: 0, schedules: [] });
   });
 
   it("refuses a bad id and an unknown member", async () => {

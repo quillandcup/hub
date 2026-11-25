@@ -179,6 +179,18 @@ export function defineProgramContract(name: string, setup: () => ProgramContract
       expect(mine).toContainEqual({ memberId: ctx.members[ada].id, startsAt: day(1), expiresAt: day(2) });
     });
 
+    it("lists the cohort dates only of programs that include membership", async () => {
+      const yes = await program("incl-windows");
+      const no = await program("incl-windows-no", { includes_membership: false });
+      const inCohort = await cohort(yes.id, "1", day(1), day(2));
+      const outCohort = await cohort(no.id, "2", day(3), day(4));
+      await enroll(ada, inCohort.id);
+      await enroll(ada, outCohort.id);
+      const mine = (await ctx.repo().membershipEnrollmentWindows()).filter((w) => w.memberId === ctx.members[ada].id);
+      expect(mine).toContainEqual({ memberId: ctx.members[ada].id, startsAt: day(1), expiresAt: day(2) });
+      expect(mine.some((w) => w.startsAt === day(3))).toBe(false);
+    });
+
     it("finds enrollments in cohorts that started in a window, of programs that include membership", async () => {
       const yes = await program("arrivals");
       const no = await program("arrivals-no", { includes_membership: false });

@@ -48,4 +48,13 @@ describe("MemberTransactionsPanel", () => {
     expect(body).toHaveLength(1);
     expect(within(body[0]).getByText("Retreat deposit")).toBeInTheDocument();
   });
+
+  it("shows the billing schedule above the transactions when a customer is linked", () => {
+    const schedules = [{ purchaseType: "membership" as const, label: "Membership", memberId: "mbr_AAAAAAAAAAA1", start: "2026-01-09", end: null, rows: [{ key: "k", expectedDate: "2026-03-09", expectedAmountCents: 4700, month: "2026-03", status: "missed" as const, reason: "Billing was due.", needsAttention: true, transactions: [], currency: "usd" }] }];
+    const { rerender } = render(<MemberTransactionsPanel rows={[row]} customerCount={1} schedules={schedules} />);
+    expect(screen.getByRole("heading", { name: "Billing schedule" })).toBeInTheDocument();
+    expect(screen.getByText("Billing was due.")).toBeInTheDocument();
+    rerender(<MemberTransactionsPanel rows={[]} customerCount={0} schedules={[]} />);
+    expect(screen.queryByRole("heading", { name: "Billing schedule" })).not.toBeInTheDocument();
+  });
 });
