@@ -45,6 +45,9 @@ function demoPictureId(admin: SupabaseClient): Promise<string> {
   return pictureId;
 }
 
+/** The lesson that is a quiz: the scenes of the quiz changelog entries find it by its title. */
+export const DEMO_QUIZ_LESSON = { courseKey: "current", lessonKey: "quiz", title: "Check your draft plan" } as const;
+
 export const DEMO_COURSE_SLUGS = { current: "finish-your-first-draft", ended: "outline-workshop", upcoming: "plot-like-a-pro" } as const;
 
 type State = "open" | "coming_soon" | "hidden";
@@ -65,6 +68,8 @@ interface DemoLesson {
   done?: boolean;
   /** Seconds in, for a lesson the demo member stopped partway through. */
   resumeAt?: number;
+  /** The lesson is a quiz (`seedDemoQuiz`), with a few past attempts by invented members. */
+  quiz?: boolean;
 }
 
 interface DemoModule {
@@ -119,6 +124,7 @@ const COURSES: DemoCourse[] = [
               { key: "project", title: "Pick your project", body: PICK_PROJECT, minutes: 6, video: "preparing", done: true },
               { key: "goal", title: "Set a daily word goal", body: DAILY_GOAL, minutes: 8, video: "preparing", resumeAt: 95 },
               { key: "time", title: "Protect your writing time", body: PROTECT_TIME, minutes: 5, video: "errored" },
+              { key: "quiz", title: DEMO_QUIZ_LESSON.title, quiz: true },
             ],
           },
           {
@@ -173,6 +179,71 @@ const SETTING: Record<State, string> = { open: "published", coming_soon: "locked
 function must<T>(result: { data: T; error: { message: string } | null }, what: string): NonNullable<T> {
   if (result.error || result.data === null || result.data === undefined) throw new Error(`${what}: ${result.error?.message ?? "no data"}`);
   return result.data;
+}
+
+/** The invented members whose past attempts the quiz shows (they never sign in): what a staff member sees under Results. */
+export const DEMO_QUIZ_ATTEMPT_AUTHORS = ["willa.placeholder@example.com", "sadie.sample@example.com", "aria.fictional@example.com"] as const;
+const QUIZ_FILE = { name: "draft-plan.txt", text: "Working title: The Lighthouse Letters\nFor: readers who like quiet mysteries.\nDaily goal: 300 words.\n" } as const;
+
+/**
+ * "Check your draft plan" (`DEMO_QUIZ_LESSON`): a graded single-choice question, a graded checkbox question, a short answer and a
+ * file upload, a passing score of 50%, and three attempts by invented members (one with a file in the private bucket). The demo
+ * member (Maya) has none, so a scene can take the quiz and put things back (`resetQuizAttempts`, tests/demo/db.ts).
+ */
+async function seedDemoQuiz(admin: SupabaseClient, lessonId: string, now: Date) {
+  const quiz = must(await admin.from("quizzes").insert({ lesson_id: lessonId, passing_percent: 50, hide_answers: false }).select("id").single(), "quiz");
+  const questions = [
+    { prompt: "How big should your daily word goal be?", kind: "choice", allows_multiple: false, graded: true, options: [["A number you can hit on your worst day", true], ["As many words as you can possibly write", false], ["Whatever the longest day allows", false]] },
+    { prompt: "Which of these help you finish a draft?", kind: "choice", allows_multiple: true, graded: true, options: [["Writing in a regular slot", true], ["Skipping ahead when the middle sags", true], ["Rewriting chapter one until it is perfect", false]] },
+    { prompt: "In a sentence, which story will you finish?", kind: "short_answer", allows_multiple: false, graded: false, options: [] },
+    { prompt: "Add your planner page, if you filled it in.", kind: "file_upload", allows_multiple: false, graded: false, options: [] },
+  ] as const;
+  const written: { id: string; optionIds: string[]; correct: string[] }[] = [];
+  for (const [i, q] of questions.entries()) {
+    const row = must(await admin.from("quiz_questions").insert({ quiz_id: quiz.id, position: i + 1, prompt: q.prompt, kind: q.kind, graded: q.graded, allows_multiple: q.allows_multiple }).select("id").single(), `quiz question ${i + 1}`);
+    const options = q.options.length
+      ? must(await admin.from("quiz_options").insert(q.options.map(([label, isCorrect], j) => ({ question_id: row.id, position: j + 1, label, is_correct: isCorrect }))).select("id, is_correct, position"), `quiz options ${i + 1}`)
+      : [];
+    options.sort((a, b) => a.position - b.position);
+    written.push({ id: row.id as string, optionIds: options.map((o) => o.id as string), correct: options.filter((o) => o.is_correct).map((o) => o.id as string) });
+  }
+  const [q1, q2, q3, q4] = written;
+
+  const members = must(await admin.from("members").select("id, email").in("email", [...DEMO_QUIZ_ATTEMPT_AUTHORS]), "quiz attempt members");
+  // Each attempt: the picks for the two graded questions, what was written, and whether a file went with it.
+  const attempts = [
+    { email: DEMO_QUIZ_ATTEMPT_AUTHORS[0], daysAgo: 2, picks: [[q1.correct[0]], q2.correct], text: "A cozy mystery set in a lighthouse.", file: true },
+    { email: DEMO_QUIZ_ATTEMPT_AUTHORS[1], daysAgo: 5, picks: [[q1.correct[0]], [q2.correct[0]]], text: "My memoir, one small chapter at a time.", file: false },
+    { email: DEMO_QUIZ_ATTEMPT_AUTHORS[2], daysAgo: 9, picks: [[q1.optionIds[1]], q2.correct], text: "The second draft of my fantasy novel.", file: false },
+  ];
+  for (const a of attempts) {
+    const authorId = members.find((m) => m.email === a.email)?.id as string | undefined;
+    if (!authorId) continue;
+    const right = [q1, q2].map((q, i) => q.correct.length === a.picks[i].length && q.correct.every((id) => a.picks[i].includes(id)));
+    const correctCount = right.filter(Boolean).length;
+    const attempt = must(
+      await admin
+        .from("quiz_attempts")
+        .insert({ quiz_id: quiz.id, member_id: authorId, question_count: 2, correct_count: correctCount, score_percent: Math.floor((correctCount / 2) * 100), passed: correctCount / 2 >= 0.5, submitted_at: new Date(now.getTime() - a.daysAgo * DAY).toISOString() })
+        .select("id")
+        .single(),
+      "quiz attempt",
+    );
+    let filePath: string | null = null;
+    if (a.file) {
+      filePath = `${authorId}/00000000-0000-4000-8000-000000000001/${QUIZ_FILE.name}`;
+      const stored = await admin.storage.from("quiz-answer-files").upload(filePath, Buffer.from(QUIZ_FILE.text), { contentType: "text/plain", upsert: true });
+      if (stored.error) throw new Error(`quiz file: ${stored.error.message}`);
+    }
+    const answers = [
+      { attempt_id: attempt.id, question_id: q1.id, selected_option_ids: a.picks[0], is_correct: right[0] },
+      { attempt_id: attempt.id, question_id: q2.id, selected_option_ids: a.picks[1], is_correct: right[1] },
+      { attempt_id: attempt.id, question_id: q3.id, selected_option_ids: [], is_correct: null, answer_text: a.text },
+      { attempt_id: attempt.id, question_id: q4.id, selected_option_ids: [], is_correct: null, ...(filePath ? { file_path: filePath, file_name: QUIZ_FILE.name, file_bytes: Buffer.byteLength(QUIZ_FILE.text) } : {}) },
+    ];
+    const done = await admin.from("quiz_attempt_answers").insert(answers);
+    if (done.error) throw new Error(`quiz attempt answers: ${done.error.message}`);
+  }
 }
 
 /** Write the demo courses, who can open them, and the demo member's progress. Replaced on every run. */
@@ -251,6 +322,7 @@ export async function seedCourses(admin: SupabaseClient, memberId: string, now: 
           `lesson ${lesson.key}`,
         );
         const lessonId = lessonRow.id as string;
+        if (lesson.quiz) await seedDemoQuiz(admin, lessonId, now);
         if (lesson.file) {
           const file = await admin.from("course_lesson_files").insert({
             lesson_id: lessonId,
