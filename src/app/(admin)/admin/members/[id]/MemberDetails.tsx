@@ -21,7 +21,7 @@ import ActivityRangeSummary from "@/app/(admin)/admin/activity/ActivityRangeSumm
 import { ALL_TIME_DAYS, feedSearch, MEMBER_DEFAULTS, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
 import MemberTransactions from "./MemberTransactions";
-import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNotificationsPanel";
+import MemberNotifications from "./MemberNotifications";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
 import { formatDateInZone } from "@/lib/formatters";
@@ -77,8 +77,6 @@ interface MemberDetailsProps {
   }[];
   nameAliases: NameAliasRow[];
   emailAliases: EmailAliasRow[];
-  /** The Notifications tab's data; null off that tab or when the viewer may not see it. */
-  notificationsInfo?: { devices: string[]; newcomer: boolean; kinds: NotificationKindRow[] } | null;
   /** What the viewer may see or do beyond reading (src/lib/staff-access.ts): everything else is hidden. */
   features: readonly StaffFeature[];
 }
@@ -107,7 +105,6 @@ export default function MemberDetails({
   awards,
   nameAliases,
   emailAliases,
-  notificationsInfo = null,
   features,
 }: MemberDetailsProps) {
   const can = (feature: StaffFeature) => features.includes(feature);
@@ -294,9 +291,7 @@ export default function MemberDetails({
         <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />
       )}
 
-      {activeTab === "notifications" && notificationsInfo && (
-        <MemberNotificationsPanel email={member.email} {...notificationsInfo} />
-      )}
+      {activeTab === "notifications" && can("member.push_devices") && <MemberNotifications memberId={member.id} email={member.email} />}
 
       {activeTab === "transactions" && can("member.transactions_tab") && <MemberTransactions memberId={member.id} />}
 
