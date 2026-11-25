@@ -1,6 +1,6 @@
 # Reproducible Demo and Help Docs
 
-> **Status:** living. **Last reviewed:** 2026-11-20. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-25. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 One mechanism, two outputs: a fictional demo community seeded into a local stack, and Playwright scenes that drive the app and capture screenshots and clips.
 
@@ -115,7 +115,7 @@ Every page a scene opens is checked (`tests/demo/checks.ts`, run by `tests/demo/
 
 A scene can also assert behaviour, not just look: `calendar-views` scrolls each day of the week calendars into view and expects it on screen, and that the sticky time column sits flush with the left edge of what scrolls (a sticky `left: 0` sticks at the scroller's content edge, so padding on a scroller leaves a gap that the admin calendar once had), which is what failed on a phone before the fix. (The cause: the calendar card was both the `@container` box, whose width ignores its contents, and `overflow-clip`, so the 492 px grid overflowed it and the clip hid the overflow from the scroller outside; the fix keeps the `@container` box bare and puts the card inside with a minimum width.)
 
-`courses` runs the member course pages through the same checks (`tests/demo/courses-seed.ts` writes three invented courses: a current one with progress, downloads, videos still being prepared, "coming soon" lessons and a draft, one whose access ended, and one that opens next week). A control inside a closed `<details>` is not a covered control (it isn't drawn); the phone and tablet lesson pages keep the section list in one. The admin sees every course and previews a draft and a "coming soon" lesson. Not covered yet: the player (docs/TODO.md, "Courses in the demo").
+`courses` runs the member course pages through the same checks (`tests/demo/courses-seed.ts` writes three invented courses: a current one with progress, downloads, videos still being prepared, "coming soon" lessons, a draft and a quiz lesson ("Check your draft plan": four kinds of question and three past attempts by invented members; the quiz changelog scenes use it and put back any attempt they make), one whose access ended, and one that opens next week). A control inside a closed `<details>` is not a covered control (it isn't drawn); the phone and tablet lesson pages keep the section list in one. The admin sees every course and previews a draft and a "coming soon" lesson. Not covered yet: the player (docs/TODO.md, "Courses in the demo").
 
 `tests/demo/selftest/checks.spec.ts` builds small pages that each trip one check (and a clean one that trips none), so a detector that quietly stopped working can't pass for an app with no problems.
 

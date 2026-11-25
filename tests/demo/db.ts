@@ -71,3 +71,46 @@ export async function giveSessionsDevices(personaKey: string) {
   runSql(`WITH r AS (${ranked}) INSERT INTO public.access_events (user_id, path, is_page, session_id, city, country)
     SELECT r.user_id, '/demo-devices', true, r.id, CASE r.rn WHEN 1 THEN 'Portland' WHEN 2 THEN 'Seattle' ELSE 'Denver' END, 'US' FROM r`);
 }
+
+/** The ids a scene needs to open the demo quiz's pages as staff (`DEMO_QUIZ_LESSON`, tests/demo/courses-seed.ts): the course, the lesson and the quiz. */
+export async function demoQuizIds(): Promise<{ courseId: string; lessonId: string; quizId: string }> {
+  const { data, error } = await admin().from("course_lessons").select("id, course_id, quizzes(id)").eq("source_key", "demo-current-quiz").single();
+  const quiz = (data?.quizzes as unknown as { id: string } | { id: string }[] | null) ?? null;
+  const quizId = Array.isArray(quiz) ? quiz[0]?.id : quiz?.id;
+  if (error || !data || !quizId) throw new Error(`No demo quiz: run \`pnpm demo:seed\` (${error?.message})`);
+  return { courseId: data.course_id as string, lessonId: data.id as string, quizId };
+}
+
+/** The member a scene signed in as, by persona. */
+export async function demoMemberId(personaKey: string): Promise<string> {
+  return memberIdFor(personaKey);
+}
+
+/**
+ * Put the persona's quiz state back as the seed has it: no attempts at the demo quiz (and the files they uploaded), and the lesson not
+ * completed, for a scene that takes the quiz as them.
+ */
+export async function resetQuizAttempts(personaKey: string) {
+  const db = admin();
+  const memberId = await memberIdFor(personaKey);
+  const { lessonId, quizId } = await demoQuizIds();
+  const { data: attempts, error } = await db.from("quiz_attempts").select("id").eq("quiz_id", quizId).eq("member_id", memberId);
+  if (error) throw new Error(`quiz attempts: ${error.message}`);
+  const ids = (attempts ?? []).map((a) => a.id as string);
+  if (ids.length > 0) {
+    const { data: files } = await db.from("quiz_attempt_answers").select("file_path").in("attempt_id", ids).not("file_path", "is", null);
+    const paths = (files ?? []).map((f) => f.file_path as string);
+    if (paths.length > 0) await db.storage.from("quiz-answer-files").remove(paths);
+    const removed = await db.from("quiz_attempts").delete().in("id", ids);
+    if (removed.error) throw new Error(`reset quiz attempts: ${removed.error.message}`);
+  }
+  const progress = await db.from("lesson_progress").delete().eq("member_id", memberId).eq("lesson_id", lessonId);
+  if (progress.error) throw new Error(`reset quiz progress: ${progress.error.message}`);
+}
+
+/** A demo member's id by email (for the people who never sign in, so have no persona), to open their page as staff. */
+export async function demoMemberIdByEmail(email: string): Promise<string> {
+  const { data, error } = await admin().from("members").select("id").eq("email", email).single();
+  if (error || !data) throw new Error(`No demo member ${email}: run \`pnpm demo:seed\` (${error?.message})`);
+  return data.id;
+}
