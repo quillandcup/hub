@@ -171,6 +171,14 @@ export function defineProgramContract(name: string, setup: () => ProgramContract
       expect(ours[0]).toEqual({ memberId: expect.any(String), programId: p.id, expiresAt: day(2) });
     });
 
+    it("lists every member's cohort start and end dates", async () => {
+      const p = await program("windows");
+      const c = await cohort(p.id, "1", day(1), day(2));
+      await enroll(ada, c.id);
+      const mine = (await ctx.repo().allEnrollmentWindows()).filter((w) => w.memberId === ctx.members[ada].id && w.startsAt === day(1));
+      expect(mine).toContainEqual({ memberId: ctx.members[ada].id, startsAt: day(1), expiresAt: day(2) });
+    });
+
     it("finds enrollments in cohorts that started in a window, of programs that include membership", async () => {
       const yes = await program("arrivals");
       const no = await program("arrivals-no", { includes_membership: false });

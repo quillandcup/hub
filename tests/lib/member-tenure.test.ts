@@ -280,6 +280,67 @@ describe("computeInactiveGaps", () => {
   });
 });
 
+describe("computeInactiveGaps with program and override coverage", () => {
+  const stints = [stint("2023-04-18T10:00:00Z", "2023-09-18T10:00:00Z")];
+  const program = { start: "2026-06-14", end: "2026-12-10" };
+
+  it("finds the trailing gap before a program cohort that no later Kajabi stint closes", () => {
+    expect(computeInactiveGaps(stints, "2023-04-18", [program])).toEqual([{ start: "2023-09-18", end: "2026-06-14" }]);
+  });
+
+  it("moves the next Hedgieversary from the 4-year mark to the 6-month one for that member", () => {
+    const gaps = computeInactiveGaps(stints, "2023-04-18", [program]);
+    const hiatus: HiatusWindow[] = [{ startsAt: "2023-04-18", endsAt: "2023-09-18" }];
+    const periods = toInactivePeriods(hiatus, gaps);
+    const next = nextHedgieversaryDate("2023-04-18", periods, false, new Date("2026-11-25T12:00:00Z"));
+    expect(next.milestoneMonths).toBe(6);
+    expect(next.nextDate && next.nextDate >= "2026-12-01" && next.nextDate <= "2027-01-31").toBe(true);
+
+    const stale = nextHedgieversaryDate("2023-04-18", toInactivePeriods(hiatus, []), false, new Date("2026-11-25T12:00:00Z"));
+    expect(stale.milestoneMonths).not.toBe(6);
+  });
+
+  it("counts gift and direct Stripe windows (timestamps and open ends) as coverage", () => {
+    expect(
+      computeInactiveGaps(stints, null, [
+        { start: "2024-01-01T00:00:00Z", end: "2024-03-01T00:00:00Z" },
+        { start: "2024-05-01T00:00:00Z", end: null },
+      ])
+    ).toEqual([
+      { start: "2023-09-18", end: "2024-01-01" },
+      { start: "2024-03-01", end: "2024-05-01" },
+    ]);
+  });
+
+  it("leaves no gap where windows overlap or touch", () => {
+    expect(
+      computeInactiveGaps(stints, null, [
+        { start: "2023-09-01", end: "2023-12-01" },
+        { start: "2023-12-01", end: "2024-02-01" },
+      ])
+    ).toEqual([]);
+  });
+
+  it("drops a gap that ends on or before the first-joined date", () => {
+    expect(computeInactiveGaps(stints, "2026-06-14", [program])).toEqual([]);
+  });
+
+  it("reports no trailing gap after the last coverage, and handles a member with no stints", () => {
+    expect(computeInactiveGaps(stints, null, [])).toEqual([]);
+    expect(computeInactiveGaps([], null, [])).toEqual([]);
+    expect(computeInactiveGaps([], null, [program])).toEqual([]);
+    expect(computeInactiveGaps([], null, [{ start: "2025-01-01", end: "2025-03-01" }, program])).toEqual([
+      { start: "2025-03-01", end: "2026-06-14" },
+    ]);
+  });
+
+  it("lets an open-ended stint cover a later cancelled stint (no gap after it)", () => {
+    expect(
+      computeInactiveGaps([stint("2023-01-01T10:00:00Z", null), stint("2023-03-01T10:00:00Z", "2023-04-01T10:00:00Z")])
+    ).toEqual([]);
+  });
+});
+
 describe("toInactivePeriods", () => {
   it("combines hiatus windows with gaps, as dates", () => {
     expect(

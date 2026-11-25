@@ -53,6 +53,8 @@ export type MemberEnrollment = {
 
 /** When a member's cohort ends, and of which program: what program completions are counted from. */
 export type EnrollmentCohortEnd = { memberId: string; programId: string; expiresAt: string };
+/** The dates a member is covered by a cohort (DATE columns, YYYY-MM-DD): what the tenure gaps are measured against. */
+export type EnrollmentWindow = { memberId: string; startsAt: string; expiresAt: string };
 
 /** An enrollment in a cohort of a program that includes membership: how a member arrived through a program. */
 export type ProgramArrival = {
@@ -130,6 +132,8 @@ export interface ProgramRepository {
   enrollmentsOf(memberId: string): Promise<MemberEnrollment[]>;
   /** The end of every member's cohorts, with the program. Paginated. */
   allEnrollmentCohorts(): Promise<EnrollmentCohortEnd[]>;
+  /** The start and end dates of every member's cohorts. Paginated. */
+  allEnrollmentWindows(): Promise<EnrollmentWindow[]>;
   /** Enrollments in cohorts that start between these dates (inclusive, YYYY-MM-DD) of programs that include membership. Paginated. */
   membershipArrivals(sinceDate: string, today: string): Promise<ProgramArrival[]>;
 }
@@ -140,6 +144,7 @@ type ArrivalEmbedRow = {
   program_cohorts: { starts_at: string; programs: { name: string } | { name: string }[] | null };
   members: NonNullable<ProgramArrival["member"]> | NonNullable<ProgramArrival["member"]>[] | null;
 };
+type WindowEmbedRow = { member_id: string; program_cohorts: { starts_at: string; expires_at: string } | { starts_at: string; expires_at: string }[] | null };
 type EndEmbedRow = { member_id: string; program_cohorts: { program_id: string; expires_at: string } | { program_id: string; expires_at: string }[] | null };
 
 export class SupabaseProgramRepository implements ProgramRepository {
@@ -322,6 +327,17 @@ export class SupabaseProgramRepository implements ProgramRepository {
     });
   }
 
+  async allEnrollmentWindows() {
+    const rows = await fetchAllRows<WindowEmbedRow>(
+      (from, to) =>
+        this.db.from("member_program_enrollments").select("member_id, program_cohorts(starts_at, expires_at)").order("id").range(from, to)
+    );
+    return rows.flatMap((row) => {
+      const cohort = one(row.program_cohorts);
+      return cohort ? [{ memberId: row.member_id, startsAt: cohort.starts_at, expiresAt: cohort.expires_at }] : [];
+    });
+  }
+
   async membershipArrivals(sinceDate: string, today: string) {
     const rows = await fetchAllRows<ArrivalEmbedRow>(
       (from, to) =>
@@ -493,6 +509,13 @@ export class InMemoryProgramRepository implements ProgramRepository {
     return [...this.data.programEnrollments].sort(byKeyThenId((e) => e.id, (e) => e.id)).flatMap((e) => {
       const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
       return cohort ? [{ memberId: e.member_id, programId: cohort.program_id, expiresAt: cohort.expires_at }] : [];
+    });
+  }
+
+  async allEnrollmentWindows() {
+    return [...this.data.programEnrollments].sort(byKeyThenId((e) => e.id, (e) => e.id)).flatMap((e) => {
+      const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
+      return cohort ? [{ memberId: e.member_id, startsAt: cohort.starts_at, expiresAt: cohort.expires_at }] : [];
     });
   }
 

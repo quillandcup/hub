@@ -3,7 +3,7 @@ import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
-import { computeMemberTenure, computeActiveDays, computeInactiveGaps, type HiatusWindow } from "@/lib/member-tenure";
+import { computeMemberTenure, computeActiveDays, computeInactiveGaps, type ActiveWindow, type HiatusWindow } from "@/lib/member-tenure";
 import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { slackPhotoUrl } from "@/lib/slack-avatar-url";
@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
       hiatusHistory,
       joinDateOverrides,
       profileOverrides,
+      enrollmentWindows,
+      statusOverrides,
     ] = await Promise.all([
       createRepos(supabase).billing.kajabiContactRows() as Promise<any[]>,
       createRepos(supabase).billing.kajabiCustomerRows() as Promise<any[]>,
@@ -86,6 +88,8 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).memberStatus.allHiatuses(),
       createRepos(supabase).memberStatus.joinDateOverrides(),
       createRepos(supabase).memberStatus.profileOverrides(),
+      createRepos(supabase).programs.allEnrollmentWindows(),
+      createRepos(supabase).memberStatus.allStatusOverrides(),
     ]);
 
     // Email alias resolution. Aliases point at a member (member_id); each
@@ -127,6 +131,8 @@ export async function POST(request: NextRequest) {
       hiatus_history_count: hiatusHistory?.length || 0,
       join_date_overrides_count: joinDateOverrides?.length || 0,
       profile_overrides_count: profileOverrides?.length || 0,
+      enrollment_windows_count: enrollmentWindows.length,
+      status_overrides_count: statusOverrides.length,
     });
 
     // STEP 2: Build lookup maps
@@ -147,6 +153,26 @@ export async function POST(request: NextRequest) {
       const windows = hiatusWindowsByEmail.get(email) ?? [];
       windows.push({ startsAt: hiatus.start_date, endsAt: hiatus.end_date });
       hiatusWindowsByEmail.set(email, windows);
+    }
+
+    // Active coverage that no Kajabi stint backs, for the dated gaps (computeInactiveGaps): program
+    // cohort windows and gift / direct Stripe overrides, the same notion of "active" as the admin
+    // membership timeline. Keyed by the member's email after this run, like hiatus windows.
+    const otherCoverageByEmail = new Map<string, ActiveWindow[]>();
+    const addCoverage = (memberId: string, window: ActiveWindow) => {
+      const email = emailByMemberId.get(memberId);
+      if (!email) return;
+      const windows = otherCoverageByEmail.get(email) ?? [];
+      windows.push(window);
+      otherCoverageByEmail.set(email, windows);
+    };
+    for (const enrollment of enrollmentWindows) {
+      addCoverage(enrollment.memberId, { start: enrollment.startsAt, end: enrollment.expiresAt });
+    }
+    for (const override of statusOverrides) {
+      if (override.override_type !== "gift" && override.override_type !== "direct_stripe") continue;
+      if (!override.member_id) continue;
+      addCoverage(override.member_id, { start: override.starts_at, end: override.expires_at });
     }
 
     // Legacy join-date corrections (member_join_date_overrides — see that
@@ -345,7 +371,7 @@ export async function POST(request: NextRequest) {
           total_active_months: totalActiveMonths,
           // Dated cancel/resubscribe gaps (hiatus windows are read live, not stored). Measured from
           // the effective first-joined date, so a join-date override leaves no gaps before it.
-          inactive_periods: computeInactiveGaps(stints, firstJoinedAt),
+          inactive_periods: computeInactiveGaps(stints, firstJoinedAt, otherCoverageByEmail.get(email) ?? []),
           status,
           plan,
           source: 'kajabi',
