@@ -651,6 +651,13 @@ const zeroVertical = () => {
   return { paddingDesktop: { ...p.paddingDesktop, top: 0, bottom: 0 }, paddingMobile: { ...p.paddingMobile, top: 0, bottom: 0 } };
 };
 
+/** Where the header's logo sits: the header's own alignment (`horizontal`) is what places it on the page, and the logo block's `alignment` is only its place inside its own box (a block saying "right" in a header that is centred is centred), so the block's is used only when the header has none. */
+function logoAlign(header: Settings | undefined, block: Settings): "left" | "center" | "right" {
+  const own = str(header?.horizontal);
+  const picked = own === "left" || own === "center" || own === "right" ? own : str(block.alignment);
+  return picked === "left" ? "left" : picked === "right" ? "right" : "center";
+}
+
 export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions): KajabiMapResult {
   const current = isObject(settingsData) && isObject(settingsData.current) ? settingsData.current : null;
   const sections = current && isObject(current.sections) ? (current.sections as Record<string, Section>) : null;
@@ -700,7 +707,7 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
         if (!clean(str(s.image_alt)) || clean(str(s.image_alt)) === "Header Logo") notes.push({ kind: "todo", text: "The picture at the top has no description: add one in the editor (or mark it decorative) before publishing." });
         headerLogo = {
           type: "Image",
-          props: { id: id("Image"), imageAssetId: pictures.add(s.logo), alt: clean(str(s.image_alt)) === "Header Logo" ? "" : clean(str(s.image_alt)), decorative: false, size: width <= 320 ? "small" : width <= 480 ? "medium" : "full", rounded: false, align: str(s.alignment) === "left" ? "left" : str(s.alignment) === "right" ? "right" : "center" },
+          props: { id: id("Image"), imageAssetId: pictures.add(s.logo), alt: clean(str(s.image_alt)) === "Header Logo" ? "" : clean(str(s.image_alt)), decorative: false, size: width <= 320 ? "small" : width <= 480 ? "medium" : "full", rounded: false, align: logoAlign(header.settings, s) },
         };
       } else if (b.type === "logo") notes.push({ kind: "left_out", text: "The header shows the site name as text; it is not imported." });
       else notes.push({ kind: "left_out", text: `Header block "${clean(str(b.name)) || str(b.type)}" (${str(b.type)}) is not imported.` });
@@ -953,9 +960,13 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const picture = { backgroundPosition: bgPosition, backgroundFixed: bgFixed };
 
     // A white logo over a pale band is invisible: it gets a band of its own in plum (Kajabi's other logo is not in the export).
-    const lightBehind = bgPicture ? overlay !== "dark" : !["plum", "brownMid", "brown", "charcoal"].includes(bgPick.key);
+    // Over a picture only a strong light shade (60% or more) makes the picture pale: a faint cream tint on a darker photo (the usual hero) leaves a white logo readable, as it is in Kajabi, and the picture's own brightness is not read here, so that case is said.
+    const lightBehind = bgPicture ? overlay === "light" : !["plum", "brownMid", "brown", "charcoal"].includes(bgPick.key);
     const logoHere = headerLogo !== null && (logoOutside || inner[0] === headerLogo);
     let logoBand: Puck | null = null;
+    if (headerLogo && logoHere && headerLogoWhite && bgPicture && !lightBehind && overlay !== "dark") {
+      notes.push({ kind: "approximated", text: "The logo is the white version over a picture with a light tint, as in Kajabi. The picture's own brightness is not read here: check the logo can be seen on it, and swap in the dark logo if it can't." });
+    }
     if (headerLogo && logoHere && headerLogoWhite && lightBehind) {
       if (inner[0] === headerLogo) inner.shift();
       logoBand = { type: "Section", props: { ...BLOCK_DEFAULTS.Section, id: id("Section"), background: "plum", width: "wide", ...presetPadding("small"), align: "center", content: [headerLogo] } };
@@ -964,10 +975,11 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
     const logoInBand = logoOutside && !logoBand;
 
     // A card in the left of the page is a Section of its own, as many of the columns as Kajabi's block takes (with a little extra for the wider page there), so its width and place follow Kajabi's.
-    const leftCard = boxed && place === "left" && common >= 4 && common <= 11;
-    if ((logoInBand && headerLogo) || leftCard) {
+    // A full-width section lets its row span the whole page, with the blocks' twelfths measured on the page: a card of half the page (five or six twelfths) on a side is a half of the page, against that edge. Two equal columns say that.
+    const halfCard = boxed && flag(s.full_width) && (place === "left" || place === "right") && common >= 5 && common <= 6;
+    const leftCard = !halfCard && boxed && place === "left" && common >= 4 && common <= 11;
+    if ((logoInBand && headerLogo) || leftCard || halfCard) {
       // The picture and its shade are the band; the logo sits on it, and the card is a Section of its own inside, so the logo is not in the card.
-      if (logoInBand && headerLogo) headerLogo.props.align = place === "center" ? "center" : (headerLogo.props.align as string);
       const sideless = { left: 0, right: 0 };
       const inside: Puck = {
         type: "Section",
@@ -976,11 +988,11 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
           id: id("Section"),
           background: "none",
           overlay: "none",
-          width: leftCard ? "wide" : sectionWidth,
+          width: leftCard || halfCard ? "wide" : sectionWidth,
           paddingDesktop: { ...space.paddingDesktop, ...sideless, top: logoInBand ? space.paddingDesktop.top : 0, bottom: 0 },
           paddingMobile: { ...space.paddingMobile, ...sideless, top: logoInBand ? space.paddingMobile.top : 0, bottom: 0 },
           align: textAlign,
-          place: leftCard ? "center" : place,
+          place: leftCard || halfCard ? "center" : place,
           card: boxed,
           cardColor,
           cardSoft,
@@ -999,11 +1011,12 @@ export function mapKajabiPage(settingsData: unknown, options: KajabiMapOptions):
           backgroundImageAssetId: bgPicture ?? undefined,
           ...picture,
           overlay,
-          width: "wide",
-          paddingDesktop: { ...space.paddingDesktop, top: logoInBand ? 24 : space.paddingDesktop.top },
+          width: halfCard ? "full" : "wide",
+          // Kajabi's row has a 15 px gutter at the page's edge, which is the space beside a half card.
+          paddingDesktop: { ...space.paddingDesktop, top: logoInBand ? 24 : space.paddingDesktop.top, ...(halfCard ? { left: 15, right: 15 } : {}) },
           paddingMobile: { ...space.paddingMobile, top: logoInBand ? 16 : space.paddingMobile.top },
           align: "center",
-          content: logoInBand && headerLogo ? [headerLogo, inside] : [inside],
+          content: [...(logoInBand && headerLogo ? [headerLogo] : []), halfCard ? ({ type: "Columns", props: { id: id("Columns"), count: "2", gap: "small", verticalAlign: "top", col1: place === "left" ? [inside] : [], col2: place === "right" ? [inside] : [], col3: [] } } as Puck) : inside],
         },
       });
       continue;
