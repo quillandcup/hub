@@ -508,7 +508,9 @@ describe("CommentThread", () => {
       expect(screen.getByText("@someone").closest("a")).toBeNull();
 
       await user.hover(mention);
-      expect(await screen.findByRole("dialog", { name: "Member profile" }, { timeout: 2000 })).toHaveTextContent("Cal Example");
+      // The card opens showing "Loading…" and fills in when the fetch resolves, so retry the text check.
+      const dialog = await screen.findByRole("dialog", { name: "Member profile" }, { timeout: 2000 });
+      await waitFor(() => expect(dialog).toHaveTextContent("Cal Example"), { timeout: 2000 });
       expect(getMemberHoverCard).toHaveBeenCalledWith(CAL);
       expect(track).toHaveBeenCalledWith("member_hover_card_opened", { surface: "lesson_comments", has_message: false });
 
