@@ -7171,6 +7171,7 @@ export type Database = {
           score_percent: number
           source_key: string | null
           submitted_at: string
+          unlinked_answers: Json | null
         }
         Insert: {
           correct_count: number
@@ -7183,6 +7184,7 @@ export type Database = {
           score_percent: number
           source_key?: string | null
           submitted_at?: string
+          unlinked_answers?: Json | null
         }
         Update: {
           correct_count?: number
@@ -7195,6 +7197,7 @@ export type Database = {
           score_percent?: number
           source_key?: string | null
           submitted_at?: string
+          unlinked_answers?: Json | null
         }
         Relationships: [
           {

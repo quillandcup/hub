@@ -3,6 +3,7 @@ import { compareText, inChunks, must } from "./query";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import type { QuestionKind } from "@/lib/courses/quiz-scoring";
+import { asJson } from "./json";
 
 /** How a lesson is a quiz: a `quizzes` row points at it (one per lesson). Settings only; title, text and status are the lesson's. */
 export type QuizRecord = {
@@ -52,6 +53,8 @@ export type QuizAttemptRecord = {
   submittedAt: string;
   /** `kajabi` for an attempt imported from Kajabi, null for one made in the Hub. */
   importedFrom: string | null;
+  /** Imported answers kept with their own wording because no question of the quiz could be matched to them. */
+  unlinkedAnswers: UnlinkedAnswer[];
 };
 /** A file a member uploaded as an answer: where it is in the private bucket, the name it had, and its size. */
 export type AnswerFile = { path: string; name: string; bytes: number };
@@ -77,7 +80,41 @@ export type NewQuizAnswer = {
   promptSnapshot?: string | null;
 };
 /** One submission imported from Kajabi's Results tab: the attempt (never scored) and its answers, keyed by Kajabi's submission key. */
-export type ImportedAttempt = { quizId: string; memberId: string; sourceKey: string; submittedAt: string | null; answers: NewQuizAnswer[] };
+export type ImportedAttempt = { quizId: string; memberId: string; sourceKey: string; submittedAt: string | null; answers: NewQuizAnswer[]; unlinked?: UnlinkedAnswer[] };
+
+/**
+ * An imported answer whose question couldn't be matched to one of the Hub quiz's questions (the quiz was edited after it was given):
+ * kept on the attempt with the question's own wording, never attached to a question it may not belong to, never dropped.
+ */
+export type UnlinkedAnswer = {
+  /** The question's place in the quiz as Kajabi numbered it (1-based). */
+  position: number;
+  prompt: string | null;
+  kind: QuestionKind | null;
+  text: string | null;
+  labels: string[];
+  file: AnswerFile | null;
+};
+
+/** The unlinked answers of an attempt row, read defensively (it is JSON in a column). */
+export function unlinkedOf(json: unknown): UnlinkedAnswer[] {
+  if (!Array.isArray(json)) return [];
+  return json.flatMap((raw): UnlinkedAnswer[] => {
+    if (typeof raw !== "object" || raw === null || typeof (raw as { position?: unknown }).position !== "number") return [];
+    const r = raw as Record<string, unknown>;
+    const f = typeof r.file === "object" && r.file !== null ? (r.file as Record<string, unknown>) : null;
+    return [
+      {
+        position: r.position as number,
+        prompt: typeof r.prompt === "string" ? r.prompt : null,
+        kind: r.kind === "choice" || r.kind === "short_answer" || r.kind === "file_upload" ? r.kind : null,
+        text: typeof r.text === "string" ? r.text : null,
+        labels: Array.isArray(r.labels) ? r.labels.filter((l): l is string => typeof l === "string") : [],
+        file: f && typeof f.path === "string" && typeof f.name === "string" && typeof f.bytes === "number" ? { path: f.path, name: f.name, bytes: f.bytes } : null,
+      },
+    ];
+  });
+}
 export type NewQuizAttempt = {
   quizId: string;
   memberId: string;
@@ -219,6 +256,7 @@ const toAttempt = (row: Row<"quiz_attempts">): QuizAttemptRecord => ({
   passed: row.passed,
   submittedAt: row.submitted_at,
   importedFrom: row.imported_from,
+  unlinkedAnswers: unlinkedOf(row.unlinked_answers),
 });
 const newestFirst = (a: QuizAttemptRecord, b: QuizAttemptRecord) =>
   a.submittedAt === b.submittedAt ? compareText(b.id, a.id) : compareText(b.submittedAt, a.submittedAt);
@@ -383,6 +421,7 @@ export class SupabaseQuizRepository implements QuizRepository {
         member_id: attempt.memberId,
         source_key: attempt.sourceKey,
         submitted_at: attempt.submittedAt,
+        unlinked: attempt.unlinked ?? [],
         answers: attempt.answers.map((a) => ({
           question_id: a.questionId,
           selected_option_ids: a.selectedOptionIds,
@@ -655,6 +694,7 @@ export class InMemoryQuizRepository implements QuizRepository {
       passed: attempt.passed,
       submitted_at: attempt.submittedAt ?? new Date().toISOString(),
       imported_from: null,
+      unlinked_answers: null,
       source_key: null,
     };
     this.data.quizAttempts.push(row);
@@ -717,6 +757,7 @@ export class InMemoryQuizRepository implements QuizRepository {
       submitted_at: attempt.submittedAt ?? new Date().toISOString(),
       imported_from: "kajabi",
       source_key: attempt.sourceKey,
+      unlinked_answers: attempt.unlinked && attempt.unlinked.length > 0 ? asJson(JSON.parse(JSON.stringify(attempt.unlinked))) : null,
     };
     this.data.quizAttempts.push(row);
     for (const a of attempt.answers) {

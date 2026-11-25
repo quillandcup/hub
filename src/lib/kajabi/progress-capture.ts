@@ -77,8 +77,8 @@ function offsetMinutes(instant: Date, timeZone: string): number {
 }
 
 /** The instant at which the wall clock in `timeZone` reads this date and time. */
-function zonedInstant(year: number, month: number, day: number, hour: number, timeZone: string): Date {
-  const naive = Date.UTC(year, month - 1, day, hour);
+function zonedInstant(year: number, month: number, day: number, hour: number, timeZone: string, minute = 0): Date {
+  const naive = Date.UTC(year, month - 1, day, hour, minute);
   return new Date(naive - offsetMinutes(new Date(naive), timeZone) * 60000);
 }
 
@@ -97,10 +97,27 @@ export function parseKajabiInstant(value: unknown, timeZone: string): string | n
     if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) return null;
     return zonedInstant(y, mo, d, 12, timeZone).toISOString();
   }
+  // "May 10, 2026 6:38 PM" (and "May 10, 2026"): the wall clock of the org, as Kajabi's admin shows dates.
+  const named = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})(?:,?\s+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?)?$/.exec(v);
+  if (named) {
+    const month = MONTHS.indexOf(named[1].slice(0, 3).toLowerCase()) + 1;
+    const [day, year] = [Number(named[2]), Number(named[3])];
+    let hour = named[4] === undefined ? 12 : Number(named[4]);
+    const minute = named[5] === undefined ? 0 : Number(named[5]);
+    const meridiem = named[6]?.toLowerCase();
+    if (month === 0 || hour > 23 || minute > 59 || (meridiem && (hour < 1 || hour > 12))) return null;
+    if (meridiem === "pm" && hour < 12) hour += 12;
+    if (meridiem === "am" && hour === 12) hour = 0;
+    const check = new Date(Date.UTC(year, month - 1, day));
+    if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+    return zonedInstant(year, month, day, hour, timeZone, minute).toISOString();
+  }
   const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(v);
   const parsed = new Date(hasZone ? v : `${v.replace(" ", "T")}Z`);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 /** A Kajabi date or timestamp as the calendar day (YYYY-MM-DD) it falls on in `timeZone`. */
 export function parseKajabiDay(value: unknown, timeZone: string): string | null {

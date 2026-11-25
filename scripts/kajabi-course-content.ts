@@ -65,7 +65,7 @@ import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from
 import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from "../src/lib/kajabi/capture-totals";
 import { QUIZ_ANSWER_FILES_BUCKET } from "../src/lib/courses/quiz-files";
 import { SupabaseKajabiCourseRepository } from "../src/lib/data/kajabi-courses";
-import { submissionsListedIn, type FileCopyIO } from "../src/lib/kajabi/quiz-responses";
+import { pageMetaOf, submissionsListedIn, type FileCopyIO } from "../src/lib/kajabi/quiz-responses";
 import { formatResponsesTotals, ResponsesSessionExpiredError, runResponsesCapture, type QuizRead, type QuizToRead } from "../src/lib/kajabi/quiz-responses-run";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
@@ -741,7 +741,17 @@ async function readQuizResponses(page: Page, quiz: QuizToRead): Promise<QuizRead
     const grade = page.locator('a:has-text("Grade quiz"), button:has-text("Grade quiz")');
     const listedKeys = new Set<string>();
     const opened = new Set<string>();
+    // The Results list is paged by the API and says so in its own `meta` (currentPage, pageCount, itemsTotalCount): that, not whether a
+    // Next control looks enabled, says when the last page is done, and the total says whether every row was opened.
+    let total: number | null = null;
     for (let pageNumber = 1; pageNumber <= RESPONSES_MAX_PAGES; pageNumber++) {
+      const meta = pageMetaOf(listDocuments);
+      if (meta?.itemsTotalCount != null) total = meta.itemsTotalCount;
+      if (meta && meta.currentPage !== pageNumber) {
+        // Going back from a submission can land on another page than the one being read: say so, never pretend.
+        read.incomplete = true;
+        break;
+      }
       for (const ref of submissionsListedIn(listDocuments)) listedKeys.add(ref.submissionKey);
       const rows = await grade.count();
       for (let i = 0; i < rows; i++) {
@@ -774,13 +784,19 @@ async function readQuizResponses(page: Page, quiz: QuizToRead): Promise<QuizRead
         }
       }
       if (read.incomplete) break;
+      if (meta && meta.currentPage >= meta.pageCount) break;
       const next = page.getByRole("button", { name: /^next/i }).or(page.getByRole("link", { name: /^next/i }));
-      if (!(await next.count()) || !(await next.first().isEnabled().catch(() => false))) break;
+      if (!(await next.count()) || !(await next.first().isEnabled().catch(() => false))) {
+        // The list says there is another page and there is no way to it.
+        if (meta && meta.currentPage < meta.pageCount) read.incomplete = true;
+        break;
+      }
       listDocuments.length = 0;
       await next.first().click({ timeout: RESPONSES_NAV_TIMEOUT_MS });
       await page.waitForTimeout(RESPONSES_SETTLE_MS);
     }
-    read.listed = Math.max(listedKeys.size, read.submissions.length + read.failed);
+    read.listed = total ?? Math.max(listedKeys.size, read.submissions.length + read.failed);
+    if (total !== null && read.submissions.length + read.failed < total) read.incomplete = true;
   } finally {
     stopList();
   }

@@ -77,6 +77,36 @@ export default async function QuizAttemptPage({ params }: Params) {
           </li>
         ))}
       </ol>
+      {view.unlinked.length > 0 && (
+        <section aria-labelledby="unlinked" className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
+          <h2 id="unlinked" className="text-lg font-semibold">
+            Answers to questions that no longer match
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            The quiz was edited after these were given, so they can&apos;t be tied to a question as it is now. They are kept with the wording they were given under.
+          </p>
+          <ul className="mt-4 space-y-4">
+            {view.unlinked.map((u) => (
+              <li key={u.position} className="border-b border-slate-100 pb-4 last:border-0 last:pb-0 dark:border-slate-800">
+                <p className="font-medium">
+                  <span className="mr-2 text-slate-500">{u.position}.</span>
+                  {u.prompt ?? "A question without its wording"}
+                </p>
+                {u.text && <p className="mt-2 whitespace-pre-wrap text-sm">{u.text}</p>}
+                {u.labels.length > 0 && <p className="mt-2 text-sm">{u.labels.join(", ")}</p>}
+                {u.file && (
+                  <p className="mt-2 text-sm">
+                    <a href={`/api/course-quiz-answers/${attemptId}/pos_${u.position}`} className="font-medium text-plum-700 underline dark:text-plum-300">
+                      {u.file.name}
+                    </a>{" "}
+                    <span className="text-slate-600 dark:text-slate-400">({formatBytes(u.file.bytes)})</span>
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

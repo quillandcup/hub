@@ -98,9 +98,19 @@ export interface AttemptAnswerView {
   file: { name: string; bytes: number } | null;
 }
 
+/** An imported answer no question of the quiz could be matched to, with its own wording (its file path stays on the server). */
+export interface UnlinkedAnswerView {
+  position: number;
+  prompt: string | null;
+  text: string | null;
+  labels: string[];
+  file: { name: string; bytes: number } | null;
+}
+
 export interface AttemptView {
   result: QuizResultRow;
   answers: AttemptAnswerView[];
+  unlinked: UnlinkedAnswerView[];
 }
 
 /**
@@ -119,6 +129,7 @@ export async function loadAttemptView(repos: Pick<Repos, "quizzes" | "members">,
   const byQuestion = new Map(answers.map((a) => [a.questionId, a]));
   return {
     result,
+    unlinked: attempt.unlinkedAnswers.map((u) => ({ position: u.position, prompt: u.prompt, text: u.text, labels: u.labels, file: u.file ? { name: u.file.name, bytes: u.file.bytes } : null })),
     answers: questions.map((q) => {
       const a = byQuestion.get(q.id);
       return {

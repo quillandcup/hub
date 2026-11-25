@@ -1,8 +1,8 @@
 import { QUIZ_ANSWERS } from "@/lib/config";
 import { newQuizFilePath } from "@/lib/courses/quiz-files";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
-import { answersFromJson, type StoredAnswer } from "@/lib/kajabi/quiz-responses";
-import type { NewQuizAnswer, QuizQuestionRecord, QuizRecord } from "@/lib/data/quizzes";
+import { answersFromJson, kindOfTypeName, type StoredAnswer } from "@/lib/kajabi/quiz-responses";
+import type { NewQuizAnswer, QuizQuestionRecord, QuizRecord, UnlinkedAnswer } from "@/lib/data/quizzes";
 import type { Repos } from "@/lib/data/repos";
 
 type ResponseImportRepos = Pick<Repos, "aliases" | "courses" | "kajabiCourses" | "members" | "quizzes">;
@@ -42,7 +42,8 @@ export interface QuizResponseImport {
     /** The quiz isn't in the Hub (not synced, or taken over and re-keyed). */
     noQuiz: number;
   };
-  answers: { imported: number; questionGone: number; unreadable: number };
+  /** `unlinked`: answers kept on the attempt with their own wording because no question of the Hub's quiz could be matched to them (the quiz was edited after they were given). */
+  answers: { imported: number; unlinked: number; questionGone: number; unreadable: number };
   files: { copied: number; notCopied: number };
 }
 
@@ -65,6 +66,22 @@ export interface ResponseImportDeps {
 }
 
 const norm = (text: string) => text.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * The question of the Hub's quiz an answer belongs to. Kajabi's editor keys a question by its id; a submission's answer may carry that
+ * id, or only the question's title and 1-based position (the real shape). By id when there is one; otherwise by position in the quiz
+ * with the title as a check: a quiz edited after the answer was given no longer lines up, and then there is no link (null), never a
+ * guess. The kind the submission names, when it names one, must agree too.
+ */
+export function questionOfAnswer(questions: readonly QuizQuestionRecord[], stored: StoredAnswer): QuizQuestionRecord | null {
+  const byId = questions.find((q) => q.sourceKey !== null && q.sourceKey === stored.questionKey);
+  if (byId) return byId;
+  if (stored.position === null || stored.position === undefined || !stored.prompt) return null;
+  const candidate = [...questions].sort((a, b) => a.position - b.position)[stored.position - 1];
+  if (!candidate || norm(candidate.prompt) !== norm(stored.prompt)) return null;
+  const named = kindOfTypeName(stored.questionType);
+  return named && named !== candidate.kind ? null : candidate;
+}
 
 /** What a Bronze answer becomes for the question it answers, or why it can't. */
 export function mapAnswer(
@@ -110,7 +127,7 @@ export async function importKajabiQuizResponses(
       submissionsInBronze: 0,
       responders: { matched: 0, keptNoMember: 0, ambiguous: 0 },
       submissions: { imported: 0, alreadyImported: 0, keptNoMember: 0, ambiguous: 0, noQuiz: 0 },
-      answers: { imported: 0, questionGone: 0, unreadable: 0 },
+      answers: { imported: 0, unlinked: 0, questionGone: 0, unreadable: 0 },
       files: { copied: 0, notCopied: 0 },
     };
     result.courses.push(summary);
@@ -154,14 +171,22 @@ export async function importKajabiQuizResponses(
         continue;
       }
 
-      const byKey = new Map(questions.flatMap((q) => (q.sourceKey ? [[q.sourceKey, q] as [string, QuizQuestionRecord]] : [])));
       const answers: NewQuizAnswer[] = [];
+      const unlinked: UnlinkedAnswer[] = [];
       let filesCopied = 0;
       let filesNotCopied = 0;
       for (const stored of answersFromJson(row.answers)) {
-        const question = byKey.get(stored.questionKey);
+        const question = questionOfAnswer(questions, stored);
         if (!question) {
-          summary.answers.questionGone++;
+          const kept = await keepUnlinked(stored, memberId, deps, dryRun);
+          if (!kept) {
+            summary.answers.questionGone++;
+            continue;
+          }
+          if (kept.fileFailed) filesNotCopied++;
+          else if (kept.answer.file) filesCopied++;
+          unlinked.push(kept.answer);
+          summary.answers.unlinked++;
           continue;
         }
         const mapped = mapAnswer(question, stored);
@@ -197,7 +222,7 @@ export async function importKajabiQuizResponses(
         summary.files.notCopied += filesNotCopied;
         continue;
       }
-      const outcome = await repos.quizzes.importAttempt({ quizId: quiz.id, memberId, sourceKey: row.submission_key, submittedAt: row.submitted_at, answers });
+      const outcome = await repos.quizzes.importAttempt({ quizId: quiz.id, memberId, sourceKey: row.submission_key, submittedAt: row.submitted_at, answers, unlinked });
       if (outcome === "exists") {
         summary.submissions.alreadyImported++;
         continue;
@@ -209,4 +234,31 @@ export async function importKajabiQuizResponses(
     }
   }
   return result;
+}
+
+/**
+ * An answer no question of the quiz could be matched to, kept as it was given: its position and wording, what was written or picked,
+ * and its file copied into the member's own folder. Null when it has no position to be kept by (an older shape that named a question
+ * that is gone) or nothing to keep.
+ */
+async function keepUnlinked(
+  stored: StoredAnswer,
+  memberId: string,
+  deps: ResponseImportDeps,
+  dryRun: boolean,
+): Promise<{ answer: UnlinkedAnswer; fileFailed: boolean } | null> {
+  if (stored.position === null || stored.position === undefined) return null;
+  const text = stored.text?.trim() || null;
+  const labels = stored.optionLabels;
+  if (!text && labels.length === 0 && stored.optionKeys.length === 0 && !stored.file) return null;
+  let file: UnlinkedAnswer["file"] = null;
+  let fileFailed = false;
+  if (stored.file) {
+    const to = stored.file.storagePath ? newQuizFilePath(memberId, stored.file.name, deps.randomId()) : null;
+    if (to && (dryRun || (await deps.copyFile(stored.file.storagePath!, to)))) file = { path: to, name: stored.file.name.slice(0, 200), bytes: Math.min(stored.file.bytes ?? 0, QUIZ_ANSWERS.maxFileBytes) };
+    else fileFailed = true;
+  }
+  const named = kindOfTypeName(stored.questionType);
+  const kind = named ?? (stored.file ? "file_upload" : labels.length > 0 || stored.optionKeys.length > 0 ? "choice" : "short_answer");
+  return { answer: { position: stored.position, prompt: stored.prompt, kind, text, labels, file }, fileFailed };
 }

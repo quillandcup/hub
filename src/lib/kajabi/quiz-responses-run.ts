@@ -17,6 +17,7 @@ import {
   copyResponseFiles,
   parseSubmission,
   saveQuizResponse,
+  typeValuesIn,
   storedAnswersOf,
   type FileCopyCounts,
   type FileCopyIO,
@@ -59,6 +60,8 @@ export interface ResponsesSummary {
   responders: number;
   answers: number;
   files: FileCopyCounts;
+  /** The distinct `type` and `questionType` values the submissions carried: Kajabi's own enum names (never member data), printed so the reading can be settled from facts. */
+  seen: { types: string[]; questionTypes: string[] };
 }
 
 export async function runResponsesCapture(opts: {
@@ -84,8 +87,11 @@ export async function runResponsesCapture(opts: {
     responders: 0,
     answers: 0,
     files: { copied: 0, alreadyCopied: 0, failed: {} },
+    seen: { types: [], questionTypes: [] },
   };
   const responders = new Set<string>();
+  const seenTypes = new Set<string>();
+  const seenQuestionTypes = new Set<string>();
   // Who asked to be removed (a fingerprint of the address, `removal_tombstones`): looked up once per address, before anything is
   // copied or stored, so a removed member's files are never downloaded again.
   const removedByEmail = new Map<string, boolean>();
@@ -112,6 +118,9 @@ export async function runResponsesCapture(opts: {
     let shown = false;
     const seen = new Set<string>();
     for (const opened of read.submissions) {
+      const values = typeValuesIn(opened.documents);
+      for (const t of values.types) seenTypes.add(t);
+      for (const t of values.questionTypes) seenQuestionTypes.add(t);
       const parsed = parseSubmission(opened.documents, opened.key);
       if (!parsed) {
         counts.unreadable++;
@@ -157,6 +166,8 @@ export async function runResponsesCapture(opts: {
       `quiz ${quiz.quizKajabiId}: ${read.listed ?? "?"} listed, ${read.submissions.length} opened, ${read.failed} failed to open, ${counts.unreadable} unreadable, ${counts.removed} skipped (removed on request), ${counts.created} new, ${counts.updated} changed, ${counts.unchanged} unchanged${read.incomplete ? " (the Results tab was not read to the end)" : ""}`,
     );
   }
+  summary.seen = { types: [...seenTypes].sort().slice(0, 30), questionTypes: [...seenQuestionTypes].sort().slice(0, 30) };
+  opts.log(`resource types seen: ${summary.seen.types.join(", ") || "none"}; question types seen: ${summary.seen.questionTypes.join(", ") || "none"}`);
   return summary;
 }
 

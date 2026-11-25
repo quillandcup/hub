@@ -18,6 +18,7 @@ import QuizAttemptPage, { generateMetadata } from "@/app/(admin)/admin/courses/[
 const ATTEMPT = "qatt_AAAAAAAAAAAa";
 const params = (attemptId = ATTEMPT) => ({ params: Promise.resolve({ id: "crs_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1", attemptId }) });
 const view = {
+  unlinked: [],
   result: { attemptId: ATTEMPT, memberId: "mbr_AAAAAAAAAAA1", name: "Ada Example", submittedAt: "2027-01-05T15:30:00.000Z", scorePercent: 0, correctCount: 0, questionCount: 0, passed: true },
   answers: [
     { questionId: "qques_AAAAAAAAAAA1", prompt: "What stood out?", kind: "short_answer", picked: [], correct: null, text: "The ending.\nAnd the start.", file: null },
@@ -51,6 +52,22 @@ describe("a member's attempt, for staff", () => {
     expect(screen.getByText("(right)")).toBeInTheDocument();
     expect(screen.getAllByText("No answer").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /Results of Reflect/ })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/lessons/les_AAAAAAAAAAA1/results");
+  });
+
+  it("lists imported answers that no question matches under their own wording, the file through its place", async () => {
+    loadAttemptView.mockResolvedValue({ ...view, unlinked: [{ position: 3, prompt: "Old wording", text: "Kept words", labels: ["A", "B"], file: { name: "old.pdf", bytes: 2048 } }, { position: 6, prompt: null, text: null, labels: [], file: null }] });
+    await renderServerPage(QuizAttemptPage, params());
+    expect(screen.getByRole("heading", { name: "Answers to questions that no longer match" })).toBeInTheDocument();
+    expect(screen.getByText("Old wording")).toBeInTheDocument();
+    expect(screen.getByText("Kept words")).toBeInTheDocument();
+    expect(screen.getByText("A, B")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "old.pdf" })).toHaveAttribute("href", `/api/course-quiz-answers/${ATTEMPT}/pos_3`);
+    expect(screen.getByText("A question without its wording")).toBeInTheDocument();
+  });
+
+  it("shows no such section when every answer matched", async () => {
+    await renderServerPage(QuizAttemptPage, params());
+    expect(screen.queryByRole("heading", { name: "Answers to questions that no longer match" })).not.toBeInTheDocument();
   });
 
   it("shows the score of an attempt that had one", async () => {
