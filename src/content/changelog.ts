@@ -62,6 +62,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "member-transactions-tab",
+    date: "2026-11-25",
+    audience: "staff",
+    category: "new",
+    title: "A member's page now has a Transactions tab with their Stripe payments",
+    summary: "Staff can see a member's Stripe invoices and one-off payments on their page, with the amount, what was refunded, whether a payment failed and why, and a link to open each one in Stripe.",
+    body: [
+      "The new Transactions tab on a member's page lists their payments from the Stripe copy the Hub already keeps, newest first, so most questions no longer need a trip to Stripe.",
+      "- **One row per invoice or payment.** An invoice shows the charges that tried to collect it; a payment that belongs to no invoice (a retreat deposit, say) has its own row.",
+      "- **What happened.** Paid, open, refunded in part or in full, disputed or failed, with the failure reason and how many attempts it took.",
+      "- **Every Stripe customer for them.** The linked customer, plus any other Stripe customer under their email or one of their alias emails.",
+      "- **Up to the last import.** It shows what the Stripe import has stored, not live Stripe, so open the link for the latest. Admins only.",
+    ].join("\n\n"),
+  },
+  {
     slug: "removal-covers-quiz-data",
     date: "2026-11-25",
     audience: "staff",

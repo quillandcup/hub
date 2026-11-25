@@ -120,6 +120,7 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 ### Support several Stripe customers per member _(Needs Scheduling)_
 - **What is missing:** `members.stripe_customer_id` holds one customer. A retreat or course checkout can create a second Stripe customer for someone who already has one, so a member can have several. The members processing now links the one with a live subscription (`src/lib/stripe-customer-link.ts`), but the others are not linked to anyone.
 - **Why deferred:** the single column is read in many places; a link table is a larger change than fixing which customer is picked.
+- **Until then:** the member page's Transactions tab finds a member's other customers by matching Stripe customer emails against the member's primary and alias emails (`MemberDetailPage.tsx`); switch it to the link table when it exists.
 - **Where to start:** a link table (member, customer) behind a repository, `src/lib/data/members.ts`, `src/app/api/process/members/route.ts`, and the hygiene pages under `src/app/(admin)/admin/hygiene/`.
 
 ### Hygiene: live membership subscriptions whose customer is not linked to a member _(Needs Scheduling)_

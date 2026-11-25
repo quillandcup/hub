@@ -46,6 +46,7 @@ const GRANTED: Record<Permission, readonly LimitedRole[]> = {
   "member.activity_tab": [],
   "member.activity_tab_limited": ["community_manager"],
   "member.billing_links": [],
+  "member.transactions_tab": [],
   "member.record_history": [],
   "member.push_devices": [],
   "member.status_overrides": [],

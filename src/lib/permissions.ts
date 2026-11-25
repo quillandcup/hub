@@ -38,6 +38,7 @@ export const PERMISSIONS = {
   "member.activity_tab": "A member's full Activity tab (audit entries, page visits, staff notes)",
   "member.activity_tab_limited": "A member's Activity tab with only the member's own activity",
   "member.billing_links": "Billing links on a member's page",
+  "member.transactions_tab": "A member's Transactions tab (Stripe invoices and charges)",
   "member.record_history": "The record history of any entity",
   "member.push_devices": "A member's push devices",
   "member.status_overrides": "A member's status overrides",
