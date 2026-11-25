@@ -28,6 +28,7 @@ import {
 import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { buildTransactions, type TransactionRow } from "@/lib/member-transactions";
 import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
@@ -116,6 +117,19 @@ export default async function MemberDetailPage({
         };
       }),
     };
+  }
+
+  // The Transactions tab: Bronze billing is service-role only, so read it here and pass only display rows. The
+  // linked Stripe customer plus any other customer with the member's email (a checkout can create a second one).
+  let transactions: { rows: TransactionRow[]; customerCount: number } | null = null;
+  if (tab === "transactions" && can("member.transactions_tab")) {
+    const billing = createRepos(createServiceRoleClient()).billing;
+    const byEmail = await billing.stripeCustomers({ emails: [memberRow.email] });
+    const customerIds = [...new Set([memberRow.stripeCustomerId, ...byEmail.map((c) => c.stripe_customer_id)].filter((c): c is string => !!c))];
+    const [invoices, charges] = customerIds.length
+      ? await Promise.all([billing.stripeInvoices({ customerIds }), billing.stripeCharges({ customerIds })])
+      : [[], []];
+    transactions = { rows: buildTransactions(invoices, charges), customerCount: customerIds.length };
   }
 
   // Fetch all attendance records for this member with prickle details
@@ -404,6 +418,7 @@ export default async function MemberDetailPage({
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
           notificationsInfo={notificationsInfo}
+          transactions={transactions}
           features={features}
         />
       </main>

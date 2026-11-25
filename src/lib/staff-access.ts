@@ -21,6 +21,7 @@ export const STAFF_FEATURES = [
   "member.activity_tab",
   "member.activity_tab_limited",
   "member.billing_links",
+  "member.transactions_tab",
   "member.record_history",
   "member.push_devices",
   "member.status_overrides",

@@ -50,6 +50,7 @@ const ADMIN_PAGE_PERMISSIONS: ReadonlyArray<readonly [RegExp, Permission]> = [
   [/^\/admin\/member-overrides(\/|$)/, "members.overrides.manage"],
   [/^\/admin\/members\/network(\/|$)/, "members.network.read"],
   [/^\/admin\/members\/[^/]+\/(account|identity|notifications)$/, "member.account_tab"],
+  [/^\/admin\/members\/[^/]+\/transactions$/, "member.transactions_tab"],
   [/^\/admin\/members(\/|$)/, "members.read"],
   [/^\/admin\/mentorship(\/|$)/, "mentorship.manage"],
   [/^\/admin\/(notifications|player-spike)(\/|$)/, "system.dev_tools.use"],
