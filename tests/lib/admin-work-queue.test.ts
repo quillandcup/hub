@@ -73,6 +73,40 @@ describe("buildWelcomeBackQueue", () => {
   });
 });
 
+describe("work queue lookahead: through the end of next month (Eastern)", () => {
+  const membersById = membersMap([{ id: "m1", name: "Jane Doe" }]);
+  const returning = (end_date: string): HiatusInput[] => [{ id: "h1", member_id: "m1", start_date: "2026-08-01", end_date }];
+
+  it("shows returns in mid December when planning on Nov 25", () => {
+    const now = new Date("2026-11-25T15:00:00Z");
+    for (const end of ["2026-12-13", "2026-12-18", "2026-12-31"]) {
+      expect(buildWelcomeBackQueue(returning(end), membersById, NO_COMPLETIONS, now)).toHaveLength(1);
+    }
+  });
+
+  it("stops after the last day of next month", () => {
+    const now = new Date("2026-11-25T15:00:00Z");
+    expect(buildWelcomeBackQueue(returning("2027-01-01"), membersById, NO_COMPLETIONS, now)).toEqual([]);
+  });
+
+  it("uses the Eastern month, not UTC: 9pm Eastern on Nov 30 is already Dec 1 in UTC", () => {
+    const now = new Date("2026-12-01T02:00:00Z");
+    expect(buildWelcomeBackQueue(returning("2026-12-31"), membersById, NO_COMPLETIONS, now)).toHaveLength(1);
+    expect(buildWelcomeBackQueue(returning("2027-01-01"), membersById, NO_COMPLETIONS, now)).toEqual([]);
+  });
+
+  it("handles a year rollover and a short next month", () => {
+    expect(buildWelcomeBackQueue(returning("2027-02-28"), membersById, NO_COMPLETIONS, new Date("2027-01-10T15:00:00Z"))).toHaveLength(1);
+    expect(buildWelcomeBackQueue(returning("2027-03-01"), membersById, NO_COMPLETIONS, new Date("2027-01-10T15:00:00Z"))).toEqual([]);
+  });
+
+  it("also applies to hiatus nudges", () => {
+    const hiatus: HiatusInput[] = [{ id: "h1", member_id: "m1", start_date: "2026-11-01", end_date: "2027-01-01" }];
+    const now = new Date("2026-11-25T15:00:00Z");
+    expect(buildHiatusNudgeQueue(hiatus, membersById, NO_COMPLETIONS, now).length).toBeGreaterThan(0);
+  });
+});
+
 describe("buildHedgieversaryQueue", () => {
   // 3-year (36mo) milestone lands 2026-08-29 — 5 days before NOW, within the 14-day lookback.
   // total_active_months matches elapsed time exactly (continuously active,
