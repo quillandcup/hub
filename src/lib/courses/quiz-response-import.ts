@@ -1,12 +1,11 @@
 import { QUIZ_ANSWERS } from "@/lib/config";
 import { newQuizFilePath } from "@/lib/courses/quiz-files";
-import { hasGradedQuestions } from "@/lib/courses/quiz-editor";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { answersFromJson, type StoredAnswer } from "@/lib/kajabi/quiz-responses";
 import type { NewQuizAnswer, QuizQuestionRecord, QuizRecord } from "@/lib/data/quizzes";
 import type { Repos } from "@/lib/data/repos";
 
-type ResponseImportRepos = Pick<Repos, "aliases" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "quizzes">;
+type ResponseImportRepos = Pick<Repos, "aliases" | "courses" | "kajabiCourses" | "members" | "quizzes">;
 
 /**
  * Bronze (bronze.kajabi_quiz_responses) -> Local quiz attempts (docs/product/COURSES.md, "Importing past quiz responses").
@@ -23,9 +22,8 @@ type ResponseImportRepos = Pick<Repos, "aliases" | "courseProgress" | "courses" 
  *    `imported_from = 'kajabi'`, are not scored, and notify nobody (nothing here calls the notifier).
  *  - Files were copied into the private bucket when they were captured (`kajabi-import/...`); each is copied again into the member's
  *    own folder, so a removal request deletes it, and the Bronze copy stays for reprocessing.
- *  - A submission counts as completing a quiz lesson only for a quiz with nothing graded, only for a member with current access to
- *    the course (the same rule as the Kajabi progress import: a member without access gets no completion), and only where the
- *    member has no progress row for the lesson. Existing progress is never changed.
+ *  - It never marks a lesson complete: that comes from the separate Kajabi progress import (`courses:content --progress`,
+ *    src/lib/courses/progress-import.ts), the one place that decides who completed what. This only writes attempts and answers.
  */
 
 export interface QuizResponseImport {
@@ -46,7 +44,6 @@ export interface QuizResponseImport {
   };
   answers: { imported: number; questionGone: number; unreadable: number };
   files: { copied: number; notCopied: number };
-  completions: { added: number; alreadyHad: number; noAccess: number };
 }
 
 export interface QuizResponseImportResult {
@@ -91,10 +88,9 @@ export function mapAnswer(
 export async function importKajabiQuizResponses(
   repos: ResponseImportRepos,
   deps: ResponseImportDeps,
-  options: { courseSlug?: string; dryRun?: boolean; now?: Date } = {},
+  options: { courseSlug?: string; dryRun?: boolean } = {},
 ): Promise<QuizResponseImportResult> {
   const dryRun = options.dryRun ?? false;
-  const now = options.now ?? new Date();
   const only = options.courseSlug ? await repos.courses.courseBySlug(options.courseSlug, { source: "kajabi" }) : null;
   const courses = options.courseSlug ? (only ? [only] : []) : await repos.courses.courses({ source: "kajabi" });
   if (options.courseSlug && courses.length === 0) throw new QuizResponseImportError(`No Kajabi course has the slug "${options.courseSlug}"`, 404);
@@ -116,7 +112,6 @@ export async function importKajabiQuizResponses(
       submissions: { imported: 0, alreadyImported: 0, keptNoMember: 0, ambiguous: 0, noQuiz: 0 },
       answers: { imported: 0, questionGone: 0, unreadable: 0 },
       files: { copied: 0, notCopied: 0 },
-      completions: { added: 0, alreadyHad: 0, noAccess: 0 },
     };
     result.courses.push(summary);
     if (!course.source_key) continue;
@@ -139,12 +134,6 @@ export async function importKajabiQuizResponses(
     const questionsByQuiz = new Map<string, QuizQuestionRecord[]>(await Promise.all(quizzes.map(async (q) => [q.id, await repos.quizzes.questionsOf(q.id)] as [string, QuizQuestionRecord[]])));
     const already = await repos.quizzes.importedSourceKeys(quizzes.map((q) => q.id));
 
-    const access = await repos.courseProgress.accessOfCourses([course.id]);
-    const hasAccess = new Set<string>(access.filter((a) => a.ends_at === null || new Date(a.ends_at).getTime() > now.getTime()).map((a) => a.member_id));
-
-    // One completion candidate per (member, lesson): the earliest submission.
-    const completionCandidates = new Map<string, { memberId: string; lessonId: string; at: string }>();
-
     for (const row of bronze) {
       const quiz: QuizRecord | undefined = quizByKey.get(row.quiz_kajabi_id);
       if (!quiz) {
@@ -159,17 +148,6 @@ export async function importKajabiQuizResponses(
         continue;
       }
       const questions = questionsByQuiz.get(quiz.id) ?? [];
-
-      // Completion: only a quiz with nothing graded, only with current access, earliest submission first.
-      if (!hasGradedQuestions(questions)) {
-        if (!hasAccess.has(memberId)) summary.completions.noAccess++;
-        else {
-          const at = new Date(row.submitted_at ?? row.captured_at).toISOString();
-          const key = `${memberId}|${quiz.lessonId}`;
-          const earlier = completionCandidates.get(key);
-          if (!earlier || at < earlier.at) completionCandidates.set(key, { memberId, lessonId: quiz.lessonId, at });
-        }
-      }
 
       if (already.has(`${quiz.id}|${row.submission_key}`)) {
         summary.submissions.alreadyImported++;
@@ -229,21 +207,6 @@ export async function importKajabiQuizResponses(
       summary.files.copied += filesCopied;
       summary.files.notCopied += filesNotCopied;
     }
-
-    // What the members already have for these lessons: never changed.
-    const lessonIds = [...new Set([...completionCandidates.values()].map((c) => c.lessonId))];
-    const existing = new Map<string, string | null>();
-    for (const r of lessonIds.length > 0 ? await repos.courseProgress.progressOfLessons(lessonIds) : []) existing.set(`${r.member_id}|${r.lesson_id}`, r.completed_at);
-    const toInsert: { member_id: string; lesson_id: string; completed_at: string; last_position_seconds: number; imported_from: string }[] = [];
-    for (const [key, c] of completionCandidates) {
-      if (existing.has(key)) {
-        summary.completions.alreadyHad++;
-        continue;
-      }
-      toInsert.push({ member_id: c.memberId, lesson_id: c.lessonId, completed_at: c.at, last_position_seconds: 0, imported_from: "kajabi" });
-    }
-    if (!dryRun) await repos.courseProgress.insertProgressIfAbsent(toInsert);
-    summary.completions.added = toInsert.length;
   }
   return result;
 }
