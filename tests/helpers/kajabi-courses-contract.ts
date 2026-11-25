@@ -7,6 +7,8 @@ export type KajabiCoursesContractContext = {
   unique: (label: string) => string;
   /** Removes every row this context made, in every table. */
   clear: () => Promise<void>;
+  /** Records the fingerprint a member removal keeps for this email address (`removal_tombstones`, written by the database function in real use). */
+  fingerprintEmail: (email: string) => Promise<void>;
 };
 
 const T1 = "2097-06-01T10:00:00.000Z";
@@ -364,6 +366,22 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
 
       await repo.saveQuiz(quiz(q1, c, l1, "hash-a2"));
       expect((await repo.liveQuizzes(c)).map((q) => q.kajabi_id).sort()).toEqual([q1, q2].sort());
+    });
+
+    it("tells which of the given addresses a member removal has fingerprinted, whatever their case, and none when nothing was", async () => {
+      const repo = ctx.repo();
+      const gone = `${ctx.unique("gone")}@example.test`;
+      const kept = `${ctx.unique("kept")}@example.test`;
+      expect(await repo.removedEmails([gone, kept])).toEqual(new Set());
+      expect(await repo.removedEmails([])).toEqual(new Set());
+
+      await ctx.fingerprintEmail(gone);
+      expect(await repo.removedEmails([gone, kept])).toEqual(new Set([gone]));
+      expect(await repo.removedEmails([gone.toUpperCase()])).toEqual(new Set([gone.toUpperCase()]));
+      // More addresses than one query takes.
+      const many = Array.from({ length: 250 }, (_, i) => `${ctx.unique(`m${i}`)}@example.test`);
+      await ctx.fingerprintEmail(many[249]);
+      expect(await repo.removedEmails([...many, gone])).toEqual(new Set([many[249], gone]));
     });
   });
 }

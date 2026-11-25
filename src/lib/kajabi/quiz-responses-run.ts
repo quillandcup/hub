@@ -52,6 +52,8 @@ export interface ResponsesSummary {
   read: number;
   /** Submissions opened that could not be read (no email, or no answers found). */
   unreadable: number;
+  /** Submissions whose responder was removed on their request (`removal_tombstones`): nothing is stored or copied for them. */
+  removedResponders: number;
   openFailed: number;
   rows: Record<ResponseSaveOutcome, number>;
   responders: number;
@@ -76,6 +78,7 @@ export async function runResponsesCapture(opts: {
     listed: 0,
     read: 0,
     unreadable: 0,
+    removedResponders: 0,
     openFailed: 0,
     rows: { created: 0, updated: 0, unchanged: 0 },
     responders: 0,
@@ -83,6 +86,13 @@ export async function runResponsesCapture(opts: {
     files: { copied: 0, alreadyCopied: 0, failed: {} },
   };
   const responders = new Set<string>();
+  // Who asked to be removed (a fingerprint of the address, `removal_tombstones`): looked up once per address, before anything is
+  // copied or stored, so a removed member's files are never downloaded again.
+  const removedByEmail = new Map<string, boolean>();
+  const isRemoved = async (email: string) => {
+    if (!removedByEmail.has(email)) removedByEmail.set(email, (await repo.removedEmails([email])).size > 0);
+    return removedByEmail.get(email)!;
+  };
 
   for (const quiz of opts.quizzes) {
     summary.quizzes++;
@@ -98,7 +108,7 @@ export async function runResponsesCapture(opts: {
     if (read.listed !== null) summary.listed += read.listed;
     summary.openFailed += read.failed;
 
-    const counts = { created: 0, updated: 0, unchanged: 0, unreadable: 0 };
+    const counts = { created: 0, updated: 0, unchanged: 0, unreadable: 0, removed: 0 };
     let shown = false;
     const seen = new Set<string>();
     for (const opened of read.submissions) {
@@ -115,6 +125,11 @@ export async function runResponsesCapture(opts: {
       }
       if (seen.has(parsed.submissionKey)) continue;
       seen.add(parsed.submissionKey);
+      if (await isRemoved(parsed.email)) {
+        counts.removed++;
+        summary.removedResponders++;
+        continue;
+      }
       summary.read++;
       responders.add(parsed.email);
 
@@ -139,7 +154,7 @@ export async function runResponsesCapture(opts: {
     }
     summary.responders = responders.size;
     opts.log(
-      `quiz ${quiz.quizKajabiId}: ${read.listed ?? "?"} listed, ${read.submissions.length} opened, ${read.failed} failed to open, ${counts.unreadable} unreadable, ${counts.created} new, ${counts.updated} changed, ${counts.unchanged} unchanged${read.incomplete ? " (the Results tab was not read to the end)" : ""}`,
+      `quiz ${quiz.quizKajabiId}: ${read.listed ?? "?"} listed, ${read.submissions.length} opened, ${read.failed} failed to open, ${counts.unreadable} unreadable, ${counts.removed} skipped (removed on request), ${counts.created} new, ${counts.updated} changed, ${counts.unchanged} unchanged${read.incomplete ? " (the Results tab was not read to the end)" : ""}`,
     );
   }
   return summary;
@@ -152,7 +167,7 @@ export function formatResponsesTotals(apply: boolean, s: ResponsesSummary): stri
     .join(", ");
   return (
     `${apply ? "Written" : "Dry run, nothing written"}: ${s.quizzes} quizzes (${s.quizzesFailed} could not be read), ${s.listed} submissions listed, ${s.read} read from ${s.responders} responders ` +
-    `(${s.unreadable} unreadable, ${s.openFailed} could not be opened); rows ${s.rows.created} new, ${s.rows.updated} changed, ${s.rows.unchanged} unchanged; ${s.answers} answers; ` +
+    `(${s.unreadable} unreadable, ${s.removedResponders} skipped because the member was removed on request, ${s.openFailed} could not be opened); rows ${s.rows.created} new, ${s.rows.updated} changed, ${s.rows.unchanged} unchanged; ${s.answers} answers; ` +
     `files ${s.files.copied} ${apply ? "copied" : "would copy"}, ${s.files.alreadyCopied} already copied${failedFiles ? `, could not copy: ${failedFiles}` : ""}.`
   );
 }

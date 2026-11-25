@@ -153,6 +153,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_lesson_progress: [],
   kajabi_lesson_comments: [],
   kajabi_quizzes: [],
+  // The fingerprints a member removal keeps so the Kajabi capture can't bring the data back (KajabiCourseRepository.removedEmails).
+  removal_tombstones: [],
   // Billing (BillingRepository, src/lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
   kajabi_contacts: [],
   kajabi_customers: [],

@@ -1,12 +1,14 @@
 import { afterAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseKajabiCourseRepository } from "@/lib/data/kajabi-courses";
+import { removalHash } from "@/lib/data/removal-hash";
 import { defineKajabiCoursesContract } from "@/tests/helpers/kajabi-courses-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
 const db = getTestSupabaseAdminClient() as unknown as Db;
 const PREFIX = `kc-${Date.now()}-`;
 let counter = 0;
+const fingerprints: string[] = [];
 
 // Every id the contract makes starts with this run's prefix: courses by id, everything else by its course or lesson.
 const clear = async () => {
@@ -23,6 +25,11 @@ const clear = async () => {
     bronze.from("kajabi_quizzes").delete().like("course_kajabi_id", like),
   ]);
   for (const { error } of results) if (error) throw new Error(error.message);
+  if (fingerprints.length > 0) {
+    const { error } = await db.from("removal_tombstones").delete().in("key_hash", fingerprints);
+    if (error) throw new Error(error.message);
+    fingerprints.length = 0;
+  }
 };
 
 afterAll(clear);
@@ -31,4 +38,10 @@ defineKajabiCoursesContract("SupabaseKajabiCourseRepository", () => ({
   repo: () => new SupabaseKajabiCourseRepository(db),
   unique: (label) => `${PREFIX}${label}-${++counter}`,
   clear,
+  fingerprintEmail: async (email) => {
+    const key_hash = removalHash(email);
+    fingerprints.push(key_hash);
+    const { error } = await db.from("removal_tombstones").upsert({ kind: "email", key_hash });
+    if (error) throw new Error(error.message);
+  },
 }));

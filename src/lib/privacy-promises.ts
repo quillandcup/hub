@@ -246,17 +246,20 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         title: "Members can ask to see, correct or remove what we hold",
         status: "working",
         reads: ["choices-asking"],
-        how: "Requests come by email to the support address and are handled by a person. Removal has a staff tool: \"Remove on request\" on the admin member page shows what would be removed (a dry run), asks for the member's name to confirm, then deletes or anonymises their records in one database transaction and removes their sign-in and stored files, leaving the copies in the imports from other services to be removed at the source. Turning off usage statistics is a switch on the Privacy page.",
+        how: "Requests come by email to the support address and are handled by a person. Removal has a staff tool: \"Remove on request\" on the admin member page shows what would be removed (a dry run), asks for the member's name to confirm, then deletes or anonymises their records in one database transaction and removes their sign-in and stored files. That includes what they wrote and uploaded in course quizzes and the copies of their course data the Kajabi capture holds (past quiz responses and the files in them, progress, and the comments matched to them), which the dry run lists with counts before anything is removed; a one-way fingerprint of each removed address is kept so a later capture can't bring them back. The copies in the imports from Kajabi's contact and payment data, Stripe, Zoom and Slack are left to be removed at the source. Turning off usage statistics is a switch on the Privacy page.",
         evidence: [
           "src/content/privacy.ts (asking us)",
           "src/app/(admin)/admin/members/[id]/RemoveMemberPanel.tsx",
           "src/app/(admin)/admin/members/[id]/removal-actions.ts",
           "src/lib/member-removal.ts",
           "supabase/migrations/20270411000000_remove_member_data.sql",
+          "supabase/migrations/20271127000000_removal_covers_quiz_and_kajabi_capture.sql",
+          "supabase/tests/database/member_removal_kajabi_capture.test.sql",
+          "docs/product/COURSES.md (Removal on request)",
         ],
-        checked: "2026-11-18",
+        checked: "2026-11-25",
         open: [
-          "Removal has a tool; seeing what we hold, and correcting it, do not, so those requests are answered by hand. Nothing records that a request arrived, when it was answered or its one-month deadline, and a removal also removes the audit entries about the person, so a record has to be kept apart and without personal data (docs/TODO.md, \"Data requests: record each one and its deadline, and answer access requests\").",
+          "The removal does not reach the Kajabi contact and payment, Stripe, Zoom and Slack copies, or captured Kajabi comments that carry only a name matching the member's (counted and kept; docs/TODO.md, \"Removal on request: quiz responses in Bronze\"). Removal has a tool; seeing what we hold, and correcting it, do not, so those requests are answered by hand. Nothing records that a request arrived, when it was answered or its one-month deadline, and a removal also removes the audit entries about the person, so a record has to be kept apart and without personal data (docs/TODO.md, \"Data requests: record each one and its deadline, and answer access requests\").",
         ],
       },
       {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryKajabiCourseRepository } from "@/lib/data/kajabi-courses";
 import type { FileCopyIO } from "@/lib/kajabi/quiz-responses";
+import { removalHash } from "@/lib/data/removal-hash";
 import type { QuizRead } from "@/lib/kajabi/quiz-responses-run";
 
 const NOW = new Date("2027-02-03T15:00:00.000Z");
@@ -109,6 +110,28 @@ describe("runResponsesCapture", () => {
     const summary = await done;
     expect(summary).toMatchObject({ read: 1, openFailed: 2, rows: { created: 1 } });
     expect(lines.join("\n")).toContain("the Results tab was not read to the end");
+  });
+
+  it("stores and copies nothing for a responder who was removed on request, whatever case the address is in, and says how many were skipped", async () => {
+    data.removalTombstones.push({ kind: "email", key_hash: removalHash("ada@example.test"), created_at: "2027-01-01T00:00:00.000Z" });
+    // A fingerprint of another kind never blocks an address.
+    data.removalTombstones.push({ kind: "kajabi_comment", key_hash: removalHash("bo@example.test"), created_at: "2027-01-01T00:00:00.000Z" });
+    const io = fileIO();
+    const { done, lines } = run({ "489121": read([submission(1, "Ada@Example.test"), submission(2, "bo@example.test"), submission(3, "ada@example.test")]) }, true, io);
+    const summary = await done;
+
+    expect(summary).toMatchObject({ read: 1, responders: 1, removedResponders: 2, rows: { created: 1 }, files: { copied: 1 } });
+    expect(data.kajabiQuizResponses.map((r) => r.email)).toEqual(["bo@example.test"]);
+    expect(io.download).toHaveBeenCalledTimes(1);
+    expect(io.upload).toHaveBeenCalledTimes(1);
+    const printed = [...lines, mod.formatResponsesTotals(true, summary)].join("\n");
+    expect(printed).toContain("2 skipped");
+    expect(printed.toLowerCase()).not.toContain("ada@example.test");
+  });
+
+  it("counts none skipped when nobody was removed", async () => {
+    const summary = await run({ "489121": read([submission(1, "ada@example.test")]) }, false).done;
+    expect(summary.removedResponders).toBe(0);
   });
 
   it("lists the files that could not be copied by reason", async () => {

@@ -129,6 +129,42 @@ describe("removeMemberOnRequest", () => {
     expect(removeFailed.ok && removeFailed.leftovers.join(" ")).toContain("remove down");
   });
 
+  describe("the Kajabi capture copies of their quiz responses", () => {
+    const base = { auth_user_id: null, media_paths: [], feedback_paths: [] };
+    const importPaths = (count: number) => Array.from({ length: count }, (_, i) => `kajabi-import/489121/s-${i}/letter.pdf`);
+
+    it("deletes the files the removed rows named from the quiz bucket, in batches (past 1000 files)", async () => {
+      rpc.mockImplementation(async (name: string) => (name === "remove_member_data" ? { data: { ...base, quiz_import_paths: importPaths(1250) }, error: null } : { data: { quiz_import_paths: [] }, error: null }));
+      expect(await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false)).toEqual({ ok: true, leftovers: [] });
+      const batches = remove.mock.calls.map(([paths]) => paths as string[]).filter((paths) => paths[0].startsWith("kajabi-import/"));
+      expect(batches.map((b) => b.length)).toEqual([100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 50]);
+      expect(new Set(batches.flat()).size).toBe(1250);
+      expect(from).toHaveBeenCalledWith("quiz-answer-files");
+    });
+
+    it("says how many files stayed, never which", async () => {
+      rpc.mockImplementation(async (name: string) => (name === "remove_member_data" ? { data: { ...base, quiz_import_paths: importPaths(3) }, error: null } : { data: { quiz_import_paths: [] }, error: null }));
+      remove.mockResolvedValue({ error: { message: "storage down" } });
+      const result = await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false);
+      const leftovers = result.ok ? result.leftovers.join(" ") : "";
+      expect(leftovers).toContain("3 imported Kajabi quiz response file(s) were not deleted");
+      expect(leftovers).not.toContain("kajabi-import/489121");
+    });
+
+    it("then sweeps for rows that arrived during the removal, and deletes their files too", async () => {
+      rpc.mockImplementation(async (name: string) => (name === "remove_member_data" ? { data: base, error: null } : { data: { quiz_import_paths: ["kajabi-import/489121/late/letter.pdf"] }, error: null }));
+      expect(await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false)).toEqual({ ok: true, leftovers: [] });
+      expect(rpc).toHaveBeenLastCalledWith("purge_removed_member_bronze");
+      expect(remove).toHaveBeenCalledWith(["kajabi-import/489121/late/letter.pdf"]);
+    });
+
+    it("says so when the sweep cannot run, after the removal has committed", async () => {
+      rpc.mockImplementation(async (name: string) => (name === "remove_member_data" ? { data: base, error: null } : { data: null, error: { message: "sweep down" } }));
+      const result = await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false);
+      expect(result.ok && result.leftovers.join(" ")).toMatch(/sweep down.*purge_removed_member_bronze\(\)/);
+    });
+  });
+
   it("says what did not finish once the database part has committed", async () => {
     rpc.mockResolvedValue({ data: removed, error: null });
     deleteUser.mockRejectedValue(new Error("auth down"));

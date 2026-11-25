@@ -57,9 +57,52 @@ describe("RemoveMemberPanel", () => {
     await screen.findByText("writing projects");
   };
 
-  it("says up front that the imports are untouched", () => {
+  it("says up front what the course capture removal covers and that the other imports are untouched", () => {
     render(<RemoveMemberPanel member={member} />);
-    expect(screen.getByText(/imports from Kajabi, Stripe, Zoom and Slack are not touched/i)).toBeTruthy();
+    expect(screen.getByText(/course data from the Kajabi capture .* goes with them and can't come back/i)).toBeTruthy();
+    expect(screen.getByText(/Kajabi contact and payment, Stripe, Zoom and Slack imports are not touched/i)).toBeTruthy();
+  });
+
+  it("lists the quiz data before anyone is removed: attempts, answers, files and imported Kajabi responses, as counts only", async () => {
+    previewRemoval.mockResolvedValue({
+      preview: {
+        liveBooks: 0,
+        rows: [{ table: "quiz_attempts", column: "member_id", action: "delete", why: "an attempt can hold what the member wrote", count: 3 }],
+        extras: [
+          { item: "quiz_answers", action: "delete", count: 7, samples: [] },
+          { item: "quiz_answer_files", action: "delete", count: 2, samples: [] },
+          { item: "kajabi_quiz_responses", action: "delete", count: 5, samples: [] },
+          { item: "kajabi_quiz_response_files", action: "delete", count: 1, samples: [] },
+          { item: "kajabi_lesson_progress", action: "delete", count: 1101, samples: [] },
+          { item: "kajabi_product_progress", action: "delete", count: 2, samples: [] },
+          { item: "kajabi_lesson_comments", action: "delete", count: 4, samples: [] },
+          { item: "kajabi_comments_same_name", action: "keep", count: 6, samples: [] },
+          { item: "shared_emails", action: "keep", count: 1, samples: [] },
+          { item: "removal_fingerprints", action: "keep", count: 4, samples: [] },
+        ],
+      },
+    });
+    render(<RemoveMemberPanel member={member} />);
+    await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
+    await screen.findByText("quiz attempts");
+
+    const countOf = (label: string) => screen.getByText(label).closest("tr")!.querySelectorAll("td")[1].textContent;
+    expect(countOf("quiz attempts")).toBe("3");
+    expect(countOf("Quiz answers (written, and the choices picked)")).toBe("7");
+    expect(countOf("Files they uploaded as quiz answers")).toBe("2");
+    expect(countOf("Imported Kajabi quiz responses")).toBe("5");
+    expect(countOf("Files of imported Kajabi quiz responses")).toBe("1");
+    expect(countOf("Imported Kajabi lesson progress")).toBe("1101");
+    expect(countOf("Imported Kajabi course progress")).toBe("2");
+    expect(countOf("Imported Kajabi comments matched to them")).toBe("4");
+    // What is kept is said, with its reason, not hidden.
+    expect(screen.getByText("Kajabi comments under the same name, not matched").closest("tr")!.textContent).toContain("Kept");
+    await userEvent.click(screen.getByRole("button", { name: /Kajabi comments under the same name/ }));
+    expect(screen.getByText(/deleted only when the import matched it to this member/i)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /Removal fingerprints/ }));
+    expect(screen.getByText(/one-way fingerprint of each removed address and comment key is kept/i)).toBeTruthy();
+    // The removal button only appears together with the list, and never before it was loaded.
+    expect(screen.getByText("Remove this member")).toBeTruthy();
   });
 
   it("shows one summary table, catalog and extras alike, with counts only until a row is opened", async () => {

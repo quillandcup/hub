@@ -7360,6 +7360,24 @@ export type Database = {
         }
         Relationships: []
       }
+      removal_tombstones: {
+        Row: {
+          created_at: string
+          key_hash: string
+          kind: string
+        }
+        Insert: {
+          created_at?: string
+          key_hash: string
+          kind: string
+        }
+        Update: {
+          created_at?: string
+          key_hash?: string
+          kind?: string
+        }
+        Relationships: []
+      }
       restricted_slack_channels: {
         Row: {
           channel_id: string
@@ -9367,6 +9385,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      member_removal_emails: {
+        Args: { p_member_id: string; p_only_unshared?: boolean }
+        Returns: string[]
+      }
       member_removal_extras: {
         Args: { p_member_id: string }
         Returns: {
@@ -9619,6 +9641,7 @@ export type Database = {
         Returns: undefined
       }
       publish_landing_site_template: { Args: never; Returns: boolean }
+      purge_removed_member_bronze: { Args: never; Returns: Json }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -9631,6 +9654,7 @@ export type Database = {
         Args: { p_member_id: string }
         Returns: undefined
       }
+      removal_hash: { Args: { p_value: string }; Returns: string }
       remove_event_attendee: {
         Args: { p_event_id: string; p_member_id: string }
         Returns: undefined
