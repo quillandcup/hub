@@ -172,27 +172,54 @@ export interface MergedInactivePeriod {
   months: number; // calendar months, rounded once for the whole merged period
 }
 
-// The cancel/resubscribe gaps between a member's membership stints, dated.
-// Uses detectResubscriptions, the same definition computeMemberTenure and the
-// "Membership History" display use, so the three never disagree. Gaps that
-// end on or before `earliestStart` (the first-joined date, which a join-date
-// override can move later than the first stint) are dropped: they happened
-// before the member's Hedgie time began.
+// A stretch of non-Kajabi active coverage: a program-cohort enrollment
+// (starts_at to expires_at) or a gift / direct Stripe status override. Dates
+// are "YYYY-MM-DD" (or an ISO timestamp, cut to its date); end null means open.
+export interface ActiveWindow {
+  start: string;
+  end: string | null;
+}
+
+const OPEN_END = "9999-12-31";
+
+// The dated stretches between a member's active coverage with no coverage at
+// all: Kajabi membership stints (buildMembershipStints in
+// src/lib/kajabi/membership-history.ts, the same definition computeMemberTenure
+// and the "Membership History" display use) plus `otherCoverage` (program
+// enrollments and gift/direct Stripe overrides: the same notion of "active" as
+// buildMembershipTimeline in src/lib/membership-timeline.ts). Coverage is merged
+// first, so overlapping or touching windows leave no gap, and a gap is only
+// reported when later coverage follows it (no trailing gap). Hiatus is not
+// coverage here: it is read live and merged by mergeInactivePeriods.
+//
+// Gaps that end on or before `earliestStart` (the first-joined date, which a
+// join-date override can move later than the first stint) are dropped: they
+// happened before the member's Hedgie time began.
+//
+// Known edge versus the old stint-only pairing: an open-ended stint now covers
+// the dates of any later cancelled stint (the member was a member throughout),
+// where the old code could report a gap after the cancelled one.
 export function computeInactiveGaps(
   stints: MembershipPurchase[],
-  earliestStart?: string | null
+  earliestStart?: string | null,
+  otherCoverage: ActiveWindow[] = []
 ): InactivePeriod[] {
-  const gaps = detectResubscriptions(
-    stints.map((s, i) => ({
-      kajabi_purchase_id: String(i),
-      effective_start_at: null,
-      created_at_kajabi: s.created_at_kajabi,
-      deactivated_at: s.derived_end_at,
-    }))
-  ).map((e) => ({ start: toDateOnly(e.cancelledAt), end: toDateOnly(e.resubscribedAt) }));
-  return gaps
-    .filter((g) => g.end > g.start && (!earliestStart || g.end > earliestStart))
-    .sort((a, b) => a.start.localeCompare(b.start));
+  const windows = [
+    ...stints.map((s) => ({ start: toDateOnly(s.created_at_kajabi), end: s.derived_end_at ? toDateOnly(s.derived_end_at) : OPEN_END })),
+    ...otherCoverage.map((w) => ({ start: toDateOnly(w.start), end: w.end ? toDateOnly(w.end) : OPEN_END })),
+  ]
+    .filter((w) => w.end >= w.start)
+    .sort((x, y) => x.start.localeCompare(y.start) || x.end.localeCompare(y.end));
+
+  const gaps: { start: string; end: string }[] = [];
+  let coveredUntil: string | null = null;
+  for (const w of windows) {
+    if (coveredUntil !== null && w.start > coveredUntil) {
+      gaps.push({ start: coveredUntil, end: w.start });
+    }
+    if (coveredUntil === null || w.end > coveredUntil) coveredUntil = w.end;
+  }
+  return gaps.filter((g) => !earliestStart || g.end > earliestStart);
 }
 
 // Hiatus windows plus the stored gaps, as one list of periods. `gaps` null
