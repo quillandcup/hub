@@ -86,6 +86,30 @@ describe("buildMembershipTimeline", () => {
     expect(gap.reasonTags).toEqual([]);
   });
 
+  it("shows no 'not a member' row for the hours between a hiatus ending on a date and a stint starting that day", () => {
+    // The hiatus ends at local midnight (a DATE); the stint starts at a real time later that day
+    // (built from local fields so the test holds in any host zone).
+    const segments = buildMembershipTimeline(
+      [{ created_at_kajabi: new Date(2024, 0, 11, 6, 0).toISOString(), derived_end_at: new Date(2024, 1, 11, 6, 0).toISOString() }],
+      [{ id: "h1", start_date: "2022-09-25", end_date: "2024-01-11", reason: null, notes: null }],
+      [],
+      []
+    );
+
+    expect(segments.map((s) => s.state)).toEqual(["active", "hiatus"]);
+  });
+
+  it("still shows a gap of a day or more between a hiatus and the next stint", () => {
+    const segments = buildMembershipTimeline(
+      [{ created_at_kajabi: new Date(2024, 0, 13, 6, 0).toISOString(), derived_end_at: new Date(2024, 1, 11, 6, 0).toISOString() }],
+      [{ id: "h1", start_date: "2022-09-25", end_date: "2024-01-11", reason: null, notes: null }],
+      [],
+      []
+    );
+
+    expect(segments.map((s) => s.state)).toEqual(["active", "gap", "hiatus"]);
+  });
+
   it("lets a gift override alone (no real subscription) explain an active period", () => {
     const segments = buildMembershipTimeline(
       [],
