@@ -11,6 +11,8 @@ const STATUS_CLASS: Record<RowStatus, string> = {
   missed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   open: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  unpaid_behind: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  unpaid_earlier: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   charged_when_not_expected: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   unexpected: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   not_expected: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",

@@ -22,7 +22,7 @@ const row = (key: string, expectedDate: string | null, status: ScheduleRow["stat
   ...extra,
 });
 const schedule = (rows: ScheduleRow[]): PurchaseSchedule => ({ purchaseType: "membership", label: "Membership", memberId: "mbr_AAAAAAAAAAA1", start: "2026-01-09", end: null, rows, notes: [] });
-const tx = { invoiceId: "in_1", chargeIds: [], day: "2026-02-09", billedCents: 4700, keptCents: 4700, refundedCents: 0, invoiceStatus: "paid", failureCodes: [], attempts: 1 };
+const tx = { invoiceId: "in_1", chargeIds: [], day: "2026-02-09", billedCents: 4700, keptCents: 4700, refundedCents: 0, invoiceStatus: "paid", failureCodes: [], attempts: 1, subscriptionId: "sub_1", collectionMethod: "charge_automatically" };
 
 describe("BillingSchedule", () => {
   it("says so when there is nothing to line up", () => {

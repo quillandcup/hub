@@ -3,6 +3,8 @@ import { ROW_STATUSES, ROW_STATUS_LABELS, summarize, type ScheduleRow } from "@/
 import type { BillingOverview as Overview } from "@/lib/billing-reconciliation-loader";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
+const isBehind = (r: ScheduleRow) => r.status === "unpaid_behind";
+
 /** The ways to narrow the members who need a look. Hiatus ones first: they are the reason for this page. */
 export const PROBLEM_FILTERS = [
   { id: "all", label: "All", match: () => true },
@@ -13,7 +15,9 @@ export const PROBLEM_FILTERS = [
   { id: "hiatus_mismatch", label: "Hiatus and billing gap differ", match: (r: ScheduleRow) => r.status === "hiatus_mismatch" },
   { id: "billing_day", label: "Hiatus ended on the billing day, month skipped", match: (r: ScheduleRow) => r.cause === "hiatus_billing_day" },
   { id: "program", label: "Program and membership", match: (r: ScheduleRow) => r.cause === "program" },
-  { id: "payment", label: "Failed or open payment", match: (r: ScheduleRow) => r.status === "failed" || r.status === "open" },
+  { id: "behind", label: "Behind: nothing paid since an unpaid invoice", match: (r: ScheduleRow) => r.status === "unpaid_behind" },
+  { id: "paying_again", label: "Paying again, earlier months unpaid", match: (r: ScheduleRow) => r.status === "unpaid_earlier" },
+  { id: "payment", label: "Any unpaid invoice", match: (r: ScheduleRow) => r.status === "unpaid_behind" || r.status === "unpaid_earlier" },
   { id: "missed", label: "Missed", match: (r: ScheduleRow) => r.status === "missed" },
   { id: "unexpected", label: "Unexpected payment", match: (r: ScheduleRow) => r.status === "unexpected" },
   { id: "missing_payment", label: "Bought, no Stripe payment (events, programs, courses)", match: (r: ScheduleRow) => r.status === "missing_payment" },
@@ -34,7 +38,8 @@ export default function BillingOverview({ overview, filter = "all" }: { overview
     .map((p) => ({ ...p, rows: p.rows.filter(chosen.match) }))
     .filter((p) => p.rows.length > 0)
     .map((p) => ({ ...p, member: overview.members.get(p.schedule.memberId) }))
-    .sort((a, b) => b.rows.length - a.rows.length || (a.member?.name ?? "").localeCompare(b.member?.name ?? ""));
+    // Members who are behind come before those who are only paying again.
+    .sort((a, b) => Number(b.rows.some(isBehind)) - Number(a.rows.some(isBehind)) || b.rows.length - a.rows.length || (a.member?.name ?? "").localeCompare(b.member?.name ?? ""));
 
   if (overview.counts.invoices === 0) {
     return <p className="text-sm text-slate-600 dark:text-slate-400">No Stripe invoices are imported yet, so there is nothing to line up.</p>;

@@ -134,6 +134,14 @@ describe("helpers", () => {
     expect(toReconSubscription({ ...row, created_at_stripe: null })).toBeNull();
   });
 
+  it("carries the collection method from the raw subscription", () => {
+    const row = { stripe_subscription_id: "s", stripe_customer_id: "c", status: "active", created_at_stripe: "2026-01-01T00:00:00Z", canceled_at: null } as never as Parameters<typeof toReconSubscription>[0];
+    expect(toReconSubscription({ ...row, data: { collection_method: "send_invoice" } })).toMatchObject({ collectionMethod: "send_invoice" });
+    expect(toReconSubscription({ ...row, data: { collection_method: "charge_automatically" } })).toMatchObject({ collectionMethod: "charge_automatically" });
+    expect(toReconSubscription({ ...row, data: {} })).toMatchObject({ collectionMethod: null });
+    expect(toReconSubscription({ ...row, data: { collection_method: 3 } })).toMatchObject({ collectionMethod: null });
+  });
+
   it("counts months back from the first of the month", () => {
     expect(monthsAgoStart("2026-05-20", 24)).toBe("2024-05-01T00:00:00.000Z");
     expect(monthsAgoStart("2026-01-31", 1)).toBe("2025-12-01T00:00:00.000Z");

@@ -261,22 +261,20 @@ describe("refunds and failures", () => {
     expect(byDate(rows, "2026-03-09")?.reason).toBe("$47.00 paid on 2026-03-09 after 3 tries (earlier: card_declined).");
   });
 
-  it("separates open (unpaid, no declined charge) from failed (declined, or written off)", () => {
-    const open = rowsOf({ invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "open", amountPaidCents: 0 })] });
-    expect(byDate(open, "2026-03-09")).toMatchObject({ status: "open", needsAttention: true });
-    const declined = rowsOf({
-      invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "open", amountPaidCents: 0, attemptCount: 2 })],
-      charges: [charge("ch_a", "in_03", { status: "failed", failureCode: "insufficient_funds" })],
-    });
-    expect(byDate(declined, "2026-03-09")).toMatchObject({ status: "failed", needsAttention: true });
-    expect(byDate(declined, "2026-03-09")?.reason).toContain("insufficient_funds");
-    const lost = rowsOf({ invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "uncollectible", amountPaidCents: 0 })] });
-    expect(byDate(lost, "2026-03-09")?.status).toBe("failed");
+  it("words an unpaid invoice by what Stripe did: still unpaid, declined, or written off", () => {
+    const unpaid = (extra: Partial<ReconInvoice>, charges: ReconCharge[] = []) =>
+      byDate(rowsOf({ invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "open", amountPaidCents: 0, ...extra })], charges }), "2026-03-09");
+    // A payment came after it (April, May), so the member is paying again.
+    expect(unpaid({})).toMatchObject({ status: "unpaid_earlier", needsAttention: true });
+    expect(unpaid({})?.reason).toContain("$47.00 invoiced on 2026-03-09 is still unpaid after 1 try.");
+    const declined = unpaid({ attemptCount: 2 }, [charge("ch_a", "in_03", { status: "failed", failureCode: "insufficient_funds" })]);
+    expect(declined?.reason).toContain("the card was declined (insufficient_funds) after 2 tries.");
+    expect(unpaid({ status: "uncollectible" })?.reason).toContain("was written off as uncollectible after 1 try.");
   });
 
-  it("does not raise failed or open for a member who is not active", () => {
+  it("does not raise an unpaid row for a member who is not active", () => {
     const rows = rowsOf({ invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "open", amountPaidCents: 0 })] }, "cancelled");
-    expect(byDate(rows, "2026-03-09")).toMatchObject({ status: "open", needsAttention: false });
+    expect(byDate(rows, "2026-03-09")).toMatchObject({ status: "unpaid_earlier", needsAttention: false });
   });
 
   it("joins a charge to its invoice from either side", () => {
@@ -614,5 +612,105 @@ describe("a member's whole billing history", () => {
     const [schedule] = run({ ...input({ subscriptions: [] }), lookbackMonths: null });
     expect(schedule.start).toBe("2024-01-11");
     expect(schedule.rows.every((r) => r.status === "unexpected" || r.status === "hub_stripe_disagree")).toBe(true);
+  });
+});
+
+describe("unpaid invoices rolled into one row", () => {
+  const unpaid = (id: string, createdAt: string, extra: Partial<ReconInvoice> = {}) => invoice(id, createdAt, { status: "open", amountPaidCents: 0, attemptCount: 0, ...extra });
+  const sendSub = (collectionMethod?: string) => sub({ createdAt: "2026-01-02T15:00:00Z", billingAnchor: "2026-01-02T15:00:00Z", collectionMethod });
+  /** Ada's case: a subscription made 2026-01-02 that emails invoices (never charges), January and February paid, March to November open. */
+  const adaInvoices = () => [
+    invoice("in_01", "2026-01-02T15:00:00Z"),
+    invoice("in_02", "2026-02-02T15:00:00Z"),
+    ...["03", "04", "05", "06", "07", "08", "09", "10", "11"].map((m) => unpaid(`in_${m}`, `2026-${m}-02T15:00:00Z`)),
+  ];
+  const ada = (over: Partial<ReconInput> = {}, status = "active") =>
+    rowsOf({ today: "2026-11-25", subscriptions: [sendSub("send_invoice")], invoices: adaInvoices(), lookbackMonths: null, ...over }, status);
+  const unpaidRows = (rows: ScheduleRow[]) => rows.filter((r) => r.status === "unpaid_behind" || r.status === "unpaid_earlier");
+
+  it("rolls nine open invoices into one row with the total, the first month's key and every invoice listed", () => {
+    const rows = ada();
+    const [row, ...extra] = unpaidRows(rows);
+    expect(extra).toEqual([]);
+    expect(row).toMatchObject({ key: `${MEMBER}:membership:2026-03`, status: "unpaid_behind", needsAttention: true, expectedDate: "2026-03-02", expectedAmountCents: 9 * 4700 });
+    expect(row.transactions.map((t) => t.invoiceId)).toEqual(["03", "04", "05", "06", "07", "08", "09", "10", "11"].map((m) => `in_${m}`));
+    expect(row.reason).toContain("9 invoices unpaid since 2026-03-02, $423.00 total.");
+    expect(row.reason).toContain("Nothing has been paid since.");
+    expect(rows).toHaveLength(3);
+  });
+
+  it("never says tries for an invoice Stripe emails and never charges, and counts days from the Eastern day", () => {
+    const [row] = unpaidRows(ada());
+    expect(row.reason).toContain("Stripe emails each invoice and never charges a card; the oldest has been unpaid for 268 days.");
+    expect(row.reason).not.toMatch(/tr(y|ies)/);
+    const [single] = unpaidRows(ada({ invoices: [invoice("in_01", "2026-01-02T15:00:00Z"), unpaid("in_11", "2026-11-02T15:00:00Z")] }));
+    expect(single.reason).toBe("$47.00 invoice emailed on 2026-11-02, unpaid for 23 days (Stripe emails this invoice and never charges a card). Nothing has been paid since.");
+  });
+
+  it("keeps the tries wording for a subscription that charges the card, or one whose method is unknown", () => {
+    const [row] = unpaidRows(ada({ subscriptions: [sendSub("charge_automatically")] }));
+    expect(row.reason).toContain("9 invoices unpaid since 2026-03-02, $423.00 total; the latest had 0 tries.");
+    expect(row.transactions.every((t) => t.collectionMethod === "charge_automatically")).toBe(true);
+    expect(unpaidRows(ada({ subscriptions: [sendSub()] }))[0].reason).toContain("0 tries");
+  });
+
+  it("counts unpaid days from the Eastern day, across midnight and the days the clocks change", () => {
+    const reason = (createdAt: string, today: string) =>
+      unpaidRows(rowsOf({ today, subscriptions: [sub({ createdAt, billingAnchor: createdAt, collectionMethod: "send_invoice" })], invoices: [unpaid("in_x", createdAt)], lookbackMonths: null }))[0].reason;
+    // 03:30 UTC on March 9 is 23:30 on March 8 in Eastern time; 04:30 UTC is 00:30 on March 9.
+    expect(reason("2026-03-09T03:30:00Z", "2026-03-12")).toContain("invoice emailed on 2026-03-08, unpaid for 4 days");
+    expect(reason("2026-03-09T04:30:00Z", "2026-03-12")).toContain("invoice emailed on 2026-03-09, unpaid for 3 days");
+    // Spring forward (March 8) and fall back (November 1) days are 23 and 25 hours long, but still one day.
+    expect(reason("2026-03-07T15:00:00Z", "2026-03-09")).toContain("unpaid for 2 days");
+    expect(reason("2026-10-31T15:00:00Z", "2026-11-02")).toContain("unpaid for 2 days");
+    expect(reason("2026-03-08T15:00:00Z", "2026-03-09")).toContain("unpaid for 1 day (");
+  });
+
+  it("splits behind (nothing paid since) from paying again (a later invoice was paid)", () => {
+    expect(unpaidRows(ada()).map((r) => r.status)).toEqual(["unpaid_behind"]);
+    const again = unpaidRows(ada({ invoices: [invoice("in_01", "2026-01-02T15:00:00Z"), unpaid("in_02", "2026-02-02T15:00:00Z"), unpaid("in_03", "2026-03-02T15:00:00Z"), invoice("in_04", "2026-04-02T15:00:00Z")] }));
+    expect(again).toHaveLength(1);
+    expect(again[0]).toMatchObject({ status: "unpaid_earlier", needsAttention: true, expectedDate: "2026-02-02" });
+    expect(again[0].reason).toContain("The member is paying again (an invoice was paid on 2026-04-02), but these were not collected.");
+  });
+
+  it("ends a run at a payment: unpaid, paid, unpaid is two rows with their own status", () => {
+    const rows = unpaidRows(
+      ada({ invoices: [invoice("in_01", "2026-01-02T15:00:00Z"), unpaid("in_02", "2026-02-02T15:00:00Z"), invoice("in_03", "2026-03-02T15:00:00Z"), unpaid("in_04", "2026-04-02T15:00:00Z"), unpaid("in_05", "2026-05-02T15:00:00Z")] })
+    );
+    expect(rows.map((r) => [r.status, r.transactions.length])).toEqual([["unpaid_earlier", 1], ["unpaid_behind", 2]]);
+    expect(rows.map((r) => r.key)).toEqual([`${MEMBER}:membership:2026-02`, `${MEMBER}:membership:2026-04`]);
+  });
+
+  it("rolls an uncollectible invoice followed by open ones into one row", () => {
+    const rows = unpaidRows(ada({ invoices: [invoice("in_01", "2026-01-02T15:00:00Z"), unpaid("in_02", "2026-02-02T15:00:00Z", { status: "uncollectible" }), unpaid("in_03", "2026-03-02T15:00:00Z")] }));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason).toContain("2 invoices unpaid since 2026-02-02, $94.00 total (1 written off as uncollectible).");
+  });
+
+  it("does not raise a cancelled member's unpaid invoices, but still rolls them up", () => {
+    const rows = ada({}, "cancelled");
+    expect(unpaidRows(rows)).toHaveLength(1);
+    expect(unpaidRows(rows)[0].needsAttention).toBe(false);
+  });
+
+  it("keeps a stable key when a month has several rows: the rolled row first, then a counter", () => {
+    const rows = ada({ invoices: [invoice("in_01", "2026-01-02T15:00:00Z"), unpaid("in_03", "2026-03-02T15:00:00Z"), invoice("in_odd", "2026-03-20T15:00:00Z")] });
+    expect(rows.filter((r) => r.month === "2026-03").map((r) => [r.key, r.status])).toEqual([
+      [`${MEMBER}:membership:2026-03`, "unpaid_earlier"],
+      [`${MEMBER}:membership:2026-03:2`, "unexpected"],
+    ]);
+  });
+
+  it("counts both unpaid statuses in the summary", () => {
+    const schedules = run({
+      today: "2026-11-25",
+      subscriptions: [sendSub()],
+      invoices: [invoice("in_1", "2026-01-02T15:00:00Z"), unpaid("in_2", "2026-02-02T15:00:00Z"), invoice("in_3", "2026-03-02T15:00:00Z"), unpaid("in_4", "2026-04-02T15:00:00Z")],
+      lookbackMonths: null,
+    });
+    const summary = summarize(schedules);
+    expect(summary.byStatus).toMatchObject({ unpaid_earlier: 1, unpaid_behind: 1 });
+    expect(summary.membersWithProblems).toBe(1);
   });
 });
