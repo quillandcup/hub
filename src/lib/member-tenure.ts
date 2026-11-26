@@ -133,6 +133,62 @@ export function computeMemberTenure(
   };
 }
 
+// A member's total active months: the time covered by at least one of their
+// Kajabi membership stints, the extra coverage (program-cohort enrollments and
+// gift / direct Stripe overrides, the same windows computeInactiveGaps reads),
+// and, when there is a join-date override, everything from the override to
+// `asOf` ("continuously active since the real join date"). The coverage is
+// merged first, so time two sources cover counts once (a duplicate
+// subscription, a plan change that overlaps for a day, a program inside a
+// membership), and time none covers (the gap between a 2023 membership and a
+// 2026 program) is not counted. Hiatus windows are merged too and taken away
+// once, however many overlap. Result in whole months of 30 days, the same
+// convention as computeMemberTenure. Date-only strings are UTC midnight; an
+// open end, or an end after `asOf`, is cut to `asOf`; a start at or after
+// `asOf` contributes nothing.
+export function computeTotalActiveMonths(
+  stints: MembershipPurchase[],
+  otherCoverage: ActiveWindow[],
+  hiatusWindows: HiatusWindow[],
+  joinDateOverride: string | null,
+  asOf: Date
+): number {
+  const asOfMs = asOf.getTime();
+  const clip = (start: string, end: string | null): [number, number] | null => {
+    const startMs = new Date(start).getTime();
+    const endMs = Math.min(end ? new Date(end).getTime() : asOfMs, asOfMs);
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return null;
+    return [startMs, endMs];
+  };
+  const merge = (intervals: ([number, number] | null)[]): [number, number][] => {
+    const sorted = intervals.filter((i): i is [number, number] => i !== null).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const merged: [number, number][] = [];
+    for (const [start, end] of sorted) {
+      const last = merged[merged.length - 1];
+      if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+      else merged.push([start, end]);
+    }
+    return merged;
+  };
+
+  const coverage = merge([
+    ...stints.map((s) => clip(s.created_at_kajabi, s.derived_end_at)),
+    ...otherCoverage.map((w) => clip(w.start, w.end)),
+    ...(joinDateOverride ? [clip(joinDateOverride, null)] : []),
+  ]);
+  const hiatus = merge(hiatusWindows.map((w) => clip(w.startsAt, w.endsAt)));
+
+  let activeMs = 0;
+  for (const [start, end] of coverage) {
+    activeMs += end - start;
+    for (const [hStart, hEnd] of hiatus) {
+      const overlap = Math.min(end, hEnd) - Math.max(start, hStart);
+      if (overlap > 0) activeMs -= overlap;
+    }
+  }
+  return Math.max(0, Math.floor(activeMs / (30 * MS_PER_DAY)));
+}
+
 // Total hiatus time across all windows, in whole calendar months (overlapping
 // windows merged first, each merged period rounded once; see
 // calendarMonthsBetween). Display only: the milestone dates use the same
