@@ -43,7 +43,7 @@ const confirmedRow = (overrides: Partial<StaffMilestone> = {}) => row({ status: 
 
 const renderPage = (props: Partial<React.ComponentProps<typeof FinishersClient>> = {}) =>
   render(
-    <FinishersClient counts={{ proposed: 3, confirmed: 1, declined: 0 }} rows={[row()]} hasNext={false} page={1} status={null} members={members} {...props} />,
+    <FinishersClient counts={{ proposed: 3, confirmed: 1, declined: 0 }} rows={[row()]} status={null} members={members} {...props} />,
   );
 
 beforeEach(() => {
@@ -151,11 +151,31 @@ describe("FinishersClient", () => {
     expect(await screen.findByText("Taken back.")).toBeInTheDocument();
   });
 
-  it("pages the list and filters by status", () => {
-    renderPage({ page: 2, hasNext: true, status: "proposed" });
-    expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/admin/finishers?status=proposed");
-    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/admin/finishers?status=proposed&page=3");
+  it("filters by status and offers Show all", () => {
+    renderPage({ status: "proposed" });
     expect(screen.getByRole("link", { name: "Show all" })).toHaveAttribute("href", "/admin/finishers");
+  });
+
+  it("sorts by a column header and searches the rows", async () => {
+    const user = userEvent.setup();
+    renderPage({
+      rows: [
+        row({ id: "mlst_2", name: "Zed Example", displayName: null, workTitle: "Zebra Tale" }),
+        row({ id: "mlst_3", name: "Abe Example", displayName: null, workTitle: "Aardvark Tale" }),
+      ],
+    });
+    const names = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[0].textContent);
+    await user.click(screen.getByRole("button", { name: /Member/ }));
+    expect(names()).toEqual(["Abe Example", "Zed Example"]);
+    await user.type(screen.getByRole("searchbox", { name: "Search milestones" }), "zebra");
+    expect(names()).toEqual(["Zed Example"]);
+  });
+
+  it("pages a long list with the shared pager", () => {
+    const many = Array.from({ length: 60 }, (_, i) => row({ id: `mlst_${i}`, createdAt: `2026-11-${String((i % 28) + 1).padStart(2, "0")}T12:00:00Z` }));
+    renderPage({ rows: many });
+    expect(screen.getAllByRole("row").length).toBeLessThan(61);
+    expect(screen.getByText(/of 60 milestones/)).toBeInTheDocument();
   });
 
   describe("photos and the share consent", () => {
@@ -188,15 +208,13 @@ describe("FinishersClient", () => {
     expect(screen.getAllByTestId("finisher-story").map((c) => c.textContent)).toEqual(["Has a story", "-"]);
   });
 
-  it("offers the 'story or photo, not opted in' list, keeps it through paging, and leaves it with Show all", () => {
+  it("offers the 'story or photo, not opted in' list, and leaves it with Show all", () => {
     const { unmount } = renderPage();
     expect(screen.getByRole("link", { name: NOT_OPTED_IN_LABEL })).toHaveAttribute("href", "/admin/finishers?filter=not-opted-in");
     unmount();
-    renderPage({ notOptedIn: true, page: 2, hasNext: true, rows: [confirmedRow({ hasStory: true })] });
+    renderPage({ notOptedIn: true, rows: [confirmedRow({ hasStory: true })] });
     expect(screen.getByRole("heading", { name: NOT_OPTED_IN_LABEL })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: NOT_OPTED_IN_LABEL })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/admin/finishers?filter=not-opted-in");
-    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/admin/finishers?filter=not-opted-in&page=3");
     expect(screen.getByRole("link", { name: "Show all" })).toHaveAttribute("href", "/admin/finishers");
   });
 

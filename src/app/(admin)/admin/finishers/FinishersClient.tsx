@@ -3,6 +3,11 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { DataTablePager } from "@/components/DataTablePager";
+import { DataTableSearch } from "@/components/DataTableSearch";
+import { SortableTh } from "@/components/SortableTh";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
+import { useDataTable } from "@/lib/hooks/useDataTable";
 import MemberSearch from "@/components/MemberSearch";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -17,21 +22,18 @@ const STATUS_LABELS: Record<MilestoneStatus, string> = { proposed: "Proposed", c
 const FIELD = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800";
 const NOT_LISTED = "__title__";
 type MemberWork = { projectId: string | null; bookId: string | null; title: string };
+type Column = "member" | "work" | "milestone" | "status" | "started" | "consent" | "story" | "created";
 const BUTTON = "rounded-md bg-plum-600 px-4 py-2 text-sm text-white hover:bg-plum-700 disabled:opacity-50";
 
 export default function FinishersClient({
   counts,
   rows,
-  hasNext,
-  page,
   status,
   notOptedIn = false,
   members,
 }: {
   counts: MilestoneCounts;
   rows: StaffMilestone[];
-  hasNext: boolean;
-  page: number;
   status: MilestoneStatus | null;
   /** The "story or photo, not opted in" list (it replaces the status filter). */
   notOptedIn?: boolean;
@@ -46,6 +48,25 @@ export default function FinishersClient({
   const [works, setWorks] = useState<MemberWork[]>([]);
   const [workIndex, setWorkIndex] = useState<string>(NOT_LISTED);
   const [title, setTitle] = useState("");
+
+  const table = useDataTable<StaffMilestone, Column>({
+    rows,
+    resetKey: `${status ?? ""}|${notOptedIn}`,
+    search: (row) => [getMemberDisplayName({ name: row.name, display_name: row.displayName }), row.name, row.workTitle ?? "", MILESTONE_LABELS[row.kind], STATUS_LABELS[row.status]].join(" "),
+    defaultSort: { column: "created", direction: "desc" },
+    getSortValue: (row, column) => {
+      switch (column) {
+        case "member": return getMemberDisplayName({ name: row.name, display_name: row.displayName }).toLowerCase();
+        case "work": return (row.workTitle ?? "").toLowerCase();
+        case "milestone": return MILESTONE_LABELS[row.kind];
+        case "status": return STATUS_LABELS[row.status];
+        case "started": return MILESTONE_SOURCE_NOTES[row.source];
+        case "consent": return row.status === "confirmed" ? (row.consentTestimonial ? 1 : 0) : -1;
+        case "story": return row.hasStory ? 1 : 0;
+        case "created": return row.createdAt;
+      }
+    },
+  });
 
   const pickMember = async (id: string | null) => {
     setMemberId(id);
@@ -110,11 +131,10 @@ export default function FinishersClient({
     });
   };
 
-  const link = (nextStatus: MilestoneStatus | null, nextPage = 1, nextNotOptedIn = false) => {
+  const link = (nextStatus: MilestoneStatus | null, nextNotOptedIn = false) => {
     const query = new URLSearchParams();
     if (nextNotOptedIn) query.set("filter", NOT_OPTED_IN_FILTER);
     else if (nextStatus) query.set("status", nextStatus);
-    if (nextPage > 1) query.set("page", String(nextPage));
     const text = query.toString();
     return `/admin/finishers${text ? `?${text}` : ""}`;
   };
@@ -212,7 +232,7 @@ export default function FinishersClient({
           <h2 className="text-lg font-medium">{notOptedIn ? NOT_OPTED_IN_LABEL : status ? STATUS_LABELS[status] : "All milestones"}</h2>
           <div className="flex gap-4 text-sm">
             {!notOptedIn && (
-              <Link href={link(null, 1, true)} className="underline" data-track="finishers-not-opted-in">
+              <Link href={link(null, true)} className="underline" data-track="finishers-not-opted-in">
                 {NOT_OPTED_IN_LABEL}
               </Link>
             )}
@@ -229,26 +249,28 @@ export default function FinishersClient({
             word. Staff see that a story exists, never its words, and only a member&rsquo;s own yes shows their photo.
           </p>
         )}
+        <DataTableSearch table={table} label="Search milestones" />
         {rows.length === 0 ? (
           <p className="text-sm text-slate-600 dark:text-slate-400">{notOptedIn ? "No one is waiting for a word right now." : "Nothing here yet."}</p>
         ) : (
+          <TableKeyboardNav table={table} label="Milestones">
           <div className="overflow-x-auto">
-          <table className="w-full max-w-4xl text-sm">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left dark:border-slate-700">
-                <th className="py-2 pr-4">Member</th>
-                <th className="py-2 pr-4">Work</th>
-                <th className="py-2 pr-4">Milestone</th>
-                <th className="py-2 pr-4">Status</th>
-                <th className="py-2 pr-4">Started by</th>
-                <th className="py-2 pr-4">Celebrate publicly</th>
-                <th className="py-2 pr-4">Story</th>
+                <SortableTh label="Member" {...table.sortProps("member")} />
+                <SortableTh label="Work" {...table.sortProps("work")} />
+                <SortableTh label="Milestone" {...table.sortProps("milestone")} />
+                <SortableTh label="Status" {...table.sortProps("status")} />
+                <SortableTh label="Started by" {...table.sortProps("started")} />
+                <SortableTh label="Celebrate publicly" {...table.sortProps("consent")} />
+                <SortableTh label="Story" {...table.sortProps("story")} />
                 <th className="py-2 pr-4">Photo</th>
                 <th className="py-2" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {table.rows.map((row) => (
                 <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-4">{getMemberDisplayName({ name: row.name, display_name: row.displayName })}</td>
                   <td className="py-2 pr-4">{row.workTitle ?? "(no work)"}</td>
@@ -280,11 +302,9 @@ export default function FinishersClient({
             </tbody>
           </table>
           </div>
+          <DataTablePager table={table} itemLabel="milestones" />
+          </TableKeyboardNav>
         )}
-        <nav className="flex gap-4 text-sm" aria-label="Pages">
-          {page > 1 && <Link href={link(status, page - 1, notOptedIn)}>Previous</Link>}
-          {hasNext && <Link href={link(status, page + 1, notOptedIn)}>Next</Link>}
-        </nav>
       </section>
       {dialog}
     </div>
