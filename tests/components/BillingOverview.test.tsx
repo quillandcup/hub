@@ -71,7 +71,7 @@ const overview = (schedules: PurchaseSchedule[], extra: Partial<Overview> = {}):
     [CY, { id: CY, name: "Cy Example", displayName: null, status: "on_hiatus" }],
   ]),
   today: "2026-06-01",
-  counts: { linkedMembers: 3, invoices: 9, charges: 0, subscriptions: 3, purchases: 1 },
+  counts: { linkedMembers: 3, invoices: 9, charges: 0, subscriptions: 3, purchases: 1, unrecognisedKajabiCharges: 0 },
   ...extra,
 });
 
@@ -254,8 +254,20 @@ describe("BillingOverview filters", () => {
   });
 
   it("says so when no invoices are imported", () => {
-    render(<BillingOverview overview={overview([], { counts: { linkedMembers: 0, invoices: 0, charges: 0, subscriptions: 0, purchases: 0 } })} />);
+    render(<BillingOverview overview={overview([], { counts: { linkedMembers: 0, invoices: 0, charges: 0, subscriptions: 0, purchases: 0, unrecognisedKajabiCharges: 0 } })} />);
     expect(screen.getByText(/No Stripe invoices are imported yet/)).toBeInTheDocument();
+  });
+
+  it("warns when charges carry Kajabi metadata in a shape the page does not recognise, and is quiet otherwise", () => {
+    const counts = { linkedMembers: 3, invoices: 9, charges: 0, subscriptions: 3, purchases: 1 };
+    const { unmount } = render(<BillingOverview overview={overview(schedules(), { counts: { ...counts, unrecognisedKajabiCharges: 2 } })} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/2 Stripe charges have Kajabi metadata in a shape this page does not recognise/);
+    unmount();
+    render(<BillingOverview overview={overview(schedules(), { counts: { ...counts, unrecognisedKajabiCharges: 1 } })} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/1 Stripe charge has Kajabi metadata/);
+    cleanup();
+    render(<BillingOverview overview={overview(schedules())} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("counts event, program and course purchases in the summary line", () => {

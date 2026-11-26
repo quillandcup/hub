@@ -46,6 +46,12 @@ export default function BillingOverview({ overview, filter, hub }: { overview: O
         {overview.counts.linkedMembers} members with a Stripe customer, {overview.counts.invoices} invoices and {overview.counts.purchases} event, program and course purchases, as of {overview.today}.
       </p>
 
+      {overview.counts.unrecognisedKajabiCharges > 0 && (
+        <p role="status" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          {plural(overview.counts.unrecognisedKajabiCharges, "Stripe charge has", "Stripe charges have")} Kajabi metadata in a shape this page does not recognise, so their purchases may show as missing a payment.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav aria-label="Filter" className="flex flex-wrap gap-2 text-sm">
           {chips.map((c) => (

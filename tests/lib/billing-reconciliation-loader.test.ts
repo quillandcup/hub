@@ -52,7 +52,7 @@ describe("loadBillingOverview", () => {
   it("builds each linked member's schedule from the repositories, naming only the members involved", async () => {
     const overview = await loadBillingOverview(createInMemoryRepos(dataset()));
     expect(overview.today).toBe("2026-05-20");
-    expect(overview.counts).toEqual({ linkedMembers: 2, invoices: 5, charges: 0, subscriptions: 2, purchases: 0 });
+    expect(overview.counts).toEqual({ linkedMembers: 2, invoices: 5, charges: 0, subscriptions: 2, purchases: 0, unrecognisedKajabiCharges: 0 });
     const ada = overview.schedules.find((s) => s.memberId === ADA)!;
     expect(ada.rows.map((r) => [r.expectedDate, r.status])).toEqual([
       ["2026-03-09", "paid"],
@@ -187,6 +187,32 @@ describe("event purchases", () => {
     const bea = overview.schedules.find((s) => s.memberId === BEA && s.purchaseType === "event")!;
     expect(bea.rows.map((r) => r.status).sort()).toEqual(["paid", "unexplained_payment"]);
     expect(overview.members.get(BEA)).toMatchObject({ name: "Bea Example" });
+  });
+
+  it("matches a purchase to a charge that carries only Kajabi's newer metadata (platform_product_ID), and still matches the older shape", async () => {
+    const data = purchaseDataset();
+    const rows = data.stripeCharges as unknown as Array<{ stripe_charge_id: string; data: unknown }>;
+    const newShape = { metadata: { platform_product_ID: "o_ticket", platform_order_ID: "ord_1", platform_product_name: "Spring Retreat", kjb_order_checkout_id: "co_1" } };
+    rows.find((c) => c.stripe_charge_id === "ch_ada")!.data = newShape;
+    const overview = await loadBillingOverview(createInMemoryRepos(data));
+    const ada = overview.schedules.find((s) => s.memberId === ADA && s.purchaseType === "event")!;
+    expect(ada.rows.map((r) => r.status)).toEqual(["paid"]);
+    expect(ada.rows.some((r) => r.status === "missing_payment")).toBe(false);
+    // Bea's charge (old shape, an unknown customer) is still found.
+    const bea = overview.schedules.find((s) => s.memberId === BEA && s.purchaseType === "event")!;
+    expect(bea.rows.map((r) => r.status)).toContain("paid");
+    expect(overview.counts.unrecognisedKajabiCharges).toBe(0);
+  });
+
+  it("counts charges with Kajabi metadata but no offer id, so a new shape cannot go quiet", async () => {
+    const data = purchaseDataset();
+    const rows = data.stripeCharges as unknown as Array<{ stripe_charge_id: string; data: unknown }>;
+    rows.find((c) => c.stripe_charge_id === "ch_ada")!.data = { metadata: { platform_product_name: "Spring Retreat", platform_order_ID: "ord_1" } };
+    const overview = await loadBillingOverview(createInMemoryRepos(data));
+    expect(overview.counts.unrecognisedKajabiCharges).toBe(1);
+    const ada = overview.schedules.find((s) => s.memberId === ADA && s.purchaseType === "event")!;
+    // The purchase cannot find that charge: this is the symptom the count warns about.
+    expect(ada.rows.map((r) => r.status)).toEqual(["missing_payment"]);
   });
 
   it("gives one member's view the same purchases, and only theirs", async () => {

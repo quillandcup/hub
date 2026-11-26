@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { KAJABI_OFFER_ID_METADATA_KEYS, kajabiOfferIdOf } from "@/lib/kajabi-charge-metadata";
 import { escapeLike, inChunks as inChunksOf, sortByKey, upsertInChunks } from "./query";
 import type { Database, Json } from "./database.types";
 import type { Db } from "./db";
@@ -156,7 +157,7 @@ export interface BillingRepository {
   stripeInvoicesByCustomers(filter?: StripeBillingFilter): Promise<Map<string, StripeInvoiceRow[]>>;
   /** Charges, oldest created first (then by id), narrowed by the filter. Pages past 1000 rows. */
   stripeCharges(filter?: StripeBillingFilter): Promise<StripeChargeRow[]>;
-  /** Charges Kajabi made for these offers (the offer id is in the charge's metadata, `kjb_offer_id`), whoever the Stripe customer is, oldest first. Chunked and paged. */
+  /** Charges Kajabi made for these offers, whoever the Stripe customer is, oldest first. The offer id is in the charge's metadata as `kjb_offer_id` or, in Kajabi's newer shape, `platform_product_ID` (`src/lib/kajabi-charge-metadata.ts`). Chunked and paged. */
   stripeChargesForKajabiOffers(offerIds: string[]): Promise<StripeChargeRow[]>;
   /** When the newest stored invoice (charge) was created at Stripe, or null when there is none: where an incremental import starts. */
   newestStripeInvoiceCreatedAt(): Promise<string | null>;
@@ -508,10 +509,14 @@ export class SupabaseBillingRepository implements BillingRepository {
   }
 
   async stripeChargesForKajabiOffers(offerIds: string[]) {
-    const rows = await inChunks(offerIds, (part) =>
-      fetchAllRows<StripeChargeRow>((from, to) => this.charges.select("*").in("data->metadata->>kjb_offer_id", part).order("stripe_charge_id").range(from, to))
-    );
-    return byCreatedThenId(rows, (r) => r.stripe_charge_id);
+    const rows = await inChunks(offerIds, (part) => {
+      // PostgREST `or`: either metadata key holds one of the ids (values quoted so a comma or parenthesis cannot split the list).
+      const list = part.map((id) => `"${id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",");
+      const either = KAJABI_OFFER_ID_METADATA_KEYS.map((key) => `data->metadata->>${key}.in.(${list})`).join(",");
+      return fetchAllRows<StripeChargeRow>((from, to) => this.charges.select("*").or(either).order("stripe_charge_id").range(from, to));
+    });
+    // A charge can come back from two chunks only if its two keys name offers in different chunks; keep each once.
+    return byCreatedThenId([...new Map(rows.map((r) => [r.stripe_charge_id, r])).values()], (r) => r.stripe_charge_id);
   }
 
   async stripeInvoiceIdsWithStatus(statuses: string[]) {
@@ -1020,8 +1025,8 @@ export class InMemoryBillingRepository implements BillingRepository {
     const wanted = new Set(offerIds);
     return byCreatedThenId(
       this.chargeRows().filter((r) => {
-        const meta = (r.data as { metadata?: { kjb_offer_id?: unknown } } | null)?.metadata;
-        return typeof meta?.kjb_offer_id === "string" && wanted.has(meta.kjb_offer_id);
+        const offerId = kajabiOfferIdOf(r.data);
+        return offerId !== null && wanted.has(offerId);
       }),
       (r) => r.stripe_charge_id
     );

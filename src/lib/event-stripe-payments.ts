@@ -1,5 +1,6 @@
 import type { Repos } from "@/lib/data/repos";
 import type { StripeChargeRow, StripeInvoiceRow } from "@/lib/data/billing";
+import { kajabiOfferIdOf } from "@/lib/kajabi-charge-metadata";
 import { purchaseInWindow, type EventOfferLink } from "@/lib/event-offer-window";
 
 /** What one member paid Stripe for an event's linked offers, in cents. */
@@ -23,7 +24,7 @@ export const offerNameKey = (name: string) => name.normalize("NFKD").replace(/[Ì
  *   of the buyer's Stripe customer whose description equals the offer's name (ignoring case,
  *   punctuation and spacing) is a payment for it. The charge's own date must fall in the link's window.
  * - A payment plan: Stripe keeps it as a subscription whose metadata carries the Kajabi offer id
- *   (`kjb_offer_id`) and whose plan nickname is the offer's name. Every invoice of that subscription
+ *   (`kjb_offer_id`, or `platform_product_ID` in Kajabi's newer shape) and whose plan nickname is the offer's name. Every invoice of that subscription
  *   is a payment for it, and the subscription's creation date must fall in the link's window (the
  *   instalments run past the window's end). The invoice's charge says what was refunded.
  * - A payment is counted once: an invoice's charge appears in both tables, and several linked offers
@@ -64,8 +65,8 @@ export async function stripePaymentsForEvent(
   // Payment plans: the subscriptions bought on a linked offer, inside its window.
   const planSubscriptions = new Set<string>();
   for (const s of subscriptions) {
-    const data = (s.data ?? {}) as { metadata?: { kjb_offer_id?: unknown }; plan?: { nickname?: unknown } };
-    const offerId = typeof data.metadata?.kjb_offer_id === "string" ? data.metadata.kjb_offer_id : null;
+    const data = (s.data ?? {}) as { plan?: { nickname?: unknown } };
+    const offerId = kajabiOfferIdOf(data);
     const nickname = typeof data.plan?.nickname === "string" ? data.plan.nickname : null;
     const candidates = (offerId ? linksByOfferId.get(offerId) : undefined) ?? (nickname ? linksByNameKey.get(offerNameKey(nickname)) : undefined);
     if (candidates && inAnyWindow(candidates, s.created_at_stripe ?? "")) planSubscriptions.add(s.stripe_subscription_id);
