@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
@@ -43,7 +44,7 @@ describe("billing reconciliation page", () => {
     expect(screen.getByText(/No Stripe invoices are imported yet/)).toBeInTheDocument();
   });
 
-  it("lists the members with a row that needs a look, by display name, linking to their Transactions tab", async () => {
+  it("lists a row per issue, by name, linking to the member's Transactions tab", async () => {
     repos = createInMemoryRepos(
       new InMemoryDataset({
         members: [
@@ -61,10 +62,17 @@ describe("billing reconciliation page", () => {
       } as never)
     );
     await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
-    expect(screen.getByRole("link", { name: "Bea Example" })).toHaveAttribute("href", `/admin/members/${BEA}/transactions`);
+    // Bea missed April and May: two issues, one row each, for the one member.
+    const links = screen.getAllByRole("link", { name: "Bea Example" });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", `/admin/members/${BEA}/transactions`);
     expect(screen.queryByRole("link", { name: "Ada E." })).not.toBeInTheDocument();
+    // The sentence is behind the row's disclosure button.
+    expect(screen.queryByText(/Billing was due on 2026-04-09/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: /Show details for Bea Example: Missed/ })[0]);
     expect(screen.getByText(/Billing was due on 2026-04-09/)).toBeInTheDocument();
-    expect(screen.getByText(/Members who need a look: All/).parentElement).toHaveTextContent("1");
+    expect(screen.getByRole("heading", { name: "Needs a look: All" })).toBeInTheDocument();
+    expect(screen.getByTestId("issue-totals")).toHaveTextContent("2 issues for 1 member, $94.00 at stake");
   });
 
   it("congratulates when every billing day lines up", async () => {
@@ -105,22 +113,29 @@ describe("billing reconciliation page", () => {
       );
     });
 
-    it("shows one row per member, the two kinds as their own chips with counts, and the invoice-sent wording", async () => {
+    it("shows one row per unpaid run, the two kinds counted as rows, and the invoice-sent wording", async () => {
       await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
-      expect(screen.getByRole("link", { name: "Behind: nothing paid since an unpaid invoice (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=behind");
-      expect(screen.getByRole("link", { name: "Paying again, earlier months unpaid (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=paying_again");
-      expect(screen.getByRole("link", { name: "Any unpaid invoice (2)" })).toBeInTheDocument();
+      const filter = within(screen.getByRole("navigation", { name: "Filter" }));
+      expect(filter.getByRole("link", { name: "Collect money (2)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=collect");
+      expect(filter.getByRole("link", { name: "All (2)" })).toHaveAttribute("aria-current", "page");
+      // Ada is behind on two emailed invoices ($94.00 since April); Bea pays again but March was never collected ($47.00).
+      const rows = screen.getAllByRole("row").slice(1);
+      expect(rows).toHaveLength(2);
+      expect(within(rows[0]).getByRole("link", { name: "Ada Example" })).toHaveAttribute("href", `/admin/members/${ADA}/transactions`);
+      expect(within(rows[0]).getByText("Unpaid, behind")).toBeInTheDocument();
+      expect(within(rows[0]).getByText("$94.00")).toBeInTheDocument();
+      expect(within(rows[1]).getByText("Unpaid earlier, paying again")).toBeInTheDocument();
+      await userEvent.click(within(rows[0]).getByRole("button", { name: /Show details/ }));
       expect(screen.getByText(/2 invoices unpaid since 2026-04-09, \$94.00 total/)).toBeInTheDocument();
       expect(screen.getByText(/never charges a card/)).toBeInTheDocument();
-      // The member who is behind is listed first.
-      const links = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.includes("/transactions"));
-      expect(links.map((l) => l.textContent)).toEqual(["Ada Example", "Bea Example"]);
+      expect(screen.getByRole("link", { name: "in_a2" })).toHaveAttribute("href", "https://dashboard.stripe.com/invoices/in_a2");
     });
 
-    it("narrows to each kind", async () => {
+    it("narrows to each kind with the old filter ids", async () => {
       await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "paying_again" }) });
       expect(screen.getByRole("link", { name: "Bea Example" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Ada Example" })).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /Show details/ }));
       expect(screen.getByText(/The member is paying again/)).toBeInTheDocument();
       cleanup();
       await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "behind" }) });
@@ -150,21 +165,28 @@ describe("billing reconciliation page", () => {
       );
     });
 
-    it("narrows to members charged during a hiatus, with the counts on every filter", async () => {
+    it("narrows to the charged-during-a-hiatus rows, with the counts on every chip", async () => {
       await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "charged_hiatus" }) });
       expect(screen.getByRole("link", { name: "Ada Example" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Bea Example" })).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Charged during a hiatus (1)" })).toHaveAttribute("aria-current", "page");
-      expect(screen.getByRole("link", { name: "Missed (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=missed");
-      expect(screen.getByRole("link", { name: "All (2)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation");
+      const filter = within(screen.getByRole("navigation", { name: "Filter" }));
+      expect(filter.getByRole("link", { name: "Hiatus and program billing (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=hiatus");
+      expect(filter.getByRole("link", { name: "Collect money (2)" })).toBeInTheDocument();
+      expect(filter.getByRole("link", { name: "All (3)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation");
     });
 
-    it("says nobody is there for an empty filter, and falls back to all for an unknown one", async () => {
+    it("narrows by Hub status from the URL", async () => {
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ hub: "cancelled" }) });
+      expect(screen.getByText("Nothing here.")).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Hub status" })).toHaveValue("cancelled");
+    });
+
+    it("says nothing is there for an empty filter, and falls back to all for an unknown one", async () => {
       await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "missed_after_hiatus" }) });
-      expect(screen.getByText("Nobody here.")).toBeInTheDocument();
+      expect(screen.getByText("Nothing here.")).toBeInTheDocument();
       cleanup();
       await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "nonsense" }) });
-      expect(screen.getByRole("link", { name: "All (2)" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("link", { name: "All (3)" })).toHaveAttribute("aria-current", "page");
     });
   });
 });

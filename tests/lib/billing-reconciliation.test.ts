@@ -272,6 +272,26 @@ describe("refunds and failures", () => {
     expect(unpaid({ status: "uncollectible" })?.reason).toContain("was written off as uncollectible after 1 try.");
   });
 
+  it("never says 'after 0 tries': an invoice that was never attempted is just unpaid or written off", () => {
+    const unpaid = (extra: Partial<ReconInvoice>) =>
+      byDate(rowsOf({ invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "open", amountPaidCents: 0, attemptCount: 0, ...extra })] }), "2026-03-09");
+    expect(unpaid({ status: "uncollectible" })?.reason).toContain("$47.00 invoiced on 2026-03-09 was written off as uncollectible.");
+    expect(unpaid({ status: "uncollectible" })?.reason).not.toMatch(/0 tries/);
+    expect(unpaid({})?.reason).toContain("$47.00 invoiced on 2026-03-09 is still unpaid.");
+    expect(unpaid({})?.reason).not.toMatch(/0 tries/);
+    // A run of several names the latest invoice's tries only when there were some.
+    const run = rowsOf({
+      invoices: [
+        invoice("in_01", "2026-01-02T15:00:00Z"),
+        invoice("in_02", "2026-02-02T15:00:00Z", { status: "uncollectible", amountPaidCents: 0, attemptCount: 0 }),
+        invoice("in_03", "2026-03-02T15:00:00Z", { status: "open", amountPaidCents: 0, attemptCount: 0 }),
+      ],
+    });
+    const reasons = run.map((r) => r.reason).join(" ");
+    expect(reasons).toContain("2 invoices unpaid since 2026-02-02");
+    expect(reasons).not.toMatch(/0 tries|latest had/);
+  });
+
   it("does not raise an unpaid row for a member who is not active", () => {
     const rows = rowsOf({ invoices: [...monthly(["03"]), invoice("in_03", "2026-03-09T15:00:00Z", { status: "open", amountPaidCents: 0 })] }, "cancelled");
     expect(byDate(rows, "2026-03-09")).toMatchObject({ status: "unpaid_earlier", needsAttention: false });
@@ -648,10 +668,14 @@ describe("unpaid invoices rolled into one row", () => {
   });
 
   it("keeps the tries wording for a subscription that charges the card, or one whose method is unknown", () => {
-    const [row] = unpaidRows(ada({ subscriptions: [sendSub("charge_automatically")] }));
-    expect(row.reason).toContain("9 invoices unpaid since 2026-03-02, $423.00 total; the latest had 0 tries.");
+    // Tries are named when there were some (here the card was tried twice on the latest invoice) ...
+    const tried = adaInvoices().map((i) => (i.stripeInvoiceId === "in_11" ? { ...i, attemptCount: 2 } : i));
+    const [row] = unpaidRows(ada({ subscriptions: [sendSub("charge_automatically")], invoices: tried }));
+    expect(row.reason).toContain("9 invoices unpaid since 2026-03-02, $423.00 total; the latest had 2 tries.");
     expect(row.transactions.every((t) => t.collectionMethod === "charge_automatically")).toBe(true);
-    expect(unpaidRows(ada({ subscriptions: [sendSub()] }))[0].reason).toContain("0 tries");
+    expect(unpaidRows(ada({ subscriptions: [sendSub()], invoices: tried }))[0].reason).toContain("2 tries");
+    // ... and left out when there were none ("0 tries" says nothing).
+    expect(unpaidRows(ada({ subscriptions: [sendSub("charge_automatically")] }))[0].reason).toContain("9 invoices unpaid since 2026-03-02, $423.00 total. Nothing has been paid since.");
   });
 
   it("counts unpaid days from the Eastern day, across midnight and the days the clocks change", () => {

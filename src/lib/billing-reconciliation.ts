@@ -535,12 +535,14 @@ function unpaidReason(run: ScheduleTransaction[], today: string): string {
     if (run.length === 1) return `${money(first.billedCents)} invoice emailed on ${first.day}, unpaid for ${age}${first.invoiceStatus === "uncollectible" ? " and written off as uncollectible" : ""} (${never}).`;
     return `${run.length} invoices unpaid since ${first.day}, ${money(total)} total${writtenOffNote}. Stripe emails each invoice and never charges a card; the oldest has been unpaid for ${age}.`;
   }
+  // "after 0 tries" says nothing (the invoice was never attempted, or how it is collected is unknown): tries and decline codes only when there were some.
+  const afterTries = (n: number) => (n > 0 ? ` after ${tries(n)}` : "");
   if (run.length === 1) {
-    if (first.invoiceStatus === "uncollectible") return `${money(first.billedCents)} invoiced on ${first.day} was written off as uncollectible after ${tries(first.attempts)}${codeNote}.`;
-    if (first.failureCodes.length > 0) return `${money(first.billedCents)} invoiced on ${first.day} is unpaid; the card was declined${codeNote} after ${tries(first.attempts)}.`;
-    return `${money(first.billedCents)} invoiced on ${first.day} is still unpaid after ${tries(first.attempts)}.`;
+    if (first.invoiceStatus === "uncollectible") return `${money(first.billedCents)} invoiced on ${first.day} was written off as uncollectible${afterTries(first.attempts)}${first.attempts > 0 ? codeNote : ""}.`;
+    if (first.failureCodes.length > 0) return `${money(first.billedCents)} invoiced on ${first.day} is unpaid; the card was declined${codeNote}${afterTries(first.attempts)}.`;
+    return `${money(first.billedCents)} invoiced on ${first.day} is still unpaid${afterTries(first.attempts)}.`;
   }
-  return `${run.length} invoices unpaid since ${first.day}, ${money(total)} total${writtenOffNote}; the latest had ${tries(last.attempts)}${codeNote}.`;
+  return `${run.length} invoices unpaid since ${first.day}, ${money(total)} total${writtenOffNote}${last.attempts > 0 ? `; the latest had ${tries(last.attempts)}${codeNote}` : ""}.`;
 }
 
 /**

@@ -1,130 +1,96 @@
 import Link from "next/link";
-import { ROW_STATUSES, ROW_STATUS_LABELS, summarize, type ScheduleRow } from "@/lib/billing-reconciliation";
 import type { BillingOverview as Overview } from "@/lib/billing-reconciliation-loader";
-import { getMemberDisplayName } from "@/lib/member-display-name";
+import { HUB_STATUS_FILTERS, ISSUE_GROUPS, buildIssues, issueTotals, issuesIn, parseHubStatusFilter, parseIssueFilter, selectIssues, type HubStatusFilterId, type IssueFilter } from "@/lib/billing-issues";
+import { formatCents } from "@/lib/member-transactions";
+import Tooltip from "@/components/Tooltip";
+import BillingIssuesTable from "./BillingIssuesTable";
+import HubStatusSelect from "./HubStatusSelect";
 
-const isBehind = (r: ScheduleRow) => r.status === "unpaid_behind";
+const BASE = "/admin/hygiene/billing-reconciliation";
 
-/** The ways to narrow the members who need a look. Hiatus ones first: they are the reason for this page. */
-export const PROBLEM_FILTERS = [
-  { id: "all", label: "All", match: () => true },
-  { id: "disagree", label: "Hub and Stripe disagree", match: (r: ScheduleRow) => r.status === "hub_stripe_disagree" },
-  { id: "charged_hiatus", label: "Charged during a hiatus", match: (r: ScheduleRow) => r.status === "charged_when_not_expected" && r.cause === "hiatus" },
-  { id: "missed_after_hiatus", label: "Not billed after a hiatus ended", match: (r: ScheduleRow) => r.status === "missed" && r.cause === "after_hiatus" },
-  { id: "unrecorded_gap", label: "Billing gap with no hiatus", match: (r: ScheduleRow) => r.status === "unrecorded_gap" },
-  { id: "hiatus_mismatch", label: "Hiatus and billing gap differ", match: (r: ScheduleRow) => r.status === "hiatus_mismatch" },
-  { id: "billing_day", label: "Hiatus ended on the billing day, month skipped", match: (r: ScheduleRow) => r.cause === "hiatus_billing_day" },
-  { id: "program", label: "Program and membership", match: (r: ScheduleRow) => r.cause === "program" },
-  { id: "behind", label: "Behind: nothing paid since an unpaid invoice", match: (r: ScheduleRow) => r.status === "unpaid_behind" },
-  { id: "paying_again", label: "Paying again, earlier months unpaid", match: (r: ScheduleRow) => r.status === "unpaid_earlier" },
-  { id: "payment", label: "Any unpaid invoice", match: (r: ScheduleRow) => r.status === "unpaid_behind" || r.status === "unpaid_earlier" },
-  { id: "missed", label: "Missed", match: (r: ScheduleRow) => r.status === "missed" },
-  { id: "unexpected", label: "Unexpected payment", match: (r: ScheduleRow) => r.status === "unexpected" },
-  { id: "missing_payment", label: "Bought, no Stripe payment (events, programs, courses)", match: (r: ScheduleRow) => r.status === "missing_payment" },
-  { id: "unexplained_payment", label: "Paid, not explained (events)", match: (r: ScheduleRow) => r.status === "unexplained_payment" },
-  { id: "granted", label: "Granted purchases", match: (r: ScheduleRow) => r.cause === "granted" },
-] as const;
-export type ProblemFilterId = (typeof PROBLEM_FILTERS)[number]["id"];
+/** The page for a group (or an old narrower filter id, kept as it was typed) and a Hub status. */
+function hrefFor(filter: string | null, hub: HubStatusFilterId): string {
+  const query = new URLSearchParams();
+  if (filter) query.set("filter", filter);
+  if (hub !== "all") query.set("hub", hub);
+  const text = query.toString();
+  return text ? `${BASE}?${text}` : BASE;
+}
 
-export const parseProblemFilter = (value: string | undefined): ProblemFilterId => PROBLEM_FILTERS.find((f) => f.id === value)?.id ?? "all";
-
-/** The summary, the filters, and the members with at least one matching row that needs a look, each linking to their Transactions tab. */
-export default function BillingOverview({ overview, filter = "all" }: { overview: Overview; filter?: ProblemFilterId }) {
-  const total = summarize(overview.schedules);
-  const chosen = PROBLEM_FILTERS.find((f) => f.id === filter) ?? PROBLEM_FILTERS[0];
-  const needsLook = overview.schedules.map((schedule) => ({ schedule, rows: schedule.rows.filter((r) => r.needsAttention) }));
-  const countOf = (match: (r: ScheduleRow) => boolean) => needsLook.filter((p) => p.rows.some(match)).length;
-  const problems = needsLook
-    .map((p) => ({ ...p, rows: p.rows.filter(chosen.match) }))
-    .filter((p) => p.rows.length > 0)
-    .map((p) => ({ ...p, member: overview.members.get(p.schedule.memberId) }))
-    // Members who are behind come before those who are only paying again.
-    .sort((a, b) => Number(b.rows.some(isBehind)) - Number(a.rows.some(isBehind)) || b.rows.length - a.rows.length || (a.member?.name ?? "").localeCompare(b.member?.name ?? ""));
-
+/**
+ * The summary, a handful of "what do I do" groups plus a Hub status, and every schedule row that needs a look as one
+ * table row (`BillingIssuesTable`): what is at stake, how long it has waited, and the Stripe transactions behind it.
+ * The filter and the Hub status live in the URL; counts are rows, not members.
+ */
+export default function BillingOverview({ overview, filter, hub }: { overview: Overview; filter?: string; hub?: string }) {
   if (overview.counts.invoices === 0) {
     return <p className="text-sm text-slate-600 dark:text-slate-400">No Stripe invoices are imported yet, so there is nothing to line up.</p>;
   }
 
+  const issues = buildIssues(overview);
+  const chosen: IssueFilter = parseIssueFilter(filter);
+  const hubId = parseHubStatusFilter(hub);
+  const shown = selectIssues(issues, { filter: chosen, hub: hubId });
+  const totals = issueTotals(shown);
+  const groupLabel = chosen.legacy?.label ?? ISSUE_GROUPS.find((g) => g.id === chosen.group)?.label ?? "All";
+  const money = totals.byCurrency.map((m) => formatCents(m.cents, m.currency)).join(" + ") || formatCents(0, "usd");
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+  const chips = [{ id: null, label: "All", hint: undefined, count: issuesIn(issues, null, hubId).length }, ...ISSUE_GROUPS.map((g) => ({ id: g.id as string, label: g.label, hint: g.hint as string | undefined, count: issuesIn(issues, g.id, hubId).length }))];
+  const activeChip = chosen.legacy ? undefined : (chosen.group ?? null);
+  const filterId = chosen.legacy?.id ?? chosen.group;
+
   return (
     <div className="space-y-6">
-      <section className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Summary</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-          {overview.counts.linkedMembers} members with a Stripe customer, {overview.counts.invoices} invoices and {overview.counts.purchases} event, program and course purchases, as of {overview.today}.
-        </p>
-        <ul className="flex flex-wrap gap-3 text-sm">
-          {ROW_STATUSES.map((s) => (
-            <li key={s}>
-              {ROW_STATUS_LABELS[s]}: <strong>{total.byStatus[s]}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        {overview.counts.linkedMembers} members with a Stripe customer, {overview.counts.invoices} invoices and {overview.counts.purchases} event, program and course purchases, as of {overview.today}.
+      </p>
 
-      <nav aria-label="Filter" className="flex flex-wrap gap-2 text-sm">
-        {PROBLEM_FILTERS.map((f) => (
-          <Link
-            key={f.id}
-            href={f.id === "all" ? "/admin/hygiene/billing-reconciliation" : `/admin/hygiene/billing-reconciliation?filter=${f.id}`}
-            aria-current={f.id === chosen.id ? "page" : undefined}
-            className={`rounded-full border px-3 py-1 ${f.id === chosen.id ? "bg-plum-600 text-white border-plum-600" : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"}`}
-          >
-            {f.label} ({countOf(f.match)})
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Filter" className="flex flex-wrap gap-2 text-sm">
+          {chips.map((c) => (
+            <Tooltip key={c.id ?? "all"} content={c.hint}>
+              <Link
+                href={hrefFor(c.id, hubId)}
+                aria-current={c.id === activeChip ? "page" : undefined}
+                className={`rounded-full border px-3 py-1 ${c.id === activeChip ? "bg-plum-600 text-white border-plum-600" : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"}`}
+              >
+                {c.label} ({c.count})
+              </Link>
+            </Tooltip>
+          ))}
+        </nav>
+        <HubStatusSelect
+          value={hubId}
+          options={HUB_STATUS_FILTERS.map((f) => ({
+            id: f.id,
+            label: `${f.label} (${selectIssues(issues, { filter: chosen, hub: f.id }).length})`,
+            href: hrefFor(filterId, f.id),
+          }))}
+        />
+      </div>
+
+      {chosen.legacy && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Narrowed to &ldquo;{chosen.legacy.label}&rdquo;.{" "}
+          <Link href={hrefFor(null, hubId)} className="text-plum-600 hover:underline dark:text-plum-400">
+            Show all
           </Link>
-        ))}
-      </nav>
+        </p>
+      )}
 
       <section className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Members who need a look: {chosen.label}</h2>
-          <span className={`text-2xl font-bold ${problems.length > 0 ? "text-orange-500" : "text-green-500"}`}>{problems.length}</span>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Needs a look: {groupLabel}</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400" data-testid="issue-totals">
+            <strong className={totals.rows > 0 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"}>{plural(totals.rows, "issue", "issues")}</strong> for {plural(totals.members, "member", "members")}, {money} at stake
+          </p>
         </div>
-        {problems.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-green-700 dark:text-green-400 font-medium">
-            {chosen.id === "all" ? "Every billing day lines up." : "Nobody here."}
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                <th className="px-6 py-3">Member</th>
-                <th className="px-6 py-3">Purchase</th>
-                <th className="px-6 py-3">What is wrong</th>
-              </tr>
-            </thead>
-            <tbody>
-              {problems.map(({ schedule, rows, member }) => (
-                <tr key={schedule.key ?? `${schedule.memberId}:${schedule.purchaseType}`} className="border-t border-slate-200 dark:border-slate-800 align-top">
-                  <td className="px-6 py-3">
-                    <Link href={`/admin/members/${schedule.memberId}/transactions`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline">
-                      {member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : schedule.memberId}
-                    </Link>
-                  </td>
-                  <td className="px-6 py-3">
-                    {schedule.event ? (
-                      <Link href={`/admin/events/${schedule.event.slug}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline">
-                        {schedule.event.title}
-                      </Link>
-                    ) : (
-                      schedule.label
-                    )}
-                    {schedule.purchase && schedule.purchase.offerName !== schedule.label && <div className="text-xs text-slate-500 dark:text-slate-400">{schedule.purchase.offerName}</div>}
-                  </td>
-                  <td className="px-6 py-3">
-                    <ul className="space-y-1">
-                      {rows.slice(-3).reverse().map((r) => (
-                        <li key={r.key}>
-                          <span className="font-medium">{ROW_STATUS_LABELS[r.status]}</span>: {r.reason}
-                        </li>
-                      ))}
-                      {rows.length > 3 && <li className="text-slate-500 dark:text-slate-400">and {rows.length - 3} more</li>}
-                    </ul>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <BillingIssuesTable
+          issues={shown}
+          resetKey={`${filterId ?? ""}|${hubId}`}
+          emptyText={chosen.group === null && !chosen.legacy && hubId === "all" ? "Every billing day lines up." : "Nothing here."}
+        />
       </section>
     </div>
   );
