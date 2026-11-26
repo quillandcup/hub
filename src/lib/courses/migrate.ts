@@ -272,7 +272,23 @@ export function parseCommentsSummary(output: string): CommentsCaptureCounts | nu
   };
 }
 
-const hasNewRows = (...counts: RowCounts[]) => counts.some((c) => c.written + c.removed > 0);
+/**
+ * The dry run's completeness line for the comments: captured comments sit on `withComments` of `lessons` lessons. Plain counts
+ * (no name, no text). It warns when the capture looks partial: comments on one lesson only, or on under a fifth of a course of
+ * five or more lessons. Plenty of lessons legitimately have no comments, so the line asks for a comparison with Kajabi instead of
+ * calling it an error.
+ */
+export function commentsCompletenessNote(comments: number, withComments: number, lessons: number): string {
+  const base = `Completeness: ${comments} captured comments sit on ${withComments} of ${lessons} lessons of this course.`;
+  if (lessons === 0) return `${base} The Hub has no Kajabi lessons for this course yet.`;
+  if (comments === 0) return `${base} Nothing was captured: if Kajabi shows comments on this course, re-run the comments capture and read its WARNING lines (docs/product/COURSES.md, "Lesson comments").`;
+  if (withComments <= 1 || (lessons >= 5 && withComments / lessons < 0.2)) {
+    return `${base} That is few: compare with the lessons that show comments in Kajabi. If more have them, the capture missed lessons or comments; re-run it and read its WARNING lines before importing.`;
+  }
+  return `${base} Compare this with the lessons that show comments in Kajabi.`;
+}
+
+const hasNewRows =(...counts: RowCounts[]) => counts.some((c) => c.written + c.removed > 0);
 
 /**
  * A Kajabi capture that is not worth stopping the run for: dry run first, then (if anything is new) a question
@@ -428,6 +444,8 @@ const stepCommentsImport: MigrateStep = {
           `${dry.replies ?? 0} replies (${dry.orphanReplies ?? 0} without their comment), ${dry.authors?.matched ?? 0} authors matched to members by their exact Kajabi contact name (${dry.authors?.instructors ?? 0} of them instructors of this course, shown with the Instructor badge), ` +
           `${counts.unmatchedLessonComments} comments on lessons the Hub doesn't have, ${dry.skipped ?? 0} skipped. Nobody is notified and nobody follows a lesson because of this.`
       );
+      // Read-only completeness note: how many of the course's lessons have captured comments, so a capture that clearly missed lessons stands out.
+      ctx.io.log(commentsCompletenessNote(dry.commentsInBronze ?? 0, dry.lessonsWithComments ?? 0, dry.lessonsInCourse ?? 0));
       // Without instructors on the course, none of its comments shows the badge: say so plainly, and where to fix it.
       if ((dry.commentsInBronze ?? 0) > 0 && (dry.instructors ?? 0) === 0) {
         ctx.io.log(

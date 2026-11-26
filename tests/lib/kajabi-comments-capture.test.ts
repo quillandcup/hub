@@ -89,12 +89,13 @@ describe("parsePostsList", () => {
       ],
       withoutLink: 1,
       paged: false,
+      declaredTotal: null,
     });
   });
 
   it("notes a next page and survives anything else", () => {
     expect(parsePostsList({ data: [], links: { next: "/x?page=2" } }).paged).toBe(true);
-    expect(parsePostsList(null)).toEqual({ lessons: [], withoutLink: 0, paged: false });
+    expect(parsePostsList(null)).toEqual({ lessons: [], withoutLink: 0, paged: false, declaredTotal: null });
     expect(parsePostsList({ data: "nope" }).lessons).toEqual([]);
   });
 });

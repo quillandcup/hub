@@ -49,7 +49,7 @@ describe('Kajabi lesson comments capture idempotency', () => {
   }
   const ok = (comments: RawComment[], over: { total?: number | null; capped?: boolean } = {}): LessonRead => ({
     kind: 'ok',
-    page: { comments, total: over.total === undefined ? comments.length : over.total },
+    page: { comments, total: over.total === undefined ? comments.length : over.total, pendingControls: 0, iframes: 0 },
     capped: over.capped ?? false,
   })
   const run = (ids: string[], over: Partial<Parameters<typeof runCommentsCapture>[0]> = {}, course = COURSE) =>

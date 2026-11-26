@@ -678,6 +678,15 @@ describe("optional progress and comments steps", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("the comments dry run prints how many lessons have captured comments, and flags a capture that clearly missed lessons", async () => {
+    const few = harness({ routes: baseRoutes({ "/api/process/course-comments": COMMENTS_ROUTE(1, { lessonsInCourse: 30, lessonsWithComments: 1, commentsInBronze: 1 }) }), content: [...bDone, ok(COMMENT_LINES(0))], confirms: [false] });
+    await runMigration(withOptional(["--skip-progress"]), ENV, few.io);
+    expect(few.logs.join("\n")).toContain("Completeness: 1 captured comments sit on 1 of 30 lessons of this course. That is few");
+    const fine = harness({ routes: baseRoutes({ "/api/process/course-comments": COMMENTS_ROUTE(1, { lessonsInCourse: 10, lessonsWithComments: 6, commentsInBronze: 20 }) }), content: [...bDone, ok(COMMENT_LINES(0))], confirms: [false] });
+    await runMigration(withOptional(["--skip-progress"]), ENV, fine.io);
+    expect(fine.logs.join("\n")).toContain("Completeness: 20 captured comments sit on 6 of 10 lessons of this course. Compare this");
+  });
+
   it("the comments dry run says plainly when the course has no instructors, and where to add one; with instructors it says how many authors are", async () => {
     const none = harness({ routes: baseRoutes({ "/api/process/course-comments": COMMENTS_ROUTE(5, { instructors: 0 }) }), content: [...bDone, ok(COMMENT_LINES(0))], confirms: [false] });
     await runMigration(withOptional(["--skip-progress"]), ENV, none.io);
@@ -755,6 +764,7 @@ describe("parseProgressSummary and parseCommentsSummary against the real printer
     const comments = formatCommentsTotals(true, {
       lessonsListed: 5, lessonsNotInBronze: 0, lessonsCaptured: 5, lessonsWithComments: 3, comments: 7, replies: 2, rows, keySources: { "reply-link": 1, "reply-container": 1, "data-comment": 1, hash: 0 },
       duplicateKeys: 0, lessonsNoComments: 0, lessonsQuizzes: 0, lessonsLocked: 0, lessonsWithoutList: 0, lessonsCapped: 1, lessonsMismatched: 0, lessonsFailed: 2,
+      presses: 0, lessonsEmptyList: 0, lessonsPendingControls: 0, lessonsWithFrames: 0, removalsHeld: 0, lessonReports: [], warnings: [],
     });
     expect(parseCommentsSummary(comments)).toEqual({ rows, lessonsFailed: 2, lessonsCapped: 1 });
   });
