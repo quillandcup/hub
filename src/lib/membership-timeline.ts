@@ -71,8 +71,6 @@ export interface TimelineSegment {
   hiatus?: { id: string; reason: string | null; notes: string | null };
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
 const ACTIVE_OVERRIDE_TYPES = new Set(["gift", "direct_stripe"]);
 
 export const OVERRIDE_TYPE_LABEL: Record<string, string> = {
@@ -213,17 +211,6 @@ export function buildMembershipTimeline(
       prev.endDate = seg.endDate;
     } else {
       merged.push({ ...seg });
-    }
-  }
-
-  // Drop a gap shorter than a day. A hiatus ends on a calendar date (local midnight) while a Kajabi
-  // stint starts at a real time of day, so a hiatus that ends the day a membership begins leaves the
-  // few hours between them as a "not a member, 0 days" row. That is the two kinds of date meeting,
-  // not time spent away (the stored gaps in computeInactiveGaps are whole dates and never see it).
-  for (let i = merged.length - 1; i >= 0; i--) {
-    const seg = merged[i];
-    if (seg.state === "gap" && seg.endDate !== null && seg.endDate.getTime() - seg.startDate.getTime() < MS_PER_DAY) {
-      merged.splice(i, 1);
     }
   }
 

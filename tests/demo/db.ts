@@ -114,3 +114,9 @@ export async function demoMemberIdByEmail(email: string): Promise<string> {
   if (error || !data) throw new Error(`No demo member ${email}: run \`pnpm demo:seed\` (${error?.message})`);
   return data.id;
 }
+
+/** Take the persona's second sign-in step away again (`sessionCookies(key, { twoStep: true })` adds one), so the demo admin is left as it was found. */
+export async function removeTwoStep(personaKey: string) {
+  const email = persona(personaKey).email.replace(/'/g, "''");
+  runSql(`DELETE FROM auth.mfa_factors WHERE user_id = (SELECT id FROM auth.users WHERE email = '${email}')`);
+}
