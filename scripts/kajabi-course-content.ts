@@ -42,7 +42,7 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { chromium, type BrowserContext, type Page, type Response } from "playwright";
+import { chromium, type BrowserContext, type Page, type Request, type Response } from "playwright";
 import {
   isQuizRedirect,
   parseEmbeddedPost,
@@ -66,7 +66,7 @@ import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from 
 import { QUIZ_ANSWER_FILES_BUCKET } from "../src/lib/courses/quiz-files";
 import { SupabaseKajabiCourseRepository } from "../src/lib/data/kajabi-courses";
 import { pageMetaOf, submissionsListedIn, type FileCopyIO } from "../src/lib/kajabi/quiz-responses";
-import { FetchSessionExpiredError, readQuizByIds, type PageFetcher } from "../src/lib/kajabi/quiz-responses-fetch";
+import { chooseReplayHeaders, FetchSessionExpiredError, readQuizByIds, refusalMessage, replayingHeadersLine, sawResultsListRequest, type PageFetcher, type SeenAdminRequest } from "../src/lib/kajabi/quiz-responses-fetch";
 import { formatResponsesTotals, ResponsesSessionExpiredError, runResponsesCapture, type QuizRead, type QuizToRead } from "../src/lib/kajabi/quiz-responses-run";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
@@ -809,13 +809,14 @@ async function readQuizResponses(page: Page, quiz: QuizToRead): Promise<QuizRead
  * anywhere else, nothing printed. The path is built from ids checked by `readQuizByIds`. Unverified: that the app lets the page fetch its
  * own admin API this way (it is the same request the Results tab makes).
  */
-function pageFetcher(page: Page): PageFetcher {
+function pageFetcher(page: Page, replay: Record<string, string>): PageFetcher {
   return {
     async getJson(path) {
       if (!path.startsWith("/api/admin/quizzes/")) return null;
-      return page.evaluate(async (p) => {
+      return page.evaluate(async ([p, h]) => {
         try {
-          const r = await fetch(p, { method: "GET", credentials: "include", headers: { Accept: "application/json" } });
+          // The cookie alone is refused with a 401: the page's own request headers (names chosen by `chooseReplayHeaders`) go with it.
+          const r = await fetch(p, { method: "GET", credentials: "include", headers: { ...(h as Record<string, string>), accept: "application/json" } });
           let json: unknown = null;
           try {
             json = await r.json();
@@ -826,18 +827,77 @@ function pageFetcher(page: Page): PageFetcher {
         } catch {
           return null;
         }
-      }, path);
+      }, [path, replay] as const);
     },
   };
 }
 
-/** Reads a quiz by id from the list API (primary), and by opening rows only when the list can't be read at all. */
-async function readQuiz(page: Page, quiz: QuizToRead): Promise<QuizRead> {
+/** What loading a quiz's Results page showed: the headers its own admin requests carried (names are printable, values are secrets). */
+interface LearnedHeaders {
+  headers: Record<string, string>;
+  names: string[];
+  sawList: boolean;
+  pageStatus: number | null;
+  loginRedirect: boolean;
+}
+
+/**
+ * Loads the quiz's Results page through the app's router (as the click path does) and records the headers of the page's own requests to
+ * `/api/admin/`, to replay them on our GETs. Reads only; nothing is clicked. Values are never printed or kept beyond this run.
+ */
+async function learnPageHeaders(page: Page, quiz: QuizToRead): Promise<LearnedHeaders> {
+  const seen: Promise<SeenAdminRequest | null>[] = [];
+  let pageStatus: number | null = null;
+  const resultsPath = `/admin/quizzes/${quiz.quizKajabiId}/results`;
+  const onRequest = (r: Request) => {
+    if (r.method() !== "GET") return;
+    const path = new URL(r.url()).pathname;
+    if (path.startsWith("/api/admin/")) seen.push(r.allHeaders().then((headers) => ({ path, headers }), () => null));
+  };
+  const onResponse = (r: Response) => {
+    // A 401 on the page's own results page or admin request means the login is gone; otherwise the first status seen is the page's.
+    if (r.request().method() !== "GET" || (pathOf(r) !== resultsPath && !pathOf(r).startsWith("/api/admin/"))) return;
+    pageStatus = r.status() === 401 || pageStatus === 401 ? 401 : (pageStatus ?? r.status());
+  };
+  page.on("request", onRequest);
+  page.on("response", onResponse);
   try {
-    const byId = await readQuizByIds(pageFetcher(page), quiz.quizKajabiId);
+    const pageResponse = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === resultsPath, { timeout: RESPONSE_TIMEOUT_MS });
+    pageResponse.catch(() => undefined);
+    await page.evaluate((path) => {
+      history.pushState({}, "", path);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+    }, resultsPath);
+    await pageResponse.catch(() => null);
+    await page.waitForTimeout(RESPONSES_SETTLE_MS);
+  } finally {
+    page.off("request", onRequest);
+    page.off("response", onResponse);
+  }
+  const requests = (await Promise.all(seen)).filter((r): r is SeenAdminRequest => r !== null);
+  const chosen = chooseReplayHeaders(requests);
+  const loginRedirect = /(^|\/)(login|sign_in)(\/|$)/.test(new URL(page.url()).pathname);
+  return { ...chosen, sawList: sawResultsListRequest(requests), pageStatus, loginRedirect };
+}
+
+/**
+ * Reads a quiz by id from the list API (primary), replaying the headers the page's own request carried, and by opening rows only when
+ * the page made no list request to copy them from or the list can't be read at all.
+ */
+async function readQuiz(page: Page, quiz: QuizToRead): Promise<QuizRead> {
+  const learned = await learnPageHeaders(page, quiz);
+  const refusal = { pageStatus: learned.pageStatus, loginRedirect: learned.loginRedirect, headerNames: learned.names };
+  if (learned.loginRedirect || learned.pageStatus === 401) throw new ResponsesSessionExpiredError(refusalMessage(refusal));
+  if (!learned.sawList) {
+    console.log(`quiz ${quiz.quizKajabiId}: the page made no results list request to copy headers from; opening its rows instead`);
+    return readQuizResponses(page, quiz);
+  }
+  console.log(`quiz ${quiz.quizKajabiId}: ${replayingHeadersLine(learned.names)}`);
+  try {
+    const byId = await readQuizByIds(pageFetcher(page, learned.headers), quiz.quizKajabiId);
     if (byId) return byId;
   } catch (error) {
-    if (error instanceof FetchSessionExpiredError) throw new ResponsesSessionExpiredError(error.message);
+    if (error instanceof FetchSessionExpiredError) throw new ResponsesSessionExpiredError(refusalMessage(refusal));
     throw error;
   }
   console.log(`quiz ${quiz.quizKajabiId}: the results list could not be fetched; opening its rows instead`);
