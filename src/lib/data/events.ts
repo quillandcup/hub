@@ -220,6 +220,10 @@ export interface EventRepository {
   ticketsMovedAwayFrom(eventId: string): Promise<MovedTicket[]>;
   /** The buyers staff marked as not attending the event, oldest first. A mark for a member who is an attendee is still returned: the reader ignores it. */
   notAttendingOf(eventId: string): Promise<NotAttendingMark[]>;
+  /** How members got into events, for every event or only these members (chunked, paged). For the billing reconciliation. */
+  ticketRecords(filter?: { memberIds?: string[] }): Promise<TicketRecord[]>;
+  /** The not-attending marks of every event, or only of these members. */
+  notAttendingMarks(filter?: { memberIds?: string[] }): Promise<(NotAttendingMark & { event_id: string })[]>;
   /**
    * Marks a member who bought a ticket as not attending (marking again replaces the reason and note).
    * Refused, changing nothing, for an attendee of the event and for "other" without a note.
@@ -376,6 +380,15 @@ const photoOrder = (a: EventPhotoRow, b: EventPhotoRow) => {
 };
 
 /** A buyer's ticket that was moved from an event to another: who holds it now, and where. */
+/** One attendee's ticket: how they got in, who gave it, which event it was bought for. */
+export interface TicketRecord {
+  event_id: string;
+  member_id: string;
+  ticket_source: TicketSource | null;
+  ticket_giver_id: string | null;
+  ticket_from_event_id: string | null;
+}
+
 export interface MovedTicket {
   member_id: string;
   /** The event the ticket was moved to. */
@@ -833,6 +846,28 @@ export class SupabaseEventRepository implements EventRepository {
     const { error: selfError } = await this.db.from("event_attendees").update({ ticket_giver_id: null }).eq("member_id", toMemberId).eq("ticket_giver_id", toMemberId);
     if (selfError) throw new Error(selfError.message);
     return (data ?? []).length;
+  }
+
+  async ticketRecords(filter: { memberIds?: string[] } = {}) {
+    const read = (members?: string[]) =>
+      fetchAllRows<{ event_id: string; member_id: string | null; ticket_source: string | null; ticket_giver_id: string | null; ticket_from_event_id: string | null }>((from, to) => {
+        let query = this.db.from("event_attendees").select("event_id, member_id, ticket_source, ticket_giver_id, ticket_from_event_id");
+        if (members) query = query.in("member_id", members);
+        return query.order("id").range(from, to);
+      });
+    const rows = filter.memberIds ? await inChunks(filter.memberIds, 100, read) : await read();
+    return rows.flatMap((r) => (r.member_id ? [{ ...r, member_id: r.member_id, ticket_source: recordedTicketSource(r.ticket_source) }] : []));
+  }
+
+  async notAttendingMarks(filter: { memberIds?: string[] } = {}) {
+    const read = (members?: string[]) =>
+      fetchAllRows<{ event_id: string; member_id: string; reason: string; note: string | null; created_at: string }>((from, to) => {
+        let query = this.db.from("event_buyers_not_attending").select("event_id, member_id, reason, note, created_at");
+        if (members) query = query.in("member_id", members);
+        return query.order("id").range(from, to);
+      });
+    const rows = filter.memberIds ? await inChunks(filter.memberIds, 100, read) : await read();
+    return rows.map((r) => ({ ...r, reason: r.reason as NotAttendingReason }));
   }
 
   async notAttendingOf(eventId: string) {
@@ -1331,6 +1366,22 @@ export class InMemoryEventRepository implements EventRepository {
       moved++;
     }
     return moved;
+  }
+
+  async ticketRecords(filter: { memberIds?: string[] } = {}) {
+    const wanted = filter.memberIds && new Set(filter.memberIds);
+    return this.data.eventAttendees.flatMap((a) =>
+      a.member_id && (!wanted || wanted.has(a.member_id))
+        ? [{ event_id: a.event_id, member_id: a.member_id, ticket_source: recordedTicketSource(a.ticket_source), ticket_giver_id: a.ticket_giver_id ?? null, ticket_from_event_id: a.ticket_from_event_id ?? null }]
+        : []
+    );
+  }
+
+  async notAttendingMarks(filter: { memberIds?: string[] } = {}) {
+    const wanted = filter.memberIds && new Set(filter.memberIds);
+    return this.data.eventNotAttending
+      .filter((r) => !wanted || wanted.has(r.member_id))
+      .map((r) => ({ event_id: r.event_id, member_id: r.member_id, reason: r.reason as NotAttendingReason, note: r.note ?? null, created_at: r.created_at ?? "" }));
   }
 
   async notAttendingOf(eventId: string) {

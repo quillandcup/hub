@@ -62,6 +62,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "billing-reconciliation-purchases",
+    date: "2026-11-26",
+    audience: "staff",
+    category: "new",
+    title: "Billing schedule now covers retreats and other purchases, and shows missing or unexplained payments",
+    summary: "A member's grouped Transactions view and the Hiatus & Billing Reconciliation page now line up each retreat, program and course purchase with the Stripe payment behind it, and flag a ticket holder with no payment or a payment from someone who is not attending.",
+    body: [
+      "The grouped view is now one block per purchase, the way Kajabi's Purchases tab lists them: the offer, its price, the day it was bought, the quantity and whether it is active or cancelled, with the Stripe payments underneath. The membership block has the same header. A member's grouped view also covers their whole history now, so it has as many payments as the flat list, and says what it leaves out.",
+      "- **Finding the payment.** Kajabi collects through our Stripe account, so each purchase is matched to its Stripe charge (or, for a payment plan, its subscription and invoices) by the offer, the day and the amount, even when the buyer used a different email in Stripe.",
+      "- **Retreats and events.** Someone on the attendee list as having bought a ticket should have paid: no payment is shown as Missing payment. Comped, gifted and transferred tickets expect no payment here. Someone who paid and is not attending needs a reason: marked forfeited or other on the event page, a ticket given to someone, or a ticket moved to another event; without one it is an Unexplained payment. A deposit or an instalment is listed as it was paid, never against a guessed total.",
+      "- **Granted purchases.** A purchase with no price is often a gift, a comp or a payment taken directly in Stripe, so the member's override decides what to expect. With no override it needs a look, and a Stripe payment against it with no direct-Stripe override asks staff to record one.",
+      "- **All members.** Hygiene, then Hiatus & Billing Reconciliation, has filters for missing payments, unexplained payments and granted purchases, each row linking to the event page and the member's Transactions tab. An event with no linked offer expects no payments. It only reads.",
+    ].join("\n\n"),
+  },
+  {
     slug: "billing-reconciliation",
     date: "2026-11-25",
     audience: "staff",

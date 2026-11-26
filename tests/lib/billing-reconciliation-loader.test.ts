@@ -3,6 +3,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { loadBillingOverview, loadMemberSchedules, monthsAgoStart, toReconSubscription } from "@/lib/billing-reconciliation-loader";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 
 const ADA = "mbr_AAAAAAAAAAA1";
 const BEA = "mbr_AAAAAAAAAAA2";
@@ -51,7 +52,7 @@ describe("loadBillingOverview", () => {
   it("builds each linked member's schedule from the repositories, naming only the members involved", async () => {
     const overview = await loadBillingOverview(createInMemoryRepos(dataset()));
     expect(overview.today).toBe("2026-05-20");
-    expect(overview.counts).toEqual({ linkedMembers: 2, invoices: 5, charges: 0, subscriptions: 2 });
+    expect(overview.counts).toEqual({ linkedMembers: 2, invoices: 5, charges: 0, subscriptions: 2, purchases: 0 });
     const ada = overview.schedules.find((s) => s.memberId === ADA)!;
     expect(ada.rows.map((r) => [r.expectedDate, r.status])).toEqual([
       ["2026-03-09", "paid"],
@@ -136,5 +137,55 @@ describe("helpers", () => {
   it("counts months back from the first of the month", () => {
     expect(monthsAgoStart("2026-05-20", 24)).toBe("2024-05-01T00:00:00.000Z");
     expect(monthsAgoStart("2026-01-31", 1)).toBe("2025-12-01T00:00:00.000Z");
+  });
+});
+
+describe("event purchases", () => {
+  useFakeClock(NOW);
+  const EVENT = "evt_AAAAAAAAAAA1";
+  const purchaseDataset = () =>
+    new InMemoryDataset({
+      ...eventSeed([{ id: EVENT, title: "Spring Retreat", slug: "spring-retreat" }]),
+      members: [
+        { id: ADA, name: "Ada Example", email: "ada@example.test", status: "active", stripeCustomerId: "cus_ada" },
+        { id: BEA, name: "Bea Example", email: "bea@example.test", status: "active" },
+      ],
+      kajabiOffers: [{ kajabi_offer_id: "o_ticket", name: "Spring Retreat", data: { attributes: { price_description: "$500.00 one time" } } }],
+      kajabiCustomers: [
+        { kajabi_customer_id: "kc_ada", email: "ada@example.test" },
+        { kajabi_customer_id: "kc_bea", email: "bea@example.test" },
+      ],
+      kajabiPurchases: [
+        { kajabi_purchase_id: "p_ada", kajabi_customer_id: "kc_ada", kajabi_offer_id: "o_ticket", amount_in_cents: 50000, created_at_kajabi: "2026-02-01T15:00:00Z", deactivated_at: null, data: { attributes: { payment_type: "single", quantity: 1 } } },
+        { kajabi_purchase_id: "p_bea", kajabi_customer_id: "kc_bea", kajabi_offer_id: "o_ticket", amount_in_cents: 50000, created_at_kajabi: "2026-02-02T15:00:00Z", deactivated_at: null, data: { attributes: { payment_type: "single" } } },
+      ],
+      stripeCharges: [
+        { stripe_charge_id: "ch_ada", stripe_customer_id: "cus_ada", amount: 50000, amount_refunded: 0, status: "succeeded", paid: true, created_at_stripe: "2026-02-01T15:00:05Z", description: "Spring Retreat", data: { metadata: { kjb_offer_id: "o_ticket" } } },
+        // Bea paid under another email: a Stripe customer the Hub does not know.
+        { stripe_charge_id: "ch_bea", stripe_customer_id: "cus_other", amount: 50000, amount_refunded: 0, status: "succeeded", paid: true, created_at_stripe: "2026-02-02T15:00:05Z", description: "Spring Retreat", data: { metadata: { kjb_offer_id: "o_ticket" } } },
+      ],
+      eventOffers: [{ event_id: EVENT, kajabi_offer_id: "o_ticket" }],
+      eventAttendees: [{ id: "a1", event_id: EVENT, member_id: ADA, created_at: "2026-02-03T00:00:00Z", created_by: null }],
+      eventNotAttending: [],
+    } as never);
+
+  it("lines each purchase up with the charge Kajabi made, whoever the Stripe customer is, in the overview", async () => {
+    const overview = await loadBillingOverview(createInMemoryRepos(purchaseDataset()));
+    expect(overview.counts.purchases).toBe(2);
+    const ada = overview.schedules.find((s) => s.memberId === ADA && s.purchaseType === "event")!;
+    expect(ada).toMatchObject({ label: "Spring Retreat", event: { slug: "spring-retreat" }, purchase: { offerName: "Spring Retreat", priceText: "$500.00 one time" } });
+    expect(ada.rows.map((r) => r.status)).toEqual(["paid"]);
+    // Bea bought but is not attending, and nothing explains the payment.
+    const bea = overview.schedules.find((s) => s.memberId === BEA && s.purchaseType === "event")!;
+    expect(bea.rows.map((r) => r.status).sort()).toEqual(["paid", "unexplained_payment"]);
+    expect(overview.members.get(BEA)).toMatchObject({ name: "Bea Example" });
+  });
+
+  it("gives one member's view the same purchases, and only theirs", async () => {
+    const repos = createInMemoryRepos(purchaseDataset());
+    const schedules = await loadMemberSchedules(repos, { id: ADA, status: "active" }, ["cus_ada"], [], await repos.billing.stripeCharges({ customerIds: ["cus_ada"] }));
+    const events = schedules.filter((s) => s.purchaseType === "event");
+    expect(events).toHaveLength(1);
+    expect(events[0].memberId).toBe(ADA);
   });
 });

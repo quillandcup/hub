@@ -409,6 +409,36 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().notAttendingOf(ids.e)).toEqual([]);
       });
 
+      it("reads how members got in and who was marked not attending, for every event or for some members", async () => {
+        const ids = await ctx.seed([
+          { key: "a", title: "Records retreat", startsAt: "2097-03-01T09:00:00Z" },
+          { key: "b", title: "Records autumn", startsAt: "2097-09-01T09:00:00Z" },
+        ]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        const cy = await ctx.member({ name: "Cy Example", displayName: null, email: "cy@example.com" });
+        await ctx.attend(ids.a, ada, "2097-01-01T00:00:00Z");
+        await ctx.attend(ids.b, bo, "2097-01-02T00:00:00Z");
+        expect(await ctx.repo().setAttendeeTicket(ids.a, ada, { source: "gifted", giverId: bo })).toBe("set");
+        expect(await ctx.repo().setAttendeeTicket(ids.b, bo, { source: "transferred", fromEventId: ids.a })).toBe("set");
+        await ctx.repo().markNotAttending(ids.a, cy, "forfeited", null, null);
+
+        const records = await ctx.repo().ticketRecords({ memberIds: [ada, bo, cy] });
+        expect(records.map((r) => [r.event_id, r.member_id, r.ticket_source, r.ticket_giver_id, r.ticket_from_event_id]).sort()).toEqual(
+          [
+            [ids.a, ada, "gifted", bo, null],
+            [ids.b, bo, "transferred", null, ids.a],
+          ].sort()
+        );
+        expect((await ctx.repo().ticketRecords({ memberIds: [ada] })).map((r) => r.member_id)).toEqual([ada]);
+        expect(await ctx.repo().ticketRecords({ memberIds: [] })).toEqual([]);
+        expect((await ctx.repo().ticketRecords()).filter((r) => [ada, bo].includes(r.member_id))).toHaveLength(2);
+
+        expect((await ctx.repo().notAttendingMarks({ memberIds: [ada, cy] })).map((m) => [m.event_id, m.member_id, m.reason, m.note])).toEqual([[ids.a, cy, "forfeited", null]]);
+        expect(await ctx.repo().notAttendingMarks({ memberIds: [ada] })).toEqual([]);
+        expect((await ctx.repo().notAttendingMarks()).some((m) => m.member_id === cy)).toBe(true);
+      });
+
       it("moves not-attending marks to another member, keeping the target's own mark and dropping one for an event the target attends", async () => {
         const ids = await ctx.seed([
           { key: "a", title: "Moved retreat", startsAt: "2097-03-01T09:00:00Z" },

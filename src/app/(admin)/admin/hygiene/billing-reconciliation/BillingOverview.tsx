@@ -16,6 +16,9 @@ export const PROBLEM_FILTERS = [
   { id: "payment", label: "Failed or open payment", match: (r: ScheduleRow) => r.status === "failed" || r.status === "open" },
   { id: "missed", label: "Missed", match: (r: ScheduleRow) => r.status === "missed" },
   { id: "unexpected", label: "Unexpected payment", match: (r: ScheduleRow) => r.status === "unexpected" },
+  { id: "missing_payment", label: "Bought, no Stripe payment (events, programs, courses)", match: (r: ScheduleRow) => r.status === "missing_payment" },
+  { id: "unexplained_payment", label: "Paid, not explained (events)", match: (r: ScheduleRow) => r.status === "unexplained_payment" },
+  { id: "granted", label: "Granted purchases", match: (r: ScheduleRow) => r.cause === "granted" },
 ] as const;
 export type ProblemFilterId = (typeof PROBLEM_FILTERS)[number]["id"];
 
@@ -42,7 +45,7 @@ export default function BillingOverview({ overview, filter = "all" }: { overview
       <section className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 p-6">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Summary</h2>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-          {overview.counts.linkedMembers} members with a Stripe customer, {overview.counts.invoices} invoices, as of {overview.today}.
+          {overview.counts.linkedMembers} members with a Stripe customer, {overview.counts.invoices} invoices and {overview.counts.purchases} event, program and course purchases, as of {overview.today}.
         </p>
         <ul className="flex flex-wrap gap-3 text-sm">
           {ROW_STATUSES.map((s) => (
@@ -80,16 +83,27 @@ export default function BillingOverview({ overview, filter = "all" }: { overview
             <thead>
               <tr className="text-left text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400">
                 <th className="px-6 py-3">Member</th>
+                <th className="px-6 py-3">Purchase</th>
                 <th className="px-6 py-3">What is wrong</th>
               </tr>
             </thead>
             <tbody>
               {problems.map(({ schedule, rows, member }) => (
-                <tr key={schedule.memberId} className="border-t border-slate-200 dark:border-slate-800 align-top">
+                <tr key={schedule.key ?? `${schedule.memberId}:${schedule.purchaseType}`} className="border-t border-slate-200 dark:border-slate-800 align-top">
                   <td className="px-6 py-3">
                     <Link href={`/admin/members/${schedule.memberId}/transactions`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline">
                       {member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : schedule.memberId}
                     </Link>
+                  </td>
+                  <td className="px-6 py-3">
+                    {schedule.event ? (
+                      <Link href={`/admin/events/${schedule.event.slug}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline">
+                        {schedule.event.title}
+                      </Link>
+                    ) : (
+                      schedule.label
+                    )}
+                    {schedule.purchase && schedule.purchase.offerName !== schedule.label && <div className="text-xs text-slate-500 dark:text-slate-400">{schedule.purchase.offerName}</div>}
                   </td>
                   <td className="px-6 py-3">
                     <ul className="space-y-1">

@@ -38,6 +38,13 @@ export default async function BillingReconciliationPage({ searchParams }: { sear
           not billed after a hiatus ended (including one that ended on the billing day), and where the Hub and Stripe disagree. Open a member to see
           every billing day with its status. A pause of about one billing period reads as a possible gifted month, not a hiatus; two or more, or none ending, as a hiatus. That is a guess from the pause length. The Hub's hiatus records are also checked against the invoices: a run of billing periods with no payment (and no failed payment, cancellation or program to explain it) is an inferred pause, compared with the recorded hiatus. Also a guess.
         </p>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">
+          Events, programs and courses are lined up from Kajabi&apos;s purchases: each one against the Stripe payments Kajabi collected for it (found by
+          the offer, the day and the amount). An event also checks the attendee list: someone who bought a ticket should have paid; a gifted, comped or
+          transferred ticket expects no payment here; a payment from someone who is not attending needs a mark (forfeited or other), or a gifted or
+          transferred ticket. A retreat can be paid in parts, so payments are listed, never totalled against a guessed price. Open a member and
+          choose &ldquo;Group by product&rdquo; for the detail.
+        </p>
         <BillingOverview overview={overview} filter={parseProblemFilter(filter)} />
       </div>
     </div>
