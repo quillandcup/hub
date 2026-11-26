@@ -5,7 +5,8 @@ import { ROW_STATUSES, ROW_STATUS_LABELS, summarize, type PurchaseSchedule, type
 import Link from "next/link";
 import { formatCents, stripeChargeUrl, stripeInvoiceUrl } from "@/lib/member-transactions";
 
-const STATUS_CLASS: Record<RowStatus, string> = {
+/** The badge colors of a row status, shared with the overview table. */
+export const STATUS_CLASS: Record<RowStatus, string> = {
   paid: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   refunded: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   missed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
