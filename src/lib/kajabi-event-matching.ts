@@ -5,6 +5,7 @@ import { resolveMatchDate } from "@/lib/kajabi-cohort-matching";
 import type { NotAttendingReason } from "@/lib/event-not-attending";
 import type { TicketSource } from "@/lib/event-tickets";
 import { hasWindow, purchaseCountsForEvent } from "@/lib/event-offer-window";
+import { stripePaymentsForEvent, type StripePayments } from "@/lib/event-stripe-payments";
 
 type EventRepos = Pick<Repos, "aliases" | "billing" | "events" | "members">;
 
@@ -22,7 +23,8 @@ export interface EventTicketBuyer {
   offer_names: string[];
   /** The earliest matching purchase's transaction date. */
   purchase_date: string | null;
-  amount_in_cents: number | null;
+  /** What they paid in Stripe for the event's offers (charged and refunded), from the stored Stripe data; null when none was found (no Stripe customer, or no matching payment). Kajabi's own amount is not money paid, so it is not shown. */
+  stripe: StripePayments | null;
   purchase_count: number;
   /** Every one of their purchases of these offers was deactivated: review before adding. */
   deactivated: boolean;
@@ -234,13 +236,15 @@ export async function findKajabiMatchesForEvent(
       member_status: member.status,
       offer_names: Array.from(acc.offerNames),
       purchase_date: earliest(acc),
-      amount_in_cents: acc.purchases.reduce((sum, p) => sum + (p.amount_in_cents ?? 0), 0),
+      stripe: null,
       purchase_count: acc.purchases.length,
       deactivated: acc.purchases.every((p) => p.deactivated_at !== null),
       possible_duplicate: null,
     });
     legalNames.set(memberId, [member.name, display]);
   }
+  const stripeByMember = await stripePaymentsForEvent(repos, links, offerNameById, new Map(buyers.map((b) => [b.member_id, memberById.get(b.member_id)?.stripeCustomerId ?? null])));
+  for (const buyer of buyers) buyer.stripe = stripeByMember.get(buyer.member_id) ?? null;
   passedOn.sort((a, b) => a.giver_name.localeCompare(b.giver_name));
 
   const notAttending: NotAttendingBuyer[] = Array.from(markedBuyers, (memberId) => {

@@ -21,8 +21,8 @@ const MATCHES = {
   notAttending: [] as { member_id: string; member_name: string; member_real_name: string | null; reason: string; note: string | null }[],
   movedAway: [] as { member_id: string; member_name: string; member_real_name: string | null; destinations: string[] }[],
   buyers: [
-    { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", member_status: "active", offer_names: ["Summer Retreat"], purchase_date: "2097-01-10T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: false },
-    { member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example", member_real_name: null, member_status: "cancelled", offer_names: ["Summer Retreat"], purchase_date: "2097-01-11T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: true },
+    { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", member_status: "active", offer_names: ["Summer Retreat"], purchase_date: "2097-01-10T12:00:00Z", stripe: { charged_cents: 51000, refunded_cents: 26000 }, purchase_count: 1, deactivated: false },
+    { member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example", member_real_name: null, member_status: "cancelled", offer_names: ["Summer Retreat"], purchase_date: "2097-01-11T12:00:00Z", stripe: null, purchase_count: 1, deactivated: true },
   ],
   unmatched: [{ email: "stranger@example.com", offer_names: ["Summer Retreat"], purchase_date: "2097-01-12T12:00:00Z" }],
   attendeesWithoutTicket: [{ member_id: "mbr_AAAAAAAAAAA3", member_name: "Cy Example", ticket_source: null, kajabi_offer: "held" }],
@@ -59,6 +59,13 @@ afterEach(() => {
 });
 
 describe("Kajabi tickets on an event", () => {
+  it("shows what the buyer paid in Stripe, or says none was found, never a Kajabi amount", async () => {
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    expect(await screen.findByText(/\$510 charged · \$260 refunded · net \$250/)).toBeInTheDocument();
+    expect(screen.getByText(/no Stripe payments found/)).toBeInTheDocument();
+  });
+
   it("loads the matches on open without asking Kajabi, and checks grants only on Find Kajabi matches", async () => {
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
