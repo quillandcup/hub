@@ -171,6 +171,15 @@ describe("FinishersClient", () => {
     expect(names()).toEqual(["Zed Example"]);
   });
 
+  it("sorts by every column without error", async () => {
+    const user = userEvent.setup();
+    renderPage({ rows: [row({ id: "mlst_2" }), confirmedRow({ id: "mlst_3", hasStory: true, consentTestimonial: true })] });
+    for (const label of ["Work", "Milestone", "Status", "Started by", "Celebrate publicly", "Story"]) {
+      await user.click(screen.getByRole("button", { name: new RegExp(label) }));
+      expect(screen.getAllByRole("row")).toHaveLength(3);
+    }
+  });
+
   it("pages a long list with the shared pager", () => {
     const many = Array.from({ length: 60 }, (_, i) => row({ id: `mlst_${i}`, createdAt: `2026-11-${String((i % 28) + 1).padStart(2, "0")}T12:00:00Z` }));
     renderPage({ rows: many });
