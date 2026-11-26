@@ -327,7 +327,10 @@ export function defineBillingContract(name: string, setup: () => BillingContract
         const k1: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k1"), stripe_customer_id: ctx.unique("cus-k"), created_at_stripe: "2091-02-01T00:00:00+00:00", data: { metadata: { kjb_offer_id: offer } } };
         const k2: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k2"), stripe_customer_id: null, created_at_stripe: "2091-01-01T00:00:00+00:00", data: { metadata: { kjb_offer_id: offer } } };
         const k3: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k3"), stripe_customer_id: ctx.unique("cus-k"), created_at_stripe: "2091-01-15T00:00:00+00:00", data: { metadata: { kjb_offer_id: "another-offer" } } };
-        await ctx.seed({ stripeCharges: [x, y, z, k1, k2, k3], stripeInvoices: [i] });
+        // Kajabi's newer shape (from July 2026): the offer id is `platform_product_ID`, and `platform_order_ID` is not an offer.
+        const k4: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k4"), stripe_customer_id: ctx.unique("cus-k"), created_at_stripe: "2091-01-20T00:00:00+00:00", data: { metadata: { platform_product_ID: offer, platform_order_ID: offer } } };
+        const k5: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k5"), stripe_customer_id: ctx.unique("cus-k"), created_at_stripe: "2091-01-25T00:00:00+00:00", data: { metadata: { platform_product_ID: "another-offer", platform_order_ID: offer } } };
+        await ctx.seed({ stripeCharges: [x, y, z, k1, k2, k3, k4, k5], stripeInvoices: [i] });
 
         expect((await ctx.repo().stripeCharges({ customerIds: [cus] })).map((r) => r.stripe_charge_id)).toEqual([y.stripe_charge_id, x.stripe_charge_id]);
         expect(await ctx.repo().stripeCharges({ customerIds: [] })).toEqual([]);
@@ -336,7 +339,9 @@ export function defineBillingContract(name: string, setup: () => BillingContract
         expect((await ctx.repo().stripeCharges({ customerIds: [cus] }))[1]).toMatchObject({ failure_code: "card_declined", paid: false, status: "failed" });
         expect((await ctx.repo().stripeCharges({ customerIds: [cus] }))[0]).toMatchObject({ refunded: true, amount_refunded: 2500, amount: 2500 });
 
-        expect((await ctx.repo().stripeChargesForKajabiOffers([offer])).map((r) => r.stripe_charge_id)).toEqual([k2.stripe_charge_id, k1.stripe_charge_id]);
+        expect((await ctx.repo().stripeChargesForKajabiOffers([offer])).map((r) => r.stripe_charge_id)).toEqual([k2.stripe_charge_id, k4.stripe_charge_id, k1.stripe_charge_id]);
+        // An id with a quote or comma in it neither breaks the filter nor matches anything.
+        expect(await ctx.repo().stripeChargesForKajabiOffers(['we"ird,(id)'])).toEqual([]);
         expect(await ctx.repo().stripeChargesForKajabiOffers([])).toEqual([]);
 
         expect(await ctx.repo().stripeInvoiceIdsWithStatus(["open", "draft"])).toEqual([]);

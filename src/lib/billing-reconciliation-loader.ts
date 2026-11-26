@@ -1,5 +1,6 @@
 import { clock } from "@/lib/clock";
 import { buildPurchaseSchedules, type ReconOffer, type ReconOverride } from "@/lib/billing-purchases";
+import { countUnrecognisedKajabiMetadata, kajabiOfferIdOf } from "@/lib/kajabi-charge-metadata";
 import { membersForPurchases } from "@/lib/kajabi-purchase-members";
 import { loadOfferCoverage } from "@/lib/offer-coverage";
 import type { StripeChargeRow, StripeInvoiceRow, StripeSubscriptionRow } from "@/lib/data/billing";
@@ -33,7 +34,15 @@ export interface BillingOverview {
   /** Eastern day the report was computed for. */
   today: string;
   /** What was read, so an empty report can be told apart from an empty import. */
-  counts: { linkedMembers: number; invoices: number; charges: number; subscriptions: number; purchases: number };
+  counts: {
+    linkedMembers: number;
+    invoices: number;
+    charges: number;
+    subscriptions: number;
+    purchases: number;
+    /** Charges of the linked members whose metadata looks like Kajabi's but carries no offer id in a known shape (their purchases may show as missing a payment). */
+    unrecognisedKajabiCharges: number;
+  };
 }
 
 const toReconInvoice = (row: StripeInvoiceRow): ReconInvoice => ({
@@ -49,12 +58,6 @@ const toReconInvoice = (row: StripeInvoiceRow): ReconInvoice => ({
   attemptCount: row.attempt_count,
   stripeChargeId: row.stripe_charge_id,
 });
-
-const kajabiOfferIdOf = (data: unknown): string | null => {
-  const metadata = data && typeof data === "object" ? (data as { metadata?: unknown }).metadata : null;
-  const id = metadata && typeof metadata === "object" ? (metadata as { kjb_offer_id?: unknown }).kjb_offer_id : null;
-  return typeof id === "string" ? id : null;
-};
 
 const toReconCharge = (row: StripeChargeRow): ReconCharge => ({
   createdAt: row.created_at_stripe,
@@ -279,6 +282,6 @@ export async function loadBillingOverview(repos: Repos): Promise<BillingOverview
       allMembers.filter((m) => involved.has(m.id)).map((m) => [m.id, { id: m.id, name: m.name, displayName: m.displayName, status: m.status }])
     ),
     today,
-    counts: { linkedMembers: linked.length, invoices: invoices.length, charges: charges.length, subscriptions: subscriptions.length, purchases: purchaseResult.purchases },
+    counts: { linkedMembers: linked.length, invoices: invoices.length, charges: charges.length, subscriptions: subscriptions.length, purchases: purchaseResult.purchases, unrecognisedKajabiCharges: countUnrecognisedKajabiMetadata(charges) },
   };
 }
