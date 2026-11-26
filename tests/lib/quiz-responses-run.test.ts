@@ -144,6 +144,23 @@ describe("runResponsesCapture", () => {
     expect(JSON.stringify(data.kajabiQuizResponses[0].answers)).toContain("pos:1");
   });
 
+  it("makes listed and read reconcile: a listed submission that was never opened is said so, in the line and in the totals", async () => {
+    const partial = read([submission(1, "ada@example.test")], { listed: 4, incomplete: true, paging: "could_not_page" });
+    const { done, lines } = run({ "489121": partial });
+    const summary = await done;
+    expect(summary).toMatchObject({ read: 1, notOpened: 3 });
+    const line = lines.find((l) => l.startsWith("quiz 489121"))!;
+    expect(line).toContain("4 listed, 1 opened, 0 failed to open");
+    expect(line).toContain("3 listed but never opened");
+    expect(line).toContain("could not page the list");
+    expect(mod.formatResponsesTotals(true, summary)).toContain("3 listed but never opened");
+  });
+
+  it("has nothing unreconciled when every listed submission was opened or failed to open", async () => {
+    const { done } = run({ "489121": read([submission(1, "ada@example.test"), submission(2, "bo@example.test")], { listed: 3, failed: 1 }) });
+    expect((await done).notOpened).toBe(0);
+  });
+
   it("lists the files that could not be copied by reason", async () => {
     const io = fileIO();
     io.download = vi.fn(async () => ({ ok: false as const, failure: "expired" as const }));

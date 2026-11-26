@@ -83,6 +83,9 @@ const QUESTION_TEXT_KEYS = ["questiontext", "question", "prompt", "questiontitle
 const TEXT_KEYS = ["answertext", "textanswer", "response", "responsetext", "answer", "body", "value", "text", "content", "freetext"].map(norm);
 const OPTION_ID_KEYS = ["answerid", "answerids", "quizanswerid", "quizanswerids", "selectedanswerid", "selectedanswerids", "optionid", "optionids", "selectedoptionid", "selectedoptionids", "choiceid", "choiceids"].map(norm);
 const OPTION_LIST_KEYS = ["selectedanswers", "selectedoptions", "selectedchoices", "answers", "options", "choices", "quizanswers", "selected"].map(norm);
+const CHOICE_TITLE_KEYS = ["choicetitle"].map(norm);
+const CHOICE_POSITION_KEYS = ["choiceposition"].map(norm);
+const SELECTED_KEYS = ["selected", "isselected", "chosen", "ischosen"].map(norm);
 const POSITION_KEYS = ["questionposition", "position", "questionorder", "questionindex"].map(norm);
 const QUESTION_TYPE_KEYS = ["questiontype", "type", "kind"].map(norm);
 const FILE_LINK_KEYS = ["fileurl", "filelink", "attachmenturl", "uploadurl", "downloadurl"].map(norm);
@@ -201,6 +204,54 @@ function fileOf(value: unknown): ParsedFile | null {
   return null;
 }
 
+/** A JSON:API resource's fields, with `attributes` folded in. */
+const flat = (raw: Obj): Obj => (isObj(raw.attributes) ? { ...raw, ...raw.attributes } : raw);
+
+/**
+ * One choice of a choice question, as Kajabi's submission lists it: every choice of the question is its own record, with its title and
+ * place and whether it was `selected`. A record with a choice title but no `selected` field says nothing about what was picked, and is
+ * left to the older reading.
+ */
+function isChoiceRecord(o: Obj): boolean {
+  return valueOf(o, CHOICE_TITLE_KEYS) !== undefined && typeof valueOf(o, SELECTED_KEYS) === "boolean";
+}
+
+interface ChoiceGroup {
+  prompt: string | null;
+  position: number | null;
+  questionType: string | null;
+  /** The choices picked, by their record id. */
+  picked: Map<string, { title: string; place: number }>;
+}
+
+/** The question a choice record belongs to, by id or position as `answerOf` names it, and what was picked of it. */
+function choiceGroupsIn(all: unknown[]): Map<string, ChoiceGroup> {
+  const groups = new Map<string, ChoiceGroup>();
+  for (const v of all) {
+    for (const list of listsIn(v)) {
+      for (const raw of list) {
+        const o = flat(raw);
+        if (!isChoiceRecord(o)) continue;
+        const questionObj = ["question", "quizquestion"].map((k) => Object.entries(o).find(([key]) => norm(key) === k)?.[1]).find(isObj);
+        const positionRaw = valueOf(o, POSITION_KEYS);
+        const position = typeof positionRaw === "number" && Number.isInteger(positionRaw) && positionRaw >= 0 ? positionRaw : null;
+        const key = keyText(valueOf(o, QUESTION_ID_KEYS)) ?? (questionObj ? keyText(questionObj.id) : null) ?? (position !== null ? `pos:${position}` : null);
+        if (!key) continue;
+        const typeRaw = valueOf(o, QUESTION_TYPE_KEYS);
+        const title = valueOf(o, ["questiontitle"].map(norm));
+        const group = groups.get(key) ?? { prompt: typeof title === "string" ? plainText(title) || null : null, position, questionType: typeof typeRaw === "string" && typeRaw.trim() !== "" ? typeRaw.trim().slice(0, 60) : null, picked: new Map() };
+        groups.set(key, group);
+        if (valueOf(o, SELECTED_KEYS) !== true) continue;
+        const label = plainText(valueOf(o, CHOICE_TITLE_KEYS));
+        if (!label) continue;
+        const place = valueOf(o, CHOICE_POSITION_KEYS);
+        group.picked.set(keyText(o.id) ?? label, { title: label, place: typeof place === "number" ? place : Number.MAX_SAFE_INTEGER });
+      }
+    }
+  }
+  return groups;
+}
+
 /** What kind of answer a question's type name asks for, by whatever it is called: a file, a choice (multiple choice, checkboxes) or free text. Null when the name says none of these. */
 export function kindOfTypeName(name: string | null | undefined): "file_upload" | "choice" | "short_answer" | null {
   if (!name) return null;
@@ -218,6 +269,8 @@ export function kindOfTypeName(name: string | null | undefined): "file_upload" |
 function answerOf(raw: Obj): ParsedAnswer | null {
   // A JSON:API resource keeps its fields under `attributes`.
   const o: Obj = isObj(raw.attributes) ? { ...raw, ...raw.attributes } : raw;
+  // One of a choice question's choices (picked or not) is not an answer: `choiceGroupsIn` reads which were picked.
+  if (isChoiceRecord(o)) return null;
   const questionObj = ["question", "quizquestion"].map((k) => Object.entries(o).find(([key]) => norm(key) === k)?.[1]).find(isObj);
   const positionRaw = valueOf(o, POSITION_KEYS);
   const position = typeof positionRaw === "number" && Number.isInteger(positionRaw) && positionRaw >= 0 ? positionRaw : null;
@@ -302,6 +355,7 @@ export function parseSubmission(documents: unknown[], fallbackKey: string | null
   const email = all.map((v) => findEmail(v)).find((e): e is string => e !== null) ?? null;
   if (!email) return null;
 
+  const groups = choiceGroupsIn(all);
   let best: ParsedAnswer[] = [];
   for (const v of all) {
     for (const list of listsIn(v)) {
@@ -311,13 +365,27 @@ export function parseSubmission(documents: unknown[], fallbackKey: string | null
       }
     }
   }
-  if (best.length === 0) return null;
+  if (best.length === 0 && groups.size === 0) return null;
   // The same question seen twice (in two documents) is one answer; the one with more in it wins.
   const byQuestion = new Map<string, ParsedAnswer>();
   for (const a of best) {
     const had = byQuestion.get(a.questionKey);
     const weight = (x: ParsedAnswer) => (x.text?.length ?? 0) + x.optionKeys.length + x.optionLabels.length + (x.file ? 1 : 0);
     if (!had || weight(a) > weight(had)) byQuestion.set(a.questionKey, a);
+  }
+  // A choice question: only the choices that were picked count, by their wording (the record lists every choice, and the answer's own
+  // list of choices names them all). Nothing picked and no text of its own is no answer.
+  for (const [key, group] of groups) {
+    const labels = [...group.picked.values()].sort((a, b) => a.place - b.place).map((c) => c.title);
+    const own = byQuestion.get(key);
+    if (labels.length === 0 && !own) continue;
+    const base: ParsedAnswer = own ?? { questionKey: key, prompt: group.prompt, text: null, optionKeys: [], optionLabels: [], file: null, position: group.position, questionType: group.questionType };
+    const kept = labels.length > 0 ? labels : own!.optionLabels.length > 0 ? own!.optionLabels : own!.text ? [own!.text] : [];
+    if (kept.length === 0) {
+      byQuestion.delete(key);
+      continue;
+    }
+    byQuestion.set(key, { ...base, optionKeys: [], optionLabels: kept, text: null });
   }
 
   const holderKey = all.flatMap((v) => (isObj(v) ? [keyText(v.id)] : [])).find((k) => k !== null) ?? null;

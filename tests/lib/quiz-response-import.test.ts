@@ -243,7 +243,7 @@ describe("files and answers that don't map", () => {
   });
 
   it("counts answers to questions Kajabi dropped, and answers it can't read", async () => {
-    const rows = [bronzeRow("current@example.test", { answers: answersToJson([answerOf({ questionKey: "gone" }), answerOf({ questionKey: "q-choice", text: null, optionKeys: ["unknown"], optionLabels: ["Nothing like it"] }), answerOf({ questionKey: "q-text" })]) })];
+    const rows = [bronzeRow("current@example.test", { answers: answersToJson([answerOf({ questionKey: "gone" }), answerOf({ questionKey: "q-choice", text: null, optionKeys: ["unknown"], optionLabels: [] }), answerOf({ questionKey: "q-text" })]) })];
     const built = await build({ rows });
     const { courses } = await run(built);
     expect(courses[0].answers).toEqual({ imported: 1, unlinked: 0, questionGone: 1, unreadable: 1 });

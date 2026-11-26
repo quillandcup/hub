@@ -93,7 +93,9 @@ export function mapAnswer(
     const ids = new Set<string>(answer.optionKeys.flatMap((k) => (bySource.has(k) ? [bySource.get(k)!] : [])));
     // The key didn't match (the option was re-keyed): its wording, as shown in the submission, is the next best thing.
     if (ids.size === 0) for (const label of answer.optionLabels) for (const o of question.options) if (norm(o.label) === norm(label)) ids.add(o.id);
-    return ids.size === 0 ? { ok: false } : { ok: true, selectedOptionIds: question.options.filter((o) => ids.has(o.id)).map((o) => o.id), answerText: null, file: null };
+    if (ids.size > 0) return { ok: true, selectedOptionIds: question.options.filter((o) => ids.has(o.id)).map((o) => o.id), answerText: null, file: null };
+    // No option of the Hub's question has that wording (it was reworded since): keep what was picked as text, never choose an option for them.
+    return answer.optionLabels.length > 0 ? { ok: true, selectedOptionIds: [], answerText: answer.optionLabels.join("\n").slice(0, 20000), file: null } : { ok: false };
   }
   if (question.kind === "short_answer") {
     const text = answer.text?.trim();

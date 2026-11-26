@@ -66,6 +66,7 @@ import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from 
 import { QUIZ_ANSWER_FILES_BUCKET } from "../src/lib/courses/quiz-files";
 import { SupabaseKajabiCourseRepository } from "../src/lib/data/kajabi-courses";
 import { pageMetaOf, submissionsListedIn, type FileCopyIO } from "../src/lib/kajabi/quiz-responses";
+import { FetchSessionExpiredError, readQuizByIds, type PageFetcher } from "../src/lib/kajabi/quiz-responses-fetch";
 import { formatResponsesTotals, ResponsesSessionExpiredError, runResponsesCapture, type QuizRead, type QuizToRead } from "../src/lib/kajabi/quiz-responses-run";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
@@ -803,6 +804,46 @@ async function readQuizResponses(page: Page, quiz: QuizToRead): Promise<QuizRead
   return read;
 }
 
+/**
+ * One same-origin GET from inside the logged-in Kajabi page, with the page's own session (cookies): GET only, JSON in, nothing sent
+ * anywhere else, nothing printed. The path is built from ids checked by `readQuizByIds`. Unverified: that the app lets the page fetch its
+ * own admin API this way (it is the same request the Results tab makes).
+ */
+function pageFetcher(page: Page): PageFetcher {
+  return {
+    async getJson(path) {
+      if (!path.startsWith("/api/admin/quizzes/")) return null;
+      return page.evaluate(async (p) => {
+        try {
+          const r = await fetch(p, { method: "GET", credentials: "include", headers: { Accept: "application/json" } });
+          let json: unknown = null;
+          try {
+            json = await r.json();
+          } catch {
+            /* not JSON */
+          }
+          return { status: r.status, json };
+        } catch {
+          return null;
+        }
+      }, path);
+    },
+  };
+}
+
+/** Reads a quiz by id from the list API (primary), and by opening rows only when the list can't be read at all. */
+async function readQuiz(page: Page, quiz: QuizToRead): Promise<QuizRead> {
+  try {
+    const byId = await readQuizByIds(pageFetcher(page), quiz.quizKajabiId);
+    if (byId) return byId;
+  } catch (error) {
+    if (error instanceof FetchSessionExpiredError) throw new ResponsesSessionExpiredError(error.message);
+    throw error;
+  }
+  console.log(`quiz ${quiz.quizKajabiId}: the results list could not be fetched; opening its rows instead`);
+  return readQuizResponses(page, quiz);
+}
+
 /** Downloads a file with the logged-in browser's session (Kajabi's links may need it) and stores copies in the Hub's private bucket. */
 function browserFileIO(context: BrowserContext): FileCopyIO {
   return {
@@ -842,7 +883,7 @@ async function captureResponses(courseId: string) {
     const summary = await runResponsesCapture({
       db: supabase as never,
       quizzes,
-      readQuiz: (quiz) => readQuizResponses(page, quiz),
+      readQuiz: (quiz) => readQuiz(page, quiz),
       fileIO: browserFileIO(context),
       apply: args.apply,
       log: (line) => console.log(line),
@@ -851,7 +892,7 @@ async function captureResponses(courseId: string) {
       throw error;
     });
     console.log(formatResponsesTotals(args.apply, summary));
-    if (summary.quizzesFailed > 0 || summary.unreadable > 0 || summary.openFailed > 0 || Object.keys(summary.files.failed).length > 0) process.exitCode = 1;
+    if (summary.quizzesFailed > 0 || summary.unreadable > 0 || summary.openFailed > 0 || summary.notOpened > 0 || Object.keys(summary.files.failed).length > 0) process.exitCode = 1;
     if (args.apply) console.log("The responses reach the members with POST /api/process/quiz-responses (dry run first).");
   } finally {
     await context.close();
