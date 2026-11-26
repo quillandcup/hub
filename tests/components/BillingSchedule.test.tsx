@@ -50,6 +50,11 @@ describe("BillingSchedule", () => {
     expect(screen.getByText("from 2026-01-09")).toBeInTheDocument();
   });
 
+  it("says what the schedule leaves out", () => {
+    render(<BillingSchedule schedules={[{ ...schedule([row("a", "2026-02-09", "paid")]), notes: ["2 draft or void invoices billed nothing and are not listed."] }]} />);
+    expect(screen.getByText("2 draft or void invoices billed nothing and are not listed.")).toBeInTheDocument();
+  });
+
   it("shows everything when nothing needs a look, and says nothing needs one when filtered to none", async () => {
     render(<BillingSchedule schedules={[schedule([row("a", "2026-02-09", "paid")])]} />);
     expect(screen.getByText("reason a")).toBeInTheDocument();
