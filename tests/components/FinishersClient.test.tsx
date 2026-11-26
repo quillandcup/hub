@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import FinishersClient from "@/app/(admin)/admin/finishers/FinishersClient";
 import * as actions from "@/app/(admin)/admin/finishers/actions";
 import type { StaffMilestone } from "@/lib/data/milestones";
+import { CONSENT_NOT_SHARED, CONSENT_SHARED, NOT_OPTED_IN_LABEL } from "@/lib/finishers";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
@@ -33,9 +34,12 @@ const row = (overrides: Partial<StaffMilestone> = {}): StaffMilestone => ({
   displayName: "Ada Example",
   consentTestimonial: false,
   hasPhoto: false,
+  hasStory: false,
   photo: null,
   ...overrides,
 });
+
+const confirmedRow = (overrides: Partial<StaffMilestone> = {}) => row({ status: "confirmed", source: "member", ...overrides });
 
 const renderPage = (props: Partial<React.ComponentProps<typeof FinishersClient>> = {}) =>
   render(
@@ -158,9 +162,9 @@ describe("FinishersClient", () => {
     const TOKEN = "0123456789abcdef0123456789abcdef";
     const confirmed = (overrides: Partial<StaffMilestone> = {}) => row({ status: "confirmed", source: "member", ...overrides });
 
-    it("says whether 'Share my story' is ticked on a confirmed milestone, and shows no consent for one not confirmed", () => {
+    it("says whether the member agreed to be celebrated publicly on a confirmed milestone, and shows no consent for one not confirmed", () => {
       renderPage({ rows: [confirmed({ id: "mlst_2", consentTestimonial: true }), confirmed({ id: "mlst_3" }), row({ id: "mlst_4" })] });
-      expect(screen.getAllByTestId("finisher-consent").map((c) => c.textContent)).toEqual(["Yes", "No", "-"]);
+      expect(screen.getAllByTestId("finisher-consent").map((c) => c.textContent)).toEqual([CONSENT_SHARED, CONSENT_NOT_SHARED, "-"]);
     });
 
     it("shows the photo only where the member ticked the consent, and says only that one exists where they did not", () => {
@@ -177,6 +181,28 @@ describe("FinishersClient", () => {
       expect(within(cells[1]).queryByRole("img")).not.toBeInTheDocument();
       expect(cells[2]).toHaveTextContent("-");
     });
+  });
+
+  it("says whether a confirmed milestone has a story, never showing its words", () => {
+    renderPage({ rows: [confirmedRow({ id: "mlst_2", hasStory: true }), confirmedRow({ id: "mlst_3" })] });
+    expect(screen.getAllByTestId("finisher-story").map((c) => c.textContent)).toEqual(["Has a story", "-"]);
+  });
+
+  it("offers the 'story or photo, not opted in' list, keeps it through paging, and leaves it with Show all", () => {
+    const { unmount } = renderPage();
+    expect(screen.getByRole("link", { name: NOT_OPTED_IN_LABEL })).toHaveAttribute("href", "/admin/finishers?filter=not-opted-in");
+    unmount();
+    renderPage({ notOptedIn: true, page: 2, hasNext: true, rows: [confirmedRow({ hasStory: true })] });
+    expect(screen.getByRole("heading", { name: NOT_OPTED_IN_LABEL })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: NOT_OPTED_IN_LABEL })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/admin/finishers?filter=not-opted-in");
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/admin/finishers?filter=not-opted-in&page=3");
+    expect(screen.getByRole("link", { name: "Show all" })).toHaveAttribute("href", "/admin/finishers");
+  });
+
+  it("says no one is waiting when the not-opted-in list is empty", () => {
+    renderPage({ notOptedIn: true, rows: [] });
+    expect(screen.getByText("No one is waiting for a word right now.")).toBeInTheDocument();
   });
 
   it("says so when nothing is listed", () => {

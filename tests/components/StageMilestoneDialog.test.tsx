@@ -81,12 +81,12 @@ describe("StageMilestoneDialog: one question", () => {
     expect(answerStageMilestone).toHaveBeenCalledTimes(1);
   });
 
-  it("reuses the answer form (date, stories, share tick only with a story), saves a yes, and celebrates", async () => {
+  it("reuses the answer form (date, stories, share tick on once there is a story), saves a yes, and celebrates", async () => {
     const user = userEvent.setup();
     const { onClose } = renderDialog();
     await user.click(screen.getByRole("button", { name: STAGE_PROMPT.yes.the_end }));
     expect(screen.getByLabelText(/When did it happen/)).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeDisabled();
     await user.type(screen.getByLabelText(/And how does it feel now/), "Finally here.");
     const share = screen.getByRole("checkbox");
     expect(share).not.toBeChecked();

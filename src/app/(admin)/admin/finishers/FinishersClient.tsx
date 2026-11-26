@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import MemberSearch from "@/components/MemberSearch";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { MILESTONE_KINDS, MILESTONE_LABELS, MILESTONE_PHOTO_ALT, MILESTONE_SOURCE_NOTES, type MilestoneKind, type MilestoneStatus } from "@/lib/finishers";
+import { CONSENT_NOT_SHARED, CONSENT_SHARED, MILESTONE_KINDS, MILESTONE_LABELS, MILESTONE_PHOTO_ALT, NOT_OPTED_IN_FILTER, NOT_OPTED_IN_LABEL, MILESTONE_SOURCE_NOTES, type MilestoneKind, type MilestoneStatus } from "@/lib/finishers";
 import type { MilestoneCounts, StaffMilestone } from "@/lib/data/milestones";
 import { milestonePhotoSrc } from "@/lib/milestone-photos";
 import { loadWorksOfMember, proposeMilestone, proposeMilestonesFromBooks, withdrawMilestone } from "./actions";
@@ -25,6 +25,7 @@ export default function FinishersClient({
   hasNext,
   page,
   status,
+  notOptedIn = false,
   members,
 }: {
   counts: MilestoneCounts;
@@ -32,6 +33,8 @@ export default function FinishersClient({
   hasNext: boolean;
   page: number;
   status: MilestoneStatus | null;
+  /** The "story or photo, not opted in" list (it replaces the status filter). */
+  notOptedIn?: boolean;
   members: PickerMember[];
 }) {
   const router = useRouter();
@@ -107,9 +110,10 @@ export default function FinishersClient({
     });
   };
 
-  const link = (nextStatus: MilestoneStatus | null, nextPage = 1) => {
+  const link = (nextStatus: MilestoneStatus | null, nextPage = 1, nextNotOptedIn = false) => {
     const query = new URLSearchParams();
-    if (nextStatus) query.set("status", nextStatus);
+    if (nextNotOptedIn) query.set("filter", NOT_OPTED_IN_FILTER);
+    else if (nextStatus) query.set("status", nextStatus);
     if (nextPage > 1) query.set("page", String(nextPage));
     const text = query.toString();
     return `/admin/finishers${text ? `?${text}` : ""}`;
@@ -204,16 +208,29 @@ export default function FinishersClient({
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-medium">{status ? STATUS_LABELS[status] : "All milestones"}</h2>
-          {status && (
-            <Link href={link(null)} className="text-sm underline">
-              Show all
-            </Link>
-          )}
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-lg font-medium">{notOptedIn ? NOT_OPTED_IN_LABEL : status ? STATUS_LABELS[status] : "All milestones"}</h2>
+          <div className="flex gap-4 text-sm">
+            {!notOptedIn && (
+              <Link href={link(null, 1, true)} className="underline" data-track="finishers-not-opted-in">
+                {NOT_OPTED_IN_LABEL}
+              </Link>
+            )}
+            {(status || notOptedIn) && (
+              <Link href={link(null)} className="underline">
+                Show all
+              </Link>
+            )}
+          </div>
         </div>
+        {notOptedIn && (
+          <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+            Confirmed milestones where the member wrote a story or added a photo and has not said yes to being celebrated publicly. Worth a personal
+            word. Staff see that a story exists, never its words, and only a member&rsquo;s own yes shows their photo.
+          </p>
+        )}
         {rows.length === 0 ? (
-          <p className="text-sm text-slate-600 dark:text-slate-400">Nothing here yet.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{notOptedIn ? "No one is waiting for a word right now." : "Nothing here yet."}</p>
         ) : (
           <div className="overflow-x-auto">
           <table className="w-full max-w-4xl text-sm">
@@ -224,7 +241,8 @@ export default function FinishersClient({
                 <th className="py-2 pr-4">Milestone</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Started by</th>
-                <th className="py-2 pr-4">Share my story</th>
+                <th className="py-2 pr-4">Celebrate publicly</th>
+                <th className="py-2 pr-4">Story</th>
                 <th className="py-2 pr-4">Photo</th>
                 <th className="py-2" />
               </tr>
@@ -237,10 +255,11 @@ export default function FinishersClient({
                   <td className="py-2 pr-4">{MILESTONE_LABELS[row.kind]}</td>
                   <td className="py-2 pr-4">{STATUS_LABELS[row.status]}</td>
                   <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">{MILESTONE_SOURCE_NOTES[row.source].replace(/\.$/, "")}</td>
-                  <td className="py-2 pr-4" data-testid="finisher-consent">{row.status === "confirmed" ? (row.consentTestimonial ? "Yes" : "No") : "-"}</td>
+                  <td className="py-2 pr-4" data-testid="finisher-consent">{row.status === "confirmed" ? (row.consentTestimonial ? CONSENT_SHARED : CONSENT_NOT_SHARED) : "-"}</td>
+                  <td className="py-2 pr-4" data-testid="finisher-story">{row.hasStory ? "Has a story" : "-"}</td>
                   <td className="py-2 pr-4" data-testid="finisher-photo">
                     {row.photo ? (
-                      // Only a confirmed milestone whose member ticked "Share my story to inspire other writers": the photo is theirs to share, not the team's to browse.
+                      // Only a confirmed milestone whose member ticked the share tick (`SHARE_STORY_LABEL`): the photo is theirs to share, not the team's to browse.
                       // eslint-disable-next-line @next/next/no-img-element -- served by our own route, which checks who may see it
                       <img src={milestonePhotoSrc(row.photo.token)} alt={row.photo.alt || MILESTONE_PHOTO_ALT[row.kind]} loading="lazy" decoding="async" className="h-12 w-16 rounded bg-slate-100 object-contain dark:bg-slate-800" />
                     ) : row.hasPhoto ? (
@@ -263,8 +282,8 @@ export default function FinishersClient({
           </div>
         )}
         <nav className="flex gap-4 text-sm" aria-label="Pages">
-          {page > 1 && <Link href={link(status, page - 1)}>Previous</Link>}
-          {hasNext && <Link href={link(status, page + 1)}>Next</Link>}
+          {page > 1 && <Link href={link(status, page - 1, notOptedIn)}>Previous</Link>}
+          {hasNext && <Link href={link(status, page + 1, notOptedIn)}>Next</Link>}
         </nav>
       </section>
       {dialog}

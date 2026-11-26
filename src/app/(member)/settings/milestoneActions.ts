@@ -178,7 +178,7 @@ export async function setMilestoneVisibility(...args: Parameters<typeof setMiles
 }
 
 /**
- * A member ticks or unticks "Share my story to inspire other writers" on a confirmed milestone, after the first save. Ticking
+ * A member ticks or unticks the share tick (`SHARE_STORY_LABEL`) on a confirmed milestone, after the first save. Ticking
  * needs a story to share. Unticking is neutral and takes effect on the next read of the pages that use it. Never in sudo.
  */
 async function setMilestoneShareImpl(id: string, share: boolean): Promise<{ success: true } | { error: string }> {

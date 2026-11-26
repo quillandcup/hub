@@ -164,7 +164,7 @@ describe("GET /api/milestone-photos/<token>", () => {
     expect(flagAsked).toEqual([ADA]);
   });
 
-  it("shows staff who are not the member a photo only when the member ticked 'Share my story', whatever its level", async () => {
+  it("shows staff who are not the member a photo only when the member ticked 'Allow us to celebrate you publicly', whatever its level", async () => {
     state.user = { id: "staff-user" };
     state.identity = null;
     state.staff = true;

@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MilestoneSummary, OtherWorks, ProjectMilestones, type MilestoneWebState } from "@/components/writing/Milestones";
 import { buildWorks, otherWorks, workOfProject, type CardBook, type CardProject } from "@/lib/finishers-works";
 import * as actions from "@/app/(member)/settings/milestoneActions";
-import { MILESTONE_DEFAULT_VISIBILITY, MILESTONE_LEVEL_LINES, MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, PUBLISHED_ROW_HEADING, milestoneRowHeading, SHARE_STORY_LABEL, SHARE_STORY_TIP } from "@/lib/finishers";
+import { MILESTONE_DEFAULT_VISIBILITY, MILESTONE_LEVEL_LINES, MILESTONE_CELEBRATION, MILESTONE_LABELS, MILESTONE_SELF_ADD, PUBLISHED_ROW_HEADING, milestoneRowHeading, SHARE_STORY_HELP, SHARE_STORY_LABEL, SHARE_STORY_NEEDS, SHARE_STORY_TIP } from "@/lib/finishers";
 import type { Milestone } from "@/lib/data/milestones";
 
 const refresh = vi.fn();
@@ -153,13 +153,17 @@ describe("MilestonesPanel (per work)", () => {
     const user = userEvent.setup();
     render(<MilestonesPanel milestones={[]} projects={[NOVEL]} books={[{ id: "book_1", title: "Its Book", projectId: NOVEL.id }]} />);
     await user.click(within(work("A Fake Novel")).getByRole("button", { name: MILESTONE_SELF_ADD.the_end.button }));
-    // No story yet, so nothing to share: the tick is not on the form at all.
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    // No story yet, so nothing to share: the ask is there, switched off, and says why.
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeDisabled();
+    expect(screen.getByTestId("share-story")).toHaveTextContent(SHARE_STORY_NEEDS);
     await user.type(screen.getByLabelText("The day"), "2026-05-01");
     await user.type(screen.getByLabelText(/how does it feel now/i), "Done.");
     // It appears with the story, with the wording, and starts unticked; the promises sit behind the info icon, not under every work.
     const tick = screen.getByRole("checkbox", { name: SHARE_STORY_LABEL });
+    expect(tick).toBeEnabled();
     expect(tick).not.toBeChecked();
+    expect(screen.getByTestId("share-story")).toHaveTextContent(SHARE_STORY_HELP);
+    expect(screen.getByTestId("share-story")).not.toHaveTextContent(SHARE_STORY_NEEDS);
     expect(screen.getByRole("tooltip")).toHaveTextContent(SHARE_STORY_TIP);
     expect(screen.getAllByText(SHARE_STORY_TIP)).toHaveLength(1);
     expect(screen.getByRole("button", { name: "What sharing my story means" })).toBeInTheDocument();
@@ -291,7 +295,7 @@ describe("MilestonesPanel (per work)", () => {
     render(<MilestonesPanel milestones={[milestone()]} projects={[NOVEL]} />);
     expect(screen.getByText(/Suggested by the Quill & Cup team/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Yes, this is me" }));
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeDisabled();
     await user.type(screen.getByLabelText(/before you got here/), "Stuck in chapter two.");
     expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).not.toBeChecked();
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -331,7 +335,7 @@ describe("MilestonesPanel (per work)", () => {
     expect(screen.getByText(/It isn.t shown anywhere/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Actually, it is me" }));
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeDisabled();
   });
 
   it("is look-only while an admin views as the member", () => {
@@ -390,9 +394,9 @@ describe("MilestonesPanel (who sees it, and the share tick)", () => {
     expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeDisabled();
   });
 
-  it("shows no share tick on a confirmed milestone without a story", () => {
+  it("shows the share tick switched off on a confirmed milestone without a story", () => {
     render(<MilestonesPanel milestones={[confirmed()]} projects={[NOVEL]} />);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeDisabled();
   });
 
   it("withdraws the share tick on the card, with no warning, and puts it back if that fails", async () => {
@@ -548,9 +552,31 @@ describe("MilestonesPanel (photos)", () => {
     expect(screen.getByLabelText(SHARE_STORY_LABEL)).toBeInTheDocument();
   });
 
-  it("offers no share tick for a milestone with neither a story nor a photo", () => {
+  it("shows the share tick switched off, with the reason, for a milestone with neither a story nor a photo", () => {
     render(<MilestonesPanel milestones={[confirmedAt("community")]} projects={[NOVEL]} />);
-    expect(screen.queryByLabelText(SHARE_STORY_LABEL)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(SHARE_STORY_LABEL)).toBeDisabled();
+    expect(screen.getByTestId("share-story")).toHaveTextContent(SHARE_STORY_NEEDS);
+  });
+
+  it("turns the tick on in the form for a photo alone, and sends no yes without a story or photo even when it was opted in before", async () => {
+    vi.mocked(actions.answerMilestone).mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    const { unmount } = render(<MilestonesPanel milestones={[confirmedAt("community", { photo: { token: TOKEN, alt: "Me at my desk" } })]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: SHARE_STORY_LABEL })).not.toBeChecked();
+    unmount();
+
+    // Opted in, then the story was cleared and there is no photo: the tick shows off and the save sends no yes.
+    render(<MilestonesPanel milestones={[confirmedAt("community", { storyAfter: "Done.", consentTestimonial: true })]} projects={[NOVEL]} />);
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    const tick = screen.getByRole("checkbox", { name: SHARE_STORY_LABEL });
+    expect(tick).toBeChecked();
+    await user.clear(screen.getByLabelText(/how does it feel now/i));
+    expect(tick).toBeDisabled();
+    expect(tick).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(actions.answerMilestone).toHaveBeenCalledWith(expect.objectContaining({ shareStory: false })));
   });
 
   it("puts the 'holding my book' photo on the Published step of a Bookshelf book, at the globe", () => {

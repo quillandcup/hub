@@ -51,7 +51,7 @@ export type PhotoSubject = {
   ownerId: string;
   /** The milestone's level (Published is derived and is the globe). */
   level: Visibility;
-  /** "Share my story to inspire other writers": the member's consent for the team to use it. A book photo has none. */
+  /** "Allow us to celebrate you publicly": the member's consent for the team to use it. A book photo has none. */
   consentTestimonial: boolean;
 };
 

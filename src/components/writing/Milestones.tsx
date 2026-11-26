@@ -15,7 +15,9 @@ import {
   MILESTONE_SOURCE_NOTES,
   PUBLISHED_ROW_HEADING,
   SHARE_STORY_DEFAULT,
+  SHARE_STORY_HELP,
   SHARE_STORY_LABEL,
+  SHARE_STORY_NEEDS,
   SHARE_STORY_TIP,
   describeMilestoneLevel,
   hasSomethingToShare,
@@ -51,19 +53,23 @@ const ALL_LEVELS: readonly Visibility[] = ["private", "community", "public"];
 export type MilestoneWebState = { available: boolean; on: boolean };
 
 /**
- * The share tick: "Share my story to inspire other writers", with what it means and an info tip for the marketing uses. It is
- * only shown beside a story that is written, never a condition of saving, and unticking is a plain choice with no warning.
+ * The share tick (`SHARE_STORY_LABEL`), with what it means in a line and an info tip for the marketing uses. It is always shown, so
+ * the member sees the ask, but it can only be turned on once there is a story or a photo to share (`canShare`): until then it is
+ * disabled and says so, because the server ignores it without one. Never a condition of saving; unticking is a plain choice.
  */
-function ShareStoryTick({ id, checked, onChange, disabled }: { id: string; checked: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
+function ShareStoryTick({ id, checked, onChange, disabled, canShare }: { id: string; checked: boolean; onChange: (next: boolean) => void; disabled?: boolean; canShare: boolean }) {
   return (
-    <div>
+    <div data-testid="share-story">
       <div className="flex items-center gap-2">
-        <input id={id} type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="mt-0.5" />
+        <input id={id} type="checkbox" checked={checked && canShare} disabled={disabled || !canShare} onChange={(e) => onChange(e.target.checked)} aria-describedby={`${id}-note`} className="mt-0.5" />
         <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">
           {SHARE_STORY_LABEL}
         </label>
         <InfoTip label="What sharing my story means">{SHARE_STORY_TIP}</InfoTip>
       </div>
+      <p id={`${id}-note`} className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+        {canShare ? SHARE_STORY_HELP : SHARE_STORY_NEEDS}
+      </p>
     </div>
   );
 }
@@ -124,7 +130,7 @@ export function MilestoneForm({
     setError(null);
     startTransition(async () => {
       const dated = when !== "none" && date.trim() !== "";
-      const result = await run({ achievedOn: dated ? date.trim() : null, achievedPrecision: dated ? (when as MilestoneDatePrecision) : "day", storyBefore: before, storyAfter: after, shareStory: share, visibility: level });
+      const result = await run({ achievedOn: dated ? date.trim() : null, achievedPrecision: dated ? (when as MilestoneDatePrecision) : "day", storyBefore: before, storyAfter: after, shareStory: share && written, visibility: level });
       if ("error" in result) {
         setError(result.error);
         return;
@@ -188,6 +194,7 @@ export function MilestoneForm({
         </label>
         <textarea id={`${idPrefix}-after`} rows={3} maxLength={MAX_STORY_LENGTH} value={after} onChange={(e) => setAfter(e.target.value)} className={INPUT} />
       </div>
+      <ShareStoryTick id={`${idPrefix}-share`} checked={share} onChange={setShare} disabled={pending} canShare={written} />
       <div data-testid="milestone-form-level">
         <p className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Who can see this milestone and your story?</p>
         <VisibilityControl
@@ -204,7 +211,6 @@ export function MilestoneForm({
           {MILESTONE_LEVEL_LINES[level]}
         </p>
       </div>
-      {written && <ShareStoryTick id={`${idPrefix}-share`} checked={share} onChange={setShare} disabled={pending} />}
       {error && (
         <p role="alert" className="text-sm text-red-700 dark:text-red-400">
           {error}
@@ -379,11 +385,9 @@ function MilestoneItem({ kind, milestone, work, readOnly, web }: { kind: Milesto
             readOnly={readOnly}
             idPrefix={`ms-${milestone.id}`}
           />
-          {hasSomethingToShare(milestone) && (
-            <div className="mt-3">
-              <ShareStoryTick id={`ms-${milestone.id}-share-now`} checked={shared ?? milestone.consentTestimonial} onChange={(next) => changeShare(milestone, next)} disabled={pending || readOnly} />
-            </div>
-          )}
+          <div className="mt-3">
+            <ShareStoryTick id={`ms-${milestone.id}-share-now`} checked={shared ?? milestone.consentTestimonial} onChange={(next) => changeShare(milestone, next)} disabled={pending || readOnly} canShare={hasSomethingToShare(milestone)} />
+          </div>
           <div className="mt-3 flex flex-wrap gap-3">
             <button type="button" onClick={() => setEditing(true)} disabled={readOnly} className={SECONDARY}>
               Change

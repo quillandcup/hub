@@ -8,7 +8,11 @@ import {
   MILESTONE_CELEBRATION,
   MILESTONE_SHOWN,
   SHARE_STORY_DEFAULT,
+  SHARE_STORY_HELP,
   SHARE_STORY_LABEL,
+  SHARE_STORY_NEEDS,
+  CONSENT_NOT_SHARED,
+  CONSENT_SHARED,
   SHARE_STORY_TIP,
   describeMilestoneLevel,
   hasStory,
@@ -132,10 +136,20 @@ describe("parseMilestoneSelfAdd", () => {
 
 describe("the share consent and the visibility words", () => {
   it("keeps the agreed consent wording, with the marketing uses in the tip", () => {
-    expect(SHARE_STORY_LABEL).toBe("Share my story to inspire other writers.");
+    expect(SHARE_STORY_LABEL).toMatch(/celebrate you/i);
+    expect(SHARE_STORY_HELP).toMatch(/we may feature your story/i);
+    expect(SHARE_STORY_HELP).toMatch(/Quill & Cup website/);
+    expect(SHARE_STORY_NEEDS).toMatch(/story or add a photo/);
+    for (const text of [SHARE_STORY_HELP, SHARE_STORY_NEEDS]) expect(text).not.toMatch(/sales|sell|exposure|famous|guarantee/i);
     expect(SHARE_STORY_TIP).toMatch(/we may feature it on the Quill & Cup website/);
-    expect(SHARE_STORY_TIP).toMatch(/you can change your mind any time/);
+    expect(SHARE_STORY_TIP).toMatch(/you can change your mind any time/i);
     expect(SHARE_STORY_TIP).toMatch(/We.ll only use what you.ve written here/);
+  });
+
+  it("words the staff consent column so that not ticked never reads as a refusal", () => {
+    expect(CONSENT_SHARED).toBe("Shared");
+    expect(CONSENT_NOT_SHARED).toBe("Not shared");
+    expect(CONSENT_NOT_SHARED).not.toMatch(/^no$/i);
   });
 
   it("says something warm for each milestone and never promises sales or exposure", () => {
