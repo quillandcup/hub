@@ -30,7 +30,7 @@ export type Milestone = {
   storyAfter: string | null;
   /** Who can see it (and the story with it): only the member, other members, or the web. Only a confirmed milestone is more than private. */
   visibility: Visibility;
-  /** "Share my story to inspire other writers": the one marketing consent. Only on a confirmed milestone. */
+  /** "Allow us to celebrate you publicly": the one marketing consent. Only on a confirmed milestone. */
   consentTestimonial: boolean;
   /** The member's photo for this step (docs/product/FINISHERS.md, "Photos"), shown at the milestone's own level; null when there is none. */
   photo: StepPhoto | null;
@@ -76,10 +76,12 @@ export type BadgeMilestone = { memberId: string; kind: MilestoneKind; achievedOn
 
 /** A milestone as the staff list shows it: the member's names, never the stories. */
 export type StaffMilestone = Pick<Milestone, "id" | "memberId" | "kind" | "status" | "source" | "achievedOn" | "createdAt"> & {
-  /** "Share my story to inspire other writers" (a confirmed milestone only). */
+  /** "Allow us to celebrate you publicly" (a confirmed milestone only). */
   consentTestimonial: boolean;
   /** Whether a confirmed milestone has a photo. */
   hasPhoto: boolean;
+  /** Whether a confirmed milestone has a before or after story. Only the fact, never the words. */
+  hasStory: boolean;
   /** The photo staff may look at: only a confirmed milestone whose member ticked the consent (a private photo is not the team's to see otherwise). */
   photo: StepPhoto | null;
   /** What the milestone is about: the project's or book's title, or the title the member wrote; null for a row with no work. */
@@ -117,9 +119,17 @@ function photoOf(path: string | null | undefined, alt: string | null | undefined
 }
 
 /** What the staff list says about a row's photo: that there is one (a confirmed row), and the picture itself only with the member's consent to share. */
-function staffPhoto(status: string, consent: boolean, path: string | null | undefined, alt: string | null | undefined) {
-  const photo = status === "confirmed" ? photoOf(path, alt) : null;
-  return { consentTestimonial: status === "confirmed" && consent, hasPhoto: photo !== null, photo: photo && consent ? photo : null };
+function staffPhoto(
+  status: string,
+  consent: boolean,
+  path: string | null | undefined,
+  alt: string | null | undefined,
+  stories: { before: string | null | undefined; after: string | null | undefined },
+) {
+  const confirmed = status === "confirmed";
+  const photo = confirmed ? photoOf(path, alt) : null;
+  const hasStory = confirmed && Boolean(stories.before?.trim() || stories.after?.trim());
+  return { consentTestimonial: confirmed && consent, hasPhoto: photo !== null, hasStory, photo: photo && consent ? photo : null };
 }
 
 // The check constraints hold kind, status and source to these values; the generated types see plain text.
@@ -227,8 +237,12 @@ export interface MilestoneRepository {
   ofMember(memberId: string): Promise<Milestone[]>;
   /** How many live milestones are in each status. */
   counts(): Promise<MilestoneCounts>;
-  /** Live milestones for the staff list, newest first (then id), one page; optionally one status. */
-  page(options: { status?: MilestoneStatus; limit: number; offset: number }): Promise<StaffMilestone[]>;
+  /**
+   * Live milestones for the staff list, newest first (then id), one page; optionally one status. `notOptedIn` narrows it to
+   * confirmed milestones that have a story or a photo and whose member has not ticked "share my story" (the ones worth a
+   * personal word from the team); it overrides `status`.
+   */
+  page(options: { status?: MilestoneStatus; notOptedIn?: boolean; limit: number; offset: number }): Promise<StaffMilestone[]>;
   /**
    * Staff backfill, per published book: proposes both milestones for that work unless the work (the book, or its project)
    * already has a row of that kind in any status, withdrawn ones included. One statement, so there is no page limit; a
@@ -362,12 +376,15 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
     return Object.fromEntries(entries) as MilestoneCounts;
   }
 
-  async page({ status, limit, offset }: { status?: MilestoneStatus; limit: number; offset: number }) {
+  async page({ status, notOptedIn, limit, offset }: { status?: MilestoneStatus; notOptedIn?: boolean; limit: number; offset: number }) {
     let query = this.db
       .from("member_milestones")
-      .select("id, member_id, kind, status, source, achieved_on, created_at, title, consent_testimonial, photo_path, photo_alt, project:writing_projects(title), book:member_books(title), member:members(name, display_name)")
+      .select("id, member_id, kind, status, source, achieved_on, created_at, title, consent_testimonial, photo_path, photo_alt, story_before, story_after, project:writing_projects(title), book:member_books(title), member:members(name, display_name)")
       .is("deleted_at", null);
-    if (status) query = query.eq("status", status);
+    if (notOptedIn) {
+      // A blank story is stored as null (parseMilestoneAnswer), so "not null" means a story was written.
+      query = query.eq("status", "confirmed").eq("consent_testimonial", false).or("story_before.not.is.null,story_after.not.is.null,photo_path.not.is.null");
+    } else if (status) query = query.eq("status", status);
     const { data, error } = await query
       .order("created_at", { ascending: false })
       .order("id")
@@ -384,7 +401,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
       workTitle: r.title ?? r.project?.title ?? r.book?.title ?? null,
       name: r.member?.name ?? "",
       displayName: r.member?.display_name ?? null,
-      ...staffPhoto(r.status, r.consent_testimonial, r.photo_path, r.photo_alt),
+      ...staffPhoto(r.status, r.consent_testimonial, r.photo_path, r.photo_alt, { before: r.story_before, after: r.story_after }),
     }));
   }
 
@@ -757,9 +774,13 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
     return counts;
   }
 
-  async page({ status, limit, offset }: { status?: MilestoneStatus; limit: number; offset: number }) {
+  async page({ status, notOptedIn, limit, offset }: { status?: MilestoneStatus; notOptedIn?: boolean; limit: number; offset: number }) {
     return this.live()
-      .filter((m) => !status || m.status === status)
+      .filter((m) =>
+        notOptedIn
+          ? m.status === "confirmed" && !m.consent_testimonial && (m.story_before != null || m.story_after != null || m.photo_path != null)
+          : !status || m.status === status,
+      )
       .sort(byKeyThenId<MilestoneRow>((m) => m.created_at, (m) => m.id, true))
       .slice(offset, offset + limit)
       .map((m) => {
@@ -779,7 +800,7 @@ export class InMemoryMilestoneRepository implements MilestoneRepository {
             null,
           name: member?.name ?? "",
           displayName: member?.displayName ?? null,
-          ...staffPhoto(m.status, m.consent_testimonial, m.photo_path, m.photo_alt),
+          ...staffPhoto(m.status, m.consent_testimonial, m.photo_path, m.photo_alt, { before: m.story_before, after: m.story_after }),
         };
       });
   }

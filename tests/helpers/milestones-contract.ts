@@ -906,7 +906,7 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         expect(await stepsOf(repo, "web")).toEqual([]);
       });
 
-      it("tells staff there is a photo, and shows it only when the member ticked 'Share my story'", async () => {
+      it("tells staff there is a photo, and shows it only when the member ticked 'Allow us to celebrate you publicly'", async () => {
         const repo = ctx.repo();
         const shared = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "Done.", shareStory: true }, titled("A Shared Fake Work")), NOW);
         const kept = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("A Kept Fake Work")), NOW);
@@ -922,6 +922,31 @@ export function defineMilestonesContract(name: string, setup: () => MilestonesCo
         expect(by("A Bare Fake Work")).toMatchObject({ consentTestimonial: false, hasPhoto: false, photo: null });
         expect(bare.milestone.photo).toBeNull();
         expect(JSON.stringify(rows)).not.toContain(token(62));
+      });
+
+      it("tells staff whether a story exists (never its words), and lists confirmed ones with a story or photo and no yes", async () => {
+        const repo = ctx.repo();
+        const storyOnly = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "A secret fake ending." }, titled("Story Only Fake Work")), NOW);
+        const photoOnly = await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("Photo Only Fake Work")), NOW);
+        await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", {}, titled("Nothing Fake Work")), NOW);
+        await repo.addOwn(ownAdd(id(ada), ctx.staffUserId, "the_end", { storyAfter: "Said yes.", shareStory: true }, titled("Opted In Fake Work")), NOW);
+        await repo.propose({ ...proposal(bo), work: titled("Proposed Fake Work") });
+        await repo.setPhoto(photoOnly.milestone.id, id(ada), pathOf(ada, 71), "Only a photo", NOW);
+
+        const all = await repo.page({ limit: 50, offset: 0 });
+        const by = (rows: typeof all, title: string) => rows.find((r) => r.workTitle === title);
+        expect(by(all, "Story Only Fake Work")).toMatchObject({ hasStory: true, hasPhoto: false });
+        expect(by(all, "Photo Only Fake Work")).toMatchObject({ hasStory: false, hasPhoto: true });
+        expect(by(all, "Nothing Fake Work")).toMatchObject({ hasStory: false, hasPhoto: false });
+        expect(by(all, "Proposed Fake Work")).toMatchObject({ hasStory: false });
+        expect(JSON.stringify(all)).not.toContain("A secret fake ending.");
+
+        const waiting = await repo.page({ notOptedIn: true, limit: 50, offset: 0 });
+        expect(waiting.map((r) => r.workTitle).sort()).toEqual(["Photo Only Fake Work", "Story Only Fake Work"]);
+        expect(storyOnly.milestone.consentTestimonial).toBe(false);
+        // Paging works on the narrowed list.
+        expect(await repo.page({ notOptedIn: true, limit: 1, offset: 1 })).toHaveLength(1);
+        expect(await repo.page({ notOptedIn: true, limit: 50, offset: 2 })).toEqual([]);
       });
     });
   });

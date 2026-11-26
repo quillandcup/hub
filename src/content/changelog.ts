@@ -557,7 +557,7 @@ To check what they see, an admin opens the user menu, chooses **Preview as...**,
 - **Say when, as well as you remember.** Give the day, only the month and year, only the year, or leave it out.
 - **Add your story**, how it felt before and how it feels now. It shows under that step, for the same people who can see the step.
 - **Add a photo** to a step: the day you wrote THE END, the day your manuscript was ready to publish, or you holding your published book. A photo on THE END or ready to publish is seen only by the people who can see that step, and you can change or remove it any time. The one of you holding your book goes with the Published step, which is public like your book: anyone on the internet can see it once your writer profile is on. We take out the details saved inside a photo, like where it was taken.
-- **Share my story to inspire other writers** is a box you can tick if you are happy for us to feature your story, and the photo you added, on the Quill & Cup website. It starts unticked, and you can untick it any time.
+- **Allow us to celebrate you publicly** is a box you can tick, once you have written a story or added a photo, if you are happy for us to feature them on the Quill & Cup website and in what we share about our writers. It starts unticked, and you can untick it any time.
 
 ![A project's milestones, for a book whose three steps are done, with the globe on each and the share box](/changelog/milestones-on-your-profile/07-one-work-3-published-project.webp)
 

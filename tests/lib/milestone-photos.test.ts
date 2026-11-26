@@ -55,7 +55,7 @@ describe("decidePhotoAccess: who may be handed a photo", () => {
     expect(decide("public", signedInNoRecord, true)).toEqual({ allowed: true, cache: "web" });
   });
 
-  it("gives staff who are not the member a photo only when the member ticked 'Share my story', at any level", () => {
+  it("gives staff who are not the member a photo only when the member ticked 'Allow us to celebrate you publicly', at any level", () => {
     for (const level of VISIBILITIES) {
       expect(decide(level, staff, false)).toEqual({ allowed: false });
     }
@@ -147,7 +147,7 @@ describe("the words around a photo", () => {
     expect(publishedPhotoLine({ available: true, on: true }, "community")).toMatch(/Other members .* the same as this book\. It is not on the web/);
   });
 
-  it("hands a book's photo at the lock to nobody but its member: not another member, not a visitor, not staff (a book has no 'Share my story' tick)", () => {
+  it("hands a book's photo at the lock to nobody but its member: not another member, not a visitor, not staff (a book has no 'Allow us to celebrate you publicly' tick)", () => {
     const book = (viewer: PhotoViewer, webOn = true) => decidePhotoAccess({ ownerId: OWNER, level: "private", consentTestimonial: false }, viewer, webOn);
     expect(book(owner)).toEqual({ allowed: true, cache: "private" });
     for (const viewer of [member, staff, staffMember, signedInNoRecord, ANONYMOUS_VIEWER]) expect(book(viewer)).toEqual({ allowed: false });

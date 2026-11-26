@@ -60,7 +60,7 @@ export const MILESTONE_SOURCE_NOTES: Record<MilestoneSource, string> = {
 };
 
 /**
- * The one consent a milestone carries: "Share my story to inspire other writers" (stored as `consent_testimonial`). It is for
+ * The one consent a milestone carries: `SHARE_STORY_LABEL` (stored as `consent_testimonial`). It is for
  * marketing: the Finishers section of the website and the testimonials we share. It is off until the member ticks it, only
  * means something on a confirmed milestone with a story, and is never a condition of saving (docs/product/FINISHERS.md).
  */
@@ -73,10 +73,25 @@ export const SHARE_STORY_DEFAULT = false;
  * (`member_milestones_default_visibility`) starts it at the same level; `tests/lib/finishers.test.ts` keeps the two in step.
  */
 export const MILESTONE_DEFAULT_VISIBILITY: Visibility = "public";
-export const SHARE_STORY_LABEL = "Share my story to inspire other writers.";
+/** The label of the one consent. Asked as a celebration of the member, not as a favour to marketing. */
+export const SHARE_STORY_LABEL = "Allow us to celebrate you publicly";
+/** Under the tick, always visible: what saying yes means, in one line (the info tip says it in full). */
+export const SHARE_STORY_HELP = "We may feature your story on the Quill & Cup website and in what we share about our writers. If you add a photo, we may feature that too.";
+/** Under the tick while it is off for lack of anything to share: the server only honors the tick once a story is written or a photo added. */
+export const SHARE_STORY_NEEDS = "Write a story or add a photo first, and then you can tick this.";
+
+/**
+ * What the staff list says about the consent on a confirmed milestone. "Not shared" is not "No": a member who has not ticked has not
+ * refused, so the words never read as a refusal (the column is "-" for a milestone that is not confirmed).
+ */
+export const CONSENT_SHARED = "Shared";
+export const CONSENT_NOT_SHARED = "Not shared";
+/** The staff list that finds confirmed milestones with a story or photo and no yes yet: `?filter=` in the URL, and its button. */
+export const NOT_OPTED_IN_FILTER = "not-opted-in";
+export const NOT_OPTED_IN_LABEL = "Has a story or photo, not opted in";
 /** Behind the info icon beside the share tick (not repeated under every work): what ticking it means. */
 export const SHARE_STORY_TIP =
-  "Your story could be the thing that gets someone staring at a blank page to start. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here and, if you've added one, the photo, and you can change your mind any time.";
+  "Your story might help someone stuck on a blank page. If you tick this, we may feature it on the Quill & Cup website and in what we share about our writers. We'll only use what you've written here, and your photo if you've added one. You can change your mind any time.";
 
 /** What a strip calls a work whose name the viewer may not see (a project that is private to them). Never the title itself. */
 export const ANOTHER_WORK_TITLE = "Another work";
@@ -192,7 +207,7 @@ export const MILESTONE_PHOTO_PROMPT: Record<MilestoneKind | "published", string>
 /**
  * Who can see a photo, in a sentence beside it. A photo has the level of its milestone and never more: the globe line never
  * promises more than will happen (the web needs writer profiles open to the member and their page on). The team sees a photo only
- * when the member ticked "Share my story".
+ * when the member ticked "Allow us to celebrate you publicly".
  */
 export function milestonePhotoLine(visibility: Visibility, page: { available: boolean; on: boolean }): string {
   if (visibility === "private") return "Only you can see this photo, because this milestone is private.";

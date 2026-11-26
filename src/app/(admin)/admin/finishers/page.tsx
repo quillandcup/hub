@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { requirePermission } from "@/lib/admin-auth";
-import { MILESTONE_STATUSES, type MilestoneStatus } from "@/lib/finishers";
+import { MILESTONE_STATUSES, NOT_OPTED_IN_FILTER, type MilestoneStatus } from "@/lib/finishers";
 import { parsePageParam } from "@/lib/pagination";
 import FinishersClient from "./FinishersClient";
 
@@ -20,13 +20,14 @@ export default async function FinishersPage({ searchParams }: { searchParams: Pr
   const params = await searchParams;
   const statusParam = typeof params.status === "string" ? params.status : undefined;
   const status = (MILESTONE_STATUSES as readonly string[]).includes(statusParam ?? "") ? (statusParam as MilestoneStatus) : undefined;
+  const notOptedIn = params.filter === NOT_OPTED_IN_FILTER;
   const page = parsePageParam(params.page);
 
   const repos = createRepos(await createClient());
   const [counts, rows, members] = await Promise.all([
     repos.milestones.counts(),
     // One extra row says whether there is a next page.
-    repos.milestones.page({ status, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE }),
+    repos.milestones.page({ status, notOptedIn, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE }),
     repos.members.list({ orderBy: "name" }),
   ]);
 
@@ -36,7 +37,8 @@ export default async function FinishersPage({ searchParams }: { searchParams: Pr
       rows={rows.slice(0, PAGE_SIZE)}
       hasNext={rows.length > PAGE_SIZE}
       page={page}
-      status={status ?? null}
+      status={notOptedIn ? null : (status ?? null)}
+      notOptedIn={notOptedIn}
       members={members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, status: m.status, email: m.email }))}
     />
   );
