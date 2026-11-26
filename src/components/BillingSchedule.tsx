@@ -13,6 +13,12 @@ const STATUS_CLASS: Record<RowStatus, string> = {
   charged_when_not_expected: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   unexpected: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   not_expected: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  hub_stripe_disagree: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  paused_short: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  hiatus_confirmed: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  hiatus_mismatch: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  unrecorded_gap: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  gap_short: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
 
 interface Props {
@@ -46,6 +52,18 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
           Only rows that need a look ({summary.needsAttention})
         </label>
       </div>
+      {summary.byStatus.hiatus_confirmed + summary.byStatus.hiatus_mismatch + summary.byStatus.unrecorded_gap + summary.byStatus.gap_short > 0 && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Billing gaps are inferred from the payments (no payment for a billing period or more between two paid invoices, with no failed payment, cancellation or program
+          explaining it) and checked against the Hub&apos;s hiatus records. That is a guess: the invoices show what was billed, not why.
+        </p>
+      )}
+      {summary.byStatus.paused_short + summary.byStatus.hub_stripe_disagree > 0 && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Whether a Stripe pause is a hiatus is a guess from its length: about one billing period or less reads as a possible gifted month (Paused, short),
+          two or more, or no resume date, as a hiatus. Stripe does not keep when a pause began, so it is counted from the first billing day after the last payment.
+        </p>
+      )}
       {schedules.map((schedule) => {
         const rows = schedule.rows.filter((r) => !onlyProblems || r.needsAttention).slice().reverse();
         return (

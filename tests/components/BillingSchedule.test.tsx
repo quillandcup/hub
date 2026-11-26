@@ -16,6 +16,7 @@ const row = (key: string, expectedDate: string | null, status: ScheduleRow["stat
   status,
   reason: `reason ${key}`,
   needsAttention: false,
+  cause: null,
   transactions: [],
   currency: "usd",
   ...extra,

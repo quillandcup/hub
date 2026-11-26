@@ -107,6 +107,14 @@ describe("helpers", () => {
   it("reads the anchor and pause from the raw subscription, and skips one without a creation time", () => {
     const row = { stripe_subscription_id: "s", stripe_customer_id: "c", status: "active", created_at_stripe: "2026-01-01T00:00:00Z", canceled_at: null } as never as Parameters<typeof toReconSubscription>[0];
     expect(toReconSubscription({ ...row, data: { billing_cycle_anchor: 1_767_225_600, pause_collection: { behavior: "void" } } })).toMatchObject({ billingAnchor: "2026-01-01T00:00:00.000Z", paused: true });
+    // Paused with a resume date (Unix seconds) and without one.
+    expect(toReconSubscription({ ...row, data: { pause_collection: { behavior: "void", resumes_at: 1_780_000_000 } } })).toMatchObject({
+      paused: true,
+      pauseBehavior: "void",
+      pauseResumesAt: "2026-05-28T20:26:40.000Z",
+    });
+    expect(toReconSubscription({ ...row, data: { pause_collection: { behavior: "mark_uncollectible" } } })).toMatchObject({ paused: true, pauseBehavior: "mark_uncollectible", pauseResumesAt: null });
+    expect(toReconSubscription({ ...row, data: { pause_collection: null } })).toMatchObject({ paused: false, pauseBehavior: null });
     expect(toReconSubscription({ ...row, data: null })).toMatchObject({ billingAnchor: null, paused: false });
     expect(toReconSubscription({ ...row, data: [] })).toMatchObject({ billingAnchor: null });
     expect(toReconSubscription({ ...row, created_at_stripe: null })).toBeNull();

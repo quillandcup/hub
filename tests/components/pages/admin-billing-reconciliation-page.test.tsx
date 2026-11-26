@@ -33,13 +33,13 @@ describe("billing reconciliation page", () => {
 
   it("asks for its own permission first", async () => {
     repos = createInMemoryRepos();
-    await renderServerPage(BillingReconciliationPage, {});
+    await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
     expect(guard).toHaveBeenCalledWith("billing.reconciliation.read");
   });
 
   it("says so when no invoices are imported", async () => {
     repos = createInMemoryRepos();
-    await renderServerPage(BillingReconciliationPage, {});
+    await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
     expect(screen.getByText(/No Stripe invoices are imported yet/)).toBeInTheDocument();
   });
 
@@ -60,11 +60,11 @@ describe("billing reconciliation page", () => {
         ],
       } as never)
     );
-    await renderServerPage(BillingReconciliationPage, {});
+    await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
     expect(screen.getByRole("link", { name: "Bea Example" })).toHaveAttribute("href", `/admin/members/${BEA}/transactions`);
     expect(screen.queryByRole("link", { name: "Ada E." })).not.toBeInTheDocument();
-    expect(screen.getByText("Missed: 2")).toBeInTheDocument();
-    expect(screen.getByText("Members who need a look").parentElement).toHaveTextContent("1");
+    expect(screen.getByText(/Billing was due on 2026-04-09/)).toBeInTheDocument();
+    expect(screen.getByText(/Members who need a look: All/).parentElement).toHaveTextContent("1");
   });
 
   it("congratulates when every billing day lines up", async () => {
@@ -76,7 +76,46 @@ describe("billing reconciliation page", () => {
         stripeInvoices: [invoice("in_a1", "cus_ada", "2026-03-09T15:00:00Z"), invoice("in_a2", "cus_ada", "2026-04-09T15:00:00Z"), invoice("in_a3", "cus_ada", "2026-05-09T15:00:00Z")],
       } as never)
     );
-    await renderServerPage(BillingReconciliationPage, {});
+    await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
     expect(screen.getByText("Every billing day lines up.")).toBeInTheDocument();
+  });
+
+  describe("filters", () => {
+    beforeEach(() => {
+      repos = createInMemoryRepos(
+        new InMemoryDataset({
+          members: [
+            { id: ADA, name: "Ada Example", email: "ada@example.test", status: "active", stripeCustomerId: "cus_ada" },
+            { id: BEA, name: "Bea Example", email: "bea@example.test", status: "active", stripeCustomerId: "cus_bea" },
+          ],
+          stripeProducts: [{ stripe_product_id: "prod_m", name: "Quill & Cup Membership" }],
+          stripeSubscriptions: [sub("sub_a", "cus_ada"), sub("sub_b", "cus_bea")],
+          stripeInvoices: [
+            invoice("in_a1", "cus_ada", "2026-03-09T15:00:00Z"),
+            invoice("in_a2", "cus_ada", "2026-04-09T15:00:00Z"),
+            invoice("in_a3", "cus_ada", "2026-05-09T15:00:00Z"),
+            invoice("in_b1", "cus_bea", "2026-03-09T15:00:00Z"),
+          ],
+          memberHiatuses: [{ id: "hia_AAAAAAAAAAA1", member_id: ADA, start_date: "2026-04-01", end_date: "2026-04-30", reason: null, notes: null, created_at: null, created_by: null, updated_at: "2026-04-01T00:00:00Z" }],
+        } as never)
+      );
+    });
+
+    it("narrows to members charged during a hiatus, with the counts on every filter", async () => {
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "charged_hiatus" }) });
+      expect(screen.getByRole("link", { name: "Ada Example" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Bea Example" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Charged during a hiatus (1)" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("link", { name: "Missed (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=missed");
+      expect(screen.getByRole("link", { name: "All (2)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation");
+    });
+
+    it("says nobody is there for an empty filter, and falls back to all for an unknown one", async () => {
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "missed_after_hiatus" }) });
+      expect(screen.getByText("Nobody here.")).toBeInTheDocument();
+      cleanup();
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "nonsense" }) });
+      expect(screen.getByRole("link", { name: "All (2)" })).toHaveAttribute("aria-current", "page");
+    });
   });
 });

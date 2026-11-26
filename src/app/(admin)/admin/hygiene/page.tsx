@@ -892,10 +892,10 @@ export default async function DataHygienePage() {
               className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
             >
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Billing Reconciliation</h3>
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Hiatus & Billing Reconciliation</h3>
                 <span className="text-2xl">🧾</span>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Stripe payments against the billing days the Hub expects →</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Charged during a hiatus, not billed after one, Hub and Stripe disagreeing →</p>
             </Link>
 
             {/* Name Aliases */}

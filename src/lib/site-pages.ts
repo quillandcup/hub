@@ -195,7 +195,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Merge & Fix", href: "/admin/hygiene/merge-fix", section: "System", keywords: ["duplicates", "merge"] }),
   admin({ title: "External Conflicts", href: "/admin/hygiene/external-conflicts", section: "System" }),
   admin({ title: "Temporary Email Addresses", href: "/admin/hygiene/temporary-emails", section: "System", keywords: ["disposable", "throwaway", "temp mail"] }),
-  admin({ title: "Billing Reconciliation", href: "/admin/hygiene/billing-reconciliation", section: "System", keywords: ["stripe", "payments", "invoices", "hiatus", "missed payment"] }),
+  admin({ title: "Hiatus & Billing Reconciliation", href: "/admin/hygiene/billing-reconciliation", section: "System", keywords: ["stripe", "payments", "invoices", "hiatus", "missed payment"] }),
   admin({ title: "Missing Member Data", href: "/admin/hygiene/missing-member-data", section: "System" }),
   admin({ title: "Name Matching Game", href: "/admin/hygiene/name-matching", section: "System" }),
   admin({ title: "Name Aliases", href: "/admin/data/aliases", section: "System" }),

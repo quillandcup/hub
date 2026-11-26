@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MemberTransactionsPanel from "@/app/(admin)/admin/members/[id]/MemberTransactionsPanel";
 import type { TransactionRow } from "@/lib/member-transactions";
@@ -10,6 +10,11 @@ const row: TransactionRow = {
   amountCents: 2500, refundedCents: 500, currency: "usd", statusLabel: "Partly refunded", tone: "warn", failureCode: "card_declined", attempts: 2,
   dashboardUrl: "https://dashboard.stripe.com/invoices/in_1",
 };
+
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe("MemberTransactionsPanel", () => {
   it("lists a row with amount, refund, status, attempts and a Stripe link", () => {
@@ -49,12 +54,29 @@ describe("MemberTransactionsPanel", () => {
     expect(within(body[0]).getByText("Retreat deposit")).toBeInTheDocument();
   });
 
-  it("shows the billing schedule above the transactions when a customer is linked", () => {
-    const schedules = [{ purchaseType: "membership" as const, label: "Membership", memberId: "mbr_AAAAAAAAAAA1", start: "2026-01-09", end: null, rows: [{ key: "k", expectedDate: "2026-03-09", expectedAmountCents: 4700, month: "2026-03", status: "missed" as const, reason: "Billing was due.", needsAttention: true, transactions: [], currency: "usd" }] }];
-    const { rerender } = render(<MemberTransactionsPanel rows={[row]} customerCount={1} schedules={schedules} />);
+  it("offers a flat list and a grouped-by-product view, remembers the choice, and keeps the list as the default", async () => {
+    const user = userEvent.setup();
+    const schedules = [{ purchaseType: "membership" as const, label: "Membership", memberId: "mbr_AAAAAAAAAAA1", start: "2026-01-09", end: null, rows: [{ key: "k", expectedDate: "2026-03-09", expectedAmountCents: 4700, month: "2026-03", status: "missed" as const, reason: "Billing was due.", needsAttention: true, cause: null, transactions: [], currency: "usd" }] }];
+    const { unmount } = render(<MemberTransactionsPanel rows={[row]} customerCount={1} schedules={schedules} />);
+    expect(screen.getByRole("button", { name: "Flat list" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("heading", { name: "Transactions" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Billing schedule" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Group by product" }));
     expect(screen.getByRole("heading", { name: "Billing schedule" })).toBeInTheDocument();
     expect(screen.getByText("Billing was due.")).toBeInTheDocument();
-    rerender(<MemberTransactionsPanel rows={[]} customerCount={0} schedules={[]} />);
-    expect(screen.queryByRole("heading", { name: "Billing schedule" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Transactions" })).not.toBeInTheDocument();
+    unmount();
+
+    render(<MemberTransactionsPanel rows={[row]} customerCount={1} schedules={schedules} />);
+    expect(await screen.findByRole("heading", { name: "Billing schedule" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Flat list" }));
+    expect(screen.getByRole("heading", { name: "Transactions" })).toBeInTheDocument();
+    expect(localStorage.getItem("hub.member-transactions-view")).toBe("flat");
+  });
+
+  it("has no toggle when no Stripe customer is linked", () => {
+    render(<MemberTransactionsPanel rows={[]} customerCount={0} schedules={[]} />);
+    expect(screen.queryByRole("button", { name: "Group by product" })).not.toBeInTheDocument();
   });
 });
