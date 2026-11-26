@@ -80,6 +80,55 @@ describe("billing reconciliation page", () => {
     expect(screen.getByText("Every billing day lines up.")).toBeInTheDocument();
   });
 
+  describe("unpaid invoices", () => {
+    beforeEach(() => {
+      const open = (id: string, customer: string, createdAt: string) => ({ ...invoice(id, customer, createdAt), status: "open", amount_paid: 0, attempt_count: 0 });
+      repos = createInMemoryRepos(
+        new InMemoryDataset({
+          members: [
+            { id: ADA, name: "Ada Example", email: "ada@example.test", status: "active", stripeCustomerId: "cus_ada" },
+            { id: BEA, name: "Bea Example", email: "bea@example.test", status: "active", stripeCustomerId: "cus_bea" },
+          ],
+          stripeProducts: [{ stripe_product_id: "prod_m", name: "Quill & Cup Membership" }],
+          stripeSubscriptions: [{ ...sub("sub_a", "cus_ada"), data: { collection_method: "send_invoice" } }, sub("sub_b", "cus_bea")],
+          stripeInvoices: [
+            // Ada: paid in March, then two open invoices and nothing since (behind).
+            { ...invoice("in_a1", "cus_ada", "2026-03-09T15:00:00Z"), stripe_subscription_id: "sub_a" },
+            { ...open("in_a2", "cus_ada", "2026-04-09T15:00:00Z"), stripe_subscription_id: "sub_a" },
+            { ...open("in_a3", "cus_ada", "2026-05-09T15:00:00Z"), stripe_subscription_id: "sub_a" },
+            // Bea: March open, paid in April and May (paying again).
+            open("in_b1", "cus_bea", "2026-03-09T15:00:00Z"),
+            invoice("in_b2", "cus_bea", "2026-04-09T15:00:00Z"),
+            invoice("in_b3", "cus_bea", "2026-05-09T15:00:00Z"),
+          ],
+        } as never)
+      );
+    });
+
+    it("shows one row per member, the two kinds as their own chips with counts, and the invoice-sent wording", async () => {
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
+      expect(screen.getByRole("link", { name: "Behind: nothing paid since an unpaid invoice (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=behind");
+      expect(screen.getByRole("link", { name: "Paying again, earlier months unpaid (1)" })).toHaveAttribute("href", "/admin/hygiene/billing-reconciliation?filter=paying_again");
+      expect(screen.getByRole("link", { name: "Any unpaid invoice (2)" })).toBeInTheDocument();
+      expect(screen.getByText(/2 invoices unpaid since 2026-04-09, \$94.00 total/)).toBeInTheDocument();
+      expect(screen.getByText(/never charges a card/)).toBeInTheDocument();
+      // The member who is behind is listed first.
+      const links = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.includes("/transactions"));
+      expect(links.map((l) => l.textContent)).toEqual(["Ada Example", "Bea Example"]);
+    });
+
+    it("narrows to each kind", async () => {
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "paying_again" }) });
+      expect(screen.getByRole("link", { name: "Bea Example" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Ada Example" })).not.toBeInTheDocument();
+      expect(screen.getByText(/The member is paying again/)).toBeInTheDocument();
+      cleanup();
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ filter: "behind" }) });
+      expect(screen.getByRole("link", { name: "Ada Example" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Bea Example" })).not.toBeInTheDocument();
+    });
+  });
+
   describe("filters", () => {
     beforeEach(() => {
       repos = createInMemoryRepos(

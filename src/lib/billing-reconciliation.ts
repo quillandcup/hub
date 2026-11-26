@@ -22,7 +22,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 const PURCHASE_TYPES = ["membership", "program", "course", "event"] as const;
 export type PurchaseType = (typeof PURCHASE_TYPES)[number];
 
-export const ROW_STATUSES = ["paid", "refunded", "missed", "failed", "open", "charged_when_not_expected", "unexpected", "not_expected", "hub_stripe_disagree", "paused_short", "hiatus_confirmed", "hiatus_mismatch", "unrecorded_gap", "gap_short", "missing_payment", "unexplained_payment", "forfeited", "marked_not_attending", "gifted", "comped", "transferred", "granted_no_payment", "granted_paid_stripe", "granted_no_override", "paid_override_missing"] as const;
+export const ROW_STATUSES = ["paid", "refunded", "missed", "failed", "open", "unpaid_behind", "unpaid_earlier", "charged_when_not_expected", "unexpected", "not_expected", "hub_stripe_disagree", "paused_short", "hiatus_confirmed", "hiatus_mismatch", "unrecorded_gap", "gap_short", "missing_payment", "unexplained_payment", "forfeited", "marked_not_attending", "gifted", "comped", "transferred", "granted_no_payment", "granted_paid_stripe", "granted_no_override", "paid_override_missing"] as const;
 export type RowStatus = (typeof ROW_STATUSES)[number];
 
 export const ROW_STATUS_LABELS: Record<RowStatus, string> = {
@@ -31,6 +31,8 @@ export const ROW_STATUS_LABELS: Record<RowStatus, string> = {
   missed: "Missed",
   failed: "Failed",
   open: "Open",
+  unpaid_behind: "Unpaid, behind",
+  unpaid_earlier: "Unpaid earlier, paying again",
   charged_when_not_expected: "Charged when it should not be",
   unexpected: "Unexpected payment",
   not_expected: "Not expected",
@@ -71,6 +73,10 @@ export interface ScheduleTransaction {
   invoiceStatus: string;
   failureCodes: string[];
   attempts: number;
+  /** The Stripe subscription that issued the invoice, or null. */
+  subscriptionId?: string | null;
+  /** The subscription's `collection_method` (`charge_automatically` or `send_invoice`), or null when unknown. */
+  collectionMethod?: string | null;
 }
 
 export interface ScheduleRow {
@@ -184,6 +190,11 @@ export interface ReconSubscription {
   pauseResumesAt?: string | null;
   /** The Kajabi offer id in the subscription's metadata (`kjb_offer_id`) when Kajabi created it. */
   kajabiOfferId?: string | null;
+  /**
+   * Stripe's `collection_method`: `charge_automatically` charges the card on file and retries; `send_invoice` only
+   * emails an invoice and never charges, so an unpaid one has had no tries. Null or absent when unknown.
+   */
+  collectionMethod?: string | null;
 }
 
 /** A hiatus or a program cohort: dates as YYYY-MM-DD; a null end means it has not ended. */
@@ -286,7 +297,8 @@ const group = <T>(rows: T[], keyOf: (row: T) => string | null | undefined): Map<
 export function transactionsOf(
   invoices: ReconInvoice[],
   chargesByInvoice: Map<string, ReconCharge[]>,
-  chargeById: Map<string, ReconCharge>
+  chargeById: Map<string, ReconCharge>,
+  subscriptionsById: Map<string, ReconSubscription> = new Map()
 ): ScheduleTransaction[] {
   return invoices.map((invoice) => {
     const tries = new Map((chargesByInvoice.get(invoice.stripeInvoiceId) ?? []).map((c) => [c.stripeChargeId, c]));
@@ -304,6 +316,8 @@ export function transactionsOf(
       invoiceStatus: invoice.status,
       failureCodes: [...new Set(list.map((c) => c.failureCode).filter((c): c is string => !!c))],
       attempts: Math.max(invoice.attemptCount, list.length),
+      subscriptionId: invoice.stripeSubscriptionId,
+      collectionMethod: (invoice.stripeSubscriptionId ? subscriptionsById.get(invoice.stripeSubscriptionId)?.collectionMethod : null) ?? null,
     };
   });
 }
@@ -314,6 +328,16 @@ export function transactionStatus(tx: ScheduleTransaction): RowStatus {
   if (tx.invoiceStatus === "uncollectible") return "failed";
   if (tx.invoiceStatus === "open") return tx.failureCodes.length > 0 ? "failed" : "open";
   return "open";
+}
+
+/**
+ * The membership schedule's view of a transaction: paid, refunded, or "unpaid" (open, uncollectible, anything
+ * else). Which of the two unpaid row statuses it becomes depends on the invoices around it, so `rollUpUnpaid`
+ * decides, not this.
+ */
+function membershipTxState(tx: ScheduleTransaction): "paid" | "refunded" | "unpaid" {
+  const s = transactionStatus(tx);
+  return s === "paid" || s === "refunded" ? s : "unpaid";
 }
 
 /**
@@ -490,6 +514,86 @@ function hubStripeDisagreement(
 }
 
 const tries = (n: number) => `${n} ${n === 1 ? "try" : "tries"}`;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const SEND_INVOICE = "send_invoice";
+
+type DraftRow = Omit<ScheduleRow, "key">;
+
+/** The sentence for a run of unpaid invoices of one subscription: what was billed, how it was (not) collected, how long it has been. */
+function unpaidReason(run: ScheduleTransaction[], today: string): string {
+  const first = run[0];
+  const last = run[run.length - 1];
+  const total = run.reduce((sum, t) => sum + t.billedCents, 0);
+  const age = plural(dayDiff(today, first.day), "day", "days");
+  const writtenOff = run.filter((t) => t.invoiceStatus === "uncollectible").length;
+  const writtenOffNote = writtenOff > 0 ? ` (${writtenOff === run.length ? "all" : writtenOff} written off as uncollectible)` : "";
+  const codes = [...new Set(run.flatMap((t) => t.failureCodes))];
+  const codeNote = codes.length ? ` (${codes.join(", ")})` : "";
+  if (first.collectionMethod === SEND_INVOICE) {
+    // Stripe emails the invoice and never charges a card, so there are no tries to count.
+    const never = "Stripe emails this invoice and never charges a card";
+    if (run.length === 1) return `${money(first.billedCents)} invoice emailed on ${first.day}, unpaid for ${age}${first.invoiceStatus === "uncollectible" ? " and written off as uncollectible" : ""} (${never}).`;
+    return `${run.length} invoices unpaid since ${first.day}, ${money(total)} total${writtenOffNote}. Stripe emails each invoice and never charges a card; the oldest has been unpaid for ${age}.`;
+  }
+  if (run.length === 1) {
+    if (first.invoiceStatus === "uncollectible") return `${money(first.billedCents)} invoiced on ${first.day} was written off as uncollectible after ${tries(first.attempts)}${codeNote}.`;
+    if (first.failureCodes.length > 0) return `${money(first.billedCents)} invoiced on ${first.day} is unpaid; the card was declined${codeNote} after ${tries(first.attempts)}.`;
+    return `${money(first.billedCents)} invoiced on ${first.day} is still unpaid after ${tries(first.attempts)}.`;
+  }
+  return `${run.length} invoices unpaid since ${first.day}, ${money(total)} total${writtenOffNote}; the latest had ${tries(last.attempts)}${codeNote}.`;
+}
+
+/**
+ * Consecutive unpaid invoices of one subscription (nothing paid on it in between) become one row, so nine
+ * unpaid months read as one thing to look at, not nine. Each rolled row is one of two kinds: `unpaid_behind`
+ * (nothing at all was paid since its latest unpaid invoice: the member is behind) or `unpaid_earlier` (a later
+ * invoice was paid, so the member pays again and the earlier months were left uncollected). The row keeps the
+ * month and expected day of the first unpaid invoice, so its key is the one that invoice's own row had.
+ */
+function rollUpUnpaid(rows: DraftRow[], unpaidRows: Set<DraftRow>, txs: ScheduleTransaction[], today: string, active: boolean): void {
+  if (unpaidRows.size === 0) return;
+  const dayOf = (r: DraftRow) => r.expectedDate ?? r.transactions[0]?.day ?? today;
+  const runs: DraftRow[][] = [];
+  const openRuns = new Map<string, DraftRow[]>();
+  for (const row of rows.slice().sort((a, b) => dayOf(a).localeCompare(dayOf(b)))) {
+    if (unpaidRows.has(row)) {
+      const key = row.transactions[0].subscriptionId ?? "";
+      let run = openRuns.get(key);
+      if (!run) {
+        run = [];
+        openRuns.set(key, run);
+        runs.push(run);
+      }
+      run.push(row);
+    } else {
+      // A payment on a subscription ends its run of unpaid invoices.
+      for (const tx of row.transactions) if (tx.keptCents > 0) openRuns.delete(tx.subscriptionId ?? "");
+    }
+  }
+  const paid = txs.filter((t) => t.keptCents > 0 && t.billedCents > 0).map((t) => t.day).sort();
+  const replacement = new Map<DraftRow, DraftRow>();
+  const removed = new Set<DraftRow>();
+  for (const run of runs) {
+    const invoices = run.flatMap((r) => r.transactions);
+    const latest = invoices.map((t) => t.day).sort().at(-1) as string;
+    const paidAfter = paid.find((d) => d > latest) ?? null;
+    const sentence = unpaidReason(invoices, today);
+    replacement.set(run[0], {
+      ...run[0],
+      status: paidAfter ? "unpaid_earlier" : "unpaid_behind",
+      expectedAmountCents: run.length > 1 ? invoices.reduce((sum, t) => sum + t.billedCents, 0) : run[0].expectedAmountCents,
+      reason: paidAfter
+        ? `${sentence} The member is paying again (an invoice was paid on ${paidAfter}), but ${invoices.length === 1 ? "this one was" : "these were"} not collected.`
+        : `${sentence} Nothing has been paid since.`,
+      needsAttention: active,
+      transactions: invoices,
+    });
+    for (const r of run.slice(1)) removed.add(r);
+  }
+  const merged = rows.filter((r) => !removed.has(r)).map((r) => replacement.get(r) ?? r);
+  rows.length = 0;
+  rows.push(...merged);
+}
 
 // ---------------------------------------------------------------- the membership schedule
 
@@ -577,6 +681,8 @@ function buildMembershipSchedule(
   };
   const active = member.status === "active";
   const rows: Omit<ScheduleRow, "key">[] = [];
+  /** The rows of one unpaid invoice each, which `rollUpUnpaid` merges and words once the rest of the rows are known. */
+  const unpaidRows = new Set<Omit<ScheduleRow, "key">>();
 
   // Stripe stores no pause start, but a paused subscription leaves draft or void invoices instead of charges.
   // A payment with such an invoice within a billing period before it and another within one after it, before the resume day, sits inside the
@@ -590,10 +696,10 @@ function buildMembershipSchedule(
     const price = lastPaidAmount(e.date, null);
     const base = { expectedDate: e.date, expectedAmountCents: e.tx ? e.tx.billedCents : (price?.cents ?? null), month: e.month, currency: price?.currency ?? "usd" };
     if (e.tx) {
-      const status = transactionStatus(e.tx);
+      const status = membershipTxState(e.tx);
       const pausePaid = status === "paid" && e.tx.keptCents > 0 && e.zone !== "inside" && paidWhilePaused(e.tx.day);
       const flagged = (status === "paid" && e.zone === "inside" && e.tx.keptCents > 0) || pausePaid;
-      const out: RowStatus = flagged ? "charged_when_not_expected" : status;
+      const out = flagged ? "charged_when_not_expected" : status;
       const reason = flagged
         ? `${money(e.tx.keptCents)} was paid on ${e.tx.day} while ${pausePaid ? "the subscription was paused in Stripe" : `the member was ${e.zoneReason}`}.`
         : out === "paid"
@@ -604,19 +710,17 @@ function buildMembershipSchedule(
               : `${money(e.tx.keptCents)} paid on ${e.tx.day}.`
           : out === "refunded"
             ? `${money(e.tx.refundedCents)} paid on ${e.tx.day} and refunded in full.`
-            : out === "open"
-              ? `${money(e.tx.billedCents)} invoiced on ${e.tx.day} is still unpaid after ${tries(e.tx.attempts)}.`
-              : e.tx.invoiceStatus === "uncollectible"
-                ? `${money(e.tx.billedCents)} invoiced on ${e.tx.day} was written off as uncollectible after ${tries(e.tx.attempts)}${e.tx.failureCodes.length ? ` (${e.tx.failureCodes.join(", ")})` : ""}.`
-                : `${money(e.tx.billedCents)} invoiced on ${e.tx.day} is unpaid; the card was declined${e.tx.failureCodes.length ? ` (${e.tx.failureCodes.join(", ")})` : ""} after ${tries(e.tx.attempts)}.`;
-      rows.push({
+            : "";
+      const row: Omit<ScheduleRow, "key"> = {
         ...base,
-        status: out,
+        status: out === "unpaid" ? "unpaid_behind" : out,
         reason,
-        needsAttention: out === "charged_when_not_expected" || ((out === "open" || out === "failed") && active),
+        needsAttention: out === "charged_when_not_expected" || (out === "unpaid" && active),
         cause: pausePaid ? "pause" : flagged ? (e.zoneReason === "on hiatus" ? "hiatus" : "program") : null,
         transactions: [e.tx],
-      });
+      };
+      if (out === "unpaid") unpaidRows.add(row);
+      rows.push(row);
       continue;
     }
     const sameMonth = invoices.filter((i) => monthOf(easternDay(i.createdAt)) === e.month && !used.has(i.stripeInvoiceId));
@@ -646,31 +750,35 @@ function buildMembershipSchedule(
   for (const tx of txs) {
     if (used.has(tx.invoiceId) || tx.day < firstDay) continue;
     if (tx.invoiceStatus === "draft" || tx.invoiceStatus === "void") continue;
-    const status = transactionStatus(tx);
+    const status = membershipTxState(tx);
     const hiatus = hiatuses.find((h) => strictlyInside(tx.day, h));
     const program = programs.find((p) => strictlyInside(tx.day, p));
     const pausePaid = status === "paid" && tx.keptCents > 0 && !hiatus && !program && paidWhilePaused(tx.day);
     const inside = status === "paid" && tx.keptCents > 0 && (hiatus || program || pausePaid);
     const price = lastPaidAmount(tx.day, null);
-    const out: RowStatus = inside ? "charged_when_not_expected" : status === "paid" ? "unexpected" : status;
-    rows.push({
+    const out = inside ? "charged_when_not_expected" : status === "paid" ? "unexpected" : status;
+    const row: Omit<ScheduleRow, "key"> = {
       expectedDate: null,
       expectedAmountCents: null,
       month: monthOf(tx.day),
       currency: price?.currency ?? "usd",
-      status: out,
+      status: out === "unpaid" ? "unpaid_behind" : out,
       reason: inside
         ? `${money(tx.keptCents)} was paid on ${tx.day} while ${pausePaid ? "the subscription was paused in Stripe" : `the member was ${hiatus ? `on hiatus (${hiatus.startDate} to ${hiatus.endDate ?? "no end date"})` : "in a program that includes membership"}`}.`
         : out === "unexpected"
           ? `${money(tx.keptCents)} was paid on ${tx.day} and matches no billing day.`
           : out === "refunded"
             ? `${money(tx.refundedCents)} paid on ${tx.day} and refunded in full, matching no billing day.`
-            : `${money(tx.billedCents)} invoiced on ${tx.day} is ${out === "open" ? "unpaid" : "failed"} and matches no billing day.`,
-      needsAttention: out === "charged_when_not_expected" || out === "unexpected" || ((out === "open" || out === "failed") && active),
+            : "",
+      needsAttention: out === "charged_when_not_expected" || out === "unexpected" || (out === "unpaid" && active),
       cause: inside ? (pausePaid ? "pause" : hiatus ? "hiatus" : "program") : null,
       transactions: [tx],
-    });
+    };
+    if (out === "unpaid") unpaidRows.add(row);
+    rows.push(row);
   }
+
+  rollUpUnpaid(rows, unpaidRows, txs, today, active);
 
   // The switch from a program to membership: the program is over, the member is active, and nothing bills them.
   const graceEnd = addDays(today, -PROGRAM_END_GRACE_DAYS);
@@ -772,6 +880,7 @@ export function buildSchedules(input: ReconInput): PurchaseSchedule[] {
     (i) => i.stripeCustomerId
   );
   const subsByCustomer = group(input.subscriptions, (s) => s.stripeCustomerId);
+  const subscriptionsById = new Map(input.subscriptions.map((s) => [s.stripeSubscriptionId, s]));
   const hiatusByMember = group(input.hiatuses, (h) => h.memberId);
   const programsByMember = group(input.programWindows, (p) => p.memberId);
   const lookback = input.lookbackMonths === undefined ? DEFAULT_LOOKBACK_MONTHS : input.lookbackMonths;
@@ -786,7 +895,7 @@ export function buildSchedules(input: ReconInput): PurchaseSchedule[] {
       member.stripeCustomerIds.flatMap((c) => subsByCustomer.get(c) ?? []),
       hiatusByMember.get(member.id) ?? [],
       programsByMember.get(member.id) ?? [],
-      transactionsOf(invoices, chargesByInvoice, chargeById),
+      transactionsOf(invoices, chargesByInvoice, chargeById, subscriptionsById),
       input.today,
       lookback,
       {

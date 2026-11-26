@@ -69,7 +69,7 @@ const toReconCharge = (row: StripeChargeRow): ReconCharge => ({
   failureCode: row.failure_code,
 });
 
-/** `billing_cycle_anchor` and the pause (`pause_collection`: behavior and `resumes_at`, Unix seconds) from the raw subscription. */
+/** `billing_cycle_anchor`, `collection_method` and the pause (`pause_collection`: behavior and `resumes_at`, Unix seconds) from the raw subscription. */
 /** Null for a subscription without a creation time: nothing can be expected of it. */
 export function toReconSubscription(row: StripeSubscriptionRow): ReconSubscription | null {
   if (!row.created_at_stripe) return null;
@@ -87,6 +87,7 @@ export function toReconSubscription(row: StripeSubscriptionRow): ReconSubscripti
     pauseBehavior: typeof pause?.behavior === "string" ? pause.behavior : null,
     pauseResumesAt: typeof pause?.resumes_at === "number" ? new Date(pause.resumes_at * 1000).toISOString() : null,
     kajabiOfferId: kajabiOfferIdOf(data),
+    collectionMethod: typeof data.collection_method === "string" ? data.collection_method : null,
   };
 }
 
