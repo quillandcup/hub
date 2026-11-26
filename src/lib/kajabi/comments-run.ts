@@ -20,6 +20,8 @@ export interface CommentsSave {
   written: number;
   unchanged: number;
   removed: number;
+  /** Stored comments the snapshot does not list (removed, or held back when `removeMissing` is false). */
+  missing: number;
 }
 
 const sameInstant = (a: string | null, b: string | null) => (a === null || b === null ? a === b : new Date(a).getTime() === new Date(b).getTime());
@@ -27,7 +29,8 @@ const sameInstant = (a: string | null, b: string | null) => (a === null || b ===
 /**
  * Replaces one lesson's comments with a fully read snapshot: new and changed comments are upserted, comments the
  * snapshot no longer lists are soft-deleted (only with `removeMissing`), an identical snapshot writes nothing.
- * Only this lesson is touched. `dryRun` counts without writing.
+ * Only this lesson is touched. `dryRun` counts without writing. A snapshot that is not known to be complete must pass
+ * `removeMissing: false`: it then only adds and updates, so a partial read can never mark a good comment deleted.
  */
 export async function saveLessonComments(
   db: Db,
@@ -68,7 +71,8 @@ export async function saveLessonComments(
     );
     await repo.softDeleteLessonComments(lessonKajabiId, gone, capturedAt.toISOString());
   }
-  return { written: toWrite.length, unchanged: comments.length - toWrite.length, removed: gone.length };
+  const missing = [...stored.values()].filter((s) => s.deleted_at === null && !listed.has(s.comment_key)).length;
+  return { written: toWrite.length, unchanged: comments.length - toWrite.length, removed: gone.length, missing };
 }
 
 /**
@@ -80,8 +84,19 @@ export async function saveLessonComments(
  * page is a quiz or assessment (radio-button questions), which has no comments by design.
  */
 export type LessonRead =
-  | { kind: "ok"; page: PageComments; capped: boolean }
-  | { kind: "noList"; hasCommentBox: boolean; locked?: boolean; quiz?: boolean };
+  | { kind: "ok"; page: PageComments; capped: boolean; /** How many "Show More" and similar controls were pressed. */ presses?: number }
+  | { kind: "noList"; hasCommentBox: boolean; locked?: boolean; quiz?: boolean; /** The total the page prints next to its Comments heading, when the page has one. */ declaredTotal?: number | null; iframes?: number };
+
+/** What the run saw on one lesson, for the owner to compare with Kajabi. Counts only. */
+export interface LessonReport {
+  lessonKajabiId: string;
+  comments: number;
+  replies: number;
+  presses: number;
+  /** The total the page printed, when it did. */
+  declaredTotal: number | null;
+  warnings: string[];
+}
 
 export interface CommentsRunOptions {
   db: Db;
@@ -107,7 +122,7 @@ export interface CommentsSummary {
   /** Comments and replies captured. */
   comments: number;
   replies: number;
-  rows: CommentsSave;
+  rows: Omit<CommentsSave, "missing">;
   keySources: Record<KeySource, number>;
   duplicateKeys: number;
   /** Lessons whose page loaded with a comment box but no comments: none to capture (nothing written for them). */
@@ -123,6 +138,20 @@ export interface CommentsSummary {
   /** Lessons where the page's own total differs from what was read (written, but nothing removed when fewer were read). */
   lessonsMismatched: number;
   lessonsFailed: number;
+  /** Times "Show More" (or a control like it) was pressed, over all lessons. */
+  presses: number;
+  /** Lessons whose comments list was on the page but held no comment, or the page prints a total above zero for a lesson with no list (a read that probably missed them). */
+  lessonsEmptyList: number;
+  /** Lessons still showing a control that would reveal more at the end of the read (nothing removed for them). */
+  lessonsPendingControls: number;
+  /** Lessons with no comments read and a frame on the page: comments inside a frame cannot be read. */
+  lessonsWithFrames: number;
+  /** Stored comments a lesson's read did not list and that were NOT marked removed, because the read was not shown to be complete. */
+  removalsHeld: number;
+  /** Per lesson: what was seen, in the order the lessons finished. */
+  lessonReports: LessonReport[];
+  /** Lines to read first: anything that suggests comments were missed. */
+  warnings: string[];
 }
 
 export async function runCommentsCapture(options: CommentsRunOptions): Promise<CommentsSummary> {
@@ -153,6 +182,17 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
     lessonsCapped: 0,
     lessonsMismatched: 0,
     lessonsFailed: 0,
+    presses: 0,
+    lessonsEmptyList: 0,
+    lessonsPendingControls: 0,
+    lessonsWithFrames: 0,
+    removalsHeld: 0,
+    lessonReports: [],
+    warnings: [],
+  };
+  const warn = (line: string) => {
+    summary.warnings.push(line);
+    log(`WARNING: ${line}`);
   };
   const failureKinds = new Map<string, number>();
 
@@ -186,35 +226,80 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
         summary.lessonsFailed++;
         failureKinds.set(result.reason, (failureKinds.get(result.reason) ?? 0) + 1);
       } else if (result.read.kind === "noList") {
+        const declared = result.read.declaredTotal ?? null;
         if (quizLessons.has(lesson.lessonKajabiId) || result.read.quiz) summary.lessonsQuizzes++;
         else if (result.read.locked) summary.lessonsLocked++;
-        else if (result.read.hasCommentBox) summary.lessonsNoComments++;
-        else {
+        else if (result.read.hasCommentBox) {
+          summary.lessonsNoComments++;
+          // The page prints a count above zero (or has a frame that could hold comments) yet nothing was read: this "no comments" is not to be trusted.
+          if (declared !== null && declared > 0) {
+            summary.lessonsEmptyList++;
+            warn(`lesson ${lesson.lessonKajabiId}: the page says ${declared} comments but no comments list was read`);
+          } else if ((result.read.iframes ?? 0) > 0) {
+            summary.lessonsWithFrames++;
+            warn(`lesson ${lesson.lessonKajabiId}: no comments read, and the page has ${result.read.iframes} frame(s) that could hold them`);
+          }
+          summary.lessonReports.push({ lessonKajabiId: lesson.lessonKajabiId, comments: 0, replies: 0, presses: 0, declaredTotal: declared, warnings: [] });
+        } else {
           summary.lessonsWithoutList++;
           // Its id is a Kajabi lesson id, not personal data: say which, so it can be opened and looked at.
           log(`lesson ${lesson.lessonKajabiId}: no comments list, no comment box and no lock notice (open it in the preview to see why)`);
         }
       } else if (result.read.capped) {
         summary.lessonsCapped++;
-        log(`lesson ${lesson.lessonKajabiId}: stopped at the Show More limit, nothing written for it`);
+        warn(`lesson ${lesson.lessonKajabiId}: stopped at the Show More limit, nothing written for it`);
       } else {
         const { page } = result.read;
+        const presses = result.read.presses ?? 0;
         const parsed = parseComments(page.comments, lesson.lessonKajabiId, timeZone);
-        const short = page.total !== null && parsed.comments.length < page.total;
+        const replyCount = parsed.comments.filter((c) => c.parentCommentKey !== null).length;
+        const lessonWarnings: string[] = [];
+        const flag = (text: string) => {
+          lessonWarnings.push(text);
+          warn(`lesson ${lesson.lessonKajabiId}: ${text}`);
+        };
         if (page.total !== null && page.total !== parsed.comments.length) {
           summary.lessonsMismatched++;
-          log(`lesson ${lesson.lessonKajabiId}: the page says ${page.total} comments, read ${parsed.comments.length}`);
+          flag(`the page says ${page.total} comments, read ${parsed.comments.length}`);
         }
+        if (parsed.comments.length === 0) {
+          summary.lessonsEmptyList++;
+          flag("the comments list is on the page but no comment was read from it");
+          if (page.iframes > 0) {
+            summary.lessonsWithFrames++;
+            flag(`the page has ${page.iframes} frame(s) that could hold the comments`);
+          }
+        }
+        if (page.pendingControls > 0) {
+          summary.lessonsPendingControls++;
+          flag(`${page.pendingControls} control(s) that would show more comments or replies were still on the page at the end`);
+        }
+        // A removal is only trusted when something was read, the page's own total says everything was read and nothing is left to open. A page with no total cannot say so.
+        const complete = page.total !== null && parsed.comments.length > 0 && parsed.comments.length >= page.total && page.pendingControls === 0;
         try {
           const saved = await saveLessonComments(
             db,
             { courseKajabiId, lessonKajabiId: lesson.lessonKajabiId, comments: parsed.comments, capturedAt: now() },
-            { dryRun: !apply, removeMissing: !short },
+            { dryRun: !apply, removeMissing: complete },
           );
+          if (!complete && saved.missing > 0) {
+            summary.removalsHeld += saved.missing;
+            flag(`${saved.missing} stored comment(s) were not seen again and were NOT marked removed (the read is not shown to be complete)`);
+          }
+          summary.presses += presses;
+          summary.lessonReports.push({
+            lessonKajabiId: lesson.lessonKajabiId,
+            comments: parsed.comments.length,
+            replies: replyCount,
+            presses,
+            declaredTotal: page.total,
+            warnings: lessonWarnings,
+          });
+          log(`lesson ${lesson.lessonKajabiId}: ${parsed.comments.length} comments (${replyCount} replies), ${presses} controls pressed${page.total !== null ? `, page total ${page.total}` : ""}`);
           summary.lessonsCaptured++;
           if (parsed.comments.length > 0) summary.lessonsWithComments++;
           summary.comments += parsed.comments.length;
-          summary.replies += parsed.comments.filter((c) => c.parentCommentKey !== null).length;
+          summary.replies += replyCount;
           summary.rows.written += saved.written;
           summary.rows.unchanged += saved.unchanged;
           summary.rows.removed += saved.removed;
@@ -232,6 +317,9 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(options.concurrency ?? 2, lessons.length || 1)) }, worker));
-  for (const [reason, count] of failureKinds) log(`${count} lesson(s) failed: ${reason}`);
+  for (const [reason, count] of failureKinds) {
+    summary.warnings.push(`${count} lesson(s) failed: ${reason}`);
+    log(`${count} lesson(s) failed: ${reason}`);
+  }
   return summary;
 }

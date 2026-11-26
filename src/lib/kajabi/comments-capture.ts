@@ -37,6 +37,22 @@ export interface PageComments {
   comments: RawComment[];
   /** The total the page shows next to its Comments heading ("Comments 52"), null when it shows none. */
   total: number | null;
+  /** Controls still on the page that would show more comments or replies ("Show More", "View previous comments", "3 replies"): not pressed, or pressed and still there. */
+  pendingControls: number;
+  /** Frames on the page. Comments inside a frame are invisible to this read, so a lesson with frames and no comments is worth a look. */
+  iframes: number;
+}
+
+/**
+ * What a control that reveals more comments says: "Show More", "View previous comments", "Load more replies", "See all 12
+ * comments", "3 replies", "View replies". Never "Reply", "Post Comment" or "Delete": nothing that writes matches. The same
+ * pattern is written out inside `extractCommentsInPage` (which cannot import it); a test keeps the two in step.
+ */
+export const EXPANDER_PATTERN = /^(?:(?:show|view|load|see)\s+(?:more|previous|earlier|older|all|\d+)\b.{0,30}|(?:show|view)\s+(?:\d+\s+)?repl(?:y|ies)\b.{0,20}|\d+\s+(?:more\s+)?repl(?:y|ies))$/i;
+
+export function isExpanderText(text: string): boolean {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > 0 && t.length <= 60 && EXPANDER_PATTERN.test(t);
 }
 
 /**
@@ -105,6 +121,14 @@ export function extractCommentsInPage(): PageComments {
     };
   });
 
+  // Controls that would reveal more: the Show More button and anything reading like "View previous comments" or "3 replies".
+  const expander = /^(?:(?:show|view|load|see)\s+(?:more|previous|earlier|older|all|\d+)\b.{0,30}|(?:show|view)\s+(?:\d+\s+)?repl(?:y|ies)\b.{0,20}|\d+\s+(?:more\s+)?repl(?:y|ies))$/i;
+  let pendingControls = 0;
+  for (const el of Array.from(document.querySelectorAll("a, button"))) {
+    const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (el.matches("a.btn--more") || (text.length > 0 && text.length <= 60 && expander.test(text))) pendingControls++;
+  }
+
   // The page's own total, when it prints one: a short heading-like element reading "Comments 52", "52 Comments" or "Comments (52)".
   let total: number | null = null;
   for (const el of Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6, [class*='comments'], [class*='Comments']"))) {
@@ -117,7 +141,7 @@ export function extractCommentsInPage(): PageComments {
       break;
     }
   }
-  return { comments, total };
+  return { comments, total, pendingControls, iframes: document.querySelectorAll("iframe").length };
 }
 
 /** Whitespace collapsed per line, blank lines reduced to one, no leading or trailing blanks. Newlines are kept. */
@@ -144,7 +168,7 @@ export interface ParsedComments {
   comments: ParsedComment[];
   /** How the keys were found, in counts. */
   keySources: Record<KeySource, number>;
-  /** Comments whose key repeated within the lesson and got a suffix. */
+  /** Comments whose page id repeated within the lesson (hashed instead) or whose hash repeated (suffixed). */
   duplicateKeys: number;
 }
 
@@ -169,10 +193,20 @@ export function parseComments(raw: readonly RawComment[], lessonKajabiId: string
   let duplicateKeys = 0;
   const keyByIndex = new Map<number, string>();
   const comments: ParsedComment[] = [];
-  for (const c of raw) {
+
+  // An id that two comments of the lesson carry is not a comment's own id (a reply link that names the thread, say): using
+  // it would make the second comment overwrite the first. Such ids are dropped for every comment that carries them, so
+  // each falls back to its content hash and the keys do not depend on the order the page lists them in.
+  const ids = raw.map((c) => pageId(c.idCandidates));
+  const idCount = new Map<string, number>();
+  for (const f of ids) if (f) idCount.set(f.key, (idCount.get(f.key) ?? 0) + 1);
+
+  raw.forEach((c, i) => {
     const name = c.name.replace(/\s+/g, " ").trim();
     const body = normalizeBody(c.body);
-    const found = pageId(c.idCandidates);
+    const candidate = ids[i];
+    const found = candidate && idCount.get(candidate.key) === 1 ? candidate : null;
+    if (candidate && !found) duplicateKeys++;
     let key: string;
     if (found) {
       key = found.key;
@@ -195,7 +229,7 @@ export function parseComments(raw: readonly RawComment[], lessonKajabiId: string
       postedAt: parseKajabiInstant(c.datetime, timeZone),
       body,
     });
-  }
+  });
   return { comments, keySources, duplicateKeys };
 }
 
@@ -209,8 +243,12 @@ export interface PostLink {
  * (`data[].attributes.urls.viewCommentsUrl`). `paged` is true when the response points at a next page, which this
  * capture does not follow. Posts without a link are counted, not listed.
  */
-export function parsePostsList(json: unknown): { lessons: PostLink[]; withoutLink: number; paged: boolean } {
-  const root = (json && typeof json === "object" ? json : {}) as { data?: unknown; links?: { next?: unknown }; meta?: { next_page?: unknown } };
+export function parsePostsList(json: unknown): { lessons: PostLink[]; withoutLink: number; paged: boolean; declaredTotal: number | null } {
+  const root = (json && typeof json === "object" ? json : {}) as {
+    data?: unknown;
+    links?: { next?: unknown };
+    meta?: { next_page?: unknown; total?: unknown; total_count?: unknown; total_posts?: unknown };
+  };
   const data = Array.isArray(root.data) ? root.data : [];
   const lessons: PostLink[] = [];
   const seen = new Set<string>();
@@ -227,5 +265,51 @@ export function parsePostsList(json: unknown): { lessons: PostLink[]; withoutLin
     }
     lessons.push({ lessonKajabiId: id, url: url.trim() });
   }
-  return { lessons, withoutLink, paged: Boolean(root.links?.next) || Boolean(root.meta?.next_page) };
+  const declared = [root.meta?.total, root.meta?.total_count, root.meta?.total_posts].find((n) => typeof n === "number" && Number.isFinite(n));
+  return {
+    lessons,
+    withoutLink,
+    paged: Boolean(root.links?.next) || Boolean(root.meta?.next_page),
+    declaredTotal: typeof declared === "number" ? declared : null,
+  };
+}
+
+/**
+ * The address of the posts list's next page, when the response points at one (`links.next` as an address, or
+ * `meta.next_page` as a page number, applied to `current` as its `page` parameter). Null when there is none. Defensive:
+ * the live response has not been seen in this repo, so both shapes a JSON API commonly uses are accepted.
+ */
+export function nextPostsPageUrl(json: unknown, current: string): string | null {
+  const root = (json && typeof json === "object" ? json : {}) as { links?: { next?: unknown }; meta?: { next_page?: unknown } };
+  const next = root.links?.next;
+  if (typeof next === "string" && next.trim() !== "") {
+    try {
+      return new URL(next.trim(), current).toString();
+    } catch {
+      return null;
+    }
+  }
+  const page = root.meta?.next_page;
+  if (typeof page === "number" || (typeof page === "string" && /^\d+$/.test(page))) {
+    try {
+      const url = new URL(current);
+      url.searchParams.set("page", String(page));
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Joins the lessons of several pages of the posts list, a lesson listed twice counted once. */
+export function mergePostLessons(pages: readonly PostLink[][]): PostLink[] {
+  const seen = new Set<string>();
+  const out: PostLink[] = [];
+  for (const l of pages.flat()) {
+    if (seen.has(l.lessonKajabiId)) continue;
+    seen.add(l.lessonKajabiId);
+    out.push(l);
+  }
+  return out;
 }

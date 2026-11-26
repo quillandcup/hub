@@ -60,7 +60,7 @@ import { describeDomShape, describeJson, describeMarkup, formatProbe, loginHint,
 import { ORG_TIMEZONE } from "../src/lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../src/lib/kajabi/progress-run";
 import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../src/lib/kajabi/progress-capture";
-import { extractCommentsInPage, parsePostsList, type PostLink } from "../src/lib/kajabi/comments-capture";
+import { EXPANDER_PATTERN, extractCommentsInPage, mergePostLessons, nextPostsPageUrl, parsePostsList, type PostLink } from "../src/lib/kajabi/comments-capture";
 import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from "../src/lib/kajabi/comments-run";
 import { formatCommentsTotals, formatContentTotals, formatProgressTotals } from "../src/lib/kajabi/capture-totals";
 import { QUIZ_ANSWER_FILES_BUCKET } from "../src/lib/courses/quiz-files";
@@ -79,6 +79,12 @@ const MAX_SHOW_MORE_PRESSES = 200;
 const COMMENTS_PAGE_TIMEOUT_MS = 60_000;
 const COMMENTS_LIST_TIMEOUT_MS = 20_000;
 const SHOW_MORE_TIMEOUT_MS = 15_000;
+// Comments can arrive after the list's container is on the page: how often to count them, and the longest to wait for the count to stop changing.
+const COMMENTS_SETTLE_POLL_MS = 750;
+const COMMENTS_SETTLE_MAX_MS = 20_000;
+// A lesson page with a comment box but no list is looked at again after this long, in case the list was only slow.
+const NO_LIST_RECHECK_MS = 4_000;
+const MAX_POSTS_PAGES = 100;
 // The Product Progress report is built in the background: how long to wait for it, and how often to ask again.
 const ROSTER_WAIT_MS = 90_000;
 const ROSTER_REASK_MS = 4_000;
@@ -568,11 +574,40 @@ async function captureProgress(courseId: string): Promise<void> {
   }
 }
 
+/** Polls `check` until it is true or `timeoutMs` passes. */
+async function pollUntil(check: () => Promise<boolean>, timeoutMs: number, everyMs = 250): Promise<boolean> {
+  const end = Date.now() + timeoutMs;
+  for (;;) {
+    if (await check()) return true;
+    if (Date.now() >= end) return false;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+}
+
+/** Scrolls to the bottom (in case comments load lazily) and waits until the number of comments stops changing. */
+async function settleComments(page: Page): Promise<void> {
+  let last = -1;
+  let stable = 0;
+  await pollUntil(
+    async () => {
+      await page.evaluate("window.scrollTo(0, document.body.scrollHeight)").catch(() => undefined);
+      const n = await page.locator("div.comment").count();
+      stable = n === last ? stable + 1 : 0;
+      last = n;
+      return stable >= 2;
+    },
+    COMMENTS_SETTLE_MAX_MS,
+    COMMENTS_SETTLE_POLL_MS,
+  );
+}
+
 /**
- * Opens one lesson's member page (the admin's "view comments" link, which carries a preview token), presses Show More
- * until it is gone, and reads the comments. It only navigates and presses Show More: it never types, never submits a
- * form and never clicks Reply or Post Comment. Errors are rethrown with short generic messages, because Playwright's
- * own messages can contain the page address, and that holds the preview token.
+ * Opens one lesson's member page (the admin's "view comments" link, which carries a preview token), waits for the
+ * comments to finish arriving, presses Show More (and controls reading like "View previous comments" or "3 replies")
+ * until none is left, and reads the comments. It only navigates and presses those controls: it never types, never
+ * submits a form and never clicks Reply or Post Comment (`EXPANDER_PATTERN` matches none of them). Errors are rethrown
+ * with short generic messages, because Playwright's own messages can contain the page address, and that holds the
+ * preview token.
  */
 async function readCommentsPage(context: BrowserContext, lesson: PostLink): Promise<LessonRead> {
   const page = await context.newPage();
@@ -587,10 +622,15 @@ async function readCommentsPage(context: BrowserContext, lesson: PostLink): Prom
       throw new CommentsSessionExpiredError("Kajabi sent a lesson page to its login screen: the login expired, or the preview link did. Run again and log in.");
     }
     if (response && response.status() >= 400) throw new Error(`Kajabi answered ${response.status()} for the lesson page`);
-    const hasList = await page
+    let hasList = await page
       .waitForSelector("[data-comments-list]", { state: "attached", timeout: COMMENTS_LIST_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
+    if (!hasList) {
+      // A slow list is not an empty one: look again before calling the lesson comment-free.
+      await new Promise((r) => setTimeout(r, NO_LIST_RECHECK_MS));
+      hasList = (await page.locator("[data-comments-list]").count()) > 0 || (await page.locator("div.comment").count()) > 0;
+    }
     if (!hasList) {
       // A lesson with no comments still has the box to write one; a page without either is not one we understand.
       const hasCommentBox = (await page.locator("form.new_comment").count()) > 0;
@@ -599,37 +639,38 @@ async function readCommentsPage(context: BrowserContext, lesson: PostLink): Prom
       // A quiz or assessment page is questions with radio buttons and has no comments by design.
       const quiz =
         !hasCommentBox && !locked && ((await page.locator('input[type="radio"]').count()) > 0 || (await page.getByText(/^\s*Question\s+1\b/i).count()) > 0);
-      return { kind: "noList", hasCommentBox, locked, quiz };
+      // What the page itself says about its comments (a printed total, frames), so a "no comments" that is not one is flagged.
+      const info = await page.evaluate(extractCommentsInPage).catch(() => null);
+      return { kind: "noList", hasCommentBox, locked, quiz, declaredTotal: info?.total ?? null, iframes: info?.iframes ?? 0 };
     }
 
-    const more = page.locator("a.btn--more");
+    await settleComments(page);
+    const showMore = page.locator("a.btn--more");
+    const expanders = showMore.or(page.locator("a, button").filter({ hasText: EXPANDER_PATTERN }));
     let presses = 0;
     let capped = false;
-    let before = await page.locator("div.comment").count();
-    while ((await more.count()) > 0) {
+    while ((await expanders.count()) > 0) {
       if (presses >= MAX_SHOW_MORE_PRESSES) {
-        capped = true;
+        capped = (await showMore.count()) > 0;
         break;
       }
+      const before = await page.locator("div.comment").count();
+      const controlsBefore = await expanders.count();
       try {
-        await more.first().click({ timeout: SHOW_MORE_TIMEOUT_MS });
+        await expanders.first().click({ timeout: SHOW_MORE_TIMEOUT_MS });
       } catch {
         throw new Error("Show More could not be pressed");
       }
       presses++;
-      const grew = await page
-        .waitForFunction((n) => document.querySelectorAll("div.comment").length > n, before, { timeout: SHOW_MORE_TIMEOUT_MS })
-        .then(() => true)
-        .catch(() => false);
-      const after = await page.locator("div.comment").count();
-      if (!grew || after <= before) {
-        // The press brought nothing: done if the button went away, cut off if it is still there.
-        capped = (await more.count()) > 0;
+      const progressed = await pollUntil(async () => (await page.locator("div.comment").count()) > before || (await expanders.count()) < controlsBefore, SHOW_MORE_TIMEOUT_MS);
+      if (!progressed) {
+        // The press brought nothing: a Show More that is still there means the list is cut off; any other control is reported as pending by the read.
+        capped = (await showMore.count()) > 0;
         break;
       }
-      before = after;
     }
-    return { kind: "ok", page: await page.evaluate(extractCommentsInPage), capped };
+    await settleComments(page);
+    return { kind: "ok", page: await page.evaluate(extractCommentsInPage), capped, presses };
   } finally {
     await page.close().catch(() => undefined);
   }
@@ -663,15 +704,45 @@ async function captureComments(courseId: string): Promise<void> {
     if (!response) throw new Error(`The course page did not request ${postsPath} within ${RESPONSE_TIMEOUT_MS / 1000} seconds. Is the course id right?`);
     if (response.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
     if (!response.ok()) throw new Error(`Kajabi answered ${response.status()} for the posts list`);
-    const list = parsePostsList(await response.json().catch(() => undefined));
+    let json: unknown = await response.json().catch(() => undefined);
+    const list = parsePostsList(json);
     await admin.close();
-    console.log(`The posts list has ${list.lessons.length} lessons with a comments link (${list.withoutLink} without one).`);
-    if (list.paged) console.log("Warning: the posts list points at a next page, which this capture does not follow.");
+    // The list may be paged: follow its next-page links (same site only, cookies of this login), so lessons after the first page are not silently left out.
+    const pages: PostLink[][] = [list.lessons];
+    let withoutLink = list.withoutLink;
+    let pageUrl = response.url();
+    const visited = new Set([pageUrl]);
+    let stillPaged = false;
+    for (let n = 1; ; n++) {
+      const next = nextPostsPageUrl(json, pageUrl);
+      if (!next) break;
+      if (visited.has(next) || n >= MAX_POSTS_PAGES || new URL(next).origin !== new URL(KAJABI_APP).origin) {
+        stillPaged = true;
+        break;
+      }
+      visited.add(next);
+      const more = await context.request.get(next).catch(() => null);
+      if (!more || !more.ok()) {
+        stillPaged = true;
+        break;
+      }
+      json = await more.json().catch(() => undefined);
+      const parsed = parsePostsList(json);
+      pages.push(parsed.lessons);
+      withoutLink += parsed.withoutLink;
+      pageUrl = next;
+    }
+    const lessons = mergePostLessons(pages);
+    console.log(`The posts list has ${lessons.length} lessons with a comments link (${withoutLink} without one), read from ${pages.length} page(s).`);
+    if (stillPaged) console.log("WARNING: the posts list points at a further page that could not be followed: lessons after it were not captured.");
+    if (list.declaredTotal !== null && list.declaredTotal !== lessons.length + withoutLink) {
+      console.log(`WARNING: the posts list says ${list.declaredTotal} posts in all, ${lessons.length + withoutLink} were listed.`);
+    }
 
     const summary = await runCommentsCapture({
       db: supabase as never,
       courseKajabiId: courseId,
-      lessons: list.lessons,
+      lessons,
       readLesson: (lesson) => readCommentsPage(context, lesson),
       apply: args.apply,
       timeZone: ORG_TIMEZONE,

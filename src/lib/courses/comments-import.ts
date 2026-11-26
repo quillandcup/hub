@@ -46,6 +46,9 @@ export interface CourseCommentsImport {
   slug: string;
   /** Comments in Bronze for the course's lessons (removed ones included). */
   commentsInBronze: number;
+  /** Completeness note for the dry run: the course's Kajabi lessons in the Hub, and how many of them have at least one live captured comment. A course where the second is far below what Kajabi shows was probably captured only in part. */
+  lessonsInCourse: number;
+  lessonsWithComments: number;
   /** Comments whose Kajabi lesson has no Hub lesson (removed in Kajabi, or not synced yet): not imported. */
   unmatchedLessonComments: number;
   /** Different author names among the comments that could be imported, by how they matched. */
@@ -236,6 +239,8 @@ export async function importKajabiLessonComments(
     const summary: CourseCommentsImport = {
       slug: course.slug,
       commentsInBronze: 0,
+      lessonsInCourse: 0,
+      lessonsWithComments: 0,
       unmatchedLessonComments: 0,
       authors: { matched: 0, instructors: 0, unmatched: 0, ambiguous: 0 },
       instructors: 0,
@@ -265,6 +270,8 @@ export async function importKajabiLessonComments(
     summary.instructors = instructors.size;
     const lessonIdByKey = new Map<string, string>(lessons.flatMap((l) => (l.source_key ? [[l.source_key, l.id] as [string, string]] : [])));
     summary.commentsInBronze = bronze.length;
+    summary.lessonsInCourse = lessonIdByKey.size;
+    summary.lessonsWithComments = new Set(bronze.filter((b) => b.deleted_at === null && lessonIdByKey.has(b.lesson_kajabi_id)).map((b) => b.lesson_kajabi_id)).size;
     if (bronze.length === 0) continue;
 
     const existing = new Map<string, ImportedCommentRecord>(

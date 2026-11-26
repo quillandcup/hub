@@ -104,6 +104,8 @@ describe("importKajabiLessonComments", () => {
 
     const summary = await course(w);
 
+    // Completeness note: the course has two lessons, both with live captured comments.
+    expect(summary).toMatchObject({ lessonsInCourse: 2, lessonsWithComments: 2 });
     expect(summary).toMatchObject({ commentsInBronze: 4, inserted: 4, updated: 0, unchanged: 0, replies: 2, orphanReplies: 0, unmatchedLessonComments: 0, instructors: 1 });
     // Bea teaches the course (two names Kajabi shows are hers); Sam is staff but not an instructor of it.
     expect(summary.authors).toEqual({ matched: 4, instructors: 2, unmatched: 0, ambiguous: 0 });

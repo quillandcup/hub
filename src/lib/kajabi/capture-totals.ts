@@ -51,6 +51,11 @@ export function formatCommentsTotals(apply: boolean, summary: CommentsSummary): 
     `${summary.rows.written} rows written, ${summary.rows.unchanged} unchanged, ${summary.rows.removed} removed\n` +
     `comment ids: ${k["reply-link"] + k["reply-container"] + k["data-comment"]} from the page (${k["reply-link"]} reply link, ${k["reply-container"]} reply container, ${k["data-comment"]} data-comment), ${k.hash} hashed, ${summary.duplicateKeys} repeated within a lesson\n` +
     `lessons: ${summary.lessonsCapped} cut off at the Show More limit, ${summary.lessonsMismatched} with a different total on the page, ` +
-    `${summary.lessonsNoComments} with no comments (the page has a comment box), ${summary.lessonsQuizzes} quizzes (no comments by design), ${summary.lessonsLocked} locked until an earlier lesson is completed (their comments cannot be read from this preview), ${summary.lessonsWithoutList} with none of those (look at these), ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
+    `${summary.lessonsNoComments} with no comments (the page has a comment box), ${summary.lessonsQuizzes} quizzes (no comments by design), ${summary.lessonsLocked} locked until an earlier lesson is completed (their comments cannot be read from this preview), ${summary.lessonsWithoutList} with none of those (look at these), ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)\n` +
+    `seen: ${summary.lessonsListed} lessons in the posts list, ${summary.lessonsCaptured} read, ${summary.lessonsWithComments} with comments, ${summary.comments} comments and replies (${summary.replies} replies), ${summary.presses} Show More or similar controls pressed\n` +
+    `warnings: ${summary.warnings.length}` +
+    (summary.warnings.length === 0
+      ? " (none)"
+      : ` (${summary.lessonsEmptyList} comments list empty or with a total but nothing read, ${summary.lessonsPendingControls} with a Show More or replies control still on the page, ${summary.lessonsWithFrames} with a frame that could hold comments, ${summary.removalsHeld} stored comments not marked removed because the read was not shown to be complete, ${summary.lessonsMismatched} total mismatches, ${summary.lessonsCapped} cut off, ${summary.lessonsFailed} failed). Compare the lessons and comment counts above with Kajabi, and open the lessons named in the WARNING lines above`)
   );
 }

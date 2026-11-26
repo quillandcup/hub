@@ -84,7 +84,7 @@ describe("extractCommentsInPage", () => {
 
   it("finds no total on a page without a heading count, and no comments on an empty list", () => {
     document.body.innerHTML = `<div class="comments" data-comments-list></div><h2>Lesson notes</h2>`;
-    expect(extractCommentsInPage()).toEqual({ comments: [], total: null });
+    expect(extractCommentsInPage()).toEqual({ comments: [], total: null, pendingControls: 0, iframes: 0 });
   });
 
   it("reads other ways a page prints its total", () => {
