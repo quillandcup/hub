@@ -30,6 +30,7 @@ import { InMemoryHubSessionRepository, SupabaseHubSessionRepository, type HubSes
 import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
 import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type KajabiCourseRepository } from "./kajabi-courses";
 import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
+import { InMemoryBillingAcknowledgementRepository, SupabaseBillingAcknowledgementRepository, type BillingAcknowledgementRepository } from "./billing-acknowledgements";
 import { InMemoryMemberStatusRepository, SupabaseMemberStatusRepository, type MemberStatusRepository } from "./member-status-overrides";
 import { InMemoryProspectRepository, SupabaseProspectRepository, type ProspectRepository } from "./prospects";
 import { InMemoryBookRepository, SupabaseBookRepository, type BookRepository } from "./books";
@@ -107,6 +108,7 @@ export interface Repos {
   adminNotes: AdminNoteRepository;
   kajabiCourses: KajabiCourseRepository;
   billing: BillingRepository;
+  billingAcknowledgements: BillingAcknowledgementRepository;
   memberStatus: MemberStatusRepository;
   books: BookRepository;
   prickleActivity: PrickleActivityRepository;
@@ -177,6 +179,7 @@ export function createRepos(db: Db): Repos {
     adminNotes: new SupabaseAdminNoteRepository(db),
     kajabiCourses: new SupabaseKajabiCourseRepository(db),
     billing: new SupabaseBillingRepository(db),
+    billingAcknowledgements: new SupabaseBillingAcknowledgementRepository(db),
     memberStatus: new SupabaseMemberStatusRepository(db),
     books: new SupabaseBookRepository(db),
     prickleActivity: new SupabasePrickleActivityRepository(db),
@@ -250,6 +253,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     adminNotes: new InMemoryAdminNoteRepository(dataset),
     kajabiCourses: new InMemoryKajabiCourseRepository(dataset),
     billing: new InMemoryBillingRepository(dataset),
+    billingAcknowledgements: new InMemoryBillingAcknowledgementRepository(dataset),
     memberStatus: new InMemoryMemberStatusRepository(dataset),
     books: new InMemoryBookRepository(dataset),
     prickleActivity: new InMemoryPrickleActivityRepository(dataset),

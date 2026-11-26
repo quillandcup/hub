@@ -1,4 +1,5 @@
 import { ROW_STATUS_LABELS, transactionStatus, type PurchaseSchedule, type PurchaseType, type RowStatus, type ScheduleRow } from "@/lib/billing-reconciliation";
+import { ackViewFor, isAcknowledged, type AckRecord, type AckView } from "@/lib/billing-acknowledgements";
 import type { BillingOverview } from "@/lib/billing-reconciliation-loader";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { stripeChargeUrl, stripeInvoiceUrl } from "@/lib/member-transactions";
@@ -112,6 +113,8 @@ export interface Issue {
   /** The schedule row's own key: stable, and what a later acknowledgement attaches to. */
   key: string;
   memberId: string;
+  /** The kind of purchase the row belongs to; an acknowledgement records it. */
+  purchaseType: PurchaseType;
   memberName: string;
   /** The legal name, when it differs from the name shown. */
   legalName: string | null;
@@ -133,6 +136,11 @@ export interface Issue {
   hubStatus: string;
   hubStatusLabel: string;
   transactions: IssueTransaction[];
+  /**
+   * What staff decided about the row (an acknowledgement), or null. `state: "applies"` takes the row off the to-do list;
+   * `"changed"` means the row is not what staff saw (a payment arrived, the amount moved) and it is back on it.
+   */
+  ack: AckView | null;
 }
 
 const dayNumber = (day: string) => Date.parse(`${day}T00:00:00Z`);
@@ -168,13 +176,15 @@ export function issueSinceDay(row: Pick<ScheduleRow, "expectedDate" | "transacti
   return row.transactions.map((t) => t.day).sort()[0] ?? null;
 }
 
-function toIssue(schedule: PurchaseSchedule, row: ScheduleRow, member: ReturnType<BillingOverview["members"]["get"]>, today: string): Issue {
+function toIssue(schedule: PurchaseSchedule, row: ScheduleRow, member: ReturnType<BillingOverview["members"]["get"]>, today: string, acks: ReadonlyMap<string, AckRecord>, staff: ReadonlyMap<string, string>): Issue {
   const shown = member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : schedule.memberId;
   const sinceDay = issueSinceDay(row);
   const what = schedule.purchase?.offerName ?? schedule.label;
+  const amountCents = issueAmountCents(row);
   return {
     key: row.key,
     memberId: schedule.memberId,
+    purchaseType: schedule.purchaseType,
     memberName: shown,
     legalName: member && member.name && member.name !== shown ? member.name : null,
     purchaseLabel: schedule.label,
@@ -185,7 +195,7 @@ function toIssue(schedule: PurchaseSchedule, row: ScheduleRow, member: ReturnTyp
     group: issueGroupOf(schedule.purchaseType, row),
     cause: row.cause,
     reason: row.reason,
-    amountCents: issueAmountCents(row),
+    amountCents,
     currency: row.currency,
     sinceDay,
     ageDays: ageInDays(sinceDay, today),
@@ -203,25 +213,54 @@ function toIssue(schedule: PurchaseSchedule, row: ScheduleRow, member: ReturnTyp
       failureCodes: t.failureCodes,
       stripeUrl: t.kind === "charge" ? stripeChargeUrl(t.invoiceId) : stripeInvoiceUrl(t.invoiceId),
     })),
+    ack: ackViewFor({ key: row.key, status: row.status, amountCents }, acks.get(row.key), staff),
   };
 }
 
-/** Every row that needs attention, one issue each, most urgent first. */
-export function buildIssues(overview: Pick<BillingOverview, "schedules" | "members" | "today">): Issue[] {
+/**
+ * Every row that needs attention, one issue each, most urgent first (the acknowledged ones last). `acks` are the active
+ * acknowledgements by row key and `staff` the labels of whoever made them; a row with one carries it, and `ack.state`
+ * says whether it still applies.
+ */
+export function buildIssues(
+  overview: Pick<BillingOverview, "schedules" | "members" | "today">,
+  acks: ReadonlyMap<string, AckRecord> = new Map(),
+  staff: ReadonlyMap<string, string> = new Map()
+): Issue[] {
   const issues = overview.schedules.flatMap((schedule) =>
-    schedule.rows.filter((r) => r.needsAttention).map((row) => toIssue(schedule, row, overview.members.get(schedule.memberId), overview.today))
+    schedule.rows.filter((r) => r.needsAttention).map((row) => toIssue(schedule, row, overview.members.get(schedule.memberId), overview.today, acks, staff))
   );
   return issues.sort(compareUrgency);
+}
+
+/**
+ * The acknowledgement of each row of some schedules, by row key, for the member's own Transactions tab. Rows that
+ * were never marked are left out; `state` is judged against the row as it is now, the same way the overview does.
+ */
+export function acknowledgementsForSchedules(schedules: readonly PurchaseSchedule[], acks: ReadonlyMap<string, AckRecord>, staff: ReadonlyMap<string, string> = new Map()): Record<string, AckView> {
+  const out: Record<string, AckView> = {};
+  for (const schedule of schedules) {
+    for (const row of schedule.rows) {
+      const view = ackViewFor({ key: row.key, status: row.status, amountCents: issueAmountCents(row) }, acks.get(row.key), staff);
+      if (view) out[row.key] = view;
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- urgency
 
 /**
- * The default order: members who are behind (nothing paid since an unpaid invoice) first, then the most money at
+ * The default order: rows an acknowledgement settles come after the rest; then members who are behind (nothing paid since an unpaid invoice) first, then the most money at
  * stake, then the oldest, then by member name and key so the order never wobbles. Rows with no amount or age rank
  * after rows that have one.
  */
-export function compareUrgency(a: Pick<Issue, "status" | "amountCents" | "ageDays" | "memberName" | "key">, b: Pick<Issue, "status" | "amountCents" | "ageDays" | "memberName" | "key">): number {
+export function compareUrgency(
+  a: Pick<Issue, "status" | "amountCents" | "ageDays" | "memberName" | "key"> & { ack?: AckView | null },
+  b: Pick<Issue, "status" | "amountCents" | "ageDays" | "memberName" | "key"> & { ack?: AckView | null }
+): number {
+  const settled = Number(isAcknowledged(a.ack)) - Number(isAcknowledged(b.ack));
+  if (settled !== 0) return settled;
   const behind = Number(b.status === "unpaid_behind") - Number(a.status === "unpaid_behind");
   if (behind !== 0) return behind;
   const amount = (b.amountCents ?? 0) - (a.amountCents ?? 0);
@@ -260,3 +299,13 @@ export function issueTotals(issues: Issue[]): { rows: number; members: number; b
   for (const i of issues) if (i.amountCents) money.set(i.currency, (money.get(i.currency) ?? 0) + i.amountCents);
   return { rows: issues.length, members: new Set(issues.map((i) => i.memberId)).size, byCurrency: [...money].map(([currency, cents]) => ({ currency, cents })) };
 }
+
+// ---------------------------------------------------------------- acknowledgements
+
+/** Splits issues into the ones still to look at and the ones an acknowledgement settles (`ack.state` "applies"). A row that changed since it was marked is back in the first. */
+export function splitByAcknowledgement(issues: Issue[]): { open: Issue[]; acknowledged: Issue[] } {
+  return { open: issues.filter((i) => !isAcknowledged(i.ack)), acknowledged: issues.filter((i) => isAcknowledged(i.ack)) };
+}
+
+/** `?ack=1` shows the acknowledged rows too; they are hidden by default. */
+export const parseShowAcknowledged = (value: string | undefined): boolean => value === "1";

@@ -108,6 +108,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/api/media/[id]/route"), "src/app/api/media/[id]/route.ts", [["PATCH", "media_asset_edited"], ["DELETE", "media_asset_deleted"]]],
   [() => import("@/app/api/media/from-event-photo/route"), "src/app/api/media/from-event-photo/route.ts", [["POST", "media_asset_copied_from_event"]]],
   [() => import("@/app/(admin)/admin/hygiene/zoom-meetings/actions"), "src/app/(admin)/admin/hygiene/zoom-meetings/actions.ts", [["decideZoomMeetings", "zoom_meetings_decided"]]],
+  [() => import("@/app/(admin)/admin/hygiene/billing-reconciliation/actions"), "src/app/(admin)/admin/hygiene/billing-reconciliation/actions.ts", [["acknowledgeBillingRow", "billing_row_acknowledged"], ["revokeBillingAcknowledgement", "billing_acknowledgement_revoked"]]],
   [() => import("@/app/(member)/settings/milestoneActions"), "src/app/(member)/settings/milestoneActions.ts", [["answerMilestone", "milestone_answered"], ["addMilestone", "milestone_added"], ["takeBackMilestone", "milestone_taken_back"], ["setMilestonePhotoAlt", "milestone_photo_alt_set"]]],
   [() => import("@/app/(member)/projects/stageMilestoneActions"), "src/app/(member)/projects/stageMilestoneActions.ts", [["answerStageMilestone", "milestone_stage_answered"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "src/app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],

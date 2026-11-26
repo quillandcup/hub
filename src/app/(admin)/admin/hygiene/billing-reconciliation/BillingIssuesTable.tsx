@@ -10,6 +10,8 @@ import { SortableTh } from "@/components/SortableTh";
 import { STATUS_CLASS } from "@/components/BillingSchedule";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { useDataTable } from "@/lib/hooks/useDataTable";
+import BillingAcknowledge from "@/components/BillingAcknowledge";
+import { ACK_REASON_LABELS, isAcknowledged } from "@/lib/billing-acknowledgements";
 import { ISSUE_GROUPS, type Issue } from "@/lib/billing-issues";
 import { formatCents } from "@/lib/member-transactions";
 
@@ -42,12 +44,13 @@ function sortValue(issue: Issue, column: Column) {
 }
 
 const searchText = (issue: Issue) =>
-  [issue.memberName, issue.legalName ?? "", issue.purchaseLabel, issue.offerName ?? "", issue.event?.title ?? "", issue.statusLabel, groupLabel(issue.group), issue.hubStatusLabel, issue.reason].join(" ");
+  [issue.memberName, issue.legalName ?? "", issue.purchaseLabel, issue.offerName ?? "", issue.event?.title ?? "", issue.statusLabel, groupLabel(issue.group), issue.hubStatusLabel, issue.reason, issue.ack ? ACK_REASON_LABELS[issue.ack.reason] : "", issue.ack?.note ?? ""].join(" ");
 
-function IssueDetail({ issue }: { issue: Issue }) {
+function IssueDetail({ issue, canAcknowledge }: { issue: Issue; canAcknowledge: boolean }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-800 dark:text-slate-200">{issue.reason}</p>
+      <BillingAcknowledge rowKey={issue.key} label={`${issue.memberName}: ${issue.purchaseLabel} (${issue.statusLabel})`} ack={issue.ack} canAcknowledge={canAcknowledge} />
       {issue.transactions.length === 0 ? (
         <p className="text-sm text-slate-600 dark:text-slate-400">No Stripe invoice or payment is behind this row.</p>
       ) : (
@@ -101,7 +104,7 @@ function IssueDetail({ issue }: { issue: Issue }) {
  * searchable, paged, with the shared keyboard keys. A row opens to the full sentence and its Stripe transactions.
  * `issues` arrive most urgent first; that order is the table's own until a header is clicked.
  */
-export default function BillingIssuesTable({ issues, resetKey, emptyText }: { issues: Issue[]; resetKey: string; emptyText: string }) {
+export default function BillingIssuesTable({ issues, resetKey, emptyText, canAcknowledge = false }: { issues: Issue[]; resetKey: string; emptyText: string; canAcknowledge?: boolean }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const toggle = (key: string) =>
     setOpen((prev) => {
@@ -142,7 +145,7 @@ export default function BillingIssuesTable({ issues, resetKey, emptyText }: { is
                 const name = `${expanded ? "Hide" : "Show"} details for ${issue.memberName}: ${issue.statusLabel}`;
                 return (
                   <Fragment key={issue.key}>
-                    <tr className="border-t border-slate-200 align-top dark:border-slate-800">
+                    <tr className={`border-t border-slate-200 align-top dark:border-slate-800 ${isAcknowledged(issue.ack) ? "text-slate-500 dark:text-slate-400" : ""}`} data-acknowledged={isAcknowledged(issue.ack) ? "true" : undefined}>
                       <td className="px-2 py-3">
                         <Tooltip content={expanded ? "Hide details" : "Show details"}>
                           <button
@@ -174,7 +177,12 @@ export default function BillingIssuesTable({ issues, resetKey, emptyText }: { is
                         {issue.offerName && <span className={MUTED}>{issue.offerName}</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[issue.status]}`}>{issue.statusLabel}</span>
+                        <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${isAcknowledged(issue.ack) ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" : STATUS_CLASS[issue.status]}`}>{issue.statusLabel}</span>
+                        {issue.ack && (
+                          <span className={`mt-1 block text-xs font-medium ${isAcknowledged(issue.ack) ? "text-slate-600 dark:text-slate-300" : "text-orange-700 dark:text-orange-400"}`}>
+                            {isAcknowledged(issue.ack) ? `Acknowledged: ${ACK_REASON_LABELS[issue.ack.reason]}` : `Marked ${ACK_REASON_LABELS[issue.ack.reason].toLowerCase()}, changed since`}
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">{issue.amountCents === null ? "" : formatCents(issue.amountCents, issue.currency)}</td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -187,7 +195,7 @@ export default function BillingIssuesTable({ issues, resetKey, emptyText }: { is
                       <tr id={detailId} data-kbd-skip className="bg-slate-50 dark:bg-slate-800/50">
                         <td />
                         <td colSpan={COLUMN_COUNT - 1} className="px-4 py-3">
-                          <IssueDetail issue={issue} />
+                          <IssueDetail issue={issue} canAcknowledge={canAcknowledge} />
                         </td>
                       </tr>
                     )}
