@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
 
         const now = new Date();
         const stints = buildMembershipStints(contactPurchases, offerMap, email, stripeTrialInfoByEmail);
-        const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], now);
+        const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], now, otherCoverageByEmail.get(email) ?? []);
 
         // A legacy join-date override always wins over the computed value —
         // it exists specifically because Kajabi has no record of the true
