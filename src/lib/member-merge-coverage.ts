@@ -35,6 +35,7 @@ export const DERIVED = ["member_directory", "member_engagement", "member_metrics
 /** Not moved today: the duplicate's rows go with it. */
 export const NOT_MOVED = [
   "admin_work_queue_completions",
+  "billing_acknowledgements",
   "calendar_feed_items",
   "calendar_feed_tokens",
   "chat_channel_members",
@@ -105,6 +106,7 @@ export const MERGE_TABLE_LABELS: Record<string, string> = {
   admin_work_queue_completions: "Admin work queue completions",
   ambiguous_zoom_names: "Ambiguous Zoom names",
   big_sister_volunteers: "Big Sister volunteer record",
+  billing_acknowledgements: "Billing reconciliation acknowledgements",
   calendar_feed_items: "Calendar feed items",
   calendar_feed_tokens: "Calendar feed link",
   chat_channel_members: "Chat conversations",

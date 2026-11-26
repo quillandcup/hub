@@ -144,6 +144,80 @@ describe("billing reconciliation page", () => {
     });
   });
 
+  describe("acknowledgements", () => {
+    const ackRow = (extra: Record<string, unknown> = {}) => ({
+      id: "brak_AAAAAAAAAAA1",
+      row_key: `${ADA}:membership:2026-04`,
+      member_id: ADA,
+      purchase_type: "membership",
+      reason: "comp",
+      note: null,
+      status_at_ack: "unpaid_behind",
+      amount_cents_at_ack: 9400,
+      acknowledged_by: "user-1",
+      acknowledged_at: "2026-05-18T16:00:00Z",
+      revoked_by: null,
+      revoked_at: null,
+      ...extra,
+    });
+    const seed = (acknowledgement: Record<string, unknown>) => {
+      const open = (id: string, customer: string, createdAt: string) => ({ ...invoice(id, customer, createdAt), status: "open", amount_paid: 0, attempt_count: 0 });
+      repos = createInMemoryRepos(
+        new InMemoryDataset({
+          members: [
+            { id: ADA, name: "Ada Example", email: "ada@example.test", status: "active", stripeCustomerId: "cus_ada" },
+            { id: BEA, name: "Bea Example", email: "bea@example.test", status: "active", stripeCustomerId: "cus_bea" },
+          ],
+          userProfiles: [{ id: "user-1", email: "dana@example.test" }],
+          stripeProducts: [{ stripe_product_id: "prod_m", name: "Quill & Cup Membership" }],
+          stripeSubscriptions: [{ ...sub("sub_a", "cus_ada"), data: { collection_method: "send_invoice" } }, sub("sub_b", "cus_bea")],
+          stripeInvoices: [
+            { ...invoice("in_a1", "cus_ada", "2026-03-09T15:00:00Z"), stripe_subscription_id: "sub_a" },
+            { ...open("in_a2", "cus_ada", "2026-04-09T15:00:00Z"), stripe_subscription_id: "sub_a" },
+            { ...open("in_a3", "cus_ada", "2026-05-09T15:00:00Z"), stripe_subscription_id: "sub_a" },
+            open("in_b1", "cus_bea", "2026-03-09T15:00:00Z"),
+            invoice("in_b2", "cus_bea", "2026-04-09T15:00:00Z"),
+            invoice("in_b3", "cus_bea", "2026-05-09T15:00:00Z"),
+          ],
+          billingAcknowledgements: [acknowledgement],
+        } as never)
+      );
+    };
+
+    it("leaves an acknowledged row out of the list and the dollars, and shows it when asked", async () => {
+      seed(ackRow());
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
+      expect(screen.queryByRole("link", { name: "Ada Example" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("issue-totals")).toHaveTextContent("1 issue for 1 member, $47.00 at stake");
+      expect(screen.getByTestId("acknowledged-totals")).toHaveTextContent("1 acknowledged, $94.00");
+      cleanup();
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({ ack: "1" }) });
+      expect(screen.getByRole("link", { name: "Ada Example" })).toBeInTheDocument();
+      expect(screen.getByText("Acknowledged: Complimentary")).toBeInTheDocument();
+    });
+
+    it("puts the row back with a note that it changed when what staff saw is no longer so", async () => {
+      seed(ackRow({ status_at_ack: "unpaid_earlier" }));
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
+      expect(screen.getByRole("link", { name: "Ada Example" })).toBeInTheDocument();
+      expect(screen.getByText("Marked complimentary, changed since")).toBeInTheDocument();
+      expect(screen.getByTestId("issue-totals")).toHaveTextContent("2 issues for 2 members, $141.00 at stake");
+    });
+
+    it("offers marking only to a viewer who holds the acknowledge permission", async () => {
+      seed(ackRow({ revoked_at: "2026-05-19T00:00:00Z", revoked_by: "user-1" }));
+      guard.mockImplementationOnce(async () => ({ roles: ["admin"] }) as never);
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
+      await userEvent.click(screen.getAllByRole("button", { name: /Show details for Ada Example/ })[0]);
+      expect(screen.getByRole("button", { name: "Mark as…" })).toBeInTheDocument();
+      cleanup();
+      guard.mockImplementationOnce(async () => ({ roles: ["community_manager"] }) as never);
+      await renderServerPage(BillingReconciliationPage, { searchParams: Promise.resolve({}) });
+      await userEvent.click(screen.getAllByRole("button", { name: /Show details for Ada Example/ })[0]);
+      expect(screen.queryByRole("button", { name: "Mark as…" })).not.toBeInTheDocument();
+    });
+  });
+
   describe("filters", () => {
     beforeEach(() => {
       repos = createInMemoryRepos(

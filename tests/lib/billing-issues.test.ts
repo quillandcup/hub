@@ -14,8 +14,12 @@ import {
   parseHubStatusFilter,
   parseIssueFilter,
   selectIssues,
+  acknowledgementsForSchedules,
+  parseShowAcknowledged,
+  splitByAcknowledgement,
   type Issue,
 } from "@/lib/billing-issues";
+import type { AckRecord, AckView } from "@/lib/billing-acknowledgements";
 import { ROW_STATUSES, easternDay, type PurchaseSchedule, type ScheduleRow, type ScheduleTransaction } from "@/lib/billing-reconciliation";
 
 const MEMBER = "mbr_AAAAAAAAAAA1";
@@ -48,6 +52,7 @@ const row = (key: string, status: ScheduleRow["status"], extra: Partial<Schedule
 const issue = (key: string, extra: Partial<Issue> = {}): Issue => ({
   key,
   memberId: MEMBER,
+  purchaseType: "membership",
   memberName: "Ada",
   legalName: null,
   purchaseLabel: "Membership",
@@ -65,6 +70,7 @@ const issue = (key: string, extra: Partial<Issue> = {}): Issue => ({
   hubStatus: "active",
   hubStatusLabel: "Active",
   transactions: [],
+  ack: null,
   ...extra,
 });
 
@@ -282,5 +288,83 @@ describe("buildIssues and selecting", () => {
       ],
     });
     expect(issueTotals([])).toEqual({ rows: 0, members: 0, byCurrency: [] });
+  });
+});
+
+describe("acknowledgements in the overview", () => {
+  const schedule = (rows: ScheduleRow[], extra: Partial<PurchaseSchedule> = {}): PurchaseSchedule => ({ purchaseType: "membership", label: "Membership", memberId: MEMBER, start: null, end: null, notes: [], rows, ...extra });
+  const overview = (schedules: PurchaseSchedule[]) => ({ schedules, members: new Map([[MEMBER, { id: MEMBER, name: "Ada Example", displayName: null as string | null, status: "active" }]]), today: "2026-06-01" });
+  const record = (extra: Partial<AckRecord> = {}): AckRecord => ({
+    rowKey: "k1",
+    memberId: MEMBER,
+    purchaseType: "event",
+    reason: "comp",
+    note: null,
+    statusAtAck: "missing_payment",
+    amountCentsAtAck: 69700,
+    acknowledgedBy: "user-1",
+    acknowledgedAt: "2026-06-01T03:30:00Z",
+    revokedBy: null,
+    revokedAt: null,
+    ...extra,
+  });
+  const purchase = (status: ScheduleRow["status"], expectedAmountCents: number | null = 69700) =>
+    schedule([row("k1", status, { expectedAmountCents })], { purchaseType: "event", label: "Seed Launch" });
+  const ack = (a: AckView | null) => a ?? undefined;
+
+  it("carries the acknowledgement on its row, with who and the Eastern day it was marked", () => {
+    const [i] = buildIssues(overview([purchase("missing_payment")]), new Map([["k1", record()]]), new Map([["user-1", "dana@example.test"]]));
+    expect(i.purchaseType).toBe("event");
+    expect(i.ack).toEqual({ reason: "comp", note: null, by: "dana@example.test", day: "2026-05-31", statusAtAck: "missing_payment", amountCentsAtAck: 69700, state: "applies" });
+  });
+
+  it("takes an acknowledgement off the to-do list only while the row is what staff saw", () => {
+    const acks = new Map([["k1", record()]]);
+    const same = buildIssues(overview([purchase("missing_payment")]), acks);
+    expect(same[0].ack?.state).toBe("applies");
+    const statusChanged = buildIssues(overview([purchase("unexplained_payment")]), acks);
+    expect(statusChanged[0].ack?.state).toBe("changed");
+    const grew = buildIssues(overview([purchase("missing_payment", 99700)]), acks);
+    expect(grew[0].ack?.state).toBe("changed");
+    const split = (issues: Issue[]) => splitByAcknowledgement(issues);
+    expect(split(same)).toMatchObject({ open: [], acknowledged: [{ key: "k1" }] });
+    expect(split(statusChanged).open.map((x) => x.key)).toEqual(["k1"]);
+    expect(split(grew).acknowledged).toEqual([]);
+  });
+
+  it("ignores a revoked acknowledgement, and one for a row that is not in the list", () => {
+    const [revoked] = buildIssues(overview([purchase("missing_payment")]), new Map([["k1", record({ revokedAt: "2026-06-02T00:00:00Z", revokedBy: "user-2" })]]));
+    expect(revoked.ack).toBeNull();
+    const [other] = buildIssues(overview([purchase("missing_payment")]), new Map([["elsewhere", record({ rowKey: "elsewhere" })]]));
+    expect(other.ack).toBeNull();
+  });
+
+  it("lists acknowledged rows after the others, however large", () => {
+    const rows = [row("k1", "missing_payment", { expectedAmountCents: 69700 }), row("k2", "missed", { expectedAmountCents: 100 })];
+    const issues = buildIssues(overview([schedule(rows, { purchaseType: "event" })]), new Map([["k1", record()]]));
+    expect(issues.map((i) => i.key)).toEqual(["k2", "k1"]);
+    expect(compareUrgency(issue("a", { ack: { ...(issues[1].ack as AckView) } }), issue("b"))).toBeGreaterThan(0);
+  });
+
+  it("counts only what still needs a look, and the acknowledged rows apart", () => {
+    const rows = [row("k1", "missing_payment", { expectedAmountCents: 69700 }), row("k2", "missed", { expectedAmountCents: 4700 })];
+    const issues = buildIssues(overview([schedule(rows)]), new Map([["k1", record({ statusAtAck: "missing_payment" })]]));
+    const { open, acknowledged } = splitByAcknowledgement(issues);
+    expect(issueTotals(open)).toEqual({ rows: 1, members: 1, byCurrency: [{ currency: "usd", cents: 4700 }] });
+    expect(issueTotals(acknowledged)).toEqual({ rows: 1, members: 1, byCurrency: [{ currency: "usd", cents: 69700 }] });
+  });
+
+  it("gives the member's own tab the same judgement, for the rows that were marked", () => {
+    const schedules = [schedule([row("k1", "missing_payment", { expectedAmountCents: 69700 }), row("k2", "missed")], { purchaseType: "event" })];
+    const views = acknowledgementsForSchedules(schedules, new Map([["k1", record()]]));
+    expect(Object.keys(views)).toEqual(["k1"]);
+    expect(ack(views.k1)?.state).toBe("applies");
+    expect(acknowledgementsForSchedules([schedule([row("k1", "unexplained_payment")])], new Map([["k1", record()]])).k1.state).toBe("changed");
+  });
+
+  it("reads ?ack=1 as show acknowledged, and anything else as hidden", () => {
+    expect(parseShowAcknowledged("1")).toBe(true);
+    expect(parseShowAcknowledged(undefined)).toBe(false);
+    expect(parseShowAcknowledged("0")).toBe(false);
   });
 });

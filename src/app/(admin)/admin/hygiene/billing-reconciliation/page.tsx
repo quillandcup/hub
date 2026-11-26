@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePermission } from "@/lib/admin-auth";
 import { getServiceRepos } from "@/lib/data/server";
+import { loadAcknowledgements } from "@/lib/billing-acknowledgements-loader";
 import { loadBillingOverview } from "@/lib/billing-reconciliation-loader";
+import { can } from "@/lib/permissions";
 import BillingOverview from "./BillingOverview";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +19,11 @@ export const metadata: Metadata = {
  * their Transactions tab. Payment data is service role only, so the permission is checked first and the read
  * goes through the service repositories.
  */
-export default async function BillingReconciliationPage({ searchParams }: { searchParams: Promise<{ filter?: string; hub?: string }> }) {
-  await requirePermission("billing.reconciliation.read");
-  const { filter, hub } = await searchParams;
-  const overview = await loadBillingOverview(getServiceRepos());
+export default async function BillingReconciliationPage({ searchParams }: { searchParams: Promise<{ filter?: string; hub?: string; ack?: string }> }) {
+  const viewer = await requirePermission("billing.reconciliation.read");
+  const { filter, hub, ack } = await searchParams;
+  const repos = getServiceRepos();
+  const [overview, { acks, staff }] = await Promise.all([loadBillingOverview(repos), loadAcknowledgements(repos)]);
 
   return (
     <div className="p-6">
@@ -45,7 +48,11 @@ export default async function BillingReconciliationPage({ searchParams }: { sear
           transferred ticket. A retreat can be paid in parts, so payments are listed, never totalled against a guessed price. Open a member and
           choose &ldquo;Group by product&rdquo; for the detail.
         </p>
-        <BillingOverview overview={overview} filter={filter} hub={hub} />
+        <p className="max-w-4xl text-sm text-slate-600 dark:text-slate-400 mb-8">
+          Not every row is a problem: a purchase can be comped, a month gifted, a payment kept after a cancellation, or paid outside Stripe. Open a row and mark it with the reason.
+          It leaves the count and the dollars at stake, stays on the page when you choose &ldquo;Show acknowledged&rdquo;, and comes back by itself if the row changes later.
+        </p>
+        <BillingOverview overview={overview} filter={filter} hub={hub} ack={ack} acknowledgements={acks} staff={staff} canAcknowledge={can(viewer, "billing.reconciliation.acknowledge")} />
       </div>
     </div>
   );

@@ -48,6 +48,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   community_event_offers: [],
   // Buyers marked as not attending (EventRepository).
   event_buyers_not_attending: [],
+  // Billing reconciliation acknowledgements (BillingAcknowledgementRepository): every query is in the repository.
+  billing_acknowledgements: [],
   event_photos: [],
   // The event schedule view and the Hub-made events' schedules (EventRepository, HubSessionRepository).
   community_event_details: [],

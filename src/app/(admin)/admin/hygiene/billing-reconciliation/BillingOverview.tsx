@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { BillingOverview as Overview } from "@/lib/billing-reconciliation-loader";
-import { HUB_STATUS_FILTERS, ISSUE_GROUPS, buildIssues, issueTotals, issuesIn, parseHubStatusFilter, parseIssueFilter, selectIssues, type HubStatusFilterId, type IssueFilter } from "@/lib/billing-issues";
+import { HUB_STATUS_FILTERS, ISSUE_GROUPS, buildIssues, issueTotals, issuesIn, parseHubStatusFilter, parseIssueFilter, parseShowAcknowledged, selectIssues, splitByAcknowledgement, type HubStatusFilterId, type IssueFilter } from "@/lib/billing-issues";
+import type { AckRecord } from "@/lib/billing-acknowledgements";
 import { formatCents } from "@/lib/member-transactions";
 import Tooltip from "@/components/Tooltip";
 import BillingIssuesTable from "./BillingIssuesTable";
@@ -8,11 +9,12 @@ import HubStatusSelect from "./HubStatusSelect";
 
 const BASE = "/admin/hygiene/billing-reconciliation";
 
-/** The page for a group (or an old narrower filter id, kept as it was typed) and a Hub status. */
-function hrefFor(filter: string | null, hub: HubStatusFilterId): string {
+/** The page for a group (or an old narrower filter id, kept as it was typed), a Hub status, and whether acknowledged rows are shown. */
+function hrefFor(filter: string | null, hub: HubStatusFilterId, showAcknowledged: boolean): string {
   const query = new URLSearchParams();
   if (filter) query.set("filter", filter);
   if (hub !== "all") query.set("hub", hub);
+  if (showAcknowledged) query.set("ack", "1");
   const text = query.toString();
   return text ? `${BASE}?${text}` : BASE;
 }
@@ -22,16 +24,40 @@ function hrefFor(filter: string | null, hub: HubStatusFilterId): string {
  * table row (`BillingIssuesTable`): what is at stake, how long it has waited, and the Stripe transactions behind it.
  * The filter and the Hub status live in the URL; counts are rows, not members.
  */
-export default function BillingOverview({ overview, filter, hub }: { overview: Overview; filter?: string; hub?: string }) {
+export default function BillingOverview({
+  overview,
+  filter,
+  hub,
+  ack,
+  acknowledgements = new Map(),
+  staff = new Map(),
+  canAcknowledge = false,
+}: {
+  overview: Overview;
+  filter?: string;
+  hub?: string;
+  /** `?ack=1`: show the rows staff acknowledged too (hidden by default). */
+  ack?: string;
+  /** The active acknowledgements by row key, and who made them (sign-in emails by user id). */
+  acknowledgements?: ReadonlyMap<string, AckRecord>;
+  staff?: ReadonlyMap<string, string>;
+  /** The person may mark rows and undo it (`billing.reconciliation.acknowledge`). */
+  canAcknowledge?: boolean;
+}) {
   if (overview.counts.invoices === 0) {
     return <p className="text-sm text-slate-600 dark:text-slate-400">No Stripe invoices are imported yet, so there is nothing to line up.</p>;
   }
 
-  const issues = buildIssues(overview);
+  const everything = buildIssues(overview, acknowledgements, staff);
+  const showAcknowledged = parseShowAcknowledged(ack);
   const chosen: IssueFilter = parseIssueFilter(filter);
   const hubId = parseHubStatusFilter(hub);
+  // The rows an acknowledgement settles are off the to-do list: out of the counts and the dollars at stake, shown only when asked.
+  const issues = showAcknowledged ? everything : splitByAcknowledgement(everything).open;
   const shown = selectIssues(issues, { filter: chosen, hub: hubId });
-  const totals = issueTotals(shown);
+  const totals = issueTotals(splitByAcknowledgement(shown).open);
+  const settled = issueTotals(splitByAcknowledgement(selectIssues(everything, { filter: chosen, hub: hubId })).acknowledged);
+  const settledMoney = settled.byCurrency.map((m) => formatCents(m.cents, m.currency)).join(" + ");
   const groupLabel = chosen.legacy?.label ?? ISSUE_GROUPS.find((g) => g.id === chosen.group)?.label ?? "All";
   const money = totals.byCurrency.map((m) => formatCents(m.cents, m.currency)).join(" + ") || formatCents(0, "usd");
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -57,7 +83,7 @@ export default function BillingOverview({ overview, filter, hub }: { overview: O
           {chips.map((c) => (
             <Tooltip key={c.id ?? "all"} content={c.hint}>
               <Link
-                href={hrefFor(c.id, hubId)}
+                href={hrefFor(c.id, hubId, showAcknowledged)}
                 aria-current={c.id === activeChip ? "page" : undefined}
                 className={`rounded-full border px-3 py-1 ${c.id === activeChip ? "bg-plum-600 text-white border-plum-600" : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"}`}
               >
@@ -71,7 +97,7 @@ export default function BillingOverview({ overview, filter, hub }: { overview: O
           options={HUB_STATUS_FILTERS.map((f) => ({
             id: f.id,
             label: `${f.label} (${selectIssues(issues, { filter: chosen, hub: f.id }).length})`,
-            href: hrefFor(filterId, f.id),
+            href: hrefFor(filterId, f.id, showAcknowledged),
           }))}
         />
       </div>
@@ -79,7 +105,7 @@ export default function BillingOverview({ overview, filter, hub }: { overview: O
       {chosen.legacy && (
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Narrowed to &ldquo;{chosen.legacy.label}&rdquo;.{" "}
-          <Link href={hrefFor(null, hubId)} className="text-plum-600 hover:underline dark:text-plum-400">
+          <Link href={hrefFor(null, hubId, showAcknowledged)} className="text-plum-600 hover:underline dark:text-plum-400">
             Show all
           </Link>
         </p>
@@ -92,10 +118,19 @@ export default function BillingOverview({ overview, filter, hub }: { overview: O
             <strong className={totals.rows > 0 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"}>{plural(totals.rows, "issue", "issues")}</strong> for {plural(totals.members, "member", "members")}, {money} at stake
           </p>
         </div>
+        {(settled.rows > 0 || showAcknowledged) && (
+          <p className="border-b border-slate-200 px-6 py-2 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400" data-testid="acknowledged-totals">
+            {settled.rows} acknowledged{settledMoney ? `, ${settledMoney}` : ""}, left out of the count above.{" "}
+            <Link href={hrefFor(filterId, hubId, !showAcknowledged)} className="text-plum-600 hover:underline dark:text-plum-400">
+              {showAcknowledged ? "Hide acknowledged" : "Show acknowledged"}
+            </Link>
+          </p>
+        )}
         <BillingIssuesTable
           issues={shown}
+          canAcknowledge={canAcknowledge}
           resetKey={`${filterId ?? ""}|${hubId}`}
-          emptyText={chosen.group === null && !chosen.legacy && hubId === "all" ? "Every billing day lines up." : "Nothing here."}
+          emptyText={settled.rows > 0 && !showAcknowledged ? "Nothing is left to look at." : chosen.group === null && !chosen.legacy && hubId === "all" ? "Every billing day lines up." : "Nothing here."}
         />
       </section>
     </div>

@@ -2136,6 +2136,59 @@ export type Database = {
           },
         ]
       }
+      billing_acknowledgements: {
+        Row: {
+          acknowledged_at: string
+          acknowledged_by: string | null
+          amount_cents_at_ack: number | null
+          id: string
+          member_id: string
+          note: string | null
+          purchase_type: string
+          reason: string
+          revoked_at: string | null
+          revoked_by: string | null
+          row_key: string
+          status_at_ack: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          acknowledged_by?: string | null
+          amount_cents_at_ack?: number | null
+          id?: string
+          member_id: string
+          note?: string | null
+          purchase_type: string
+          reason: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          row_key: string
+          status_at_ack: string
+        }
+        Update: {
+          acknowledged_at?: string
+          acknowledged_by?: string | null
+          amount_cents_at_ack?: number | null
+          id?: string
+          member_id?: string
+          note?: string | null
+          purchase_type?: string
+          reason?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          row_key?: string
+          status_at_ack?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_acknowledgements_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_feed_items: {
         Row: {
           created_at: string

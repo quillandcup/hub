@@ -312,6 +312,33 @@ describe("granted purchases (no price)", () => {
   });
 });
 
+describe("row keys, which an acknowledgement is bound to", () => {
+  it("names the purchase, so two purchases of one offer by one member never share a key", () => {
+    const schedules = buildPurchaseSchedules(base({ purchases: [purchase("p1", 1, "2026-02-01T15:00:00Z"), purchase("p2", 1, "2026-03-01T15:00:00Z")], attendees: [attendee(1)] }));
+    const keys = of(schedules, 1).flatMap((s) => s.rows.map((r) => r.key));
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(2);
+    expect(keys.some((k) => k.includes(":p1:"))).toBe(true);
+    expect(keys.some((k) => k.includes(":p2:"))).toBe(true);
+  });
+
+  it("stays the same when the row's status changes (a payment arrives), so the acknowledgement can tell it changed", () => {
+    const purchases = [purchase("p1", 1, "2026-02-01T15:00:00Z")];
+    const before = buildPurchaseSchedules(base({ purchases, attendees: [attendee(1)] }));
+    const after = buildPurchaseSchedules(base({ purchases, attendees: [attendee(1)], charges: [charge("ch_1", 1, "2026-02-01T15:00:05Z")] }));
+    expect(before[0].rows[0].status).toBe("missing_payment");
+    expect(after[0].rows[0].status).toBe("paid");
+    expect(after[0].rows[0].key).toBe(before[0].rows[0].key);
+  });
+
+  it("does not depend on what order the purchases arrive in", () => {
+    const a = purchase("p1", 1, "2026-02-01T15:00:00Z");
+    const b = purchase("p2", 1, "2026-03-01T15:00:00Z");
+    const keysOf = (purchases: ReconKajabiPurchase[]) => buildPurchaseSchedules(base({ purchases, attendees: [attendee(1)] })).flatMap((s) => s.rows.map((r) => r.key)).sort();
+    expect(keysOf([a, b])).toEqual(keysOf([b, a]));
+  });
+});
+
 describe("programs and courses", () => {
   it("lists a course purchase with its payment and no expectation about attending", () => {
     const schedules = buildPurchaseSchedules(base({ purchases: [purchase("p1", 1, "2026-02-01T15:00:00Z", { offerId: COURSE, amountCents: 9900 })], charges: [charge("ch_1", 1, "2026-02-01T15:00:00Z", { kajabiOfferId: COURSE, amountCents: 9900 })] }));

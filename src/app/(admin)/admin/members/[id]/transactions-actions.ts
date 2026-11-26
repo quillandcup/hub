@@ -3,11 +3,25 @@
 import { requireActionPermission } from "@/lib/admin-auth";
 import { getRepos, getServiceRepos } from "@/lib/data/server";
 import { isId } from "@/lib/ids";
+import type { AckView } from "@/lib/billing-acknowledgements";
+import { loadAcknowledgements } from "@/lib/billing-acknowledgements-loader";
+import { acknowledgementsForSchedules } from "@/lib/billing-issues";
 import type { PurchaseSchedule } from "@/lib/billing-reconciliation";
+import { can } from "@/lib/permissions";
 import { loadMemberSchedules } from "@/lib/billing-reconciliation-loader";
 import { buildTransactions, stripeLookupEmails, type TransactionRow } from "@/lib/member-transactions";
 
-export type TransactionsResult = { error: string } | { rows: TransactionRow[]; customerCount: number; schedules: PurchaseSchedule[] };
+export type TransactionsResult =
+  | { error: string }
+  | {
+      rows: TransactionRow[];
+      customerCount: number;
+      schedules: PurchaseSchedule[];
+      /** What staff decided about a schedule row, by row key; only for staff who may read the billing reconciliation page. */
+      acknowledgements?: Record<string, AckView>;
+      /** The person may mark rows and undo it (`billing.reconciliation.acknowledge`). */
+      canAcknowledge?: boolean;
+    };
 
 /**
  * A member's Stripe invoices and payments, read when their Transactions tab opens (every other tab's data is
@@ -35,7 +49,17 @@ export async function loadMemberTransactions(memberId: string): Promise<Transact
     const products = await billing.stripeProductsByIds(productIds);
     const names = new Map(products.map((p) => [p.stripe_product_id, p.name]));
     const schedules = await loadMemberSchedules(getServiceRepos(), { id: member.id, status: member.status }, customerIds, invoices, charges);
-    return { rows: buildTransactions(invoices, charges, names), customerCount: customerIds.length, schedules };
+    // Acknowledgements are read by whoever may read the reconciliation page, so a tab opened by anyone else shows none.
+    const acknowledgements = can(auth, "billing.reconciliation.read")
+      ? await loadAcknowledgements(getServiceRepos()).then(({ acks, staff }) => acknowledgementsForSchedules(schedules, acks, staff))
+      : {};
+    return {
+      rows: buildTransactions(invoices, charges, names),
+      customerCount: customerIds.length,
+      schedules,
+      acknowledgements,
+      canAcknowledge: can(auth, "billing.reconciliation.acknowledge"),
+    };
   } catch (error) {
     console.error("[member-transactions] load failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't load the transactions." };

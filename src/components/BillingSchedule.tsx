@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ROW_STATUSES, ROW_STATUS_LABELS, summarize, type PurchaseSchedule, type RowStatus } from "@/lib/billing-reconciliation";
 import Link from "next/link";
 import { formatCents, stripeChargeUrl, stripeInvoiceUrl } from "@/lib/member-transactions";
+import BillingAcknowledge from "@/components/BillingAcknowledge";
+import { isAcknowledged, type AckView } from "@/lib/billing-acknowledgements";
 
 /** The badge colors of a row status, shared with the overview table. */
 export const STATUS_CLASS: Record<RowStatus, string> = {
@@ -48,15 +50,23 @@ interface Props {
   schedules: PurchaseSchedule[];
   /** Start with only the rows that need a look (when there are any). */
   problemsFirst?: boolean;
+  /** What staff decided about a row, by row key. A row an acknowledgement settles is not counted as needing a look. */
+  acknowledgements?: Record<string, AckView>;
+  /** The person may mark rows and undo it. */
+  canAcknowledge?: boolean;
+  /** Called after a mark or an undo, so the page that loaded the schedules can read them again. */
+  onAcknowledgementChange?: () => void;
 }
 
 /**
  * Each purchase as a schedule: the billing days the Hub expects, lined up with what Stripe did, and a
  * status for each. A summary of the statuses on top and a switch to only the rows that need a look.
  */
-export default function BillingSchedule({ schedules, problemsFirst = true }: Props) {
+export default function BillingSchedule({ schedules, problemsFirst = true, acknowledgements = {}, canAcknowledge = false, onAcknowledgementChange }: Props) {
   const summary = summarize(schedules);
-  const [onlyProblems, setOnlyProblems] = useState(problemsFirst && summary.needsAttention > 0);
+  const settled = (key: string) => isAcknowledged(acknowledgements[key]);
+  const toLookAt = schedules.reduce((n, s) => n + s.rows.filter((r) => r.needsAttention && !settled(r.key)).length, 0);
+  const [onlyProblems, setOnlyProblems] = useState(problemsFirst && toLookAt > 0);
 
   if (schedules.length === 0) {
     return <p className="text-sm text-slate-600 dark:text-slate-400">No membership billing to line up for this member.</p>;
@@ -72,7 +82,7 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
         ))}
         <label className="ml-auto flex items-center gap-2 text-sm">
           <input type="checkbox" checked={onlyProblems} onChange={(e) => setOnlyProblems(e.target.checked)} />
-          Only rows that need a look ({summary.needsAttention})
+          Only rows that need a look ({toLookAt})
         </label>
       </div>
       {summary.byStatus.hiatus_confirmed + summary.byStatus.hiatus_mismatch + summary.byStatus.unrecorded_gap + summary.byStatus.gap_short > 0 && (
@@ -88,7 +98,7 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
         </p>
       )}
       {schedules.map((schedule) => {
-        const rows = schedule.rows.filter((r) => !onlyProblems || r.needsAttention).slice().reverse();
+        const rows = schedule.rows.filter((r) => !onlyProblems || (r.needsAttention && !settled(r.key))).slice().reverse();
         return (
           <section key={schedule.key ?? `${schedule.memberId}:${schedule.purchaseType}`} aria-label={schedule.label}>
             <h3 className="text-sm font-semibold">
@@ -140,7 +150,20 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
                         <td className="px-3 py-2">
                           <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[row.status]}`}>{ROW_STATUS_LABELS[row.status]}</span>
                         </td>
-                        <td className="px-3 py-2">{row.reason}</td>
+                        <td className="px-3 py-2">
+                          {row.reason}
+                          {(acknowledgements[row.key] || (canAcknowledge && row.needsAttention)) && (
+                            <div className="mt-2">
+                              <BillingAcknowledge
+                                rowKey={row.key}
+                                label={`${schedule.label} (${ROW_STATUS_LABELS[row.status]})`}
+                                ack={acknowledgements[row.key] ?? null}
+                                canAcknowledge={canAcknowledge}
+                                onChanged={onAcknowledgementChange}
+                              />
+                            </div>
+                          )}
+                        </td>
                         <td className="px-3 py-2">
                           {row.transactions.map((t) => (
                             <a

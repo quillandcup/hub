@@ -223,6 +223,8 @@ export const OUTCOME_ACTIONS = [
   "big_sister_note_saved",
   // Data hygiene (staff)
   "zoom_meetings_decided",
+  "billing_row_acknowledged",
+  "billing_acknowledgement_revoked",
 ] as const;
 
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];

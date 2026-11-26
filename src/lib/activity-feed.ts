@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pageBounds } from "@/lib/pagination";
 import { isAnyId, isId } from "@/lib/ids";
+import { ACK_REASON_PHRASES, isAckReason } from "@/lib/billing-ack-reasons";
 import { withMentionNames } from "@/lib/chat/names";
 import { createRepos } from "@/lib/data/repos";
 import { throwIfDbError } from "@/lib/db-error";
@@ -450,6 +451,7 @@ const ENTITY_LABELS: Record<string, string> = {
   prickle_host_vibe: "host vibe",
   mentorship: "Big Sister match",
   care_engagement: "care plan",
+  billing_acknowledgement: "billing acknowledgement",
   landing_page: "page",
   landing_page_template: "template",
   landing_site_template: "site design",
@@ -651,6 +653,16 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const who = row.member_name ?? "a member";
     const course = row.description ? ` “${formatValue(row.description)}”` : "";
     return row.event_type === "insert" ? `added ${who} as an instructor of${course || " a course"}` : `removed ${who} as an instructor of${course || " a course"}`;
+  }
+  // A billing reconciliation row marked as a decision (gift, comp, ...) or the mark undone. The reason is one of a fixed set; the note staff typed is redacted and never shown.
+  if (row.entity_type === "billing_acknowledgement") {
+    const who = row.member_name ? `${row.member_name}'s` : "a member's";
+    if (row.event_type === "insert") {
+      const reason = fields.reason?.new;
+      const phrase = typeof reason === "string" && isAckReason(reason) ? ACK_REASON_PHRASES[reason] : "settled";
+      return `acknowledged ${who} billing row as ${phrase}`;
+    }
+    if (row.event_type === "update" && fields.revoked_at) return `undid the acknowledgement of ${who} billing row`;
   }
   if (row.entity_type === "calendar_feed") {
     if (row.event_type === "insert") return "created their calendar link";

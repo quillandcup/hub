@@ -305,6 +305,22 @@ describe("describeRow for member actions", () => {
     );
   });
 
+  it("reads a billing acknowledgement and its undo as sentences, with the reason but never the note", () => {
+    const change = (o: unknown, n: unknown) => ({ old: o, new: n });
+    const mark = (reason: string, member_name: string | null = "Ada Example") =>
+      describeRow(row({ entity_type: "billing_acknowledgement", event_type: "insert", member_name, data: { reason: change(null, reason), note: change(null, "[redacted]") } }));
+    expect(mark("comp")).toBe("acknowledged Ada Example's billing row as complimentary");
+    expect(mark("gift")).toBe("acknowledged Ada Example's billing row as a gift");
+    expect(mark("forfeited")).toBe("acknowledged Ada Example's billing row as forfeited");
+    expect(mark("paid_elsewhere")).toBe("acknowledged Ada Example's billing row as paid outside Stripe");
+    expect(mark("other")).toBe("acknowledged Ada Example's billing row as something else");
+    expect(mark("comp", null)).toBe("acknowledged a member's billing row as complimentary");
+    expect(mark("nonsense")).toBe("acknowledged Ada Example's billing row as settled");
+    const undo = describeRow(row({ entity_type: "billing_acknowledgement", event_type: "update", member_name: "Ada & <Co>", data: { revoked_at: change(null, "2026-11-28T00:00:00Z"), revoked_by: change(null, "u") } }));
+    expect(undo).toBe("undid the acknowledgement of Ada & <Co>'s billing row");
+    expect(mark("comp")).not.toMatch(/redacted/);
+  });
+
   it("reads channel restriction changes as sentences", () => {
     const restriction = (event_type: string) =>
       describeRow(row({ entity_type: "restricted_slack_channel", event_type, description: "inner-circle", data: {} }));

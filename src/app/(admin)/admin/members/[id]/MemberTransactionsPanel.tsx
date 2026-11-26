@@ -6,6 +6,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
 import { DataTableSearch } from "@/components/DataTableSearch";
 import BillingSchedule from "@/components/BillingSchedule";
+import type { AckView } from "@/lib/billing-acknowledgements";
 import type { PurchaseSchedule } from "@/lib/billing-reconciliation";
 import { formatCents, type TransactionRow, type TransactionTone } from "@/lib/member-transactions";
 
@@ -28,10 +29,16 @@ interface Props {
   customerCount: number;
   /** What the Hub expected to be billed against what Stripe did, per purchase. */
   schedules?: PurchaseSchedule[];
+  /** What staff decided about a schedule row, by row key. */
+  acknowledgements?: Record<string, AckView>;
+  /** The person may mark rows and undo it. */
+  canAcknowledge?: boolean;
+  /** Read the tab again after a mark or an undo. */
+  onAcknowledgementChange?: () => void;
 }
 
 /** A member's Stripe invoices and charges from the Bronze copy, in the standard sortable, searchable, paged table. */
-export default function MemberTransactionsPanel({ rows, customerCount, schedules = [] }: Props) {
+export default function MemberTransactionsPanel({ rows, customerCount, schedules = [], acknowledgements = {}, canAcknowledge = false, onAcknowledgementChange }: Props) {
   const table = useDataTable<TransactionRow, Column>({
     rows,
     search: (r) => `${r.description} ${r.reason ?? ""} ${r.statusLabel} ${r.id} ${r.createdLabel}`,
@@ -91,7 +98,7 @@ export default function MemberTransactionsPanel({ rows, customerCount, schedules
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Each product with the billing days the Hub expects (the Stripe subscription, minus hiatuses and programs that include membership) lined up with what Stripe did.
         </p>
-        <BillingSchedule schedules={schedules} />
+        <BillingSchedule schedules={schedules} acknowledgements={acknowledgements} canAcknowledge={canAcknowledge} onAcknowledgementChange={onAcknowledgementChange} />
       </section>
     )}
     {(customerCount === 0 || view === "flat") && (
