@@ -1,6 +1,6 @@
 # Big Sister program
 
-> **Status:** living. **Last reviewed:** 2026-11-16. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-25. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 The Big Sister program matches each new member with an existing member for their first 30 days, to show them around and invite them to prickles. Every new member is matched with an existing member (their **big sister**) for **30 days**: someone who shows them around, answers the questions that are easier to ask a person, and invites them to prickles. "New member" means anyone whose membership just began, however:
 
@@ -43,7 +43,7 @@ Rules:
 
 ## Conversion (trials only)
 
-A trial has an outcome; a direct sign-up or program arrival has nothing to convert (`no_trial`) and is left out of the rate. `src/lib/mentorship.ts` `deriveOutcome` reads the new member's `members.first_joined_at` / `most_recent_joined_at` (the first billed membership; a trial cancelled before billing never sets it) against `started_on`:
+A trial has an outcome; a direct sign-up or program arrival has nothing to convert (`no_trial`) and is left out of the rate. `src/lib/mentorship.ts` `deriveOutcome` reads the new member's `members.first_joined_at` / `most_recent_joined_at` (the first billed membership or program / gift time; a trial cancelled before billing never sets it) against `started_on`:
 
 - **Converted**: a membership began between 7 days before the start and `CONVERSION_WINDOW_DAYS` (90) after. A returning member's old `first_joined_at` is ignored in favor of `most_recent_joined_at`. "Current member" is `members.status` of `active` or `on_hiatus` today.
 - **In trial**: no such membership yet and the trial hasn't ended plus `BILLING_GRACE_DAYS` (3). So a 7-day trial is called about 10 days in, a month-long one about 33.

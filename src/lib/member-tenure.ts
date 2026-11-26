@@ -2,6 +2,8 @@ import { detectResubscriptions } from "@/lib/resubscription-detection";
 import type { MembershipPurchase } from "@/lib/kajabi/membership-history";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+// A lapse in coverage shorter than this is a handoff (program to membership), not a return.
+const MIN_RETURN_GAP_DAYS = 2;
 
 // A hiatus window from member_status_overrides (override_type='hiatus').
 // endsAt null means the hiatus is still ongoing (open-ended or a planned
@@ -61,7 +63,8 @@ export interface MemberTenure {
 // never disagrees with the "Membership History" display) and their hiatus
 // windows (from member_status_overrides, override_type='hiatus').
 //
-// - firstJoinedAt: the earliest stint start — unaffected by hiatus.
+// - firstJoinedAt: the earliest stint start or program / gift coverage start
+//   (`otherCoverage`) — unaffected by hiatus.
 // - mostRecentJoinedAt: the latest "rejoin" event, where a rejoin is either
 //   a real cancel/resubscribe gap (detected the same way the existing
 //   resubscription-gap-label UI does) OR an *ended* hiatus. A hiatus is a
@@ -70,14 +73,16 @@ export interface MemberTenure {
 //   more, so returning from one is exactly the "welcome back" moment this
 //   field exists to capture. An ongoing hiatus (no end date yet, or an end
 //   date still in the future) hasn't "come back" yet and doesn't reset
-//   anything.
+//   anything. A return through `otherCoverage` counts too: coverage starting
+//   after a lapse of at least MIN_RETURN_GAP_DAYS (a member back via a program).
 // - totalActiveMonths: total time across all stints, excluding any time
 //   that overlapped a hiatus window, in whole months (days/30, matching the
 //   convention already used for per-stint duration in MemberDetails.tsx).
 export function computeMemberTenure(
   stints: MembershipPurchase[],
   hiatusWindows: HiatusWindow[],
-  asOf: Date
+  asOf: Date,
+  otherCoverage: ActiveWindow[] = []
 ): MemberTenure {
   if (stints.length === 0) {
     return { firstJoinedAt: null, mostRecentJoinedAt: null, totalActiveMonths: 0 };
@@ -87,7 +92,12 @@ export function computeMemberTenure(
     a.created_at_kajabi.localeCompare(b.created_at_kajabi)
   );
 
-  const firstJoinedAt = toDateOnly(ascending[0].created_at_kajabi);
+  // Program-cohort and gift / direct Stripe time counts as being a member, so
+  // it can move the first-joined date earlier than the first Kajabi stint.
+  const firstJoinedAt = [
+    toDateOnly(ascending[0].created_at_kajabi),
+    ...otherCoverage.map((w) => toDateOnly(w.start)),
+  ].reduce((earliest, d) => (d < earliest ? d : earliest));
 
   const resubscriptionEvents = detectResubscriptions(
     ascending.map((s, i) => ({
@@ -98,7 +108,16 @@ export function computeMemberTenure(
     }))
   );
 
-  const rejoinCandidates: string[] = resubscriptionEvents.map((e) => e.resubscribedAt);
+  const rejoinCandidates: string[] = resubscriptionEvents.map((e) => toDateOnly(e.resubscribedAt));
+  // A return through a program or a gift: the end of a gap in the merged coverage. A gap shorter
+  // than MIN_RETURN_GAP_DAYS is a handoff (a cohort ending the day before a membership starts),
+  // not a return.
+  if (otherCoverage.length > 0) {
+    for (const gap of computeInactiveGaps(stints, firstJoinedAt, otherCoverage)) {
+      const days = (utcDate(gap.end!).getTime() - utcDate(gap.start).getTime()) / MS_PER_DAY;
+      if (days >= MIN_RETURN_GAP_DAYS) rejoinCandidates.push(gap.end!);
+    }
+  }
   for (const window of hiatusWindows) {
     if (window.endsAt && new Date(window.endsAt).getTime() <= asOf.getTime()) {
       rejoinCandidates.push(window.endsAt);
@@ -109,7 +128,7 @@ export function computeMemberTenure(
     rejoinCandidates.length > 0
       ? toDateOnly(
           rejoinCandidates.reduce((latest, candidate) =>
-            new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest
+            candidate > latest ? candidate : latest
           )
         )
       : firstJoinedAt;

@@ -128,6 +128,78 @@ describe("computeMemberTenure", () => {
   });
 });
 
+describe("computeMemberTenure with program and gift coverage", () => {
+  const asOf = new Date("2026-11-25T12:00:00Z");
+
+  it("a program cohort that hands off to a membership the next day is the first-joined date, and not a return", () => {
+    const result = computeMemberTenure(
+      [stint("2026-07-16T10:00:00Z", null)],
+      [],
+      asOf,
+      [{ start: "2026-01-18", end: "2026-07-15" }]
+    );
+    expect(result.firstJoinedAt).toBe("2026-01-18");
+    expect(result.mostRecentJoinedAt).toBe("2026-01-18");
+  });
+
+  it("a program after a long lapse is the most recent join", () => {
+    const result = computeMemberTenure(
+      [stint("2023-04-18T10:00:00Z", "2023-09-18T10:00:00Z")],
+      [],
+      asOf,
+      [{ start: "2026-06-14", end: null }]
+    );
+    expect(result.firstJoinedAt).toBe("2023-04-18");
+    expect(result.mostRecentJoinedAt).toBe("2026-06-14");
+  });
+
+  it("a program fully inside a membership changes nothing", () => {
+    const stints = [stint("2024-01-01T10:00:00Z", null)];
+    const withProgram = computeMemberTenure(stints, [], asOf, [{ start: "2024-03-01", end: "2024-08-30" }]);
+    expect(withProgram).toEqual(computeMemberTenure(stints, [], asOf));
+  });
+
+  it("a gift or direct Stripe window before the first stint moves first-joined", () => {
+    const result = computeMemberTenure([stint("2025-05-01T10:00:00Z", null)], [], asOf, [
+      { start: "2025-02-10T08:00:00Z", end: "2025-04-30T08:00:00Z" },
+    ]);
+    expect(result.firstJoinedAt).toBe("2025-02-10");
+    expect(result.mostRecentJoinedAt).toBe("2025-02-10");
+  });
+
+  it("a 24-day lapse ended by a program counts as a return", () => {
+    const result = computeMemberTenure(
+      [stint("2025-01-01T10:00:00Z", "2025-03-01T10:00:00Z")],
+      [],
+      asOf,
+      [{ start: "2025-03-25", end: "2025-09-01" }]
+    );
+    expect(result.firstJoinedAt).toBe("2025-01-01");
+    expect(result.mostRecentJoinedAt).toBe("2025-03-25");
+  });
+
+  it("a two-day gap counts as a return, a one-day gap does not", () => {
+    const stints = [stint("2025-01-01T10:00:00Z", "2025-03-01T10:00:00Z")];
+    expect(computeMemberTenure(stints, [], asOf, [{ start: "2025-03-03", end: null }]).mostRecentJoinedAt).toBe("2025-03-03");
+    expect(computeMemberTenure(stints, [], asOf, [{ start: "2025-03-02", end: null }]).mostRecentJoinedAt).toBe("2025-01-01");
+  });
+
+  it("a later ended hiatus still wins over an earlier program return", () => {
+    const result = computeMemberTenure(
+      [stint("2023-01-01T10:00:00Z", "2023-02-01T10:00:00Z")],
+      [{ startsAt: "2026-02-01", endsAt: "2026-03-01" }],
+      asOf,
+      [{ start: "2025-06-01", end: null }]
+    );
+    expect(result.mostRecentJoinedAt).toBe("2026-03-01");
+  });
+
+  it("gives no dates to a member with program time but no membership stint", () => {
+    const result = computeMemberTenure([], [], asOf, [{ start: "2026-01-18", end: "2026-07-15" }]);
+    expect(result).toEqual({ firstJoinedAt: null, mostRecentJoinedAt: null, totalActiveMonths: 0 });
+  });
+});
+
 describe("computeCumulativeHiatusMonths", () => {
   it("returns 0 for no hiatus windows", () => {
     expect(computeCumulativeHiatusMonths([], new Date("2024-01-01"))).toBe(0);
