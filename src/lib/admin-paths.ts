@@ -42,6 +42,7 @@ const ADMIN_PAGE_PERMISSIONS: ReadonlyArray<readonly [RegExp, Permission]> = [
   [/^\/admin\/feedback(\/|$)/, "system.feedback.manage"],
   [/^\/admin\/(finishers|hedgieversaries|work-queue)(\/|$)/, "community.manage"],
   [/^\/admin\/hosts(\/|$)/, "prickles.manage"],
+  [/^\/admin\/hygiene\/billing-reconciliation(\/|$)/, "billing.reconciliation.read"],
   [/^\/admin\/hygiene(\/|$)/, "data.hygiene.manage"],
   [/^\/admin\/insights\/prickles(\/|$)/, "analytics.prickles.read"],
   [/^\/admin\/insights\/resubscriptions(\/|$)/, "analytics.resubscriptions.read"],

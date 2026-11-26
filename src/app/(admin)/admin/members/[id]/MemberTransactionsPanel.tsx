@@ -4,6 +4,8 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
 import { DataTableSearch } from "@/components/DataTableSearch";
+import BillingSchedule from "@/components/BillingSchedule";
+import type { PurchaseSchedule } from "@/lib/billing-reconciliation";
 import { formatCents, type TransactionRow, type TransactionTone } from "@/lib/member-transactions";
 
 const TONE_CLASS: Record<TransactionTone, string> = {
@@ -19,10 +21,12 @@ interface Props {
   rows: TransactionRow[];
   /** How many Stripe customers were searched (the linked one, plus any other under the member's emails). */
   customerCount: number;
+  /** What the Hub expected to be billed against what Stripe did, per purchase. */
+  schedules?: PurchaseSchedule[];
 }
 
 /** A member's Stripe invoices and charges from the Bronze copy, in the standard sortable, searchable, paged table. */
-export default function MemberTransactionsPanel({ rows, customerCount }: Props) {
+export default function MemberTransactionsPanel({ rows, customerCount, schedules = [] }: Props) {
   const table = useDataTable<TransactionRow, Column>({
     rows,
     search: (r) => `${r.description} ${r.reason ?? ""} ${r.statusLabel} ${r.id} ${r.createdLabel}`,
@@ -42,6 +46,16 @@ export default function MemberTransactionsPanel({ rows, customerCount }: Props) 
   });
 
   return (
+    <div className="space-y-6">
+    {customerCount > 0 && (
+      <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 space-y-3">
+        <h2 className="text-lg font-semibold">Billing schedule</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          The billing days the Hub expects (the subscription, minus hiatuses and programs that include membership), lined up with what Stripe did.
+        </p>
+        <BillingSchedule schedules={schedules} />
+      </section>
+    )}
     <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 space-y-3">
       <h2 className="text-lg font-semibold">Transactions</h2>
       <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -101,5 +115,6 @@ export default function MemberTransactionsPanel({ rows, customerCount }: Props) 
         </>
       )}
     </section>
+    </div>
   );
 }

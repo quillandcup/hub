@@ -6,6 +6,7 @@ How the data and the code are put together.
 
 - [Activity log vs. audit log](ACTIVITY_AND_AUDIT_LOG.md): Explains the activity log (`member_activities`) and the audit log (`audit_log`), and why they are two tables
 - [Route handlers: inventory and who may call each](API_ROUTES.md): Every HTTP route handler under `src/app` (the API routes, the sign-in endpoints under `src/app/auth` and the two member download routes), with its path, the methods it answers and the credential its…
+- [Billing reconciliation](BILLING_RECONCILIATION.md): Staff need to see where what Stripe billed disagrees with what the Hub expects, so they can fix Stripe or the Hub
 - [Chat core and the Slack adapter](CHAT_MODULE.md): Describes how chat core is split from its Slack adapter behind a transport port, and what still has to move
 - [Data Access Layer: Repository Catalog](DATA_ACCESS_LAYER.md): Catalog of every table or API that has a repository in `src/lib/data/`, with the rules specific to each
 - [Email on the member timeline (Resend)](EMAIL_TIMELINE.md): What an email did after the Hub sent it (sent, delivered, opened, clicked, bounced, marked as spam, failed) shows on the member's timeline, next to their Slack activity and logins
