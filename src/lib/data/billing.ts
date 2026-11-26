@@ -156,6 +156,8 @@ export interface BillingRepository {
   stripeInvoicesByCustomers(filter?: StripeBillingFilter): Promise<Map<string, StripeInvoiceRow[]>>;
   /** Charges, oldest created first (then by id), narrowed by the filter. Pages past 1000 rows. */
   stripeCharges(filter?: StripeBillingFilter): Promise<StripeChargeRow[]>;
+  /** Charges Kajabi made for these offers (the offer id is in the charge's metadata, `kjb_offer_id`), whoever the Stripe customer is, oldest first. Chunked and paged. */
+  stripeChargesForKajabiOffers(offerIds: string[]): Promise<StripeChargeRow[]>;
   /** When the newest stored invoice (charge) was created at Stripe, or null when there is none: where an incremental import starts. */
   newestStripeInvoiceCreatedAt(): Promise<string | null>;
   newestStripeChargeCreatedAt(): Promise<string | null>;
@@ -502,6 +504,13 @@ export class SupabaseBillingRepository implements BillingRepository {
         return query.order("created_at_stripe").order("stripe_charge_id").range(from, to);
       });
     const rows = filter.customerIds ? await inChunks(filter.customerIds, read) : await read();
+    return byCreatedThenId(rows, (r) => r.stripe_charge_id);
+  }
+
+  async stripeChargesForKajabiOffers(offerIds: string[]) {
+    const rows = await inChunks(offerIds, (part) =>
+      fetchAllRows<StripeChargeRow>((from, to) => this.charges.select("*").in("data->metadata->>kjb_offer_id", part).order("stripe_charge_id").range(from, to))
+    );
     return byCreatedThenId(rows, (r) => r.stripe_charge_id);
   }
 
@@ -1003,6 +1012,17 @@ export class InMemoryBillingRepository implements BillingRepository {
     const customers = filter.customerIds && new Set(filter.customerIds);
     return byCreatedThenId(
       this.chargeRows().filter((r) => (!customers || (r.stripe_customer_id !== null && customers.has(r.stripe_customer_id))) && inRange(r.created_at_stripe, filter)),
+      (r) => r.stripe_charge_id
+    );
+  }
+
+  async stripeChargesForKajabiOffers(offerIds: string[]) {
+    const wanted = new Set(offerIds);
+    return byCreatedThenId(
+      this.chargeRows().filter((r) => {
+        const meta = (r.data as { metadata?: { kjb_offer_id?: unknown } } | null)?.metadata;
+        return typeof meta?.kjb_offer_id === "string" && wanted.has(meta.kjb_offer_id);
+      }),
       (r) => r.stripe_charge_id
     );
   }

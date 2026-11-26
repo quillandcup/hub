@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ROW_STATUSES, ROW_STATUS_LABELS, summarize, type PurchaseSchedule, type RowStatus } from "@/lib/billing-reconciliation";
-import { formatCents, stripeInvoiceUrl } from "@/lib/member-transactions";
+import Link from "next/link";
+import { formatCents, stripeChargeUrl, stripeInvoiceUrl } from "@/lib/member-transactions";
 
 const STATUS_CLASS: Record<RowStatus, string> = {
   paid: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
@@ -19,7 +20,26 @@ const STATUS_CLASS: Record<RowStatus, string> = {
   hiatus_mismatch: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   unrecorded_gap: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   gap_short: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  missing_payment: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  unexplained_payment: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  forfeited: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  marked_not_attending: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  gifted: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  comped: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  transferred: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  granted_no_payment: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  granted_paid_stripe: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  granted_no_override: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  paid_override_missing: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
 };
+
+/** "Bought 2026-03-05 · $47.00 every month · quantity 2 · active", the way Kajabi's Purchases tab lines a purchase up. */
+function purchaseLine(schedule: PurchaseSchedule): string {
+  const p = schedule.purchase;
+  if (!p) return "";
+  const when = p.granted ? "Granted" : "Bought";
+  return [p.day ? `${when} ${p.day}` : null, p.priceText, p.quantity && p.quantity > 1 ? `quantity ${p.quantity}` : null, p.status].filter(Boolean).join(" · ");
+}
 
 interface Props {
   schedules: PurchaseSchedule[];
@@ -67,10 +87,19 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
       {schedules.map((schedule) => {
         const rows = schedule.rows.filter((r) => !onlyProblems || r.needsAttention).slice().reverse();
         return (
-          <section key={`${schedule.memberId}:${schedule.purchaseType}`} aria-label={schedule.label}>
+          <section key={schedule.key ?? `${schedule.memberId}:${schedule.purchaseType}`} aria-label={schedule.label}>
             <h3 className="text-sm font-semibold">
-              {schedule.label}
-              {schedule.start && (
+              {schedule.event ? (
+                <Link href={`/admin/events/${schedule.event.slug}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline">
+                  {schedule.label}
+                </Link>
+              ) : (
+                schedule.label
+              )}
+              {schedule.purchase && schedule.purchase.offerName !== schedule.label && <span className="ml-2 font-normal text-slate-500 dark:text-slate-400">{schedule.purchase.offerName}</span>}
+              {schedule.purchase ? (
+                <span className="ml-2 font-normal text-slate-500 dark:text-slate-400">{purchaseLine(schedule)}</span>
+              ) : schedule.start && (
                 <span className="ml-2 font-normal text-slate-500 dark:text-slate-400">
                   from {schedule.start}
                   {schedule.end ? ` to ${schedule.end}` : ""}
@@ -99,7 +128,9 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
                   <tbody>
                     {rows.map((row) => (
                       <tr key={row.key} className="border-t border-slate-200 dark:border-slate-700 align-top">
-                        <td className="px-3 py-2 whitespace-nowrap">{row.expectedDate ?? <span className="text-slate-500">none</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {row.expectedDate ?? (schedule.purchaseType !== "membership" && row.transactions[0] ? row.transactions[0].day : <span className="text-slate-500">none</span>)}
+                        </td>
                         <td className="px-3 py-2 text-right whitespace-nowrap">
                           {row.expectedAmountCents === null ? "" : formatCents(row.expectedAmountCents, row.currency)}
                         </td>
@@ -111,7 +142,7 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
                           {row.transactions.map((t) => (
                             <a
                               key={t.invoiceId}
-                              href={stripeInvoiceUrl(t.invoiceId)}
+                              href={t.kind === "charge" ? stripeChargeUrl(t.invoiceId) : stripeInvoiceUrl(t.invoiceId)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="block text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"

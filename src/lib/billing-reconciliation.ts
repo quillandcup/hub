@@ -22,7 +22,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 const PURCHASE_TYPES = ["membership", "program", "course", "event"] as const;
 export type PurchaseType = (typeof PURCHASE_TYPES)[number];
 
-export const ROW_STATUSES = ["paid", "refunded", "missed", "failed", "open", "charged_when_not_expected", "unexpected", "not_expected", "hub_stripe_disagree", "paused_short", "hiatus_confirmed", "hiatus_mismatch", "unrecorded_gap", "gap_short"] as const;
+export const ROW_STATUSES = ["paid", "refunded", "missed", "failed", "open", "charged_when_not_expected", "unexpected", "not_expected", "hub_stripe_disagree", "paused_short", "hiatus_confirmed", "hiatus_mismatch", "unrecorded_gap", "gap_short", "missing_payment", "unexplained_payment", "forfeited", "marked_not_attending", "gifted", "comped", "transferred", "granted_no_payment", "granted_paid_stripe", "granted_no_override", "paid_override_missing"] as const;
 export type RowStatus = (typeof ROW_STATUSES)[number];
 
 export const ROW_STATUS_LABELS: Record<RowStatus, string> = {
@@ -40,13 +40,26 @@ export const ROW_STATUS_LABELS: Record<RowStatus, string> = {
   hiatus_mismatch: "Hiatus and billing gap differ",
   unrecorded_gap: "Unrecorded gap",
   gap_short: "Short gap (possible gift)",
+  missing_payment: "Missing payment",
+  unexplained_payment: "Unexplained payment",
+  forfeited: "Forfeited",
+  marked_not_attending: "Not attending (marked)",
+  gifted: "Gifted",
+  comped: "Comped",
+  transferred: "Transferred",
+  granted_no_payment: "Granted, no payment",
+  granted_paid_stripe: "Granted, paid in Stripe",
+  granted_no_override: "Granted, no override on record",
+  paid_override_missing: "Paid in Stripe, override missing",
 };
 
 /** Why a row is what it is, for filtering: a hiatus or a program that includes membership, or a billing day soon after a hiatus ended. */
-export type RowCause = "hiatus" | "program" | "pause" | "after_hiatus" | "gap" | "hiatus_billing_day" | null;
+export type RowCause = "hiatus" | "program" | "pause" | "after_hiatus" | "gap" | "hiatus_billing_day" | "event" | "granted" | null;
 
 export interface ScheduleTransaction {
+  /** The Stripe invoice id; for a one-off payment with no invoice (`kind: "charge"`) the charge id. */
   invoiceId: string;
+  kind?: "invoice" | "charge";
   chargeIds: string[];
   /** The Eastern day the invoice was created. */
   day: string;
@@ -79,9 +92,31 @@ export interface ScheduleRow {
   currency: string;
 }
 
+/** What the purchase is, as Kajabi's Purchases tab shows it. */
+export interface PurchaseInfo {
+  /** The Kajabi purchase id; null for the membership, which is a Stripe subscription. */
+  purchaseId: string | null;
+  offerName: string;
+  /** Kajabi's price description, or what the last payment says ("$47.00 every month"). */
+  priceText: string | null;
+  /** The day it was bought (or the subscription started). */
+  day: string | null;
+  amountCents: number | null;
+  quantity: number | null;
+  /** Kajabi lists it with no price. */
+  granted: boolean;
+  /** "active", "paused" or "canceled". */
+  status: string;
+}
+
 export interface PurchaseSchedule {
   purchaseType: PurchaseType;
   label: string;
+  /** Unique among a member's schedules (member + type + purchase); when absent, the member + type. */
+  key?: string;
+  /** The event a purchase is for. */
+  event?: { id: string; slug: string; title: string };
+  purchase?: PurchaseInfo;
   memberId: string;
   /** First and last day the purchase runs (the subscription), or null. */
   start: string | null;
@@ -126,6 +161,11 @@ export interface ReconCharge {
   amountCents: number;
   amountRefundedCents: number;
   failureCode: string | null;
+  /** ISO instant; needed to match a one-off payment to a purchase. */
+  createdAt?: string | null;
+  /** The Kajabi offer id Kajabi wrote into the charge's metadata (`kjb_offer_id`). */
+  kajabiOfferId?: string | null;
+  description?: string | null;
 }
 
 export interface ReconSubscription {
@@ -142,6 +182,8 @@ export interface ReconSubscription {
   /** `pause_collection.behavior` and `.resumes_at` (an ISO instant): when set, billing resumes on that day; when not, the pause is indefinite. */
   pauseBehavior?: string | null;
   pauseResumesAt?: string | null;
+  /** The Kajabi offer id in the subscription's metadata (`kjb_offer_id`) when Kajabi created it. */
+  kajabiOfferId?: string | null;
 }
 
 /** A hiatus or a program cohort: dates as YYYY-MM-DD; a null end means it has not ended. */
@@ -163,6 +205,8 @@ export interface ReconInput {
   hiatuses: ReconWindow[];
   /** Cohorts of programs that include membership. */
   programWindows: ReconWindow[];
+  /** The membership offer's name for the purchase block (default "Membership"). */
+  membershipName?: string;
   /** How many months back the schedule goes: default 12, `null` for the member's whole billing history. */
   lookbackMonths?: number | null;
 }
@@ -239,7 +283,7 @@ const group = <T>(rows: T[], keyOf: (row: T) => string | null | undefined): Map<
 };
 
 /** The membership invoices of one customer, each with the charges that tried to collect it and what refunds took back. */
-function transactionsOf(
+export function transactionsOf(
   invoices: ReconInvoice[],
   chargesByInvoice: Map<string, ReconCharge[]>,
   chargeById: Map<string, ReconCharge>
@@ -265,7 +309,7 @@ function transactionsOf(
 }
 
 /** The state of one transaction on its own, before what is expected of it. */
-function transactionStatus(tx: ScheduleTransaction): RowStatus {
+export function transactionStatus(tx: ScheduleTransaction): RowStatus {
   if (tx.invoiceStatus === "paid") return tx.refundedCents > 0 && tx.keptCents <= 0 && tx.billedCents > 0 ? "refunded" : "paid";
   if (tx.invoiceStatus === "uncollectible") return "failed";
   if (tx.invoiceStatus === "open") return tx.failureCodes.length > 0 ? "failed" : "open";
@@ -474,7 +518,8 @@ function buildMembershipSchedule(
   txs: ScheduleTransaction[],
   today: string,
   lookbackMonths: number | null,
-  left: { otherInvoices: number; oneOffCharges: number }
+  left: { otherInvoices: number; oneOffCharges: number },
+  membershipName = "Membership"
 ): PurchaseSchedule | null {
   const firstDay = lookbackMonths === null ? "0000-01-01" : `${addMonths(monthOf(today), -lookbackMonths)}-01`;
   const subs = subscriptions.filter((s) => s.status !== "incomplete_expired");
@@ -697,9 +742,13 @@ function buildMembershipSchedule(
   if (otherInvoices > 0) notes.push(`${otherInvoices} ${otherInvoices === 1 ? "invoice" : "invoices"} for other products ${otherInvoices === 1 ? "is" : "are"} not membership billing; see the flat list.`);
   if (oneOffCharges > 0) notes.push(`${oneOffCharges} one-off ${oneOffCharges === 1 ? "payment" : "payments"} with no invoice ${oneOffCharges === 1 ? "is" : "are"} not membership billing; see the flat list.`);
   const live = subs.filter((s) => LIVE_SUBSCRIPTION.has(s.status) && !s.canceledAt);
+  const lastPaid = lastPaidAmount("9999-12-31", null);
+  const status = live.length > 0 ? (live.every((s) => s.paused) ? "paused" : "active") : "canceled";
   return {
     purchaseType: "membership",
     label: "Membership",
+    key: `${member.id}:membership`,
+    purchase: { purchaseId: null, offerName: membershipName, priceText: lastPaid ? `${money(lastPaid.cents)} every month` : null, day: starts[0] ?? null, amountCents: lastPaid?.cents ?? null, quantity: null, granted: false, status },
     memberId: member.id,
     start: starts[0] ?? null,
     end: live.length > 0 ? null : (subs.map((s) => (s.canceledAt ? easternDay(s.canceledAt) : null)).filter((d): d is string => !!d).sort().at(-1) ?? null),
@@ -743,7 +792,8 @@ export function buildSchedules(input: ReconInput): PurchaseSchedule[] {
       {
         otherInvoices: member.stripeCustomerIds.reduce((n, c) => n + (allInvoicesByCustomer.get(c)?.length ?? 0), 0) - invoices.length,
         oneOffCharges: member.stripeCustomerIds.reduce((n, c) => n + (oneOffByCustomer.get(c)?.length ?? 0), 0),
-      }
+      },
+      input.membershipName
     );
     if (schedule) schedules.push(schedule);
   }

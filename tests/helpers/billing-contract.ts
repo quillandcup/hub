@@ -322,7 +322,12 @@ export function defineBillingContract(name: string, setup: () => BillingContract
         const y: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-y"), stripe_customer_id: cus, created_at_stripe: "2091-04-01T00:00:00+00:00", amount: 2500, refunded: true, amount_refunded: 2500 };
         const z: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-z"), stripe_customer_id: null, created_at_stripe: "2091-03-01T00:00:00+00:00" };
         const i = inv("i-new", cus, "2091-06-01T00:00:00+00:00");
-        await ctx.seed({ stripeCharges: [x, y, z], stripeInvoices: [i] });
+        // Charges Kajabi made for an offer carry its id in the metadata, whoever the customer is.
+        const offer = ctx.unique("offer");
+        const k1: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k1"), stripe_customer_id: ctx.unique("cus-k"), created_at_stripe: "2091-02-01T00:00:00+00:00", data: { metadata: { kjb_offer_id: offer } } };
+        const k2: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k2"), stripe_customer_id: null, created_at_stripe: "2091-01-01T00:00:00+00:00", data: { metadata: { kjb_offer_id: offer } } };
+        const k3: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-k3"), stripe_customer_id: ctx.unique("cus-k"), created_at_stripe: "2091-01-15T00:00:00+00:00", data: { metadata: { kjb_offer_id: "another-offer" } } };
+        await ctx.seed({ stripeCharges: [x, y, z, k1, k2, k3], stripeInvoices: [i] });
 
         expect((await ctx.repo().stripeCharges({ customerIds: [cus] })).map((r) => r.stripe_charge_id)).toEqual([y.stripe_charge_id, x.stripe_charge_id]);
         expect(await ctx.repo().stripeCharges({ customerIds: [] })).toEqual([]);
@@ -330,6 +335,9 @@ export function defineBillingContract(name: string, setup: () => BillingContract
         expect((await ctx.repo().stripeCharges({ createdTo: "2091-04-01T00:00:00+00:00" })).map((r) => r.stripe_charge_id)).toContain(z.stripe_charge_id);
         expect((await ctx.repo().stripeCharges({ customerIds: [cus] }))[1]).toMatchObject({ failure_code: "card_declined", paid: false, status: "failed" });
         expect((await ctx.repo().stripeCharges({ customerIds: [cus] }))[0]).toMatchObject({ refunded: true, amount_refunded: 2500, amount: 2500 });
+
+        expect((await ctx.repo().stripeChargesForKajabiOffers([offer])).map((r) => r.stripe_charge_id)).toEqual([k2.stripe_charge_id, k1.stripe_charge_id]);
+        expect(await ctx.repo().stripeChargesForKajabiOffers([])).toEqual([]);
 
         expect(await ctx.repo().stripeInvoiceIdsWithStatus(["open", "draft"])).toEqual([]);
         expect((await ctx.repo().stripeInvoiceIdsWithStatus(["paid"])).includes(i.stripe_invoice_id)).toBe(true);

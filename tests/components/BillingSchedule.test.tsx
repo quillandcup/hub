@@ -55,6 +55,31 @@ describe("BillingSchedule", () => {
     expect(screen.getByText("2 draft or void invoices billed nothing and are not listed.")).toBeInTheDocument();
   });
 
+  it("shows an event purchase the way Kajabi lists it, linked to the event, with a one-off charge linked to Stripe's payments", () => {
+    const charge = { ...tx, invoiceId: "ch_1", kind: "charge" as const };
+    const event: PurchaseSchedule = {
+      ...schedule([row("a", null, "paid", { transactions: [charge] })]),
+      purchaseType: "event",
+      label: "Spring Retreat",
+      key: "k1",
+      event: { id: "evt_1", slug: "spring-retreat", title: "Spring Retreat" },
+      purchase: { purchaseId: "p1", offerName: "Spring Retreat ticket", priceText: "$500.00 one time", day: "2026-02-01", amountCents: 50000, quantity: 2, granted: false, status: "active" },
+    };
+    render(<BillingSchedule schedules={[event]} />);
+    expect(screen.getByRole("link", { name: "Spring Retreat" })).toHaveAttribute("href", "/admin/events/spring-retreat");
+    expect(screen.getByText("Spring Retreat ticket")).toBeInTheDocument();
+    expect(screen.getByText("Bought 2026-02-01 · $500.00 one time · quantity 2 · active")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ch_1" })).toHaveAttribute("href", "https://dashboard.stripe.com/payments/ch_1");
+    expect(screen.getByText("2026-02-09")).toBeInTheDocument();
+  });
+
+  it("says granted for a purchase with no price", () => {
+    const granted: PurchaseSchedule = { ...schedule([row("a", "2026-02-09", "granted_no_override", { cause: "granted", needsAttention: true })]), key: "k2", purchase: { purchaseId: "p2", offerName: "Craft Course", priceText: null, day: "2026-02-09", amountCents: 0, quantity: null, granted: true, status: "active" } };
+    render(<BillingSchedule schedules={[granted]} />);
+    expect(screen.getByText("Granted 2026-02-09 · active")).toBeInTheDocument();
+    expect(screen.getByText("Granted, no override on record: 1")).toBeInTheDocument();
+  });
+
   it("shows everything when nothing needs a look, and says nothing needs one when filtered to none", async () => {
     render(<BillingSchedule schedules={[schedule([row("a", "2026-02-09", "paid")])]} />);
     expect(screen.getByText("reason a")).toBeInTheDocument();
