@@ -51,7 +51,7 @@ const setOverview = (rows: ScheduleRow[]) => {
     schedules: [schedule(rows)],
     members: new Map([[MEMBER, { id: MEMBER, name: "Ada Example", displayName: null, status: "active" }]]),
     today: "2026-06-01",
-    counts: { linkedMembers: 1, invoices: 1, charges: 0, subscriptions: 0, purchases: 1 },
+    counts: { linkedMembers: 1, invoices: 1, charges: 0, subscriptions: 0, purchases: 1, unrecognisedKajabiCharges: 0 },
   } satisfies BillingOverview;
 };
 const stored = async () => (await createInMemoryRepos(own).billingAcknowledgements.activeFor(KEY));

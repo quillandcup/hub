@@ -57,7 +57,7 @@ const overview = (list: PurchaseSchedule[]): Overview => ({
     [BEA, { id: BEA, name: "Bea Example", displayName: null, status: "active" }],
   ]),
   today: "2026-06-01",
-  counts: { linkedMembers: 2, invoices: 3, charges: 0, subscriptions: 2, purchases: 1 },
+  counts: { linkedMembers: 2, invoices: 3, charges: 0, subscriptions: 2, purchases: 1, unrecognisedKajabiCharges: 0 },
 });
 const record = (extra: Partial<AckRecord> = {}): AckRecord => ({
   rowKey: SEED,
