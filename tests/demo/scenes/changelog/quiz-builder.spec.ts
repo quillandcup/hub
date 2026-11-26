@@ -1,14 +1,21 @@
 import { expect, shot, test } from "../../fixtures";
-import { demoQuizIds } from "../../db";
+import { sessionCookies } from "../../auth";
+import { demoQuizIds, removeTwoStep } from "../../db";
 
 /**
  * Screenshots for the changelog entry "Build quizzes in the course builder": the Questions page of the demo quiz ("Check your draft
  * plan", tests/demo/courses-seed.ts) with a graded choice question, a short answer and a file upload; the Results page; and one
  * member's answers. Run on demand with `pnpm changelog:capture quiz-builder`; tagged @changelog so the scheduled help-screenshots run
- * leaves it out. The scene only reads: it changes nothing in the demo.
+ * leaves it out. The scene only reads, except that the admin signs in with a second step (so the page shows no "set up two-step
+ * sign-in" reminder); the step is taken away again afterwards.
  */
-test("staff read a quiz's questions and results @changelog", async ({ page, signInAs }, testInfo) => {
+test.afterEach(async () => {
+  await removeTwoStep("admin");
+});
+
+test("staff read a quiz's questions and results @changelog", async ({ page, context, signInAs }, testInfo) => {
   await signInAs("admin");
+  await context.addCookies(await sessionCookies("admin", { twoStep: true }));
   const { courseId, lessonId } = await demoQuizIds();
   const base = `/admin/courses/${courseId}/lessons/${lessonId}`;
 
