@@ -69,10 +69,10 @@ describe("findKajabiMatchesForEvent", () => {
 
     expect(offersLinked).toBe(true);
     // Oldest purchase first; the unlinked offer is ignored; Ada shows by display name with her legal name beside it.
-    expect(buyers.map((b) => [b.member_name, b.member_real_name, b.offer_names, b.amount_in_cents, b.deactivated])).toEqual([
-      ["Bo Example", null, ["Summer Retreat"], 5000, false],
-      ["Ada E", "Ada Example", ["Summer Retreat"], 5000, false],
-      ["Cy Example", null, ["Summer Retreat deposit"], 2500, false],
+    expect(buyers.map((b) => [b.member_name, b.member_real_name, b.offer_names, b.stripe, b.deactivated])).toEqual([
+      ["Bo Example", null, ["Summer Retreat"], null, false],
+      ["Ada E", "Ada Example", ["Summer Retreat"], null, false],
+      ["Cy Example", null, ["Summer Retreat deposit"], null, false],
     ]);
   });
 
@@ -88,7 +88,7 @@ describe("findKajabiMatchesForEvent", () => {
     const { buyers } = await findKajabiMatchesForEvent(r, EVENT);
 
     const ada = buyers.find((b) => b.member_id === "mbr_AAAAAAAAAAA1")!;
-    expect(ada).toMatchObject({ purchase_count: 2, amount_in_cents: 5000, deactivated: false });
+    expect(ada).toMatchObject({ purchase_count: 2, stripe: null, deactivated: false });
     expect(ada.offer_names.sort()).toEqual(["Summer Retreat", "Summer Retreat deposit"]);
     expect(buyers.find((b) => b.member_id === "mbr_AAAAAAAAAAA2")!.deactivated).toBe(true);
   });

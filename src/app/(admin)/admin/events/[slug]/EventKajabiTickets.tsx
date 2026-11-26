@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import DatePicker from "@/components/DatePicker";
 import { NOT_ATTENDING_LABELS, type NotAttendingReason } from "@/lib/event-not-attending";
+import { stripePaymentsText } from "@/lib/event-stripe-payments";
 import type { EventKajabiMatches } from "@/lib/kajabi-event-matching";
 
 interface OfferRow {
@@ -101,10 +102,6 @@ function NotAttendingControl({ name, busy, onSave }: { name: string; busy: boole
       </button>
     </span>
   );
-}
-
-function money(cents: number | null): string {
-  return cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
 }
 
 /**
@@ -415,7 +412,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                       </Link>
                       {buyer.member_real_name && <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{buyer.member_real_name}</span>}
                       <span className="block text-xs text-slate-500 dark:text-slate-400">
-                        {[buyer.offer_names.join(", "), money(buyer.amount_in_cents), buyer.purchase_date?.slice(0, 10), buyer.member_status].filter(Boolean).join(" · ")}
+                        {[buyer.offer_names.join(", "), stripePaymentsText(buyer.stripe), buyer.purchase_date?.slice(0, 10), buyer.member_status].filter(Boolean).join(" · ")}
                         {buyer.deactivated && <span className="ml-1 text-amber-700 dark:text-amber-400">· purchase deactivated or refunded</span>}
                       </span>
                       {buyer.possible_duplicate && <DuplicateHint other={buyer.possible_duplicate} />}
