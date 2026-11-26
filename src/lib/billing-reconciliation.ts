@@ -22,7 +22,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 const PURCHASE_TYPES = ["membership", "program", "course", "event"] as const;
 export type PurchaseType = (typeof PURCHASE_TYPES)[number];
 
-export const ROW_STATUSES = ["paid", "refunded", "missed", "failed", "open", "charged_when_not_expected", "unexpected", "not_expected"] as const;
+export const ROW_STATUSES = ["paid", "refunded", "missed", "failed", "open", "charged_when_not_expected", "unexpected", "not_expected", "hub_stripe_disagree", "paused_short", "hiatus_confirmed", "hiatus_mismatch", "unrecorded_gap", "gap_short"] as const;
 export type RowStatus = (typeof ROW_STATUSES)[number];
 
 export const ROW_STATUS_LABELS: Record<RowStatus, string> = {
@@ -34,7 +34,16 @@ export const ROW_STATUS_LABELS: Record<RowStatus, string> = {
   charged_when_not_expected: "Charged when it should not be",
   unexpected: "Unexpected payment",
   not_expected: "Not expected",
+  hub_stripe_disagree: "Hub and Stripe disagree",
+  paused_short: "Paused, short",
+  hiatus_confirmed: "Hiatus confirmed by billing",
+  hiatus_mismatch: "Hiatus and billing gap differ",
+  unrecorded_gap: "Unrecorded gap",
+  gap_short: "Short gap (possible gift)",
 };
+
+/** Why a row is what it is, for filtering: a hiatus or a program that includes membership, or a billing day soon after a hiatus ended. */
+export type RowCause = "hiatus" | "program" | "pause" | "after_hiatus" | "gap" | "hiatus_billing_day" | null;
 
 export interface ScheduleTransaction {
   invoiceId: string;
@@ -65,6 +74,7 @@ export interface ScheduleRow {
   reason: string;
   /** Staff should look at this row. */
   needsAttention: boolean;
+  cause: RowCause;
   transactions: ScheduleTransaction[];
   currency: string;
 }
@@ -124,6 +134,9 @@ export interface ReconSubscription {
   billingAnchor: string | null;
   /** The subscription's collection is paused in Stripe (a draft invoice instead of a charge is expected). */
   paused: boolean;
+  /** `pause_collection.behavior` and `.resumes_at` (an ISO instant): when set, billing resumes on that day; when not, the pause is indefinite. */
+  pauseBehavior?: string | null;
+  pauseResumesAt?: string | null;
 }
 
 /** A hiatus or a program cohort: dates as YYYY-MM-DD; a null end means it has not ended. */
@@ -154,6 +167,20 @@ const DEFAULT_LOOKBACK_MONTHS = 12;
 const MATCH_TOLERANCE_DAYS = 5;
 /** Days after a program ends before "membership billing never started" is reported. */
 const PROGRAM_END_GRACE_DAYS = 7;
+
+/**
+ * A pause this long or shorter, counted in billing periods (billing days it covers), is read as "possibly a
+ * gift" (a month given to a member), not as a hiatus; a longer one, or one with no resume date, is a hiatus.
+ * Stripe stores no pause start, so the pause is counted from the first billing day after the member's last
+ * payment up to the resume day. A heuristic, not a fact: the page and docs say so.
+ */
+export const SHORT_PAUSE_MAX_BILLING_PERIODS = 1;
+
+/** A billing day this soon after a hiatus ended is "after a hiatus". */
+const AFTER_HIATUS_DAYS = 45;
+
+/** A payment with a draft or void invoice (what a pause leaves) within this many days on both sides is read as taken during the pause: about one billing period. */
+const PAUSE_ARTIFACT_WINDOW_DAYS = 35;
 
 const LIVE_SUBSCRIPTION = new Set(["active", "past_due", "trialing"]);
 
@@ -240,6 +267,179 @@ function transactionStatus(tx: ScheduleTransaction): RowStatus {
   return "open";
 }
 
+/**
+ * How many billing days a pause covers: from the first billing day after the last payment (or the subscription's
+ * start when nothing was paid) up to, not including, the resume day. Null when there is no resume day (indefinite).
+ */
+function pausePeriods(sub: ReconSubscription, lastPaidDay: string | null): number | null {
+  if (!sub.pauseResumesAt) return null;
+  const resumes = easternDay(sub.pauseResumesAt);
+  const anchorDay = Number(easternDay(sub.billingAnchor ?? sub.createdAt).slice(8, 10));
+  const from = lastPaidDay ?? easternDay(sub.createdAt);
+  let count = 0;
+  for (let month = monthOf(from); month <= monthOf(resumes); month = addMonths(month, 1)) {
+    const date = billingDate(month, anchorDay);
+    if (date > from && date < resumes) count += 1;
+  }
+  return count;
+}
+
+/** A run of billing periods with no payment between two paid invoices. */
+export interface BillingGap {
+  /** The Eastern day of the last payment before the gap, and of the one that resumed billing. */
+  lastPaid: string;
+  resumed: string;
+  /** The first billing day with no payment. */
+  firstMissed: string;
+  /** How many billing periods have no payment (1 or more). */
+  missedPeriods: number;
+}
+
+const DAYS_PER_PERIOD = 30.44;
+
+/**
+ * Pauses inferred from the payments: two consecutive paid invoices more than one billing period apart. Left
+ * out: a gap with a failed, open or uncollectible invoice in it (a payment problem, not a pause), a gap not
+ * inside one subscription's life (a cancellation and a new subscription), and a gap mostly covered by a program
+ * that includes membership. A heuristic: the invoices show what was billed, not why.
+ */
+export function inferBillingGaps(paidDays: string[], problemDays: string[], subs: ReconSubscription[], programs: ReconWindow[]): BillingGap[] {
+  const days = [...new Set(paidDays)].sort();
+  const gaps: BillingGap[] = [];
+  for (let i = 0; i + 1 < days.length; i++) {
+    const a = days[i];
+    const b = days[i + 1];
+    const missedPeriods = Math.round(dayDiff(b, a) / DAYS_PER_PERIOD) - 1;
+    if (missedPeriods < 1) continue;
+    if (problemDays.some((d) => d > a && d < b)) continue;
+    if (!subs.some((s) => easternDay(s.createdAt) <= a && (!s.canceledAt || easternDay(s.canceledAt) >= b))) continue;
+    const covered = programs.some((p) => {
+      const from = p.startDate > a ? p.startDate : a;
+      const to = p.endDate === null || p.endDate > b ? b : p.endDate;
+      return dayDiff(to, from) * 2 >= dayDiff(b, a);
+    });
+    if (covered) continue;
+    gaps.push({ lastPaid: a, resumed: b, firstMissed: billingDate(addMonths(monthOf(a), 1), Number(a.slice(8, 10))), missedPeriods });
+  }
+  return gaps;
+}
+
+/** What the Hub's hiatus rows say about one inferred gap, or what is missing. */
+export interface HiatusAudit {
+  kind: "confirmed" | "mismatch" | "unrecorded" | "short";
+  gap: BillingGap;
+  hiatus: ReconWindow | null;
+  /** Billing resumed this many days after the hiatus ended (negative: before). Null without a hiatus or end date. */
+  endDiffDays: number | null;
+  /** The hiatus ended on the day of the month the member is billed on. */
+  endedOnBillingDay: boolean;
+}
+
+/** Days either side of a billing gap's edge within which the Hub's hiatus dates count as the same. */
+const HIATUS_DATE_TOLERANCE_DAYS = 5;
+
+/**
+ * The Hub's hiatus history is the claim, the payments the evidence. A gap with a hiatus over it that ends
+ * about when billing resumed is confirmed; one that ends earlier or later (a hiatus ending on the billing day
+ * that still skipped a month shows here, as about 30 days) is a mismatch; a gap with no hiatus and no program is
+ * unrecorded, or short when it is within `SHORT_PAUSE_MAX_BILLING_PERIODS` (possibly a gifted month).
+ */
+export function auditHiatuses(gaps: BillingGap[], hiatuses: ReconWindow[]): HiatusAudit[] {
+  return gaps.map((gap): HiatusAudit => {
+    const over = hiatuses
+      .filter((h) => h.startDate <= gap.resumed && (h.endDate === null || h.endDate >= gap.firstMissed))
+      .sort((a, b) => (b.endDate ?? "9999").localeCompare(a.endDate ?? "9999"))[0];
+    if (!over) {
+      return { kind: gap.missedPeriods <= SHORT_PAUSE_MAX_BILLING_PERIODS ? "short" : "unrecorded", gap, hiatus: null, endDiffDays: null, endedOnBillingDay: false };
+    }
+    const endDiffDays = over.endDate === null ? null : dayDiff(gap.resumed, over.endDate);
+    const startOk = over.startDate <= addDays(gap.firstMissed, HIATUS_DATE_TOLERANCE_DAYS);
+    const endOk = endDiffDays !== null && Math.abs(endDiffDays) <= HIATUS_DATE_TOLERANCE_DAYS;
+    return {
+      kind: startOk && endOk ? "confirmed" : "mismatch",
+      gap,
+      hiatus: over,
+      endDiffDays,
+      endedOnBillingDay: over.endDate !== null && Number(over.endDate.slice(8, 10)) === Number(gap.lastPaid.slice(8, 10)),
+    };
+  });
+}
+
+/** The schedule row for one audit result. */
+function auditRow(a: HiatusAudit): Omit<ScheduleRow, "key"> {
+  const { gap, hiatus } = a;
+  const span = `${gap.lastPaid} and ${gap.resumed}`;
+  const base = { expectedDate: gap.resumed, expectedAmountCents: null, month: monthOf(gap.resumed), currency: "usd", transactions: [] as ScheduleTransaction[] };
+  const periods = `${gap.missedPeriods} billing ${gap.missedPeriods === 1 ? "period" : "periods"}`;
+  if (a.kind === "confirmed" && hiatus) {
+    return { ...base, status: "hiatus_confirmed", needsAttention: false, cause: "hiatus", reason: `The Hub's hiatus (${hiatus.startDate} to ${hiatus.endDate}) is confirmed by the payments: none between ${span}.` };
+  }
+  if (a.kind === "mismatch" && hiatus) {
+    const end = hiatus.endDate === null ? "has no end date" : a.endDiffDays !== null && a.endDiffDays > 0 ? `ended ${hiatus.endDate}, ${a.endDiffDays} days before billing resumed` : `ended ${hiatus.endDate}, ${Math.abs(a.endDiffDays ?? 0)} days after billing resumed`;
+    const extra = a.endDiffDays !== null && Math.abs(a.endDiffDays) > HIATUS_DATE_TOLERANCE_DAYS ? ` (about ${Math.round(Math.abs(a.endDiffDays) / DAYS_PER_PERIOD)} billing period${Math.round(Math.abs(a.endDiffDays) / DAYS_PER_PERIOD) === 1 ? "" : "s"} ${a.endDiffDays > 0 ? "more" : "fewer"} than recorded)` : "";
+    return {
+      ...base,
+      status: "hiatus_mismatch",
+      needsAttention: true,
+      cause: a.endedOnBillingDay ? "hiatus_billing_day" : "hiatus",
+      reason: `No payment between ${span}, but the Hub's hiatus (from ${hiatus.startDate}) ${end}${extra}.${a.endedOnBillingDay ? " The hiatus ended on the billing day." : ""}`,
+    };
+  }
+  if (a.kind === "short") {
+    return { ...base, status: "gap_short", needsAttention: false, cause: "gap", reason: `No payment between ${span} (${periods}) and no hiatus on record: possibly a gifted month (a guess from the invoices).` };
+  }
+  return { ...base, status: "unrecorded_gap", needsAttention: true, cause: "gap", reason: `No payment between ${span} (${periods}) and no hiatus or program on record: the Hub may be missing a hiatus, or billing was missed (a guess from the invoices).` };
+}
+
+/** Why a paused subscription expects nothing: with its resume day when Stripe has one. */
+function pausedWhy(subs: ReconSubscription[]): string {
+  const paused = subs.find((s) => s.paused);
+  if (!paused) return "the subscription is paused in Stripe";
+  return paused.pauseResumesAt ? `the subscription is paused in Stripe until ${easternDay(paused.pauseResumesAt)}` : "the subscription is paused in Stripe with no resume date";
+}
+
+/**
+ * Today's state from Stripe against the Hub's. Stripe is the truth for "paused now" (a paused subscription;
+ * its resume day is the hiatus end) and "cancelled" (a cancelled one); the Hub's hiatus history is the only
+ * record of past pauses. Returns a sentence when they disagree, or null.
+ */
+function hubStripeDisagreement(
+  member: ReconMember,
+  subs: ReconSubscription[],
+  hiatuses: ReconWindow[],
+  programs: ReconWindow[],
+  today: string,
+  lastPaidDay: string | null
+): { reason: string; cause: RowCause; short?: boolean } | null {
+  const alive = subs.filter((s) => LIVE_SUBSCRIPTION.has(s.status) && !s.canceledAt);
+  const paused = alive.filter((s) => s.paused);
+  const billing = alive.filter((s) => !s.paused);
+  const current = hiatuses.filter((h) => touches(today, h));
+  const hubHiatus = member.status === "on_hiatus" || current.length > 0;
+  const inProgram = programs.some((p) => touches(today, p));
+
+  if (hubHiatus && paused.length === 0 && billing.length > 0) return { reason: "The Hub says the member is on hiatus, but the Stripe subscription is not paused and will keep billing.", cause: "hiatus" };
+  if (!hubHiatus && paused.length > 0 && member.status !== "cancelled" && !inProgram) {
+    const shorts = paused.map((s) => ({ s, periods: pausePeriods(s, lastPaidDay) }));
+    if (shorts.every((p) => p.periods !== null && p.periods <= SHORT_PAUSE_MAX_BILLING_PERIODS)) {
+      const until = easternDay(shorts[0].s.pauseResumesAt as string);
+      return { reason: `The Stripe subscription is paused until ${until}, about ${shorts[0].periods === 0 ? "less than one" : "one"} billing period: possibly a gifted month, so not treated as a hiatus (a guess from the pause length).`, cause: null, short: true };
+    }
+    return { reason: "The Stripe subscription is paused, but the Hub has no hiatus covering today.", cause: "hiatus" };
+  }
+  if (hubHiatus && paused.length > 0) {
+    const resumes = paused.map((s) => (s.pauseResumesAt ? easternDay(s.pauseResumesAt) : null)).sort().at(-1) ?? null;
+    const ends = current.map((h) => h.endDate);
+    const hubEnd = ends.length > 0 && !ends.includes(null) ? ((ends as string[]).sort().at(-1) ?? null) : null;
+    if (resumes && hubEnd && resumes !== hubEnd) return { reason: `The hiatus ends on ${hubEnd} in the Hub, but the Stripe pause resumes on ${resumes} (${Math.abs(dayDiff(resumes, hubEnd))} days ${resumes > hubEnd ? "later" : "earlier"}).`, cause: "hiatus" };
+    if (!resumes && hubEnd) return { reason: `The hiatus ends on ${hubEnd} in the Hub, but the Stripe pause has no resume date, so nothing will resume billing.`, cause: "hiatus" };
+    if (resumes && !hubEnd) return { reason: `The Stripe pause resumes on ${resumes}, but the Hub has no end date for the hiatus.`, cause: "hiatus" };
+  }
+  if (member.status === "cancelled" && alive.length > 0) return { reason: "The Hub says the member is cancelled, but the Stripe subscription is still live and will bill or resume.", cause: null };
+  if (member.status === "active" && subs.length > 0 && alive.length === 0 && programs.length === 0 && !inProgram) return { reason: "The Hub says the member is active, but every Stripe subscription is cancelled.", cause: null };
+  return null;
+}
+
 const tries = (n: number) => `${n} ${n === 1 ? "try" : "tries"}`;
 
 // ---------------------------------------------------------------- the membership schedule
@@ -251,6 +451,8 @@ interface Expected {
   zone: "inside" | "edge" | "outside";
   zoneReason: string | null;
   paused: boolean;
+  /** The day of the month the subscription bills on. */
+  anchorDay: number;
   tx: ScheduleTransaction | null;
 }
 
@@ -295,7 +497,8 @@ function buildMembershipSchedule(
         month,
         zone: insideHiatus || insideProgram ? "inside" : hiatus || program ? "edge" : "outside",
         zoneReason: insideHiatus ? "on hiatus" : insideProgram ? "in a program that includes membership" : hiatus ? "on the first or last day of a hiatus" : program ? "on the first or last day of a program that includes membership" : null,
-        paused: sub.paused,
+        paused: sub.paused && (!sub.pauseResumesAt || date < easternDay(sub.pauseResumesAt)),
+        anchorDay,
         tx: null,
       });
     }
@@ -324,15 +527,24 @@ function buildMembershipSchedule(
   const active = member.status === "active";
   const rows: Omit<ScheduleRow, "key">[] = [];
 
+  // Stripe stores no pause start, but a paused subscription leaves draft or void invoices instead of charges.
+  // A payment with such an invoice within a billing period before it and another within one after it, before the resume day, sits inside the
+  // current pause (a heuristic, like the pause length); one with none after it came before the pause began.
+  const pausedSubs = subs.filter((s) => s.paused && LIVE_SUBSCRIPTION.has(s.status) && !s.canceledAt);
+  const pauseArtifacts = invoices.filter((i) => i.status === "draft" || i.status === "void").map((i) => easternDay(i.createdAt));
+  const paidWhilePaused = (day: string) =>
+    pausedSubs.some((s) => !s.pauseResumesAt || day < easternDay(s.pauseResumesAt)) && pauseArtifacts.some((d) => d < day && dayDiff(day, d) <= PAUSE_ARTIFACT_WINDOW_DAYS) && pauseArtifacts.some((d) => d > day && dayDiff(d, day) <= PAUSE_ARTIFACT_WINDOW_DAYS);
+
   for (const e of expected) {
     const price = lastPaidAmount(e.date, null);
     const base = { expectedDate: e.date, expectedAmountCents: e.tx ? e.tx.billedCents : (price?.cents ?? null), month: e.month, currency: price?.currency ?? "usd" };
     if (e.tx) {
       const status = transactionStatus(e.tx);
-      const flagged = status === "paid" && e.zone === "inside" && e.tx.keptCents > 0;
+      const pausePaid = status === "paid" && e.tx.keptCents > 0 && e.zone !== "inside" && paidWhilePaused(e.tx.day);
+      const flagged = (status === "paid" && e.zone === "inside" && e.tx.keptCents > 0) || pausePaid;
       const out: RowStatus = flagged ? "charged_when_not_expected" : status;
       const reason = flagged
-        ? `${money(e.tx.keptCents)} was paid on ${e.tx.day} while the member was ${e.zoneReason}.`
+        ? `${money(e.tx.keptCents)} was paid on ${e.tx.day} while ${pausePaid ? "the subscription was paused in Stripe" : `the member was ${e.zoneReason}`}.`
         : out === "paid"
           ? e.tx.attempts > 1 || e.tx.failureCodes.length > 0
             ? `${money(e.tx.keptCents)} paid on ${e.tx.day} after ${tries(e.tx.attempts)}${e.tx.failureCodes.length ? ` (earlier: ${e.tx.failureCodes.join(", ")})` : ""}.`
@@ -351,22 +563,30 @@ function buildMembershipSchedule(
         status: out,
         reason,
         needsAttention: out === "charged_when_not_expected" || ((out === "open" || out === "failed") && active),
+        cause: pausePaid ? "pause" : flagged ? (e.zoneReason === "on hiatus" ? "hiatus" : "program") : null,
         transactions: [e.tx],
       });
       continue;
     }
     const sameMonth = invoices.filter((i) => monthOf(easternDay(i.createdAt)) === e.month && !used.has(i.stripeInvoiceId));
     if (e.zone !== "outside" || e.paused) {
-      const why = e.zone === "outside" ? "the subscription is paused in Stripe" : e.zoneReason;
-      rows.push({ ...base, status: "not_expected", reason: `No payment, and none expected: ${why}.`, needsAttention: false, transactions: [] });
+      const why = e.zone === "outside" ? pausedWhy(subs) : e.zoneReason;
+      const cause: RowCause = e.zone === "outside" ? null : e.zoneReason === "on hiatus" ? "hiatus" : e.zoneReason?.includes("program") ? "program" : "hiatus";
+      rows.push({ ...base, status: "not_expected", reason: `No payment, and none expected: ${why}.`, needsAttention: false, cause, transactions: [] });
       continue;
     }
     const hint = sameMonth.some((i) => i.status === "draft") ? "the only invoice is a draft that was never finalized" : sameMonth.some((i) => i.status === "void") ? "the only invoice is void" : "Stripe made no membership invoice";
+    // A billing day soon after a hiatus ended: the question is whether the resume skipped a month.
+    const ended = hiatuses
+      .filter((h) => h.endDate !== null && h.endDate <= e.date && dayDiff(e.date, h.endDate) <= AFTER_HIATUS_DAYS)
+      .sort((a, b) => (b.endDate as string).localeCompare(a.endDate as string))[0];
+    const onBillingDay = ended && Number((ended.endDate as string).slice(8, 10)) === e.anchorDay;
     rows.push({
       ...base,
       status: "missed",
-      reason: `Billing was due on ${e.date} but ${hint}.`,
+      reason: `Billing was due on ${e.date} but ${hint}.${ended ? ` A hiatus ended on ${ended.endDate}${onBillingDay ? ", the billing day" : ""}.` : ""}`,
       needsAttention: active,
+      cause: ended ? "after_hiatus" : null,
       transactions: [],
     });
   }
@@ -378,7 +598,8 @@ function buildMembershipSchedule(
     const status = transactionStatus(tx);
     const hiatus = hiatuses.find((h) => strictlyInside(tx.day, h));
     const program = programs.find((p) => strictlyInside(tx.day, p));
-    const inside = status === "paid" && tx.keptCents > 0 && (hiatus || program);
+    const pausePaid = status === "paid" && tx.keptCents > 0 && !hiatus && !program && paidWhilePaused(tx.day);
+    const inside = status === "paid" && tx.keptCents > 0 && (hiatus || program || pausePaid);
     const price = lastPaidAmount(tx.day, null);
     const out: RowStatus = inside ? "charged_when_not_expected" : status === "paid" ? "unexpected" : status;
     rows.push({
@@ -388,13 +609,14 @@ function buildMembershipSchedule(
       currency: price?.currency ?? "usd",
       status: out,
       reason: inside
-        ? `${money(tx.keptCents)} was paid on ${tx.day} while the member was ${hiatus ? `on hiatus (${hiatus.startDate} to ${hiatus.endDate ?? "no end date"})` : "in a program that includes membership"}.`
+        ? `${money(tx.keptCents)} was paid on ${tx.day} while ${pausePaid ? "the subscription was paused in Stripe" : `the member was ${hiatus ? `on hiatus (${hiatus.startDate} to ${hiatus.endDate ?? "no end date"})` : "in a program that includes membership"}`}.`
         : out === "unexpected"
           ? `${money(tx.keptCents)} was paid on ${tx.day} and matches no billing day.`
           : out === "refunded"
             ? `${money(tx.refundedCents)} paid on ${tx.day} and refunded in full, matching no billing day.`
             : `${money(tx.billedCents)} invoiced on ${tx.day} is ${out === "open" ? "unpaid" : "failed"} and matches no billing day.`,
       needsAttention: out === "charged_when_not_expected" || out === "unexpected" || ((out === "open" || out === "failed") && active),
+      cause: inside ? (pausePaid ? "pause" : hiatus ? "hiatus" : "program") : null,
       transactions: [tx],
     });
   }
@@ -416,13 +638,40 @@ function buildMembershipSchedule(
         status: "missed",
         reason: `The program that includes membership ended on ${lastEnd} and membership billing has not started: ${why}.`,
         needsAttention: true,
+        cause: "program",
         transactions: [],
       });
     }
   }
 
+  // The Hub's hiatus history checked against the payments: gaps in billing, with or without a hiatus over them.
+  const gaps = inferBillingGaps(
+    txs.filter((t) => t.keptCents > 0 && t.billedCents > 0).map((t) => t.day),
+    txs.filter((t) => t.invoiceStatus === "open" || t.invoiceStatus === "uncollectible").map((t) => t.day),
+    subs,
+    programs
+  );
+  for (const audit of auditHiatuses(gaps, hiatuses)) if (audit.gap.resumed >= firstDay) rows.push(auditRow(audit));
+
+  // Where the Hub and Stripe disagree about now: Stripe's subscription is the truth about who is paused or cancelled today.
+  const lastPaidDay = txs.filter((t) => t.keptCents > 0).map((t) => t.day).sort().at(-1) ?? null;
+  const disagreement = hubStripeDisagreement(member, subs, hiatuses, programs, today, lastPaidDay);
+  if (disagreement) {
+    rows.push({
+      expectedDate: null,
+      expectedAmountCents: null,
+      month: monthOf(today),
+      currency: "usd",
+      status: disagreement.short ? "paused_short" : "hub_stripe_disagree",
+      reason: disagreement.reason,
+      needsAttention: !disagreement.short,
+      cause: disagreement.cause,
+      transactions: [],
+    });
+  }
+
   if (rows.length === 0) return null;
-  rows.sort((a, b) => (a.expectedDate ?? a.transactions[0]?.day ?? "").localeCompare(b.expectedDate ?? b.transactions[0]?.day ?? ""));
+  rows.sort((a, b) => (a.expectedDate ?? a.transactions[0]?.day ?? today).localeCompare(b.expectedDate ?? b.transactions[0]?.day ?? today));
   const seen = new Map<string, number>();
   const keyed = rows.map((row): ScheduleRow => {
     const base = `${member.id}:membership:${row.month}`;

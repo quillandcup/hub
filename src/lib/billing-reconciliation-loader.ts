@@ -56,12 +56,13 @@ const toReconCharge = (row: StripeChargeRow): ReconCharge => ({
   failureCode: row.failure_code,
 });
 
-/** `billing_cycle_anchor` (Unix seconds) and the pause from the raw subscription. */
+/** `billing_cycle_anchor` and the pause (`pause_collection`: behavior and `resumes_at`, Unix seconds) from the raw subscription. */
 /** Null for a subscription without a creation time: nothing can be expected of it. */
 export function toReconSubscription(row: StripeSubscriptionRow): ReconSubscription | null {
   if (!row.created_at_stripe) return null;
   const data = row.data && typeof row.data === "object" && !Array.isArray(row.data) ? (row.data as Record<string, unknown>) : {};
   const anchor = typeof data.billing_cycle_anchor === "number" ? new Date(data.billing_cycle_anchor * 1000).toISOString() : null;
+  const pause = data.pause_collection && typeof data.pause_collection === "object" ? (data.pause_collection as Record<string, unknown>) : null;
   return {
     stripeSubscriptionId: row.stripe_subscription_id,
     stripeCustomerId: row.stripe_customer_id,
@@ -69,7 +70,9 @@ export function toReconSubscription(row: StripeSubscriptionRow): ReconSubscripti
     createdAt: row.created_at_stripe,
     canceledAt: row.canceled_at,
     billingAnchor: anchor,
-    paused: data.pause_collection != null,
+    paused: pause !== null,
+    pauseBehavior: typeof pause?.behavior === "string" ? pause.behavior : null,
+    pauseResumesAt: typeof pause?.resumes_at === "number" ? new Date(pause.resumes_at * 1000).toISOString() : null,
   };
 }
 

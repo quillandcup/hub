@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
@@ -7,6 +8,10 @@ import { DataTableSearch } from "@/components/DataTableSearch";
 import BillingSchedule from "@/components/BillingSchedule";
 import type { PurchaseSchedule } from "@/lib/billing-reconciliation";
 import { formatCents, type TransactionRow, type TransactionTone } from "@/lib/member-transactions";
+
+type View = "flat" | "grouped";
+/** The chosen view stays chosen across members and visits (this browser only). */
+const VIEW_STORAGE_KEY = "hub.member-transactions-view";
 
 const TONE_CLASS: Record<TransactionTone, string> = {
   good: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
@@ -45,17 +50,51 @@ export default function MemberTransactionsPanel({ rows, customerCount, schedules
     defaultSort: { column: "date", direction: "desc" },
   });
 
+  const [view, setView] = useState<View>("flat");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+      if (saved === "flat" || saved === "grouped") setView(saved);
+    } catch {
+      // storage can be blocked: the default view stays
+    }
+  }, []);
+  const choose = (next: View) => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      // not remembered, still shown
+    }
+  };
+
   return (
     <div className="space-y-6">
     {customerCount > 0 && (
+      <div role="group" aria-label="View" className="inline-flex rounded-md border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
+        {([["flat", "Flat list"], ["grouped", "Group by product"]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={view === id}
+            onClick={() => choose(id)}
+            className={`px-3 py-1.5 ${view === id ? "bg-plum-600 text-white" : "bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-300"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    )}
+    {customerCount > 0 && view === "grouped" && (
       <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 space-y-3">
         <h2 className="text-lg font-semibold">Billing schedule</h2>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          The billing days the Hub expects (the subscription, minus hiatuses and programs that include membership), lined up with what Stripe did.
+          Each product with the billing days the Hub expects (the Stripe subscription, minus hiatuses and programs that include membership) lined up with what Stripe did.
         </p>
         <BillingSchedule schedules={schedules} />
       </section>
     )}
+    {(customerCount === 0 || view === "flat") && (
     <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 space-y-3">
       <h2 className="text-lg font-semibold">Transactions</h2>
       <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -115,6 +154,7 @@ export default function MemberTransactionsPanel({ rows, customerCount, schedules
         </>
       )}
     </section>
+    )}
     </div>
   );
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  SHORT_PAUSE_MAX_BILLING_PERIODS,
+  auditHiatuses,
   buildSchedules,
   easternDay,
+  inferBillingGaps,
   summarize,
   type ReconCharge,
   type ReconInput,
@@ -147,7 +150,7 @@ describe("missed billing", () => {
 
   it("stops expecting payments once the subscription is cancelled, and never before it began", () => {
     const rows = rowsOf({ subscriptions: [sub({ status: "canceled", canceledAt: "2026-03-20T15:00:00Z" })], invoices: monthly(["04", "05"]) });
-    expect(rows.map((r) => r.expectedDate)).toEqual(["2026-01-09", "2026-02-09", "2026-03-09"]);
+    expect(rows.filter((r) => r.status !== "hub_stripe_disagree").map((r) => r.expectedDate)).toEqual(["2026-01-09", "2026-02-09", "2026-03-09"]);
     expect(rowsOf({ subscriptions: [sub({ createdAt: "2026-03-20T15:00:00Z", billingAnchor: "2026-03-20T15:00:00Z" })], invoices: [] }).map((r) => r.expectedDate)).toEqual(["2026-03-20", "2026-04-20"]);
   });
 
@@ -344,5 +347,222 @@ describe("summary", () => {
 
   it("builds nothing for a member with no billing at all", () => {
     expect(run({ invoices: [], subscriptions: [] })).toEqual([]);
+  });
+});
+
+const disagree = (rows: ScheduleRow[]) => rows.find((r) => r.status === "hub_stripe_disagree");
+
+describe("what Stripe says about now", () => {
+  it("expects billing again from a pause's resume day, not before", () => {
+    const rows = rowsOf({
+      subscriptions: [sub({ paused: true, pauseBehavior: "void", pauseResumesAt: "2026-04-20T15:00:00Z" })],
+      invoices: monthly(["02", "03", "04", "05"]),
+    });
+    expect(byDate(rows, "2026-03-09")).toMatchObject({ status: "not_expected", reason: expect.stringContaining("paused in Stripe until 2026-04-20") });
+    expect(byDate(rows, "2026-04-09")?.status).toBe("not_expected");
+    expect(byDate(rows, "2026-05-09")).toMatchObject({ status: "missed", needsAttention: true });
+  });
+
+  it("expects no further billing from an indefinite pause, so nothing is missed", () => {
+    const rows = rowsOf({ subscriptions: [sub({ paused: true, pauseBehavior: "void", pauseResumesAt: null })], invoices: monthly(["03", "04", "05"]) });
+    expect(rows.filter((r) => r.status === "missed")).toEqual([]);
+    expect(byDate(rows, "2026-05-09")?.reason).toContain("no resume date");
+  });
+
+  it("stops expecting billing for a cancelled subscription and says when the Hub still calls the member active", () => {
+    const rows = rowsOf({ subscriptions: [sub({ status: "canceled", canceledAt: "2026-03-20T15:00:00Z" })], invoices: monthly(["04", "05"]) });
+    expect(rows.filter((r) => r.status === "missed")).toEqual([]);
+    expect(disagree(rows)?.reason).toBe("The Hub says the member is active, but every Stripe subscription is cancelled.");
+    expect(disagree(rowsOf({ subscriptions: [sub({ status: "canceled", canceledAt: "2026-03-20T15:00:00Z" })], invoices: monthly(["04", "05"]) }, "cancelled"))).toBeUndefined();
+  });
+
+  it("flags a Hub hiatus whose subscription is not paused", () => {
+    const rows = rowsOf({ hiatuses: [window("2026-05-01", "2026-06-10")] });
+    expect(disagree(rows)).toMatchObject({ needsAttention: true, cause: "hiatus", reason: expect.stringContaining("not paused and will keep billing") });
+    expect(disagree(rowsOf({}, "on_hiatus"))?.reason).toContain("not paused");
+  });
+
+  it("flags a paused subscription the Hub has no hiatus for, but not one inside a program or a cancelled member's", () => {
+    const paused = sub({ paused: true, pauseResumesAt: "2026-08-10T15:00:00Z" });
+    expect(disagree(rowsOf({ subscriptions: [paused] }))?.reason).toBe("The Stripe subscription is paused, but the Hub has no hiatus covering today.");
+    expect(disagree(rowsOf({ subscriptions: [paused], programWindows: [window("2026-05-01", "2026-07-01")] }))).toBeUndefined();
+    expect(disagree(rowsOf({ subscriptions: [paused] }, "cancelled"))?.reason).toContain("cancelled");
+  });
+
+  it("compares the Hub's hiatus end with the pause's resume day in Eastern days", () => {
+    const hiatuses = [window("2026-05-01", "2026-06-10")];
+    const resume = (iso: string | null) => rowsOf({ hiatuses, subscriptions: [sub({ paused: true, pauseResumesAt: iso })] }, "on_hiatus");
+    expect(disagree(resume("2026-06-10T15:00:00Z"))).toBeUndefined();
+    // 03:30 UTC on the 10th is 23:30 EDT on the 9th: one day early.
+    expect(disagree(resume("2026-06-10T03:30:00Z"))?.reason).toBe("The hiatus ends on 2026-06-10 in the Hub, but the Stripe pause resumes on 2026-06-09 (1 days earlier).");
+    expect(disagree(resume("2026-06-24T15:00:00Z"))?.reason).toContain("14 days later");
+    expect(disagree(resume(null))?.reason).toContain("no resume date, so nothing will resume billing");
+    expect(disagree(rowsOf({ hiatuses: [window("2026-05-01", null)], subscriptions: [sub({ paused: true, pauseResumesAt: "2026-06-10T15:00:00Z" })] }, "on_hiatus"))?.reason).toContain("no end date for the hiatus");
+    expect(disagree(rowsOf({ hiatuses: [window("2026-05-01", null)], subscriptions: [sub({ paused: true })] }, "on_hiatus"))).toBeUndefined();
+  });
+
+  it("flags a member the Hub cancelled whose subscription is still live, paused or not", () => {
+    expect(disagree(rowsOf({}, "cancelled"))?.reason).toContain("cancelled, but the Stripe subscription is still live");
+    expect(disagree(rowsOf({ subscriptions: [sub({ paused: true })] }, "cancelled"))?.reason).toContain("cancelled");
+  });
+
+  it("is quiet when the Hub and Stripe agree, and leaves a program's own row to the program", () => {
+    expect(disagree(rowsOf())).toBeUndefined();
+    const rows = rowsOf({ programWindows: [window("2026-01-01", "2026-04-30")], subscriptions: [sub({ status: "canceled", canceledAt: "2026-01-02T15:00:00Z" })], invoices: [] });
+    expect(disagree(rows)).toBeUndefined();
+    expect(rows.some((r) => r.status === "missed" && r.cause === "program")).toBe(true);
+  });
+});
+
+describe("why a row is what it is (for filtering)", () => {
+  it("marks charges inside a hiatus or a program, and a billing day soon after a hiatus ended", () => {
+    const charged = rowsOf({ hiatuses: [window("2026-02-20", "2026-04-15")] });
+    expect(byDate(charged, "2026-03-09")?.cause).toBe("hiatus");
+    expect(byDate(rowsOf({ programWindows: [window("2026-02-01", "2026-03-15")] }), "2026-02-09")?.cause).toBe("program");
+    expect(byDate(rowsOf({ hiatuses: [window("2026-02-20", "2026-04-15")], invoices: monthly(["03"]) }), "2026-03-09")?.cause).toBe("hiatus");
+    // The hiatus ended on the 9th, the billing day, and the 9th had no invoice (edge day: not expected). The next month is the first that is missed.
+    const missed = rowsOf({ hiatuses: [window("2026-02-20", "2026-04-09")], invoices: monthly(["04", "05"]) });
+    expect(byDate(missed, "2026-04-09")?.status).toBe("not_expected");
+    expect(byDate(missed, "2026-05-09")).toMatchObject({ status: "missed", cause: "after_hiatus" });
+    expect(byDate(missed, "2026-05-09")?.reason).toContain("A hiatus ended on 2026-04-09, the billing day.");
+    expect(byDate(rowsOf({ invoices: monthly(["03"]) }), "2026-03-09")?.cause).toBeNull();
+  });
+});
+
+describe("a short pause is not a hiatus", () => {
+  // The last payment is 2026-03-09 (April and May are not paid), so a pause is counted from the billing day after it.
+  const paused = (resumesAt: string | null) => rowsOf({ subscriptions: [sub({ paused: true, pauseResumesAt: resumesAt })], invoices: monthly(["04", "05"]) });
+  const short = (rows: ScheduleRow[]) => rows.find((r) => r.status === "paused_short");
+
+  it("names the threshold: one billing period", () => {
+    expect(SHORT_PAUSE_MAX_BILLING_PERIODS).toBe(1);
+  });
+
+  it("reads a pause of one billing period as a possible gifted month, which is not a problem", () => {
+    const rows = paused("2026-04-20T15:00:00Z");
+    expect(short(rows)).toMatchObject({ needsAttention: false, cause: null });
+    expect(short(rows)?.reason).toContain("possibly a gifted month");
+    expect(disagree(rows)).toBeUndefined();
+  });
+
+  it("reads a pause of two billing periods as a hiatus the Hub does not have", () => {
+    const rows = paused("2026-05-20T15:00:00Z");
+    expect(short(rows)).toBeUndefined();
+    expect(disagree(rows)?.reason).toBe("The Stripe subscription is paused, but the Hub has no hiatus covering today.");
+  });
+
+  it("reads a pause with no resume date as a hiatus", () => {
+    expect(disagree(paused(null))).toMatchObject({ needsAttention: true });
+    expect(short(paused(null))).toBeUndefined();
+  });
+
+  it("flips at the threshold: resuming on the second billing day is still short, a day after is not", () => {
+    expect(short(paused("2026-05-09T15:00:00Z"))).toBeDefined(); // only April 9 falls in the pause
+    expect(short(paused("2026-05-10T15:00:00Z"))).toBeUndefined(); // April 9 and May 9
+    expect(disagree(paused("2026-05-10T15:00:00Z"))).toBeDefined();
+    expect(short(paused("2026-04-09T15:00:00Z"))?.reason).toContain("less than one billing period");
+  });
+
+  it("expects no charge during a short pause either, and a charge during one is a finding", () => {
+    const quiet = paused("2026-04-20T15:00:00Z");
+    expect(byDate(quiet, "2026-04-09")).toMatchObject({ status: "not_expected" });
+    // A draft invoice is what a pause leaves; a payment after it, before the resume day, was taken during the pause.
+    const charged = rowsOf({
+      subscriptions: [sub({ paused: true, pauseResumesAt: "2026-04-20T15:00:00Z" })],
+      invoices: [
+        ...monthly(["04", "05"]),
+        invoice("in_draft", "2026-04-09T15:00:00Z", { status: "draft", amountPaidCents: 0 }),
+        invoice("in_paid", "2026-04-12T15:00:00Z"),
+        invoice("in_draft2", "2026-05-09T15:00:00Z", { status: "draft", amountPaidCents: 0 }),
+      ],
+    });
+    expect(charged.find((r) => r.transactions[0]?.invoiceId === "in_paid")).toMatchObject({ status: "charged_when_not_expected", cause: "pause", needsAttention: true });
+    // The same payment with no pause artifact before it is not flagged as a pause charge.
+    const unflagged = rowsOf({ subscriptions: [sub({ paused: true, pauseResumesAt: "2026-04-20T15:00:00Z" })], invoices: [...monthly(["04", "05"]), invoice("in_paid", "2026-04-12T15:00:00Z")] });
+    expect(unflagged.find((r) => r.transactions[0]?.invoiceId === "in_paid")?.cause).toBeNull();
+    // A draft before it but none after it: that pause ended, and the payment came after it.
+    const resumed = rowsOf({
+      subscriptions: [sub({ paused: true, pauseResumesAt: "2026-08-20T15:00:00Z" })],
+      invoices: [...monthly(["04", "05"]), invoice("in_draft", "2026-04-09T15:00:00Z", { status: "draft", amountPaidCents: 0 }), invoice("in_paid", "2026-04-12T15:00:00Z")],
+    });
+    expect(resumed.find((r) => r.transactions[0]?.invoiceId === "in_paid")?.cause).toBeNull();
+  });
+});
+
+describe("the invoices check the Hub's hiatus records", () => {
+  const paid = (...days: string[]) => days.map((d) => invoice(`in_${d}`, `${d}T15:00:00Z`));
+  const gapsOf = (days: string[], over: { problems?: string[]; subs?: ReconSubscription[]; programs?: ReconWindow[] } = {}) =>
+    inferBillingGaps(days, over.problems ?? [], over.subs ?? [sub()], over.programs ?? []);
+  // Paid on the 9th, then nothing in April and May: billing resumes 2026-06-09.
+  const twoMonthGap = ["2026-01-09", "2026-02-09", "2026-03-09", "2026-06-09"];
+  const statusOf = (rows: ScheduleRow[], status: ScheduleRow["status"]) => rows.find((r) => r.status === status);
+
+  it("infers a gap of two billing periods between two payments, and none for ordinary months", () => {
+    expect(gapsOf(twoMonthGap)).toEqual([{ lastPaid: "2026-03-09", resumed: "2026-06-09", firstMissed: "2026-04-09", missedPeriods: 2 }]);
+    expect(gapsOf(["2026-01-09", "2026-02-09", "2026-03-11", "2026-04-08"])).toEqual([]);
+  });
+
+  it("confirms a Hub hiatus that matches the gap", () => {
+    const rows = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap), hiatuses: [window("2026-04-01", "2026-06-09")] });
+    expect(statusOf(rows, "hiatus_confirmed")).toMatchObject({ needsAttention: false, cause: "hiatus", expectedDate: "2026-06-09" });
+    expect(statusOf(rows, "hiatus_confirmed")?.reason).toContain("confirmed by the payments");
+  });
+
+  it("flags a gap with no hiatus and no program as unrecorded, and a one-period gap as short", () => {
+    const unrecorded = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap) });
+    expect(statusOf(unrecorded, "unrecorded_gap")).toMatchObject({ needsAttention: true, cause: "gap" });
+    expect(statusOf(unrecorded, "unrecorded_gap")?.reason).toContain("2 billing periods");
+    const short = rowsOf({ today: "2026-06-20", invoices: paid("2026-01-09", "2026-02-09", "2026-03-09", "2026-05-09", "2026-06-09") });
+    expect(statusOf(short, "gap_short")).toMatchObject({ needsAttention: false });
+    expect(statusOf(short, "gap_short")?.reason).toContain("possibly a gifted month");
+    expect(statusOf(short, "unrecorded_gap")).toBeUndefined();
+  });
+
+  it("shows the day difference when the hiatus is longer or shorter than the gap", () => {
+    const early = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap), hiatuses: [window("2026-04-01", "2026-05-09")] });
+    expect(statusOf(early, "hiatus_mismatch")?.reason).toContain("ended 2026-05-09, 31 days before billing resumed (about 1 billing period more than recorded)");
+    const late = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap), hiatuses: [window("2026-04-01", "2026-06-25")] });
+    expect(statusOf(late, "hiatus_mismatch")?.reason).toContain("16 days after billing resumed");
+    const open = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap), hiatuses: [window("2026-04-01", null)] });
+    expect(statusOf(open, "hiatus_mismatch")?.reason).toContain("has no end date");
+    const lateStart = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap), hiatuses: [window("2026-05-01", "2026-06-09")] });
+    expect(statusOf(lateStart, "hiatus_mismatch")).toBeDefined();
+  });
+
+  it("finds a hiatus that ended on the billing day but still skipped a month", () => {
+    // Hub: hiatus ended 2026-05-09, her billing day. Stripe: nothing on the 9th, billing resumed 2026-06-09.
+    const rows = rowsOf({ today: "2026-06-20", invoices: paid(...twoMonthGap), hiatuses: [window("2026-04-01", "2026-05-09")] });
+    const row = statusOf(rows, "hiatus_mismatch");
+    expect(row).toMatchObject({ cause: "hiatus_billing_day", needsAttention: true });
+    expect(row?.reason).toContain("The hiatus ended on the billing day.");
+    // The same hiatus resumed on the day: confirmed, not a skipped month.
+    const resumed = rowsOf({ today: "2026-06-20", invoices: paid("2026-01-09", "2026-02-09", "2026-03-09", "2026-05-09"), hiatuses: [window("2026-04-01", "2026-05-09")] });
+    expect(statusOf(resumed, "hiatus_mismatch")).toBeUndefined();
+    expect(statusOf(resumed, "hiatus_confirmed")).toBeDefined(); // resumed on the billing day itself: the hiatus is what the payments show
+  });
+
+  it("does not take a gap explained by a failed payment, a cancellation or a program for a pause", () => {
+    expect(gapsOf(twoMonthGap, { problems: ["2026-04-09"] })).toEqual([]);
+    expect(gapsOf(twoMonthGap, { subs: [sub({ status: "canceled", canceledAt: "2026-03-20T15:00:00Z" })] })).toEqual([]);
+    expect(gapsOf(twoMonthGap, { programs: [window("2026-03-15", "2026-06-05")] })).toEqual([]);
+    // A program covering only a small part of the gap does not explain it.
+    expect(gapsOf(twoMonthGap, { programs: [window("2026-05-25", "2026-06-05")] })).toHaveLength(1);
+    const rows = rowsOf({ today: "2026-06-20", invoices: [...paid(...twoMonthGap), invoice("in_open", "2026-04-09T15:00:00Z", { status: "open", amountPaidCents: 0 })] });
+    expect(rows.some((r) => r.status === "unrecorded_gap")).toBe(false);
+  });
+
+  it("matches the hiatus to the gap in Eastern days", () => {
+    // Resumed at 00:30 EDT on 2026-06-09 (04:30Z): the 9th, so a hiatus ending on the 9th is confirmed.
+    const rows = rowsOf({
+      today: "2026-06-20",
+      invoices: [...paid("2026-01-09", "2026-02-09", "2026-03-09"), invoice("in_resume", "2026-06-09T04:30:00Z")],
+      hiatuses: [window("2026-04-01", "2026-06-09")],
+    });
+    expect(statusOf(rows, "hiatus_confirmed")).toBeDefined();
+  });
+
+  it("returns the audit as plain data", () => {
+    const [audit] = auditHiatuses(gapsOf(twoMonthGap), [window("2026-04-01", "2026-05-09")]);
+    expect(audit).toMatchObject({ kind: "mismatch", endDiffDays: 31, endedOnBillingDay: true });
   });
 });
