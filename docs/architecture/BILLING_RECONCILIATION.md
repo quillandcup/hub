@@ -1,6 +1,6 @@
 # Billing reconciliation
 
-> **Status:** living. **Last reviewed:** 2026-11-26. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
+> **Status:** living. **Last reviewed:** 2026-11-25. Review: yearly. Kept up to date with the code; if it is wrong, fix it.
 
 Staff need to see where what Stripe billed disagrees with what the Hub expects, so they can fix Stripe or the Hub. The unit is **one member's purchase**: a schedule of the days a payment is expected, lined up against the Stripe transactions, with a status per day. It is read-only.
 
@@ -25,6 +25,7 @@ Payment data is service role only (Bronze), so both entry points check the permi
 - **Matching.** Each membership invoice (product named in `MEMBERSHIP_PRODUCT_NAMES`) matches the nearest expected day within 5 days, each side at most once, using Eastern days (`ORG_TIMEZONE`). A refund is read from the charges joined to the invoice (from either side).
 - **Statuses.** `paid` (a failed charge that was retried and paid stays paid, with the tries in the reason), `refunded` (in full), `missed` (expected, no invoice, or only a draft or void one), `failed` (uncollectible, or open with a declined charge), `open`, `charged_when_not_expected` (a payment inside a hiatus or a program), `unexpected` (a payment matching no day), `not_expected`, `hub_stripe_disagree`. A row also has a `cause` (`hiatus`, `program`, or `after_hiatus` for a missed billing day within 45 days after a hiatus ended; its reason says when the hiatus ended on the billing day), which the overview filters use.
 - **Needs attention.** `missed`, `failed` and `open` only for a member whose status is `active`; `charged_when_not_expected`, `unexpected` and `hub_stripe_disagree` always. A program that ended more than 7 days ago with no membership billing since (no live subscription: none, cancelled or paused) is a `missed` row on the program's end day, for an active member.
+- **How far back.** One member's grouped view covers their whole billing history (`lookbackMonths: null`: the loader is given every invoice and charge the Transactions tab read, and the header range runs from the first subscription or invoice to the end), so it has as many transactions as the flat list. The overview keeps a 12-month lookback (`DEFAULT_LOOKBACK_MONTHS`, reading 24 months of invoices for the hiatus and program checks), so it stays cheap and about what needs a look. Whatever a schedule leaves out is named in `PurchaseSchedule.notes`, shown under the heading: invoices before the range, draft or void invoices (they billed nothing and only mark a pause), invoices for other products, and one-off payments with no invoice.
 - **Row keys** are member + purchase type + month (a counter when a month has several rows), stable so a row can be acknowledged later.
 
 ## Adding a purchase type (retreats, events, programs, courses)

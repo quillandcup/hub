@@ -77,6 +77,11 @@ export default function BillingSchedule({ schedules, problemsFirst = true }: Pro
                 </span>
               )}
             </h3>
+            {schedule.notes.map((note) => (
+              <p key={note} className="text-xs text-slate-500 dark:text-slate-400">
+                {note}
+              </p>
+            ))}
             {rows.length === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Nothing here needs a look.</p>
             ) : (

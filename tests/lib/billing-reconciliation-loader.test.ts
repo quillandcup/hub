@@ -98,6 +98,19 @@ describe("loadMemberSchedules", () => {
     expect(schedules[0].rows.map((r) => r.status)).toEqual(["paid", "not_expected", "missed"]);
   });
 
+  it("covers the member's whole history, where the overview looks back 12 months", async () => {
+    const data = dataset();
+    data.stripeInvoices.push(invoice("in_old", "cus_bea", "2024-06-09T15:00:00Z") as never);
+    const repos = createInMemoryRepos(data);
+    const invoices = await repos.billing.stripeInvoices({ customerIds: ["cus_bea"] });
+    const [own] = await loadMemberSchedules(repos, { id: BEA, status: "active" }, ["cus_bea"], invoices, []);
+    expect(own.rows.some((r) => r.transactions.some((t) => t.invoiceId === "in_old"))).toBe(true);
+    expect(own.start).toBe("2024-06-09");
+    const overview = (await loadBillingOverview(repos)).schedules.find((s) => s.memberId === BEA)!;
+    expect(overview.rows.some((r) => r.transactions.some((t) => t.invoiceId === "in_old"))).toBe(false);
+    expect(overview.notes[0]).toContain("1 earlier invoice is not listed");
+  });
+
   it("builds nothing without a Stripe customer", async () => {
     expect(await loadMemberSchedules(createInMemoryRepos(dataset()), { id: ADA, status: "active" }, [], [], [])).toEqual([]);
   });
