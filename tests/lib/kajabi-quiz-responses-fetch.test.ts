@@ -1,6 +1,6 @@
 /** Reading a quiz's submissions by id from the list API, without a browser: a fake page answers GETs. Every value is invented. */
 import { describe, expect, it } from "vitest";
-import { FetchSessionExpiredError, MAX_LIST_PAGES, listSubmissionIds, pageParams, readQuizByIds, type PageFetcher } from "@/lib/kajabi/quiz-responses-fetch";
+import { FetchSessionExpiredError, MAX_LIST_PAGES, chooseReplayHeaders, listSubmissionIds, pageParams, readQuizByIds, refusalMessage, replayingHeadersLine, sawResultsListRequest, type PageFetcher } from "@/lib/kajabi/quiz-responses-fetch";
 
 const QUIZ = "489124";
 
@@ -141,5 +141,54 @@ describe("readQuizByIds", () => {
     const read = (await readQuizByIds(fetcher, QUIZ))!;
     expect(read.failed).toBe(1);
     expect(calls.some((c) => c.includes(".."))).toBe(false);
+  });
+});
+
+describe("chooseReplayHeaders", () => {
+  const list = `/api/admin/quizzes/${QUIZ}/results`;
+
+  it("drops cookie and host, keeps authorization and csrf headers, and never returns accept", () => {
+    const { headers, names } = chooseReplayHeaders([
+      { path: list, headers: { Cookie: "session=fake", Host: "app.example.test", Authorization: "Bearer fake-token", "X-CSRF-Token": "fake-csrf", Accept: "text/html", "sec-fetch-mode": "cors", "User-Agent": "x" } },
+    ]);
+    expect(headers).toEqual({ authorization: "Bearer fake-token", "x-csrf-token": "fake-csrf" });
+    expect(names).toEqual(["authorization", "x-csrf-token"]);
+  });
+
+  it("takes headers from every admin request and lets the results list request win", () => {
+    const { headers } = chooseReplayHeaders([
+      { path: list, headers: { authorization: "list", "x-a": "1" } },
+      { path: "/api/admin/other", headers: { authorization: "other", "x-b": "2" } },
+      { path: "/api/client/elsewhere", headers: { "x-c": "3" } },
+    ]);
+    expect(headers).toEqual({ authorization: "list", "x-a": "1", "x-b": "2" });
+  });
+
+  it("is empty when no admin request was seen, and the printed line never holds a value", () => {
+    expect(chooseReplayHeaders([])).toEqual({ headers: {}, names: [] });
+    expect(chooseReplayHeaders([{ path: "/api/client/x", headers: { authorization: "a" } }]).names).toEqual([]);
+    const line = replayingHeadersLine(chooseReplayHeaders([{ path: list, headers: { authorization: "secret-value" } }]).names);
+    expect(line).toBe("replaying headers: authorization");
+    expect(line).not.toContain("secret-value");
+    expect(replayingHeadersLine([])).toBe("replaying headers: none beyond the cookie");
+  });
+
+  it("knows whether the page made the results list request", () => {
+    expect(sawResultsListRequest([{ path: list, headers: {} }])).toBe(true);
+    expect(sawResultsListRequest([{ path: `${list}/abc`, headers: {} }, { path: "/api/admin/x", headers: {} }])).toBe(false);
+  });
+});
+
+describe("refusalMessage", () => {
+  it("says the login expired when the page's own request was 401 or went to a login", () => {
+    expect(refusalMessage({ pageStatus: 401, loginRedirect: false, headerNames: ["authorization"] })).toMatch(/login expired/);
+    expect(refusalMessage({ pageStatus: 200, loginRedirect: true, headerNames: [] })).toMatch(/login expired/);
+  });
+
+  it("says the capture was refused, with header names, when the page itself loaded fine", () => {
+    const message = refusalMessage({ pageStatus: 200, loginRedirect: false, headerNames: ["authorization", "x-csrf-token"] });
+    expect(message).toContain("refused the capture's request even with the page's headers (names: authorization, x-csrf-token)");
+    expect(message).not.toMatch(/log in/);
+    expect(refusalMessage({ pageStatus: null, loginRedirect: false, headerNames: [] })).toContain("none beyond the cookie");
   });
 });
