@@ -4,6 +4,7 @@ import {
   computeMemberTenure,
   computeCumulativeHiatusMonths,
   computeInactiveGaps,
+  computeTotalActiveMonths,
   calendarMonthsBetween,
   mergeInactivePeriods,
   toInactivePeriods,
@@ -583,5 +584,82 @@ describe("milestones and inactive periods (the spreadsheet rule)", () => {
     expect(result.recentMilestoneMonths).toBe(6);
     expect(result.milestoneMonths).toBe(12);
     expect(result.nextDate).toBe("2025-04-01");
+  });
+});
+
+describe("computeTotalActiveMonths", () => {
+  const asOf = new Date("2026-11-25T12:00:00Z");
+  const total = (
+    stints: ReturnType<typeof stint>[],
+    other: { start: string; end: string | null }[] = [],
+    hiatus: HiatusWindow[] = [],
+    override: string | null = null,
+    at: Date = asOf
+  ) => computeTotalActiveMonths(stints, other, hiatus, override, at);
+
+  it("is 0 with no coverage", () => {
+    expect(total([])).toBe(0);
+  });
+
+  it("adds a program that does not overlap the membership (5 + 5 months)", () => {
+    const membership = stint("2023-04-18", "2023-09-18");
+    expect(total([membership])).toBe(5);
+    expect(total([membership], [{ start: "2026-06-14", end: "2026-12-14" }])).toBe(10);
+  });
+
+  it("counts a program or gift inside a membership once", () => {
+    const membership = stint("2024-01-01", "2024-07-01");
+    expect(total([membership], [{ start: "2024-02-01", end: "2024-04-01" }])).toBe(total([membership]));
+  });
+
+  it("counts two stints running side by side once", () => {
+    const a = stint("2024-01-01", null);
+    const b = stint("2024-03-01", null);
+    expect(total([a, b])).toBe(total([a]));
+  });
+
+  it("counts a 2-day plan-change overlap once", () => {
+    // 180 days each, overlapping 2 days: 358 days together is 11 months, not 6 + 6
+    const first = stint("2024-01-01", "2024-06-29");
+    const second = stint("2024-06-27", "2024-12-24");
+    expect(total([first, second], [], [], null, new Date("2025-01-01"))).toBe(11);
+    expect(Math.floor(181 / 30) + Math.floor(181 / 30)).toBe(12);
+  });
+
+  it("with a join-date override equals the time since the override, minus hiatus", () => {
+    const hiatus: HiatusWindow[] = [{ startsAt: "2024-01-01", endsAt: "2024-03-01" }];
+    const days = (asOf.getTime() - new Date("2022-01-01").getTime()) / 86400000 - 60;
+    expect(total([stint("2023-01-01", null)], [], hiatus, "2022-01-01")).toBe(Math.floor(days / 30));
+  });
+
+  it("subtracts a hiatus that overlaps a stint, and counts overlapping hiatus windows once", () => {
+    const s = stint("2024-01-01", "2024-07-01"); // 182 days
+    expect(total([s], [], [{ startsAt: "2024-02-01", endsAt: "2024-03-02" }])).toBe(Math.floor(152 / 30));
+    expect(
+      total([s], [], [
+        { startsAt: "2024-02-01", endsAt: "2024-03-02" },
+        { startsAt: "2024-02-15", endsAt: "2024-03-02" },
+      ])
+    ).toBe(Math.floor(152 / 30));
+  });
+
+  it("treats a hiatus open at asOf as running until asOf", () => {
+    expect(total([stint("2026-01-01", null)], [], [{ startsAt: "2026-05-01", endsAt: null }], null, new Date("2026-09-01"))).toBe(
+      Math.floor(120 / 30)
+    );
+  });
+
+  it("ignores a program that starts after asOf and clips one that ends after it", () => {
+    expect(total([], [{ start: "2026-12-01", end: "2027-06-01" }])).toBe(0);
+    expect(total([], [{ start: "2026-08-26", end: "2027-06-01" }])).toBe(3); // 91.5 days to asOf
+  });
+
+  it("rounds down at the 30 day boundary", () => {
+    expect(total([stint("2024-01-01", "2024-01-30")])).toBe(0); // 29 days
+    expect(total([stint("2024-01-01", "2024-01-31")])).toBe(1); // 30 days
+  });
+
+  it("never goes negative when hiatus covers everything", () => {
+    expect(total([stint("2024-01-01", "2024-03-01")], [], [{ startsAt: "2023-01-01", endsAt: null }])).toBe(0);
   });
 });

@@ -3,7 +3,7 @@ import { requireApiPermission } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
-import { computeMemberTenure, computeActiveDays, computeInactiveGaps, type ActiveWindow, type HiatusWindow } from "@/lib/member-tenure";
+import { computeMemberTenure, computeActiveDays, computeTotalActiveMonths, computeInactiveGaps, type ActiveWindow, type HiatusWindow } from "@/lib/member-tenure";
 import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { slackPhotoUrl } from "@/lib/slack-avatar-url";
@@ -341,25 +341,17 @@ export async function POST(request: NextRequest) {
             ? joinDateOverride
             : tenure.mostRecentJoinedAt;
 
-        // total_active_months from `tenure` only counts time inside a real
-        // Kajabi/Stripe stint — it can't see activity before the earliest
-        // purchase record Kajabi has. A join-date override implies exactly
-        // that kind of activity (that's the whole reason it exists), so
-        // without this, an overridden join date reads as contradictory next
-        // to an unchanged, stint-only active-months count ("Hedgie since
-        // 2022, active 5 months"). Estimate active time since the override
-        // date instead (elapsed calendar time minus hiatus, same convention
-        // as computeMemberTenure), and never let it go backward from what
-        // the real stints already established — mirrors the GREATEST guard
-        // reprocess_members_atomic uses for program-cohort active months.
-        const totalActiveMonths = joinDateOverride
-          ? Math.max(
-              tenure.totalActiveMonths,
-              Math.floor(
-                computeActiveDays(joinDateOverride, now.toISOString(), hiatusWindowsByEmail.get(email) ?? [], now) / 30
-              )
-            )
-          : tenure.totalActiveMonths;
+        // total_active_months: the union of the Kajabi stints, program-cohort and gift / direct
+        // Stripe coverage and, with a join-date override, everything since the override, minus
+        // hiatus (computeTotalActiveMonths). Time two sources cover counts once. The SQL step in
+        // reprocess_members_atomic only keeps this from going below the longest program window.
+        const totalActiveMonths = computeTotalActiveMonths(
+          stints,
+          otherCoverageByEmail.get(email) ?? [],
+          hiatusWindowsByEmail.get(email) ?? [],
+          joinDateOverride ?? null,
+          now
+        );
 
         kajabiMembers.push({
           email,
