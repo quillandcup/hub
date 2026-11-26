@@ -228,7 +228,7 @@ export default function FinishersClient({
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
           <h2 className="text-lg font-medium">{notOptedIn ? NOT_OPTED_IN_LABEL : status ? STATUS_LABELS[status] : "All milestones"}</h2>
           <div className="flex gap-4 text-sm">
             {!notOptedIn && (
@@ -254,10 +254,10 @@ export default function FinishersClient({
           <p className="text-sm text-slate-600 dark:text-slate-400">{notOptedIn ? "No one is waiting for a word right now." : "Nothing here yet."}</p>
         ) : (
           <TableKeyboardNav table={table} label="Milestones">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left dark:border-slate-700">
+          <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+              <tr>
                 <SortableTh label="Member" {...table.sortProps("member")} />
                 <SortableTh label="Work" {...table.sortProps("work")} />
                 <SortableTh label="Milestone" {...table.sortProps("milestone")} />
@@ -265,21 +265,21 @@ export default function FinishersClient({
                 <SortableTh label="Started by" {...table.sortProps("started")} />
                 <SortableTh label="Celebrate publicly" {...table.sortProps("consent")} />
                 <SortableTh label="Story" {...table.sortProps("story")} />
-                <th className="py-2 pr-4">Photo</th>
-                <th className="py-2" />
+                <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">Photo</th>
+                <th className="px-6 py-3" />
               </tr>
             </thead>
             <tbody>
               {table.rows.map((row) => (
-                <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800">
-                  <td className="py-2 pr-4">{getMemberDisplayName({ name: row.name, display_name: row.displayName })}</td>
-                  <td className="py-2 pr-4">{row.workTitle ?? "(no work)"}</td>
-                  <td className="py-2 pr-4">{MILESTONE_LABELS[row.kind]}</td>
-                  <td className="py-2 pr-4">{STATUS_LABELS[row.status]}</td>
-                  <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">{MILESTONE_SOURCE_NOTES[row.source].replace(/\.$/, "")}</td>
-                  <td className="py-2 pr-4" data-testid="finisher-consent">{row.status === "confirmed" ? (row.consentTestimonial ? CONSENT_SHARED : CONSENT_NOT_SHARED) : "-"}</td>
-                  <td className="py-2 pr-4" data-testid="finisher-story">{row.hasStory ? "Has a story" : "-"}</td>
-                  <td className="py-2 pr-4" data-testid="finisher-photo">
+                <tr key={row.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                  <td className="px-6 py-3">{getMemberDisplayName({ name: row.name, display_name: row.displayName })}</td>
+                  <td className="px-6 py-3">{row.workTitle ?? "(no work)"}</td>
+                  <td className="px-6 py-3">{MILESTONE_LABELS[row.kind]}</td>
+                  <td className="px-6 py-3">{STATUS_LABELS[row.status]}</td>
+                  <td className="px-6 py-3 text-slate-600 dark:text-slate-400">{MILESTONE_SOURCE_NOTES[row.source].replace(/\.$/, "")}</td>
+                  <td className="px-6 py-3" data-testid="finisher-consent">{row.status === "confirmed" ? (row.consentTestimonial ? CONSENT_SHARED : CONSENT_NOT_SHARED) : "-"}</td>
+                  <td className="px-6 py-3" data-testid="finisher-story">{row.hasStory ? "Has a story" : "-"}</td>
+                  <td className="px-6 py-3" data-testid="finisher-photo">
                     {row.photo ? (
                       // Only a confirmed milestone whose member ticked the share tick (`SHARE_STORY_LABEL`): the photo is theirs to share, not the team's to browse.
                       // eslint-disable-next-line @next/next/no-img-element -- served by our own route, which checks who may see it
@@ -290,7 +290,7 @@ export default function FinishersClient({
                       "-"
                     )}
                   </td>
-                  <td className="py-2 text-right">
+                  <td className="px-6 py-3 text-right">
                     {row.status === "proposed" && (
                       <button type="button" onClick={() => withdraw(row)} disabled={pending} className="text-sm underline disabled:opacity-50">
                         Take back
