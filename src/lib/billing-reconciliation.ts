@@ -88,6 +88,11 @@ export interface PurchaseSchedule {
   end: string | null;
   /** Oldest first. */
   rows: ScheduleRow[];
+  /**
+   * What the schedule leaves out and why (invoices before the range it covers, draft or void ones that billed
+   * nothing, invoices of other products), so it never shows fewer transactions than the flat list without saying so.
+   */
+  notes: string[];
 }
 
 export interface ReconMember {
@@ -158,8 +163,8 @@ export interface ReconInput {
   hiatuses: ReconWindow[];
   /** Cohorts of programs that include membership. */
   programWindows: ReconWindow[];
-  /** How many months back the schedule goes. Default 12. */
-  lookbackMonths?: number;
+  /** How many months back the schedule goes: default 12, `null` for the member's whole billing history. */
+  lookbackMonths?: number | null;
 }
 
 const DEFAULT_LOOKBACK_MONTHS = 12;
@@ -468,9 +473,10 @@ function buildMembershipSchedule(
   programs: ReconWindow[],
   txs: ScheduleTransaction[],
   today: string,
-  lookbackMonths: number
+  lookbackMonths: number | null,
+  left: { otherInvoices: number; oneOffCharges: number }
 ): PurchaseSchedule | null {
-  const firstDay = `${addMonths(monthOf(today), -lookbackMonths)}-01`;
+  const firstDay = lookbackMonths === null ? "0000-01-01" : `${addMonths(monthOf(today), -lookbackMonths)}-01`;
   const subs = subscriptions.filter((s) => s.status !== "incomplete_expired");
 
   // Expected billing days: the creation day, then each month's billing day while the subscription lives.
@@ -679,7 +685,17 @@ function buildMembershipSchedule(
     seen.set(base, n);
     return { ...row, key: n === 1 ? base : `${base}:${n}` };
   });
-  const starts = subs.map((s) => easternDay(s.createdAt)).sort();
+  // The header's range is the whole history, whatever the rows cover: the first subscription or invoice up to the end.
+  const billed = txs.filter((t) => t.invoiceStatus !== "draft" && t.invoiceStatus !== "void");
+  const starts = [...subs.map((s) => easternDay(s.createdAt)), ...billed.map((t) => t.day)].sort();
+  const notes: string[] = [];
+  const before = billed.filter((t) => t.day < firstDay).length;
+  if (before > 0) notes.push(`${before} earlier ${before === 1 ? "invoice is" : "invoices are"} not listed: this view starts on ${firstDay}. The member's own Transactions tab covers the whole history.`);
+  const empty = txs.length - billed.length;
+  if (empty > 0) notes.push(`${empty} draft or void ${empty === 1 ? "invoice" : "invoices"} billed nothing and ${empty === 1 ? "is" : "are"} not listed; they only show a pause or a billing run that never went out.`);
+  const { otherInvoices, oneOffCharges } = left;
+  if (otherInvoices > 0) notes.push(`${otherInvoices} ${otherInvoices === 1 ? "invoice" : "invoices"} for other products ${otherInvoices === 1 ? "is" : "are"} not membership billing; see the flat list.`);
+  if (oneOffCharges > 0) notes.push(`${oneOffCharges} one-off ${oneOffCharges === 1 ? "payment" : "payments"} with no invoice ${oneOffCharges === 1 ? "is" : "are"} not membership billing; see the flat list.`);
   const live = subs.filter((s) => LIVE_SUBSCRIPTION.has(s.status) && !s.canceledAt);
   return {
     purchaseType: "membership",
@@ -688,6 +704,7 @@ function buildMembershipSchedule(
     start: starts[0] ?? null,
     end: live.length > 0 ? null : (subs.map((s) => (s.canceledAt ? easternDay(s.canceledAt) : null)).filter((d): d is string => !!d).sort().at(-1) ?? null),
     rows: keyed,
+    notes,
   };
 }
 
@@ -695,6 +712,12 @@ function buildMembershipSchedule(
 export function buildSchedules(input: ReconInput): PurchaseSchedule[] {
   const chargesByInvoice = group(input.charges, (c) => c.stripeInvoiceId);
   const chargeById = new Map(input.charges.map((c) => [c.stripeChargeId, c]));
+  const allInvoicesByCustomer = group(input.invoices, (i) => i.stripeCustomerId);
+  const invoiceCharges = new Set(input.invoices.map((i) => i.stripeChargeId).filter((c): c is string => !!c));
+  const oneOffByCustomer = group(
+    input.charges.filter((c) => !c.stripeInvoiceId && !invoiceCharges.has(c.stripeChargeId)),
+    (c) => c.stripeCustomerId
+  );
   const invoicesByCustomer = group(
     input.invoices.filter((i) => i.stripeProductId && input.membershipProductIds.has(i.stripeProductId)),
     (i) => i.stripeCustomerId
@@ -702,7 +725,7 @@ export function buildSchedules(input: ReconInput): PurchaseSchedule[] {
   const subsByCustomer = group(input.subscriptions, (s) => s.stripeCustomerId);
   const hiatusByMember = group(input.hiatuses, (h) => h.memberId);
   const programsByMember = group(input.programWindows, (p) => p.memberId);
-  const lookback = input.lookbackMonths ?? DEFAULT_LOOKBACK_MONTHS;
+  const lookback = input.lookbackMonths === undefined ? DEFAULT_LOOKBACK_MONTHS : input.lookbackMonths;
 
   const schedules: PurchaseSchedule[] = [];
   for (const member of input.members) {
@@ -716,7 +739,11 @@ export function buildSchedules(input: ReconInput): PurchaseSchedule[] {
       programsByMember.get(member.id) ?? [],
       transactionsOf(invoices, chargesByInvoice, chargeById),
       input.today,
-      lookback
+      lookback,
+      {
+        otherInvoices: member.stripeCustomerIds.reduce((n, c) => n + (allInvoicesByCustomer.get(c)?.length ?? 0), 0) - invoices.length,
+        oneOffCharges: member.stripeCustomerIds.reduce((n, c) => n + (oneOffByCustomer.get(c)?.length ?? 0), 0),
+      }
     );
     if (schedule) schedules.push(schedule);
   }

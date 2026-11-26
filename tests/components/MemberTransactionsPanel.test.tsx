@@ -56,7 +56,7 @@ describe("MemberTransactionsPanel", () => {
 
   it("offers a flat list and a grouped-by-product view, remembers the choice, and keeps the list as the default", async () => {
     const user = userEvent.setup();
-    const schedules = [{ purchaseType: "membership" as const, label: "Membership", memberId: "mbr_AAAAAAAAAAA1", start: "2026-01-09", end: null, rows: [{ key: "k", expectedDate: "2026-03-09", expectedAmountCents: 4700, month: "2026-03", status: "missed" as const, reason: "Billing was due.", needsAttention: true, cause: null, transactions: [], currency: "usd" }] }];
+    const schedules = [{ purchaseType: "membership" as const, label: "Membership", memberId: "mbr_AAAAAAAAAAA1", start: "2026-01-09", end: null, notes: [], rows: [{ key: "k", expectedDate: "2026-03-09", expectedAmountCents: 4700, month: "2026-03", status: "missed" as const, reason: "Billing was due.", needsAttention: true, cause: null, transactions: [], currency: "usd" }] }];
     const { unmount } = render(<MemberTransactionsPanel rows={[row]} customerCount={1} schedules={schedules} />);
     expect(screen.getByRole("button", { name: "Flat list" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("heading", { name: "Transactions" })).toBeInTheDocument();

@@ -566,3 +566,53 @@ describe("the invoices check the Hub's hiatus records", () => {
     expect(audit).toMatchObject({ kind: "mismatch", endDiffDays: 31, endedOnBillingDay: true });
   });
 });
+
+describe("a member's whole billing history", () => {
+  /** Paid on the 11th, January 2024 to February 2026, a void run in 2025-06 and 2025-07, one invoice off any billing day, and an invoice for another product. */
+  const history = () => {
+    const out: ReconInvoice[] = [];
+    for (let i = 0; i < 26; i++) {
+      const month = 1 + i;
+      const y = 2024 + Math.floor((month - 1) / 12);
+      const m = ((month - 1) % 12) + 1;
+      const id = `in_${y}_${String(m).padStart(2, "0")}`;
+      const createdAt = `${y}-${String(m).padStart(2, "0")}-11T15:00:00Z`;
+      out.push(y === 2025 && (m === 6 || m === 7) ? invoice(id, createdAt, { status: "void", amountPaidCents: 0 }) : invoice(id, createdAt));
+    }
+    out.push(invoice("in_odd", "2025-02-26T15:00:00Z"));
+    out.push(invoice("in_other", "2025-03-03T15:00:00Z", { stripeProductId: "prod_other" }));
+    return out;
+  };
+  const cancelled = sub({ status: "canceled", createdAt: "2024-01-11T15:00:00Z", billingAnchor: "2024-01-11T15:00:00Z", canceledAt: "2026-02-16T15:00:00Z" });
+  const input = (over: Partial<ReconInput> = {}) => ({ today: "2026-05-20", subscriptions: [cancelled], invoices: history(), charges: [charge("ch_solo", "", { stripeInvoiceId: null })], ...over });
+
+  it("lists every non-draft invoice, as a matched, unexpected or counted row", () => {
+    const [schedule] = run({ ...input(), lookbackMonths: null });
+    const listed = new Set(schedule.rows.flatMap((r) => r.transactions.map((t) => t.invoiceId)));
+    const billed = history().filter((i) => (i.stripeProductId === PRODUCT) && i.status !== "draft" && i.status !== "void");
+    expect(billed.length).toBe(25);
+    for (const i of billed) expect(listed.has(i.stripeInvoiceId), i.stripeInvoiceId).toBe(true);
+    expect(schedule.rows.find((r) => r.transactions[0]?.invoiceId === "in_odd")?.status).toBe("unexpected");
+    expect(schedule).toMatchObject({ start: "2024-01-11", end: "2026-02-16" });
+    expect(schedule.notes).toEqual([
+      expect.stringContaining("2 draft or void invoices"),
+      expect.stringContaining("1 invoice for other products"),
+      expect.stringContaining("1 one-off payment with no invoice"),
+    ]);
+    expect(schedule.notes.some((n) => n.includes("not listed: this view starts"))).toBe(false);
+  });
+
+  it("keeps the 12-month lookback for the overview, with the header range and a note for what it leaves out", () => {
+    const [schedule] = run(input());
+    const first = schedule.rows[0].expectedDate ?? schedule.rows[0].transactions[0]?.day ?? "";
+    expect(first >= "2025-05-01").toBe(true);
+    expect(schedule).toMatchObject({ start: "2024-01-11", end: "2026-02-16" });
+    expect(schedule.notes[0]).toBe("17 earlier invoices are not listed: this view starts on 2025-05-01. The member's own Transactions tab covers the whole history.");
+  });
+
+  it("starts at the first invoice when no subscription is known", () => {
+    const [schedule] = run({ ...input({ subscriptions: [] }), lookbackMonths: null });
+    expect(schedule.start).toBe("2024-01-11");
+    expect(schedule.rows.every((r) => r.status === "unexpected" || r.status === "hub_stripe_disagree")).toBe(true);
+  });
+});

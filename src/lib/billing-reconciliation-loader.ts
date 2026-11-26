@@ -12,7 +12,7 @@ import {
   type ReconWindow,
 } from "@/lib/billing-reconciliation";
 
-/** How far back invoices and charges are read (months). The schedule looks back less; this is for hiatus and program windows that began earlier. */
+/** How far back the overview reads invoices and charges (months). The overview's schedule looks back less (12); this is for hiatus and program windows that began earlier. One member's view reads everything. */
 const BILLING_HISTORY_MONTHS = 24;
 
 interface ReconciliationMember {
@@ -114,6 +114,8 @@ export async function loadMemberSchedules(
     subscriptions: subscriptionRows.filter((s) => customers.has(s.stripe_customer_id)).map(toReconSubscription).filter((s): s is ReconSubscription => s !== null),
     hiatuses: hiatuses.map((h): ReconWindow => ({ memberId: member.id, startDate: h.start_date, endDate: h.end_date })),
     programWindows: enrollments.filter((e) => e.includesMembership).map((e): ReconWindow => ({ memberId: member.id, startDate: e.startsAt, endDate: e.expiresAt })),
+    // The member's own view covers their whole billing history, like the flat list (the caller reads every invoice and charge).
+    lookbackMonths: null,
   });
 }
 
