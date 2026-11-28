@@ -45,6 +45,18 @@ function continueWithPath(request: NextRequest, extraHeaders: Record<string, str
 }
 
 /**
+ * Rewrites to another page, with the same request headers `continueWithPath` hands over (the address asked for, and the script nonce
+ * of src/lib/csp.ts). Without them Next cannot read the nonce, puts none on its own scripts and styles, and the browser blocks
+ * them while the response's policy names the nonce: the page is drawn but never comes alive.
+ */
+function rewriteWithPath(request: NextRequest, url: URL, extraHeaders: Record<string, string> = {}): NextResponse {
+  const headers = new Headers(request.headers)
+  headers.set(CURRENT_PATH_HEADER, askedFor(request))
+  for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
+  return NextResponse.rewrite(url, { request: { headers } })
+}
+
+/**
  * `requestHeaders` are added to the request Server Components see (src/proxy.ts uses it to hand over the script nonce,
  * src/lib/csp.ts, so Next can put it on its own scripts).
  */
@@ -211,7 +223,7 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
     let response: NextResponse
     if (previewPath) {
       url.pathname = previewPath
-      response = NextResponse.rewrite(url)
+      response = rewriteWithPath(request, url, requestHeaders)
     } else {
       url.pathname = '/login'
       url.search = ''

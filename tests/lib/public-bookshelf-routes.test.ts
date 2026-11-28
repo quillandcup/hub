@@ -5,6 +5,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { NONCE_HEADER } from "@/lib/csp";
+import { CURRENT_PATH_HEADER } from "@/lib/gates";
 import { PUBLIC_BOOKSHELF_RENDER_PATH, publicBookshelfDocument, publicBookshelfRewrite } from "@/lib/public-bookshelf";
 import { BOOKSHELF_DEFAULT_FIRST_SHOWN, BOOKSHELF_MAX_BOOKS } from "@/modules/bookshelf/page-blocks/live-books";
 
@@ -52,6 +54,13 @@ describe("the proxy for a visitor who is not signed in", () => {
     const response = await visit("/bookshelf");
     expect(response.headers.get("location")).toBeNull();
     expect(response.headers.get("x-middleware-rewrite")).toBe(`https://hub.example.test${PUBLIC_BOOKSHELF_RENDER_PATH}`);
+  });
+
+  it("hands the script nonce and the address asked for to the page it rewrites to, or Next puts no nonce on its scripts and the browser blocks them", async () => {
+    const { updateSession } = await import("@/lib/supabase/middleware");
+    const response = await updateSession(new NextRequest("https://hub.example.test/bookshelf?genre=x"), { [NONCE_HEADER]: "nonce-123" });
+    expect(response.headers.get(`x-middleware-request-${NONCE_HEADER}`)).toBe("nonce-123");
+    expect(response.headers.get(`x-middleware-request-${CURRENT_PATH_HEADER}`)).toBe("/bookshelf?genre=x");
   });
 
   it("opens the site sitemap and robots.txt", async () => {
