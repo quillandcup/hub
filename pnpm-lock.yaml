@@ -209,8 +209,8 @@ importers:
         specifier: ^20.2.0
         version: 20.2.0(supports-color@8.1.1)
       '@mux/ts':
-        specifier: ^15.6.1
-        version: 15.6.1
+        specifier: ^16.2.0
+        version: 16.2.0
       '@mux/upchunk':
         specifier: ^3.5.0
         version: 3.5.0
@@ -1256,8 +1256,9 @@ packages:
     resolution: {integrity: sha512-qmDvJIjcNsZ6tXWy2G9yuCgMPTTn35GMA3dPpSLm7QJVpbQzYdw0ALy1bKoivXnEM3U93/OrK+/M719b+fg84Q==}
     engines: {node: '>=18'}
 
-  '@mux/ts@15.6.1':
-    resolution: {integrity: sha512-+ROK5NhkLiDibaipcc5KpgK+btbAU7CnJWAwJRmE2aDxjQBJSPJ4xwTSN/bZ2aTaNCt95kr63AWhsZ7/Jm/KRQ==}
+  '@mux/ts@16.2.0':
+    resolution: {integrity: sha512-FRmCIXNjX7UEJ35iUIymEa2qc8Na7Wu5rBt+DCOXsQ1ok25JgXhF91ZPrYb/dX1mSVfjUQytuYlrUuMmvaOC+w==}
+    engines: {node: '>=20'}
 
   '@mux/upchunk@3.5.0':
     resolution: {integrity: sha512-D+TtvlujlZQjh5I+vFzJ31h5E1uVpEaLdR8M3BNaCFbVLnFMZs8J/L/fYSUyVGnyHT/yDtPHn/IHKdo3G6oSjA==}
@@ -9440,7 +9441,7 @@ snapshots:
       outvariant: 1.4.3
       strict-event-emitter: 0.5.1
 
-  '@mux/ts@15.6.1': {}
+  '@mux/ts@16.2.0': {}
 
   '@mux/upchunk@3.5.0':
     dependencies:
