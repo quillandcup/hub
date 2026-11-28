@@ -372,6 +372,15 @@ describe("pen names", () => {
     expect(book("book-1")?.title).toBe("Existing");
   });
 
+  it("updateBook keeps a pen name the book already has, even one that is not among the member's own names", async () => {
+    shelve({ pen_name: "Not Mine" });
+    expect(await updateBook("book-1", { ...VALID_INPUT, title: "Retitled", penName: "Not Mine" })).toEqual({ success: true });
+    expect(book("book-1")).toMatchObject({ title: "Retitled", pen_name: "Not Mine" });
+    // Any other name is still checked: once the book has none, "Not Mine" is refused again.
+    book("book-1")!.pen_name = null;
+    expect(await updateBook("book-1", { ...VALID_INPUT, penName: "Not Mine" })).toEqual({ error: "Pick one of your own names" });
+  });
+
   it("getMyPenNameOptions looks up the acting member's options, and is null when signed out", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue(SUDO_IDENTITY);
     vi.mocked(getPenNameOptions).mockResolvedValue({ defaultName: "Sudo Target", others: ["Pen"] });

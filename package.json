@@ -69,6 +69,7 @@
     "covers:adopt": "tsx scripts/adopt-book-covers.ts",
     "photos:adopt": "tsx scripts/adopt-member-photos.ts",
     "books:import": "tsx scripts/import-storefront-books.ts",
+    "books:authors": "tsx scripts/set-book-authors.ts",
     "config:diff": "dotenv run -f .env.prod -- supabase config diff",
     "config:push": "dotenv run -f .env.prod -- supabase config push",
     "slack:manifest:diff": "dotenv run -f .env.prod -f .env.shared -- tsx scripts/slack-manifest.ts diff",

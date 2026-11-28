@@ -64,6 +64,9 @@ export type PublicShelfQuery = {
 /** A book whose cover is still a link, not a library image. */
 export type BookWithLegacyCover = Pick<BookRow, "id" | "member_id" | "title" | "cover_url">;
 
+/** What matching a book to the name listed for it on the old Bookshelf page needs: never a description, cover or link. */
+export type BookAuthorRow = Pick<BookRow, "id" | "member_id" | "title" | "pen_name">;
+
 /** Thrown by {@link BookRepository.add} when the book's project already has a live book. */
 export class BookExistsError extends Error {
   constructor(message = "This project already has a book") {
@@ -167,6 +170,10 @@ export interface BookRepository {
   withoutCoverAsset(): Promise<BookWithLegacyCover[]>;
   /** Points a book at a library image, only if its cover is still `currentUrl` and no image yet. False when it changed meanwhile. */
   adoptCover(id: string, currentUrl: string, cover: { url: string; assetId: string }): Promise<boolean>;
+  /** Every live book with the member it belongs to and its pen name, by id. Paginated. For `pnpm books:authors` (service role). */
+  liveForAuthorMatch(): Promise<BookAuthorRow[]>;
+  /** Sets a live book's pen name only while it has none (null or empty), so a name a member chose is never replaced. False when there is no such live book or it already has one. */
+  setPenNameIfEmpty(id: string, penName: string): Promise<boolean>;
 }
 
 
@@ -331,6 +338,24 @@ export class SupabaseBookRepository implements BookRepository {
       .select("id");
     if (error) throw new Error(error.message);
     return (data ?? []).length > 0;
+  }
+
+  async liveForAuthorMatch() {
+    return fetchAllRows<BookAuthorRow>((from, to) => this.db.from("member_books").select("id, member_id, title, pen_name").is("deleted_at", null).order("id").range(from, to));
+  }
+
+  async setPenNameIfEmpty(id: string, penName: string) {
+    // Two conditional updates, one per way of having no name (null, then empty text), each a single statement that checks as it writes.
+    for (const empty of [(q: ReturnType<typeof this.start>) => q.is("pen_name", null), (q: ReturnType<typeof this.start>) => q.eq("pen_name", "")]) {
+      const { data, error } = await empty(this.start(id, penName)).select("id");
+      if (error) throw new Error(error.message);
+      if ((data ?? []).length > 0) return true;
+    }
+    return false;
+  }
+
+  private start(id: string, penName: string) {
+    return this.db.from("member_books").update({ pen_name: penName }).eq("id", id).is("deleted_at", null);
   }
 }
 
@@ -535,6 +560,19 @@ export class InMemoryBookRepository implements BookRepository {
     const index = this.data.memberBooks.findIndex((b) => b.id === id && b.cover_asset_id === null && bookRow(b).cover_url === currentUrl);
     if (index < 0) return false;
     this.data.memberBooks[index] = { ...this.data.memberBooks[index], cover_url: cover.url, cover_asset_id: cover.assetId };
+    return true;
+  }
+
+  async liveForAuthorMatch() {
+    return this.live()
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map(({ id, member_id, title, pen_name }) => ({ id, member_id, title, pen_name }));
+  }
+
+  async setPenNameIfEmpty(id: string, penName: string) {
+    const index = this.data.memberBooks.findIndex((b) => b.id === id && (b.deleted_at ?? null) === null && !bookRow(b).pen_name);
+    if (index < 0) return false;
+    this.data.memberBooks[index] = { ...this.data.memberBooks[index], pen_name: penName };
     return true;
   }
 }
