@@ -142,7 +142,7 @@ describe("/public-bookshelf as a visitor", () => {
     const ld = container.querySelector('script[type="application/ld+json"]');
     const data = JSON.parse(ld?.textContent ?? "{}");
     expect(data.itemListElement[0].item.name).toBe("Fake Book 1");
-    expect(data.itemListElement[0].item.image).toMatch(new RegExp(`^${APP_URL}/api/media/`));
+    expect((data.itemListElement[0].item.image as string).startsWith(`${APP_URL}/api/media/`)).toBe(true);
   });
 });
 
