@@ -11,6 +11,7 @@ import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, isRememberableVisit, safeNextPath } from '@/lib/safe-next'
 import { coursePreviewRewrite, lessonPreviewRewrite } from '@/lib/courses/preview-path'
+import { publicBookshelfRewrite } from '@/lib/public-bookshelf'
 import { CURRENT_PATH_HEADER, GATES, gateHref } from '@/lib/gates'
 import { blocksStaff, hasVerifiedTotp, isStaffMfaEnforced, staffMfaState } from '@/lib/staff-mfa'
 import { clock } from '@/lib/clock'
@@ -41,6 +42,18 @@ function continueWithPath(request: NextRequest, extraHeaders: Record<string, str
   headers.set(CURRENT_PATH_HEADER, askedFor(request))
   for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
   return NextResponse.next({ request: { headers } })
+}
+
+/**
+ * Rewrites to another page, with the same request headers `continueWithPath` hands over (the address asked for, and the script nonce
+ * of src/lib/csp.ts). Without them Next cannot read the nonce, puts none on its own scripts and styles, and the browser blocks
+ * them while the response's policy names the nonce: the page is drawn but never comes alive.
+ */
+function rewriteWithPath(request: NextRequest, url: URL, extraHeaders: Record<string, string> = {}): NextResponse {
+  const headers = new Headers(request.headers)
+  headers.set(CURRENT_PATH_HEADER, askedFor(request))
+  for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
+  return NextResponse.rewrite(url, { request: { headers } })
 }
 
 /**
@@ -182,6 +195,9 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
   // /p/<slug> is a published landing page (docs/product/LANDING_PAGES.md): the route itself 404s anything that isn't published.
   // /w/<handle> is a writer profile (docs/product/WRITER_PROFILES.md), and /w/sitemap/<n>.xml lists them: the route itself 404s a page
   // that is off or missing, and shows only the fields the member chose.
+  // /sitemap.xml lists the public pages that are not one per member (src/app/sitemap.ts).
+  // /bookshelf is the Hedgie Bookshelf: members get the member page, and a signed-out visitor is rewritten below to the public page
+  // (src/lib/public-bookshelf.ts), which shows only books at the globe.
   // API routes handle their own auth via requireApiPermission/createApiAuth
   const isPublic =
     pathname === '/login' ||
@@ -193,6 +209,7 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
     pathname.startsWith('/p/') ||
     pathname.startsWith('/w/') ||
     pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/')
 
@@ -201,11 +218,12 @@ export async function updateSession(request: NextRequest, requestHeaders: Record
     // A signed-out visitor to a lesson or course address is shown a public preview instead (title,
     // picture and teaser, so a shared link looks good). The page behind the rewrite sends them to
     // /login unless the lesson or course is public, so nothing is shown that wasn't before.
-    const previewPath = lessonPreviewRewrite(pathname) ?? coursePreviewRewrite(pathname)
+    // The Bookshelf address is the one page here that is public in itself: its rewrite shows the books at the globe.
+    const previewPath = lessonPreviewRewrite(pathname) ?? coursePreviewRewrite(pathname) ?? publicBookshelfRewrite(pathname)
     let response: NextResponse
     if (previewPath) {
       url.pathname = previewPath
-      response = NextResponse.rewrite(url)
+      response = rewriteWithPath(request, url, requestHeaders)
     } else {
       url.pathname = '/login'
       url.search = ''

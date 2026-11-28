@@ -62,6 +62,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "public-bookshelf-page",
+    date: "2026-11-27",
+    audience: "engineering",
+    category: "new",
+    title: "The Bookshelf answers to visitors who are not signed in",
+    summary: "The address /bookshelf is now the public Hedgie Bookshelf for anyone not signed in, and still the member page for members.",
+    body: `One address, two pages. A signed-in member opens the member Bookshelf there as before (house level, their own books). The proxy rewrites a signed-out visit to a public page, the same way a signed-out course address shows a preview, so there is no second link to share.
+
+- **Rule.** The public page is made of what the page builder already has: a heading and the Hedgie Bookshelf block, read through the block's own loader (globe only, service role, cached a minute). It adds no reader of its own, and no member data beyond the name on the book. It is indexable, canonical at \`/bookshelf\`, and listed in the site sitemap (\`/sitemap.xml\`, \`src/app/sitemap.ts\`), which robots.txt names beside the writers' sitemaps.
+- **Hooks.** \`src/lib/public-bookshelf.ts\` (the rewrite and the page document); \`src/app/public-bookshelf/page.tsx\`; one more line in \`src/app/sitemap.ts\` for a new public page of this kind.
+- **Detail.** \`docs/product/WRITER_PROFILES.md\`, "The public Hedgie Bookshelf".`,
+  },
+  {
     slug: "billing-reconciliation-purchases",
     date: "2026-11-26",
     audience: "staff",

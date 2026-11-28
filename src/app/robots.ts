@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { WRITER_PROFILES } from "@/lib/config";
+import { APP_URL, WRITER_PROFILES } from "@/lib/config";
+import { SITE_SITEMAP_PATH } from "@/lib/public-bookshelf";
 import { getServiceRepos } from "@/lib/data/server";
 import { sitemapIds, sitemapUrl } from "@/lib/writer-sitemap";
 
@@ -17,6 +18,6 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     .catch(() => 0);
   return {
     rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/"] },
-    sitemap: sitemapIds(count, WRITER_PROFILES.sitemapPageSize).map(sitemapUrl),
+    sitemap: [`${APP_URL}${SITE_SITEMAP_PATH}`, ...sitemapIds(count, WRITER_PROFILES.sitemapPageSize).map(sitemapUrl)],
   };
 }
