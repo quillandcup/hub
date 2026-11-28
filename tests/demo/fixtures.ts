@@ -20,6 +20,7 @@ import { captureWholePage, compareToBaseline, consoleKey, isEnvironmentNoise, pa
  */
 export const test = base.extend<{
   signInAs: (personaKey: string) => Promise<void>;
+  asVisitor: () => Promise<void>;
   consoleLog: void;
   autoPageChecks: boolean;
   pageChecked: void;
@@ -27,19 +28,15 @@ export const test = base.extend<{
   signInAs: async ({ page, context }, provide, testInfo) => {
     await provide(async (personaKey) => {
       await context.addCookies(await sessionCookies(personaKey));
-      const theme = testInfo.project.use.colorScheme === "dark" ? "dark" : "light";
-      await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
-      // Next's dev-mode badge, the feedback bubble and the environment label aren't what a help article or a
-      // showcase is about; keep them out of screenshots.
-      // A constructable stylesheet, not a <style> element: a production build's content security policy only allows nonced
-      // <style> tags, so an injected one is blocked (and logged as a console error on every page). The app's policy is untouched.
-      await page.addInitScript(() => {
-        document.addEventListener("DOMContentLoaded", () => {
-          const hide = new CSSStyleSheet();
-          hide.replaceSync("nextjs-portal, [data-feedback-widget], [data-environment-indicator] { display: none !important; }");
-          document.adoptedStyleSheets = [...document.adoptedStyleSheets, hide];
-        });
-      });
+      await prepareBrowser(page, testInfo);
+    });
+  },
+
+  // A visitor who is not signed in: the same theme and the same hidden development furniture as `signInAs`, with no session.
+  asVisitor: async ({ page, context }, provide, testInfo) => {
+    await provide(async () => {
+      await context.clearCookies();
+      await prepareBrowser(page, testInfo);
     });
   },
 
@@ -88,6 +85,23 @@ export const test = base.extend<{
     { auto: true },
   ],
 });
+
+/** Pins the theme to the project's colour scheme and hides what is not the app's (see `signInAs`). */
+async function prepareBrowser(page: Page, testInfo: TestInfo) {
+  const theme = testInfo.project.use.colorScheme === "dark" ? "dark" : "light";
+  await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
+  // Next's dev-mode badge, the feedback bubble and the environment label aren't what a help article or a
+  // showcase is about; keep them out of screenshots.
+  // A constructable stylesheet, not a <style> element: a production build's content security policy only allows nonced
+  // <style> tags, so an injected one is blocked (and logged as a console error on every page). The app's policy is untouched.
+  await page.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const hide = new CSSStyleSheet();
+      hide.replaceSync("nextjs-portal, [data-feedback-widget], [data-environment-indicator] { display: none !important; }");
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, hide];
+    });
+  });
+}
 
 export { expect } from "playwright/test";
 
