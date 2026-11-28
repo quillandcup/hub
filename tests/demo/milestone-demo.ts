@@ -163,3 +163,30 @@ export async function projectIdOf(key: string): Promise<string> {
   const row = await ok("project", admin().from("writing_projects").select("id").eq("member_id", memberId).eq("external_id", `demo-ms-${key}`).single());
   return row!.id;
 }
+
+/** What the demo writer's rows and the `writer_profiles` flag were before a scene set them up, so `restoreWriter` can put them back. */
+export interface WriterSnapshot {
+  flag: { enabled_globally: boolean } | null;
+  displayName: string | null;
+}
+
+export async function snapshotWriter(): Promise<WriterSnapshot> {
+  const db = admin();
+  const memberId = await writerMemberId();
+  const flag = await ok("flag", db.from("feature_flags").select("enabled_globally").eq("feature_key", "writer_profiles").maybeSingle());
+  const member = await ok("member", db.from("members").select("display_name").eq("id", memberId).single());
+  return { flag: flag ?? null, displayName: member?.display_name ?? null };
+}
+
+/** Removes what the setups wrote (milestones, books, projects, the writer profile) and puts the flag and the name back as `before` found them. */
+export async function restoreWriter(before: WriterSnapshot) {
+  const db = admin();
+  const memberId = await writerMemberId();
+  await ok("clear milestones", db.from("member_milestones").delete().eq("member_id", memberId));
+  await ok("clear books", db.from("member_books").delete().eq("member_id", memberId));
+  await ok("clear projects", db.from("writing_projects").delete().eq("member_id", memberId));
+  await ok("clear page", db.from("writer_profiles").delete().eq("member_id", memberId));
+  await ok("name", db.from("members").update({ display_name: before.displayName }).eq("id", memberId));
+  if (before.flag) await ok("flag", db.from("feature_flags").update({ enabled_globally: before.flag.enabled_globally }).eq("feature_key", "writer_profiles"));
+  else await ok("flag", db.from("feature_flags").delete().eq("feature_key", "writer_profiles"));
+}
