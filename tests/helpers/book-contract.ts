@@ -471,5 +471,29 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       expect(await ctx.repo().adoptCover(old, moved.url, moved)).toBe(false);
       expect((await ctx.repo().withoutCoverAsset()).some((b) => b.id === old)).toBe(false);
     });
+
+    it("lists live books for author matching and sets a pen name only while there is none", async () => {
+      const [m1, m2] = await ctx.members();
+      const plain = await ctx.repo().add(book(m1.id, ctx.unique("Plain")));
+      const named = await ctx.repo().add(book(m2.id, ctx.unique("Named"), { pen_name: "Chosen Pen" }));
+      const gone = await ctx.repo().add(book(m1.id, ctx.unique("Gone")));
+      await ctx.repo().remove(gone);
+
+      const listed = (await ctx.repo().liveForAuthorMatch()).filter((b) => [plain, named, gone].includes(b.id));
+      expect(listed.map((b) => b.id).sort()).toEqual([plain, named].sort());
+      expect(listed.find((b) => b.id === plain)).toEqual({ id: plain, member_id: m1.id, title: expect.any(String), pen_name: null });
+      expect(listed.find((b) => b.id === named)).toMatchObject({ member_id: m2.id, pen_name: "Chosen Pen" });
+
+      expect(await ctx.repo().setPenNameIfEmpty(plain, "Listed Name")).toBe(true);
+      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === plain)?.pen_name).toBe("Listed Name");
+      // Run twice is safe, and a name a member chose is never replaced.
+      expect(await ctx.repo().setPenNameIfEmpty(plain, "Other Name")).toBe(false);
+      expect(await ctx.repo().setPenNameIfEmpty(named, "Listed Name")).toBe(false);
+      expect((await ctx.repo().mine(m2.id)).find((b) => b.id === named)?.pen_name).toBe("Chosen Pen");
+      // A deleted book is not touched, and an empty pen name counts as none.
+      expect(await ctx.repo().setPenNameIfEmpty(gone, "Listed Name")).toBe(false);
+      const empty = await ctx.repo().add(book(m1.id, ctx.unique("Empty"), { pen_name: "" }));
+      expect(await ctx.repo().setPenNameIfEmpty(empty, "Listed Name")).toBe(true);
+    });
   });
 }

@@ -154,10 +154,13 @@ async function updateBookImpl(
   const validationError = validateBookInput(input);
   if (validationError) return { error: validationError };
 
-  const pen = await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
+  const { media, books } = createRepos(supabase);
+  // A pen name the book already has stays as it is (staff set some from the old Bookshelf list, `pnpm books:authors`, and they are not
+  // all among the member's own names), so editing something else about the book never fails on it; a different one is checked as ever.
+  const keeps = input.penName?.trim() && input.penName.trim() === (await books.mine(effectiveIdentity.memberId)).find((b) => b.id === bookId)?.pen_name;
+  const pen = keeps ? { penName: input.penName!.trim() } : await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
   if ("error" in pen) return pen;
 
-  const { media, books } = createRepos(supabase);
   const cover = await resolveBookCover(media, effectiveIdentity.memberId, input.coverUrl);
   if ("error" in cover) return cover;
 
